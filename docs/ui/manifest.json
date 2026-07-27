@@ -1,0 +1,63 @@
+{
+  "version": "camovar-ui-spec-v1",
+  "pages": [
+    {
+      "id": "data",
+      "title": "Data",
+      "spec": "pages/data.md"
+    },
+    {
+      "id": "metadata",
+      "title": "Metadata",
+      "spec": "pages/metadata.md"
+    },
+    {
+      "id": "univariate",
+      "title": "Univariate",
+      "spec": "pages/univariate.md"
+    },
+    {
+      "id": "filter",
+      "title": "Filter",
+      "spec": "pages/filter.md"
+    },
+    {
+      "id": "diversification",
+      "title": "Diversification",
+      "spec": "pages/diversification.md"
+    },
+    {
+      "id": "portfolio",
+      "title": "Portfolio",
+      "spec": "pages/portfolio.md"
+    },
+    {
+      "id": "validation",
+      "title": "Validation",
+      "spec": "pages/validation.md"
+    },
+    {
+      "id": "report",
+      "title": "Report",
+      "spec": "pages/report.md"
+    },
+    {
+      "id": "settings",
+      "title": "Settings",
+      "spec": "pages/settings.md"
+    },
+    {
+      "id": "account",
+      "title": "Account",
+      "spec": "pages/account.md"
+    }
+  ],
+  "route_boundaries": {
+    "generic_components": "docs/ui/component-contracts.md",
+    "page_specifications": "docs/ui/page-specifications.md",
+    "loading_error": "docs/ui/loading-error-semantics.md",
+    "responsive_rules": "docs/ui/responsive-rules.md",
+    "accessibility": "docs/ui/accessibility.md"
+  }
+}
+

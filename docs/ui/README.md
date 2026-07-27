@@ -1,6 +1,21 @@
-# Camovar UI Specifications
+# Camovar UI Specification Set
+
+Last reviewed: 2026-07-27
 
 This directory is the canonical specification source for the Camovar Web UI.
+It is the versioned UI specification layer for the React refactor stack and the
+current Research Funnel UI.
+
+The specs here are intentionally split into the same concepts used by the refactor stack:
+
+- design principles and safety boundaries
+- information architecture and route map
+- user roles and persisted flows
+- page specifications and route-level windows
+- component contracts
+- responsive, accessibility, and loading/error rules
+
+These docs are read-only artifacts. They do not introduce runtime behaviour.
 
 ## Structure
 
@@ -8,6 +23,15 @@ This directory is the canonical specification source for the Camovar Web UI.
 - `layout/footer.md`: global footer contract.
 - `windows/`: one Markdown specification per UI window or route-level screen.
 - `templates/window-spec-template.md`: mandatory structure for new window specifications.
+- `principles.md`: design principles and safety boundaries.
+- `information-architecture.md`: route map and content model.
+- `user-flows.md`: persisted user journeys through the funnel.
+- `page-specifications.md`: page and route requirements.
+- `component-contracts.md`: reusable component responsibilities.
+- `responsive-rules.md`: viewport behaviour and layout rules.
+- `accessibility.md`: keyboard, contrast, and assistive-tech rules.
+- `loading-error-semantics.md`: loading, empty, warning, and error states.
+- `manifest.json`: route manifest and validation input.
 
 ## Rules
 

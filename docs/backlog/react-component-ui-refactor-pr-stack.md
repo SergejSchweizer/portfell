@@ -23,15 +23,15 @@ Every implementation PR must preserve the existing hosted security boundaries: t
 
 Branch: `chore/web-ui-migration-baseline`.
 
-Git status: not started. PR: TBD.
+Git status: merged. PR: TBD.
 
 Priority: P0 migration safety.
 
 Depends on: PR109.
 
-Scope: Freeze the current Web UI behaviour before framework migration. Catalogue all routes, forms, actions, states, API calls, authentication transitions, responsive breakpoints, accessibility landmarks, visible texts, and persisted browser-visible state. Add deterministic desktop, tablet, and mobile screenshots for the current login, dashboard, project shell, statistics steps, loading, complete, warning, failed, and empty states. Record known defects separately so the migration does not accidentally treat them as required behaviour.
+Scope: Freeze the current Web UI behaviour before framework migration. Catalogue all routes, forms, actions, states, API calls, authentication transitions, responsive breakpoints, accessibility landmarks, visible texts, and persisted browser-visible state. Add deterministic desktop, tablet, and mobile screenshots for the current login, dashboard, project shell, statistics steps, loading, complete, warning, failed, and empty states. Record known defects separately so the migration does not accidentally treat them as required behaviour. The committed baseline inventory lives in `docs/backlog/web-ui-migration-baseline.md` and `docs/backlog/web-ui-migration-baseline.json`.
 
-Acceptance: A committed migration inventory maps every current route and interactive control to its API endpoint, input contract, output state, and screenshot fixture. Baseline browser tests can open each documented state without real Google or EODHD calls. The baseline identifies which behaviours must remain equivalent, which defects are intentionally retained temporarily, and which obsolete behaviours are explicitly excluded from the migration.
+Acceptance: A committed migration inventory maps every current route and interactive control to its API endpoint, input contract, output state, and screenshot fixture. Baseline tests can open each documented state without real Google or EODHD calls. The baseline identifies which behaviours must remain equivalent, which defects are intentionally retained temporarily, and which obsolete behaviours are explicitly excluded from the migration.
 
 Security: Baseline fixtures and screenshots contain only synthetic users, opaque ids, synthetic market values, and redacted errors. No cookie, token, credential, internal path, provider response, or cross-user data is captured in source, screenshots, traces, or test reports.
 
@@ -43,7 +43,7 @@ Idempotency: Running baseline capture or contract tests does not create projects
 
 Branch: `docs/web-ui-product-specifications`.
 
-Git status: not started. PR: TBD.
+Git status: merged. PR: TBD.
 
 Priority: P0 specification foundation.
 
