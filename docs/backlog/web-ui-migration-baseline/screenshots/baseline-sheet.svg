@@ -1,0 +1,145 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1320" height="1440" viewBox="0 0 1320 1440" role="img" aria-labelledby="title desc">
+  <title id="title">Camovar Web UI migration baseline sheet</title>
+  <desc id="desc">Composite deterministic visual baseline covering login, dashboard, project shell, statistics, loading, complete, warning, failed, and empty states across desktop, tablet, and mobile viewports.</desc>
+  <style>
+    .bg { fill: #f8fafd; }
+    .panel { fill: #ffffff; stroke: #dadce0; stroke-width: 2; rx: 14; }
+    .heading { font: 700 26px ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #202124; }
+    .subhead { font: 600 16px ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #1a73e8; }
+    .label { font: 600 15px ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #5f6368; }
+    .text { font: 14px ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #202124; }
+    .muted { font: 13px ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #5f6368; }
+  </style>
+  <rect class="bg" x="0" y="0" width="1320" height="1440" />
+
+  <text class="heading" x="24" y="40">Camovar Web UI migration baseline</text>
+  <text class="muted" x="24" y="66">Desktop / tablet / mobile panels preserve the current login, dashboard, project shell, statistics, loading, complete, warning, failed, and empty states.</text>
+
+  <g transform="translate(24,96)">
+    <rect class="panel" x="0" y="0" width="408" height="140" />
+    <rect class="panel" x="444" y="0" width="408" height="140" />
+    <rect class="panel" x="888" y="0" width="408" height="140" />
+    <text class="subhead" x="16" y="28">Login</text>
+    <text class="label" x="16" y="56">Desktop</text>
+    <text class="text" x="16" y="82">Sign in to continue</text>
+    <text class="muted" x="16" y="106">Google Login · Checking session...</text>
+    <text class="label" x="460" y="56">Tablet</text>
+    <text class="text" x="460" y="82">Sign in to continue</text>
+    <text class="muted" x="460" y="106">Google Login · Checking session...</text>
+    <text class="label" x="904" y="56">Mobile</text>
+    <text class="text" x="904" y="82">Sign in to continue</text>
+    <text class="muted" x="904" y="106">Google Login · Checking session...</text>
+  </g>
+
+  <g transform="translate(24,256)">
+    <rect class="panel" x="0" y="0" width="408" height="140" />
+    <rect class="panel" x="444" y="0" width="408" height="140" />
+    <rect class="panel" x="888" y="0" width="408" height="140" />
+    <text class="subhead" x="16" y="28">Dashboard</text>
+    <text class="label" x="16" y="56">Desktop</text>
+    <text class="text" x="16" y="82">Projects · Fetch all ISINs</text>
+    <text class="muted" x="16" y="106">Project Definition · 0 ISINs</text>
+    <text class="label" x="460" y="56">Tablet</text>
+    <text class="text" x="460" y="82">Projects · Fetch all ISINs</text>
+    <text class="muted" x="460" y="106">Project Definition · 0 ISINs</text>
+    <text class="label" x="904" y="56">Mobile</text>
+    <text class="text" x="904" y="82">Projects · Fetch all ISINs</text>
+    <text class="muted" x="904" y="106">Project Definition · 0 ISINs</text>
+  </g>
+
+  <g transform="translate(24,416)">
+    <rect class="panel" x="0" y="0" width="408" height="140" />
+    <rect class="panel" x="444" y="0" width="408" height="140" />
+    <rect class="panel" x="888" y="0" width="408" height="140" />
+    <text class="subhead" x="16" y="28">Project shell: empty</text>
+    <text class="label" x="16" y="56">Desktop</text>
+    <text class="text" x="16" y="82">No project selected</text>
+    <text class="muted" x="16" y="106">Exchange · Name · Country · Currency</text>
+    <text class="label" x="460" y="56">Tablet</text>
+    <text class="text" x="460" y="82">No project selected</text>
+    <text class="muted" x="460" y="106">Exchange · Name · Country · Currency</text>
+    <text class="label" x="904" y="56">Mobile</text>
+    <text class="text" x="904" y="82">No project selected</text>
+    <text class="muted" x="904" y="106">Exchange · Name · Country · Currency</text>
+  </g>
+
+  <g transform="translate(24,576)">
+    <rect class="panel" x="0" y="0" width="408" height="140" />
+    <rect class="panel" x="444" y="0" width="408" height="140" />
+    <rect class="panel" x="888" y="0" width="408" height="140" />
+    <text class="subhead" x="16" y="28">Project shell: selected</text>
+    <text class="label" x="16" y="56">Desktop</text>
+    <text class="text" x="16" y="82">Statistics path map</text>
+    <text class="muted" x="16" y="106">Load Data · Univariate · Bivariate · Multivariate</text>
+    <text class="label" x="460" y="56">Tablet</text>
+    <text class="text" x="460" y="82">Statistics path map</text>
+    <text class="muted" x="460" y="106">Load Data · Univariate · Bivariate · Multivariate</text>
+    <text class="label" x="904" y="56">Mobile</text>
+    <text class="text" x="904" y="82">Statistics path map</text>
+    <text class="muted" x="904" y="106">Load Data · Univariate · Bivariate · Multivariate</text>
+  </g>
+
+  <g transform="translate(24,736)">
+    <rect class="panel" x="0" y="0" width="408" height="140" />
+    <rect class="panel" x="444" y="0" width="408" height="140" />
+    <rect class="panel" x="888" y="0" width="408" height="140" />
+    <text class="subhead" x="16" y="28">Statistics: loading</text>
+    <text class="label" x="16" y="56">Desktop</text>
+    <text class="text" x="16" y="82">Loading statistics summary...</text>
+    <text class="muted" x="16" y="106">Idle. Select Compute.</text>
+    <text class="label" x="460" y="56">Tablet</text>
+    <text class="text" x="460" y="82">Loading statistics summary...</text>
+    <text class="muted" x="460" y="106">Idle. Select Compute.</text>
+    <text class="label" x="904" y="56">Mobile</text>
+    <text class="text" x="904" y="82">Loading statistics summary...</text>
+    <text class="muted" x="904" y="106">Idle. Select Compute.</text>
+  </g>
+
+  <g transform="translate(24,896)">
+    <rect class="panel" x="0" y="0" width="408" height="140" />
+    <rect class="panel" x="444" y="0" width="408" height="140" />
+    <rect class="panel" x="888" y="0" width="408" height="140" />
+    <text class="subhead" x="16" y="28">Statistics: complete</text>
+    <text class="label" x="16" y="56">Desktop</text>
+    <text class="text" x="16" y="82">Loaded selected ISINs.</text>
+    <text class="muted" x="16" y="106">Completed univariate statistics.</text>
+    <text class="label" x="460" y="56">Tablet</text>
+    <text class="text" x="460" y="82">Loaded selected ISINs.</text>
+    <text class="muted" x="460" y="106">Completed univariate statistics.</text>
+    <text class="label" x="904" y="56">Mobile</text>
+    <text class="text" x="904" y="82">Loaded selected ISINs.</text>
+    <text class="muted" x="904" y="106">Completed univariate statistics.</text>
+  </g>
+
+  <g transform="translate(24,1056)">
+    <rect class="panel" x="0" y="0" width="408" height="140" />
+    <rect class="panel" x="444" y="0" width="408" height="140" />
+    <rect class="panel" x="888" y="0" width="408" height="140" />
+    <text class="subhead" x="16" y="28">Statistics: warning</text>
+    <text class="label" x="16" y="56">Desktop</text>
+    <text class="text" x="16" y="82">Fetch failed.</text>
+    <text class="muted" x="16" y="106">Statistics summary is not available.</text>
+    <text class="label" x="460" y="56">Tablet</text>
+    <text class="text" x="460" y="82">Fetch failed.</text>
+    <text class="muted" x="460" y="106">Statistics summary is not available.</text>
+    <text class="label" x="904" y="56">Mobile</text>
+    <text class="text" x="904" y="82">Fetch failed.</text>
+    <text class="muted" x="904" y="106">Statistics summary is not available.</text>
+  </g>
+
+  <g transform="translate(24,1216)">
+    <rect class="panel" x="0" y="0" width="408" height="140" />
+    <rect class="panel" x="444" y="0" width="408" height="140" />
+    <rect class="panel" x="888" y="0" width="408" height="140" />
+    <text class="subhead" x="16" y="28">Statistics: failed / empty</text>
+    <text class="label" x="16" y="56">Desktop</text>
+    <text class="text" x="16" y="82">Choose at least one filter with matching ISINs.</text>
+    <text class="muted" x="16" y="106">No univariate statistics are available yet.</text>
+    <text class="label" x="460" y="56">Tablet</text>
+    <text class="text" x="460" y="82">Choose at least one filter with matching ISINs.</text>
+    <text class="muted" x="460" y="106">No univariate statistics are available yet.</text>
+    <text class="label" x="904" y="56">Mobile</text>
+    <text class="text" x="904" y="82">Choose at least one filter with matching ISINs.</text>
+    <text class="muted" x="904" y="106">No univariate statistics are available yet.</text>
+  </g>
+</svg>
