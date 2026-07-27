@@ -97,6 +97,26 @@ Each page spec must document:
 - Stale behaviour: report becomes stale when validation or portfolio outputs change.
 - Component dependencies: page header, action buttons, loading and warning states.
 
+## Stress
+
+- User goal: inspect stress-warning and offline-recovery shell states.
+- Inputs: stress fixture and upstream risk state.
+- Outputs: warning copy and recovery guidance.
+- Layout: summary panel and warning messaging.
+- Dependency rules: depends on upstream risk or portfolio state where present.
+- Stale behaviour: stress views become stale when upstream data changes.
+- Component dependencies: status badges, warning state, empty state.
+
+## Recommendation
+
+- User goal: inspect recommendation-ready and report-ready shell states.
+- Inputs: recommendation fixture and recommendation API result.
+- Outputs: recommendation summary and report pathway.
+- Layout: summary panel and supporting actions.
+- Dependency rules: depends on validated upstream state.
+- Stale behaviour: recommendation state becomes stale when upstream data changes.
+- Component dependencies: page header, panel, status badges, action buttons.
+
 ## Settings
 
 - User goal: adjust display and workflow preferences.
@@ -116,4 +136,3 @@ Each page spec must document:
 - Dependency rules: remains server-owned.
 - Stale behaviour: session expiry returns the user to the login gate.
 - Component dependencies: brand component, navigation, logout action, status badge.
-

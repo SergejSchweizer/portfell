@@ -13,7 +13,8 @@ The specs here are intentionally split into the same concepts used by the refact
 - user roles and persisted flows
 - page specifications and route-level windows
 - component contracts
-- responsive, accessibility, and loading/error rules
+- responsive, accessibility, and loading-error rules
+- fixture scenarios for browser-level UI tests
 
 These docs are read-only artifacts. They do not introduce runtime behaviour.
 
@@ -31,6 +32,7 @@ These docs are read-only artifacts. They do not introduce runtime behaviour.
 - `responsive-rules.md`: viewport behaviour and layout rules.
 - `accessibility.md`: keyboard, contrast, and assistive-tech rules.
 - `loading-error-semantics.md`: loading, empty, warning, and error states.
+- `fixtures.md`: fixture scenarios and browser-facing mock contract.
 - `manifest.json`: route manifest and validation input.
 
 ## Rules
