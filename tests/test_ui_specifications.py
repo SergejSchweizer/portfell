@@ -26,6 +26,8 @@ def test_ui_specification_manifest_lists_every_planned_page() -> None:
         "portfolio",
         "validation",
         "report",
+        "stress",
+        "recommendation",
         "settings",
         "account",
     ]
@@ -49,6 +51,8 @@ def test_ui_specifications_cover_required_boundary_topics() -> None:
         "provider keys",
         "session tokens",
         "internal storage paths",
+        "Fixture scenarios",
+        "camovar-ui-fixtures-v1",
     ):
         assert expected in joined
 
@@ -66,6 +70,8 @@ def test_ui_page_specs_cover_accepted_research_funnel_pages() -> None:
         "portfolio",
         "validation",
         "report",
+        "stress",
+        "recommendation",
         "settings",
         "account",
     ):

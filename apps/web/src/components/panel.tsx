@@ -1,0 +1,15 @@
+import type { ReactNode } from "react";
+
+export type PanelProps = Readonly<{
+  title?: string;
+  children: ReactNode;
+}>;
+
+export function Panel({ title, children }: PanelProps) {
+  return (
+    <section className="camovar-panel">
+      {title ? <h2>{title}</h2> : null}
+      {children}
+    </section>
+  );
+}

@@ -7,6 +7,8 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 WEB_SERVER = REPOSITORY_ROOT / "apps" / "web" / "server.js"
 WEB_PACKAGE = REPOSITORY_ROOT / "apps" / "web" / "package.json"
 WEB_DOCKERFILE = REPOSITORY_ROOT / "apps" / "web" / "Dockerfile"
+WEB_DESIGN_TOKENS = REPOSITORY_ROOT / "apps" / "web" / "design-tokens.json"
+WEB_APP_STYLES = REPOSITORY_ROOT / "apps" / "web" / "styles" / "app.css"
 
 
 def _web_source() -> str:
@@ -48,6 +50,7 @@ def test_web_shell_exposes_user_research_funnel_surfaces() -> None:
 
 def test_dashboard_shell_is_gated_until_authenticated_session() -> None:
     source = _web_source()
+    styles = WEB_APP_STYLES.read_text(encoding="utf-8")
 
     assert "data-auth-gate" in source
     assert 'id="authenticated-root"' in source
@@ -57,12 +60,12 @@ def test_dashboard_shell_is_gated_until_authenticated_session() -> None:
     assert "initialSession && initialSession.authenticated === true" in source
     assert "brandMarkup(session = null)" in source
     assert 'class="brand-user" data-auth-user' in source
-    assert "text-transform: lowercase;" in source
+    assert "text-transform: lowercase;" in styles
     assert "data-authenticated-template" in source
     assert "initializeAuthGate()" in source
     assert "mountAuthenticatedShell(session)" in source
     assert "bindAuthenticatedHandlers()" in source
-    assert "[hidden] { display: none !important; }" in source
+    assert "[hidden] { display: none !important; }" in styles
     assert 'meta[name="camovar-csrf-token"]' in source
     assert "session.csrf_token" in source
     assert "Google login is required before the dashboard is shown." in source
@@ -71,6 +74,8 @@ def test_dashboard_shell_is_gated_until_authenticated_session() -> None:
 
 def test_web_shell_defines_versioned_design_system_and_route_skeletons() -> None:
     source = _web_source()
+    styles = WEB_APP_STYLES.read_text(encoding="utf-8")
+    tokens = WEB_DESIGN_TOKENS.read_text(encoding="utf-8")
 
     assert 'data-design-system-version="camovar-web-shell-v1"' in source
     for token in (
@@ -78,14 +83,23 @@ def test_web_shell_defines_versioned_design_system_and_route_skeletons() -> None
         "spacing",
         "color",
         "radius",
+    ):
+        assert token in tokens
+
+    for token in (
         "--page-title",
         "--section-title",
         "--canvas",
         "--surface",
         "--focus",
         "@media (prefers-reduced-motion: reduce)",
+        "@layer base, components, responsive;",
+        ".app-shell",
+        ".statistics-path",
+        ".project-definition",
+        "@media (max-width: 1040px)",
     ):
-        assert token in source
+        assert token in styles
 
     assert 'id: "univariate"' in source
     assert 'id: "bivariate"' in source
@@ -96,8 +110,8 @@ def test_web_shell_defines_versioned_design_system_and_route_skeletons() -> None
     assert 'aria-label="Project routes"' not in source
     assert "data-sidebar-resizer" in source
     assert 'aria-label="Resize sidebar"' in source
-    assert "--sidebar-width" in source
-    assert "grid-template-columns: var(--sidebar-width) 8px minmax(0, 1fr)" in source
+    assert "--sidebar-width" in styles
+    assert "grid-template-columns: var(--sidebar-width) 8px minmax(0, 1fr)" in styles
     assert "bindSidebarResizer()" in source
     assert "setSidebarWidth(width)" in source
     assert "clampSidebarWidth(width)" in source
@@ -105,7 +119,7 @@ def test_web_shell_defines_versioned_design_system_and_route_skeletons() -> None
     assert 'event.key === "ArrowRight"' in source
     assert "pointerdown" in source
     assert "pointermove" in source
-    assert "margin-bottom: 32px;" in source
+    assert "margin-bottom: 32px;" in styles
 
     for removed in (
         "Downloads",
@@ -119,7 +133,8 @@ def test_web_shell_defines_versioned_design_system_and_route_skeletons() -> None
 
 
 def test_web_shell_uses_google_style_material_color_tokens() -> None:
-    source = _web_source()
+    tokens = json.loads(WEB_DESIGN_TOKENS.read_text(encoding="utf-8"))
+    styles = WEB_APP_STYLES.read_text(encoding="utf-8")
 
     for token in (
         "#1a73e8",
@@ -132,11 +147,12 @@ def test_web_shell_uses_google_style_material_color_tokens() -> None:
         "rgba(60, 64, 67",
         "#e8f0fe",
     ):
-        assert token in source
+        assert token in json.dumps(tokens) or token in styles
 
 
 def test_web_shell_models_statistics_path_order_and_compute_pages() -> None:
     source = _web_source()
+    styles = WEB_APP_STYLES.read_text(encoding="utf-8")
 
     positions = [
         source.index(f'id: "{step}"')
@@ -152,9 +168,6 @@ def test_web_shell_models_statistics_path_order_and_compute_pages() -> None:
         "isLoadData ? apiRoutes.loadSelectedIsins : apiRoutes.statisticsCompute(kind)",
         'isLoadData ? "load-data" : kind + "-statistics"',
         "Loaded selected ISINs.",
-        "display: flex;",
-        "flex-wrap: nowrap;",
-        "overflow-x: auto;",
         "if (nextStep && statisticsStepEnabled(nextStep.id)) showStatisticsPage(nextStep.id);",
         'if (!result.status || result.status === "succeeded")',
         '"load-data": Boolean(project && project.data_loaded === true)',
@@ -195,7 +208,7 @@ def test_web_shell_models_statistics_path_order_and_compute_pages() -> None:
         "apiRoutes.statisticsCompute(kind)",
         'method: "POST"',
     ):
-        assert expected in source
+        assert expected in source or expected in styles
 
     assert 'if (kind === "univariate") void loadUnivariateStatisticsSummary();' not in source
 
@@ -386,9 +399,18 @@ def test_web_package_remains_local_container_runnable_without_external_calls() -
 
     assert package["private"] is True
     assert package["scripts"]["start"] == "node server.js"
-    assert package["dependencies"] == {}
+    assert package["scripts"]["dev"] == "vite"
+    assert package["scripts"]["build"] == "vite build"
+    assert package["scripts"]["typecheck"] == "tsc -p tsconfig.json --noEmit"
+    assert package["dependencies"] == {"react": "^19.1.1", "react-dom": "^19.1.1"}
+    for dependency in ("vite", "typescript", "@vitejs/plugin-react"):
+        assert dependency in package["devDependencies"]
 
     dockerfile = WEB_DOCKERFILE.read_text(encoding="utf-8")
     assert "COPY apps/web/package.json ./" in dockerfile
     assert "COPY apps/web/server.js ./" in dockerfile
+    assert "COPY apps/web/design-tokens.json ./" in dockerfile
+    assert "COPY apps/web/styles ./styles" in dockerfile
+    assert "COPY apps/web/index.html ./" in dockerfile
+    assert "COPY apps/web/src ./src" in dockerfile
     assert 'CMD ["node", "server.js"]' in dockerfile
