@@ -274,7 +274,7 @@ Idempotency: Replaying the complete synthetic workflow creates no duplicate cred
 
 Branch: `refactor/remove-google-authentication`.
 
-Git status: in progress. PR: TBD.
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/196.
 
 Priority: P0 local-runtime simplification.
 
