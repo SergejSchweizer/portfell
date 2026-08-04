@@ -63,6 +63,60 @@ jobs:
           template.unlink()
           template.parent.rmdir()
 
+          bivariate_path = Path("src/camovar/bivariate_statistics.py")
+          bivariate_text = bivariate_path.read_text(encoding="utf-8")
+          bivariate_text, removed_functions = re.subn(
+              r"\n\ndef read_legacy_bivariate_pair\([\s\S]*?\n\ndef _listing_key",
+              "\n\ndef _listing_key",
+              bivariate_text,
+              count=1,
+          )
+          if removed_functions != 1:
+              raise RuntimeError("obsolete bivariate reader was not removed")
+          bivariate_text = bivariate_text.replace(
+              '    "read_legacy_bivariate_pair",\n', ""
+          )
+          bivariate_path.write_text(bivariate_text, encoding="utf-8")
+
+          paths_path = Path("src/camovar/paths.py")
+          paths_text = paths_path.read_text(encoding="utf-8")
+          paths_text, removed_paths = re.subn(
+              r"\n    def gold_bivariate_statistics_pair\([\s\S]*?\n    def gold_bivariate_statistics_bucket",
+              "\n    def gold_bivariate_statistics_bucket",
+              paths_text,
+              count=1,
+          )
+          if removed_paths != 1:
+              raise RuntimeError("obsolete bivariate path was not removed")
+          paths_path.write_text(paths_text, encoding="utf-8")
+
+          bivariate_test_path = Path("tests/test_bivariate_statistics.py")
+          bivariate_test = bivariate_test_path.read_text(encoding="utf-8")
+          bivariate_test = bivariate_test.replace(
+              "    read_legacy_bivariate_pair,\n", ""
+          )
+          bivariate_test, removed_tests = re.subn(
+              r"\n\ndef test_read_legacy_bivariate_pair_reads_pre_bucketed_layout\([\s\S]*\Z",
+              "\n",
+              bivariate_test,
+              count=1,
+          )
+          if removed_tests != 1:
+              raise RuntimeError("obsolete bivariate test was not removed")
+          bivariate_test_path.write_text(bivariate_test, encoding="utf-8")
+
+          contracts_path = Path("CONTRACTS.md")
+          contracts = contracts_path.read_text(encoding="utf-8")
+          contracts, removed_contracts = re.subn(
+              r" `camovar\.bivariate_statistics\.read_legacy_bivariate_pair` remains available[\s\S]*?new writes never use that layout\.",
+              "",
+              contracts,
+              count=1,
+          )
+          if removed_contracts != 1:
+              raise RuntimeError("obsolete bivariate contract was not removed")
+          contracts_path.write_text(contracts, encoding="utf-8")
+
           forbidden = (
               "fetch_all_isins",
               "fetch-all-isins",
@@ -71,6 +125,7 @@ jobs:
               "renderAppShell",
               "renderAuthenticatedShell",
               "read_legacy_bivariate_pair",
+              "gold_bivariate_statistics_pair",
           )
           for test_path in Path("tests").rglob("*.py"):
               test_text = test_path.read_text(encoding="utf-8")
@@ -126,7 +181,8 @@ jobs:
             tests/test_web_react_scaffold.py \
             tests/test_hosted_web_ui.py \
             tests/test_hosted_runtime_compose.py \
-            tests/test_entrypoints.py -q
+            tests/test_entrypoints.py \
+            tests/test_bivariate_statistics.py -q
 
       - name: Commit generated migration
         run: |
