@@ -62,6 +62,12 @@ SIMPLE_UI_PR_DEPENDENCIES = {
     122: "PR121",
     123: "PR122",
 }
+SIMPLE_UI_PR_STATUSES = {
+    120: "in progress",
+    121: "not started",
+    122: "not started",
+    123: "not started",
+}
 
 HOSTED_REQUIREMENTS_BY_PR = {
     84: "Architecture decision, threat model, and prohibited designs",
@@ -209,7 +215,7 @@ def test_platform_inspired_simple_ui_stack_is_atomic_ordered_and_mark_neutral() 
         section = _pr_section(backlog, pr_number)
         positions.append(design.index(f"### PR{pr_number}. {title}"))
         assert f"Depends on: {SIMPLE_UI_PR_DEPENDENCIES[pr_number]}." in section
-        assert "Git status: not started. PR: TBD." in section
+        assert f"Git status: {SIMPLE_UI_PR_STATUSES[pr_number]}. PR: TBD." in section
         for required_field in (
             "Scope:",
             "Acceptance:",

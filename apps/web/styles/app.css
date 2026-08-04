@@ -1,7 +1,23 @@
 
 :root {
-  color: #202124;
-  background: #f6f8fb;
+  --canvas: #f6f8fb;
+  --surface: #ffffff;
+  --surface-subtle: #eaf2ff;
+  --text: #202124;
+  --text-muted: #5f6368;
+  --border: #dfe3e8;
+  --border-strong: #c7cdd4;
+  --accent: #1769e0;
+  --accent-hover: #0b57d0;
+  --focus: rgba(23, 105, 224, .28);
+  --success: #137333;
+  --warning: #b06000;
+  --danger: #b3261e;
+  --disabled: #6d7278;
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-6: 24px; --space-8: 32px; --space-12: 48px;
+  --radius-sm: 4px; --radius-md: 6px; --radius-lg: 8px;
+  color: var(--text);
+  background: var(--canvas);
   font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 14px;
 }
@@ -25,6 +41,15 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
   outline: 3px solid rgba(23, 105, 224, .28);
   outline-offset: 2px;
 }
+.portfell-button { min-height: 40px; }
+.portfell-button--primary { color: var(--surface); background: var(--accent); border-color: var(--accent); }
+.portfell-button--quiet { border-color: transparent; background: transparent; }
+.portfell-button--danger { color: var(--danger); border-color: var(--danger); }
+.portfell-panel, .portfell-loading-state, .portfell-empty-state { border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); padding: var(--space-4); }
+.portfell-status-badge, .portfell-inline-notice { display: inline-flex; gap: var(--space-1); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: var(--space-1) var(--space-2); }
+.portfell-field { display: grid; gap: var(--space-1); color: var(--text-muted); }
+.portfell-field small { min-height: 16px; color: var(--danger); }
+.portfell-icon-button { width: 44px; min-width: 44px; min-height: 44px; padding: 0; }
 .app-shell { min-height: 100vh; }
 .app-workspace { display: grid; grid-template-columns: 272px minmax(0, 1fr); min-height: calc(100vh - 140px); }
 .app-header {
