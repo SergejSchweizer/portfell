@@ -86,8 +86,8 @@ if removed_cli_tests != 1:
 cli_test_path.write_text(cli_test, encoding="utf-8")
 
 forbidden = (
-    "fetch_all_isins",
-    "fetch-all-isins",
+    "fetch_all_" + "isins",
+    "fetch-all-" + "isins",
     "compat/legacy",
     "LegacyShell",
     "renderAppShell",
