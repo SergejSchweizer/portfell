@@ -4,7 +4,7 @@ from math import comb
 
 import pytest
 
-from camovar.portfolio import (
+from portfell.portfolio import (
     BASELINE_SOLVER_MODE,
     CANDIDATE_LIMIT_EXCEEDED_REASON,
     EQUAL_WEIGHT_FALLBACK_METHOD,

@@ -21,8 +21,8 @@ The remaining implementation work begins with PR57.
 
 ## Architecture Ownership Rules
 
-1. Do not add further production implementations to `src/camovar/evaluation.py` or `src/camovar/portfolio.py`.
-2. Keep `camovar.evaluation` and `camovar.portfolio` as compatibility facades that re-export stable public functions.
+1. Do not add further production implementations to `src/portfell/evaluation.py` or `src/portfell/portfolio.py`.
+2. Keep `portfell.evaluation` and `portfell.portfolio` as compatibility facades that re-export stable public functions.
 3. Move the real implementations into `evaluation_parts`, `portfolio_parts`, and the dedicated `risk_model` and `income` packages.
 4. Keep pure mathematics separate from lake reads and writes.
 5. Only writer or service modules may depend on `LakePaths`, `read_rows`, or `write_rows`.
@@ -45,12 +45,12 @@ refresh
 
 ## Shared Return Mathematics
 
-PR56 already introduced `src/camovar/return_quality.py`. Keep data-quality policy there.
+PR56 already introduced `src/portfell/return_quality.py`. Keep data-quality policy there.
 
 Add a small pure module:
 
 ```text
-src/camovar/return_math.py
+src/portfell/return_math.py
 ```
 
 It should own:
@@ -64,11 +64,11 @@ It should own:
 
 Callers:
 
-- `src/camovar/gold.py`;
-- `src/camovar/univariate_statistics.py`;
-- `src/camovar/evaluation_parts/portfolio_returns.py`;
-- `src/camovar/evaluation_parts/rebalance.py`;
-- `src/camovar/evaluation_parts/backtest.py`.
+- `src/portfell/gold.py`;
+- `src/portfell/univariate_statistics.py`;
+- `src/portfell/evaluation_parts/portfolio_returns.py`;
+- `src/portfell/evaluation_parts/rebalance.py`;
+- `src/portfell/evaluation_parts/backtest.py`.
 
 Tests:
 
@@ -89,15 +89,15 @@ Required invariants:
 Primary implementation files:
 
 ```text
-src/camovar/evaluation_parts/rebalance.py
-src/camovar/evaluation_parts/rebalance_contracts.py
-src/camovar/evaluation_parts/portfolio_returns.py
+src/portfell/evaluation_parts/rebalance.py
+src/portfell/evaluation_parts/rebalance_contracts.py
+src/portfell/evaluation_parts/portfolio_returns.py
 ```
 
 Compatibility files to reduce to facades after migration:
 
 ```text
-src/camovar/evaluation.py
+src/portfell/evaluation.py
 ```
 
 Contracts to introduce:
@@ -131,8 +131,8 @@ pre_trade_weight_i = post_return_value_i / total_post_return_value
 Persistence changes:
 
 ```text
-src/camovar/schemas.py
-src/camovar/paths.py
+src/portfell/schemas.py
+src/portfell/paths.py
 CONTRACTS.md
 ```
 
@@ -189,7 +189,7 @@ Required invariants:
 Create:
 
 ```text
-src/camovar/risk_model/
+src/portfell/risk_model/
     __init__.py
     contracts.py
     matrix.py
@@ -260,14 +260,14 @@ Own all `LakePaths` and table serialization for risk-model artifacts.
 Integration files:
 
 ```text
-src/camovar/update/contracts.py
-src/camovar/update/ports.py
-src/camovar/update/service.py
-src/camovar/schemas.py
-src/camovar/paths.py
+src/portfell/update/contracts.py
+src/portfell/update/ports.py
+src/portfell/update/service.py
+src/portfell/schemas.py
+src/portfell/paths.py
 ```
 
-Legacy `src/camovar/gold.py` may retain sample covariance compatibility outputs, but production optimization must consume an explicit risk-model artifact reference.
+Legacy `src/portfell/gold.py` may retain sample covariance compatibility outputs, but production optimization must consume an explicit risk-model artifact reference.
 
 Datasets:
 
@@ -301,7 +301,7 @@ Required invariants:
 Refactor the portfolio implementation into:
 
 ```text
-src/camovar/portfolio_parts/
+src/portfell/portfolio_parts/
     constraints.py
     objectives.py
     baseline.py
@@ -317,7 +317,7 @@ src/camovar/portfolio_parts/
 Keep:
 
 ```text
-src/camovar/portfolio.py
+src/portfell/portfolio.py
 ```
 
 as a compatibility facade only.
@@ -435,11 +435,11 @@ Required invariants:
 Primary files:
 
 ```text
-src/camovar/portfolio_parts/objectives.py
-src/camovar/portfolio_parts/solver.py
-src/camovar/portfolio_parts/risk_parity.py
-src/camovar/portfolio_parts/diagnostics.py
-src/camovar/portfolio_parts/writers.py
+src/portfell/portfolio_parts/objectives.py
+src/portfell/portfolio_parts/solver.py
+src/portfell/portfolio_parts/risk_parity.py
+src/portfell/portfolio_parts/diagnostics.py
+src/portfell/portfolio_parts/writers.py
 ```
 
 Minimum Variance must consume a validated shrinkage or EWMA risk-model artifact and solve under explicit constraints.
@@ -477,7 +477,7 @@ Required invariants:
 Primary file:
 
 ```text
-src/camovar/portfolio_parts/hrp.py
+src/portfell/portfolio_parts/hrp.py
 ```
 
 Own explicit steps:
@@ -512,7 +512,7 @@ production_eligible = false
 Create or complete:
 
 ```text
-src/camovar/portfolio_parts/cvar.py
+src/portfell/portfolio_parts/cvar.py
 ```
 
 Keep the boundary:
@@ -552,7 +552,7 @@ Required invariants:
 Create:
 
 ```text
-src/camovar/income/
+src/portfell/income/
     __init__.py
     contracts.py
     distributions.py
@@ -617,12 +617,12 @@ Persist immutable income artifacts and warnings.
 Integration files:
 
 ```text
-src/camovar/update/contracts.py
-src/camovar/update/ports.py
-src/camovar/update/service.py
-src/camovar/selection/contracts.py
-src/camovar/schemas.py
-src/camovar/paths.py
+src/portfell/update/contracts.py
+src/portfell/update/ports.py
+src/portfell/update/service.py
+src/portfell/selection/contracts.py
+src/portfell/schemas.py
+src/portfell/paths.py
 ```
 
 Selection may expose income fields, but it consumes typed Update evidence and must never calculate these metrics itself.
@@ -660,13 +660,13 @@ Production pair statistics should use the Update pair cache and not one Parquet 
 Pure mathematical engine:
 
 ```text
-src/camovar/gold_pair_stats.py
+src/portfell/gold_pair_stats.py
 ```
 
 Artifact and cache ownership:
 
 ```text
-src/camovar/update/pair_cache.py
+src/portfell/update/pair_cache.py
 ```
 
 `gold_pair_stats.py` should own:
@@ -690,7 +690,7 @@ src/camovar/update/pair_cache.py
 - locks and artifact persistence;
 - threshold and top-k edge views.
 
-Keep `src/camovar/bivariate_statistics.py` as a compatibility facade during migration.
+Keep `src/portfell/bivariate_statistics.py` as a compatibility facade during migration.
 
 Suggested storage:
 
@@ -708,7 +708,7 @@ Required invariant: an unordered pair is calculated once per complete cache key 
 Create or extend:
 
 ```text
-src/camovar/portfolio_profiles/
+src/portfell/portfolio_profiles/
     __init__.py
     contracts.py
     profiles.py
@@ -744,9 +744,9 @@ Required invariant: a profile is a versioned configuration expansion, not hidden
 Primary implementation files:
 
 ```text
-src/camovar/evaluation_parts/backtest.py
-src/camovar/evaluation_parts/backtest_contracts.py
-src/camovar/evaluation_parts/scorecard.py
+src/portfell/evaluation_parts/backtest.py
+src/portfell/evaluation_parts/backtest_contracts.py
+src/portfell/evaluation_parts/scorecard.py
 ```
 
 `WalkForwardSpec` should include:
@@ -808,7 +808,7 @@ Required invariants:
 Suggested package:
 
 ```text
-src/camovar/stress/
+src/portfell/stress/
 ```
 
 Own historical stress definitions, seeded block bootstrap, covariance perturbation, correlation convergence, distribution-cut shocks, and sensitivity summaries. Persist seeds and scenario versions.
@@ -818,7 +818,7 @@ Own historical stress definitions, seeded block bootstrap, covariance perturbati
 Suggested package:
 
 ```text
-src/camovar/recommendation/
+src/portfell/recommendation/
 ```
 
 Consume completed scorecards, stress results, income artifacts, constraints, and warnings. Produce structured report data with inclusion and exclusion reasons, candidate disadvantages, traceable assumptions, and no guaranteed-return wording.
@@ -828,7 +828,7 @@ Consume completed scorecards, stress results, income artifacts, constraints, and
 Primary package:
 
 ```text
-src/camovar/trading/
+src/portfell/trading/
 ```
 
 Own current positions, target differences, whole-share rounding, minimum order size, fees, taxes, FX assumptions, cash remainder, and deterministic Flatex-oriented exports. It must consume an approved recommendation and must not choose the optimization objective.
@@ -838,9 +838,9 @@ Own current positions, target differences, whole-share rounding, minimum order s
 Suggested packages:
 
 ```text
-src/camovar/projects/
-src/camovar/reporting/
-src/camovar/monitoring/
+src/portfell/projects/
+src/portfell/reporting/
+src/portfell/monitoring/
 ```
 
 Own local project state, report rendering, drift checks, risk-limit checks, distribution-cut checks, NAV-erosion checks, stale-data checks, and alert-ready statuses.
@@ -850,8 +850,8 @@ Own local project state, report rendering, drift checks, risk-limit checks, dist
 Every new dataset must update these files together:
 
 ```text
-src/camovar/schemas.py
-src/camovar/paths.py
+src/portfell/schemas.py
+src/portfell/paths.py
 CONTRACTS.md
 ARCHITECTURE.md
 DECISIONS.md

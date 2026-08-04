@@ -6,8 +6,8 @@ COPY pyproject.toml README.md ./
 COPY src ./src
 RUN uv pip install --system .
 
-RUN useradd --system --create-home --uid 10001 camovar
-USER camovar
+RUN useradd --system --create-home --uid 10001 portfell
+USER portfell
 
 EXPOSE 8000
-CMD ["python", "-m", "camovar.hosted_runtime", "api"]
+CMD ["python", "-m", "portfell.hosted_runtime", "api"]

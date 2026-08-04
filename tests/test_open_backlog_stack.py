@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from camovar.evaluation import (
+from portfell.evaluation import (
     build_efficient_frontier,
     build_rebalance_events,
     build_tail_risk_rows,
@@ -12,8 +12,8 @@ from camovar.evaluation import (
     write_tail_risk_evaluation,
     write_walk_forward_backtest,
 )
-from camovar.paths import LakePaths
-from camovar.portfolio import (
+from portfell.paths import LakePaths
+from portfell.portfolio import (
     PortfolioConstraints,
     build_diversification_metric_rows,
     build_hrp_cluster_rows,
@@ -22,7 +22,7 @@ from camovar.portfolio import (
     write_hierarchical_risk_parity,
     write_maximum_diversification,
 )
-from camovar.table_io import read_rows, write_rows
+from portfell.table_io import read_rows, write_rows
 
 
 def _matrix_rows() -> list[dict[str, object]]:

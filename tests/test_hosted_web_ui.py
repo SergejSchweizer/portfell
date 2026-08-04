@@ -27,7 +27,7 @@ def test_server_only_handles_auth_proxy_health_and_vite_assets() -> None:
         "statisticsPanel",
         "univariateStatisticsTableMarkup",
         "brandMarkup",
-        "window.camovarApi",
+        "window.portfellApi",
         "document.querySelector",
         "<section",
         "<table",

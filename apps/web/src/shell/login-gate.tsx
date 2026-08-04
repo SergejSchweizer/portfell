@@ -3,7 +3,7 @@ import { Button } from "../components/button";
 
 export function LoginGateShell() {
   return (
-    <main className="camovar-login-gate" data-route="login-gate">
+    <main className="portfell-login-gate" data-route="login-gate">
       <Panel title="Sign in to continue">
         <p>The research dashboard is only available after Google authentication.</p>
         <Button variant="primary" type="button">

@@ -6,15 +6,15 @@ from random import Random
 
 import pytest
 
-from camovar.multivariate_statistics import (
+from portfell.multivariate_statistics import (
     MultivariateRecommendationConfig,
     ProductionMultivariateConfig,
     TradingHandoffConfig,
     write_multivariate_trading_handoff,
 )
-from camovar.paths import LakePaths
-from camovar.portfolio import PortfolioConstraints
-from camovar.table_io import write_rows
+from portfell.paths import LakePaths
+from portfell.portfolio import PortfolioConstraints
+from portfell.table_io import write_rows
 
 _OBSERVATION_COUNT = 260
 

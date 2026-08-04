@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "camovar"
+name = "portfell"
 version = "0.1.0"
 description = "Minimum-risk ETF portfolio tooling using EODHD EOD data."
 readme = "README.md"
@@ -17,11 +17,11 @@ dependencies = [
 ]
 
 [project.scripts]
-camovar = "camovar.cli:main"
-camovar-docs-refresh = "camovar.docs_refresh:main"
-camovar-fetch-all-quotes = "camovar.fetch_all_quotes:main"
-camovar-quality = "camovar.quality:main"
-camovar-compose-web-watch = "camovar.compose_web_watch:main"
+portfell = "portfell.cli:main"
+portfell-docs-refresh = "portfell.docs_refresh:main"
+portfell-fetch-all-quotes = "portfell.fetch_all_quotes:main"
+portfell-quality = "portfell.quality:main"
+portfell-compose-web-watch = "portfell.compose_web_watch:main"
 
 [dependency-groups]
 dev = [
@@ -36,7 +36,7 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/camovar"]
+packages = ["src/portfell"]
 
 [tool.ruff]
 line-length = 100
@@ -55,38 +55,38 @@ pythonVersion = "3.14"
 typeCheckingMode = "strict"
 
 [tool.importlinter]
-root_package = "camovar"
+root_package = "portfell"
 
 [[tool.importlinter.contracts]]
 name = "Evaluation does not depend on ingestion"
 type = "forbidden"
-source_modules = ["camovar.evaluation", "camovar.evaluation_parts"]
+source_modules = ["portfell.evaluation", "portfell.evaluation_parts"]
 forbidden_modules = [
-    "camovar.bronze",
-    "camovar.cli",
-    "camovar.config",
-    "camovar.http",
-    "camovar.search",
-    "camovar.silver",
+    "portfell.bronze",
+    "portfell.cli",
+    "portfell.config",
+    "portfell.http",
+    "portfell.search",
+    "portfell.silver",
 ]
 
 [[tool.importlinter.contracts]]
 name = "Shared infrastructure does not depend on workflow modules"
 type = "forbidden"
 source_modules = [
-    "camovar.logging",
-    "camovar.paths",
-    "camovar.run_locks",
-    "camovar.run_state",
-    "camovar.schemas",
-    "camovar.table_io",
+    "portfell.logging",
+    "portfell.paths",
+    "portfell.run_locks",
+    "portfell.run_state",
+    "portfell.schemas",
+    "portfell.table_io",
 ]
 forbidden_modules = [
-    "camovar.bronze",
-    "camovar.cli",
-    "camovar.evaluation",
-    "camovar.gold",
-    "camovar.portfolio",
-    "camovar.search",
-    "camovar.silver",
+    "portfell.bronze",
+    "portfell.cli",
+    "portfell.evaluation",
+    "portfell.gold",
+    "portfell.portfolio",
+    "portfell.search",
+    "portfell.silver",
 ]

@@ -3,14 +3,14 @@
 from datetime import date
 from decimal import Decimal
 
-from camovar.tax.contracts import (
+from portfell.tax.contracts import (
     AcquisitionLot,
     BasisAdjustment,
     CostBasisResult,
     Disposal,
     PositionTaxState,
 )
-from camovar.tax.cost_basis import CostBasisStrategy
+from portfell.tax.cost_basis import CostBasisStrategy
 
 
 class _MovingAverageCostBasis:

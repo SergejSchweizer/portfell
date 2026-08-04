@@ -1,12 +1,12 @@
-# Camovar UI Local Docker Execution Contract
+# Portfell UI Local Docker Execution Contract
 
 Last reviewed: 2026-07-19
 
 ## Status And Scope
 
-This document is a mandatory execution amendment to the Camovar Research Funnel UI stack PR101 through PR108 in `BACKLOG.md`.
+This document is a mandatory execution amendment to the Portfell Research Funnel UI stack PR101 through PR108 in `BACKLOG.md`.
 
-All UI implementation, integration, visual review, and acceptance testing must run against the repository's local Docker Compose topology. The canonical development host is the UGREEN NAS checkout operated by the trusted `dev_camovar` user, which is a member of the Docker group. Host-installed Node.js, Python, PostgreSQL, or ad hoc development servers may be used for isolated debugging only; they are not accepted as proof that a UI PR works.
+All UI implementation, integration, visual review, and acceptance testing must run against the repository's local Docker Compose topology. The canonical development host is the UGREEN NAS checkout operated by the trusted `dev_portfell` user, which is a member of the Docker group. Host-installed Node.js, Python, PostgreSQL, or ad hoc development servers may be used for isolated debugging only; they are not accepted as proof that a UI PR works.
 
 ## Canonical Command Surface
 
@@ -32,7 +32,7 @@ The exact test commands may evolve with the Web implementation, but they must ex
 5. Source-code bind mounts, watch mode, and hot reload may be added in a development override, but the base production-oriented images must remain buildable without them.
 6. Named PostgreSQL and shared-data volumes must survive ordinary container recreation.
 7. Tests must not depend on another developer's host-level Node modules, Python virtual environment, localhost database, or globally installed package versions.
-8. The `dev_camovar` user may operate Docker because Docker-group access is intentionally trusted and treated as root-equivalent access on the NAS.
+8. The `dev_portfell` user may operate Docker because Docker-group access is intentionally trusted and treated as root-equivalent access on the NAS.
 
 ## PR101-PR108 Amendment
 
@@ -99,9 +99,9 @@ A UI PR is incomplete if it passes only mocked component tests while failing aga
 
 ## Security
 
-- Never mount `/var/run/docker.sock` into Camovar application or test containers.
-- Never run the Camovar Web or API container as a privileged container.
-- Docker-group membership is limited to trusted NAS administrators such as `dev_camovar`.
+- Never mount `/var/run/docker.sock` into Portfell application or test containers.
+- Never run the Portfell Web or API container as a privileged container.
+- Docker-group membership is limited to trusted NAS administrators such as `dev_portfell`.
 - Browser traces, screenshots, videos, reports, logs, and test artifacts must be scanned for provider keys, session tokens, ciphertext, fingerprints, internal paths, and cross-user data.
 - Synthetic Google and EODHD credentials are used in automated tests; production credentials are not required or permitted.
 

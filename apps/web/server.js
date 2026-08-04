@@ -9,29 +9,29 @@ if (process.argv.includes("--health")) {
 }
 
 const port = Number.parseInt(process.env.PORT || "3000", 10);
-const apiBaseUrl = process.env.CAMOVAR_API_BASE_URL || "http://api:8000";
-const authMode = process.env.CAMOVAR_AUTH_MODE || "google";
-const googleClientId = process.env.CAMOVAR_GOOGLE_CLIENT_ID || "";
+const apiBaseUrl = process.env.PORTFELL_API_BASE_URL || "http://api:8000";
+const authMode = process.env.PORTFELL_AUTH_MODE || "google";
+const googleClientId = process.env.PORTFELL_GOOGLE_CLIENT_ID || "";
 const googleRedirectUri =
-  process.env.CAMOVAR_GOOGLE_REDIRECT_URI || `http://localhost:${port}/auth/google/callback`;
-const googleAllowedDomain = process.env.CAMOVAR_GOOGLE_ALLOWED_DOMAIN || "";
+  process.env.PORTFELL_GOOGLE_REDIRECT_URI || `http://localhost:${port}/auth/google/callback`;
+const googleAllowedDomain = process.env.PORTFELL_GOOGLE_ALLOWED_DOMAIN || "";
 const googleAuthEndpoint =
-  process.env.CAMOVAR_GOOGLE_AUTH_ENDPOINT || "https://accounts.google.com/o/oauth2/v2/auth";
+  process.env.PORTFELL_GOOGLE_AUTH_ENDPOINT || "https://accounts.google.com/o/oauth2/v2/auth";
 const googleTokenEndpoint =
-  process.env.CAMOVAR_GOOGLE_TOKEN_ENDPOINT || "https://oauth2.googleapis.com/token";
+  process.env.PORTFELL_GOOGLE_TOKEN_ENDPOINT || "https://oauth2.googleapis.com/token";
 const googleJwksUri =
-  process.env.CAMOVAR_GOOGLE_JWKS_URI || "https://www.googleapis.com/oauth2/v3/certs";
+  process.env.PORTFELL_GOOGLE_JWKS_URI || "https://www.googleapis.com/oauth2/v3/certs";
 const googleStateTtlMs =
-  Number.parseInt(process.env.CAMOVAR_GOOGLE_STATE_TTL_SECONDS || "600", 10) * 1000;
+  Number.parseInt(process.env.PORTFELL_GOOGLE_STATE_TTL_SECONDS || "600", 10) * 1000;
 const localDevUserId = "local-google-dev-user";
 const localDevCsrfToken = "valid-csrf";
 const localDevGoogleEmail = (
-  process.env.CAMOVAR_LOCAL_DEV_GOOGLE_EMAIL || "local-google-dev-user@example.test"
+  process.env.PORTFELL_LOCAL_DEV_GOOGLE_EMAIL || "local-google-dev-user@example.test"
 ).toLowerCase();
-const sessionCookieName = "camovar_session_user";
-const csrfCookieName = "camovar_csrf";
-const emailCookieName = "camovar_auth_email";
-const providerCookieName = "camovar_auth_provider";
+const sessionCookieName = "portfell_session_user";
+const csrfCookieName = "portfell_csrf";
+const emailCookieName = "portfell_auth_email";
+const providerCookieName = "portfell_auth_provider";
 const pendingGoogleStates = new Map();
 const distRoot = path.resolve(__dirname, "dist");
 const spaRoutes = new Set([
@@ -105,10 +105,10 @@ function applyGooglePrivateIpDeviceParams(url) {
 }
 
 function readGoogleClientSecret() {
-  if (process.env.CAMOVAR_GOOGLE_CLIENT_SECRET) {
-    return process.env.CAMOVAR_GOOGLE_CLIENT_SECRET;
+  if (process.env.PORTFELL_GOOGLE_CLIENT_SECRET) {
+    return process.env.PORTFELL_GOOGLE_CLIENT_SECRET;
   }
-  const secretPath = process.env.CAMOVAR_GOOGLE_CLIENT_SECRET_FILE;
+  const secretPath = process.env.PORTFELL_GOOGLE_CLIENT_SECRET_FILE;
   return secretPath ? fs.readFileSync(secretPath, "utf8").trim() : "";
 }
 

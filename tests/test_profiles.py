@@ -6,10 +6,10 @@ from statistics import mean
 
 import pytest
 
-from camovar.calculation_status import UNAVAILABLE
-from camovar.paths import LakePaths
-from camovar.portfolio import PortfolioConstraints
-from camovar.profiles import (
+from portfell.calculation_status import UNAVAILABLE
+from portfell.paths import LakePaths
+from portfell.portfolio import PortfolioConstraints
+from portfell.profiles import (
     BALANCED_PROFILE,
     DEFENSIVE_PROFILE,
     GROWTH_PROFILE,
@@ -23,7 +23,7 @@ from camovar.profiles import (
     income_profile,
     write_profile_candidate,
 )
-from camovar.table_io import write_rows
+from portfell.table_io import write_rows
 
 _LISTINGS = [
     {"isin": "IE1", "exchange": "XETRA", "code": "AAA"},  # risky, fat-tailed

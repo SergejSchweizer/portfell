@@ -7,7 +7,7 @@ export type PanelProps = Readonly<{
 
 export function Panel({ title, children }: PanelProps) {
   return (
-    <section className="camovar-panel">
+    <section className="portfell-panel">
       {title ? <h2>{title}</h2> : null}
       {children}
     </section>

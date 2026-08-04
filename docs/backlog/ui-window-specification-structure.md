@@ -4,7 +4,7 @@ Last reviewed: 2026-07-27
 
 ## Backlog integration
 
-This requirement applies to PR111 and every later Camovar Web UI PR. It refines the page-specification scope defined by the component-driven React UI refactor stack.
+This requirement applies to PR111 and every later Portfell Web UI PR. It refines the page-specification scope defined by the component-driven React UI refactor stack.
 
 PR111 must establish and validate the canonical `docs/ui/` specification tree. PR112 through PR119 and product-facing PR102 through PR108 must keep these files synchronized with implemented routes and shared layout behaviour.
 

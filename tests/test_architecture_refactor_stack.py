@@ -7,42 +7,42 @@ from typing import Any
 
 import pytest
 
-from camovar.architecture_checks import check_architecture
-from camovar.gold import write_gold_inputs
-from camovar.gold_pair_stats import bucket_correlation_edges, index_returns, iter_pair_observations
-from camovar.paths import LakePaths
-from camovar.portfolio import (
+from portfell.architecture_checks import check_architecture
+from portfell.gold import write_gold_inputs
+from portfell.gold_pair_stats import bucket_correlation_edges, index_returns, iter_pair_observations
+from portfell.paths import LakePaths
+from portfell.portfolio import (
     BASELINE_OPTIMIZER_TYPE,
     PortfolioConstraints,
     build_optimizer_diagnostics,
     write_optimized_weights,
 )
-from camovar.run_state import build_job_manifest, read_job_manifest, write_job_manifest
-from camovar.table_io import read_rows, write_rows
+from portfell.run_state import build_job_manifest, read_job_manifest, write_job_manifest
+from portfell.table_io import read_rows, write_rows
 
 
 def test_internal_evaluation_and_portfolio_boundaries_preserve_public_imports() -> None:
-    matrix = importlib.import_module("camovar.evaluation_parts.matrix")
-    objectives = importlib.import_module("camovar.portfolio_parts.objectives")
+    matrix = importlib.import_module("portfell.evaluation_parts.matrix")
+    objectives = importlib.import_module("portfell.portfolio_parts.objectives")
 
-    assert matrix.build_return_matrix.__module__ == "camovar.evaluation_parts.matrix"
-    assert objectives.optimize_portfolio.__module__ == "camovar.portfolio_parts.objectives"
+    assert matrix.build_return_matrix.__module__ == "portfell.evaluation_parts.matrix"
+    assert objectives.optimize_portfolio.__module__ == "portfell.portfolio_parts.objectives"
 
 
 def test_internal_boundary_modules_expose_declared_reexports() -> None:
     module_names = [
-        "camovar.evaluation_parts.backtest",
-        "camovar.evaluation_parts.frontier",
-        "camovar.evaluation_parts.matrix",
-        "camovar.evaluation_parts.metrics",
-        "camovar.evaluation_parts.portfolio_returns",
-        "camovar.evaluation_parts.rebalance",
-        "camovar.evaluation_parts.tail_risk",
-        "camovar.portfolio_parts.constraints",
-        "camovar.portfolio_parts.diversification",
-        "camovar.portfolio_parts.hrp",
-        "camovar.portfolio_parts.objectives",
-        "camovar.portfolio_parts.risk_parity",
+        "portfell.evaluation_parts.backtest",
+        "portfell.evaluation_parts.frontier",
+        "portfell.evaluation_parts.matrix",
+        "portfell.evaluation_parts.metrics",
+        "portfell.evaluation_parts.portfolio_returns",
+        "portfell.evaluation_parts.rebalance",
+        "portfell.evaluation_parts.tail_risk",
+        "portfell.portfolio_parts.constraints",
+        "portfell.portfolio_parts.diversification",
+        "portfell.portfolio_parts.hrp",
+        "portfell.portfolio_parts.objectives",
+        "portfell.portfolio_parts.risk_parity",
     ]
 
     for module_name in module_names:
@@ -50,7 +50,7 @@ def test_internal_boundary_modules_expose_declared_reexports() -> None:
 
         assert module.__all__
         assert all(
-            getattr(module, name).__module__.startswith("camovar.") for name in module.__all__
+            getattr(module, name).__module__.startswith("portfell.") for name in module.__all__
         )
 
 
@@ -70,13 +70,13 @@ def test_evaluation_boundary_functions_delegate(monkeypatch: pytest.MonkeyPatch)
 
     fake = FakeEvaluation()
     modules = [
-        importlib.import_module("camovar.evaluation_parts.backtest"),
-        importlib.import_module("camovar.evaluation_parts.frontier"),
-        importlib.import_module("camovar.evaluation_parts.matrix"),
-        importlib.import_module("camovar.evaluation_parts.metrics"),
-        importlib.import_module("camovar.evaluation_parts.portfolio_returns"),
-        importlib.import_module("camovar.evaluation_parts.rebalance"),
-        importlib.import_module("camovar.evaluation_parts.tail_risk"),
+        importlib.import_module("portfell.evaluation_parts.backtest"),
+        importlib.import_module("portfell.evaluation_parts.frontier"),
+        importlib.import_module("portfell.evaluation_parts.matrix"),
+        importlib.import_module("portfell.evaluation_parts.metrics"),
+        importlib.import_module("portfell.evaluation_parts.portfolio_returns"),
+        importlib.import_module("portfell.evaluation_parts.rebalance"),
+        importlib.import_module("portfell.evaluation_parts.tail_risk"),
     ]
     for module in modules:
         monkeypatch.setattr(module.importlib, "import_module", lambda _name, fake=fake: fake)
@@ -139,11 +139,11 @@ def test_portfolio_boundary_functions_delegate(monkeypatch: pytest.MonkeyPatch) 
 
     fake = FakePortfolio()
     modules = [
-        importlib.import_module("camovar.portfolio_parts.constraints"),
-        importlib.import_module("camovar.portfolio_parts.diversification"),
-        importlib.import_module("camovar.portfolio_parts.hrp"),
-        importlib.import_module("camovar.portfolio_parts.objectives"),
-        importlib.import_module("camovar.portfolio_parts.risk_parity"),
+        importlib.import_module("portfell.portfolio_parts.constraints"),
+        importlib.import_module("portfell.portfolio_parts.diversification"),
+        importlib.import_module("portfell.portfolio_parts.hrp"),
+        importlib.import_module("portfell.portfolio_parts.objectives"),
+        importlib.import_module("portfell.portfolio_parts.risk_parity"),
     ]
     for module in modules:
         monkeypatch.setattr(module.importlib, "import_module", lambda _name, fake=fake: fake)

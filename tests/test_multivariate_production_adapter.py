@@ -5,13 +5,13 @@ from random import Random
 
 import pytest
 
-from camovar.multivariate_statistics import (
+from portfell.multivariate_statistics import (
     ProductionMultivariateConfig,
     write_production_multivariate_statistics,
 )
-from camovar.paths import LakePaths
-from camovar.portfolio import PortfolioConstraints
-from camovar.table_io import write_rows
+from portfell.paths import LakePaths
+from portfell.portfolio import PortfolioConstraints
+from portfell.table_io import write_rows
 
 _OBSERVATION_COUNT = 260
 
@@ -165,8 +165,8 @@ def test_write_production_multivariate_statistics_rejects_missing_risk_model_dia
         evaluation_id="prod-eval", constraints=PortfolioConstraints(max_weight=0.4)
     )
 
-    import camovar.multivariate_statistics as module
-    from camovar.risk_model import RiskModelDiagnostics, RiskModelResult
+    import portfell.multivariate_statistics as module
+    from portfell.risk_model import RiskModelDiagnostics, RiskModelResult
 
     real_estimate_risk_model = module.estimate_risk_model
 
@@ -200,7 +200,7 @@ def test_write_production_multivariate_statistics_rejects_missing_baseline_compa
         evaluation_id="prod-eval", constraints=PortfolioConstraints(max_weight=0.4)
     )
 
-    import camovar.multivariate_statistics as module
+    import portfell.multivariate_statistics as module
 
     real_evaluate = module.evaluate_profile_candidate
 

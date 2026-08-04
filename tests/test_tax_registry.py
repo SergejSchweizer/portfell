@@ -5,7 +5,7 @@ from decimal import Decimal
 
 import pytest
 
-from camovar.tax.contracts import (
+from portfell.tax.contracts import (
     CostBasisRequest,
     CostBasisResult,
     InstrumentTaxFacts,
@@ -19,7 +19,7 @@ from camovar.tax.contracts import (
     TaxYearResult,
     ValidationResult,
 )
-from camovar.tax.registry import (
+from portfell.tax.registry import (
     EU_COUNTRY_CODES,
     CountryTaxRegistry,
     UnsupportedCountryError,
@@ -142,7 +142,7 @@ def test_stub_adapter_satisfies_the_protocol_end_to_end() -> None:
     )
     assert resolved.validate_profile(profile).valid is True
 
-    from camovar.tax.contracts import TaxEvent
+    from portfell.tax.contracts import TaxEvent
 
     event = TaxEvent(
         event_id="evt-1",

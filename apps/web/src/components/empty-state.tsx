@@ -8,7 +8,7 @@ export type EmptyStateProps = Readonly<{
 
 export function EmptyState({ title, description, action }: EmptyStateProps) {
   return (
-    <section className="camovar-empty-state" aria-label={title}>
+    <section className="portfell-empty-state" aria-label={title}>
       <h2>{title}</h2>
       <p>{description}</p>
       {action}

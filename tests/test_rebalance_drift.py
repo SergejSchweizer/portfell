@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from camovar.evaluation import build_rebalance_events, write_rebalance_simulation
-from camovar.paths import LakePaths
-from camovar.table_io import read_rows, write_rows
+from portfell.evaluation import build_rebalance_events, write_rebalance_simulation
+from portfell.paths import LakePaths
+from portfell.table_io import read_rows, write_rows
 
 
 def _matrix_row(

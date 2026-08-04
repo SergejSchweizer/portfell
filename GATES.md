@@ -4,11 +4,11 @@ Last reviewed: 2026-07-19
 
 ## Purpose
 
-`GATES.md` is the canonical documentation for Camovar quality gates, GitHub branch protection, auto-merge, and local validation commands. Other repository documents should link here instead of repeating the full gate contract.
+`GATES.md` is the canonical documentation for Portfell quality gates, GitHub branch protection, auto-merge, and local validation commands. Other repository documents should link here instead of repeating the full gate contract.
 
 ## Current Shape
 
-Camovar uses two CI layers:
+Portfell uses two CI layers:
 
 - `pr-quality`: fast pre-merge feedback and the required protected-branch check.
 - `merge-gate`: full post-merge validation for the exact commit that lands on `main`.
@@ -88,9 +88,9 @@ pr-quality
     +-- pr-lint-quality
     |       ruff check .
     |       ruff format --check .
-    |       python -m camovar.security_gates
-    |       camovar-quality --commits-only
-    |       camovar-quality --squash-subject "$SQUASH_SUBJECT"
+    |       python -m portfell.security_gates
+    |       portfell-quality --commits-only
+    |       portfell-quality --squash-subject "$SQUASH_SUBJECT"
     |
     +-- pr-type-quality
     |       pyright
@@ -108,20 +108,20 @@ pr-quality
 Local equivalent:
 
 ```bash
-uv run camovar-quality pr
+uv run portfell-quality pr
 ```
 
 Release cutover can require the stricter public-hosted readiness mode:
 
 ```bash
-uv run python -m camovar.hosted_readiness --require-public-hosted
+uv run python -m portfell.hosted_readiness --require-public-hosted
 ```
 
 The deterministic hosted cutover proof composes multi-user auth, credentials, entitlements, scoped analytics, artifact
 reuse, Web storage safety, local CLI compatibility, and readiness checks:
 
 ```bash
-uv run python -m camovar.hosted_cutover
+uv run python -m portfell.hosted_cutover
 ```
 
 The local pre-commit hook runs this same PR gate before accepting commits.
@@ -149,10 +149,10 @@ merge-gate
     +-- merge-lint-quality
     |       ruff check .
     |       ruff format --check .
-    |       python -m camovar.architecture_checks
-    |       python -m camovar.schema_validation
-    |       python -m camovar.security_gates
-    |       camovar-quality --commits-only
+    |       python -m portfell.architecture_checks
+    |       python -m portfell.schema_validation
+    |       python -m portfell.security_gates
+    |       portfell-quality --commits-only
     |       git diff --quiet
     |       git diff --cached --quiet
     |
@@ -176,19 +176,19 @@ merge-gate
 Local equivalent:
 
 ```bash
-uv run camovar-quality merge
+uv run portfell-quality merge
 ```
 
 Compatibility alias:
 
 ```bash
-uv run camovar-quality main
+uv run portfell-quality main
 ```
 
 Coverage equivalent:
 
 ```text
-pytest -n auto --cov=camovar --cov-report=term-missing --cov-fail-under=95
+pytest -n auto --cov=portfell --cov-report=term-missing --cov-fail-under=95
 ```
 
 ## Auto-Merge
@@ -266,7 +266,7 @@ Update `GATES.md` whenever any of these change:
 - `.github/workflows/pr-quality.yml`
 - `.github/workflows/merge-gate.yml`
 - `.github/workflows/auto-merge.yml`
-- `src/camovar/quality.py`
+- `src/portfell/quality.py`
 - branch protection required check names
 - local pre-commit gate behavior
 - shard count, coverage threshold, or required quality tools

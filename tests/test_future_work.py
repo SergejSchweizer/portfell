@@ -4,14 +4,14 @@ from pathlib import Path
 
 import pytest
 
-from camovar.docs_refresh import (
+from portfell.docs_refresh import (
     build_docs_refresh_report,
     doc_review_line,
     main,
     write_docs_refresh_report,
 )
-from camovar.paths import LakePaths
-from camovar.portfolio import (
+from portfell.paths import LakePaths
+from portfell.portfolio import (
     PortfolioConstraints,
     build_risk_contribution_rows,
     build_target_weight_rows,
@@ -21,9 +21,9 @@ from camovar.portfolio import (
     validate_weights,
     write_optimized_weights,
 )
-from camovar.table_io import read_rows, write_rows
-from camovar.trading import prepare_flatex_orders, write_flatex_orders
-from camovar.universe_review import currency_exposure, missing_isin_rows, review_universe
+from portfell.table_io import read_rows, write_rows
+from portfell.trading import prepare_flatex_orders, write_flatex_orders
+from portfell.universe_review import currency_exposure, missing_isin_rows, review_universe
 
 
 def _dense_covariance_rows(
@@ -693,7 +693,7 @@ def test_docs_refresh_handles_missing_docs_and_cli(
     monkeypatch.setattr(
         "sys.argv",
         [
-            "camovar-docs-refresh",
+            "portfell-docs-refresh",
             "--root",
             str(tmp_path),
             "--output",

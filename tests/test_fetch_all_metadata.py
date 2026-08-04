@@ -2,11 +2,11 @@ from pathlib import Path
 
 import pytest
 
-from camovar.fetch_all_metadata import fetch_all_metadata, write_all_metadata
-from camovar.http import EodhdHttpError
-from camovar.paths import LakePaths
-from camovar.table_io import read_json, read_rows
-from camovar.workflows import run_fetch_all_metadata_workflow
+from portfell.fetch_all_metadata import fetch_all_metadata, write_all_metadata
+from portfell.http import EodhdHttpError
+from portfell.paths import LakePaths
+from portfell.table_io import read_json, read_rows
+from portfell.workflows import run_fetch_all_metadata_workflow
 
 
 class FakeClient:
@@ -112,8 +112,8 @@ def test_run_fetch_all_metadata_workflow_persists_reference_dataset(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     paths = LakePaths(root=tmp_path / "lake")
-    monkeypatch.setattr("camovar.workflows.load_eodhd_config", lambda: object())
-    monkeypatch.setattr("camovar.workflows.EodhdClient", lambda _config: FakeClient())
+    monkeypatch.setattr("portfell.workflows.load_eodhd_config", lambda: object())
+    monkeypatch.setattr("portfell.workflows.EodhdClient", lambda _config: FakeClient())
 
     summary = run_fetch_all_metadata_workflow(root=paths.root)
 

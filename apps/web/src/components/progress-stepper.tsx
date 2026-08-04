@@ -14,7 +14,7 @@ export type ProgressStepperProps = Readonly<{
 
 export function ProgressStepper({ steps, children }: ProgressStepperProps) {
   return (
-    <nav aria-label="Progress stepper" className="camovar-progress-stepper">
+    <nav aria-label="Progress stepper" className="portfell-progress-stepper">
       {steps.map((step) => (
         <button
           key={step.id}

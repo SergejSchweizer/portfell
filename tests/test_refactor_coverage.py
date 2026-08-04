@@ -3,30 +3,30 @@ from pathlib import Path
 
 import pytest
 
-import camovar.architecture_checks as architecture_checks
-import camovar.table_io as table_io
-from camovar.architecture_checks import check_architecture
-from camovar.cli import build_parser
-from camovar.contract_versioning import (
+import portfell.architecture_checks as architecture_checks
+import portfell.table_io as table_io
+from portfell.architecture_checks import check_architecture
+from portfell.cli import build_parser
+from portfell.contract_versioning import (
     ContractChangeKind,
     ContractVersion,
     canonical_json,
     classify_contract_change,
     stable_contract_id,
 )
-from camovar.gold import build_correlation_edges, write_correlation_edges
-from camovar.gold_pair_stats import (
+from portfell.gold import build_correlation_edges, write_correlation_edges
+from portfell.gold_pair_stats import (
     OnlineCorrelation,
     bucket_correlation_edges,
     index_returns,
     iter_pair_statistics,
 )
-from camovar.paths import LakePaths
-from camovar.run_locks import layer_run_lock, module_run_lock
-from camovar.silver import build_silver_quotes, read_bronze_quote_rows, write_silver_quotes
-from camovar.table_io import read_json, read_rows, write_rows
-from camovar.univariate_statistics import build_quote_returns, build_univariate_statistics
-from camovar.workflows import generated_run_id, run_search_workflow
+from portfell.paths import LakePaths
+from portfell.run_locks import layer_run_lock, module_run_lock
+from portfell.silver import build_silver_quotes, read_bronze_quote_rows, write_silver_quotes
+from portfell.table_io import read_json, read_rows, write_rows
+from portfell.univariate_statistics import build_quote_returns, build_univariate_statistics
+from portfell.workflows import generated_run_id, run_search_workflow
 
 
 def _silver_quote(
@@ -182,30 +182,34 @@ def test_univariate_statistics_cover_drawdown_and_flat_trend_branches() -> None:
 
 
 def test_architecture_checks_report_boundary_violations(tmp_path: Path) -> None:
-    root = tmp_path / "camovar"
+    root = tmp_path / "portfell"
     (root / "evaluation_parts").mkdir(parents=True)
     (root / "portfolio_parts").mkdir()
-    (root / "evaluation.py").write_text("import camovar.search\n", encoding="utf-8")
-    (root / "silver.py").write_text("from camovar.bronze import _private\n", encoding="utf-8")
-    (root / "paths.py").write_text("import camovar.gold\n", encoding="utf-8")
+    (root / "evaluation.py").write_text("import portfell.search\n", encoding="utf-8")
+    (root / "silver.py").write_text("from portfell.bronze import _private\n", encoding="utf-8")
+    (root / "paths.py").write_text("import portfell.gold\n", encoding="utf-8")
     (root / "evaluation_parts" / "bad.py").write_text(
-        "import camovar.evaluation\nimport camovar.search\n", encoding="utf-8"
+        "import portfell.evaluation\nimport portfell.search\n", encoding="utf-8"
     )
-    (root / "bad_cli.py").write_text("import camovar.cli\n", encoding="utf-8")
-    (root / "portfolio_parts" / "bad.py").write_text("import camovar.portfolio\n", encoding="utf-8")
+    (root / "bad_cli.py").write_text("import portfell.cli\n", encoding="utf-8")
+    (root / "portfolio_parts" / "bad.py").write_text(
+        "import portfell.portfolio\n", encoding="utf-8"
+    )
     (root / "portfolio_parts" / "constraints.py").write_text(
-        "import camovar.paths\n", encoding="utf-8"
+        "import portfell.paths\n", encoding="utf-8"
     )
 
     violations = check_architecture(root)
 
-    assert any("must not import camovar.evaluation facade" in violation for violation in violations)
-    assert any("must not import camovar.portfolio facade" in violation for violation in violations)
+    assert any(
+        "must not import portfell.evaluation facade" in violation for violation in violations
+    )
+    assert any("must not import portfell.portfolio facade" in violation for violation in violations)
     assert any("imports ingestion modules" in violation for violation in violations)
     assert any("imports private Bronze helpers" in violation for violation in violations)
     assert any("shared module imports layer modules" in violation for violation in violations)
     assert any("core math imports lake IO modules" in violation for violation in violations)
-    assert any("must not import camovar.cli" in violation for violation in violations)
+    assert any("must not import portfell.cli" in violation for violation in violations)
 
 
 def test_architecture_main_reports_violations(

@@ -4,7 +4,7 @@ Last reviewed: 2026-07-27
 
 ## Purpose
 
-This document is part of the active Camovar backlog. It defines the technical UI refactor that must be completed before the product-facing Research Funnel PRs continue.
+This document is part of the active Portfell backlog. It defines the technical UI refactor that must be completed before the product-facing Research Funnel PRs continue.
 
 The stack is inserted after PR109 and before PR102. It does not replace the product scope of PR102 through PR108. Instead, it ensures those features are implemented on a maintainable React, TypeScript, Vite, component-catalogue, fixture, and browser-test foundation rather than extending the monolithic `apps/web/server.js` renderer.
 

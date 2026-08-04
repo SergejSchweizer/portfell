@@ -6,7 +6,7 @@ from math import isclose, log, sqrt
 
 import pytest
 
-from camovar.evaluation import (
+from portfell.evaluation import (
     ANNUAL_TRADING_DAYS,
     PRODUCTION_MAX_WEIGHT,
     PRODUCTION_MIN_COMPLETED_SPLITS,
@@ -15,7 +15,7 @@ from camovar.evaluation import (
     WALK_FORWARD_PROFILES,
     build_walk_forward_backtest,
 )
-from camovar.portfolio import PortfolioConstraints
+from portfell.portfolio import PortfolioConstraints
 
 
 def _matrix_row(
