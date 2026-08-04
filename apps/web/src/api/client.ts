@@ -1,5 +1,5 @@
 
-import type { ApiProjectContext, ApiWorkflow } from "../contracts";
+import type { ApiCredentialStatus, ApiProjectContext, ApiWorkflow } from "../contracts";
 
 export class ApiError extends Error {
   constructor(
@@ -41,6 +41,10 @@ export function postJson<TResponse>(path: string, body: unknown): Promise<TRespo
 
 export function loadWorkflow(): Promise<ApiWorkflow> {
   return requestJson<ApiWorkflow>("/api/workflow");
+}
+
+export function loadEodhdCredentialStatus(): Promise<ApiCredentialStatus> {
+  return requestJson<ApiCredentialStatus>("/api/credentials/eodhd");
 }
 
 export function loadProjectContext(): Promise<ApiProjectContext> {

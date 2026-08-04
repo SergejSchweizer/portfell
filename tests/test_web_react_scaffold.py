@@ -128,6 +128,17 @@ def test_metadata_refresh_keeps_the_entered_eodhd_key_in_the_header_field() -> N
     assert 'setProviderKey("")' not in frame
 
 
+def test_header_uses_masked_saved_credential_without_browser_secret_persistence() -> None:
+    frame = (WEB_ROOT / "src" / "shell" / "frame.tsx").read_text(encoding="utf-8")
+    client = (WEB_ROOT / "src" / "api" / "client.ts").read_text(encoding="utf-8")
+
+    assert "loadEodhdCredentialStatus" in frame
+    assert "Saved: {credential.data.masked_label}" in frame
+    assert "!providerKey.trim() && !hasSavedCredential" in frame
+    assert 'setProviderKey("")' not in frame
+    assert 'requestJson<ApiCredentialStatus>("/api/credentials/eodhd")' in client
+
+
 def test_metadata_filter_refreshes_the_sidebar_project_context_and_decodes_api_errors() -> None:
     page = (WEB_ROOT / "src" / "pages" / "metadata-filter.tsx").read_text(encoding="utf-8")
     frame = (WEB_ROOT / "src" / "shell" / "frame.tsx").read_text(encoding="utf-8")
