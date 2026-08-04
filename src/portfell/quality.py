@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import subprocess
 import sys
@@ -13,7 +14,11 @@ Runner = Callable[..., subprocess.CompletedProcess[str]]
 
 CONVENTIONAL_COMMIT_PATTERN = re.compile(
     r"^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)"
-    r"(\([a-z0-9][a-z0-9-]*\))?(!)?: .+"
+    r"(?:\(([a-z0-9][a-z0-9-]*)\))?(!)?: .+"
+)
+TYPED_BRANCH_PATTERN = re.compile(
+    r"^(?:build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)/"
+    r"([a-z0-9]+(?:-[a-z0-9]+)*)$"
 )
 
 PR_GATE_COMMANDS: tuple[Command, ...] = (
@@ -79,6 +84,26 @@ def is_conventional_commit_subject(subject: str) -> bool:
     return bool(CONVENTIONAL_COMMIT_PATTERN.fullmatch(subject.strip()))
 
 
+def branch_slug(*, runner: Runner = subprocess.run) -> str | None:
+    """Return the PR-name slug that branch commits must expose as their scope."""
+    result = runner(("git", "branch", "--show-current"), text=True, capture_output=True)
+    if result.returncode != 0:
+        return None
+    branch = result.stdout.strip() or os.environ.get("GITHUB_HEAD_REF", "")
+    if branch in {"", "main"}:
+        return None
+    match = TYPED_BRANCH_PATTERN.fullmatch(branch)
+    return match.group(1) if match is not None else None
+
+
+def reflects_branch_name(subject: str, slug: str | None) -> bool:
+    """Return whether a Conventional Commit subject carries the current PR slug."""
+    if slug is None:
+        return is_conventional_commit_subject(subject)
+    match = CONVENTIONAL_COMMIT_PATTERN.fullmatch(subject.strip())
+    return match is not None and match.group(2) == slug
+
+
 def commit_range(*, runner: Runner = subprocess.run) -> str:
     """Return the branch commit range to validate against the default main remote."""
     merge_base = runner(
@@ -108,7 +133,8 @@ def commit_subjects(revision_range: str, *, runner: Runner = subprocess.run) -> 
 def validate_conventional_commits(*, runner: Runner = subprocess.run) -> int:
     """Validate that branch commit subjects use Conventional Commits."""
     subjects = commit_subjects(commit_range(runner=runner), runner=runner)
-    invalid = [subject for subject in subjects if not is_conventional_commit_subject(subject)]
+    slug = branch_slug(runner=runner)
+    invalid = [subject for subject in subjects if not reflects_branch_name(subject, slug)]
     if not invalid:
         return 0
 
@@ -117,16 +143,19 @@ def validate_conventional_commits(*, runner: Runner = subprocess.run) -> int:
         f"Expected: type(optional-scope): subject, with type one of {CONVENTIONAL_COMMIT_TYPES}.",
         file=sys.stderr,
     )
+    if slug is not None:
+        print(f"Expected commit scope for this branch: ({slug}).", file=sys.stderr)
     for subject in invalid:
         print(f"Invalid commit subject: {subject}", file=sys.stderr)
     return 1
 
 
-def validate_commit_message_file(path: str) -> int:
+def validate_commit_message_file(path: str, *, runner: Runner = subprocess.run) -> int:
     """Validate one commit message file using Conventional Commits."""
     with open(path, encoding="utf-8") as message_file:
         subject = message_file.readline().strip()
-    if is_conventional_commit_subject(subject):
+    slug = branch_slug(runner=runner)
+    if reflects_branch_name(subject, slug):
         return 0
     print("Conventional Commit validation failed.", file=sys.stderr)
     print(
@@ -137,9 +166,10 @@ def validate_commit_message_file(path: str) -> int:
     return 1
 
 
-def validate_squash_subject(subject: str) -> int:
+def validate_squash_subject(subject: str, *, runner: Runner = subprocess.run) -> int:
     """Validate the PR title used as the squash-merge commit subject."""
-    if is_conventional_commit_subject(subject):
+    slug = branch_slug(runner=runner)
+    if reflects_branch_name(subject, slug):
         return 0
     print("Squash merge subject validation failed.", file=sys.stderr)
     print(

@@ -5,7 +5,15 @@ from typing import Any, cast
 
 from fastapi.testclient import TestClient
 
-from portfell.hosted_api import CSRF_COOKIE_NAME, SESSION_COOKIE_NAME, HostedApiState, create_app
+from portfell.entitlements import ProviderDownloadRun
+from portfell.hosted_api import (
+    CSRF_COOKIE_NAME,
+    SESSION_COOKIE_NAME,
+    HostedApiState,
+    ProjectRecord,
+    SelectionRecord,
+    create_app,
+)
 from portfell.paths import LakePaths
 from portfell.table_io import read_json, read_rows
 
@@ -41,6 +49,26 @@ def test_session_requires_authentication() -> None:
         "csrf_token": "",
         "user_id": "user-a",
     }
+
+
+def test_workflow_is_user_scoped_and_initially_only_metadata_is_ready() -> None:
+    client = _client()
+
+    user_a = _json(client.get("/workflow", headers=_headers(csrf=False)))
+    user_b = _json(client.get("/workflow", headers=_headers("user-b", csrf=False)))
+
+    assert (
+        user_a
+        == user_b
+        == {
+            "stages": {
+                "metadata_filter": {"status": "ready"},
+                "univariate_statistics": {"status": "locked"},
+                "univariate_filter": {"status": "locked"},
+                "bivariate_statistics": {"status": "locked"},
+            }
+        }
+    )
 
 
 def test_google_login_route_creates_cookie_session_for_local_web_runtime() -> None:
@@ -179,7 +207,7 @@ def test_metadata_filter_options_and_project_creation_use_all_isins_reference() 
     options = _json(client.get("/metadata-filter/options", headers=_headers(csrf=False)))
     created = _json(
         client.post(
-            "/metadata-filter/projects",
+            "/metadata-filter",
             headers=_headers(idempotency="metadata-project-1"),
             json={
                 "exchange": "XETRA",
@@ -192,7 +220,7 @@ def test_metadata_filter_options_and_project_creation_use_all_isins_reference() 
     )
     repeated = _json(
         client.post(
-            "/metadata-filter/projects",
+            "/metadata-filter",
             headers=_headers(idempotency="metadata-project-1"),
             json={
                 "exchange": "XETRA",
@@ -282,7 +310,7 @@ def test_load_selected_isins_runs_fetch_all_quotes_for_metadata_selection(
     )
     created = _json(
         client.post(
-            "/metadata-filter/projects",
+            "/metadata-filter",
             headers=_headers(idempotency="metadata-project-load-selected-isins"),
             json={
                 "exchange": "XETRA",
@@ -297,14 +325,14 @@ def test_load_selected_isins_runs_fetch_all_quotes_for_metadata_selection(
 
     loaded_data = _json(
         client.post(
-            "/data/load-selected-isins",
+            "/quote-runs",
             headers=_headers(idempotency="load-selected-isins-1"),
             json={"project_id": created["project"]["project_id"]},
         )
     )
     loaded_data_again = _json(
         client.post(
-            "/data/load-selected-isins",
+            "/quote-runs",
             headers=_headers(idempotency="load-selected-isins-1"),
             json={"project_id": created["project"]["project_id"]},
         )
@@ -370,15 +398,15 @@ def test_fetch_all_metadata_for_metadata_filter_requires_eodhd_key(
     )
     client = _client(HostedApiState())
 
-    rejected = client.post("/metadata-filter/fetch-all-metadata", headers=_headers())
+    rejected = client.post("/metadata/fetch-all", headers=_headers())
     client.post(
         "/credentials/eodhd",
         headers=_headers(idempotency="credential-fetch-all-metadata"),
         json={"provider_key": "secret-provider-token"},
     )
     credential_status = _json(client.get("/credentials/eodhd", headers=_headers(csrf=False)))
-    fetched = _json(client.post("/metadata-filter/fetch-all-metadata", headers=_headers()))
-    fetched_again = _json(client.post("/metadata-filter/fetch-all-metadata", headers=_headers()))
+    fetched = _json(client.post("/metadata/fetch-all", headers=_headers()))
+    fetched_again = _json(client.post("/metadata/fetch-all", headers=_headers()))
 
     assert rejected.status_code == 422
     assert _json(rejected)["detail"]["code"] == "eodhd_key_required"
@@ -449,35 +477,11 @@ def test_projects_selections_and_analyses_are_user_scoped_and_paginated() -> Non
             },
         )
     )
-    computed_statistics = _json(
-        client.post(
-            "/statistics/univariate/compute",
-            headers=_headers(idempotency="statistics-univariate-1"),
-            json={"project_id": project["project_id"]},
-        )
-    )
     projects_page = _json(client.get("/projects?limit=1&offset=0", headers=_headers(csrf=False)))
 
     assert repeated_project == project
     assert selection["member_ids"] == ["IE1", "IE2"]
     assert analysis["status"] == "succeeded"
-    assert computed_statistics == {
-        "kind": "univariate",
-        "progress": 100,
-        "project_id": project["project_id"],
-        "selected_count": 1,
-        "status": "succeeded",
-    }
-    assert (
-        _json(
-            client.post(
-                "/statistics/bivariate/compute",
-                headers=_headers(idempotency="statistics-bivariate-1"),
-                json={"project_id": project["project_id"]},
-            )
-        )["selected_count"]
-        == 0
-    )
     assert analysis["cache_hit"] is False
     assert repeated_analysis["run_id"] == analysis["run_id"]
     assert repeated_analysis["cache_hit"] is True
@@ -510,22 +514,6 @@ def test_projects_selections_and_analyses_are_user_scoped_and_paginated() -> Non
     assert (
         client.delete(f"/projects/{project['project_id']}", headers=_headers("user-b")).status_code
         == 404
-    )
-    assert (
-        client.post(
-            "/statistics/bivariate/compute",
-            headers=_headers("user-b"),
-            json={"project_id": project["project_id"]},
-        ).status_code
-        == 404
-    )
-    assert (
-        client.post(
-            "/statistics/unknown/compute",
-            headers=_headers(),
-            json={"project_id": project["project_id"]},
-        ).status_code
-        == 422
     )
     deleted_project = _json(client.delete(f"/projects/{project['project_id']}", headers=_headers()))
     assert deleted_project == {"project_id": project["project_id"], "status": "deleted"}
@@ -573,48 +561,97 @@ def test_projects_listing_removes_discontinued_statistics_smoke_project() -> Non
     )
 
 
-def test_univariate_statistics_summary_exposes_table_metrics_and_filter_options() -> None:
-    state = HostedApiState(
-        univariate_statistics_rows=(
-            {
-                "isin": "IE1",
-                "exchange": "XETRA",
-                "code": "AAA",
-                "annualized_volatility": 0.10,
-                "distribution_frequency": "monthly",
-            },
-            {
-                "isin": "IE2",
-                "exchange": "XETRA",
-                "code": "BBB",
-                "annualized_volatility": 0.20,
-                "distribution_frequency": "quarterly",
-            },
+def test_univariate_filter_metrics_expose_numerical_contract() -> None:
+    payload = _json(_client().get("/univariate-filter/metrics", headers=_headers(csrf=False)))
+    metrics = {row["metric"]: row for row in payload["items"]}
+
+    assert metrics["annualized_volatility"]["unit"] == "ratio"
+    assert metrics["quote_observation_count"]["unit"] == "count"
+    assert metrics["expected_shortfall"]["operators"] == ["=", "!=", ">", ">=", "<", "<="]
+
+
+def test_scoped_research_runs_filter_and_build_unique_pairs() -> None:
+    project = ProjectRecord(project_id="project-a", user_id="user-a", name="Research")
+    selection = SelectionRecord(
+        selection_id="metadata-selection-a",
+        user_id="user-a",
+        project_id=project.project_id,
+        name="Research",
+        member_ids=("IE1:XETRA:AAA", "IE2:XETRA:BBB", "IE3:XETRA:CCC"),
+    )
+    quote_run = ProviderDownloadRun(
+        download_run_id="quote-run-a",
+        user_id="user-a",
+        credential_id="credential-a",
+        provider="eodhd",
+        status="succeeded",
+        returned_observation_ids=selection.member_ids,
+        request_hash="quote-request-a",
+    )
+    quote_rows = tuple(
+        {
+            "isin": isin,
+            "exchange": "XETRA",
+            "code": code,
+            "date": f"2026-01-0{day}",
+            "adjusted_close": base + day,
+        }
+        for isin, code, base in (
+            ("IE1", "AAA", 100),
+            ("IE2", "BBB", 80),
+            ("IE3", "CCC", 120),
         )
+        for day in range(1, 5)
+    )
+    state = HostedApiState(
+        projects_by_id={project.project_id: project},
+        selections_by_id={selection.selection_id: selection},
+        downloads_by_id={quote_run.download_run_id: quote_run},
+        quote_rows_by_run_id={quote_run.download_run_id: quote_rows},
     )
     client = _client(state)
 
-    payload = _json(client.get("/statistics/univariate/summary", headers=_headers(csrf=False)))
-    rows = {row["name"]: row for row in payload["items"]}
+    request = {
+        "metadata_selection_id": selection.selection_id,
+        "quote_run_id": quote_run.download_run_id,
+    }
+    univariate = _json(client.post("/univariate-statistics/runs", headers=_headers(), json=request))
+    repeated = _json(client.post("/univariate-statistics/runs", headers=_headers(), json=request))
+    filtered = _json(
+        client.post(
+            "/univariate-filter",
+            headers=_headers(),
+            json={
+                "source_run_id": univariate["run_id"],
+                "predicates": [{"metric": "quote_observation_count", "operator": ">=", "value": 4}],
+            },
+        )
+    )
+    source = {"univariate_filter_selection_id": filtered["selection_id"]}
+    plan = _json(client.post("/bivariate-statistics/plan", headers=_headers(), json=source))
+    bivariate = _json(client.post("/bivariate-statistics/runs", headers=_headers(), json=source))
+    pair_rows = _json(
+        client.get(
+            f"/bivariate-statistics/runs/{bivariate['run_id']}/results",
+            headers=_headers(csrf=False),
+        )
+    )["items"]
 
-    assert payload["categories"][0]["label"] == "Instrument Identity"
-    assert rows["annualized_volatility"]["category"] == "Volatility And Downside Risk"
-    assert round(rows["annualized_volatility"]["mean"], 6) == 0.15
-    assert round(rows["annualized_volatility"]["median"], 6) == 0.15
-    assert rows["annualized_volatility"]["three_std_range"] is not None
-    assert rows["annualized_volatility"]["filter_options"] == [
-        {"label": ">", "value": ">"},
-        {"label": ">=", "value": ">="},
-        {"label": "<", "value": "<"},
-        {"label": "<=", "value": "<="},
-        {"label": "=", "value": "="},
-        {"label": "!=", "value": "!="},
-    ]
-    assert rows["distribution_frequency"]["category"] == "Income Distribution"
-    assert rows["distribution_frequency"]["filter_options"] == [
-        {"label": "monthly", "value": "distribution_frequency=monthly"},
-        {"label": "quarterly", "value": "distribution_frequency=quarterly"},
-    ]
+    assert repeated == univariate
+    assert univariate["status"] == "complete"
+    assert filtered["input_count"] == filtered["selected_count"] == 3
+    assert filtered["excluded_count"] == 0
+    assert plan["theoretical_pair_count"] == 3
+    assert plan["allowed"] is True
+    assert len(pair_rows) == 3
+    assert len({(row["left_id"], row["right_id"]) for row in pair_rows}) == 3
+    assert (
+        client.get(
+            f"/univariate-statistics/runs/{univariate['run_id']}",
+            headers=_headers("user-b", csrf=False),
+        ).status_code
+        == 404
+    )
 
 
 def test_account_deletion_removes_user_owned_api_state() -> None:

@@ -7,9 +7,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-import math
 import os
-import statistics
 import uuid
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
@@ -34,15 +32,21 @@ from portfell.hosted_credentials import (
     InMemoryCredentialStore,
     KeyEncryptionKey,
 )
+from portfell.hosted_research_workflow import (
+    FilterSelection,
+    HostedResearchError,
+    ResearchRun,
+    create_bivariate_run,
+    create_filter_selection,
+    create_univariate_run,
+    page_rows,
+    pair_plan,
+)
 from portfell.metadata_filter import write_metadata_selection
 from portfell.paths import LakePaths
-from portfell.schemas import required_fields
 from portfell.selection_filters import Predicate, filter_rows
 from portfell.table_io import JsonRow, read_rows
-from portfell.univariate_categories import (
-    UNIVARIATE_PORTFOLIO_CATEGORIES,
-    category_for_univariate_field,
-)
+from portfell.workflow_state import resolve_workflow
 from portfell.workflows import (
     run_fetch_all_metadata_workflow,
     run_fetch_all_quotes_workflow,
@@ -103,16 +107,40 @@ class AnalysisCreateRequest(BaseModel):
     settings: JsonRow = Field(default_factory=dict)
 
 
-class StatisticsComputeRequest(BaseModel):
-    """Request to compute one statistics layer for a user-owned project."""
+class UnivariateRunRequest(BaseModel):
+    """Immutable inputs for one univariate statistics run."""
 
-    project_id: str
+    metadata_selection_id: str
+    quote_run_id: str
+
+
+class NumericalPredicateRequest(BaseModel):
+    """One numerical filter predicate."""
+
+    metric: str
+    operator: str
+    value: float
+
+
+class UnivariateFilterRequest(BaseModel):
+    """Predicates applied to one user-owned univariate run."""
+
+    source_run_id: str
+    selection_name: str | None = None
+    predicates: list[NumericalPredicateRequest] = Field(min_length=1, max_length=100)
+
+
+class BivariateSelectionRequest(BaseModel):
+    """Source selection for pair planning and execution."""
+
+    univariate_filter_selection_id: str
 
 
 class LoadSelectedIsinsRequest(BaseModel):
     """Request to load quote data for one user-owned project selection."""
 
-    project_id: str
+    project_id: str | None = None
+    metadata_selection_id: str | None = None
 
 
 class UserOwnedRow(Protocol):
@@ -195,6 +223,26 @@ class HostedApiState:
     audit_events: list[JsonRow] = field(default_factory=lambda: list[JsonRow]())
     all_isins_rows: tuple[JsonRow, ...] = field(default_factory=tuple)
     univariate_statistics_rows: tuple[JsonRow, ...] = field(default_factory=tuple)
+    metadata_revisions_by_user: dict[str, str] = field(default_factory=lambda: dict[str, str]())
+    quote_rows_by_run_id: dict[str, tuple[JsonRow, ...]] = field(
+        default_factory=lambda: dict[str, tuple[JsonRow, ...]]()
+    )
+    univariate_runs_by_id: dict[str, ResearchRun] = field(
+        default_factory=lambda: dict[str, ResearchRun]()
+    )
+    filter_selections_by_id: dict[str, FilterSelection] = field(
+        default_factory=lambda: dict[str, FilterSelection]()
+    )
+    bivariate_runs_by_id: dict[str, ResearchRun] = field(
+        default_factory=lambda: dict[str, ResearchRun]()
+    )
+    quote_run_by_univariate_run_id: dict[str, str] = field(default_factory=lambda: dict[str, str]())
+    current_metadata_selection_by_user: dict[str, str] = field(
+        default_factory=lambda: dict[str, str]()
+    )
+    current_filter_selection_by_user: dict[str, str] = field(
+        default_factory=lambda: dict[str, str]()
+    )
 
     def credential_vault(self) -> EodhdCredentialVault:
         """Return a deterministic local credential vault."""
@@ -270,6 +318,49 @@ def create_app(state: HostedApiState | None = None) -> FastAPI:
     @app.get("/session")
     def session(user: ApiUser = Depends(current_user)) -> JsonRow:
         return {"authenticated": True, "user_id": user.user_id, "csrf_token": user.csrf_token}
+
+    @app.get("/workflow")
+    def workflow(
+        user: ApiUser = Depends(current_user),
+        api_state: HostedApiState = Depends(current_state),
+    ) -> JsonRow:
+        selection = _workflow_selection(api_state, user.user_id)
+        if selection is None:
+            return {
+                "stages": resolve_workflow(
+                    metadata_revision_id=None,
+                    metadata_selection_id=None,
+                    quote_run_id=None,
+                )
+            }
+        quote_run_id = _quote_run_id_for_project(api_state, selection.project_id, user.user_id)
+        metadata_revision_id = api_state.metadata_revisions_by_user.get(
+            user.user_id,
+            _opaque_id("metadata-revision", selection.selection_id),
+        )
+        univariate_run = _univariate_run_for_quote(api_state, quote_run_id, user.user_id)
+        filter_selection = _filter_selection_for_run(
+            api_state,
+            None if univariate_run is None else univariate_run.run_id,
+            user.user_id,
+        )
+        bivariate_run = _bivariate_run_for_selection(
+            api_state,
+            None if filter_selection is None else filter_selection.selection_id,
+            user.user_id,
+        )
+        return {
+            "stages": resolve_workflow(
+                metadata_revision_id=metadata_revision_id,
+                metadata_selection_id=selection.selection_id,
+                quote_run_id=quote_run_id,
+                univariate_run_id=None if univariate_run is None else univariate_run.run_id,
+                univariate_filter_selection_id=(
+                    None if filter_selection is None else filter_selection.selection_id
+                ),
+                bivariate_run_id=None if bivariate_run is None else bivariate_run.run_id,
+            )
+        }
 
     @app.get("/credentials/eodhd")
     def credential_status(
@@ -462,7 +553,7 @@ def create_app(state: HostedApiState | None = None) -> FastAPI:
             "currency": _distinct_options(rows, "currency"),
         }
 
-    @app.post("/metadata-filter/fetch-all-metadata")
+    @app.post("/metadata/fetch-all")
     def fetch_all_metadata_for_metadata_filter(
         user: ApiUser = Depends(csrf_user),
         api_state: HostedApiState = Depends(current_state),
@@ -479,6 +570,11 @@ def create_app(state: HostedApiState | None = None) -> FastAPI:
             root=_lake_paths().root,
             eodhd_config=EodhdConfig(api_token=provider_key),
         )
+        api_state.metadata_revisions_by_user[user.user_id] = _opaque_id(
+            "metadata-revision", _stable_hash(summary)
+        )
+        api_state.current_metadata_selection_by_user.pop(user.user_id, None)
+        api_state.current_filter_selection_by_user.pop(user.user_id, None)
         _audit(api_state, user.user_id, "fetch_all_metadata.completed")
         return {
             "status": "succeeded",
@@ -489,7 +585,7 @@ def create_app(state: HostedApiState | None = None) -> FastAPI:
             "skipped_exchanges": list(summary["skipped_exchanges"]),
         }
 
-    @app.post("/metadata-filter/projects")
+    @app.post("/metadata-filter")
     def create_metadata_filter_project(
         payload: MetadataFilterProjectRequest,
         user: ApiUser = Depends(csrf_user),
@@ -536,6 +632,8 @@ def create_app(state: HostedApiState | None = None) -> FastAPI:
             member_ids=member_ids,
         )
         api_state.selections_by_id.setdefault(selection_id, selection)
+        api_state.current_metadata_selection_by_user[user.user_id] = selection_id
+        api_state.current_filter_selection_by_user.pop(user.user_id, None)
         _write_hosted_metadata_selection(selection_id, selected_rows, predicates)
         _remember_idempotency(
             api_state,
@@ -583,19 +681,28 @@ def create_app(state: HostedApiState | None = None) -> FastAPI:
             _require_user_row(api_state.selections_by_id, selection_id, user.user_id)
         )
 
-    @app.post("/data/load-selected-isins")
+    @app.post("/quote-runs")
     def load_selected_isins(
         payload: LoadSelectedIsinsRequest,
         user: ApiUser = Depends(csrf_user),
         api_state: HostedApiState = Depends(current_state),
         idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     ) -> JsonRow:
-        _require_user_row(api_state.projects_by_id, payload.project_id, user.user_id)
-        selection = _selection_for_project(api_state, payload.project_id, user.user_id)
+        if payload.metadata_selection_id is not None:
+            selection = _require_user_row(
+                api_state.selections_by_id, payload.metadata_selection_id, user.user_id
+            )
+            project_id = selection.project_id
+        elif payload.project_id is not None:
+            project_id = payload.project_id
+            _require_user_row(api_state.projects_by_id, project_id, user.user_id)
+            selection = _selection_for_project(api_state, project_id, user.user_id)
+        else:
+            raise _http_error(status.HTTP_422_UNPROCESSABLE_CONTENT, "metadata_selection_required")
         cached_run_id = _idempotent_response(
             api_state,
             user_id=user.user_id,
-            operation=f"fetch-all-quotes:{payload.project_id}",
+            operation=f"fetch-all-quotes:{project_id}",
             idempotency_key=idempotency_key,
         )
         if cached_run_id is not None:
@@ -605,7 +712,7 @@ def create_app(state: HostedApiState | None = None) -> FastAPI:
             )
         request_hash = _stable_hash(
             {
-                "project_id": payload.project_id,
+                "project_id": project_id,
                 "selection_id": selection.selection_id,
                 "member_ids": list(selection.member_ids),
             }
@@ -624,7 +731,9 @@ def create_app(state: HostedApiState | None = None) -> FastAPI:
             selection_id=selection.selection_id,
             concurrency=max(1, os.cpu_count() or 1),
             eodhd_config=EodhdConfig(api_token=provider_key),
+            capture_scoped_rows=True,
         )
+        scoped_quote_rows = tuple(dict(row) for row in summary.pop("scoped_quote_rows", ()))
         run = ProviderDownloadRun(
             download_run_id=_opaque_id("fetch-all-quotes", f"{user.user_id}:{request_hash}"),
             user_id=user.user_id,
@@ -635,58 +744,176 @@ def create_app(state: HostedApiState | None = None) -> FastAPI:
             request_hash=request_hash,
         )
         api_state.downloads_by_id[run.download_run_id] = run
+        api_state.quote_rows_by_run_id[run.download_run_id] = scoped_quote_rows
         api_state.download_summaries_by_id[run.download_run_id] = dict(summary)
         publish_user_data_snapshot(store=api_state.entitlements, run=run)
         _remember_idempotency(
             api_state,
             user.user_id,
-            f"fetch-all-quotes:{payload.project_id}",
+            f"fetch-all-quotes:{project_id}",
             idempotency_key,
             run.download_run_id,
         )
         _audit(api_state, user.user_id, "fetch_all_quotes.load_selected_isins")
         return _load_selected_isins_row(run, summary=summary)
 
-    @app.post("/statistics/{statistics_kind}/compute")
-    def compute_statistics(
-        statistics_kind: str,
-        payload: StatisticsComputeRequest,
-        user: ApiUser = Depends(csrf_user),
-        api_state: HostedApiState = Depends(current_state),
-    ) -> JsonRow:
-        allowed_kinds = {"univariate", "bivariate", "multivariate"}
-        if statistics_kind not in allowed_kinds:
-            raise _http_error(status.HTTP_422_UNPROCESSABLE_CONTENT, "invalid_statistics_kind")
-        _require_user_row(api_state.projects_by_id, payload.project_id, user.user_id)
-        selection = _selection_for_project(api_state, payload.project_id, user.user_id)
-        _audit(api_state, user.user_id, f"statistics.{statistics_kind}.compute")
-        return {
-            "kind": statistics_kind,
-            "project_id": payload.project_id,
-            "selected_count": _statistics_selected_count(
-                len(selection.member_ids), statistics_kind
-            ),
-            "status": "succeeded",
-            "progress": 100,
-        }
-
-    @app.get("/statistics/univariate/summary")
-    def univariate_statistics_summary(
+    @app.get("/quote-runs/{quote_run_id}")
+    def quote_run_status(
+        quote_run_id: str,
         user: ApiUser = Depends(current_user),
         api_state: HostedApiState = Depends(current_state),
     ) -> JsonRow:
+        run = _require_user_row(api_state.downloads_by_id, quote_run_id, user.user_id)
+        return _load_selected_isins_row(
+            run,
+            summary=api_state.download_summaries_by_id.get(quote_run_id),
+        )
+
+    @app.post("/univariate-statistics/runs")
+    def start_univariate_run(
+        payload: UnivariateRunRequest,
+        user: ApiUser = Depends(csrf_user),
+        api_state: HostedApiState = Depends(current_state),
+    ) -> JsonRow:
+        selection = _require_user_row(
+            api_state.selections_by_id, payload.metadata_selection_id, user.user_id
+        )
+        quote_run = _require_user_row(api_state.downloads_by_id, payload.quote_run_id, user.user_id)
+        if quote_run.status != "succeeded":
+            raise _http_error(status.HTTP_409_CONFLICT, "quote_run_incomplete")
+        quote_rows = api_state.quote_rows_by_run_id.get(quote_run.download_run_id)
+        if quote_rows is None:
+            raise _http_error(status.HTTP_409_CONFLICT, "scoped_quote_rows_unavailable")
+        run = create_univariate_run(
+            user_id=user.user_id,
+            selection_id=selection.selection_id,
+            quote_run_id=quote_run.download_run_id,
+            quote_rows=quote_rows,
+        )
+        api_state.univariate_runs_by_id.setdefault(run.run_id, run)
+        api_state.quote_run_by_univariate_run_id.setdefault(run.run_id, quote_run.download_run_id)
+        return _research_run_row(api_state.univariate_runs_by_id[run.run_id])
+
+    @app.get("/univariate-statistics/runs/{run_id}")
+    def univariate_run_status(
+        run_id: str,
+        user: ApiUser = Depends(current_user),
+        api_state: HostedApiState = Depends(current_state),
+    ) -> JsonRow:
+        return _research_run_row(
+            _require_user_row(api_state.univariate_runs_by_id, run_id, user.user_id)
+        )
+
+    @app.get("/univariate-statistics/runs/{run_id}/results")
+    def univariate_run_results(
+        run_id: str,
+        user: ApiUser = Depends(current_user),
+        api_state: HostedApiState = Depends(current_state),
+        limit: int = 50,
+        offset: int = 0,
+    ) -> JsonRow:
+        run = _require_user_row(api_state.univariate_runs_by_id, run_id, user.user_id)
+        return page_rows(run.rows, limit=limit, offset=offset)
+
+    @app.get("/univariate-filter/metrics")
+    def univariate_filter_metrics(
+        user: ApiUser = Depends(current_user),
+    ) -> JsonRow:
         _ = user
-        return {
-            "items": _univariate_summary_rows(_univariate_statistics_rows(api_state)),
-            "categories": [
-                {
-                    "key": category.key,
-                    "label": category.label,
-                    "purpose": category.purpose,
-                }
-                for category in UNIVARIATE_PORTFOLIO_CATEGORIES
-            ],
-        }
+        return {"items": _univariate_metric_rows()}
+
+    @app.post("/univariate-filter")
+    def apply_univariate_filter(
+        payload: UnivariateFilterRequest,
+        user: ApiUser = Depends(csrf_user),
+        api_state: HostedApiState = Depends(current_state),
+    ) -> JsonRow:
+        source_run = _require_user_row(
+            api_state.univariate_runs_by_id, payload.source_run_id, user.user_id
+        )
+        try:
+            selection = create_filter_selection(
+                user_id=user.user_id,
+                run=source_run,
+                predicate_rows=[predicate.model_dump() for predicate in payload.predicates],
+            )
+        except HostedResearchError as error:
+            raise _http_error(status.HTTP_422_UNPROCESSABLE_CONTENT, str(error)) from error
+        api_state.filter_selections_by_id.setdefault(selection.selection_id, selection)
+        api_state.current_filter_selection_by_user[user.user_id] = selection.selection_id
+        return _filter_selection_row(api_state.filter_selections_by_id[selection.selection_id])
+
+    @app.get("/univariate-filter/{selection_id}/results")
+    def univariate_filter_results(
+        selection_id: str,
+        user: ApiUser = Depends(current_user),
+        api_state: HostedApiState = Depends(current_state),
+        limit: int = 50,
+        offset: int = 0,
+    ) -> JsonRow:
+        selection = _require_user_row(api_state.filter_selections_by_id, selection_id, user.user_id)
+        return page_rows(selection.rows, limit=limit, offset=offset)
+
+    @app.post("/bivariate-statistics/plan")
+    def bivariate_plan(
+        payload: BivariateSelectionRequest,
+        user: ApiUser = Depends(csrf_user),
+        api_state: HostedApiState = Depends(current_state),
+    ) -> JsonRow:
+        selection = _require_user_row(
+            api_state.filter_selections_by_id,
+            payload.univariate_filter_selection_id,
+            user.user_id,
+        )
+        return pair_plan(selection)
+
+    @app.post("/bivariate-statistics/runs")
+    def start_bivariate_run(
+        payload: BivariateSelectionRequest,
+        user: ApiUser = Depends(csrf_user),
+        api_state: HostedApiState = Depends(current_state),
+    ) -> JsonRow:
+        selection = _require_user_row(
+            api_state.filter_selections_by_id,
+            payload.univariate_filter_selection_id,
+            user.user_id,
+        )
+        source_run = _require_user_row(
+            api_state.univariate_runs_by_id, selection.source_run_id, user.user_id
+        )
+        quote_run_id = api_state.quote_run_by_univariate_run_id.get(source_run.run_id, "")
+        quote_rows = api_state.quote_rows_by_run_id.get(quote_run_id)
+        if quote_rows is None:
+            raise _http_error(status.HTTP_409_CONFLICT, "scoped_quote_rows_unavailable")
+        try:
+            run = create_bivariate_run(
+                user_id=user.user_id, selection=selection, quote_rows=quote_rows
+            )
+        except HostedResearchError as error:
+            raise _http_error(status.HTTP_422_UNPROCESSABLE_CONTENT, str(error)) from error
+        api_state.bivariate_runs_by_id.setdefault(run.run_id, run)
+        return _research_run_row(api_state.bivariate_runs_by_id[run.run_id])
+
+    @app.get("/bivariate-statistics/runs/{run_id}")
+    def bivariate_run_status(
+        run_id: str,
+        user: ApiUser = Depends(current_user),
+        api_state: HostedApiState = Depends(current_state),
+    ) -> JsonRow:
+        return _research_run_row(
+            _require_user_row(api_state.bivariate_runs_by_id, run_id, user.user_id)
+        )
+
+    @app.get("/bivariate-statistics/runs/{run_id}/results")
+    def bivariate_run_results(
+        run_id: str,
+        user: ApiUser = Depends(current_user),
+        api_state: HostedApiState = Depends(current_state),
+        limit: int = 50,
+        offset: int = 0,
+    ) -> JsonRow:
+        run = _require_user_row(api_state.bivariate_runs_by_id, run_id, user.user_id)
+        return page_rows(run.rows, limit=limit, offset=offset)
 
     @app.post("/analyses")
     def create_analysis(
@@ -819,16 +1046,6 @@ def _all_isins_rows(state: HostedApiState) -> tuple[JsonRow, ...]:
     return tuple(read_rows(_lake_paths().all_isins()))
 
 
-def _univariate_statistics_rows(state: HostedApiState) -> tuple[JsonRow, ...]:
-    if state.univariate_statistics_rows:
-        return state.univariate_statistics_rows
-    root = _lake_paths().gold / "univariate_statistics"
-    rows: list[JsonRow] = []
-    for path in sorted(root.glob("*/*.parquet")):
-        rows.extend(read_rows(path))
-    return tuple(rows)
-
-
 def _write_hosted_metadata_selection(
     selection_id: str,
     selected_rows: Iterable[Mapping[str, Any]],
@@ -844,75 +1061,6 @@ def _write_hosted_metadata_selection(
         predicates=predicates,
         source_path=str(paths.all_isins()),
     )
-
-
-def _univariate_summary_rows(rows: tuple[JsonRow, ...]) -> list[JsonRow]:
-    return [
-        _univariate_field_summary(field, rows) for field in required_fields("univariate_statistics")
-    ]
-
-
-def _univariate_field_summary(field: str, rows: tuple[JsonRow, ...]) -> JsonRow:
-    category = category_for_univariate_field(field)
-    numeric_values = _finite_numeric_values(row.get(field) for row in rows)
-    distinct_values = sorted(
-        {str(row.get(field, "")).strip() for row in rows if str(row.get(field, "")).strip()}
-    )
-    if numeric_values:
-        mean_value = statistics.fmean(numeric_values)
-        std_value = statistics.stdev(numeric_values) if len(numeric_values) > 1 else 0.0
-        median_value: float | str | None = statistics.median(numeric_values)
-        mean_output: float | str | None = mean_value
-        lower_bound = mean_value - (3 * std_value)
-        upper_bound = mean_value + (3 * std_value)
-        band_output: str | None = f"{lower_bound:.6g}..{upper_bound:.6g}"
-    else:
-        mean_output = None
-        median_value = _categorical_median(distinct_values)
-        band_output = None
-    return {
-        "name": field,
-        "category": category.label if category is not None else "Uncategorized",
-        "mean": mean_output,
-        "median": median_value,
-        "three_std_range": band_output,
-        "filter_options": _univariate_filter_options(field, numeric_values, distinct_values),
-    }
-
-
-def _finite_numeric_values(values: Iterable[object]) -> list[float]:
-    numbers: list[float] = []
-    for value in values:
-        if isinstance(value, bool) or value is None:
-            continue
-        if isinstance(value, int | float):
-            number = float(value)
-        else:
-            try:
-                number = float(str(value))
-            except ValueError:
-                continue
-        if math.isfinite(number):
-            numbers.append(number)
-    return numbers
-
-
-def _categorical_median(values: list[str]) -> str | None:
-    if not values:
-        return None
-    return values[len(values) // 2]
-
-
-def _univariate_filter_options(
-    field: str, numeric_values: list[float], distinct_values: list[str]
-) -> list[JsonRow]:
-    if numeric_values:
-        return [
-            {"value": operator, "label": operator} for operator in (">", ">=", "<", "<=", "=", "!=")
-        ]
-    if distinct_values:
-        return [{"value": f"{field}={value}", "label": value} for value in distinct_values[:100]]
-    return [{"value": operator, "label": operator} for operator in ("=", "!=", "~")]
 
 
 def _distinct_options(rows: tuple[JsonRow, ...], field: str) -> list[str]:
@@ -959,6 +1107,91 @@ def _selection_for_project(state: HostedApiState, project_id: str, user_id: str)
     raise _http_error(status.HTTP_404_NOT_FOUND, "not_found")
 
 
+def _workflow_selection(state: HostedApiState, user_id: str) -> SelectionRecord | None:
+    """Choose a stable current selection without examining unrestricted lake data."""
+
+    current_selection_id = state.current_metadata_selection_by_user.get(user_id)
+    if current_selection_id is not None:
+        selection = state.selections_by_id.get(current_selection_id)
+        if selection is not None and selection.user_id == user_id:
+            return selection
+    if user_id in state.metadata_revisions_by_user:
+        return None
+    selections = sorted(
+        (
+            selection
+            for selection in state.selections_by_id.values()
+            if selection.user_id == user_id
+        ),
+        key=lambda selection: (selection.project_id, selection.selection_id),
+    )
+    return selections[0] if selections else None
+
+
+def _quote_run_id_for_project(state: HostedApiState, project_id: str, user_id: str) -> str | None:
+    operation = f"fetch-all-quotes:{project_id}"
+    run_ids = sorted(
+        run_id
+        for (stored_user_id, stored_operation, _), run_id in state.idempotency_refs.items()
+        if stored_user_id == user_id
+        and stored_operation == operation
+        and state.downloads_by_id.get(run_id, None) is not None
+        and state.downloads_by_id[run_id].status == "succeeded"
+    )
+    return run_ids[0] if run_ids else None
+
+
+def _univariate_run_for_quote(
+    state: HostedApiState, quote_run_id: str | None, user_id: str
+) -> ResearchRun | None:
+    run_ids = sorted(
+        run_id
+        for run_id, stored_quote_run_id in state.quote_run_by_univariate_run_id.items()
+        if stored_quote_run_id == quote_run_id
+        and run_id in state.univariate_runs_by_id
+        and state.univariate_runs_by_id[run_id].user_id == user_id
+    )
+    return state.univariate_runs_by_id[run_ids[0]] if run_ids else None
+
+
+def _filter_selection_for_run(
+    state: HostedApiState, run_id: str | None, user_id: str
+) -> FilterSelection | None:
+    current_selection_id = state.current_filter_selection_by_user.get(user_id)
+    if current_selection_id is not None:
+        selection = state.filter_selections_by_id.get(current_selection_id)
+        if selection is not None and selection.source_run_id == run_id:
+            return selection
+    selection_ids = sorted(
+        selection.selection_id
+        for selection in state.filter_selections_by_id.values()
+        if selection.source_run_id == run_id and selection.user_id == user_id
+    )
+    return state.filter_selections_by_id[selection_ids[0]] if selection_ids else None
+
+
+def _bivariate_run_for_selection(
+    state: HostedApiState, selection_id: str | None, user_id: str
+) -> ResearchRun | None:
+    runs = sorted(
+        (
+            run
+            for run in state.bivariate_runs_by_id.values()
+            if run.user_id == user_id
+            and selection_id is not None
+            and run.source_id
+            == _stable_hash(
+                {
+                    "selection_id": selection_id,
+                    "members": list(state.filter_selections_by_id[selection_id].member_ids),
+                }
+            )
+        ),
+        key=lambda run: run.run_id,
+    )
+    return runs[0] if runs else None
+
+
 def _metadata_filter_project_row(
     project: ProjectRecord, selection: SelectionRecord, selected_count: int
 ) -> JsonRow:
@@ -979,6 +1212,57 @@ def _credential_status_row(status_row: CredentialStatus) -> JsonRow:
     }
 
 
+def _research_run_row(run: ResearchRun) -> JsonRow:
+    percent = 100 if run.total == 0 else int(((run.completed + run.failed) / run.total) * 100)
+    return {
+        "run_id": run.run_id,
+        "status": run.status,
+        "total": run.total,
+        "completed": run.completed,
+        "failed": run.failed,
+        "percent": percent,
+    }
+
+
+def _filter_selection_row(selection: FilterSelection) -> JsonRow:
+    selected_count = len(selection.rows)
+    return {
+        "selection_id": selection.selection_id,
+        "source_run_id": selection.source_run_id,
+        "input_count": selection.input_count,
+        "selected_count": selected_count,
+        "excluded_count": selection.input_count - selected_count,
+        "predicates": [
+            {
+                "metric": predicate.field,
+                "operator": predicate.operator,
+                "value": float(predicate.expected),
+            }
+            for predicate in selection.predicates
+        ],
+    }
+
+
+def _univariate_metric_rows() -> list[JsonRow]:
+    labels = {
+        "quote_observation_count": ("Observations", "count"),
+        "annualized_return": ("Annualized return", "ratio"),
+        "annualized_volatility": ("Annualized volatility", "ratio"),
+        "sharpe_ratio": ("Sharpe ratio", "ratio"),
+        "max_drawdown": ("Maximum drawdown", "ratio"),
+        "expected_shortfall": ("Expected shortfall", "ratio"),
+    }
+    return [
+        {
+            "metric": metric,
+            "label": label,
+            "unit": unit,
+            "operators": ["=", "!=", ">", ">=", "<", "<="],
+        }
+        for metric, (label, unit) in labels.items()
+    ]
+
+
 def _download_row(run: ProviderDownloadRun) -> JsonRow:
     return {
         "download_run_id": run.download_run_id,
@@ -997,6 +1281,10 @@ def _load_selected_isins_row(
     return {
         **_download_row(run),
         "kind": "load-data",
+        "total": len(run.returned_observation_ids),
+        "completed": int(workflow_summary.get("quote_successes", 0)),
+        "failed": int(workflow_summary.get("quote_errors", 0)),
+        "percent": 100,
         "progress": 100,
         "quote_errors": int(workflow_summary.get("quote_errors", 0)),
         "quote_successes": int(workflow_summary.get("quote_successes", 0)),
@@ -1068,11 +1356,6 @@ def _project_data_loaded(state: HostedApiState, project_id: str, user_id: str) -
         if run is not None and run.status == "succeeded":
             return True
     return False
-
-
-def _statistics_selected_count(selection_count: int, statistics_kind: str) -> int:
-    reduction_by_kind = {"univariate": 1, "bivariate": 2, "multivariate": 3}
-    return max(0, selection_count - reduction_by_kind[statistics_kind])
 
 
 def _selection_row(selection: SelectionRecord) -> JsonRow:

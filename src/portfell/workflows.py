@@ -160,6 +160,7 @@ def run_fetch_all_quotes_workflow(
     include_raw_datasets: bool = True,
     concurrency: int = 2,
     eodhd_config: EodhdConfig | None = None,
+    capture_scoped_rows: bool = False,
 ) -> dict[str, Any]:
     """Fetch Bronze quote inputs for the latest Metadata Filter selection."""
     paths = LakePaths(root=root)
@@ -231,7 +232,7 @@ def run_fetch_all_quotes_workflow(
                 "run_id": resolved_run_id,
             },
         )
-        return {
+        summary: dict[str, Any] = {
             "coverage_rows": len(coverage),
             "raw_dataset_errors": len(raw_errors),
             "raw_dataset_successes": len(raw_successes),
@@ -242,6 +243,9 @@ def run_fetch_all_quotes_workflow(
             "selected_listing_count": len(selection_rows),
             "silver_quote_rows": len(silver_rows),
         }
+        if capture_scoped_rows:
+            summary["scoped_quote_rows"] = _filter_quotes_to_selection(silver_rows, selection_rows)
+        return summary
 
 
 def _build_fetch_all_quotes_plan(

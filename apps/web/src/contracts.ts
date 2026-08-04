@@ -6,6 +6,26 @@ export type ApiFieldOptions = Readonly<{
   currency: readonly string[];
 }>;
 
+export type WorkflowStageId =
+  | "metadata_filter"
+  | "univariate_statistics"
+  | "univariate_filter"
+  | "bivariate_statistics";
+
+export type WorkflowStatus = "locked" | "ready" | "running" | "complete" | "failed" | "stale";
+
+export type ApiWorkflow = Readonly<{
+  stages: Readonly<Record<WorkflowStageId, Readonly<{
+    status: WorkflowStatus;
+    metadata_revision_id?: string;
+    metadata_selection_id?: string;
+    quote_run_id?: string;
+    univariate_run_id?: string;
+    univariate_filter_selection_id?: string;
+    bivariate_run_id?: string;
+  }>>>;
+}>;
+
 export type ApiMetadataFetch = Readonly<{
   status: "succeeded";
   row_count: number;
@@ -23,6 +43,10 @@ export type ApiMetadataProject = Readonly<{
 
 export type ApiQuoteFetch = Readonly<{
   status: "succeeded";
+  total?: number;
+  completed?: number;
+  failed?: number;
+  percent?: number;
   progress?: number;
   selected_listing_count?: number;
   quote_successes?: number;
@@ -38,15 +62,68 @@ export type ApiProjects = Readonly<{
   }>[];
 }>;
 
-export type ApiUnivariateSummaryRow = Readonly<{
-  name: string;
-  category: string;
-  mean: string | number | null;
-  median: string | number | null;
-  three_std_range: string | number | null;
-  filter_options: readonly { value: string; label?: string }[];
+export type ApiResearchRun = Readonly<{
+  run_id: string;
+  status: "running" | "complete" | "failed";
+  total: number;
+  completed: number;
+  failed: number;
+  percent: number;
 }>;
 
-export type ApiUnivariateSummary = Readonly<{
-  items: readonly ApiUnivariateSummaryRow[];
+export type ApiPage<T> = Readonly<{
+  items: readonly T[];
+  total: number;
+  limit: number;
+  offset: number;
+}>;
+
+export type ApiUnivariateRow = Readonly<{
+  isin: string;
+  exchange: string;
+  code: string;
+  quote_observation_count: number;
+  annualized_return?: number | null;
+  annualized_volatility?: number | null;
+  sharpe_ratio?: number | null;
+  max_drawdown?: number | null;
+  expected_shortfall?: number | null;
+}>;
+
+export type ApiMetric = Readonly<{
+  metric: string;
+  label: string;
+  unit: string;
+  operators: readonly string[];
+}>;
+
+export type ApiFilterSelection = Readonly<{
+  selection_id: string;
+  source_run_id: string;
+  input_count: number;
+  selected_count: number;
+  excluded_count: number;
+  predicates: readonly Readonly<{ metric: string; operator: string; value: number }>[];
+}>;
+
+export type ApiPairPlan = Readonly<{
+  selected_listing_count: number;
+  theoretical_pair_count: number;
+  pair_limit: number;
+  allowed: boolean;
+}>;
+
+export type ApiBivariateRow = Readonly<{
+  left_isin: string;
+  left_exchange: string;
+  left_code: string;
+  right_isin: string;
+  right_exchange: string;
+  right_code: string;
+  n_observations: number;
+  pearson_correlation?: number | null;
+  spearman_correlation?: number | null;
+  covariance?: number | null;
+  left_beta_to_right?: number | null;
+  right_beta_to_left?: number | null;
 }>;
