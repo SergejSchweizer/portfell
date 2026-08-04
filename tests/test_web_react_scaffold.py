@@ -121,6 +121,24 @@ def test_project_switch_resets_all_four_page_local_workflow_states() -> None:
         assert 'window.addEventListener("portfell:project-updated"' in page
 
 
+def test_metadata_refresh_keeps_the_entered_eodhd_key_in_the_header_field() -> None:
+    frame = (WEB_ROOT / "src" / "shell" / "frame.tsx").read_text(encoding="utf-8")
+
+    assert 'await postJson("/api/credentials/eodhd", { provider_key: providerKey.trim() })' in frame
+    assert 'setProviderKey("")' not in frame
+
+
+def test_metadata_filter_refreshes_the_sidebar_project_context_and_decodes_api_errors() -> None:
+    page = (WEB_ROOT / "src" / "pages" / "metadata-filter.tsx").read_text(encoding="utf-8")
+    frame = (WEB_ROOT / "src" / "shell" / "frame.tsx").read_text(encoding="utf-8")
+    client = (WEB_ROOT / "src" / "api" / "client.ts").read_text(encoding="utf-8")
+
+    assert 'window.dispatchEvent(new Event("portfell:workflow-updated"))' in page
+    assert 'window.addEventListener("portfell:workflow-updated", refresh)' in frame
+    assert 'typeof payload.detail === "string"' in client
+    assert "payload.detail?.code" in client
+
+
 def test_mobile_drawer_reuses_the_canonical_project_sidebar() -> None:
     frame = (WEB_ROOT / "src" / "shell" / "frame.tsx").read_text(encoding="utf-8")
     sidebar = (WEB_ROOT / "src" / "shell" / "project-sidebar.tsx").read_text(encoding="utf-8")
