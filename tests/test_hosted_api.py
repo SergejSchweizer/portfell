@@ -385,6 +385,64 @@ def test_fetch_all_metadata_for_metadata_filter_requires_eodhd_key(
     assert fetched_again == fetched
 
 
+def test_fetch_all_metadata_rejects_an_invalid_eodhd_key_without_a_server_error(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    from portfell.http import EodhdHttpError
+
+    class RejectedMetadataClient:
+        def get_json(
+            self,
+            path: str,
+            params: dict[str, str | int | float] | None = None,
+        ) -> object:
+            raise EodhdHttpError("EODHD request failed", status_code=401)
+
+    monkeypatch.setenv("PORTFELL_LAKE_ROOT", str(tmp_path / "lake"))
+    monkeypatch.setattr("portfell.workflows.EodhdClient", lambda _config: RejectedMetadataClient())
+    client = _client(HostedApiState())
+    client.post(
+        "/credentials/eodhd",
+        headers=_headers(idempotency="invalid-metadata-key"),
+        json={"provider_key": "test-invalid-eodhd-key"},
+    )
+
+    response = client.post("/metadata/fetch-all", headers=_headers())
+
+    assert response.status_code == 422
+    assert _json(response)["detail"]["code"] == "eodhd_key_rejected"
+
+
+def test_fetch_all_metadata_rejects_an_invalid_eodhd_payload_without_a_server_error(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    class InvalidPayloadMetadataClient:
+        def get_json(
+            self,
+            path: str,
+            params: dict[str, str | int | float] | None = None,
+        ) -> object:
+            return {"error": "Invalid API token"}
+
+    monkeypatch.setenv("PORTFELL_LAKE_ROOT", str(tmp_path / "lake"))
+    monkeypatch.setattr(
+        "portfell.workflows.EodhdClient", lambda _config: InvalidPayloadMetadataClient()
+    )
+    client = _client(HostedApiState())
+    client.post(
+        "/credentials/eodhd",
+        headers=_headers(idempotency="invalid-metadata-payload"),
+        json={"provider_key": "test-invalid-eodhd-key"},
+    )
+
+    response = client.post("/metadata/fetch-all", headers=_headers())
+
+    assert response.status_code == 502
+    assert _json(response)["detail"]["code"] == "eodhd_metadata_invalid_response"
+
+
 def test_projects_selections_and_analyses_use_the_local_workspace() -> None:
     client = _client()
     project = _json(
