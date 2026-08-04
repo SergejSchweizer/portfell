@@ -720,7 +720,7 @@ Idempotency: Recreating the application or container performs no credential rewr
 
 Branch: `feat/saved-credential-ui`.
 
-Git status: not started. PR: TBD.
+Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/214.
 
 Priority: P1 session-independent credential UX.
 
