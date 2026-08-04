@@ -9,7 +9,9 @@ export type ProjectSidebarProps = Readonly<{
   loading: boolean;
   switching: boolean;
   error: string | null;
-  onProjectChange: (projectId: string) => void;
+  drawerOpen: boolean;
+  onCloseDrawer: () => void;
+  onProjectChange: (projectId: string) => Promise<boolean>;
 }>;
 
 const workflowStatusLabel: Readonly<Record<WorkflowStatus, string>> = {
@@ -28,17 +30,19 @@ export function ProjectSidebar({
   loading,
   switching,
   error,
+  drawerOpen,
+  onCloseDrawer,
   onProjectChange,
 }: ProjectSidebarProps) {
   const currentProjectId = context?.current_project_id ?? "";
   const noProjects = !loading && context?.projects.length === 0;
 
-  function changeProject(event: ChangeEvent<HTMLSelectElement>) {
-    if (event.target.value) onProjectChange(event.target.value);
+  async function changeProject(event: ChangeEvent<HTMLSelectElement>) {
+    if (event.target.value && await onProjectChange(event.target.value)) onCloseDrawer();
   }
 
   return (
-    <aside className="project-sidebar" aria-label="Project navigation">
+    <aside id="project-navigation-drawer" className="project-sidebar" data-open={drawerOpen} aria-label="Project navigation">
       <div className="project-sidebar__project">
         <label htmlFor="current-project">Project</label>
         <select
@@ -65,7 +69,7 @@ export function ProjectSidebar({
             const contents = <><span className="project-sidebar__step">{index + 1}</span><span className="project-sidebar__stage"><span>{page.title}</span><small>{workflowStatusLabel[status]}</small></span></>;
             return (
               <li key={page.id} data-status={status}>
-                {locked ? <span aria-disabled="true">{contents}</span> : <a href={page.path} aria-current={page.id === currentPage ? "page" : undefined}>{contents}</a>}
+                {locked ? <span aria-disabled="true">{contents}</span> : <a href={page.path} aria-current={page.id === currentPage ? "page" : undefined} onClick={onCloseDrawer}>{contents}</a>}
               </li>
             );
           })}

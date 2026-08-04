@@ -43,7 +43,7 @@ PROJECT_SIDEBAR_PR_DEPENDENCIES = {
 PROJECT_SIDEBAR_PR_STATUSES = {
     117: "pushed",
     118: "pushed",
-    119: "not started",
+    119: "in progress",
 }
 PROJECT_SIDEBAR_PR_URLS = {
     117: "https://github.com/SergejSchweizer/portfell/pull/199",
