@@ -130,7 +130,7 @@ def test_quality_gates_are_documented_centrally() -> None:
         "PR110 through PR115",
         "exactly four production pages",
         "server-reported",
-        "repository `pr-quality` gate",
+        "all Python, TypeScript, build, browser, security, and repository gates pass",
     ):
         assert backlog_text in gate
 
