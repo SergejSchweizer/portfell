@@ -480,7 +480,7 @@ Idempotency: Re-rendering or repeatedly activating disabled/loading controls per
 
 Branch: `refactor/platform-simple-ui-shell`.
 
-Git status: not started. PR: TBD.
+Git status: in progress. PR: TBD.
 
 Priority: P1 shell clarity.
 

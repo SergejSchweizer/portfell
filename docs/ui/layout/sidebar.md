@@ -32,6 +32,10 @@ Bivariate Statistics. The active stage uses `aria-current="page"`; locked
 stages remain visible, include text status, and are non-links with
 `aria-disabled="true"`.
 
+The sidebar remains a flat `272px` surface separated from main content by one
+border. Long project names truncate in the selector without changing its width;
+the native control exposes the complete name through its title.
+
 ## Mobile Drawer
 
 At widths of `900px` and below, the persistent sidebar is replaced with one

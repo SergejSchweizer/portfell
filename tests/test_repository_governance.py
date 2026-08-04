@@ -64,7 +64,7 @@ SIMPLE_UI_PR_DEPENDENCIES = {
 }
 SIMPLE_UI_PR_STATUSES = {
     120: "in progress",
-    121: "not started",
+    121: "in progress",
     122: "not started",
     123: "not started",
 }
