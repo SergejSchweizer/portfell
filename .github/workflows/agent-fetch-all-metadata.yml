@@ -60,6 +60,9 @@ jobs:
       - name: Finalize legacy removal
         run: python .agent/finalize_migration.py
 
+      - name: Align generated contracts
+        run: python final_adjust.py
+
       - name: Lock and validate frontend
         working-directory: apps/web
         run: |
