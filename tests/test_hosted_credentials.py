@@ -8,6 +8,7 @@ from portfell.hosted_credentials import (
     EodhdCredentialVault,
     InMemoryCredentialStore,
     KeyEncryptionKey,
+    PostgresCredentialStore,
     mask_provider_key,
     redact_credential_text,
 )
@@ -43,6 +44,67 @@ def test_in_memory_store_implements_credential_store_protocol() -> None:
     store = InMemoryCredentialStore()
 
     assert isinstance(store, CredentialStore)
+
+
+class _FakeCursor:
+    def __init__(self, row: tuple[object, ...] | None) -> None:
+        self._row = row
+
+    def fetchone(self) -> tuple[object, ...] | None:
+        return self._row
+
+
+class _FakeConnection:
+    def __init__(self) -> None:
+        self.executed: list[tuple[str, tuple[object, ...]]] = []
+        self.row: tuple[object, ...] | None = None
+
+    def execute(self, sql: str, parameters: tuple[object, ...] = ()) -> _FakeCursor:
+        self.executed.append((sql, parameters))
+        return _FakeCursor(self.row)
+
+
+def test_postgres_credential_store_binds_only_encrypted_record_material() -> None:
+    vault, _ = _vault()
+    vault.set_credential(user_id="user-1", provider_key="abcd-secret-token-1234")
+    record = vault._store.get(user_id="user-1")  # noqa: SLF001
+    assert record is not None
+    connection = _FakeConnection()
+    store = PostgresCredentialStore(connection)
+
+    store.upsert(record)
+
+    rendered = str(connection.executed)
+    assert "abcd-secret-token-1234" not in rendered
+    assert "update portfell_app.provider_credentials" in connection.executed[0][0]
+    assert "insert into portfell_app.provider_credentials" in connection.executed[1][0]
+    assert isinstance(store, CredentialStore)
+
+
+def test_postgres_credential_store_rejects_mismatched_associated_data() -> None:
+    connection = _FakeConnection()
+    connection.row = (
+        "credential-1",
+        "user-1",
+        "eodhd",
+        "active",
+        b"ciphertext",
+        b"nonce",
+        b"wrapped-data-key",
+        b"wrap-nonce",
+        "kek-v1",
+        {
+            "credential_id": "credential-1",
+            "user_id": "user-2",
+            "provider": "eodhd",
+            "schema_version": 1,
+        },
+        "fingerprint",
+        "abcd...1234",
+    )
+
+    with pytest.raises(CredentialVaultError, match="associated data"):
+        PostgresCredentialStore(connection).get(user_id="user-1")
 
 
 def test_wrong_user_associated_data_rejects_decryption() -> None:

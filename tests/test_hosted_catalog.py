@@ -55,11 +55,13 @@ def test_hosted_migration_sql_defines_rls_and_immutable_catalog_shape() -> None:
     migrations = migration_plan()
     sql = "\n".join(migration.sql.lower() for migration in migrations)
 
-    assert [migration.version for migration in migrations] == [1, 2, 3, 4]
+    assert [migration.version for migration in migrations] == [1, 2, 3, 4, 5]
     assert len({migration.checksum for migration in migrations}) == len(migrations)
     assert "create table if not exists portfell_app.provider_credentials" in sql
     assert "ciphertext bytea not null" in sql
     assert "wrapped_data_key bytea not null" in sql
+    assert "wrap_nonce bytea" in sql
+    assert "provider_credentials_one_active_user_provider_idx" in sql
     assert "key_version text not null" in sql
     assert "create table if not exists portfell_app.market_objects" in sql
     assert "create table if not exists portfell_app.artifact_inputs" in sql
