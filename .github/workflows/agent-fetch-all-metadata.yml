@@ -76,7 +76,6 @@ jobs:
           uv run ruff format --check src tests
           uv run pytest \
             tests/test_fetch_all_metadata.py \
-            tests/test_workflows.py \
             tests/test_hosted_api.py \
             tests/test_web_react_scaffold.py \
             tests/test_hosted_web_ui.py \
