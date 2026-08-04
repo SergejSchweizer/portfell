@@ -8,6 +8,7 @@ Last reviewed: 2026-08-04
 - [Active Four-Page Portfell UI PR Stack](#active-four-page-portfell-ui-pr-stack)
 - [Active Project Sidebar PR Stack](#active-project-sidebar-pr-stack)
 - [Active Platform-Inspired Simple UI PR Stack](#active-platform-inspired-simple-ui-pr-stack)
+- [Active Persistent EODHD Credential PR Stack](#active-persistent-eodhd-credential-pr-stack)
 - [Active Hosted Multi-Tenant Portfell PR Stack](#active-hosted-multi-tenant-portfell-pr-stack)
 - [Current Architectural Decision](#current-architectural-decision)
 - [Series Completion Gate](#series-completion-gate)
@@ -601,6 +602,194 @@ Idempotency: Repeated visual, accessibility, and performance checks do not mutat
 ### Platform-Inspired Simple UI Series Completion Gate
 
 The platform-inspired simple UI series is complete only after PR120 through PR123 are merged and all required checks in [GATES.md](GATES.md) pass. Completion requires a documented mark-neutral visual language, semantic tokens, one icon library, consistent shared controls, refined shell/sidebar and four workflow pages, responsive and zoom-safe layouts, restrained reduced-motion-aware animation, stable visual baselines, accessibility coverage, bundle budgets, and explicit checks preventing Apple or Google brand assets from entering the product.
+
+## Active Persistent EODHD Credential PR Stack
+
+This series makes one EODHD API key survive browser sessions, API restarts, and Docker recreation for the same server-resolved user. The plaintext key remains write-only: it is never returned to or persisted by the browser. The current local deployment is intentionally single-user after Google authentication removal, so the server owns one stable local principal; future authenticated deployments may supply a session principal through the same typed boundary without changing credential storage.
+
+The implementation order is strict. Persistence and identity land before runtime cutover, and runtime cutover lands before the UI starts relying on saved credential status. Every PR must preserve the existing mocked-provider test path and must not reintroduce Google authentication, browser secret storage, plaintext database columns, or a shared global EODHD key.
+
+### PR124. Stable Local Principal And Credential Repository Ports
+
+Branch: `refactor/persistent-credential-boundaries`.
+
+Git status: not started. PR: TBD.
+
+Priority: P0 identity and persistence boundary.
+
+Depends on: current `main`.
+
+Scope:
+
+- Replace the API-local `LOCAL_WORKSPACE_USER_ID = "user-a"` assumption with a typed `CurrentUserProvider` boundary that resolves a server-owned principal and never accepts a user id from request bodies, query parameters, headers supplied by the browser, or browser storage.
+- Add a deterministic single-user `LocalWorkspaceUserProvider` for the current deployment. Its UUID comes from server configuration or an idempotently bootstrapped PostgreSQL local-user row and remains stable across browser sessions, API restarts, and Docker container recreation.
+- Define a `CredentialStore` protocol containing only `upsert` and `get`; make `InMemoryCredentialStore` implement it for unit tests without changing its test semantics.
+- Change `EodhdCredentialVault` to depend on the protocol rather than the concrete in-memory class. Keep encryption, associated-data ownership checks, masking, revocation, deletion, and provider-call unwrapping inside the vault.
+- Add explicit configuration parsing and validation for the local principal. Reject empty, malformed, changing-at-runtime, or browser-provided identities before serving credential routes.
+- Document the single-user trust boundary in `ARCHITECTURE.md`, `DECISIONS.md`, and the hosted/local runtime documentation. State that this principal is not multi-user authentication and must not be exposed as an authorization mechanism on a public deployment.
+
+Acceptance:
+
+- Unit tests prove two independently-created `LocalWorkspaceUserProvider` instances resolve the same configured UUID and that two different configured UUIDs never share credential records.
+- API tests prove every credential and metadata route obtains identity through `CurrentUserProvider`; no production route references `LOCAL_WORKSPACE_USER_ID` or accepts a caller-selected user id.
+- Existing tests continue to inject deterministic test users without PostgreSQL or Docker.
+- Static governance tests reject direct construction of production API users from request-controlled values and reject reintroduction of `LOCAL_WORKSPACE_USER_ID`.
+- Ruff, Pyright, focused credential/API tests, and the full repository quality gate pass.
+
+Out of scope: PostgreSQL credential SQL, API startup wiring, UI changes, login, cookies, OAuth/OIDC, and multi-user session management.
+
+Security: Identity is resolved exclusively on the server. The local principal is suitable only for the explicitly single-user local deployment and grants no cross-user or public-hosted security guarantee.
+
+Determinism: The same validated server configuration resolves byte-equivalent user identity across processes and container recreation.
+
+Idempotency: Re-resolving or bootstrapping the local principal creates at most one logical active local user and performs no credential mutation.
+
+### PR125. PostgreSQL Encrypted Credential Repository And Schema Migration
+
+Branch: `feat/postgres-credential-repository`.
+
+Git status: not started. PR: TBD.
+
+Priority: P0 durable encrypted storage.
+
+Depends on: PR124.
+
+Scope:
+
+- Add a versioned migration for the complete persistable `EncryptedCredentialRecord`, including credential id, user id, provider, lifecycle status, ciphertext, data nonce, wrapped data key, wrap nonce, key version, canonical associated data, fingerprint HMAC, masked label, and lifecycle timestamps.
+- Reconcile the existing `portfell_app.provider_credentials` declaration with the vault model. Add any missing columns, constraints, indexes, and active-record uniqueness rules without destructive table recreation or plaintext migration.
+- Implement `PostgresCredentialStore` against the `CredentialStore` protocol using parameterized SQL and the application database role. Serialize associated data structurally and reconstruct it with strict schema/provider/user validation.
+- Make credential replacement atomic: one transaction transitions the prior active record and publishes exactly one active `(user_id, provider)` credential. Concurrent replacement must not create multiple active rows.
+- Preserve revoked and deleted records for lifecycle audit while `get` returns only the current logical record required by vault status and provider-call operations.
+- Add migration, repository, concurrency, malformed-row, and two-user isolation tests against PostgreSQL.
+
+Acceptance:
+
+- A credential encrypted before closing one repository connection is readable and decryptable through a new repository connection with the same user and KEK.
+- PostgreSQL contains no plaintext provider key; a database-only test fixture without the external KEK cannot recover the key.
+- Wrong-user reads return no record, and manually mismatched associated data fails closed before decryption.
+- Concurrent set/replace tests leave exactly one active credential and preserve valid lifecycle history.
+- Migration tests succeed from an empty database and from the current schema, and repeated migration execution is a no-op.
+- Repository integration tests, schema governance checks, Ruff, Pyright, and the full repository quality gate pass.
+
+Out of scope: FastAPI production wiring, browser behavior, credential validation against live EODHD, key rotation commands, backup procedures, and authentication changes.
+
+Security: SQL is parameterized, PostgreSQL stores only encrypted material and client-safe metadata, and user scope is enforced in every repository query in addition to vault associated data.
+
+Determinism: Row reconstruction and associated-data serialization are canonical; ciphertext remains intentionally nondeterministic.
+
+Idempotency: Retrying an identical logical upsert cannot create a second active credential or alter another user's record.
+
+### PR126. Persistent Credential Runtime Wiring And Secret Configuration
+
+Branch: `feat/persistent-credential-runtime`.
+
+Git status: not started. PR: TBD.
+
+Priority: P0 production cutover.
+
+Depends on: PR125.
+
+Scope:
+
+- Add one production application factory that opens the configured PostgreSQL repository, resolves the stable server-side principal, and injects one persistent `EodhdCredentialVault` into FastAPI dependencies. Keep `HostedApiState` and `InMemoryCredentialStore` available only through explicit test/local-adapter construction.
+- Load the versioned key-encryption key and the separate credential-fingerprint HMAC secret from external secret files. Validate exact supported lengths, reject missing/unreadable files, and fail startup without printing paths or secret material.
+- Extend Compose secrets and environment contracts for the fingerprint secret and stable local principal while retaining the existing named PostgreSQL volume. Add production-example configuration with placeholders only.
+- Make `GET`, `POST`, and `DELETE /api/credentials/eodhd` use the injected persistent vault. Make `POST /api/metadata/fetch-all` unwrap the saved active credential for the current user without requiring a new key submission.
+- Return only client-safe credential status fields: provider, lifecycle status, masked label, and key version. Preserve stable structured errors for missing, revoked, deleted, unavailable-key-version, and authentication-failure cases.
+- Remove hard-coded development KEK and fingerprint material from the production application path and add governance checks preventing their reintroduction.
+
+Acceptance:
+
+- An integration test saves a synthetic key, destroys the FastAPI application and database connection, creates a new application instance, and successfully performs a mocked metadata fetch without resubmitting the key.
+- A Docker integration test recreates the API container while preserving the database volume and proves credential status plus mocked provider use remain available to the same principal.
+- Starting with a missing/invalid KEK, missing fingerprint secret, invalid principal, or unavailable database fails closed with redacted diagnostics.
+- Changing the principal produces `credential_not_found`; restoring the original principal restores access without rewriting the credential.
+- API responses, logs, health output, Compose inspection, and test artifacts contain no plaintext provider key or secret-file contents.
+- Focused integration tests, Compose configuration validation, secret-scanning checks, Ruff, Pyright, and the full repository quality gate pass.
+
+Out of scope: UI controls, browser storage, multi-user login, automatic KEK rotation, backup/restore automation, and provider-key recovery or display.
+
+Security: Secrets enter only through external files; plaintext exists only during bounded provider calls; application startup fails closed when durable encryption dependencies are unavailable.
+
+Determinism: The same database, principal, KEK version, and fingerprint secret resolve the same logical credential status across process and container restarts.
+
+Idempotency: Recreating the application or container performs no credential rewrite, duplicate bootstrap, or provider request until an explicit user action occurs.
+
+### PR127. Saved Credential Status, Replace, Delete, And Keyless Refresh UI
+
+Branch: `feat/saved-credential-ui`.
+
+Git status: not started. PR: TBD.
+
+Priority: P1 session-independent credential UX.
+
+Depends on: PR126.
+
+Scope:
+
+- Load `GET /api/credentials/eodhd` when `ShellFrame` starts and model `loading`, `missing`, `active`, `revoked`, `deleted`, and `error` states with typed API contracts.
+- Keep the password field empty on every page load. For an active credential, render only the server-provided masked label and a clear `Saved` status; never prefill, reconstruct, cache, or retain plaintext in browser storage.
+- Allow `Fetch all metadata` with an active saved credential and an empty input. If the user enters a new key, save it first and then fetch metadata; clear the plaintext field immediately after the successful credential save, before starting the provider workflow.
+- Add explicit `Replace key` and `Delete key` actions. Replacement requires a newly-entered value; deletion requires confirmation, calls `DELETE /api/credentials/eodhd`, clears client credential status, and disables keyless metadata refresh.
+- Prevent duplicate save/fetch/delete requests, retain accessible progress and error announcements, and distinguish credential errors from metadata-provider errors without exposing response bodies or secret values.
+- Update `docs/ui/header.md`, relevant page specifications, and browser fixtures to describe the write-only persisted credential lifecycle.
+
+Acceptance:
+
+- Browser tests cover first entry, successful save, page reload, new browser context, keyless metadata fetch, replacement, deletion, revoked/deleted status, API failure, and recovery.
+- After reload or a new browser context, the UI displays only the masked label and can fetch metadata without key re-entry.
+- Plaintext keys are absent from `localStorage`, `sessionStorage`, IndexedDB, cookies, URLs, history state, DOM attributes, screenshots, console output, network responses, and persisted test artifacts.
+- The fetch button is enabled when either a non-empty replacement value or an active saved credential exists, and disabled for missing/revoked/deleted credentials with an empty input.
+- Keyboard and 200% zoom tests cover status, replacement, confirmation, deletion, and error recovery without overlap or focus loss.
+- TypeScript checking, Vite build, focused browser tests, accessibility checks, and the full repository quality gate pass.
+
+Out of scope: Showing/copying the saved plaintext key, browser password-manager integration, login/account UI, multiple provider keys, automatic credential validation schedules, and key rotation administration.
+
+Security: The browser receives only masked lifecycle status and never becomes a secret persistence boundary.
+
+Determinism: Identical server status produces identical labels, enabled states, action order, and accessible announcements.
+
+Idempotency: Repeated status loads are read-only; repeated guarded clicks cannot duplicate credential mutation or metadata refresh requests.
+
+### PR128. Credential Restart, Rotation, Backup, And Completion Gate
+
+Branch: `chore/persistent-credential-completion-gate`.
+
+Git status: not started. PR: TBD.
+
+Priority: P1 operational assurance.
+
+Depends on: PR127.
+
+Scope:
+
+- Add an operator-only, non-HTTP command that rewraps active credential data keys from one KEK version to another without EODHD key re-entry. Require explicit old/new external secret files, dry-run output, transaction boundaries, and redacted per-record results.
+- Add encrypted-database backup and restore documentation that treats PostgreSQL backup and KEK/fingerprint-secret recovery as separate protected assets. Document that losing the KEK makes credentials unrecoverable and that database backup alone must not decrypt them.
+- Add deterministic restart coverage for API process restart, API container recreation, full Compose stop/start with preserved volumes, restored database, unchanged principal, changed principal, valid KEK rotation, missing old KEK, and tampered ciphertext.
+- Add repository gates that reject plaintext credential fields, browser secret persistence, hard-coded production cryptographic material, credential responses containing ciphertext/fingerprints, and production use of `InMemoryCredentialStore`.
+- Update `README.md`, `ARCHITECTURE.md`, `CONTRACTS.md`, `RISKS.md`, and deployment examples with final credential ownership, lifecycle, restore, deletion, and rotation behavior.
+- Record the exact pre-merge and post-merge validation commands required by [GATES.md](GATES.md), including a clean Docker rebuild from the merged branch.
+
+Acceptance:
+
+- Rotation tests prove the plaintext credential remains usable after rewrap, ciphertext data is not decrypted outside the bounded rotation service, and interruption leaves every record usable under either the old or committed new version.
+- Backup/restore tests recover credential usability only when database, matching principal, and required KEK version are present.
+- Restart tests prove one initial key submission supports later browser sessions and API/container restarts without re-entry.
+- Negative tests prove database-only compromise, wrong principal, wrong KEK, missing secret, tampering, revoked/deleted records, and browser storage inspection cannot yield or use plaintext credentials.
+- Full pytest, Ruff, Pyright, import checks, TypeScript checking, Vite build, browser tests, secret scanning, Compose validation, and all required gates pass from a clean checkout.
+
+Out of scope: Public multi-user authentication, cloud-specific KMS integration, automated backup scheduling, disaster-recovery infrastructure, multiple EODHD credentials per user, and recovery of a lost provider key.
+
+Security: Rotation and restore are offline operator workflows with redacted output; no new HTTP endpoint exposes cryptographic administration.
+
+Determinism: Fixed synthetic records, principal, key versions, and backup fixtures produce stable rotation plans and restart assertions.
+
+Idempotency: Re-running a completed rotation or restore verification performs no additional rewrap and creates no duplicate active credential.
+
+### Persistent EODHD Credential Series Completion Gate
+
+The persistent EODHD credential series is complete only after PR124 through PR128 are merged and all required checks in [GATES.md](GATES.md) pass. Completion requires a stable server-owned principal, a PostgreSQL-backed encrypted credential repository, external versioned cryptographic secrets, restart-safe API wiring, masked saved-status UI, keyless refresh for an active saved credential, replace/delete lifecycle controls, rotation and restore procedures, and automated proof that plaintext keys never enter browser persistence, PostgreSQL plaintext, logs, responses, images, or repository artifacts.
 
 ## Active Hosted Multi-Tenant Portfell PR Stack
 
