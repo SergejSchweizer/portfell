@@ -41,6 +41,7 @@ from portfell.hosted_research_workflow import (
     page_rows,
     pair_plan,
 )
+from portfell.http import EodhdHttpError
 from portfell.metadata_filter import write_metadata_selection
 from portfell.paths import LakePaths
 from portfell.selection_filters import Predicate, filter_rows
@@ -521,10 +522,21 @@ def create_app(state: HostedApiState | None = None) -> FastAPI:
             raise _http_error(
                 status.HTTP_422_UNPROCESSABLE_CONTENT, "eodhd_key_required"
             ) from error
-        summary = run_fetch_all_metadata_workflow(
-            root=_lake_paths().root,
-            eodhd_config=EodhdConfig(api_token=provider_key),
-        )
+        try:
+            summary = run_fetch_all_metadata_workflow(
+                root=_lake_paths().root,
+                eodhd_config=EodhdConfig(api_token=provider_key),
+            )
+        except EodhdHttpError as error:
+            if error.status_code in {401, 403}:
+                raise _http_error(
+                    status.HTTP_422_UNPROCESSABLE_CONTENT, "eodhd_key_rejected"
+                ) from error
+            raise _http_error(status.HTTP_502_BAD_GATEWAY, "eodhd_metadata_unavailable") from error
+        except ValueError as error:
+            raise _http_error(
+                status.HTTP_502_BAD_GATEWAY, "eodhd_metadata_invalid_response"
+            ) from error
         api_state.metadata_revisions_by_user[user.user_id] = _opaque_id(
             "metadata-revision", _stable_hash(summary)
         )
