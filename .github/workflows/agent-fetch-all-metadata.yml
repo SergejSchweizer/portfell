@@ -1,0 +1,66 @@
+name: agent-fetch-all-metadata
+
+on:
+  push:
+    branches:
+      - agent/fetch-all-metadata
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    if: ${{ !contains(github.event.head_commit.message, '[agent-generated]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Install Python
+        run: uv python install 3.14
+
+      - name: Apply hard-cutover migration
+        run: python scripts/agent_fetch_all_metadata.py
+
+      - name: Lock and validate frontend
+        working-directory: apps/web
+        run: |
+          npm install --package-lock-only --ignore-scripts
+          npm ci
+          npm run typecheck
+          npm run build
+
+      - name: Validate Python and repository contracts
+        run: |
+          uv sync --locked
+          uv run ruff check src tests
+          uv run ruff format --check src tests
+          uv run pytest \
+            tests/test_fetch_all_metadata.py \
+            tests/test_workflows.py \
+            tests/test_hosted_api.py \
+            tests/test_web_react_scaffold.py \
+            tests/test_hosted_web_ui.py \
+            tests/test_hosted_runtime_compose.py \
+            tests/test_entrypoints.py -q
+
+      - name: Commit generated migration
+        run: |
+          git config user.name 'Portfell Agent'
+          git config user.email 'actions@users.noreply.github.com'
+          git add -A
+          git diff --cached --stat
+          git commit -m 'refactor(web): rename metadata fetch and add quote progress [agent-generated]'
+          git push origin HEAD:agent/fetch-all-metadata
