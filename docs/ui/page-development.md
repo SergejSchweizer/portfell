@@ -14,6 +14,14 @@ This document is the required workflow for creating or changing a Portfell React
 - Page specifications: `docs/ui/windows/`
 - Shared layout specifications: `docs/ui/layout/`
 
+## Responsive shell
+
+`workflowPages` is the only workflow navigation registry. Its entries flow
+automatically into the desktop sidebar and the mobile project-navigation drawer.
+At `900px` and below, pages must not add a second navigation list or rely on
+background controls while the drawer is open. Changes to this shared shell
+require updates to `docs/ui/layout/sidebar.md` and shell regression coverage.
+
 ## Create a new page
 
 1. Create `apps/web/src/pages/<route-slug>.tsx` and export one page component.
