@@ -33,6 +33,19 @@ export function MetadataFilterPage() {
     return () => window.removeEventListener("portfell:metadata-updated", refresh);
   }, []);
 
+  useEffect(() => {
+    const resetProjectState = () => {
+      setProjectId("");
+      setMetadataSelectionId("");
+      setSelectionStatus("Choose at least one metadata filter.");
+      setQuoteStatus("idle");
+      setQuoteProgress(0);
+      setQuoteMessage("Quotes have not been fetched for this selection.");
+    };
+    window.addEventListener("portfell:project-updated", resetProjectState);
+    return () => window.removeEventListener("portfell:project-updated", resetProjectState);
+  }, []);
+
   async function applyFilter(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSelectionStatus("Applying metadata filter…");

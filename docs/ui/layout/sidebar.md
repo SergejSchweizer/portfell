@@ -22,6 +22,16 @@ not create, sort, authorize, or persist projects in the browser.
 - Error: retain the previously selected project and announce the recoverable
   error without replacing page content.
 
+## Desktop Layout
+
+At viewport widths above `900px`, the sidebar is one persistent `272px` left
+column below the header. Its first control is the native project selector. The
+workflow below it is an ordered hierarchy derived exclusively from
+`workflowPages`: Metadata Filter, Univariate Statistics, Univariate Filter, and
+Bivariate Statistics. The active stage uses `aria-current="page"`; locked
+stages remain visible, include text status, and are non-links with
+`aria-disabled="true"`.
+
 ## Project Switch
 
 After a successful project switch, the shell refreshes the selected project's

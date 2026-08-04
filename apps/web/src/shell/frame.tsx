@@ -1,25 +1,46 @@
 
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { loadWorkflow, postJson } from "../api/client";
+import { loadProjectContext, loadProjectWorkflow, postJson, selectCurrentProject } from "../api/client";
 import { Button } from "../components/button";
-import type { ApiMetadataFetch } from "../contracts";
+import type { ApiMetadataFetch, ApiProjectContext, ApiWorkflow } from "../contracts";
 import { useResource } from "../hooks/use-resource";
 import { workflowPages, type WorkflowPageId } from "../routes";
+import { ProjectSidebar } from "./project-sidebar";
 
 export type ShellFrameProps = Readonly<{
   currentPage: WorkflowPageId;
   children: ReactNode;
 }>;
 
+const emptyWorkflow: ApiWorkflow = {
+  stages: {
+    metadata_filter: { status: "ready" },
+    univariate_statistics: { status: "locked" },
+    univariate_filter: { status: "locked" },
+    bivariate_statistics: { status: "locked" },
+  },
+};
+
 export function ShellFrame({ currentPage, children }: ShellFrameProps) {
   const [providerKey, setProviderKey] = useState("");
   const [fetching, setFetching] = useState(false);
   const [status, setStatus] = useState("Enter an EODHD key to refresh listing metadata.");
+  const [contextRevision, setContextRevision] = useState(0);
   const [workflowRevision, setWorkflowRevision] = useState(0);
-  const workflow = useResource(loadWorkflow, [workflowRevision]);
+  const [switching, setSwitching] = useState(false);
+  const [switchError, setSwitchError] = useState<string | null>(null);
+  const context = useResource(loadProjectContext, [contextRevision]);
+  const projectId = context.status === "ready" ? context.data.current_project_id : null;
+  const workflow = useResource(
+    () => projectId ? loadProjectWorkflow(projectId) : Promise.resolve(emptyWorkflow),
+    [projectId, workflowRevision],
+  );
 
   useEffect(() => {
-    const refresh = () => setWorkflowRevision((value) => value + 1);
+    const refresh = () => {
+      setContextRevision((value) => value + 1);
+      setWorkflowRevision((value) => value + 1);
+    };
     window.addEventListener("portfell:workflow-updated", refresh);
     return () => window.removeEventListener("portfell:workflow-updated", refresh);
   }, []);
@@ -43,6 +64,26 @@ export function ShellFrame({ currentPage, children }: ShellFrameProps) {
       setStatus(error instanceof Error ? error.message : "Metadata fetch failed.");
     } finally {
       setFetching(false);
+    }
+  }
+
+  async function changeProject(nextProjectId: string) {
+    if (!projectId || nextProjectId === projectId || switching) return;
+    setSwitching(true);
+    setSwitchError(null);
+    try {
+      const nextContext = await selectCurrentProject(nextProjectId);
+      const nextWorkflow = await loadProjectWorkflow(nextProjectId);
+      const target = workflowPages.find((page) => nextWorkflow.stages[page.id].status !== "locked") ?? workflowPages[0];
+      window.dispatchEvent(new CustomEvent<ApiProjectContext>("portfell:project-updated", { detail: nextContext }));
+      window.history.pushState({}, "", target.path);
+      window.dispatchEvent(new Event("portfell:navigation"));
+      setContextRevision((value) => value + 1);
+      setWorkflowRevision((value) => value + 1);
+    } catch (error) {
+      setSwitchError(error instanceof Error ? error.message : "Project switch failed.");
+    } finally {
+      setSwitching(false);
     }
   }
 
@@ -71,15 +112,18 @@ export function ShellFrame({ currentPage, children }: ShellFrameProps) {
         </form>
       </header>
 
-      <nav className="workflow-nav" aria-label="Portfell workflow">
-        {workflowPages.map((page, index) => {
-          const locked = workflow.status === "ready" && workflow.data.stages[page.id].status === "locked";
-          const label = <><span>{index + 1}</span>{page.title}</>;
-          return locked ? <span key={page.id} aria-disabled="true" className="workflow-nav__locked">{label}</span> : <a key={page.id} href={page.path} aria-current={page.id === currentPage ? "page" : undefined}>{label}</a>;
-        })}
-      </nav>
-
-      <main className="page-content">{children}</main>
+      <div className="app-workspace">
+        <ProjectSidebar
+          currentPage={currentPage}
+          context={context.status === "ready" ? context.data : null}
+          workflow={workflow.status === "ready" ? workflow.data : null}
+          loading={context.status === "idle" || context.status === "loading"}
+          switching={switching}
+          error={context.status === "error" ? context.error.message : switchError}
+          onProjectChange={(nextProjectId) => void changeProject(nextProjectId)}
+        />
+        <main className="page-content">{children}</main>
+      </div>
     </div>
   );
 }
