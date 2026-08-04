@@ -9,6 +9,8 @@ import pytest
 from portfell.quality import (
     build_parser,
     commands_for_layer,
+    commit_range,
+    has_pr_scope,
     is_conventional_commit_subject,
     main,
     reflects_branch_name,
@@ -93,6 +95,8 @@ def test_branch_name_is_required_as_the_commit_scope() -> None:
         "feat: add workflow contract",
         "four-page-workflow-state",
     )
+    assert has_pr_scope("feat(four-page-workflow-state): add workflow contract")
+    assert not has_pr_scope("feat: add workflow contract")
     assert not reflects_branch_name(
         "feat(other-work): add workflow contract",
         "four-page-workflow-state",
@@ -107,7 +111,7 @@ def test_validate_conventional_commits_rejects_invalid_branch_subjects() -> None
             return subprocess.CompletedProcess(
                 command,
                 0,
-                stdout="feat: add config\nAdd bad commit\n",
+                stdout="Add bad commit\nfeat(config): add config\n",
                 stderr="",
             )
         if command[0:3] == ("git", "branch", "--show-current"):
@@ -115,6 +119,23 @@ def test_validate_conventional_commits_rejects_invalid_branch_subjects() -> None
         raise AssertionError(f"unexpected command: {command}")
 
     assert validate_conventional_commits(runner=runner) == 1
+
+
+def test_commit_range_uses_github_pull_request_base(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("GITHUB_BASE_REF", "agent/rewrite-backlog-four-page-ui")
+
+    def runner(command: Sequence[str], **_: object) -> subprocess.CompletedProcess[str]:
+        assert command == (
+            "git",
+            "merge-base",
+            "HEAD",
+            "origin/agent/rewrite-backlog-four-page-ui",
+        )
+        return subprocess.CompletedProcess(command, 0, stdout="abc123\n", stderr="")
+
+    assert commit_range(runner=runner) == "abc123..HEAD"
 
 
 def test_quality_gate_runs_commands_before_commit_validation() -> None:
@@ -131,16 +152,14 @@ def test_quality_gate_runs_commands_before_commit_validation() -> None:
                 stdout="feat(config): add config\n",
                 stderr="",
             )
-        if command[0:3] == ("git", "branch", "--show-current"):
-            return subprocess.CompletedProcess(command, 0, stdout="feat/config\n", stderr="")
         return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
 
     assert run_quality_gate("pr", runner=runner) == 0
     pr_commands = list(commands_for_layer("pr"))
     assert calls[: len(pr_commands)] == pr_commands
     assert calls[-2:] == [
+        ("git", "merge-base", "HEAD", "origin/main"),
         ("git", "log", "--format=%s", "abc123..HEAD"),
-        ("git", "branch", "--show-current"),
     ]
 
 

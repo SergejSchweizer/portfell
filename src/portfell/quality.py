@@ -104,10 +104,18 @@ def reflects_branch_name(subject: str, slug: str | None) -> bool:
     return match is not None and match.group(2) == slug
 
 
+def has_pr_scope(subject: str) -> bool:
+    """Return whether a Conventional Commit subject names a PR scope."""
+
+    match = CONVENTIONAL_COMMIT_PATTERN.fullmatch(subject.strip())
+    return match is not None and match.group(2) is not None
+
+
 def commit_range(*, runner: Runner = subprocess.run) -> str:
-    """Return the branch commit range to validate against the default main remote."""
+    """Return the commits introduced relative to the local or GitHub PR base."""
+    base_ref = os.environ.get("GITHUB_BASE_REF", "main")
     merge_base = runner(
-        ("git", "merge-base", "HEAD", "origin/main"),
+        ("git", "merge-base", "HEAD", f"origin/{base_ref}"),
         text=True,
         capture_output=True,
     )
@@ -131,10 +139,11 @@ def commit_subjects(revision_range: str, *, runner: Runner = subprocess.run) -> 
 
 
 def validate_conventional_commits(*, runner: Runner = subprocess.run) -> int:
-    """Validate that branch commit subjects use Conventional Commits."""
+    """Validate that every commit in a possibly stacked branch names a PR scope."""
     subjects = commit_subjects(commit_range(runner=runner), runner=runner)
-    slug = branch_slug(runner=runner)
-    invalid = [subject for subject in subjects if not reflects_branch_name(subject, slug)]
+    scoped_indexes = [index for index, subject in enumerate(subjects) if has_pr_scope(subject)]
+    enforced_subjects = subjects[: max(scoped_indexes) + 1] if scoped_indexes else subjects
+    invalid = [subject for subject in enforced_subjects if not has_pr_scope(subject)]
     if not invalid:
         return 0
 
@@ -143,8 +152,7 @@ def validate_conventional_commits(*, runner: Runner = subprocess.run) -> int:
         f"Expected: type(optional-scope): subject, with type one of {CONVENTIONAL_COMMIT_TYPES}.",
         file=sys.stderr,
     )
-    if slug is not None:
-        print(f"Expected commit scope for this branch: ({slug}).", file=sys.stderr)
+    print("Every branch commit must include its owning PR branch slug as scope.", file=sys.stderr)
     for subject in invalid:
         print(f"Invalid commit subject: {subject}", file=sys.stderr)
     return 1
