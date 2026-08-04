@@ -42,12 +42,12 @@ PROJECT_SIDEBAR_PR_DEPENDENCIES = {
 }
 PROJECT_SIDEBAR_PR_STATUSES = {
     117: "pushed",
-    118: "not started",
+    118: "pushed",
     119: "not started",
 }
 PROJECT_SIDEBAR_PR_URLS = {
     117: "https://github.com/SergejSchweizer/portfell/pull/199",
-    118: "TBD",
+    118: "https://github.com/SergejSchweizer/portfell/pull/200",
     119: "TBD",
 }
 SIMPLE_UI_PR_TITLES = {

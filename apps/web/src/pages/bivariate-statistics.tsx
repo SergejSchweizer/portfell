@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { loadWorkflow, postJson, requestJson } from "../api/client";
 import { Button } from "../components/button";
 import { LoadingState } from "../components/loading-state";
@@ -12,11 +12,24 @@ function metric(value: number | null | undefined): string {
 }
 
 export function BivariateStatisticsPage() {
-  const workflow = useResource(loadWorkflow);
+  const [workflowRevision, setWorkflowRevision] = useState(0);
+  const workflow = useResource(loadWorkflow, [workflowRevision]);
   const [plan, setPlan] = useState<ApiPairPlan | null>(null);
   const [run, setRun] = useState<ApiResearchRun | null>(null);
   const [results, setResults] = useState<ApiPage<ApiBivariateRow> | null>(null);
   const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    const resetProjectState = () => {
+      setPlan(null);
+      setRun(null);
+      setResults(null);
+      setMessage("");
+      setWorkflowRevision((value) => value + 1);
+    };
+    window.addEventListener("portfell:project-updated", resetProjectState);
+    return () => window.removeEventListener("portfell:project-updated", resetProjectState);
+  }, []);
 
   if (workflow.status === "loading" || workflow.status === "idle") return <LoadingState label="Loading bivariate statistics" />;
   if (workflow.status === "error") return <p>Workflow state is unavailable.</p>;

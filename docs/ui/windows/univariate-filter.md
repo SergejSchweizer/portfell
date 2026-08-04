@@ -15,6 +15,11 @@ them to `POST /api/univariate-filter` with the completed source run id. It rende
 counts plus bounded results from `GET /api/univariate-filter/{selection_id}/results`. Statistical
 filtering rules remain server-owned.
 
+The persistent project sidebar identifies the active project and canonical
+workflow hierarchy. After a project switch, this page clears local persisted
+selection, table, and message state before reloading server-owned workflow
+status; the in-progress predicate draft remains an interaction-only draft.
+
 ## Acceptance
 
 Missing or stale upstream statistics produce a locked state. Invalid thresholds are rejected visibly.

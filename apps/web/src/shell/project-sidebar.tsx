@@ -1,0 +1,79 @@
+import type { ChangeEvent } from "react";
+import type { ApiProjectContext, ApiWorkflow, WorkflowStatus } from "../contracts";
+import { workflowPages, type WorkflowPageId } from "../routes";
+
+export type ProjectSidebarProps = Readonly<{
+  currentPage: WorkflowPageId;
+  context: ApiProjectContext | null;
+  workflow: ApiWorkflow | null;
+  loading: boolean;
+  switching: boolean;
+  error: string | null;
+  onProjectChange: (projectId: string) => void;
+}>;
+
+const workflowStatusLabel: Readonly<Record<WorkflowStatus, string>> = {
+  locked: "Locked",
+  ready: "Ready",
+  running: "Running",
+  complete: "Complete",
+  failed: "Failed",
+  stale: "Stale",
+};
+
+export function ProjectSidebar({
+  currentPage,
+  context,
+  workflow,
+  loading,
+  switching,
+  error,
+  onProjectChange,
+}: ProjectSidebarProps) {
+  const currentProjectId = context?.current_project_id ?? "";
+  const noProjects = !loading && context?.projects.length === 0;
+
+  function changeProject(event: ChangeEvent<HTMLSelectElement>) {
+    if (event.target.value) onProjectChange(event.target.value);
+  }
+
+  return (
+    <aside className="project-sidebar" aria-label="Project navigation">
+      <div className="project-sidebar__project">
+        <label htmlFor="current-project">Project</label>
+        <select
+          id="current-project"
+          value={currentProjectId}
+          disabled={loading || switching || noProjects}
+          onChange={changeProject}
+        >
+          {noProjects ? <option value="">No projects yet</option> : null}
+          {context?.projects.map((project) => (
+            <option key={project.project_id} value={project.project_id}>
+              {project.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <nav className="project-sidebar__workflow" aria-label="Workflow">
+        <p>Workflow</p>
+        <ol>
+          {workflowPages.map((page, index) => {
+            const status = workflow?.stages[page.id].status ?? (index === 0 ? "ready" : "locked");
+            const locked = status === "locked";
+            const contents = <><span className="project-sidebar__step">{index + 1}</span><span className="project-sidebar__stage"><span>{page.title}</span><small>{workflowStatusLabel[status]}</small></span></>;
+            return (
+              <li key={page.id} data-status={status}>
+                {locked ? <span aria-disabled="true">{contents}</span> : <a href={page.path} aria-current={page.id === currentPage ? "page" : undefined}>{contents}</a>}
+              </li>
+            );
+          })}
+        </ol>
+      </nav>
+
+      {loading ? <p className="project-sidebar__message" aria-live="polite">Loading projects</p> : null}
+      {error ? <p className="project-sidebar__message" role="alert">{error}</p> : null}
+    </aside>
+  );
+}

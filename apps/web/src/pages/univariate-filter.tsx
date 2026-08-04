@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { loadWorkflow, postJson, requestJson } from "../api/client";
 import { Button } from "../components/button";
 import { LoadingState } from "../components/loading-state";
@@ -14,7 +14,8 @@ async function loadMetrics(): Promise<{ items: readonly ApiMetric[] }> {
 }
 
 export function UnivariateFilterPage() {
-  const workflow = useResource(loadWorkflow);
+  const [workflowRevision, setWorkflowRevision] = useState(0);
+  const workflow = useResource(loadWorkflow, [workflowRevision]);
   const metrics = useResource(loadMetrics);
   const [predicates, setPredicates] = useState<PredicateDraft[]>([
     { metric: "annualized_volatility", operator: "<=", value: "0.25" },
@@ -22,6 +23,17 @@ export function UnivariateFilterPage() {
   const [selection, setSelection] = useState<ApiFilterSelection | null>(null);
   const [results, setResults] = useState<ApiPage<ApiUnivariateRow> | null>(null);
   const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    const resetProjectState = () => {
+      setSelection(null);
+      setResults(null);
+      setMessage("");
+      setWorkflowRevision((value) => value + 1);
+    };
+    window.addEventListener("portfell:project-updated", resetProjectState);
+    return () => window.removeEventListener("portfell:project-updated", resetProjectState);
+  }, []);
 
   if (workflow.status === "loading" || workflow.status === "idle" || metrics.status === "loading" || metrics.status === "idle") {
     return <LoadingState label="Loading univariate filter" />;

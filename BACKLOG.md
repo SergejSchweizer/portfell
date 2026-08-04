@@ -343,7 +343,7 @@ Idempotency: Repeating the same current-project selection preserves one preferen
 
 Branch: `feat/project-sidebar-shell`.
 
-Git status: not started. PR: TBD.
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/200.
 
 Priority: P0 visible navigation.
 
