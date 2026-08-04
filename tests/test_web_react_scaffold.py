@@ -55,3 +55,38 @@ def test_old_web_surfaces_are_absent() -> None:
     for token in forbidden:
         assert token not in source
         assert token not in server
+
+
+def test_four_page_ui_uses_canonical_server_owned_workflow_contracts() -> None:
+    source = "\n".join(
+        path.read_text(encoding="utf-8") for path in (WEB_ROOT / "src").rglob("*") if path.is_file()
+    )
+    hosted_api = (REPOSITORY_ROOT / "src" / "portfell" / "hosted_api.py").read_text(
+        encoding="utf-8"
+    )
+
+    for endpoint in (
+        "/api/workflow",
+        "/api/metadata/fetch-all",
+        "/api/metadata-filter",
+        "/api/quote-runs",
+        "/api/univariate-statistics/runs",
+        "/api/univariate-filter",
+        "/api/bivariate-statistics/plan",
+        "/api/bivariate-statistics/runs",
+    ):
+        assert endpoint in source
+
+    for removed in (
+        "/metadata-filter/fetch-all-metadata",
+        "/metadata-filter/projects",
+        "/data/load-selected-isins",
+        "/statistics/univariate/summary",
+        "/statistics/{statistics_kind}/compute",
+    ):
+        assert removed not in hosted_api
+
+    frame = (WEB_ROOT / "src" / "shell" / "frame.tsx").read_text(encoding="utf-8")
+    assert 'status === "locked"' in frame
+    assert 'aria-disabled="true"' in frame
+    assert not (WEB_ROOT / "src" / "shell" / "authenticated-shell.tsx").exists()

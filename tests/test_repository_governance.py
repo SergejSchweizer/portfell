@@ -15,7 +15,7 @@ FOUR_PAGE_PR_TITLES = {
     115: "Sequential Navigation, Final Legacy Deletion, And End-To-End Gate",
 }
 FOUR_PAGE_PR_DEPENDENCIES = {
-    110: "current `main`",
+    110: "PR189",
     111: "PR110",
     112: "PR111",
     113: "PR112",
@@ -69,7 +69,10 @@ def test_four_page_stack_is_first_and_follows_dependency_order() -> None:
 
         assert position < hosted_start
         assert f"Depends on: {FOUR_PAGE_PR_DEPENDENCIES[pr_number]}." in section
-        assert "Git status: not started. PR: TBD." in section
+        github_pr = pr_number + 80
+        assert (
+            f"Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/{github_pr}."
+        ) in section
         assert "Scope:" in section
         assert "Acceptance:" in section
         assert "Security:" in section
