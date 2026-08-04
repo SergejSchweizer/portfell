@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 import shutil
 from pathlib import Path
@@ -84,6 +85,11 @@ cli_test, removed_cli_tests = re.subn(
 if removed_cli_tests != 1:
     raise RuntimeError("obsolete CLI assertion was not removed")
 cli_test_path.write_text(cli_test, encoding="utf-8")
+
+tsconfig_path = Path("apps/web/tsconfig.json")
+tsconfig = json.loads(tsconfig_path.read_text(encoding="utf-8"))
+tsconfig.pop("references", None)
+tsconfig_path.write_text(json.dumps(tsconfig, indent=2) + "\n", encoding="utf-8")
 
 forbidden = (
     "fetch_all_" + "isins",
