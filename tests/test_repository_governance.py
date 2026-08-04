@@ -5,43 +5,22 @@ from pathlib import Path
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 TYPED_BRANCH_PATTERN = re.compile(r"^(feat|fix|refactor|docs|chore)/[a-z0-9]+(?:-[a-z0-9]+)*$")
-OPEN_PR_TITLES = (
-    "Hosted Architecture Decision, Threat Model, And Active-Backlog Reset",
-    "PostgreSQL Application Catalog, Migrations, Roles, And Row-Level Security",
-    "Google-Only OpenID Connect And Server-Side Session Security",
-    "Encrypted EODHD Credential Vault With External Key Management",
-    "Shared Content-Addressed Market Observation Store",
-    "User Data Entitlements, Download Provenance, And Immutable Snapshots",
-    "User-Key-Backed EODHD Ingestion And Refresh Planner",
-    "Scoped Analytical Input Boundary And Local Adapter Compatibility",
-    "Content-Addressed Univariate And Return Artifact Cache",
-    "Content-Addressed Bivariate Cache And Exact Alignment Identity",
-    "Content-Addressed Multivariate, Portfolio, Backtest, And Report Artifacts",
-    "Docker Compose PostgreSQL, API, Web, And Shared Runtime Storage",
-    "FastAPI User, Credential, Download, Dataset, Project, And Analysis API",
-    "Google-Authenticated Web UI And User-Scoped Research Funnel",
-    "Public-Repository CI, Supply-Chain, Secret-Scanning, And Deployment Hardening",
-    "Licensing, Privacy, Retention, Backup, Restore, And Key-Rotation Gate",
-    "End-To-End Multi-User Isolation, Reproducibility, And Hosted Cutover",
-)
-OPEN_PR_DEPENDENCIES = {
-    84: "current `main`",
-    85: "PR84",
-    86: "PR85",
-    87: "PR86",
-    88: "PR85",
-    89: "PR87 and PR88",
-    90: "PR89",
-    91: "PR90",
-    92: "PR91",
-    93: "PR92",
-    94: "PR93",
-    95: "PR87 and PR91",
-    96: "PR94 and PR95",
-    97: "PR96",
-    98: "PR95 and PR96",
-    99: "PR98",
-    100: "PR97 and PR99",
+
+FOUR_PAGE_PR_TITLES = {
+    110: "Canonical Workflow State And Four-Page API Contract",
+    111: "Metadata Header, Metadata Filter, And Real Quote Progress",
+    112: "Functional Univariate Statistics Page",
+    113: "Functional Univariate Filter Page",
+    114: "Functional Bivariate Statistics Page",
+    115: "Sequential Navigation, Final Legacy Deletion, And End-To-End Gate",
+}
+FOUR_PAGE_PR_DEPENDENCIES = {
+    110: "current `main`",
+    111: "PR110",
+    112: "PR111",
+    113: "PR112",
+    114: "PR113",
+    115: "PR114",
 }
 
 HOSTED_REQUIREMENTS_BY_PR = {
@@ -65,54 +44,93 @@ HOSTED_REQUIREMENTS_BY_PR = {
 }
 
 
-def test_open_backlog_stack_uses_typed_branch_paths() -> None:
+def _pr_section(backlog: str, pr_number: int) -> str:
+    start = backlog.index(f"### PR{pr_number}.")
+    next_pr = backlog.find("\n### PR", start + 1)
+    next_section = backlog.find("\n## ", start + 1)
+    candidates = [value for value in (next_pr, next_section) if value != -1]
+    return backlog[start : len(backlog) if not candidates else min(candidates)]
+
+
+def test_four_page_stack_is_first_and_follows_dependency_order() -> None:
     backlog = (REPOSITORY_ROOT / "BACKLOG.md").read_text(encoding="utf-8")
-
-    for pr_number in range(84, 101):
-        start = backlog.index(f"### PR{pr_number}.")
-        end_markers = [
-            marker
-            for marker in (
-                backlog.find("\n### PR", start + 1),
-                backlog.find("\n## Series", start + 1),
-            )
-            if marker != -1
-        ]
-        section = backlog[start : len(backlog) if not end_markers else min(end_markers)]
-        branch_match = re.search(r"^Branch: `([^`]+)`\.$", section, flags=re.MULTILINE)
-
-        assert branch_match is not None, f"PR{pr_number} has no Branch entry"
-        assert TYPED_BRANCH_PATTERN.fullmatch(branch_match.group(1))
-
-
-def test_open_backlog_stack_follows_dependency_and_importance_order() -> None:
-    backlog = (REPOSITORY_ROOT / "BACKLOG.md").read_text(encoding="utf-8")
+    active_start = backlog.index("## Active Four-Page Portfell UI PR Stack")
+    hosted_start = backlog.index("## Active Hosted Multi-Tenant Portfell PR Stack")
+    completed_start = backlog.index("## Completed PR History")
     positions: list[int] = []
 
-    for offset, title in enumerate(OPEN_PR_TITLES):
-        pr_number = 84 + offset
-        heading = f"### PR{pr_number}. {title}"
-        start = backlog.index(heading)
-        end = backlog.find("\n### ", start + 1)
-        section = backlog[start : len(backlog) if end == -1 else end]
-        dependency = OPEN_PR_DEPENDENCIES[pr_number]
+    assert active_start < hosted_start < completed_start
 
-        positions.append(start)
-        assert f"Depends on: {dependency}." in section
+    for pr_number, title in FOUR_PAGE_PR_TITLES.items():
+        heading = f"### PR{pr_number}. {title}"
+        position = backlog.index(heading)
+        section = _pr_section(backlog, pr_number)
+        positions.append(position)
+
+        assert position < hosted_start
+        assert f"Depends on: {FOUR_PAGE_PR_DEPENDENCIES[pr_number]}." in section
+        assert "Git status: not started. PR: TBD." in section
+        assert "Scope:" in section
+        assert "Acceptance:" in section
+        assert "Security:" in section
+        assert "Determinism:" in section
+        assert "Idempotency:" in section
+
+        branch_match = re.search(r"^Branch: `([^`]+)`\.$", section, flags=re.MULTILINE)
+        assert branch_match is not None, f"PR{pr_number} has no Branch entry"
+        assert TYPED_BRANCH_PATTERN.fullmatch(branch_match.group(1))
 
     assert positions == sorted(positions)
 
 
+def test_backlog_places_completed_and_superseded_work_at_the_bottom() -> None:
+    backlog = (REPOSITORY_ROOT / "BACKLOG.md").read_text(encoding="utf-8")
+    completed = backlog.index("## Completed PR History")
+    detailed = backlog.index("## Completed And Superseded Detailed Records")
+    active = backlog.index("## Active Four-Page Portfell UI PR Stack")
+    superseded_funnel = (
+        "Data -> Metadata -> Univariate -> Filter -> Diversification"
+        " -> Portfolio -> Validation -> Report"
+    )
+
+    assert active < completed < detailed
+    assert "### Superseded Research Funnel UI Stack" in backlog[detailed:]
+    assert "Historical only." in backlog[detailed:]
+    assert superseded_funnel not in backlog[:detailed]
+
+
+def test_four_page_stack_defines_exact_canonical_routes_and_no_retired_metadata_name() -> None:
+    backlog = (REPOSITORY_ROOT / "BACKLOG.md").read_text(encoding="utf-8")
+    active = backlog[
+        backlog.index("## Active Four-Page Portfell UI PR Stack") : backlog.index(
+            "## Active Hosted Multi-Tenant Portfell PR Stack"
+        )
+    ]
+
+    ordered_pages = (
+        "metadata_filter",
+        "univariate_statistics",
+        "univariate_filter",
+        "bivariate_statistics",
+    )
+    positions = [active.index(page) for page in ordered_pages]
+    assert positions == sorted(positions)
+    assert "canonical Python operation is `fetch_all_metadata`" in active
+    assert "`fetch_all_isins` must not be reintroduced" in active
+
+
 def test_quality_gates_are_documented_centrally() -> None:
     backlog = (REPOSITORY_ROOT / "BACKLOG.md").read_text(encoding="utf-8")
-    gate = backlog.split("## Series Completion Gate", maxsplit=1)[1]
+    gate = backlog.split("## Series Completion Gate", maxsplit=1)[1].split(
+        "## Update Rules", maxsplit=1
+    )[0]
     gates = (REPOSITORY_ROOT / "GATES.md").read_text(encoding="utf-8")
 
     for backlog_text in (
-        "Final hosted-security branch: `feat/hosted-multitenant-cutover`.",
-        "Final UI branch: `feat/web-ui-production-cutover`.",
-        "type(optional-scope): subject",
-        "[GATES.md](GATES.md)",
+        "PR110 through PR115",
+        "exactly four production pages",
+        "server-reported",
+        "all Python, TypeScript, build, browser, security, and repository gates pass",
     ):
         assert backlog_text in gate
 
@@ -131,50 +149,13 @@ def test_quality_gates_are_documented_centrally() -> None:
         assert gates_text in gates
 
 
-def test_stacked_ui_workflow_requires_explicit_main_merge_and_local_docker_watch() -> None:
-    agents = (REPOSITORY_ROOT / "AGENTS.md").read_text(encoding="utf-8")
-    backlog = (REPOSITORY_ROOT / "BACKLOG.md").read_text(encoding="utf-8")
-    readme = (REPOSITORY_ROOT / "README.md").read_text(encoding="utf-8")
-    expected_watch_command = "docker compose --env-file .env.local up --build --watch web"
-
-    for text in (agents, backlog):
-        assert "unless the maintainer explicitly requests that `main` merge" in text
-        assert "stacked" in text
-        assert expected_watch_command in text
-        assert "uv run portfell-compose-web-watch" in text
-
-    assert "For stacked UI PR development" in readme
-    assert expected_watch_command in readme
-
-
-def test_backlog_tracks_real_google_oidc_runtime_pr_before_dashboard_work() -> None:
-    backlog = (REPOSITORY_ROOT / "BACKLOG.md").read_text(encoding="utf-8")
-    pr109 = backlog[
-        backlog.index(
-            "### PR109. Real Google OIDC Runtime Login And Account Identity Display"
-        ) : backlog.index("### PR102. Project Dashboard", backlog.index("### PR109."))
-    ]
-    pr102 = backlog[
-        backlog.index("### PR102. Project Dashboard") : backlog.index(
-            "### PR103.", backlog.index("### PR102.")
-        )
-    ]
-
-    assert "Branch: `feat/web-google-oidc-runtime-login`." in pr109
-    assert "Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/162." in pr109
-    assert "redirect the browser to Google's account chooser" in pr109
-    assert "add `/auth/google/callback`" in pr109
-    assert "visible lowercase identity line" in pr109
-    assert "local-dev-google" in pr109
-    assert "Depends on: PR109." in pr102
-
-
-def test_hosted_security_architecture_maps_goals_to_active_prs() -> None:
+def test_hosted_security_architecture_maps_goals_to_backlog_records() -> None:
     architecture = (REPOSITORY_ROOT / "ARCHITECTURE.md").read_text(encoding="utf-8")
     decisions = (REPOSITORY_ROOT / "DECISIONS.md").read_text(encoding="utf-8")
     risks = (REPOSITORY_ROOT / "RISKS.md").read_text(encoding="utf-8")
     goals = (REPOSITORY_ROOT / "GOALS.md").read_text(encoding="utf-8")
     hosted = (REPOSITORY_ROOT / "docs/hosted_security_architecture.md").read_text(encoding="utf-8")
+    backlog = (REPOSITORY_ROOT / "BACKLOG.md").read_text(encoding="utf-8")
 
     assert "docs/hosted_security_architecture.md" in architecture
     assert "D016. Use PostgreSQL-First User-Key-Backed Hosted Architecture" in decisions
@@ -201,6 +182,7 @@ def test_hosted_security_architecture_maps_goals_to_active_prs() -> None:
 
     for pr_number, requirement in HOSTED_REQUIREMENTS_BY_PR.items():
         assert f"| {requirement} | PR{pr_number} |" in hosted
+        assert f"### PR{pr_number}." in backlog
 
 
 def test_github_quality_workflows_validate_and_use_squash_subject() -> None:
