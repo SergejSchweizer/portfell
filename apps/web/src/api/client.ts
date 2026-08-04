@@ -21,9 +21,12 @@ export async function requestJson<T>(path: string, init: RequestInit = {}): Prom
     },
   });
 
-  const payload = (await response.json().catch(() => ({}))) as { detail?: string };
+  const payload = (await response.json().catch(() => ({}))) as {
+    detail?: string | { code?: string };
+  };
   if (!response.ok) {
-    throw new ApiError(response.status, payload.detail || `request_failed_${response.status}`);
+    const code = typeof payload.detail === "string" ? payload.detail : payload.detail?.code;
+    throw new ApiError(response.status, code || `request_failed_${response.status}`);
   }
   return payload as T;
 }

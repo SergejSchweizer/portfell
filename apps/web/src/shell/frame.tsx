@@ -101,7 +101,6 @@ export function ShellFrame({ currentPage, children }: ShellFrameProps) {
     setStatus("Saving key and fetching metadata…");
     try {
       await postJson("/api/credentials/eodhd", { provider_key: providerKey.trim() });
-      setProviderKey("");
       const result = await postJson<ApiMetadataFetch>(
         "/api/metadata/fetch-all",
         {},
