@@ -10,8 +10,13 @@ Apply server-owned thresholds to the latest univariate-statistics result and per
 
 ## Contract
 
-The page loads available metrics and current values, collects filter thresholds, submits them to the API, and renders the retained and rejected counts returned by the server. It must not implement statistical filtering rules independently in the browser.
+The page loads `GET /api/univariate-filter/metrics`, collects ordered numerical predicates, and submits
+them to `POST /api/univariate-filter` with the completed source run id. It renders retained and rejected
+counts plus bounded results from `GET /api/univariate-filter/{selection_id}/results`. Statistical
+filtering rules remain server-owned.
 
 ## Acceptance
 
-Missing upstream statistics produce a clear empty state. Invalid thresholds are rejected visibly. Submission is idempotent from the user perspective, duplicate running actions are disabled, and stale results are cleared when inputs change.
+Missing or stale upstream statistics produce a locked state. Invalid thresholds are rejected visibly.
+Predicates use AND semantics, submission is idempotent, and stale results are cleared immediately when
+an input changes.
