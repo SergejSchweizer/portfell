@@ -22,6 +22,14 @@ At `900px` and below, pages must not add a second navigation list or rely on
 background controls while the drawer is open. Changes to this shared shell
 require updates to `docs/ui/layout/sidebar.md` and shell regression coverage.
 
+## Shared controls
+
+Use the semantic tokens in `apps/web/styles/app.css` and the shared controls in
+`apps/web/src/components/` before adding page-specific styling. New raw color
+values, component-specific focus treatments, and duplicate field label/error
+markup are not permitted; update `docs/ui/design-system.md` when the shared
+visual contract changes.
+
 ## Create a new page
 
 1. Create `apps/web/src/pages/<route-slug>.tsx` and export one page component.

@@ -438,7 +438,7 @@ The series begins only after the project-sidebar stack is complete. Each PR is i
 
 Branch: `refactor/platform-simple-ui-foundations`.
 
-Git status: not started. PR: TBD.
+Git status: in progress. PR: TBD.
 
 Priority: P1 visual foundation.
 
