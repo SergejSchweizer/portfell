@@ -13,7 +13,7 @@ from camovar.logging import get_logger, log_event, setup_logging
 from camovar.univariate_statistics import DEFAULT_CONFIDENCE_LEVEL
 from camovar.workflows import (
     run_bivariate_statistics_workflow,
-    run_fetch_all_isins_workflow,
+    run_fetch_all_metadata_workflow,
     run_fetch_all_quotes_workflow,
     run_metadata_filter_workflow,
     run_multivariate_statistics_workflow,
@@ -61,24 +61,26 @@ def build_parser() -> argparse.ArgumentParser:
     search.add_argument(
         "--no-approve", action="store_true", help="Do not approve the generated canonical universe."
     )
-    fetch_all_isins = subparsers.add_parser(
-        "fetch-all-isins",
+    fetch_all_metadata = subparsers.add_parser(
+        "fetch-all-metadata",
         help="Fetch the full EODHD ISIN metadata universe.",
     )
-    fetch_all_isins.add_argument(
+    fetch_all_metadata.add_argument(
         "--debug",
         action="store_true",
         default=argparse.SUPPRESS,
         help="Write verbose DEBUG logs.",
     )
-    fetch_all_isins.add_argument("--root", default=str(DEFAULT_ROOT), help="Lake root to write to.")
-    fetch_all_isins.add_argument(
+    fetch_all_metadata.add_argument(
+        "--root", default=str(DEFAULT_ROOT), help="Lake root to write to."
+    )
+    fetch_all_metadata.add_argument(
         "--exchange-code",
         action="append",
         default=[],
         help="Exchange code to fetch. May be repeated. Defaults to all EODHD exchanges.",
     )
-    fetch_all_isins.add_argument(
+    fetch_all_metadata.add_argument(
         "--include-delisted",
         action="store_true",
         help="Include delisted symbols when EODHD provides them.",
@@ -366,8 +368,8 @@ def main(argv: Sequence[str] | None = None) -> None:
             run_date=args.run_date,
             approve=not args.no_approve,
         )
-    elif args.command == "fetch-all-isins":
-        summary = run_fetch_all_isins_workflow(
+    elif args.command == "fetch-all-metadata":
+        summary = run_fetch_all_metadata_workflow(
             root=Path(args.root),
             exchange_codes=tuple(args.exchange_code),
             include_delisted=args.include_delisted,

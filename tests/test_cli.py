@@ -488,19 +488,6 @@ def test_cli_runs_univariate_and_bivariate_statistics_modules(
     bivariate_payload = json.loads(bivariate_output.out)
     assert bivariate_payload["selection_id"] == "selected-ie1"
     assert bivariate_payload["bivariate_statistics_rows"] == 0
-    assert (
-        read_rows(
-            paths.gold_bivariate_statistics_pair(
-                "XETRA",
-                "IE1",
-                "AAA",
-                "AS",
-                "IE2",
-                "BBB",
-            )
-        )
-        == []
-    )
 
 
 def test_cli_univariate_statistics_requires_metadata_selection(tmp_path: Path) -> None:

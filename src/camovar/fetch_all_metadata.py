@@ -1,4 +1,4 @@
-"""Fetch the full EODHD ISIN metadata universe into one reference artifact."""
+"""Fetch the full EODHD listing metadata universe into one reference artifact."""
 
 from __future__ import annotations
 
@@ -24,21 +24,21 @@ class EodhdJsonClient(Protocol):
 
 
 @dataclass(frozen=True)
-class AllIsinsFetchResult:
-    """Result of a full EODHD ISIN metadata refresh."""
+class AllMetadataFetchResult:
+    """Result of a full EODHD listing metadata refresh."""
 
     rows: tuple[JsonRow, ...]
     requested_exchanges: tuple[str, ...]
     skipped_exchanges: tuple[str, ...]
 
 
-def fetch_all_isins(
+def fetch_all_metadata(
     client: EodhdJsonClient,
     *,
     exchange_codes: Sequence[str] = (),
     include_delisted: bool = False,
-) -> AllIsinsFetchResult:
-    """Fetch and normalize all available ISIN-bearing EODHD listings."""
+) -> AllMetadataFetchResult:
+    """Fetch and normalize all available EODHD listing metadata with ISINs."""
     explicit_exchanges = bool(exchange_codes)
     resolved_exchanges = tuple(exchange_codes) or _fetch_exchange_codes(client)
     fetched_at = datetime.now(UTC).replace(microsecond=0).isoformat()
@@ -60,7 +60,7 @@ def fetch_all_isins(
             for row in _payload_rows(payload)
             if str(row.get("Isin", row.get("isin", ""))).strip()
         )
-    return AllIsinsFetchResult(
+    return AllMetadataFetchResult(
         rows=tuple(
             sorted(rows, key=lambda row: (str(row["isin"]), str(row["exchange"]), str(row["code"])))
         ),
@@ -69,7 +69,7 @@ def fetch_all_isins(
     )
 
 
-def write_all_isins(paths: LakePaths, rows: Sequence[Mapping[str, Any]]) -> list[JsonRow]:
+def write_all_metadata(paths: LakePaths, rows: Sequence[Mapping[str, Any]]) -> list[JsonRow]:
     """Write the reference all-ISIN dataset and manifest."""
     normalized = [dict(row) for row in rows]
     validate_rows("all_isins", normalized)

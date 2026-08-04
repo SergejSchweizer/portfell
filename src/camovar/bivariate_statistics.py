@@ -267,29 +267,6 @@ def _build_bivariate_pair_statistics(pair: PairObservation) -> JsonRow:
     }
 
 
-def read_legacy_bivariate_pair(
-    paths: LakePaths, left: tuple[str, str, str], right: tuple[str, str, str]
-) -> JsonRow | None:
-    """Read a single pair row from the pre-C03 one-file-per-pair layout.
-
-    Kept only for the documented migration window while historical
-    ``gold/bivariate_statistics/{exchange}/{isin}/{code}/...`` files still
-    exist. New writes always use :func:`write_bivariate_statistics`, which
-    persists deterministic version/bucket Parquet files instead.
-    """
-    rows = read_rows(
-        paths.gold_bivariate_statistics_pair(
-            left[1],
-            left[0],
-            left[2],
-            right[1],
-            right[0],
-            right[2],
-        )
-    )
-    return rows[0] if len(rows) == 1 else None
-
-
 def _listing_key(listing: tuple[str, str, str]) -> str:
     isin, exchange, code = listing
     return f"{exchange}__{isin}__{code}"
@@ -305,7 +282,6 @@ def _ratio(numerator: float, denominator: float) -> float:
 
 __all__ = [
     "build_bivariate_statistics",
-    "read_legacy_bivariate_pair",
     "resolve_worker_count",
     "write_bivariate_statistics",
 ]

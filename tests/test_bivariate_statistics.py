@@ -4,7 +4,6 @@ import pytest
 
 from camovar.bivariate_statistics import (
     build_bivariate_statistics,
-    read_legacy_bivariate_pair,
     resolve_worker_count,
     write_bivariate_statistics,
 )
@@ -165,17 +164,3 @@ def test_resolve_worker_count_caps_default_and_honors_explicit_concurrency() -> 
     assert resolve_worker_count(1) == 1
     assert resolve_worker_count(None, max_workers=4) == 4
     assert resolve_worker_count(None, max_workers=1) == 1
-
-
-def test_read_legacy_bivariate_pair_reads_pre_bucketed_layout(tmp_path: Path) -> None:
-    paths = LakePaths(root=tmp_path / "lake")
-    left = ("IE1", "XETRA", "AAA")
-    right = ("IE2", "AS", "BBB")
-    legacy_row = {"pair_key": "legacy", "left_isin": "IE1", "right_isin": "IE2"}
-    write_rows(
-        paths.gold_bivariate_statistics_pair("XETRA", "IE1", "AAA", "AS", "IE2", "BBB"),
-        [legacy_row],
-    )
-
-    assert read_legacy_bivariate_pair(paths, left, right) == legacy_row
-    assert read_legacy_bivariate_pair(paths, right, left) is None

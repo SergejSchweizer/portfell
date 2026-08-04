@@ -4,11 +4,6 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { URL } = require("node:url");
 
-const designTokens = JSON.parse(
-  fs.readFileSync(path.join(__dirname, "design-tokens.json"), "utf8")
-);
-const shellStyles = fs.readFileSync(path.join(__dirname, "styles", "app.css"), "utf8");
-
 if (process.argv.includes("--health")) {
   process.exit(0);
 }
@@ -37,13 +32,6 @@ const emailCookieName = "camovar_auth_email";
 const providerCookieName = "camovar_auth_provider";
 const pendingGoogleStates = new Map();
 let googleJwksCache = { expiresAt: 0, keys: [] };
-
-const statisticsSteps = [
-  { id: "load-data", label: "Load Data", actionLabel: "Load selected ISINs", endpoint: "load-data" },
-  { id: "univariate", label: "Univariate Statistics" },
-  { id: "bivariate", label: "Bivariate Statistics" },
-  { id: "multivariate", label: "Multivariate Statistics" },
-];
 
 function escapeHtml(value) {
   return String(value)
@@ -291,710 +279,45 @@ function univariateStatisticsTableMarkup() {
   </div>`;
 }
 
-function renderStyles() {
-  return `<style>
-:root {
-  color-scheme: light;
-  --font-family: ${designTokens.typography.fontFamily};
-  --page-title: ${designTokens.typography.pageTitle};
-  --section-title: ${designTokens.typography.sectionTitle};
-  --body: ${designTokens.typography.body};
-  --meta: ${designTokens.typography.meta};
-  --space-page: ${designTokens.spacing.page};
-  --space-panel: ${designTokens.spacing.panel};
-  --space-control: ${designTokens.spacing.control};
-  --gap: ${designTokens.spacing.gap};
-  --canvas: ${designTokens.color.canvas};
-  --surface: ${designTokens.color.surface};
-  --ink: ${designTokens.color.ink};
-  --muted: ${designTokens.color.muted};
-  --line: ${designTokens.color.line};
-  --accent: ${designTokens.color.accent};
-  --accent-hover: ${designTokens.color.accentHover};
-  --focus: ${designTokens.color.focus};
-  --warning: ${designTokens.color.warning};
-  --danger: ${designTokens.color.danger};
-  --stale: ${designTokens.color.stale};
-  --running: ${designTokens.color.running};
-  --complete: ${designTokens.color.complete};
-  --radius-panel: ${designTokens.radius.panel};
-  --radius-control: ${designTokens.radius.control};
-}
-${shellStyles}
-</style>`;
-}
+const DIST_ROOT = path.join(__dirname, "dist");
+const SPA_ROUTES = new Set([
+  "/metadata-filter",
+  "/univariate-statistics",
+  "/univariate-filter",
+  "/bivariate-statistics",
+]);
 
-function renderAuthenticatedShell(escapedApiUrl, session = null) {
-  return `<div class="app-shell" data-design-system-version="camovar-web-shell-v1">
-  <aside class="sidebar" aria-label="Camovar navigation">
-    ${brandMarkup(session)}
-    <div class="snapshot-indicator" data-snapshot-indicator aria-disabled="true">
-      <label>
-        <strong>Projects</strong>
-        <select name="project_snapshot" data-project-selector disabled>
-          <option value="">No project selected</option>
-        </select>
-      </label>
-      <span data-project-summary>Not selected</span>
-    </div>
-    <div class="sidebar-auth">
-      <a href="/auth/logout"><button type="button" data-action="google-auth">Google Auth</button></a>
-    </div>
-  </aside>
-  <button class="sidebar-resizer" type="button" data-sidebar-resizer aria-label="Resize sidebar" aria-orientation="vertical" aria-valuemin="220" aria-valuemax="520" aria-valuenow="280"></button>
-  <main class="workspace">
-    <header class="topbar">
-      <div>
-        <h1 data-workspace-title>Projects</h1>
-        <p class="subtle" data-api-base="${escapedApiUrl}" data-current-selection-summary>Consisting currently of 0 ISINs</p>
-      </div>
-      <form class="eodhd-fetch" data-form="eodhd-fetch">
-        <label>EODHD Key<input name="provider_key" type="password" autocomplete="new-password" placeholder="Paste EODHD API key"></label>
-        <button class="primary" type="submit" data-action="fetch-all-isins" disabled>Fetch all ISINs</button>
-        <span class="eodhd-fetch__status" data-eodhd-fetch-status>Enter an EODHD key to enable project setup.</span>
-      </form>
-    </header>
-
-    <section class="project-empty-state" data-project-empty-state>
-      <h2>No project selected</h2>
-      <p>Select a project from Projects or define a new ISIN search project.</p>
-      <form class="project-definition" data-form="project-definition" aria-disabled="true">
-        <div class="project-definition__header">
-          <h2>Project Definition</h2>
-          <p class="subtle">Filter the all-ISIN metadata universe and create a project from the resulting list.</p>
-        </div>
-        <fieldset class="field-grid" data-project-definition-fields disabled>
-          <label>Exchange<select name="exchange" data-metadata-option="exchange"><option value="">Any</option></select></label>
-          <label>Name<input name="name" placeholder="UCITS ETF"></label>
-          <label>Instrument Type<select name="instrument_type" data-metadata-option="instrument_type"><option value="">Any</option></select></label>
-          <label>Country<select name="country" data-metadata-option="country"><option value="">Any</option></select></label>
-          <label>Currency<select name="currency" data-metadata-option="currency"><option value="">Any</option></select></label>
-        </fieldset>
-        <div class="project-definition__actions">
-          <button class="primary" type="submit" data-action="create-metadata-project" disabled>Create New Project</button>
-        </div>
-        <p class="subtle" data-project-definition-status></p>
-      </form>
-    </section>
-
-    <section class="project-workspace" data-project-workspace hidden>
-      <nav class="statistics-path" aria-label="Statistics path map">
-        ${statisticsSteps.map(statisticsStepButton).join("")}
-      </nav>
-      <div class="statistics-pages">
-        ${statisticsSteps.map(statisticsPanel).join("")}
-      </div>
-    </section>
-  </main>
-</div>`;
-}
-
-function renderAppShell(apiUrl, initialSession = null) {
-  const escapedApiUrl = escapeHtml(apiUrl);
-  const escapedCsrfToken = initialSession && initialSession.csrf_token ? escapeHtml(initialSession.csrf_token) : "";
-  const initialShell =
-    initialSession && initialSession.authenticated === true
-      ? renderAuthenticatedShell(escapedApiUrl, initialSession)
-      : "";
-  const gateHidden = initialSession && initialSession.authenticated === true ? " hidden" : "";
-  return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="camovar-csrf-token" content="${escapedCsrfToken}">
-<title>Camovar Research</title>
-${renderStyles()}
-</head>
-<body>
-<div class="login-gate" data-auth-gate${gateHidden}>
-  <section class="login-panel" aria-label="Camovar login">
-    ${brandMarkup()}
-    <h1>Sign in to continue</h1>
-    <p class="login-panel__copy">The research dashboard is only available after Google authentication.</p>
-    <div class="actions">
-      <form action="/auth/google/start" method="get" data-form="google-login">
-        <button class="primary" type="submit" aria-label="Start Google login">Google Login</button>
-      </form>
-    </div>
-    <p class="login-panel__status" data-auth-status>Checking session...</p>
-  </section>
-</div>
-<div id="authenticated-root" data-authenticated-root>${initialShell}</div>
-<template id="authenticated-shell-template" data-authenticated-template>
-${renderAuthenticatedShell(escapedApiUrl)}
-</template>
-<script>
-const initialSession = ${JSON.stringify(initialSession)};
-const apiBaseUrl = "/api";
-const apiRoutes = {
-  session: "/session",
-  credential: "/credentials/eodhd",
-  projects: "/projects",
-  metadataFilterFetchAllIsins: "/metadata-filter/fetch-all-isins",
-  metadataFilterOptions: "/metadata-filter/options",
-  metadataFilterProjects: "/metadata-filter/projects",
-  loadSelectedIsins: "/data/load-selected-isins",
-  univariateStatisticsSummary: "/statistics/univariate/summary",
-  statisticsCompute: (kind) => "/statistics/" + encodeURIComponent(kind) + "/compute"
-};
-function csrfToken() {
-  return document.querySelector('meta[name="camovar-csrf-token"]').content;
-}
-function idempotencyKey(prefix) {
-  if (globalThis.crypto && globalThis.crypto.randomUUID) {
-    return prefix + "-" + globalThis.crypto.randomUUID();
-  }
-  return prefix + "-" + Date.now().toString(36);
-}
-async function apiRequest(path, options = {}) {
-  const headers = Object.assign({ "accept": "application/json" }, options.headers || {});
-  if (options.body) headers["content-type"] = "application/json";
-  if (options.method && options.method !== "GET") headers["X-Camovar-CSRF"] = csrfToken();
-  const response = await fetch(apiBaseUrl + path, {
-    method: options.method || "GET",
-    credentials: "include",
-    headers,
-    body: options.body ? JSON.stringify(options.body) : undefined
-  });
-  if (!response.ok) throw new Error("api_error_" + response.status);
-  return response.json();
-}
-function setAuthStatus(message) {
-  const status = document.querySelector("[data-auth-status]");
-  if (status) status.textContent = message;
-}
-function clientEscapeHtml(value) {
-  return String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-}
-async function refreshSession() {
-  return apiRequest(apiRoutes.session);
-}
-let projectState = {
-  projects: [],
-  selectedProjectId: "",
-  metadataReady: false,
-  eodhdCredentialSaved: false,
-  univariateSummaryLoaded: false,
-  statisticsComplete: { "load-data": false, univariate: false, bivariate: false, multivariate: false }
-};
-function normalizeProjectItems(payload) {
-  if (!payload || !Array.isArray(payload.items)) return [];
-  return payload.items.filter((project) => project && project.project_id && project.name);
-}
-function projectLabel(project) {
-  return String(project.name || project.project_id || "Untitled project");
-}
-function selectedProject() {
-  return projectState.projects.find((project) => project.project_id === projectState.selectedProjectId) || null;
-}
-function selectedIsinCount(project) {
-  if (!project) return 0;
-  if (Number.isFinite(project.selected_count)) return Number(project.selected_count);
-  if (project.selection && Array.isArray(project.selection.member_ids)) return project.selection.member_ids.length;
-  return 0;
-}
-function currentSelectionSummary(project) {
-  const count = selectedIsinCount(project);
-  return "Consisting currently of " + count + " ISIN" + (count === 1 ? "" : "s");
-}
-function updateCurrentSelectionSummary(project = selectedProject()) {
-  const selectionSummary = document.querySelector("[data-current-selection-summary]");
-  if (selectionSummary) selectionSummary.textContent = currentSelectionSummary(project);
-}
-function setEodhdFetchStatus(message) {
-  const target = document.querySelector("[data-eodhd-fetch-status]");
-  if (target) target.textContent = message;
-}
-function eodhdKeyInput() {
-  return document.querySelector('[data-form="eodhd-fetch"] [name="provider_key"]');
-}
-function setEodhdCredentialSaved(saved, maskedLabel = "") {
-  projectState.eodhdCredentialSaved = saved;
-  const input = eodhdKeyInput();
-  if (input) {
-    input.placeholder = saved ? "Saved EODHD key available" : "Paste EODHD API key";
-    if (saved && maskedLabel && (!input.value || input.dataset.credentialDisplay === "masked")) {
-      input.value = maskedLabel;
-      input.dataset.credentialDisplay = "masked";
-    }
-    if (!saved) {
-      delete input.dataset.credentialDisplay;
-    }
-  }
-  updateFetchButtonState();
-}
-function setProjectGateEnabled(enabled) {
-  projectState.metadataReady = enabled;
-  const selector = document.querySelector("[data-project-selector]");
-  const snapshot = document.querySelector("[data-snapshot-indicator]");
-  const definition = document.querySelector('[data-form="project-definition"]');
-  const definitionFields = document.querySelector("[data-project-definition-fields]");
-  const createButton = document.querySelector('[data-action="create-metadata-project"]');
-  if (selector) selector.disabled = !enabled;
-  if (snapshot) snapshot.setAttribute("aria-disabled", enabled ? "false" : "true");
-  if (definition) definition.setAttribute("aria-disabled", enabled ? "false" : "true");
-  if (definitionFields) definitionFields.disabled = !enabled;
-  if (createButton) createButton.disabled = !enabled;
-  if (!enabled) {
-    projectState.projects = [];
-    projectState.selectedProjectId = "";
-    renderProjectOptions();
-    selectProject("");
-  }
-}
-function eodhdKeyValue() {
-  const input = eodhdKeyInput();
-  if (input && input.dataset.credentialDisplay === "masked") return "";
-  return input ? String(input.value || "").trim() : "";
-}
-function updateFetchButtonState() {
-  const button = document.querySelector('[data-action="fetch-all-isins"]');
-  const hasKey = Boolean(eodhdKeyValue());
-  const hasUsableCredential = hasKey || projectState.eodhdCredentialSaved;
-  if (button) button.disabled = !hasUsableCredential;
-  setProjectGateEnabled(false);
-  setEodhdFetchStatus(
-    hasKey
-      ? "Fetch all ISINs to enable project setup."
-      : projectState.eodhdCredentialSaved
-        ? "Saved EODHD key available. Fetch all ISINs to enable project setup."
-        : "Enter an EODHD key to enable project setup."
-  );
-}
-async function refreshEodhdCredentialStatus() {
-  try {
-    const status = await apiRequest(apiRoutes.credential);
-    const saved = status && status.status === "active";
-    setEodhdCredentialSaved(saved, saved ? String(status.masked_label || "") : "");
-    if (saved) {
-      setProjectGateEnabled(true);
-      await refreshMetadataFilterOptions();
-      await refreshProjects();
-      setEodhdFetchStatus("Saved EODHD key available. Projects restored for this user.");
-    }
-  } catch (_error) {
-    setEodhdCredentialSaved(false);
-  }
-}
-async function fetchAllIsinsForProjects(form) {
-  const providerKey = eodhdKeyValue();
-  if (!providerKey && !projectState.eodhdCredentialSaved) {
-    updateFetchButtonState();
-    return;
-  }
-  setProjectGateEnabled(false);
-  setEodhdFetchStatus("Fetching all ISINs...");
-  if (providerKey) {
-    await apiRequest(apiRoutes.credential, {
-      method: "POST",
-      headers: { "Idempotency-Key": idempotencyKey("credential") },
-      body: { provider_key: providerKey }
-    });
-    setEodhdCredentialSaved(true);
-  }
-  const result = await apiRequest(apiRoutes.metadataFilterFetchAllIsins, {
-    method: "POST",
-    headers: { "Idempotency-Key": idempotencyKey("fetch-all-isins") }
-  });
-  setProjectGateEnabled(true);
-  await refreshMetadataFilterOptions();
-  await refreshProjects();
-  setEodhdFetchStatus("Fetched " + result.row_count + " ISIN listings.");
-}
-function optionMarkup(value) {
-  return '<option value="' + clientEscapeHtml(value) + '">' + clientEscapeHtml(value) + "</option>";
-}
-function formatSummaryValue(value) {
-  if (value === null || value === undefined || value === "") return "n/a";
-  if (typeof value === "number") return Number.isFinite(value) ? value.toPrecision(6) : "n/a";
-  return String(value);
-}
-function filterOptionMarkup(option) {
-  if (!option || option.value === undefined) return "";
-  const label = option.label === undefined ? option.value : option.label;
-  return '<option value="' + clientEscapeHtml(option.value) + '">' + clientEscapeHtml(label) + "</option>";
-}
-function renderUnivariateStatisticsSummary(items) {
-  const body = document.querySelector("[data-univariate-summary-body]");
-  const status = document.querySelector("[data-univariate-summary-status]");
-  if (!body) return;
-  const rows = Array.isArray(items) ? items : [];
-  if (!rows.length) {
-    body.innerHTML = '<tr><td colspan="5">No univariate statistics are available yet.</td></tr>';
-    if (status) status.textContent = "No univariate statistics are available yet.";
-    return;
-  }
-  body.innerHTML = rows.map((row) => {
-    const filterOptions = Array.isArray(row.filter_options) ? row.filter_options : [];
-    const options = '<option value="">Choose filter</option>' + filterOptions.map(filterOptionMarkup).join("");
-    return '<tr>'
-      + '<td><strong>' + clientEscapeHtml(row.name || "") + '</strong><br><span class="subtle">'
-      + clientEscapeHtml(row.category || "") + "</span></td>"
-      + "<td>" + clientEscapeHtml(formatSummaryValue(row.mean)) + "</td>"
-      + "<td>" + clientEscapeHtml(formatSummaryValue(row.median)) + "</td>"
-      + "<td>" + clientEscapeHtml(formatSummaryValue(row.three_std_range)) + "</td>"
-      + '<td><select name="filter_' + clientEscapeHtml(row.name || "statistic") + '">' + options + "</select></td>"
-      + "</tr>";
-  }).join("");
-  if (status) status.textContent = "Statistics summary loaded.";
-}
-async function loadUnivariateStatisticsSummary() {
-  if (projectState.univariateSummaryLoaded) return;
-  const status = document.querySelector("[data-univariate-summary-status]");
-  if (status) status.textContent = "Loading statistics summary...";
-  try {
-    const payload = await apiRequest(apiRoutes.univariateStatisticsSummary);
-    renderUnivariateStatisticsSummary(payload.items);
-    projectState.univariateSummaryLoaded = true;
-  } catch (_error) {
-    renderUnivariateStatisticsSummary([]);
-    if (status) status.textContent = "Statistics summary is not available.";
-  }
-}
-function resetUnivariateStatisticsSummary() {
-  projectState.univariateSummaryLoaded = false;
-  const body = document.querySelector("[data-univariate-summary-body]");
-  const status = document.querySelector("[data-univariate-summary-status]");
-  if (body) {
-    body.innerHTML = '<tr><td colspan="5">Compute univariate statistics to populate this table.</td></tr>';
-  }
-  if (status) status.textContent = "Compute univariate statistics to populate this table.";
-}
-function setProjectDefinitionStatus(message) {
-  const target = document.querySelector("[data-project-definition-status]");
-  if (target) target.textContent = message;
-}
-function projectDefinitionPayload(form) {
-  const data = new FormData(form);
-  return {
-    exchange: String(data.get("exchange") || ""),
-    name: String(data.get("name") || ""),
-    instrument_type: String(data.get("instrument_type") || ""),
-    country: String(data.get("country") || ""),
-    currency: String(data.get("currency") || "")
-  };
-}
-async function refreshMetadataFilterOptions() {
-  let payload = {};
-  try {
-    payload = await apiRequest(apiRoutes.metadataFilterOptions);
-  } catch (_error) {
-    setProjectDefinitionStatus("Metadata options are not available.");
-  }
-  for (const field of ["exchange", "instrument_type", "country", "currency"]) {
-    const select = document.querySelector('[data-metadata-option="' + field + '"]');
-    if (!select) continue;
-    const values = Array.isArray(payload[field]) ? payload[field] : [];
-    select.innerHTML = '<option value="">Any</option>' + values.map(optionMarkup).join("");
-  }
-}
-function renderProjectOptions() {
-  const selector = document.querySelector("[data-project-selector]");
-  if (!selector) return;
-  const current = projectState.selectedProjectId;
-  selector.innerHTML = '<option value="">No project selected</option>' + projectState.projects.map((project) => {
-    const selected = project.project_id === current ? " selected" : "";
-    return '<option value="' + clientEscapeHtml(project.project_id) + '"' + selected + ">"
-      + clientEscapeHtml(projectLabel(project)) + "</option>";
-  }).join("");
-}
-function statisticsStepIndex(kind) {
-  return statisticsSteps.findIndex((step) => step.id === kind);
-}
-function statisticsStepEnabled(kind) {
-  const index = statisticsStepIndex(kind);
-  if (index <= 0) return true;
-  const previous = statisticsSteps[index - 1];
-  return Boolean(previous && projectState.statisticsComplete[previous.id]);
-}
-function nextStatisticsStep(kind) {
-  const index = statisticsStepIndex(kind);
-  if (index < 0) return null;
-  return statisticsSteps[index + 1] || null;
-}
-function updateStatisticsPathAccess() {
-  for (const button of document.querySelectorAll("[data-statistics-step]")) {
-    const kind = button.dataset.statisticsStep || "";
-    const enabled = statisticsStepEnabled(kind);
-    const status = button.querySelector(".funnel-status");
-    button.disabled = !enabled;
-    if (status) {
-      status.textContent = projectState.statisticsComplete[kind] ? "complete" : enabled ? "ready" : "locked";
-    }
-  }
-}
-function resetStatisticsWorkflow() {
-  const project = selectedProject();
-  projectState.statisticsComplete = {
-    "load-data": Boolean(project && project.data_loaded === true),
-    univariate: false,
-    bivariate: false,
-    multivariate: false
-  };
-  resetUnivariateStatisticsSummary();
-  for (const step of statisticsSteps) {
-    setStatisticsProgress(step.id, 0, "Idle. Select " + (step.actionLabel || "Compute") + " to run this step for the current project.");
-  }
-  updateStatisticsPathAccess();
-  showStatisticsPage(projectState.statisticsComplete["load-data"] ? "univariate" : "load-data");
-}
-function showStatisticsPage(kind) {
-  if (!statisticsStepEnabled(kind)) return;
-  for (const page of document.querySelectorAll("[data-statistics-page]")) {
-    page.hidden = page.dataset.statisticsPage !== kind;
-  }
-  for (const button of document.querySelectorAll("[data-statistics-step]")) {
-    if (button.dataset.statisticsStep === kind) {
-      button.setAttribute("aria-current", "step");
-    } else {
-      button.removeAttribute("aria-current");
-    }
-  }
-}
-function setStatisticsProgress(kind, progress, message) {
-  const progressBar = document.querySelector('[data-statistics-progress="' + kind + '"]');
-  const status = document.querySelector('[data-statistics-status="' + kind + '"]');
-  if (progressBar) progressBar.value = progress;
-  if (status) status.textContent = message;
-}
-function completeStatisticsStep(kind, result = {}) {
-  const project = selectedProject();
-  if (project && Number.isFinite(result.selected_count)) {
-    project.selected_count = Number(result.selected_count);
-  }
-  if (project && kind === "load-data") project.data_loaded = true;
-  projectState.statisticsComplete[kind] = true;
-  updateCurrentSelectionSummary(project);
-  updateStatisticsPathAccess();
-  if (kind === "univariate") {
-    projectState.univariateSummaryLoaded = false;
-    void loadUnivariateStatisticsSummary();
-  }
-  const nextStep = nextStatisticsStep(kind);
-  if (nextStep && statisticsStepEnabled(nextStep.id)) showStatisticsPage(nextStep.id);
-}
-async function computeStatistics(kind) {
-  const project = selectedProject();
-  if (!project) {
-    setStatisticsProgress(kind, 0, "Select a project before computing statistics.");
-    return;
-  }
-  const isLoadData = kind === "load-data";
-  setStatisticsProgress(kind, 12, isLoadData ? "Loading selected ISINs..." : "Starting " + kind + " statistics...");
-  const result = await apiRequest(isLoadData ? apiRoutes.loadSelectedIsins : apiRoutes.statisticsCompute(kind), {
-    method: "POST",
-    headers: { "Idempotency-Key": idempotencyKey(isLoadData ? "load-data" : kind + "-statistics") },
-    body: { project_id: project.project_id }
-  });
-  setStatisticsProgress(kind, Number(result.progress || 100), isLoadData ? "Loaded selected ISINs." : "Completed " + kind + " statistics.");
-  if (!result.status || result.status === "succeeded") completeStatisticsStep(kind, result);
-}
-function selectProject(projectId) {
-  const previousProjectId = projectState.selectedProjectId;
-  projectState.selectedProjectId = projectId;
-  const project = selectedProject();
-  const workspace = document.querySelector("[data-project-workspace]");
-  const emptyState = document.querySelector("[data-project-empty-state]");
-  const title = document.querySelector("[data-workspace-title]");
-  const summary = document.querySelector("[data-project-summary]");
-  if (workspace) workspace.hidden = !project;
-  if (emptyState) emptyState.hidden = Boolean(project);
-  if (title) title.textContent = project ? projectLabel(project) : "Projects";
-  if (summary) summary.textContent = project ? projectLabel(project) : "Not selected";
-  updateCurrentSelectionSummary(project);
-  renderProjectOptions();
-  if (previousProjectId !== projectId) resetStatisticsWorkflow();
-}
-async function refreshProjects() {
-  if (!projectState.metadataReady) {
-    renderProjectOptions();
-    selectProject("");
-    return;
-  }
-  try {
-    const payload = await apiRequest(apiRoutes.projects);
-    projectState.projects = normalizeProjectItems(payload);
-  } catch (_error) {
-    projectState.projects = [];
-  }
-  if (!selectedProject()) projectState.selectedProjectId = "";
-  renderProjectOptions();
-  selectProject(projectState.selectedProjectId);
-}
-function clientUserLabel(session) {
-  if (!session) return "";
-  return String(session.email || session.display_name || session.user_id || "").toLowerCase();
-}
-function clientAuthProviderLabel(session) {
-  if (!session || !session.auth_provider) return "";
-  return String(session.auth_provider).toLowerCase();
-}
-function mountAuthenticatedShell(session) {
-  const gate = document.querySelector("[data-auth-gate]");
-  const root = document.querySelector("[data-authenticated-root]");
-  const template = document.querySelector("[data-authenticated-template]");
-  if (!root || !template) return;
-  if (root.childElementCount === 0) root.appendChild(template.content.cloneNode(true));
-  const csrfMeta = document.querySelector('meta[name="camovar-csrf-token"]');
-  if (csrfMeta && session && session.csrf_token) csrfMeta.content = session.csrf_token;
-  const authUser = document.querySelector("[data-auth-user]");
-  if (authUser && session) {
-    const label = clientUserLabel(session);
-    const provider = clientAuthProviderLabel(session);
-    authUser.textContent = label + (provider ? " · " + provider : "");
-  }
-  if (gate) gate.hidden = true;
-  bindAuthenticatedHandlers();
-  setProjectGateEnabled(false);
-  void refreshEodhdCredentialStatus();
-}
-function showLoginGate() {
-  const gate = document.querySelector("[data-auth-gate]");
-  if (gate) gate.hidden = false;
-  setAuthStatus("Google login is required before the dashboard is shown.");
-}
-async function initializeAuthGate() {
-  if (initialSession && initialSession.authenticated === true) {
-    mountAuthenticatedShell(initialSession);
-    return;
-  }
-  try {
-    const session = await apiRequest(apiRoutes.session);
-    if (session && session.authenticated === true) {
-      mountAuthenticatedShell(session);
+function serveFile(response, filePath, contentType) {
+  fs.readFile(filePath, (error, content) => {
+    if (error) {
+      response.writeHead(error.code === "ENOENT" ? 404 : 500, { "content-type": "text/plain" });
+      response.end(error.code === "ENOENT" ? "Not found" : "Server error");
       return;
     }
-  } catch (_error) {
-    showLoginGate();
-    return;
-  }
-  showLoginGate();
-}
-let authenticatedHandlersBound = false;
-const sidebarWidthBounds = { min: 220, max: 520, step: 16 };
-function clampSidebarWidth(width) {
-  return Math.max(sidebarWidthBounds.min, Math.min(sidebarWidthBounds.max, width));
-}
-function setSidebarWidth(width) {
-  const shell = document.querySelector(".app-shell");
-  const resizer = document.querySelector("[data-sidebar-resizer]");
-  const nextWidth = clampSidebarWidth(width);
-  if (shell) shell.style.setProperty("--sidebar-width", nextWidth + "px");
-  if (resizer) resizer.setAttribute("aria-valuenow", String(nextWidth));
-}
-function currentSidebarWidth() {
-  const sidebar = document.querySelector(".sidebar");
-  return sidebar ? sidebar.getBoundingClientRect().width : 280;
-}
-function bindSidebarResizer() {
-  const resizer = document.querySelector("[data-sidebar-resizer]");
-  const shell = document.querySelector(".app-shell");
-  if (!resizer || !shell) return;
-  resizer.addEventListener("pointerdown", (event) => {
-    event.preventDefault();
-    resizer.setPointerCapture(event.pointerId);
-    shell.classList.add("app-shell--resizing");
-  });
-  resizer.addEventListener("pointermove", (event) => {
-    if (!resizer.hasPointerCapture(event.pointerId)) return;
-    setSidebarWidth(event.clientX);
-  });
-  function endResize(event) {
-    if (resizer.hasPointerCapture(event.pointerId)) resizer.releasePointerCapture(event.pointerId);
-    shell.classList.remove("app-shell--resizing");
-  }
-  resizer.addEventListener("pointerup", endResize);
-  resizer.addEventListener("pointercancel", endResize);
-  resizer.addEventListener("keydown", (event) => {
-    if (event.key === "ArrowLeft") {
-      event.preventDefault();
-      setSidebarWidth(currentSidebarWidth() - sidebarWidthBounds.step);
-    } else if (event.key === "ArrowRight") {
-      event.preventDefault();
-      setSidebarWidth(currentSidebarWidth() + sidebarWidthBounds.step);
-    } else if (event.key === "Home") {
-      event.preventDefault();
-      setSidebarWidth(sidebarWidthBounds.min);
-    } else if (event.key === "End") {
-      event.preventDefault();
-      setSidebarWidth(sidebarWidthBounds.max);
-    }
+    response.writeHead(200, { "content-type": contentType, "cache-control": "no-store" });
+    response.end(content);
   });
 }
-function bindAuthenticatedHandlers() {
-if (authenticatedHandlersBound) return;
-authenticatedHandlersBound = true;
-bindSidebarResizer();
-document.querySelector('[data-form="eodhd-fetch"]').addEventListener("submit", async (event) => {
-  event.preventDefault();
-  try {
-    await fetchAllIsinsForProjects(event.currentTarget);
-  } catch (_error) {
-    setProjectGateEnabled(false);
-    setEodhdFetchStatus("Fetch failed. Check the EODHD key and all-ISIN reference data.");
-  }
-});
-document.querySelector('[data-form="eodhd-fetch"] [name="provider_key"]').addEventListener("input", () => {
-  delete eodhdKeyInput().dataset.credentialDisplay;
-  updateFetchButtonState();
-});
-document.querySelector("[data-project-selector]").addEventListener("change", (event) => {
-  if (!projectState.metadataReady) return;
-  selectProject(event.currentTarget.value);
-});
-for (const button of document.querySelectorAll("[data-statistics-step]")) {
-  button.addEventListener("click", () => showStatisticsPage(button.dataset.statisticsStep || "univariate"));
-}
-for (const button of document.querySelectorAll("[data-compute-statistics]")) {
-  button.addEventListener("click", () => {
-    void computeStatistics(button.dataset.computeStatistics || "univariate");
-  });
-}
-document.querySelector('[data-form="project-definition"]').addEventListener("submit", async (event) => {
-  event.preventDefault();
-  if (!projectState.metadataReady) return;
-  const form = event.currentTarget;
-  setProjectDefinitionStatus("Creating project...");
-  try {
-    const created = await apiRequest(apiRoutes.metadataFilterProjects, {
-      method: "POST",
-      headers: { "Idempotency-Key": idempotencyKey("metadata-project") },
-      body: projectDefinitionPayload(form)
-    });
-    await refreshProjects();
-    if (created && created.project && created.project.project_id) {
-      selectProject(created.project.project_id);
-      setProjectDefinitionStatus("Created " + created.project.name + " with " + created.selected_count + " listings.");
-    }
-  } catch (_error) {
-    setProjectDefinitionStatus("Choose at least one filter with matching ISINs.");
-  }
-});
-}
-window.camovarApi = { apiRequest, apiRoutes, idempotencyKey, refreshSession };
-initializeAuthGate();
-</script>
-</body>
-</html>`;
+
+function staticContentType(filePath) {
+  if (filePath.endsWith(".js")) return "text/javascript; charset=utf-8";
+  if (filePath.endsWith(".css")) return "text/css; charset=utf-8";
+  if (filePath.endsWith(".svg")) return "image/svg+xml";
+  if (filePath.endsWith(".json")) return "application/json; charset=utf-8";
+  return "application/octet-stream";
 }
 
 const server = http.createServer((request, response) => {
-  if (request.url === "/health") {
+  const requestUrl = new URL(request.url || "/", `http://${request.headers.host || "localhost"}`);
+  if (requestUrl.pathname === "/health") {
     response.writeHead(200, { "content-type": "application/json" });
     response.end(JSON.stringify({ status: "ok" }));
     return;
   }
-  if (request.url && request.url.startsWith("/api/")) {
+  if (requestUrl.pathname.startsWith("/api/")) {
     proxyApiRequest(request, response);
     return;
   }
-  const requestUrl = new URL(request.url || "/", `http://${request.headers.host || "localhost"}`);
   if (requestUrl.pathname === "/auth/google/start") {
     void startGoogleLogin(response);
     return;
@@ -1007,17 +330,36 @@ const server = http.createServer((request, response) => {
     logoutLocalGoogleSession(response);
     return;
   }
-  if (request.url && request.url.startsWith("/auth/")) {
+  if (requestUrl.pathname.startsWith("/auth/")) {
     proxyAuthRequest(request, response);
     return;
   }
-  const session = sessionFromRequest(request);
-  if (requestUrl.pathname === "/" && session === null) {
+  if (requestUrl.pathname === "/") {
+    response.writeHead(303, { location: "/metadata-filter" });
+    response.end();
+    return;
+  }
+  if (!sessionFromRequest(request) && SPA_ROUTES.has(requestUrl.pathname)) {
     void startGoogleLogin(response);
     return;
   }
-  response.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-  response.end(renderAppShell(apiBaseUrl, session));
+  if (requestUrl.pathname.startsWith("/assets/")) {
+    const relativePath = requestUrl.pathname.slice(1);
+    const resolvedPath = path.resolve(DIST_ROOT, relativePath);
+    if (!resolvedPath.startsWith(path.resolve(DIST_ROOT) + path.sep)) {
+      response.writeHead(400, { "content-type": "text/plain" });
+      response.end("Bad request");
+      return;
+    }
+    serveFile(response, resolvedPath, staticContentType(resolvedPath));
+    return;
+  }
+  if (SPA_ROUTES.has(requestUrl.pathname)) {
+    serveFile(response, path.join(DIST_ROOT, "index.html"), "text/html; charset=utf-8");
+    return;
+  }
+  response.writeHead(404, { "content-type": "text/plain" });
+  response.end("Not found");
 });
 
 server.listen(port, "0.0.0.0");
@@ -1162,14 +504,12 @@ function proxyRequestToTarget(clientRequest, clientResponse, target) {
 }
 
 module.exports = {
-  designTokens,
+  applyGooglePrivateIpDeviceParams,
+  createGoogleAuthRequest,
   logoutLocalGoogleSession,
   parseCookies,
   proxyApiRequest,
   proxyAuthRequest,
-  renderAppShell,
-  renderAuthenticatedShell,
   sessionFromRequest,
   startLocalGoogleLogin,
-  statisticsSteps,
 };

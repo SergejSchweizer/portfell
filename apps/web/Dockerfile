@@ -1,18 +1,19 @@
-FROM node:24-alpine AS runtime
+
+FROM node:24-alpine AS build
 
 WORKDIR /app
-COPY apps/web/package.json ./
+COPY apps/web/package.json apps/web/package-lock.json ./
+RUN npm ci
 COPY apps/web/index.html ./
-COPY apps/web/tsconfig.json ./
-COPY apps/web/tsconfig.node.json ./
-COPY apps/web/vite.config.ts ./
-COPY apps/web/server.js ./
-COPY apps/web/design-tokens.json ./
-COPY apps/web/styles ./styles
+COPY apps/web/tsconfig.json apps/web/tsconfig.node.json apps/web/vite.config.ts ./
 COPY apps/web/src ./src
+COPY apps/web/styles ./styles
+RUN npm run typecheck && npm run build
 
-RUN addgroup -S camovar && adduser -S -G camovar -u 10001 camovar
-USER camovar
-
+FROM node:24-alpine AS runtime
+WORKDIR /app
+COPY apps/web/server.js ./server.js
+COPY --from=build /app/dist ./dist
+USER node
 EXPOSE 3000
 CMD ["node", "server.js"]

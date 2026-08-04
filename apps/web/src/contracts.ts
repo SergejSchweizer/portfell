@@ -1,27 +1,3 @@
-export type ApiSession = Readonly<{
-  authenticated?: boolean;
-  user_id?: string;
-  email?: string;
-  display_name?: string;
-  auth_provider?: string;
-  csrf_token?: string;
-}>;
-
-export type ApiCredentialStatus = Readonly<{
-  status: "active" | "inactive";
-  masked_label?: string;
-}>;
-
-export type ApiProject = Readonly<{
-  project_id: string;
-  name: string;
-  selected_count?: number;
-  data_loaded?: boolean;
-}>;
-
-export type ApiProjects = Readonly<{
-  items: readonly ApiProject[];
-}>;
 
 export type ApiFieldOptions = Readonly<{
   exchange: readonly string[];
@@ -30,10 +6,36 @@ export type ApiFieldOptions = Readonly<{
   currency: readonly string[];
 }>;
 
-export type ApiProgress = Readonly<{
-  status?: "succeeded" | "running" | "failed";
+export type ApiMetadataFetch = Readonly<{
+  status: "succeeded";
+  row_count: number;
+  exchange_count: number;
+  requested_exchange_count: number;
+  skipped_exchange_count: number;
+  skipped_exchanges: readonly string[];
+}>;
+
+export type ApiMetadataProject = Readonly<{
+  project: Readonly<{ project_id: string; name: string }>;
+  selection: Readonly<{ selection_id: string; name: string }>;
+  selected_count: number;
+}>;
+
+export type ApiQuoteFetch = Readonly<{
+  status: "succeeded";
   progress?: number;
-  selected_count?: number;
+  selected_listing_count?: number;
+  quote_successes?: number;
+  quote_errors?: number;
+  silver_quote_rows?: number;
+}>;
+
+export type ApiProjects = Readonly<{
+  items: readonly Readonly<{
+    project_id: string;
+    name: string;
+    selected_count?: number;
+  }>[];
 }>;
 
 export type ApiUnivariateSummaryRow = Readonly<{

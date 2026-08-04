@@ -38,7 +38,7 @@ New contributors should read the documentation in this order:
 - The local Python environment uses Python 3.14.6 in `.venv/`.
 - The main market data source is the EODHD subscription for EOD Historical Data.
 - The intended trading venue/broker is Flatex.
-- `fetch_all_isins` enumerates EODHD exchange symbol lists and stores the complete ISIN-bearing metadata universe once under `lake/reference/all_isins/`.
+- `fetch_all_metadata` enumerates EODHD exchange symbol lists and stores the complete ISIN-bearing metadata universe once under `lake/reference/all_isins/`.
 - `metadata_filter` and `univariate_filter` create referencable selections from that reference metadata or from Gold univariate statistics.
 - Portfolio loads should use explicit persisted selections, not ad hoc discovery files.
 - EODHD HTTP requests are paced by the shared client and retry rate-limit responses with `Retry-After` support.
@@ -174,17 +174,17 @@ The current refactor target keeps portfolio optimization downstream from the ISI
 Camovar's ISIN architecture target is organized around five deterministic modules:
 
 ```text
-fetch_all_isins
+fetch_all_metadata
   -> metadata_filter
   -> univariate_statistics
   -> univariate_filter
   -> bivariate_statistics
 ```
 
-`fetch_all_isins` is the only source of the full EODHD ISIN universe. It refreshes an irregularly updated all-ISIN dataset and writes it once for every later module:
+`fetch_all_metadata` is the only source of the full EODHD ISIN universe. It refreshes an irregularly updated all-ISIN dataset and writes it once for every later module:
 
 ```bash
-uv run camovar fetch-all-isins
+uv run camovar fetch-all-metadata
 ```
 
 `fetch-all-quotes` is the quote refresh module. It reads the latest persisted `metadata_filter` selection, fetches EODHD quotes plus companion dividends and splits by default, writes Bronze inputs, rebuilds Silver quotes, and updates coverage manifests:
@@ -490,7 +490,7 @@ Camovar writes uniformly formatted logs under `.logs/`. Plain log files are kept
 Target module commands should support `--debug` for more detailed module logs:
 
 ```bash
-uv run camovar fetch-all-isins --debug
+uv run camovar fetch-all-metadata --debug
 uv run camovar metadata-filter --debug
 uv run camovar univariate-statistics --debug
 uv run camovar univariate-filter --debug
@@ -538,7 +538,7 @@ docker compose --env-file .env.local up --build -d web
 
 The hosted API is exposed by `camovar.hosted_api` and mounted in the API container. It provides user-scoped session, credential, download, dataset, project, metadata-filter project creation, selection, analysis, metrics, returns, weights, report, and account-deletion routes for the Web UI. The API container mounts `./lake` at `/srv/camovar/lake` so `GET /metadata-filter/options` can populate project-definition dropdowns from `lake/reference/all_isins/all_isins.parquet`, metadata-filter projects can persist their selected ISIN list, and `Load selected ISINs` can run `fetch-all-quotes` to write Bronze and Silver quote data. If the host lake is group-restricted, set `CAMOVAR_LAKE_GROUP_ID` in `.env.local` to the host group id that can read and write the lake; the default is `10`.
 
-The hosted Web container serves the local research workspace from `apps/web/server.js`. It provides the production shell baseline with Google-style Material color tokens, restrained elevation, a project-scoped sidebar, and a Projects selector. The topbar contains the write-only EODHD key input and `Fetch all ISINs` action. Projects and Project Definition stay disabled while the EODHD key field is empty or until `Fetch all ISINs` succeeds. The sidebar starts with only `Projects`; project names appear hierarchically below it after metadata-filter projects exist. With no selected project, the workspace shows the Project Definition form for ISIN search filters: exchange, name substring, instrument type, country, and currency. The `Create New Project` button calls the metadata-filter project endpoint, creates a project named from selected filter values including the free-text name value without a `name_` prefix, creates the resulting selection, refreshes the project list, and selects the new project. The header shows the current selected ISIN count instead of the internal API URL; the count updates when statistics filters reduce the active selection. The process path starts with `Load Data`; `Load selected ISINs` runs the selected-project data-load endpoint for the current metadata selection, and Univariate Statistics remains locked until that load succeeds. The dashboard shell is shown only after the Web surface has an authenticated session. `CAMOVAR_AUTH_MODE=google` is the default and requires real Google OIDC; login fails closed when Google OAuth config is incomplete. Set `CAMOVAR_AUTH_MODE=local-dev` only for offline Docker development, where `/auth/google/start` creates a visibly labelled `local-dev-google` session instead of contacting Google.
+The hosted Web container serves the local research workspace from `apps/web/server.js`. It provides the production shell baseline with Google-style Material color tokens, restrained elevation, a project-scoped sidebar, and a Projects selector. The topbar contains the write-only EODHD key input and `Fetch all metadata` action. Projects and Project Definition stay disabled while the EODHD key field is empty or until `Fetch all metadata` succeeds. The sidebar starts with only `Projects`; project names appear hierarchically below it after metadata-filter projects exist. With no selected project, the workspace shows the Project Definition form for ISIN search filters: exchange, name substring, instrument type, country, and currency. The `Create New Project` button calls the metadata-filter project endpoint, creates a project named from selected filter values including the free-text name value without a `name_` prefix, creates the resulting selection, refreshes the project list, and selects the new project. The header shows the current selected ISIN count instead of the internal API URL; the count updates when statistics filters reduce the active selection. The process path starts with `Load Data`; `Load selected ISINs` runs the selected-project data-load endpoint for the current metadata selection, and Univariate Statistics remains locked until that load succeeds. The dashboard shell is shown only after the Web surface has an authenticated session. `CAMOVAR_AUTH_MODE=google` is the default and requires real Google OIDC; login fails closed when Google OAuth config is incomplete. Set `CAMOVAR_AUTH_MODE=local-dev` only for offline Docker development, where `/auth/google/start` creates a visibly labelled `local-dev-google` session instead of contacting Google.
 
 Real Google OIDC requires a Google OAuth client configured with the exact redirect URI in `CAMOVAR_GOOGLE_REDIRECT_URI`, normally `http://localhost:3000/auth/google/callback` for local development or the HTTPS hosted callback in deployment. Set `CAMOVAR_GOOGLE_CLIENT_ID` in `.env.local`; the client secret must live in the external file referenced by `CAMOVAR_GOOGLE_CLIENT_SECRET_FILE`; it is mounted into the Web container as a Docker secret and must never be committed. The Web runtime creates PKCE, state, and nonce values, redirects to Google's account chooser, exchanges the callback code server-side, verifies the Google ID token using JWKS, and renders the lowercase Google email or display name under `Camovar Research`.
 

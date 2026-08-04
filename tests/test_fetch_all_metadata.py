@@ -2,11 +2,11 @@ from pathlib import Path
 
 import pytest
 
-from camovar.fetch_all_isins import fetch_all_isins, write_all_isins
+from camovar.fetch_all_metadata import fetch_all_metadata, write_all_metadata
 from camovar.http import EodhdHttpError
 from camovar.paths import LakePaths
 from camovar.table_io import read_json, read_rows
-from camovar.workflows import run_fetch_all_isins_workflow
+from camovar.workflows import run_fetch_all_metadata_workflow
 
 
 class FakeClient:
@@ -34,8 +34,8 @@ class FakeClient:
         raise AssertionError(path)
 
 
-def test_fetch_all_isins_enumerates_exchanges_and_keeps_isin_rows() -> None:
-    result = fetch_all_isins(FakeClient())
+def test_fetch_all_metadata_enumerates_exchanges_and_keeps_isin_rows() -> None:
+    result = fetch_all_metadata(FakeClient())
 
     assert result.requested_exchanges == ("US", "XETRA")
     assert result.skipped_exchanges == ()
@@ -67,20 +67,20 @@ class ForbiddenExchangeClient(FakeClient):
         return super().get_json(path, params)
 
 
-def test_fetch_all_isins_skips_forbidden_auto_enumerated_exchanges() -> None:
-    result = fetch_all_isins(ForbiddenExchangeClient())
+def test_fetch_all_metadata_skips_forbidden_auto_enumerated_exchanges() -> None:
+    result = fetch_all_metadata(ForbiddenExchangeClient())
 
     assert result.requested_exchanges == ("MONEY", "XETRA")
     assert result.skipped_exchanges == ("MONEY",)
     assert len(result.rows) == 1
 
 
-def test_fetch_all_isins_fails_for_explicit_forbidden_exchange() -> None:
+def test_fetch_all_metadata_fails_for_explicit_forbidden_exchange() -> None:
     with pytest.raises(EodhdHttpError, match="forbidden"):
-        fetch_all_isins(ForbiddenExchangeClient(), exchange_codes=("MONEY",))
+        fetch_all_metadata(ForbiddenExchangeClient(), exchange_codes=("MONEY",))
 
 
-def test_write_all_isins_persists_rows_and_manifest(tmp_path: Path) -> None:
+def test_write_all_metadata_persists_rows_and_manifest(tmp_path: Path) -> None:
     paths = LakePaths(root=tmp_path / "lake")
     rows = [
         {
@@ -96,7 +96,7 @@ def test_write_all_isins_persists_rows_and_manifest(tmp_path: Path) -> None:
         }
     ]
 
-    written = write_all_isins(paths, rows)
+    written = write_all_metadata(paths, rows)
 
     assert written == rows
     assert read_rows(paths.all_isins()) == rows
@@ -107,7 +107,7 @@ def test_write_all_isins_persists_rows_and_manifest(tmp_path: Path) -> None:
     assert manifest["updated_at"].endswith("+00:00")
 
 
-def test_run_fetch_all_isins_workflow_persists_reference_dataset(
+def test_run_fetch_all_metadata_workflow_persists_reference_dataset(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -115,7 +115,7 @@ def test_run_fetch_all_isins_workflow_persists_reference_dataset(
     monkeypatch.setattr("camovar.workflows.load_eodhd_config", lambda: object())
     monkeypatch.setattr("camovar.workflows.EodhdClient", lambda _config: FakeClient())
 
-    summary = run_fetch_all_isins_workflow(root=paths.root)
+    summary = run_fetch_all_metadata_workflow(root=paths.root)
 
     assert summary["all_isins_rows"] == 1
     assert summary["exchange_count"] == 1

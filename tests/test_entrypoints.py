@@ -74,7 +74,7 @@ def test_umbrella_cli_help_lists_every_subcommand() -> None:
     subcommands = set(subparsers_actions[0].choices)
     assert subcommands == {
         "search",
-        "fetch-all-isins",
+        "fetch-all-metadata",
         "fetch-all-quotes",
         "metadata-filter",
         "univariate-statistics",
@@ -88,7 +88,7 @@ def test_umbrella_cli_help_lists_every_subcommand() -> None:
     "subcommand",
     [
         "search",
-        "fetch-all-isins",
+        "fetch-all-metadata",
         "fetch-all-quotes",
         "metadata-filter",
         "univariate-statistics",

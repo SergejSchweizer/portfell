@@ -15,7 +15,7 @@ from camovar.paths import LakePaths
 LayerName = Literal["bronze", "silver", "gold"]
 ModuleName = Literal[
     "bivariate-statistics",
-    "fetch-all-isins",
+    "fetch-all-metadata",
     "fetch-all-quotes",
     "metadata-filter",
     "multivariate-statistics",

@@ -121,20 +121,6 @@ class LakePaths:
     def gold_covariance(self, exchange: str, isin: str) -> Path:
         return self.gold / "covariance" / exchange / f"{isin}.parquet"
 
-    def gold_bivariate_statistics_pair(
-        self,
-        left_exchange: str,
-        left_isin: str,
-        left_code: str,
-        right_exchange: str,
-        right_isin: str,
-        right_code: str,
-    ) -> Path:
-        pair_file = f"{right_exchange}__{right_isin}__{right_code}.parquet"
-        return (
-            self.gold / "bivariate_statistics" / left_exchange / left_isin / left_code / pair_file
-        )
-
     def gold_bivariate_statistics_bucket(self, version: str, bucket: int) -> Path:
         return (
             self.gold

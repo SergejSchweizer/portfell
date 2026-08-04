@@ -186,7 +186,7 @@ Current primary commands are:
 
 ```text
 camovar search
-camovar fetch-all-isins
+camovar fetch-all-metadata
 camovar metadata-filter
 camovar fetch-all-quotes
 camovar univariate-statistics
@@ -198,7 +198,7 @@ camovar multivariate-statistics
 The intended research sequence is:
 
 ```text
-fetch-all-isins
+fetch-all-metadata
       |
       v
 metadata-filter
@@ -232,7 +232,7 @@ Camovar currently contains two discovery mechanisms:
 ```text
 Legacy/local fixture path                 Current live metadata path
 -------------------------                 --------------------------
-camovar search                            camovar fetch-all-isins
+camovar search                            camovar fetch-all-metadata
 checked-in CSV/JSON input                 EODHD exchange symbol lists
         |                                         |
         v                                         v
@@ -242,13 +242,13 @@ canonical universe                                 |
                                            metadata-filter
 ```
 
-`camovar.search` remains useful for deterministic samples and compatibility. `camovar.fetch_all_isins` is the live EODHD metadata reference path used by the newer five-stage ISIN workflow.
+`camovar.search` remains useful for deterministic samples and compatibility. `camovar.fetch_all_metadata` is the live EODHD metadata reference path used by the newer five-stage ISIN workflow.
 
 ## Local Research Funnel
 
 ### 1. Instrument reference
 
-`camovar.fetch_all_isins` enumerates EODHD exchange symbol lists and stores ISIN-bearing listing metadata once under the reference area. This stage does not download full quote history and does not compute financial statistics.
+`camovar.fetch_all_metadata` enumerates EODHD exchange symbol lists and stores ISIN-bearing listing metadata once under the reference area. This stage does not download full quote history and does not compute financial statistics.
 
 ### 2. Metadata selection
 
@@ -877,7 +877,7 @@ The catalogue below groups modules by responsibility. Public modules should depe
 | Module | Responsibility |
 | --- | --- |
 | `camovar.search` | Deterministic discovery over supplied candidate files and canonical-universe compatibility flow. |
-| `camovar.fetch_all_isins` | Live full EODHD metadata reference refresh. |
+| `camovar.fetch_all_metadata` | Live full EODHD metadata reference refresh. |
 | `camovar.metadata_filter` | Metadata-only persisted selections. |
 | `camovar.bronze` | Provider plans, raw quote/dividend/split writes, resumability, and coverage inputs. |
 | `camovar.silver` | Bronze-to-Silver normalized quote files. |
@@ -1068,7 +1068,7 @@ Tests should prove behavior at the module that owns the contract. Broad integrat
 
 | Change | Primary files/modules | Also review |
 | --- | --- | --- |
-| Add or change instrument metadata fields | `fetch_all_isins`, `metadata_filter`, `schemas`, `contracts` | `paths`, selection tests, `CONTRACTS.md` |
+| Add or change instrument metadata fields | `fetch_all_metadata`, `metadata_filter`, `schemas`, `contracts` | `paths`, selection tests, `CONTRACTS.md` |
 | Add an EODHD raw dataset | `bronze`, `http`, `workflows` | Silver normalization, coverage, redaction tests |
 | Change quote normalization | `silver`, `return_quality` | Gold/statistics regression tests |
 | Add a univariate metric | `univariate_statistics` or `gold` | schema, filter vocabulary, artifact version |

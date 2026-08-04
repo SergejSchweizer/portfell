@@ -534,7 +534,7 @@ SCHEMAS: dict[str, tuple[str, ...]] = {
 }
 
 DATASET_OWNERS: dict[str, str] = {
-    "all_isins": "fetch_all_isins",
+    "all_isins": "fetch_all_metadata",
     "isin_selection": "selection",
     "search_candidates": "search",
     "canonical_universe": "search",
