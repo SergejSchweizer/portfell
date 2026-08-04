@@ -14,8 +14,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
 
-from fastapi import Cookie, Depends, FastAPI, Header, HTTPException, Request, status
-from fastapi.responses import RedirectResponse
+from fastapi import Depends, FastAPI, Header, HTTPException, status
 from pydantic import BaseModel, Field
 
 from portfell.config import EodhdConfig
@@ -52,10 +51,7 @@ from portfell.workflows import (
     run_fetch_all_quotes_workflow,
 )
 
-SESSION_COOKIE_NAME = "portfell_session_user"
-CSRF_COOKIE_NAME = "portfell_csrf"
-LOCAL_DEV_USER_ID = "local-google-dev-user"
-LOCAL_DEV_CSRF_TOKEN = "valid-csrf"
+LOCAL_WORKSPACE_USER_ID = "user-a"
 REMOVED_PROJECT_NAMES = frozenset({"Statistics Smoke"})
 
 
@@ -154,10 +150,9 @@ class UserOwnedRow(Protocol):
 
 @dataclass(frozen=True)
 class ApiUser:
-    """Authenticated hosted API user."""
+    """The single local-workspace API user."""
 
     user_id: str
-    csrf_token: str
 
 
 @dataclass(frozen=True)
@@ -264,60 +259,15 @@ def create_app(state: HostedApiState | None = None) -> FastAPI:
     def current_state() -> HostedApiState:
         return resolved_state
 
-    def current_user(
-        x_portfell_user: str | None = Header(default=None, alias="X-Portfell-User"),
-        x_portfell_csrf: str | None = Header(default=None, alias="X-Portfell-CSRF"),
-        portfell_session_user: str | None = Cookie(default=None, alias=SESSION_COOKIE_NAME),
-        portfell_csrf: str | None = Cookie(default=None, alias=CSRF_COOKIE_NAME),
-    ) -> ApiUser:
-        user_id = x_portfell_user or portfell_session_user
-        if not user_id:
-            raise _http_error(status.HTTP_401_UNAUTHORIZED, "authentication_required")
-        return ApiUser(user_id=user_id, csrf_token=x_portfell_csrf or portfell_csrf or "")
+    def current_user() -> ApiUser:
+        return ApiUser(user_id=LOCAL_WORKSPACE_USER_ID)
 
-    def csrf_user(
-        request: Request,
-        user: ApiUser = Depends(current_user),
-    ) -> ApiUser:
-        if request.method in {"POST", "PUT", "PATCH", "DELETE"} and user.csrf_token != "valid-csrf":
-            raise _http_error(status.HTTP_403_FORBIDDEN, "csrf_required")
+    def workspace_user(user: ApiUser = Depends(current_user)) -> ApiUser:
         return user
 
     @app.get("/health")
     def health() -> JsonRow:
         return {"status": "ok"}
-
-    @app.get("/auth/google/start")
-    def start_google_login() -> RedirectResponse:
-        response = RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
-        response.set_cookie(
-            key=SESSION_COOKIE_NAME,
-            value=LOCAL_DEV_USER_ID,
-            httponly=True,
-            secure=False,
-            samesite="lax",
-            max_age=3600,
-        )
-        response.set_cookie(
-            key=CSRF_COOKIE_NAME,
-            value=LOCAL_DEV_CSRF_TOKEN,
-            httponly=False,
-            secure=False,
-            samesite="lax",
-            max_age=3600,
-        )
-        return response
-
-    @app.get("/auth/logout")
-    def logout() -> RedirectResponse:
-        response = RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
-        response.delete_cookie(SESSION_COOKIE_NAME)
-        response.delete_cookie(CSRF_COOKIE_NAME)
-        return response
-
-    @app.get("/session")
-    def session(user: ApiUser = Depends(current_user)) -> JsonRow:
-        return {"authenticated": True, "user_id": user.user_id, "csrf_token": user.csrf_token}
 
     @app.get("/workflow")
     def workflow(
@@ -375,7 +325,7 @@ def create_app(state: HostedApiState | None = None) -> FastAPI:
     @app.post("/credentials/eodhd")
     def set_credential(
         payload: CredentialSetRequest,
-        user: ApiUser = Depends(csrf_user),
+        user: ApiUser = Depends(workspace_user),
         api_state: HostedApiState = Depends(current_state),
         idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     ) -> JsonRow:
@@ -403,7 +353,7 @@ def create_app(state: HostedApiState | None = None) -> FastAPI:
 
     @app.delete("/credentials/eodhd")
     def delete_credential(
-        user: ApiUser = Depends(csrf_user),
+        user: ApiUser = Depends(workspace_user),
         api_state: HostedApiState = Depends(current_state),
     ) -> JsonRow:
         try:
@@ -416,7 +366,7 @@ def create_app(state: HostedApiState | None = None) -> FastAPI:
     @app.post("/downloads/plan")
     def plan_download(
         payload: DownloadRequest,
-        user: ApiUser = Depends(csrf_user),
+        user: ApiUser = Depends(workspace_user),
     ) -> JsonRow:
         request_hash = _stable_hash({"user_id": user.user_id, "symbols": sorted(payload.symbols)})
         return {"download_run_id": _opaque_id("download-plan", request_hash), "status": "planned"}
@@ -424,7 +374,7 @@ def create_app(state: HostedApiState | None = None) -> FastAPI:
     @app.post("/downloads/run")
     def run_download(
         payload: DownloadRequest,
-        user: ApiUser = Depends(csrf_user),
+        user: ApiUser = Depends(workspace_user),
         api_state: HostedApiState = Depends(current_state),
         idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     ) -> JsonRow:
@@ -482,7 +432,7 @@ def create_app(state: HostedApiState | None = None) -> FastAPI:
     @app.post("/projects")
     def create_project(
         payload: ProjectCreateRequest,
-        user: ApiUser = Depends(csrf_user),
+        user: ApiUser = Depends(workspace_user),
         api_state: HostedApiState = Depends(current_state),
         idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     ) -> JsonRow:
@@ -521,7 +471,7 @@ def create_app(state: HostedApiState | None = None) -> FastAPI:
     @app.delete("/projects/{project_id}")
     def delete_project(
         project_id: str,
-        user: ApiUser = Depends(csrf_user),
+        user: ApiUser = Depends(workspace_user),
         api_state: HostedApiState = Depends(current_state),
     ) -> JsonRow:
         _require_user_row(api_state.projects_by_id, project_id, user.user_id)
@@ -555,7 +505,7 @@ def create_app(state: HostedApiState | None = None) -> FastAPI:
 
     @app.post("/metadata/fetch-all")
     def fetch_all_metadata_for_metadata_filter(
-        user: ApiUser = Depends(csrf_user),
+        user: ApiUser = Depends(workspace_user),
         api_state: HostedApiState = Depends(current_state),
     ) -> JsonRow:
         try:
@@ -588,7 +538,7 @@ def create_app(state: HostedApiState | None = None) -> FastAPI:
     @app.post("/metadata-filter")
     def create_metadata_filter_project(
         payload: MetadataFilterProjectRequest,
-        user: ApiUser = Depends(csrf_user),
+        user: ApiUser = Depends(workspace_user),
         api_state: HostedApiState = Depends(current_state),
         idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     ) -> JsonRow:
@@ -652,7 +602,7 @@ def create_app(state: HostedApiState | None = None) -> FastAPI:
     @app.post("/selections")
     def create_selection(
         payload: SelectionCreateRequest,
-        user: ApiUser = Depends(csrf_user),
+        user: ApiUser = Depends(workspace_user),
         api_state: HostedApiState = Depends(current_state),
     ) -> JsonRow:
         _require_user_row(api_state.projects_by_id, payload.project_id, user.user_id)
@@ -684,7 +634,7 @@ def create_app(state: HostedApiState | None = None) -> FastAPI:
     @app.post("/quote-runs")
     def load_selected_isins(
         payload: LoadSelectedIsinsRequest,
-        user: ApiUser = Depends(csrf_user),
+        user: ApiUser = Depends(workspace_user),
         api_state: HostedApiState = Depends(current_state),
         idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     ) -> JsonRow:
@@ -772,7 +722,7 @@ def create_app(state: HostedApiState | None = None) -> FastAPI:
     @app.post("/univariate-statistics/runs")
     def start_univariate_run(
         payload: UnivariateRunRequest,
-        user: ApiUser = Depends(csrf_user),
+        user: ApiUser = Depends(workspace_user),
         api_state: HostedApiState = Depends(current_state),
     ) -> JsonRow:
         selection = _require_user_row(
@@ -825,7 +775,7 @@ def create_app(state: HostedApiState | None = None) -> FastAPI:
     @app.post("/univariate-filter")
     def apply_univariate_filter(
         payload: UnivariateFilterRequest,
-        user: ApiUser = Depends(csrf_user),
+        user: ApiUser = Depends(workspace_user),
         api_state: HostedApiState = Depends(current_state),
     ) -> JsonRow:
         source_run = _require_user_row(
@@ -857,7 +807,7 @@ def create_app(state: HostedApiState | None = None) -> FastAPI:
     @app.post("/bivariate-statistics/plan")
     def bivariate_plan(
         payload: BivariateSelectionRequest,
-        user: ApiUser = Depends(csrf_user),
+        user: ApiUser = Depends(workspace_user),
         api_state: HostedApiState = Depends(current_state),
     ) -> JsonRow:
         selection = _require_user_row(
@@ -870,7 +820,7 @@ def create_app(state: HostedApiState | None = None) -> FastAPI:
     @app.post("/bivariate-statistics/runs")
     def start_bivariate_run(
         payload: BivariateSelectionRequest,
-        user: ApiUser = Depends(csrf_user),
+        user: ApiUser = Depends(workspace_user),
         api_state: HostedApiState = Depends(current_state),
     ) -> JsonRow:
         selection = _require_user_row(
@@ -918,7 +868,7 @@ def create_app(state: HostedApiState | None = None) -> FastAPI:
     @app.post("/analyses")
     def create_analysis(
         payload: AnalysisCreateRequest,
-        user: ApiUser = Depends(csrf_user),
+        user: ApiUser = Depends(workspace_user),
         api_state: HostedApiState = Depends(current_state),
         idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     ) -> JsonRow:
@@ -1011,7 +961,7 @@ def create_app(state: HostedApiState | None = None) -> FastAPI:
 
     @app.delete("/account")
     def delete_account(
-        user: ApiUser = Depends(csrf_user),
+        user: ApiUser = Depends(workspace_user),
         api_state: HostedApiState = Depends(current_state),
     ) -> JsonRow:
         delete_user_entitlements(store=api_state.entitlements, user_id=user.user_id)

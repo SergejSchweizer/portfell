@@ -24,7 +24,6 @@ MANDATORY_DECISIONS: tuple[str, ...] = (
     "audit-retention-and-incident-response",
     "encrypted-backups-and-restore-drills",
     "kek-recovery-and-rotation",
-    "session-key-rotation",
     "database-role-review",
     "no-automatic-broker-execution",
 )
