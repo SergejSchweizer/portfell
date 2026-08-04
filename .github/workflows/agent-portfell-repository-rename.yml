@@ -68,6 +68,13 @@ jobs:
 
       - name: Verify complete cutover
         run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          for filename in ("AGENTS.md", "ARCHITECTURE.md"):
+              path = Path(filename)
+              path.write_text(path.read_text(encoding="utf-8").rstrip() + "\n", encoding="utf-8")
+          PY
           git add -A
           if git ls-files | grep -i 'camovar'; then
             echo 'Old repository name remains in a tracked path.' >&2
