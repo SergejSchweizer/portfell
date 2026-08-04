@@ -86,6 +86,84 @@ if removed_cli_tests != 1:
     raise RuntimeError("obsolete CLI assertion was not removed")
 cli_test_path.write_text(cli_test, encoding="utf-8")
 
+hosted_test_path = Path("tests/test_hosted_api.py")
+hosted_test = hosted_test_path.read_text(encoding="utf-8")
+hosted_replacement = '''def test_fetch_all_metadata_for_metadata_filter_requires_eodhd_key(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    calls: list[str] = []
+
+    class FakeMetadataClient:
+        def get_json(
+            self,
+            path: str,
+            params: dict[str, str | int | float] | None = None,
+        ) -> object:
+            calls.append(path)
+            if path == "/exchanges-list/":
+                return [{"Code": "XETRA"}]
+            if path == "/exchange-symbol-list/XETRA":
+                return [
+                    {
+                        "Code": "AAA",
+                        "Exchange": "XETRA",
+                        "Name": "Example UCITS ETF",
+                        "Type": "ETF",
+                        "Country": "IE",
+                        "Currency": "EUR",
+                        "Isin": "IE1",
+                    }
+                ]
+            raise AssertionError(path)
+
+    monkeypatch.setenv("CAMOVAR_LAKE_ROOT", str(tmp_path / "lake"))
+    monkeypatch.setattr(
+        "camovar.workflows.EodhdClient",
+        lambda _config: FakeMetadataClient(),
+    )
+    client = _client(HostedApiState())
+
+    rejected = client.post("/metadata-filter/fetch-all-metadata", headers=_headers())
+    client.post(
+        "/credentials/eodhd",
+        headers=_headers(idempotency="credential-fetch-all-metadata"),
+        json={"provider_key": "secret-provider-token"},
+    )
+    credential_status = _json(client.get("/credentials/eodhd", headers=_headers(csrf=False)))
+    fetched = _json(client.post("/metadata-filter/fetch-all-metadata", headers=_headers()))
+    fetched_again = _json(client.post("/metadata-filter/fetch-all-metadata", headers=_headers()))
+
+    assert rejected.status_code == 422
+    assert _json(rejected)["detail"]["code"] == "eodhd_key_required"
+    assert credential_status["status"] == "active"
+    assert calls == [
+        "/exchanges-list/",
+        "/exchange-symbol-list/XETRA",
+        "/exchanges-list/",
+        "/exchange-symbol-list/XETRA",
+    ]
+    assert fetched == {
+        "country_count": 1,
+        "currency_count": 1,
+        "exchange_count": 1,
+        "instrument_type_count": 1,
+        "row_count": 1,
+        "status": "succeeded",
+    }
+    assert fetched_again == fetched
+'''
+hosted_test, replaced_hosted_test = re.subn(
+    r"def test_fetch_all_metadata_for_metadata_filter_requires_eodhd_key\([\s\S]*?\n\ndef test_projects_selections_and_analyses_are_user_scoped_and_paginated",
+    hosted_replacement
+    + "\n\ndef test_projects_selections_and_analyses_are_user_scoped_and_paginated",
+    hosted_test,
+    count=1,
+)
+if replaced_hosted_test != 1:
+    raise RuntimeError("hosted metadata endpoint test was not replaced")
+hosted_test_path.write_text(hosted_test, encoding="utf-8")
+
 tsconfig_path = Path("apps/web/tsconfig.json")
 tsconfig = json.loads(tsconfig_path.read_text(encoding="utf-8"))
 tsconfig.pop("references", None)
