@@ -10,8 +10,13 @@ Run and present server-computed pairwise statistics for the selection produced b
 
 ## Contract
 
-The page starts the bivariate workflow, reports progress and failures, and renders returned pairwise results using typed API contracts. Pair construction, correlation calculations, storage layout, and ranking remain backend responsibilities.
+The page preflights through `POST /api/bivariate-statistics/plan`, starts
+`POST /api/bivariate-statistics/runs`, reports server progress, and loads bounded results from
+`GET /api/bivariate-statistics/runs/{run_id}/results`. Pair construction, limits, calculations,
+storage, and ranking remain backend responsibilities.
 
 ## Acceptance
 
-The page blocks execution when upstream filtering is incomplete, prevents duplicate runs, represents empty and partial results explicitly, and provides accessible tabular output on desktop and a usable responsive representation on narrow screens.
+The page blocks execution when upstream filtering is incomplete, empty, stale, or over the configured
+pair limit. It prevents duplicate runs, represents empty and partial results explicitly, and provides
+accessible tabular output on desktop and a usable responsive representation on narrow screens.
