@@ -48,6 +48,7 @@ export function ProjectSidebar({
         <select
           id="current-project"
           value={currentProjectId}
+          title={context?.current_project?.name}
           disabled={loading || switching || noProjects}
           onChange={changeProject}
         >
