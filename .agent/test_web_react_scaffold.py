@@ -17,7 +17,7 @@ def test_web_has_exactly_four_research_pages() -> None:
     )
     for route in expected:
         assert f'path: "{route}"' in routes
-    assert routes.count("path:") == len(expected)
+    assert routes.count('path: "/') == len(expected)
 
 
 def test_metadata_page_orders_progress_before_fetch_quotes_action() -> None:
@@ -25,7 +25,8 @@ def test_metadata_page_orders_progress_before_fetch_quotes_action() -> None:
         encoding="utf-8"
     )
     assert "Fetch quotes" in page
-    assert 'requestJson<LoadQuotesResponse>("/api/data/load-selected-isins"' in page
+    assert "postJson<LoadQuotesResponse>" in page
+    assert '"/api/data/load-selected-isins"' in page
     assert page.index("<progress") < page.index("quote-fetch__action")
     assert page.index("quote-fetch__action") < page.index("Fetch quotes")
 
