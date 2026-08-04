@@ -248,6 +248,12 @@ The rule applies to:
 - PR titles;
 - final squash commit subjects.
 
+For every non-`main` PR branch, the branch slug is the required Conventional Commit
+scope. This keeps the PR name visible in its branch and all associated commit subjects.
+For example, `feat/four-page-workflow-state` requires subjects such as
+`feat(four-page-workflow-state): add workflow contract`. The same scope is required
+for the PR title because it becomes the final squash commit subject.
+
 ## Sharding Policy
 
 Current setting:

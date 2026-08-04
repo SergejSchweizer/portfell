@@ -1,4 +1,6 @@
 
+import type { ApiWorkflow } from "../contracts";
+
 function cookieValue(name: string): string {
   const prefix = `${name}=`;
   for (const part of document.cookie.split(";")) {
@@ -44,4 +46,8 @@ export function postJson<TResponse>(path: string, body: unknown): Promise<TRespo
     body: JSON.stringify(body),
     headers: { "Idempotency-Key": crypto.randomUUID() },
   });
+}
+
+export function loadWorkflow(): Promise<ApiWorkflow> {
+  return requestJson<ApiWorkflow>("/api/workflow");
 }
