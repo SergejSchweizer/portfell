@@ -138,6 +138,18 @@ def test_commit_range_uses_github_pull_request_base(
     assert commit_range(runner=runner) == "abc123..HEAD"
 
 
+def test_commit_range_uses_main_for_github_push_event(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("GITHUB_BASE_REF", "")
+
+    def runner(command: Sequence[str], **_: object) -> subprocess.CompletedProcess[str]:
+        assert command == ("git", "merge-base", "HEAD", "origin/main")
+        return subprocess.CompletedProcess(command, 0, stdout="abc123\n", stderr="")
+
+    assert commit_range(runner=runner) == "abc123..HEAD"
+
+
 def test_quality_gate_runs_commands_before_commit_validation() -> None:
     calls: list[Sequence[str]] = []
 

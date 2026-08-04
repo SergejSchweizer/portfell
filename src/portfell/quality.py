@@ -113,7 +113,7 @@ def has_pr_scope(subject: str) -> bool:
 
 def commit_range(*, runner: Runner = subprocess.run) -> str:
     """Return the commits introduced relative to the local or GitHub PR base."""
-    base_ref = os.environ.get("GITHUB_BASE_REF", "main")
+    base_ref = os.environ.get("GITHUB_BASE_REF") or "main"
     merge_base = runner(
         ("git", "merge-base", "HEAD", f"origin/{base_ref}"),
         text=True,
