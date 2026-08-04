@@ -105,6 +105,23 @@ resource_path.write_text(
     encoding="utf-8",
 )
 
+cli_path = Path("src/camovar/cli.py")
+cli_text = cli_path.read_text(encoding="utf-8")
+long_cli_line = (
+    '    fetch_all_metadata.add_argument("--root", default=str(DEFAULT_ROOT), '
+    'help="Lake root to write to.")\n'
+)
+formatted_cli_lines = (
+    '    fetch_all_metadata.add_argument(\n'
+    '        "--root", default=str(DEFAULT_ROOT), help="Lake root to write to."\n'
+    '    )\n'
+)
+if long_cli_line not in cli_text:
+    raise RuntimeError("renamed metadata CLI line was not found")
+cli_path.write_text(
+    cli_text.replace(long_cli_line, formatted_cli_lines), encoding="utf-8"
+)
+
 forbidden = (
     "fetch_all_" + "isins",
     "fetch-all-" + "isins",
