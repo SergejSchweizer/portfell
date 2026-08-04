@@ -1,7 +1,13 @@
 
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Menu } from "lucide-react";
-import { loadProjectContext, loadProjectWorkflow, postJson, selectCurrentProject } from "../api/client";
+import {
+  loadEodhdCredentialStatus,
+  loadProjectContext,
+  loadProjectWorkflow,
+  postJson,
+  selectCurrentProject,
+} from "../api/client";
 import { Button } from "../components/button";
 import type { ApiMetadataFetch, ApiProjectContext, ApiWorkflow } from "../contracts";
 import { useResource } from "../hooks/use-resource";
@@ -32,7 +38,9 @@ export function ShellFrame({ currentPage, children }: ShellFrameProps) {
   const [switchError, setSwitchError] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const credential = useResource(loadEodhdCredentialStatus, []);
   const context = useResource(loadProjectContext, [contextRevision]);
+  const hasSavedCredential = credential.status === "ready" && credential.data.status === "active";
   const projectId = context.status === "ready" ? context.data.current_project_id : null;
   const workflow = useResource(
     () => projectId ? loadProjectWorkflow(projectId) : Promise.resolve(emptyWorkflow),
@@ -96,11 +104,13 @@ export function ShellFrame({ currentPage, children }: ShellFrameProps) {
 
   async function fetchMetadata(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!providerKey.trim() || fetching) return;
+    if ((!providerKey.trim() && !hasSavedCredential) || fetching) return;
     setFetching(true);
-    setStatus("Saving key and fetching metadata…");
+    setStatus(providerKey.trim() ? "Saving key and fetching metadata..." : "Fetching metadata...");
     try {
-      await postJson("/api/credentials/eodhd", { provider_key: providerKey.trim() });
+      if (providerKey.trim()) {
+        await postJson("/api/credentials/eodhd", { provider_key: providerKey.trim() });
+      }
       const result = await postJson<ApiMetadataFetch>(
         "/api/metadata/fetch-all",
         {},
@@ -166,7 +176,8 @@ export function ShellFrame({ currentPage, children }: ShellFrameProps) {
               placeholder="Enter provider key"
             />
           </label>
-          <Button type="submit" variant="primary" disabled={!providerKey.trim() || fetching}>
+          {hasSavedCredential ? <span className="metadata-fetch__credential">Saved: {credential.data.masked_label}</span> : null}
+          <Button type="submit" variant="primary" disabled={(!providerKey.trim() && !hasSavedCredential) || fetching}>
             {fetching ? "Fetching…" : "Fetch all metadata"}
           </Button>
           <output className="metadata-fetch__status" aria-live="polite">{status}</output>
