@@ -14,14 +14,22 @@ def test_server_only_handles_auth_proxy_health_and_vite_assets() -> None:
         'requestUrl.pathname === "/auth/google/start"',
         'requestUrl.pathname === "/auth/google/callback"',
         'requestUrl.pathname.startsWith("/assets/")',
-        'path.join(DIST_ROOT, "index.html")',
+        'path.join(distRoot, "index.html")',
     ):
         assert expected in source
+
     for removed in (
         "renderA" + "ppShell",
         "renderAuthen" + "ticatedShell",
         "bindAuthenticatedHandlers",
         "statisticsSteps",
+        "statisticsStepButton",
+        "statisticsPanel",
+        "univariateStatisticsTableMarkup",
+        "brandMarkup",
         "window.camovarApi",
+        "document.querySelector",
+        "<section",
+        "<table",
     ):
         assert removed not in source
