@@ -88,16 +88,15 @@ def test_backlog_places_completed_and_superseded_work_at_the_bottom() -> None:
     completed = backlog.index("## Completed PR History")
     detailed = backlog.index("## Completed And Superseded Detailed Records")
     active = backlog.index("## Active Four-Page Portfell UI PR Stack")
+    superseded_funnel = (
+        "Data -> Metadata -> Univariate -> Filter -> Diversification"
+        " -> Portfolio -> Validation -> Report"
+    )
 
     assert active < completed < detailed
     assert "### Superseded Research Funnel UI Stack" in backlog[detailed:]
     assert "Historical only." in backlog[detailed:]
-
-    active_text = backlog[:detailed]
-    assert (
-        "Data -> Metadata -> Univariate -> Filter -> Diversification -> Portfolio -> Validation -> Report"
-        not in active_text
-    )
+    assert superseded_funnel not in backlog[:detailed]
 
 
 def test_four_page_stack_defines_exact_canonical_routes_and_no_retired_metadata_name() -> None:
