@@ -1,8 +1,9 @@
 
-import { useState, type FormEvent, type ReactNode } from "react";
-import { postJson } from "../api/client";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { loadWorkflow, postJson } from "../api/client";
 import { Button } from "../components/button";
 import type { ApiMetadataFetch } from "../contracts";
+import { useResource } from "../hooks/use-resource";
 import { workflowPages, type WorkflowPageId } from "../routes";
 
 export type ShellFrameProps = Readonly<{
@@ -14,6 +15,14 @@ export function ShellFrame({ currentPage, children }: ShellFrameProps) {
   const [providerKey, setProviderKey] = useState("");
   const [fetching, setFetching] = useState(false);
   const [status, setStatus] = useState("Enter an EODHD key to refresh listing metadata.");
+  const [workflowRevision, setWorkflowRevision] = useState(0);
+  const workflow = useResource(loadWorkflow, [workflowRevision]);
+
+  useEffect(() => {
+    const refresh = () => setWorkflowRevision((value) => value + 1);
+    window.addEventListener("portfell:workflow-updated", refresh);
+    return () => window.removeEventListener("portfell:workflow-updated", refresh);
+  }, []);
 
   async function fetchMetadata(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -24,11 +33,12 @@ export function ShellFrame({ currentPage, children }: ShellFrameProps) {
       await postJson("/api/credentials/eodhd", { provider_key: providerKey.trim() });
       setProviderKey("");
       const result = await postJson<ApiMetadataFetch>(
-        "/api/metadata-filter/fetch-all-metadata",
+        "/api/metadata/fetch-all",
         {},
       );
       setStatus(`${result.row_count.toLocaleString()} metadata rows from ${result.exchange_count} exchanges loaded.`);
       window.dispatchEvent(new Event("portfell:metadata-updated"));
+      window.dispatchEvent(new Event("portfell:workflow-updated"));
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Metadata fetch failed.");
     } finally {
@@ -62,16 +72,11 @@ export function ShellFrame({ currentPage, children }: ShellFrameProps) {
       </header>
 
       <nav className="workflow-nav" aria-label="Portfell workflow">
-        {workflowPages.map((page, index) => (
-          <a
-            key={page.id}
-            href={page.path}
-            aria-current={page.id === currentPage ? "page" : undefined}
-          >
-            <span>{index + 1}</span>
-            {page.title}
-          </a>
-        ))}
+        {workflowPages.map((page, index) => {
+          const locked = workflow.status === "ready" && workflow.data.stages[page.id].status === "locked";
+          const label = <><span>{index + 1}</span>{page.title}</>;
+          return locked ? <span key={page.id} aria-disabled="true" className="workflow-nav__locked">{label}</span> : <a key={page.id} href={page.path} aria-current={page.id === currentPage ? "page" : undefined}>{label}</a>;
+        })}
       </nav>
 
       <main className="page-content">{children}</main>

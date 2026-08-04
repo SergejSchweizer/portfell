@@ -52,7 +52,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
   gap: 8px;
   padding: 16px 28px 0;
 }
-.workflow-nav a {
+.workflow-nav a, .workflow-nav > span {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -65,7 +65,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
   border-radius: 8px;
 }
 .workflow-nav a[aria-current="page"] { border-color: #1769e0; background: #eaf2ff; }
-.workflow-nav span {
+.workflow-nav a > span, .workflow-nav > span > span {
   display: grid;
   place-items: center;
   width: 26px;
@@ -73,6 +73,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
   border-radius: 50%;
   background: #edf0f4;
 }
+.workflow-nav > span { color: #7b8087; background: #f1f3f5; }
 .page-content { padding: 20px 28px 40px; }
 .panel {
   border: 1px solid #dfe3e8;
@@ -81,6 +82,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
   padding: 20px;
 }
 .panel h2 { margin: 0 0 18px; }
+.panel { overflow-x: auto; }
 .metadata-filter-form {
   display: grid;
   grid-template-columns: repeat(4, minmax(150px, 1fr));
@@ -99,6 +101,15 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 }
 .quote-fetch progress { width: 100%; height: 18px; }
 .quote-fetch__action { display: flex; justify-content: flex-end; }
+.predicate-editor { display: grid; gap: 10px; margin-bottom: 12px; }
+.predicate-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 2fr) minmax(100px, 1fr) minmax(120px, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+}
+.predicate-row label { display: grid; gap: 5px; color: #5f6368; }
+progress { width: 100%; min-height: 18px; }
 table { width: 100%; border-collapse: collapse; }
 th, td { padding: 10px; border-bottom: 1px solid #e5e8ec; text-align: left; }
 @media (max-width: 900px) {
@@ -107,10 +118,12 @@ th, td { padding: 10px; border-bottom: 1px solid #e5e8ec; text-align: left; }
   .workflow-nav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .metadata-filter-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .metadata-filter-form__name { grid-column: 1 / -1; }
+  .predicate-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 560px) {
   .app-header, .page-content { padding-left: 16px; padding-right: 16px; }
   .workflow-nav { padding-left: 16px; padding-right: 16px; grid-template-columns: 1fr; }
   .metadata-fetch, .metadata-filter-form { grid-template-columns: 1fr; }
   .metadata-fetch__status, .metadata-filter-form__name { grid-column: auto; }
+  .predicate-row { grid-template-columns: 1fr; }
 }

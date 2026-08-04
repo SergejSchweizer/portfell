@@ -12,7 +12,9 @@ Create a server-owned project selection from listing metadata, then fetch histor
 
 The page exposes exchange, instrument type, country, currency, and name filters. `Apply metadata filter` creates the selection through the server. After a valid project exists, the page shows quote-fetch progress, status text, and a right-aligned `Fetch quotes` action beneath the progress indicator.
 
-`Fetch quotes` calls `/api/data/load-selected-isins` with the selected `project_id`. Duplicate submission is disabled while the operation is running.
+`Fetch quotes` calls `/api/quote-runs` with the persisted metadata selection id. The server returns
+`total`, `completed`, `failed`, and `percent` progress values. Duplicate submission is disabled while
+the operation is running.
 
 ## States
 

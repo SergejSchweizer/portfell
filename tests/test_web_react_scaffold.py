@@ -24,7 +24,7 @@ def test_metadata_page_orders_progress_before_fetch_quotes_action() -> None:
     page = (WEB_ROOT / "src" / "pages" / "metadata-filter.tsx").read_text(encoding="utf-8")
     assert "Fetch quotes" in page
     assert "postJson" in page
-    assert '"/api/data/load-selected-isins"' in page
+    assert '"/api/quote-runs"' in page
     assert page.index("<progress") < page.index("quote-fetch__action")
     assert page.index("quote-fetch__action") < page.index("Fetch quotes")
 
