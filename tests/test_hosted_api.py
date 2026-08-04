@@ -14,6 +14,7 @@ from portfell.hosted_api import (
     SelectionRecord,
     create_app,
 )
+from portfell.hosted_credentials import InMemoryCredentialStore, KeyEncryptionKey
 from portfell.paths import LakePaths
 from portfell.table_io import read_json, read_rows
 
@@ -62,6 +63,22 @@ def test_api_uses_injected_current_user_provider() -> None:
     status = _json(client.get("/credentials/eodhd"))
 
     assert status["status"] == "active"
+
+
+def test_api_uses_injected_credential_vault_dependencies() -> None:
+    state = HostedApiState(
+        credentials=InMemoryCredentialStore(),
+        credential_key_encryption_key=KeyEncryptionKey("test-v1", b"1" * 32),
+        credential_fingerprint_secret=b"test-fingerprint-secret",
+    )
+    client = _client(state)
+
+    client.post("/credentials/eodhd", json={"provider_key": "secret-provider-token"})
+
+    assert (
+        state.credential_vault().unwrap_for_provider_call(user_id="user-a")
+        == "secret-provider-token"
+    )
 
 
 def test_workflow_starts_with_only_metadata_ready() -> None:
