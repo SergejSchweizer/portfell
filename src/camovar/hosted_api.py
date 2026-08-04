@@ -43,7 +43,10 @@ from camovar.univariate_categories import (
     UNIVARIATE_PORTFOLIO_CATEGORIES,
     category_for_univariate_field,
 )
-from camovar.workflows import run_fetch_all_quotes_workflow
+from camovar.workflows import (
+    run_fetch_all_metadata_workflow,
+    run_fetch_all_quotes_workflow,
+)
 
 SESSION_COOKIE_NAME = "camovar_session_user"
 CSRF_COOKIE_NAME = "camovar_csrf"
@@ -459,28 +462,31 @@ def create_app(state: HostedApiState | None = None) -> FastAPI:
             "currency": _distinct_options(rows, "currency"),
         }
 
-    @app.post("/metadata-filter/fetch-all-isins")
-    def fetch_all_isins_for_metadata_filter(
+    @app.post("/metadata-filter/fetch-all-metadata")
+    def fetch_all_metadata_for_metadata_filter(
         user: ApiUser = Depends(csrf_user),
         api_state: HostedApiState = Depends(current_state),
     ) -> JsonRow:
         try:
-            api_state.credential_vault().status(user_id=user.user_id)
-        except Exception as error:
+            provider_key = api_state.credential_vault().unwrap_for_provider_call(
+                user_id=user.user_id
+            )
+        except CredentialVaultError as error:
             raise _http_error(
                 status.HTTP_422_UNPROCESSABLE_CONTENT, "eodhd_key_required"
             ) from error
-        rows = _all_isins_rows(api_state)
-        if not rows:
-            raise _http_error(status.HTTP_422_UNPROCESSABLE_CONTENT, "all_isins_not_available")
-        _audit(api_state, user.user_id, "metadata_filter.all_isins.fetch")
+        summary = run_fetch_all_metadata_workflow(
+            root=_lake_paths().root,
+            eodhd_config=EodhdConfig(api_token=provider_key),
+        )
+        _audit(api_state, user.user_id, "fetch_all_metadata.completed")
         return {
             "status": "succeeded",
-            "row_count": len(rows),
-            "exchange_count": len(_distinct_options(rows, "exchange")),
-            "instrument_type_count": len(_distinct_options(rows, "instrument_type")),
-            "country_count": len(_distinct_options(rows, "country")),
-            "currency_count": len(_distinct_options(rows, "currency")),
+            "row_count": int(summary["all_isins_rows"]),
+            "exchange_count": int(summary["exchange_count"]),
+            "requested_exchange_count": int(summary["requested_exchange_count"]),
+            "skipped_exchange_count": int(summary["skipped_exchange_count"]),
+            "skipped_exchanges": list(summary["skipped_exchanges"]),
         }
 
     @app.post("/metadata-filter/projects")

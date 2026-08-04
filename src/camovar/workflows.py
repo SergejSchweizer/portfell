@@ -22,7 +22,7 @@ from camovar.bronze import (
     write_raw_eodhd_datasets_to_bronze,
 )
 from camovar.config import EodhdConfig, load_eodhd_config
-from camovar.fetch_all_isins import fetch_all_isins, write_all_isins
+from camovar.fetch_all_metadata import fetch_all_metadata, write_all_metadata
 from camovar.http import EodhdClient
 from camovar.logging import get_logger, log_event
 from camovar.metadata_filter import run_metadata_filter
@@ -120,22 +120,23 @@ def run_search_workflow(
         return summary
 
 
-def run_fetch_all_isins_workflow(
+def run_fetch_all_metadata_workflow(
     *,
     root: Path,
     exchange_codes: Sequence[str] = (),
     include_delisted: bool = False,
+    eodhd_config: EodhdConfig | None = None,
 ) -> dict[str, Any]:
-    """Fetch and persist the all-ISIN reference dataset."""
+    """Fetch and persist the complete EODHD listing metadata dataset."""
     paths = LakePaths(root=root)
-    with module_run_lock(paths, "fetch-all-isins"):
-        client = EodhdClient(load_eodhd_config())
-        fetch_result = fetch_all_isins(
+    with module_run_lock(paths, "fetch-all-metadata"):
+        client = EodhdClient(eodhd_config or load_eodhd_config())
+        fetch_result = fetch_all_metadata(
             client,
             exchange_codes=exchange_codes,
             include_delisted=include_delisted,
         )
-        written = write_all_isins(paths, fetch_result.rows)
+        written = write_all_metadata(paths, fetch_result.rows)
         return {
             "all_isins_rows": len(written),
             "exchange_count": len({str(row["source_exchange"]) for row in written}),

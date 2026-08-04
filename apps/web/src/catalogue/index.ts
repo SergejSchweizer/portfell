@@ -1,1 +1,0 @@
-export { ComponentCatalogue } from "./ComponentCatalogue";

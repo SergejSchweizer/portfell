@@ -35,7 +35,7 @@ The deterministic composite screenshot sheet is `docs/backlog/web-ui-migration-b
 | `/api/credentials/eodhd` | `POST` | JSON `{ provider_key }` plus CSRF and idempotency key. | Persisted synthetic credential state. | `dashboard.desktop/tablet/mobile` |
 | `/api/projects` | `GET` | Cookie-authenticated request. | Project list. | `project-shell-selected.desktop/tablet/mobile` |
 | `/api/metadata-filter/options` | `GET` | Cookie-authenticated request. | Select-option sets for exchange, instrument type, country, and currency. | `project-shell-empty.desktop/tablet/mobile` |
-| `/api/metadata-filter/fetch-all-isins` | `POST` | No body, CSRF and idempotency key required. | Enables the project-definition gate and reports a synthetic row count. | `project-shell-empty.desktop/tablet/mobile` |
+| `/api/metadata-filter/fetch-all-metadata` | `POST` | No body, CSRF and idempotency key required. | Enables the project-definition gate and reports a synthetic row count. | `project-shell-empty.desktop/tablet/mobile` |
 | `/api/metadata-filter/projects` | `POST` | JSON project-definition filters plus CSRF and idempotency key. | Creates a synthetic project and selection. | `project-shell-empty.desktop/tablet/mobile` |
 | `/api/data/load-selected-isins` | `POST` | JSON `{ project_id }` plus CSRF and idempotency key. | Load-data step progress and completion state. | `statistics-load-data.desktop/tablet/mobile` |
 | `/api/statistics/univariate/summary` | `GET` | Cookie-authenticated request. | Univariate summary table or empty-state row. | `statistics-univariate.desktop/tablet/mobile` |
@@ -47,8 +47,8 @@ The deterministic composite screenshot sheet is `docs/backlog/web-ui-migration-b
 | --- | --- | --- | --- | --- | --- |
 | Google Login | `data-form="google-login"` / `Google Login` | `/auth/google/start` | GET form submit. | Login transition. | `login.desktop/tablet/mobile` |
 | Google Auth logout | `data-action="google-auth"` / `Google Auth` | `/auth/logout` | Plain GET link. | Login gate restored. | `login.desktop/tablet/mobile` |
-| EODHD key field | `name="provider_key"` | `/api/credentials/eodhd` then `/api/metadata-filter/fetch-all-isins` | Write-only masked password field. | Enables project setup when saved. | `dashboard.desktop/tablet/mobile` |
-| Fetch all ISINs | `data-action="fetch-all-isins"` / `Fetch all ISINs` | `/api/credentials/eodhd` and `/api/metadata-filter/fetch-all-isins` | Uses current key, CSRF, and idempotency key. | Project gate opens and projects refresh. | `project-shell-empty.desktop/tablet/mobile` |
+| EODHD key field | `name="provider_key"` | `/api/credentials/eodhd` then `/api/metadata-filter/fetch-all-metadata` | Write-only masked password field. | Enables project setup when saved. | `dashboard.desktop/tablet/mobile` |
+| Fetch all metadata | `data-action="fetch-all-metadata"` / `Fetch all metadata` | `/api/credentials/eodhd` and `/api/metadata-filter/fetch-all-metadata` | Uses current key, CSRF, and idempotency key. | Project gate opens and projects refresh. | `project-shell-empty.desktop/tablet/mobile` |
 | Project selector | `data-project-selector` | `/api/projects` | Change event only. | Shell switches between the empty and selected project states. | `project-shell-selected.desktop/tablet/mobile` |
 | Project definition form | `data-form="project-definition"` | `/api/metadata-filter/projects` | Exchange, name, instrument type, country, currency. | Synthetic project created and selected. | `project-shell-empty.desktop/tablet/mobile` |
 | Statistics path buttons | `data-statistics-step` | None; client-side state only. | Select the visible step panel. | Updates the active statistics page. | `statistics-step.desktop/tablet/mobile` |

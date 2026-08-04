@@ -271,7 +271,7 @@ def _local_cli_contract_present() -> bool:
     return all(
         command in cli_source
         for command in (
-            "fetch-all-isins",
+            "fetch-all-metadata",
             "metadata-filter",
             "fetch-all-quotes",
             "univariate-statistics",

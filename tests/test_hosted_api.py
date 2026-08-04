@@ -334,43 +334,67 @@ def test_load_selected_isins_runs_fetch_all_quotes_for_metadata_selection(
     assert reloaded_project["data_loaded"] is True
 
 
-def test_fetch_all_isins_for_metadata_filter_requires_eodhd_key() -> None:
-    state = HostedApiState(
-        all_isins_rows=(
-            {
-                "isin": "IE1",
-                "exchange": "XETRA",
-                "code": "AAA",
-                "name": "Example UCITS ETF",
-                "instrument_type": "ETF",
-                "country": "IE",
-                "currency": "EUR",
-                "source_exchange": "XETRA",
-                "fetched_at": "2026-01-01T00:00:00+00:00",
-            },
-        )
-    )
-    client = _client(state)
+def test_fetch_all_metadata_for_metadata_filter_requires_eodhd_key(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    calls: list[str] = []
 
-    rejected = client.post("/metadata-filter/fetch-all-isins", headers=_headers())
+    class FakeMetadataClient:
+        def get_json(
+            self,
+            path: str,
+            params: dict[str, str | int | float] | None = None,
+        ) -> object:
+            calls.append(path)
+            if path == "/exchanges-list/":
+                return [{"Code": "XETRA"}]
+            if path == "/exchange-symbol-list/XETRA":
+                return [
+                    {
+                        "Code": "AAA",
+                        "Exchange": "XETRA",
+                        "Name": "Example UCITS ETF",
+                        "Type": "ETF",
+                        "Country": "IE",
+                        "Currency": "EUR",
+                        "Isin": "IE1",
+                    }
+                ]
+            raise AssertionError(path)
+
+    monkeypatch.setenv("CAMOVAR_LAKE_ROOT", str(tmp_path / "lake"))
+    monkeypatch.setattr(
+        "camovar.workflows.EodhdClient",
+        lambda _config: FakeMetadataClient(),
+    )
+    client = _client(HostedApiState())
+
+    rejected = client.post("/metadata-filter/fetch-all-metadata", headers=_headers())
     client.post(
         "/credentials/eodhd",
-        headers=_headers(idempotency="credential-fetch-all-isins"),
+        headers=_headers(idempotency="credential-fetch-all-metadata"),
         json={"provider_key": "secret-provider-token"},
     )
     credential_status = _json(client.get("/credentials/eodhd", headers=_headers(csrf=False)))
-    fetched = _json(client.post("/metadata-filter/fetch-all-isins", headers=_headers()))
-    fetched_again = _json(client.post("/metadata-filter/fetch-all-isins", headers=_headers()))
+    fetched = _json(client.post("/metadata-filter/fetch-all-metadata", headers=_headers()))
+    fetched_again = _json(client.post("/metadata-filter/fetch-all-metadata", headers=_headers()))
 
     assert rejected.status_code == 422
     assert _json(rejected)["detail"]["code"] == "eodhd_key_required"
     assert credential_status["status"] == "active"
+    assert calls == [
+        "/exchanges-list/",
+        "/exchange-symbol-list/XETRA",
+        "/exchanges-list/",
+        "/exchange-symbol-list/XETRA",
+    ]
     assert fetched == {
-        "country_count": 1,
-        "currency_count": 1,
         "exchange_count": 1,
-        "instrument_type_count": 1,
+        "requested_exchange_count": 1,
         "row_count": 1,
+        "skipped_exchange_count": 0,
+        "skipped_exchanges": [],
         "status": "succeeded",
     }
     assert fetched_again == fetched

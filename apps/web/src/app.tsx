@@ -1,15 +1,19 @@
-import { useEffect, useMemo, type ReactNode } from "react";
-import { matchRoute, routeTitle } from "./routes";
+
+import { useEffect, type ReactNode } from "react";
+import { currentWorkflowPage } from "./routes";
 import { ShellFrame } from "./shell/frame";
 
 export function App(): ReactNode {
-  const pathname = window.location.pathname;
-  const route = useMemo(() => matchRoute(pathname), [pathname]);
+  const page = currentWorkflowPage(window.location.pathname);
+  const Page = page.component;
 
   useEffect(() => {
-    document.title = routeTitle(pathname);
-  }, [pathname]);
+    document.title = `${page.title} · Portfell`;
+  }, [page.title]);
 
-  const content = route.element();
-  return route.shell ? <ShellFrame pathname={pathname}>{content}</ShellFrame> : content;
+  return (
+    <ShellFrame currentPage={page.id}>
+      <Page />
+    </ShellFrame>
+  );
 }

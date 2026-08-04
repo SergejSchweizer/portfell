@@ -109,9 +109,9 @@
       }
     },
     {
-      "id": "fetch-all-isins",
-      "selector": "data-action=fetch-all-isins",
-      "endpoint": "/api/credentials/eodhd then /api/metadata-filter/fetch-all-isins",
+      "id": "fetch-all-metadata",
+      "selector": "data-action=fetch-all-metadata",
+      "endpoint": "/api/credentials/eodhd then /api/metadata-filter/fetch-all-metadata",
       "input_contract": "Current key, CSRF token, and idempotency key.",
       "output_state": "project-gate-open",
       "screenshot_fixtures": {
@@ -165,7 +165,7 @@
       "visible_texts": [
         "Camovar Research",
         "Projects",
-        "Fetch all ISINs",
+        "Fetch all metadata",
         "Project Definition",
         "Create New Project",
         "Consisting currently of 0 ISINs"

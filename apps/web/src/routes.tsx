@@ -1,85 +1,50 @@
-import type { ReactNode } from "react";
-import { ComponentCatalogue } from "./catalogue";
-import { LegacyShellAdapter } from "./compat/legacy-shell";
-import { AuthenticatedShellPage } from "./pages/authenticated-shell";
-import { AccountPage } from "./pages/account";
-import { DataPage } from "./pages/data";
-import { DiversificationPage } from "./pages/diversification";
-import { FilterPage } from "./pages/filter";
-import { HealthPage } from "./pages/health";
-import { MetadataPage } from "./pages/metadata";
-import { PortfolioPage } from "./pages/portfolio";
-import { ReportPage } from "./pages/report";
-import { LoginGatePage } from "./pages/login-gate";
-import { FixturePreviewPage } from "./pages/fixture-preview";
-import { RecommendationPage } from "./pages/recommendation";
-import { SettingsPage } from "./pages/settings";
-import { StressPage } from "./pages/stress";
-import { UnivariatePage } from "./pages/univariate";
-import { ValidationPage } from "./pages/validation";
 
-export type RouteDefinition = Readonly<{
-  path: string;
+import type { ComponentType } from "react";
+import { BivariateStatisticsPage } from "./pages/bivariate-statistics";
+import { MetadataFilterPage } from "./pages/metadata-filter";
+import { UnivariateFilterPage } from "./pages/univariate-filter";
+import { UnivariateStatisticsPage } from "./pages/univariate-statistics";
+
+export type WorkflowPageId =
+  | "metadata_filter"
+  | "univariate_statistics"
+  | "univariate_filter"
+  | "bivariate_statistics";
+
+export type WorkflowPage = Readonly<{
+  id: WorkflowPageId;
   title: string;
-  shell?: boolean;
-  element: () => ReactNode;
+  path: string;
+  component: ComponentType;
 }>;
 
-export const routes: readonly RouteDefinition[] = [
-  { path: "/health", title: "Health", element: () => <HealthPage /> },
-  { path: "/", title: "Camovar Research", element: () => <LoginGatePage /> },
+export const workflowPages: readonly WorkflowPage[] = [
   {
-    path: "/shell",
-    title: "Authenticated Shell",
-    shell: true,
-    element: () => <AuthenticatedShellPage />,
+    id: "metadata_filter",
+    title: "Metadata Filter",
+    path: "/metadata-filter",
+    component: MetadataFilterPage,
   },
   {
-    path: "/compat/legacy",
-    title: "Legacy Shell Compatibility",
-    shell: true,
-    element: () => <LegacyShellAdapter />,
+    id: "univariate_statistics",
+    title: "Univariate Statistics",
+    path: "/univariate-statistics",
+    component: UnivariateStatisticsPage,
   },
   {
-    path: "/catalogue",
-    title: "Component Catalogue",
-    shell: true,
-    element: () => <ComponentCatalogue />,
+    id: "univariate_filter",
+    title: "Univariate Filter",
+    path: "/univariate-filter",
+    component: UnivariateFilterPage,
   },
   {
-    path: "/fixtures",
-    title: "Fixture Preview",
-    shell: true,
-    element: () => <FixturePreviewPage />,
+    id: "bivariate_statistics",
+    title: "Bivariate Statistics",
+    path: "/bivariate-statistics",
+    component: BivariateStatisticsPage,
   },
-  { path: "/data", title: "Data", shell: true, element: () => <DataPage /> },
-  { path: "/metadata", title: "Metadata", shell: true, element: () => <MetadataPage /> },
-  { path: "/univariate", title: "Univariate", shell: true, element: () => <UnivariatePage /> },
-  { path: "/filter", title: "Filter", shell: true, element: () => <FilterPage /> },
-  {
-    path: "/diversification",
-    title: "Diversification",
-    shell: true,
-    element: () => <DiversificationPage />,
-  },
-  { path: "/portfolio", title: "Portfolio", shell: true, element: () => <PortfolioPage /> },
-  { path: "/validation", title: "Validation", shell: true, element: () => <ValidationPage /> },
-  { path: "/report", title: "Report", shell: true, element: () => <ReportPage /> },
-  { path: "/stress", title: "Stress", shell: true, element: () => <StressPage /> },
-  {
-    path: "/recommendation",
-    title: "Recommendation",
-    shell: true,
-    element: () => <RecommendationPage />,
-  },
-  { path: "/settings", title: "Settings", shell: true, element: () => <SettingsPage /> },
-  { path: "/account", title: "Account", shell: true, element: () => <AccountPage /> },
 ];
 
-export function matchRoute(pathname: string): RouteDefinition {
-  return routes.find((route) => route.path === pathname) ?? routes[1];
-}
-
-export function routeTitle(pathname: string): string {
-  return matchRoute(pathname).title;
+export function currentWorkflowPage(pathname: string): WorkflowPage {
+  return workflowPages.find((page) => page.path === pathname) ?? workflowPages[0];
 }

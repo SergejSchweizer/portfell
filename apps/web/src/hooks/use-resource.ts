@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 
 export type ResourceState<T> =
-  | Readonly<{ status: "idle" | "loading" }>
+  | Readonly<{ status: "idle" }>
+  | Readonly<{ status: "loading" }>
   | Readonly<{ status: "ready"; data: T }>
   | Readonly<{ status: "error"; error: Error }>;
 
