@@ -46,13 +46,9 @@ services:
       PORTFELL_DATABASE_URL: postgresql://portfell_app@postgres:5432/portfell
       PORTFELL_SHARED_DATA_ROOT: /srv/portfell/shared-data
       PORTFELL_LAKE_ROOT: /srv/portfell/lake
-      PORTFELL_SESSION_SECRET_FILE: /run/secrets/session_secret
       PORTFELL_EODHD_KEK_FILE: /run/secrets/eodhd_kek
-      PORTFELL_GOOGLE_CLIENT_SECRET_FILE: /run/secrets/google_client_secret
     secrets:
-      - session_secret
       - eodhd_kek
-      - google_client_secret
     volumes:
       - portfell-shared-data:/srv/portfell/shared-data
       - ./lake:/srv/portfell/lake
@@ -101,14 +97,6 @@ services:
     environment:
       NODE_ENV: development
       PORTFELL_API_BASE_URL: http://api:8000
-      PORTFELL_AUTH_MODE: ${PORTFELL_AUTH_MODE:-google}
-      PORTFELL_GOOGLE_CLIENT_ID: ${PORTFELL_GOOGLE_CLIENT_ID:-}
-      PORTFELL_GOOGLE_REDIRECT_URI: ${PORTFELL_GOOGLE_REDIRECT_URI:-http://localhost:3000/auth/google/callback}
-      PORTFELL_GOOGLE_ALLOWED_DOMAIN: ${PORTFELL_GOOGLE_ALLOWED_DOMAIN:-}
-      PORTFELL_LOCAL_DEV_GOOGLE_EMAIL: ${PORTFELL_LOCAL_DEV_GOOGLE_EMAIL:-local-google-dev-user@example.test}
-      PORTFELL_GOOGLE_CLIENT_SECRET_FILE: /run/secrets/google_client_secret
-    secrets:
-      - google_client_secret
     depends_on:
       api:
         condition: service_healthy
@@ -147,9 +135,5 @@ volumes:
 secrets:
   postgres_password:
     file: ${PORTFELL_POSTGRES_PASSWORD_FILE:?set an absolute external secret path}
-  session_secret:
-    file: ${PORTFELL_SESSION_SECRET_FILE:?set an absolute external secret path}
   eodhd_kek:
     file: ${PORTFELL_EODHD_KEK_FILE:?set an absolute external secret path}
-  google_client_secret:
-    file: ${PORTFELL_GOOGLE_CLIENT_SECRET_FILE:?set an absolute external secret path}

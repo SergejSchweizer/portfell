@@ -120,8 +120,6 @@ HOSTED_ROLES: tuple[HostedRole, ...] = (
 
 HOSTED_TABLES: tuple[HostedTable, ...] = (
     HostedTable("portfell_app.users", True, False, "Internal user identities."),
-    HostedTable("portfell_app.external_identities", True, False, "Google OIDC identities."),
-    HostedTable("portfell_app.sessions", True, False, "Server-side session state."),
     HostedTable("portfell_app.provider_credentials", True, False, "Encrypted EODHD credentials."),
     HostedTable("portfell_app.projects", True, False, "User research projects."),
     HostedTable("portfell_app.download_runs", True, True, "User-key-backed provider requests."),
@@ -419,9 +417,15 @@ revoke delete on all tables in schema portfell_app from portfell_app;
 revoke all on all tables in schema portfell_private from portfell_app, portfell_readonly;
 """
 
+_REMOVE_GOOGLE_AUTH_SQL = """
+drop table if exists portfell_app.sessions;
+drop table if exists portfell_app.external_identities;
+"""
+
 MIGRATIONS: tuple[HostedMigration, ...] = (
     HostedMigration(1, "hosted_catalog_base_schema", _BASE_SCHEMA_SQL),
     HostedMigration(2, "hosted_catalog_rls_and_grants", _RLS_POLICY_SQL),
+    HostedMigration(3, "remove_google_authentication", _REMOVE_GOOGLE_AUTH_SQL),
 )
 
 

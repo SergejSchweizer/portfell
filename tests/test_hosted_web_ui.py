@@ -6,13 +6,11 @@ ROOT = Path(__file__).resolve().parents[1]
 SERVER = ROOT / "apps" / "web" / "server.js"
 
 
-def test_server_only_handles_auth_proxy_health_and_vite_assets() -> None:
+def test_server_only_handles_api_proxy_health_and_vite_assets() -> None:
     source = SERVER.read_text(encoding="utf-8")
     for expected in (
         'requestUrl.pathname === "/health"',
         'requestUrl.pathname.startsWith("/api/")',
-        'requestUrl.pathname === "/auth/google/start"',
-        'requestUrl.pathname === "/auth/google/callback"',
         'requestUrl.pathname.startsWith("/assets/")',
         'path.join(distRoot, "index.html")',
     ):
@@ -31,5 +29,7 @@ def test_server_only_handles_auth_proxy_health_and_vite_assets() -> None:
         "document.querySelector",
         "<section",
         "<table",
+        "google",
+        "auth/",
     ):
         assert removed not in source

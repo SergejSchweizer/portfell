@@ -7,8 +7,6 @@ from fastapi.testclient import TestClient
 
 from portfell.entitlements import ProviderDownloadRun
 from portfell.hosted_api import (
-    CSRF_COOKIE_NAME,
-    SESSION_COOKIE_NAME,
     HostedApiState,
     ProjectRecord,
     SelectionRecord,
@@ -23,11 +21,9 @@ def _client(state: HostedApiState | None = None) -> TestClient:
 
 
 def _headers(
-    user_id: str = "user-a", *, csrf: bool = True, idempotency: str | None = None
+    user_id: str = "user-a", *, csrf: bool = False, idempotency: str | None = None
 ) -> dict[str, str]:
-    headers: dict[str, str] = {"X-Portfell-User": user_id}
-    if csrf:
-        headers["X-Portfell-CSRF"] = "valid-csrf"
+    headers: dict[str, str] = {}
     if idempotency is not None:
         headers["Idempotency-Key"] = idempotency
     return headers
@@ -39,75 +35,27 @@ def _json(response: Any) -> dict[str, Any]:
     return cast("dict[str, Any]", payload)
 
 
-def test_session_requires_authentication() -> None:
+def test_local_workspace_requires_no_authentication_or_csrf() -> None:
     client = _client()
 
     assert client.get("/health").json() == {"status": "ok"}
-    assert client.get("/session").status_code == 401
-    assert _json(client.get("/session", headers=_headers(csrf=False))) == {
-        "authenticated": True,
-        "csrf_token": "",
-        "user_id": "user-a",
-    }
+    assert client.get("/auth/google/start").status_code == 404
+    assert client.post("/projects", json={"name": "Core"}).status_code == 200
 
 
-def test_workflow_is_user_scoped_and_initially_only_metadata_is_ready() -> None:
+def test_workflow_starts_with_only_metadata_ready() -> None:
     client = _client()
 
-    user_a = _json(client.get("/workflow", headers=_headers(csrf=False)))
-    user_b = _json(client.get("/workflow", headers=_headers("user-b", csrf=False)))
+    workflow = _json(client.get("/workflow"))
 
-    assert (
-        user_a
-        == user_b
-        == {
-            "stages": {
-                "metadata_filter": {"status": "ready"},
-                "univariate_statistics": {"status": "locked"},
-                "univariate_filter": {"status": "locked"},
-                "bivariate_statistics": {"status": "locked"},
-            }
+    assert workflow == {
+        "stages": {
+            "metadata_filter": {"status": "ready"},
+            "univariate_statistics": {"status": "locked"},
+            "univariate_filter": {"status": "locked"},
+            "bivariate_statistics": {"status": "locked"},
         }
-    )
-
-
-def test_google_login_route_creates_cookie_session_for_local_web_runtime() -> None:
-    client = _client()
-
-    response = client.get("/auth/google/start", follow_redirects=False)
-
-    assert response.status_code == 303
-    assert response.headers["location"] == "/"
-    assert SESSION_COOKIE_NAME in response.cookies
-    assert CSRF_COOKIE_NAME in response.cookies
-    assert _json(client.get("/session")) == {
-        "authenticated": True,
-        "csrf_token": "valid-csrf",
-        "user_id": "local-google-dev-user",
     }
-
-
-def test_logout_clears_cookie_session() -> None:
-    client = _client()
-    client.get("/auth/google/start", follow_redirects=False)
-
-    response = client.get("/auth/logout", follow_redirects=False)
-
-    assert response.status_code == 303
-    assert client.get("/session").status_code == 401
-
-
-def test_state_changing_routes_require_csrf() -> None:
-    client = _client()
-
-    response = client.post(
-        "/projects",
-        headers=_headers(csrf=False),
-        json={"name": "Core"},
-    )
-
-    assert response.status_code == 403
-    assert _json(response)["detail"]["code"] == "csrf_required"
 
 
 def test_credential_lifecycle_redacts_sensitive_material() -> None:
@@ -172,7 +120,7 @@ def test_downloads_publish_visible_user_datasets_and_are_idempotent() -> None:
     assert run["status"] == "succeeded"
     assert run["observation_count"] == 2
     assert len(datasets["items"]) == 2
-    assert other_datasets["items"] == []
+    assert other_datasets == datasets
 
 
 def test_metadata_filter_options_and_project_creation_use_all_isins_reference() -> None:
@@ -251,13 +199,22 @@ def test_metadata_filter_options_and_project_creation_use_all_isins_reference() 
             "selection_id": created["selection"]["selection_id"],
         }
     ]
-    assert _json(client.get("/projects", headers=_headers("user-b", csrf=False)))["items"] == []
+    assert _json(client.get("/projects", headers=_headers("user-b", csrf=False)))["items"] == [
+        {
+            **created["project"],
+            "data_loaded": False,
+            "selected_count": 1,
+            "selection_id": created["selection"]["selection_id"],
+        }
+    ]
     assert (
-        client.get(
-            f"/selections/{created['selection']['selection_id']}",
-            headers=_headers("user-b", csrf=False),
-        ).status_code
-        == 404
+        _json(
+            client.get(
+                f"/selections/{created['selection']['selection_id']}",
+                headers=_headers("user-b", csrf=False),
+            )
+        )["selection_id"]
+        == created["selection"]["selection_id"]
     )
 
 
@@ -428,7 +385,7 @@ def test_fetch_all_metadata_for_metadata_filter_requires_eodhd_key(
     assert fetched_again == fetched
 
 
-def test_projects_selections_and_analyses_are_user_scoped_and_paginated() -> None:
+def test_projects_selections_and_analyses_use_the_local_workspace() -> None:
     client = _client()
     project = _json(
         client.post(
@@ -500,22 +457,22 @@ def test_projects_selections_and_analyses_are_user_scoped_and_paginated() -> Non
     )
 
     assert (
-        client.get(
-            f"/selections/{selection['selection_id']}", headers=_headers("user-b", csrf=False)
-        ).status_code
-        == 404
+        _json(
+            client.get(
+                f"/selections/{selection['selection_id']}", headers=_headers("user-b", csrf=False)
+            )
+        )["selection_id"]
+        == selection["selection_id"]
     )
     assert (
-        client.get(
-            f"/analyses/{analysis['run_id']}", headers=_headers("user-b", csrf=False)
-        ).status_code
-        == 404
+        _json(
+            client.get(f"/analyses/{analysis['run_id']}", headers=_headers("user-b", csrf=False))
+        )["run_id"]
+        == analysis["run_id"]
     )
-    assert (
-        client.delete(f"/projects/{project['project_id']}", headers=_headers("user-b")).status_code
-        == 404
+    deleted_project = _json(
+        client.delete(f"/projects/{project['project_id']}", headers=_headers("user-b"))
     )
-    deleted_project = _json(client.delete(f"/projects/{project['project_id']}", headers=_headers()))
     assert deleted_project == {"project_id": project["project_id"], "status": "deleted"}
     assert _json(client.get("/projects", headers=_headers(csrf=False)))["items"] == []
     assert (
@@ -650,7 +607,7 @@ def test_scoped_research_runs_filter_and_build_unique_pairs() -> None:
             f"/univariate-statistics/runs/{univariate['run_id']}",
             headers=_headers("user-b", csrf=False),
         ).status_code
-        == 404
+        == 200
     )
 
 

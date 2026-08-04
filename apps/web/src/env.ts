@@ -1,6 +1,5 @@
 export type PublicRuntimeEnv = Readonly<{
   apiBaseUrl: string;
-  authMode: string;
   uiFixture: string;
   uiFixtureMode: string;
 }>;
@@ -23,7 +22,6 @@ export function readPublicRuntimeEnv(): PublicRuntimeEnv {
 
   return {
     apiBaseUrl: import.meta.env.VITE_PORTFELL_API_BASE_URL || "/api",
-    authMode: import.meta.env.VITE_PORTFELL_AUTH_MODE || "local-dev",
     uiFixture,
     uiFixtureMode,
   };

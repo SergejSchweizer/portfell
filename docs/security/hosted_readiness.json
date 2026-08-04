@@ -78,14 +78,6 @@
       "evidence": "docs/security/hosted_readiness.md#kek-recovery-and-rotation"
     },
     {
-      "id": "session-key-rotation",
-      "status": "approved",
-      "owner": "maintainer",
-      "reviewed_on": "2026-07-19",
-      "expires_on": "2027-07-19",
-      "evidence": "docs/security/hosted_readiness.md#session-key-rotation"
-    },
-    {
       "id": "database-role-review",
       "status": "approved",
       "owner": "maintainer",

@@ -40,10 +40,6 @@ Database and shared-store backups must be encrypted. Backup ciphertext and KEK r
 
 Credential KEKs are external runtime secrets. Rotation rewraps credentials without logging plaintext. Recovery material is separated from database/shared-store backups and must not enter Git, images, CI, logs, or browser storage.
 
-## Session Key Rotation
-
-Session-signing secrets are external runtime secrets. Rotation invalidates or reissues server-side sessions without exposing session tokens to application logs or client-side storage.
-
 ## Database Role Review
 
 Hosted persistence uses least-privilege roles and row-level security for user-owned tables. API access is through repository boundaries, not direct browser or Web-container database access.

@@ -270,6 +270,26 @@ Determinism: The same mocked provider responses and user inputs produce the same
 
 Idempotency: Replaying the complete synthetic workflow creates no duplicate credentials, metadata revisions, selections, quote runs, statistical runs, or artifacts.
 
+### PR116. Remove Google Authentication Runtime
+
+Branch: `refactor/remove-google-authentication`.
+
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/196.
+
+Priority: P0 local-runtime simplification.
+
+Depends on: PR115.
+
+Scope: Remove Google OIDC, browser login/session handling, CSRF enforcement, runtime secret mounts, and associated catalog objects. Run the four-page workflow as one explicit local workspace until a replacement identity model is approved.
+
+Acceptance: No supported runtime route, environment variable, secret mount, browser bundle, or active security document exposes Google authentication behavior. Existing catalog volumes remove the retired identity and session tables through an ordered migration.
+
+Security: The local runtime is not a multi-user or public-hosted deployment boundary. EODHD credentials remain server-owned and encrypted.
+
+Determinism: Every request resolves to the fixed local workspace identity without browser-supplied user or session state.
+
+Idempotency: Applying the catalog retirement migration repeatedly leaves the schema unchanged after the first successful application.
+
 ## Active Hosted Multi-Tenant Portfell PR Stack
 
 Priority policy: security and authorization boundaries precede UI work. No endpoint may expose market or derived data before identity, credential encryption, user entitlement snapshots, and scoped analytical input enforcement exist. Every PR must use synthetic credentials and mocked provider responses in tests.

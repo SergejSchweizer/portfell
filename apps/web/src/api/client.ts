@@ -1,15 +1,6 @@
 
 import type { ApiWorkflow } from "../contracts";
 
-function cookieValue(name: string): string {
-  const prefix = `${name}=`;
-  for (const part of document.cookie.split(";")) {
-    const value = part.trim();
-    if (value.startsWith(prefix)) return decodeURIComponent(value.slice(prefix.length));
-  }
-  return "";
-}
-
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -21,14 +12,11 @@ export class ApiError extends Error {
 
 export async function requestJson<T>(path: string, init: RequestInit = {}): Promise<T> {
   const method = (init.method || "GET").toUpperCase();
-  const csrf = cookieValue("portfell_csrf");
   const response = await fetch(path, {
-    credentials: "include",
     ...init,
     headers: {
       accept: "application/json",
       ...(method === "GET" || method === "HEAD" ? {} : { "content-type": "application/json" }),
-      ...(csrf ? { "X-Portfell-CSRF": csrf } : {}),
       ...(init.headers || {}),
     },
   });

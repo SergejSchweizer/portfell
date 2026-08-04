@@ -10,9 +10,7 @@
   ],
   "protected_secret_names": [
     "PORTFELL_EODHD_KEK_FILE",
-    "PORTFELL_GOOGLE_CLIENT_SECRET_FILE",
-    "PORTFELL_POSTGRES_PASSWORD_FILE",
-    "PORTFELL_SESSION_SECRET_FILE"
+    "PORTFELL_POSTGRES_PASSWORD_FILE"
   ],
   "required_workflow_permissions": [
     "contents: read",
