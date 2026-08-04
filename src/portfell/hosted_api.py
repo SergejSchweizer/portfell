@@ -52,7 +52,7 @@ from portfell.workflows import (
     run_fetch_all_quotes_workflow,
 )
 
-LOCAL_WORKSPACE_USER_ID = "user-a"
+DEFAULT_LOCAL_WORKSPACE_USER_ID = "user-a"
 REMOVED_PROJECT_NAMES = frozenset({"Statistics Smoke"})
 
 
@@ -157,9 +157,34 @@ class UserOwnedRow(Protocol):
 
 @dataclass(frozen=True)
 class ApiUser:
-    """The single local-workspace API user."""
+    """A server-resolved API user."""
 
     user_id: str
+
+
+class CurrentUserProvider(Protocol):
+    """Resolve the request principal without browser-controlled identity input."""
+
+    def current_user(self) -> ApiUser:
+        """Return the server-owned user for the current request."""
+
+        ...
+
+
+@dataclass(frozen=True)
+class LocalWorkspaceUserProvider:
+    """Resolve the stable single-user local-workspace principal."""
+
+    user_id: str = DEFAULT_LOCAL_WORKSPACE_USER_ID
+
+    def __post_init__(self) -> None:
+        if not self.user_id.strip():
+            raise ValueError("local workspace user id is required")
+
+    def current_user(self) -> ApiUser:
+        """Return the configured server-side local principal."""
+
+        return ApiUser(user_id=self.user_id)
 
 
 @dataclass(frozen=True)
@@ -257,10 +282,17 @@ class HostedApiState:
         )
 
 
-def create_app(state: HostedApiState | None = None) -> FastAPI:
+def create_app(
+    state: HostedApiState | None = None,
+    *,
+    current_user_provider: CurrentUserProvider | None = None,
+) -> FastAPI:
     """Create the hosted FastAPI application."""
 
     resolved_state = state or HostedApiState()
+    resolved_user_provider = current_user_provider or LocalWorkspaceUserProvider(
+        user_id=os.environ.get("PORTFELL_LOCAL_WORKSPACE_USER_ID", DEFAULT_LOCAL_WORKSPACE_USER_ID)
+    )
     app = FastAPI(title="Portfell Hosted API", version="0.1.0")
     app.state.portfell_state = resolved_state
 
@@ -268,7 +300,7 @@ def create_app(state: HostedApiState | None = None) -> FastAPI:
         return resolved_state
 
     def current_user() -> ApiUser:
-        return ApiUser(user_id=LOCAL_WORKSPACE_USER_ID)
+        return resolved_user_provider.current_user()
 
     def workspace_user(user: ApiUser = Depends(current_user)) -> ApiUser:
         return user

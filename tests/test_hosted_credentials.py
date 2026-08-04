@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 
 from portfell.hosted_credentials import (
+    CredentialStore,
     CredentialVaultError,
     EodhdCredentialVault,
     InMemoryCredentialStore,
@@ -36,6 +37,12 @@ def test_eodhd_credential_encrypts_decrypts_and_returns_masked_status() -> None:
     assert record is not None
     assert b"abcd-secret-token-1234" not in record.ciphertext
     assert b"abcd-secret-token-1234" not in record.wrapped_data_key
+
+
+def test_in_memory_store_implements_credential_store_protocol() -> None:
+    store = InMemoryCredentialStore()
+
+    assert isinstance(store, CredentialStore)
 
 
 def test_wrong_user_associated_data_rejects_decryption() -> None:

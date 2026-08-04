@@ -7,6 +7,7 @@ import hmac
 import os
 import uuid
 from dataclasses import dataclass, replace
+from typing import Protocol, runtime_checkable
 
 from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -77,6 +78,21 @@ class CredentialStatus:
     masked_label: str
 
 
+@runtime_checkable
+class CredentialStore(Protocol):
+    """Persist encrypted credentials without exposing plaintext provider material."""
+
+    def upsert(self, record: EncryptedCredentialRecord) -> None:
+        """Store one logical credential record."""
+
+        ...
+
+    def get(self, *, user_id: str, provider: str = "eodhd") -> EncryptedCredentialRecord | None:
+        """Return one credential record for a user and provider."""
+
+        ...
+
+
 class InMemoryCredentialStore:
     """Small in-memory credential repository used by tests and local adapters."""
 
@@ -100,7 +116,7 @@ class EodhdCredentialVault:
     def __init__(
         self,
         *,
-        store: InMemoryCredentialStore,
+        store: CredentialStore,
         key_encryption_key: KeyEncryptionKey | None,
         fingerprint_secret: bytes,
     ) -> None:

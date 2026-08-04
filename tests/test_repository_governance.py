@@ -98,6 +98,16 @@ def _pr_section(backlog: str, pr_number: int) -> str:
     return backlog[start : len(backlog) if not candidates else min(candidates)]
 
 
+def test_hosted_api_uses_a_current_user_provider_boundary() -> None:
+    hosted_api = (REPOSITORY_ROOT / "src" / "portfell" / "hosted_api.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert "\nLOCAL_WORKSPACE_USER_ID =" not in hosted_api
+    assert "class CurrentUserProvider(Protocol):" in hosted_api
+    assert "current_user_provider: CurrentUserProvider | None" in hosted_api
+
+
 def test_four_page_stack_is_first_and_follows_dependency_order() -> None:
     backlog = (REPOSITORY_ROOT / "BACKLOG.md").read_text(encoding="utf-8")
     active_start = backlog.index("## Active Four-Page Portfell UI PR Stack")
