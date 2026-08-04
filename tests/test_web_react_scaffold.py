@@ -90,3 +90,19 @@ def test_four_page_ui_uses_canonical_server_owned_workflow_contracts() -> None:
     assert 'status === "locked"' in frame
     assert 'aria-disabled="true"' in frame
     assert not (WEB_ROOT / "src" / "shell" / "authenticated-shell.tsx").exists()
+
+
+def test_project_context_client_contracts_precede_sidebar_rendering() -> None:
+    client = (WEB_ROOT / "src" / "api" / "client.ts").read_text(encoding="utf-8")
+    contracts = (WEB_ROOT / "src" / "contracts.ts").read_text(encoding="utf-8")
+    sidebar_specification = WEB_ROOT.parents[1] / "docs" / "ui" / "layout" / "sidebar.md"
+
+    for endpoint in (
+        "/api/project-context",
+        "/api/project-context/current-project",
+        "/api/projects/${encodeURIComponent(projectId)}/workflow",
+    ):
+        assert endpoint in client
+    for contract in ("ApiProjectSummary", "ApiProjectContext"):
+        assert f"export type {contract}" in contracts
+    assert sidebar_specification.exists()

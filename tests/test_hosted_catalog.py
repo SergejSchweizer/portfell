@@ -37,6 +37,7 @@ def test_hosted_catalog_contracts_validate_security_invariants() -> None:
         "portfell_app.users",
         "portfell_app.provider_credentials",
         "portfell_app.projects",
+        "portfell_app.current_project_preferences",
         "portfell_app.download_runs",
         "portfell_app.market_objects",
         "portfell_app.dataset_snapshots",
@@ -54,7 +55,7 @@ def test_hosted_migration_sql_defines_rls_and_immutable_catalog_shape() -> None:
     migrations = migration_plan()
     sql = "\n".join(migration.sql.lower() for migration in migrations)
 
-    assert [migration.version for migration in migrations] == [1, 2, 3]
+    assert [migration.version for migration in migrations] == [1, 2, 3, 4]
     assert len({migration.checksum for migration in migrations}) == len(migrations)
     assert "create table if not exists portfell_app.provider_credentials" in sql
     assert "ciphertext bytea not null" in sql
@@ -68,6 +69,7 @@ def test_hosted_migration_sql_defines_rls_and_immutable_catalog_shape() -> None:
     assert "revoke delete on all tables in schema portfell_app from portfell_app" in sql
     assert "drop table if exists portfell_app.sessions" in sql
     assert "drop table if exists portfell_app.external_identities" in sql
+    assert "create table if not exists portfell_app.current_project_preferences" in sql
 
 
 def test_apply_hosted_catalog_migrations_is_deterministic_and_idempotent() -> None:

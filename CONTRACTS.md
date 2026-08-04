@@ -9,6 +9,21 @@ Last reviewed: 2026-07-13
 - [Portfolio Evaluation Outputs](#portfolio-evaluation-outputs)
 - [How This Fits The Onboarding Flow](#how-this-fits-the-onboarding-flow)
 
+## Local Workspace Project Context
+
+The local Web workspace has one server-owned current-project preference. `GET
+/api/project-context` returns the deterministically sorted project summaries,
+the selected project id, and the selected project summary (or `null` values
+when no project exists). `PUT /api/project-context/current-project` accepts one
+owned `project_id` and returns the same context shape. A missing preference
+selects the first project ordered by case-insensitive name and then project id.
+
+`GET /api/projects/{project_id}/workflow` resolves the four workflow stages
+only from records attached to that project. It returns the normal metadata-ready
+workflow when an owned project has no metadata selection; it never searches a
+different project's selection or run records. The browser treats project ids as
+opaque values and uses the typed API client for all three endpoints.
+
 Portfell uses deterministic local lake artifacts under a `LakePaths` root. Table paths ending in `.parquet` are physical Apache Parquet files written through `portfell.table_io`; JSON and CSV artifacts keep their native formats.
 
 Read this after [ARCHITECTURE.md](../ARCHITECTURE.md) and before changing Search, statistics, or storage code.

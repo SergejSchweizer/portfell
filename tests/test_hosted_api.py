@@ -488,6 +488,47 @@ def test_projects_selections_and_analyses_use_the_local_workspace() -> None:
     assert client.get("/projects?limit=0", headers=_headers(csrf=False)).status_code == 422
 
 
+def test_project_context_defaults_selects_and_clears_current_project() -> None:
+    alpha = ProjectRecord(project_id="project-alpha", user_id="user-a", name="alpha")
+    core = ProjectRecord(project_id="project-core", user_id="user-a", name="Core")
+    state = HostedApiState(projects_by_id={core.project_id: core, alpha.project_id: alpha})
+    client = _client(state)
+
+    default_context = _json(client.get("/project-context"))
+    selected_context = _json(
+        client.put("/project-context/current-project", json={"project_id": core.project_id})
+    )
+    empty_workflow = _json(client.get(f"/projects/{core.project_id}/workflow"))
+    deleted = _json(client.delete(f"/projects/{core.project_id}"))
+    fallback_context = _json(client.get("/project-context"))
+
+    assert [project["name"] for project in default_context["projects"]] == ["alpha", "Core"]
+    assert default_context["current_project_id"] == alpha.project_id
+    assert selected_context["current_project_id"] == core.project_id
+    assert empty_workflow == {
+        "stages": {
+            "metadata_filter": {"status": "ready"},
+            "univariate_statistics": {"status": "locked"},
+            "univariate_filter": {"status": "locked"},
+            "bivariate_statistics": {"status": "locked"},
+        }
+    }
+    assert deleted == {"project_id": core.project_id, "status": "deleted"}
+    assert fallback_context["current_project_id"] == alpha.project_id
+    missing = client.put("/project-context/current-project", json={"project_id": "missing"})
+    assert missing.status_code == 404
+
+
+def test_project_context_is_empty_without_projects() -> None:
+    client = _client()
+
+    assert _json(client.get("/project-context")) == {
+        "current_project_id": None,
+        "current_project": None,
+        "projects": [],
+    }
+
+
 def test_projects_listing_removes_discontinued_statistics_smoke_project() -> None:
     client = _client()
     project = _json(

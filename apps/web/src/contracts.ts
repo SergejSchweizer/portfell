@@ -55,11 +55,21 @@ export type ApiQuoteFetch = Readonly<{
 }>;
 
 export type ApiProjects = Readonly<{
-  items: readonly Readonly<{
-    project_id: string;
-    name: string;
-    selected_count?: number;
-  }>[];
+  items: readonly ApiProjectSummary[];
+}>;
+
+export type ApiProjectSummary = Readonly<{
+  project_id: string;
+  name: string;
+  selection_id?: string;
+  selected_count: number;
+  data_loaded: boolean;
+}>;
+
+export type ApiProjectContext = Readonly<{
+  current_project_id: string | null;
+  current_project: ApiProjectSummary | null;
+  projects: readonly ApiProjectSummary[];
 }>;
 
 export type ApiResearchRun = Readonly<{
