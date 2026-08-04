@@ -1,131 +1,276 @@
 # Backlog
 
-Last reviewed: 2026-07-19
+Last reviewed: 2026-08-04
 
 ## Table Of Contents
 
 - [Backlog Policy](#backlog-policy)
-- [Completed PR History](#completed-pr-history)
+- [Active Four-Page Portfell UI PR Stack](#active-four-page-portfell-ui-pr-stack)
+- [Active Hosted Multi-Tenant Portfell PR Stack](#active-hosted-multi-tenant-portfell-pr-stack)
 - [Current Architectural Decision](#current-architectural-decision)
-- [Hosted Multi-Tenant Portfell PR Stack](#hosted-multi-tenant-portfell-pr-stack)
-- [Portfell Research Funnel UI PR Stack](#portfell-research-funnel-ui-pr-stack)
 - [Series Completion Gate](#series-completion-gate)
 - [Update Rules](#update-rules)
+- [Completed PR History](#completed-pr-history)
+- [Completed And Superseded Detailed Records](#completed-and-superseded-detailed-records)
 
 ## Backlog Policy
 
-This file tracks active PR-sized work and completed PR history. Completed PR entries are kept as an audit trail so
-merged scope, PR numbers, and historical identifiers remain visible without reading Git history first.
+This file is ordered by execution relevance:
 
-The previously open backlog entries are superseded by the stack below. Their PR numbers, branch plans, dependency chains, and acceptance criteria must not be treated as active work unless listed in the active stack. New work starts at PR84 so historical identifiers are never reused.
+1. active, not-yet-finished PR-sized work;
+2. current architectural constraints and completion gates;
+3. completed and superseded history at the bottom.
 
-Every active item must contain `Branch`, `Git status`, `PR`, `Priority`, `Depends on`, `Scope`, `Acceptance`, `Security`, `Determinism`, and `Idempotency`. Branches are stacked in the declared dependency order until their predecessors merge.
+Every active item must contain `Branch`, `Git status`, `PR`, `Priority`, `Depends on`, `Scope`, `Acceptance`, `Security`, `Determinism`, and `Idempotency`. A PR is atomic only when it can merge independently with all repository gates green. A PR is complete only when its acceptance criteria are machine-verifiable and no assigned scope is deferred silently.
 
-Completed or implemented entries must not be deleted from this file. If a finished entry is superseded, keep it in
-the completed-history section with its final status and link the replacing PR or decision.
+Completed entries are never deleted. Superseded plans are moved to the historical section and explicitly marked non-active. Backlog identifiers are never reused.
 
-## Completed PR History
+## Active Four-Page Portfell UI PR Stack
 
-These entries are historical and not active work. They are kept to preserve completed scope, PR links, and stable
-backlog identifiers.
+This is the canonical UI implementation stack. It supersedes the former eight-stage research-funnel UI plan. The production application has exactly four pages, in this order:
 
-| ID | Title | Final status |
-| --- | --- | --- |
-| PR01 | Project Package And Quality Baseline | merged. PR: https://github.com/SergejSchweizer/portfell/pull/1 |
-| PR02 | Shared Configuration, HTTP, And Contract Primitives | merged. PR: https://github.com/SergejSchweizer/portfell/pull/3 |
-| PR03 | Simple Bronze/Silver/Gold Lake Layout Contract | merged. PR: https://github.com/SergejSchweizer/portfell/pull/3 |
-| PR04 | Search Module: EODHD Query And Raw Candidate Capture | merged. PR: https://github.com/SergejSchweizer/portfell/pull/3 |
-| PR05 | Search Module: Canonical ISIN Selection Contract | merged. PR: https://github.com/SergejSchweizer/portfell/pull/3 |
-| PR06 | Search Module: Review Artifacts And Active Universe Pointer | merged. PR: https://github.com/SergejSchweizer/portfell/pull/3 |
-| PR07 | Bronze Module: Input Contract Validation And Planning | merged. PR: https://github.com/SergejSchweizer/portfell/pull/3 |
-| PR08 | Bronze Module: EOD Quote Download To Bronze | merged. PR: https://github.com/SergejSchweizer/portfell/pull/3 |
-| PR09 | Silver Quote Build Baseline | merged. PR: https://github.com/SergejSchweizer/portfell/pull/3 |
-| PR10 | Bronze Module: Identifier Mapping Capture | merged. PR: https://github.com/SergejSchweizer/portfell/pull/3 |
-| PR11 | Bronze Module: Coverage, Errors, And Monthly Refresh Behavior | merged. PR: https://github.com/SergejSchweizer/portfell/pull/3 |
-| PR12 | Gold Inputs: Returns, Correlation, And Covariance Baseline | merged. PR: https://github.com/SergejSchweizer/portfell/pull/3 |
-| PR13 | Finalization: End-To-End Dry Run, Docs, And Release Checklist | merged. PR: https://github.com/SergejSchweizer/portfell/pull/3 |
-| PR14 | Bronze Process: Cron-Safe Bronze Ingestion And Medallion Builds | merged. PR: https://github.com/SergejSchweizer/portfell/pull/13 |
-| PR15 | Gold Evaluation Dataset Contracts And Paths | merged. PR: https://github.com/SergejSchweizer/portfell/pull/20 |
-| PR16 | Evaluation Module: Return Matrix And Asset Metrics | merged. PR: https://github.com/SergejSchweizer/portfell/pull/21 |
-| PR17 | Evaluation Module: Portfolio Returns And Drawdown Metrics | merged. PR: https://github.com/SergejSchweizer/portfell/pull/24 |
-| PR18 | Portfolio Module: Core Optimization Objectives And Target Weights | merged. PR: https://github.com/SergejSchweizer/portfell/pull/26 |
-| PR19 | Portfolio Module: Risk Parity And Equal Risk Contribution | merged. PR: https://github.com/SergejSchweizer/portfell/pull/32 |
-| PR20 | Evaluation Module: Walk-Forward Backtesting | merged. PR: https://github.com/SergejSchweizer/portfell/pull/34 |
-| PR21 | Evaluation Module: Rebalancing Simulation | merged. PR: https://github.com/SergejSchweizer/portfell/pull/34 |
-| PR22 | Portfolio Module: Hierarchical Risk Parity | merged. PR: https://github.com/SergejSchweizer/portfell/pull/34 |
-| PR23 | Portfolio Module: Maximum Diversification Objective | merged. PR: https://github.com/SergejSchweizer/portfell/pull/34 |
-| PR24 | Evaluation Module: Efficient Frontier Generator | merged. PR: https://github.com/SergejSchweizer/portfell/pull/34 |
-| PR25 | Portfolio Module: CVaR And Tail-Risk Optimization | merged. PR: https://github.com/SergejSchweizer/portfell/pull/34 |
-| PR26 | Evaluation CLI And Dry-Run Integration | merged. PR: https://github.com/SergejSchweizer/portfell/pull/34 |
-| PR27 | Gold Correlation Edge Dataset Baseline | merged. PR: https://github.com/SergejSchweizer/portfell/pull/28 |
-| PR28 | Gold Spearman Correlation Edges | merged. PR: https://github.com/SergejSchweizer/portfell/pull/30 |
-| PR29 | Gold Correlation Edges: Skip Same-ISIN Pairs | merged. PR: https://github.com/SergejSchweizer/portfell/pull/40 |
-| PR30 | Gold Pair Statistics Boundary Refactor | merged. PR: https://github.com/SergejSchweizer/portfell/pull/44 |
-| PR31 | Dataset Contract Registry Refactor | merged. PR: https://github.com/SergejSchweizer/portfell/pull/44 |
-| PR32 | Evaluation And Portfolio Package Boundary Refactor | merged. PR: https://github.com/SergejSchweizer/portfell/pull/44 |
-| PR33 | Unified Run State And Job Manifest Refactor | merged. PR: https://github.com/SergejSchweizer/portfell/pull/44 |
-| PR34 | Production Optimizer Interface And Diagnostics Refactor | merged. PR: https://github.com/SergejSchweizer/portfell/pull/44 |
-| PR35 | Enforce Real Evaluation And Portfolio Package Boundaries | merged. PR: https://github.com/SergejSchweizer/portfell/pull/46 |
-| PR36 | Extract Scalable Gold Pair Statistics Engine | merged. PR: https://github.com/SergejSchweizer/portfell/pull/46 |
-| PR37 | Type Critical Dataset Rows And Contract Validation | merged. PR: https://github.com/SergejSchweizer/portfell/pull/46 |
-| PR38 | Split CLI Parsing From Workflow Execution | merged. PR: https://github.com/SergejSchweizer/portfell/pull/46 |
-| PR39 | Add Import-Boundary And Scale-Guard Quality Gates | merged. PR: https://github.com/SergejSchweizer/portfell/pull/46 |
-| PR40 | Three-Module Boundaries And Public Contract Skeleton | merged. PR: https://github.com/SergejSchweizer/portfell/pull/51 |
-| PR41 | Refresh Catalog Contracts And Stable Instrument Identities | merged. PR: https://github.com/SergejSchweizer/portfell/pull/51 |
-| PR42 | Selection Predicate And Metric-Requirement Contracts | merged. PR: https://github.com/SergejSchweizer/portfell/pull/51 |
-| PR43 | Selection Identity, Candidate And Final Membership Contracts | merged. PR: https://github.com/SergejSchweizer/portfell/pull/51 |
-| PR44 | Update Contracts, Pinned Inputs, And Shared Work Planner | merged. PR: https://github.com/SergejSchweizer/portfell/pull/51 |
-| PR45 | Refresh Complete EODHD Catalog Synchronization | merged. PR: https://github.com/SergejSchweizer/portfell/pull/53 |
-| PR46 | Refresh All-ISIN Market Data And Versioned Inputs | merged. PR: https://github.com/SergejSchweizer/portfell/pull/53 |
-| PR47 | Refresh Service, Standalone CLI, And Atomic Publication | merged. PR: https://github.com/SergejSchweizer/portfell/pull/53 |
-| PR48 | Selection Service, Current Pointer, And Standalone CLI | merged. PR: https://github.com/SergejSchweizer/portfell/pull/53 |
-| PR49 | Update Incremental Per-ISIN Metric Cache | merged. PR: https://github.com/SergejSchweizer/portfell/pull/53 |
-| PR50 | Update Screening Classifications And Selection Finalization | merged. PR: https://github.com/SergejSchweizer/portfell/pull/53 |
-| PR51 | Update Selection Calendar And Comparable Metric Cache | merged. PR: https://github.com/SergejSchweizer/portfell/pull/53 |
-| PR52 | Update Incremental Pair Metric Cache | merged. PR: https://github.com/SergejSchweizer/portfell/pull/53 |
-| PR53 | Update Evaluation Profiles And Selection Analysis Manifests | merged. PR: https://github.com/SergejSchweizer/portfell/pull/53 |
-| PR54 | Update Service, Standalone CLI, And Atomic Publication | merged. PR: https://github.com/SergejSchweizer/portfell/pull/53 |
-| PR55 | Three-Module Cutover, Legacy Migration, And Documentation | merged. PR: https://github.com/SergejSchweizer/portfell/pull/53 |
-| PR56 | Return Semantics And Data-Quality Gate | merged. PR: https://github.com/SergejSchweizer/portfell/pull/83 |
-| PR57 | Instrument-Level Rebalancing Drift And Cost Basis | merged. PR: https://github.com/SergejSchweizer/portfell/pull/85 |
-| PR58 | Risk Model Package And Covariance Diagnostics | merged. PR: https://github.com/SergejSchweizer/portfell/pull/89 |
-| PR59 | Production Numerical Solver Boundary | addressed; no dedicated PR under this branch name |
-| PR60 | Production Minimum Variance And Equal Risk Contribution | merged. PR: https://github.com/SergejSchweizer/portfell/pull/101 |
-| PR61 | True HRP And Minimum CVaR Optimizers | merged. PR: https://github.com/SergejSchweizer/portfell/pull/104 and https://github.com/SergejSchweizer/portfell/pull/109 |
-| PR62A | Jurisdiction-Neutral Tax, Cost, And Cash-Flow Contracts | merged. PR: https://github.com/SergejSchweizer/portfell/pull/112 |
-| PR63 | Portfolio Profile Contracts And Balanced Ensemble Candidate | merged. PR: https://github.com/SergejSchweizer/portfell/pull/113 |
-| PR64 | Walk-Forward Model Comparison Scorecard | merged. PR: https://github.com/SergejSchweizer/portfell/pull/114 |
-| PR65 | Stress, Bootstrap, And Sensitivity Analysis | merged. PR: https://github.com/SergejSchweizer/portfell/pull/115 |
-| PR66 | Explainable Recommendation Report | merged. PR: https://github.com/SergejSchweizer/portfell/pull/116 |
-| PR69 | Multivariate Statistics Baseline Module And CLI | merged. PR: https://github.com/SergejSchweizer/portfell/pull/79 |
-| PR70 | Multivariate Production Portfolio Adapter | merged. PR: https://github.com/SergejSchweizer/portfell/pull/117 |
-| PR71 | Multivariate Income And Recommendation Outputs | merged. PR: https://github.com/SergejSchweizer/portfell/pull/118 |
-| PR72 | Multivariate Trading And Monitoring Handoff | merged. PR: https://github.com/SergejSchweizer/portfell/pull/119 |
-| PR73 | Generic Listing And Pair Statistics Cache | merged. PR: https://github.com/SergejSchweizer/portfell/pull/80 |
-| PR74 | Selection Statistics Views | merged. PR: https://github.com/SergejSchweizer/portfell/pull/120 |
-| PR75 | Multivariate Selection Cache Consumption | merged. PR: https://github.com/SergejSchweizer/portfell/pull/121 |
+```text
+metadata_filter
+    -> univariate_statistics
+    -> univariate_filter
+    -> bivariate_statistics
+```
 
-## Current Architectural Decision
+The persistent header contains the EODHD credential input and the metadata refresh action. The canonical Python operation is `fetch_all_metadata`; the removed name `fetch_all_isins` must not be reintroduced as a function, module, command, route, alias, compatibility shim, or documentation term.
 
-Portfell remains a public open-source repository, while the hosted deployment is a private runtime environment.
+The stack is deliberately sequential. Each PR must be independently reviewable, must leave the repository green, and must not implement scope assigned to a later PR. Browser code owns presentation and transient interaction state only. Credentials, authorization, workflow status, selections, calculations, persistence, invalidation, and financial/statistical logic remain server-owned.
 
-The target system has these non-negotiable properties:
+### PR110. Canonical Workflow State And Four-Page API Contract
 
-- Google is the only end-user authentication provider.
-- PostgreSQL is the primary application database for users, identities, encrypted provider credentials, projects, download provenance, entitlements, selections, analysis runs, and artifact catalogs.
-- EODHD keys are encrypted at rest with envelope encryption. The key-encryption key is never stored in Git, PostgreSQL, container images, build artifacts, logs, or GitHub Actions.
-- Runtime secrets live outside the repository checkout and are mounted only into services that require them.
-- EODHD market observations are stored once in a shared, content-addressed, immutable physical store.
-- A user can see only observations that were returned by an EODHD request executed with that user's own stored key.
-- Existing shared observations may prevent a duplicate physical write, but may never create a user entitlement without a successful user-key-backed provider request.
-- New observations downloaded by one user do not become visible to another user until that other user performs a successful refresh with their own key.
-- Every user analysis is pinned to an immutable User Data Snapshot containing the exact observations and revisions visible to that user.
-- Univariate, bivariate, multivariate, portfolio, backtest, and report artifacts are globally deduplicated by exact input hashes and algorithm versions, while visibility is granted only through user-owned analysis runs.
-- Hosted analytical code must consume resolved scoped inputs and must never scan unrestricted global Silver or Gold data.
-- The local CLI and analytical core remain usable without Google authentication or PostgreSQL through explicit local adapters.
-- Public hosting remains blocked until provider licensing, privacy, backup, credential, and security readiness gates pass.
+Branch: `feat/four-page-workflow-state`.
 
-## Hosted Multi-Tenant Portfell PR Stack
+Git status: not started. PR: TBD.
+
+Priority: P0 workflow foundation.
+
+Depends on: current `main`.
+
+Scope:
+
+- Add one backend-owned workflow-state model for the current authenticated user and active project.
+- Expose `GET /api/workflow` and return exactly these stages: `metadata_filter`, `univariate_statistics`, `univariate_filter`, and `bivariate_statistics`.
+- Use only the statuses `locked`, `ready`, `running`, `complete`, `failed`, and `stale`.
+- Include immutable upstream identifiers in every completed stage: metadata revision, metadata selection id, quote run id, univariate run id, univariate-filter selection id, and bivariate run id where applicable.
+- Define downstream invalidation rules in one backend module. A metadata refresh invalidates every downstream stage; a metadata-filter change invalidates quote loading and every later stage; a univariate-statistics change invalidates the univariate filter and bivariate statistics; a univariate-filter change invalidates bivariate statistics.
+- Add matching TypeScript contracts in `apps/web/src/contracts.ts` and one `loadWorkflow()` client function. Pages must not infer completion from local component state.
+- Persist or reconstruct workflow status from existing server-owned project, run, selection, and artifact records. Do not add Redux, Zustand, XState, React Router, WebSockets, Celery, Redis, or a generic workflow engine.
+
+Acceptance:
+
+- `GET /api/workflow` returns the same JSON for the same persisted state across repeated calls and process restarts.
+- A new user with no metadata receives `metadata_filter=ready` and the other three stages as `locked`.
+- Every upstream mutation produces the exact stale/locked transitions defined above.
+- The response never exposes an EODHD key, filesystem path, unrestricted global dataset identifier, or another user's state.
+- Unit tests cover every allowed status transition and every invalidation edge.
+- API tests prove user isolation and deterministic response ordering.
+- TypeScript compiles without casts from `unknown` to the workflow-state type.
+
+Security: Workflow state is resolved inside the authenticated user scope and never from unrestricted global lake scans.
+
+Determinism: Identical persisted identifiers and statuses produce byte-equivalent JSON after canonical serialization.
+
+Idempotency: Repeating `GET /api/workflow` performs no writes and creates no projects, runs, selections, or artifacts.
+
+### PR111. Metadata Header, Metadata Filter, And Real Quote Progress
+
+Branch: `feat/metadata-filter-quote-progress`.
+
+Git status: not started. PR: TBD.
+
+Priority: P0 first runnable page.
+
+Depends on: PR110.
+
+Scope:
+
+- Keep the EODHD key input in the persistent header. Submission must call `POST /api/credentials/eodhd`, clear the input, then call the real metadata workflow through `POST /api/metadata/fetch-all`.
+- Inject the authenticated user's decrypted key into `run_fetch_all_metadata_workflow`; do not read a shared plaintext key or return the key to the browser.
+- Make `/metadata-filter` the default application route and the first workflow page.
+- Load multiple-choice values from `GET /api/metadata-filter/options` for exchange, instrument type, country, and currency; include a name-contains input.
+- Submit the filter through `POST /api/metadata-filter` and persist a deterministic metadata selection id.
+- Place the quote progress bar after all metadata controls and status text. Place a right-aligned `Fetch quotes` button beneath the progress bar.
+- Start quote ingestion with `POST /api/quote-runs` using only the current metadata selection id. Poll `GET /api/quote-runs/{run_id}` until complete or failed.
+- Return and render `total`, `completed`, `failed`, and integer `percent` values. The progress bar must represent server progress; it must not jump from zero to 100 solely because one HTTP request returned.
+- Disable duplicate metadata, filter, and quote submissions while the corresponding operation is running.
+- Refresh workflow state after every successful mutation.
+
+Acceptance:
+
+- The header never stores the provider key in URL parameters, browser storage, HTML, logs, screenshots, analytics, or API responses.
+- `fetch_all_metadata` performs a mocked provider request in tests and publishes one deterministic metadata revision.
+- The filter button remains disabled when all filter fields are empty, unless an explicit `Select all metadata` action is implemented and documented.
+- `Fetch quotes` remains disabled until a non-empty metadata selection exists.
+- The DOM order is: metadata controls, apply-filter action, selection status, progress label, progress element, progress status, right-aligned `Fetch quotes` action.
+- Polling stops on `complete`, `failed`, component unmount, route change, or request cancellation.
+- Repeating the same metadata filter returns the same logical selection id.
+- Repeating `Fetch quotes` for an already running or completed identical run returns that run instead of creating a duplicate.
+- Browser tests cover successful metadata loading, empty metadata, invalid credential, zero-result filter, partial quote failure, complete quote success, refresh recovery, and secret non-disclosure.
+
+Security: Credential decryption is limited to the provider-call boundary; quote entitlements are granted only after a successful user-key-backed request.
+
+Determinism: Canonical filter serialization and metadata revision pinning produce stable selection and quote-run identities.
+
+Idempotency: Retrying credential save, metadata refresh, identical filtering, polling, or quote-run creation does not duplicate logical state.
+
+### PR112. Functional Univariate Statistics Page
+
+Branch: `feat/univariate-statistics-page`.
+
+Git status: not started. PR: TBD.
+
+Priority: P1 second workflow page.
+
+Depends on: PR111.
+
+Scope:
+
+- Replace the current read-only summary page with a complete execution page.
+- Add `POST /api/univariate-statistics/runs` with the current metadata selection id and quote run id as required immutable inputs.
+- Add `GET /api/univariate-statistics/runs/{run_id}` for status and `GET /api/univariate-statistics/runs/{run_id}/results` for server-paginated results.
+- Require quote completion before execution. Render a locked explanation and link to `/metadata-filter` when prerequisites are absent or stale.
+- Provide one `Compute univariate statistics` action, running status, cancellation-safe polling, empty state, failure state, completion summary, sorting, and pagination.
+- Render at minimum: listing identity, ISIN, symbol, exchange, observation count, annualized return, annualized volatility, Sharpe ratio, maximum drawdown, and expected shortfall when present in the backend artifact.
+- Keep units and numerical precision in typed formatter functions; do not calculate statistics in React.
+- Remove the old aggregate-only API dependency when no remaining caller uses it.
+
+Acceptance:
+
+- The page cannot start without a complete quote run for the current metadata selection.
+- The POST endpoint invokes the real univariate workflow and never returns a synthetic success response.
+- Result rows are scoped exactly to the pinned metadata selection and quote dataset.
+- Sorting and pagination are server-owned and deterministic for equal values through a stable listing-id tie-breaker.
+- Refreshing during a running job restores the same run and progress.
+- Repeating an identical request returns the existing running or completed run id.
+- Unit tests verify input pinning, selection scoping, failure propagation, deterministic ordering, and no unrestricted Gold/Silver scan.
+- Browser tests verify locked, running, empty, failed, complete, paginated, and refreshed-running states.
+
+Security: Results are resolved through the authenticated user's snapshot and entitlement scope.
+
+Determinism: The artifact id includes exact quote inputs, selection membership, parameters, and algorithm version.
+
+Idempotency: Identical run creation is deduplicated by the canonical input hash.
+
+### PR113. Functional Univariate Filter Page
+
+Branch: `feat/univariate-filter-page`.
+
+Git status: not started. PR: TBD.
+
+Priority: P1 third workflow page.
+
+Depends on: PR112.
+
+Scope:
+
+- Replace the placeholder page with a typed predicate editor and persisted selection result.
+- Add `GET /api/univariate-filter/metrics` for allowed numerical metrics, labels, units, and valid operators.
+- Add `POST /api/univariate-filter` accepting `source_run_id`, optional `selection_name`, and an ordered predicate list with `metric`, `operator`, and numeric `value`.
+- Permit only `=`, `!=`, `>`, `>=`, `<`, and `<=` for numerical metrics. Apply all predicates with logical AND.
+- Canonically sort predicates for identity generation while preserving the user-visible edit order separately.
+- Return `selection_id`, `input_count`, `selected_count`, `excluded_count`, normalized predicates, and exclusion summaries.
+- Render add/remove predicate rows, visible validation, apply action, running state, result counts, and a server-paginated selected-listing table.
+- Require a completed, non-stale univariate run. Clear stale results immediately when a predicate changes after completion.
+- The backend must filter only rows belonging to the pinned source run; it must not read every persisted univariate row.
+
+Acceptance:
+
+- Invalid metrics, operators, non-finite values, empty predicate lists, and duplicate contradictory predicates return structured 4xx errors.
+- A valid predicate set selects exactly the rows produced by applying all predicates to the pinned source run.
+- `input_count = selected_count + excluded_count` in every successful response.
+- Identical normalized predicates on the same source run return the same selection id.
+- Predicate order differences do not create duplicate selections.
+- The page renders locked, editing, invalid, running, empty-result, failed, complete, and stale states.
+- Tests cover all operators, AND semantics, boundary equality, NaN/infinity rejection, source-run isolation, deterministic identity, and duplicate submission.
+
+Security: Metric discovery and filtering operate only on artifacts visible to the authenticated user.
+
+Determinism: Metric definitions, operator semantics, predicate normalization, and selection ordering are versioned.
+
+Idempotency: Reapplying an identical normalized predicate set reuses the same selection and membership rows.
+
+### PR114. Functional Bivariate Statistics Page
+
+Branch: `feat/bivariate-statistics-page`.
+
+Git status: not started. PR: TBD.
+
+Priority: P1 fourth workflow page.
+
+Depends on: PR113.
+
+Scope:
+
+- Replace the placeholder page with pair-plan, execution, progress, and result views.
+- Add `POST /api/bivariate-statistics/plan` accepting the current univariate-filter selection id and returning selected listing count, theoretical pair count, configured pair limit, and whether execution is allowed.
+- Add `POST /api/bivariate-statistics/runs`, `GET /api/bivariate-statistics/runs/{run_id}`, and `GET /api/bivariate-statistics/runs/{run_id}/results`.
+- Fail before pair generation when the theoretical pair count exceeds the configured maximum.
+- Poll real server progress using `total_pairs`, `completed_pairs`, `failed_pairs`, and integer `percent`.
+- Render server-paginated pair rows with left/right identity, observation count, Pearson correlation, Spearman correlation, covariance, left-to-right beta, and right-to-left beta where available.
+- Default ordering is descending absolute Pearson correlation, then stable left-id/right-id tie-breakers.
+- Require a complete, non-empty, non-stale univariate-filter selection.
+- Do not transfer the complete pair dataset to the browser and do not calculate correlations in React.
+
+Acceptance:
+
+- Pair count equals `n * (n - 1) / 2` for `n` unique selected listings.
+- Same-listing pairs and duplicate reversed pairs never appear.
+- Over-limit plans return a clear non-runnable result and create no run or pair artifacts.
+- Refreshing a running page reconnects to the existing run.
+- Identical run requests reuse the existing running or completed run.
+- Result pagination and ordering are stable across repeated requests.
+- Tests cover zero, one, two, normal, partially failed, and over-limit selections; source-selection isolation; pair uniqueness; deterministic ordering; and refresh recovery.
+
+Security: Plans, runs, and pair results are scoped to the authenticated user's selected membership and allowed observations.
+
+Determinism: Pair construction, alignment rules, metric versions, ordering, and artifact identity are explicit and versioned.
+
+Idempotency: Identical source selection and algorithm inputs resolve to one logical run and artifact set.
+
+### PR115. Sequential Navigation, Final Legacy Deletion, And End-To-End Gate
+
+Branch: `refactor/four-page-ui-completion-gate`.
+
+Git status: not started. PR: TBD.
+
+Priority: P1 cutover completion.
+
+Depends on: PR114.
+
+Scope:
+
+- Make `apps/web/src/routes.tsx` the only production route registry and keep exactly the four canonical routes.
+- Drive navigation status from `GET /api/workflow`. Locked pages remain visible but non-navigable and explain their prerequisite.
+- Preserve normal browser refresh, back, forward, and direct-link behavior without adding a global frontend store.
+- Delete all unused page components, shell experiments, fixture selectors, catalogues, compatibility adapters, synthetic compute endpoints, obsolete project/dashboard/settings/account/report/portfolio/diversification routes, and stale UI specifications.
+- Delete unused `AuthenticatedShell`, old aggregate-only endpoints, old HTML-rendering helpers, duplicate route lists, and any tests whose only purpose is to preserve removed files.
+- Add a repository gate that fails when removed route ids, compatibility renderer names, direct page-level `fetch(` calls, the retired metadata-fetch name, or production fixture selectors reappear.
+- Update `README.md`, `ARCHITECTURE.md`, `CONTRACTS.md`, `docs/ui/README.md`, `docs/ui/page-development.md`, and the four page specifications to describe only the final implementation.
+- Add one Playwright workflow test that completes metadata refresh, metadata filtering, quote loading, univariate statistics, univariate filtering, and bivariate statistics using deterministic mocked provider responses.
+
+Acceptance:
+
+- The production route registry contains exactly four entries in the required order.
+- No production file or documentation describes the superseded eight-stage UI as current.
+- No placeholder-only production page remains.
+- No legacy renderer, compatibility route, duplicate navigation registry, component catalogue, fixture-selection route, or browser-owned financial/statistical computation remains.
+- Direct links to locked pages render a prerequisite message without starting work.
+- A completed deterministic synthetic workflow survives browser refresh at every stage.
+- An upstream change marks all required downstream stages stale and blocks execution until recomputed.
+- `npm ci`, TypeScript checking, Vite build, Node syntax checking, Ruff, Pyright, import-linter, the full Python test suite, Playwright, and the repository `pr-quality` gate all pass.
+- A repository-wide search for forbidden legacy identifiers returns no tracked production or documentation matches.
+
+Security: The final browser bundle contains no provider secret, authorization rule, raw credential, unrestricted dataset path, or cross-user identifier.
+
+Determinism: The same mocked provider responses and user inputs produce the same workflow ids, page states, progress sequence, selections, and result ordering.
+
+Idempotency: Replaying the complete synthetic workflow creates no duplicate credentials, metadata revisions, selections, quote runs, statistical runs, or artifacts.
+
+## Active Hosted Multi-Tenant Portfell PR Stack
 
 Priority policy: security and authorization boundaries precede UI work. No endpoint may expose market or derived data before identity, credential encryption, user entitlement snapshots, and scoped analytical input enforcement exist. Every PR must use synthetic credentials and mocked provider responses in tests.
 
@@ -289,6 +434,155 @@ Determinism: Scoped input identities derive from immutable snapshot, selection, 
 
 Idempotency: Re-resolving unchanged authorized inputs returns the same immutable input references without copying market rows.
 
+### PR94. Content-Addressed Multivariate, Portfolio, Backtest, And Report Artifacts
+
+Branch: `feat/content-addressed-portfolio-artifacts`.
+
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/137.
+
+Priority: P1 portfolio-level reuse.
+
+Depends on: PR93.
+
+Scope: Build shared multivariate and downstream artifact identities from the sorted authorized listing-input artifact ids, selection definition and membership, return matrix, risk model, constraints, optimizer settings, costs, walk-forward windows, stress settings, recommendation template, and algorithm versions. Store physical artifacts globally while creating separate user-owned analysis runs and project references. Remove user id from physical cache keys and include it only in authorization and provenance records.
+
+Acceptance: Two users with identical authorized snapshots and settings reuse one physical artifact while retaining separate runs. Different visible end dates, revisions, selections, constraints, costs, risk models, or algorithm versions produce distinct artifacts. Direct artifact-id access, cross-project run access, and stale project pointers are rejected.
+
+Security: Every response resolves through an authenticated user-owned analysis run; no endpoint serves shared artifact paths directly. Artifact dependency closure is checked before reuse.
+
+Determinism: Artifact ids and reports derive only from exact immutable inputs, explicit settings, and versioned algorithms.
+
+Idempotency: Repeated identical analyses return the existing completed result or join the active computation without duplicate artifacts, portfolio rows, or reports.
+
+## Current Architectural Decision
+
+Portfell remains a public open-source repository, while the hosted deployment is a private runtime environment.
+
+The target system has these non-negotiable properties:
+
+- Google is the only end-user authentication provider.
+- PostgreSQL is the primary application database for users, identities, encrypted provider credentials, projects, download provenance, entitlements, selections, analysis runs, and artifact catalogs.
+- EODHD keys are encrypted at rest with envelope encryption. The key-encryption key is never stored in Git, PostgreSQL, container images, build artifacts, logs, or GitHub Actions.
+- Runtime secrets live outside the repository checkout and are mounted only into services that require them.
+- EODHD market observations are stored once in a shared, content-addressed, immutable physical store.
+- A user can see only observations that were returned by an EODHD request executed with that user's own stored key.
+- Existing shared observations may prevent a duplicate physical write, but may never create a user entitlement without a successful user-key-backed provider request.
+- New observations downloaded by one user do not become visible to another user until that other user performs a successful refresh with their own key.
+- Every user analysis is pinned to an immutable User Data Snapshot containing the exact observations and revisions visible to that user.
+- Univariate, bivariate, multivariate, portfolio, backtest, and report artifacts are globally deduplicated by exact input hashes and algorithm versions, while visibility is granted only through user-owned analysis runs.
+- Hosted analytical code must consume resolved scoped inputs and must never scan unrestricted global Silver or Gold data.
+- The local CLI and analytical core remain usable without Google authentication or PostgreSQL through explicit local adapters.
+- Public hosting remains blocked until provider licensing, privacy, backup, credential, and security readiness gates pass.
+
+## Series Completion Gate
+
+The four-page UI series is complete only after PR110 through PR115 are merged and all of the following are true:
+
+- exactly four production pages exist in the required order;
+- every page invokes a real backend workflow and has locked, ready, running, complete, failed, and stale behavior where applicable;
+- quote and bivariate progress are server-reported rather than simulated in the browser;
+- every run and selection is scoped to immutable authenticated-user inputs;
+- repeated identical commands reuse existing logical state;
+- upstream changes invalidate downstream state deterministically;
+- no placeholder page, retired route, compatibility renderer, duplicate registry, synthetic compute endpoint, or legacy documentation remains;
+- all Python, TypeScript, build, browser, security, and repository gates pass.
+
+Hosted deployment remains subject to the independent security, licensing, privacy, backup, credential, and readiness requirements in the active hosted PR stack.
+
+## Update Rules
+
+- Put new active PR entries above architecture and history sections.
+- Move an entry to completed history immediately after merge or explicit implementation without a dedicated PR.
+- Record the final GitHub PR URL and merge status.
+- Update `Last reviewed` whenever active ordering, dependencies, status, or acceptance criteria change.
+- Never describe a superseded UI plan as current architecture.
+- Keep implementation, tests, contracts, and documentation in the same PR when they define one behavior.
+
+## Completed PR History
+
+These entries are historical and not active work. They are kept to preserve completed scope, PR links, and stable
+backlog identifiers.
+
+| ID | Title | Final status |
+| --- | --- | --- |
+| PR01 | Project Package And Quality Baseline | merged. PR: https://github.com/SergejSchweizer/portfell/pull/1 |
+| PR02 | Shared Configuration, HTTP, And Contract Primitives | merged. PR: https://github.com/SergejSchweizer/portfell/pull/3 |
+| PR03 | Simple Bronze/Silver/Gold Lake Layout Contract | merged. PR: https://github.com/SergejSchweizer/portfell/pull/3 |
+| PR04 | Search Module: EODHD Query And Raw Candidate Capture | merged. PR: https://github.com/SergejSchweizer/portfell/pull/3 |
+| PR05 | Search Module: Canonical ISIN Selection Contract | merged. PR: https://github.com/SergejSchweizer/portfell/pull/3 |
+| PR06 | Search Module: Review Artifacts And Active Universe Pointer | merged. PR: https://github.com/SergejSchweizer/portfell/pull/3 |
+| PR07 | Bronze Module: Input Contract Validation And Planning | merged. PR: https://github.com/SergejSchweizer/portfell/pull/3 |
+| PR08 | Bronze Module: EOD Quote Download To Bronze | merged. PR: https://github.com/SergejSchweizer/portfell/pull/3 |
+| PR09 | Silver Quote Build Baseline | merged. PR: https://github.com/SergejSchweizer/portfell/pull/3 |
+| PR10 | Bronze Module: Identifier Mapping Capture | merged. PR: https://github.com/SergejSchweizer/portfell/pull/3 |
+| PR11 | Bronze Module: Coverage, Errors, And Monthly Refresh Behavior | merged. PR: https://github.com/SergejSchweizer/portfell/pull/3 |
+| PR12 | Gold Inputs: Returns, Correlation, And Covariance Baseline | merged. PR: https://github.com/SergejSchweizer/portfell/pull/3 |
+| PR13 | Finalization: End-To-End Dry Run, Docs, And Release Checklist | merged. PR: https://github.com/SergejSchweizer/portfell/pull/3 |
+| PR14 | Bronze Process: Cron-Safe Bronze Ingestion And Medallion Builds | merged. PR: https://github.com/SergejSchweizer/portfell/pull/13 |
+| PR15 | Gold Evaluation Dataset Contracts And Paths | merged. PR: https://github.com/SergejSchweizer/portfell/pull/20 |
+| PR16 | Evaluation Module: Return Matrix And Asset Metrics | merged. PR: https://github.com/SergejSchweizer/portfell/pull/21 |
+| PR17 | Evaluation Module: Portfolio Returns And Drawdown Metrics | merged. PR: https://github.com/SergejSchweizer/portfell/pull/24 |
+| PR18 | Portfolio Module: Core Optimization Objectives And Target Weights | merged. PR: https://github.com/SergejSchweizer/portfell/pull/26 |
+| PR19 | Portfolio Module: Risk Parity And Equal Risk Contribution | merged. PR: https://github.com/SergejSchweizer/portfell/pull/32 |
+| PR20 | Evaluation Module: Walk-Forward Backtesting | merged. PR: https://github.com/SergejSchweizer/portfell/pull/34 |
+| PR21 | Evaluation Module: Rebalancing Simulation | merged. PR: https://github.com/SergejSchweizer/portfell/pull/34 |
+| PR22 | Portfolio Module: Hierarchical Risk Parity | merged. PR: https://github.com/SergejSchweizer/portfell/pull/34 |
+| PR23 | Portfolio Module: Maximum Diversification Objective | merged. PR: https://github.com/SergejSchweizer/portfell/pull/34 |
+| PR24 | Evaluation Module: Efficient Frontier Generator | merged. PR: https://github.com/SergejSchweizer/portfell/pull/34 |
+| PR25 | Portfolio Module: CVaR And Tail-Risk Optimization | merged. PR: https://github.com/SergejSchweizer/portfell/pull/34 |
+| PR26 | Evaluation CLI And Dry-Run Integration | merged. PR: https://github.com/SergejSchweizer/portfell/pull/34 |
+| PR27 | Gold Correlation Edge Dataset Baseline | merged. PR: https://github.com/SergejSchweizer/portfell/pull/28 |
+| PR28 | Gold Spearman Correlation Edges | merged. PR: https://github.com/SergejSchweizer/portfell/pull/30 |
+| PR29 | Gold Correlation Edges: Skip Same-ISIN Pairs | merged. PR: https://github.com/SergejSchweizer/portfell/pull/40 |
+| PR30 | Gold Pair Statistics Boundary Refactor | merged. PR: https://github.com/SergejSchweizer/portfell/pull/44 |
+| PR31 | Dataset Contract Registry Refactor | merged. PR: https://github.com/SergejSchweizer/portfell/pull/44 |
+| PR32 | Evaluation And Portfolio Package Boundary Refactor | merged. PR: https://github.com/SergejSchweizer/portfell/pull/44 |
+| PR33 | Unified Run State And Job Manifest Refactor | merged. PR: https://github.com/SergejSchweizer/portfell/pull/44 |
+| PR34 | Production Optimizer Interface And Diagnostics Refactor | merged. PR: https://github.com/SergejSchweizer/portfell/pull/44 |
+| PR35 | Enforce Real Evaluation And Portfolio Package Boundaries | merged. PR: https://github.com/SergejSchweizer/portfell/pull/46 |
+| PR36 | Extract Scalable Gold Pair Statistics Engine | merged. PR: https://github.com/SergejSchweizer/portfell/pull/46 |
+| PR37 | Type Critical Dataset Rows And Contract Validation | merged. PR: https://github.com/SergejSchweizer/portfell/pull/46 |
+| PR38 | Split CLI Parsing From Workflow Execution | merged. PR: https://github.com/SergejSchweizer/portfell/pull/46 |
+| PR39 | Add Import-Boundary And Scale-Guard Quality Gates | merged. PR: https://github.com/SergejSchweizer/portfell/pull/46 |
+| PR40 | Three-Module Boundaries And Public Contract Skeleton | merged. PR: https://github.com/SergejSchweizer/portfell/pull/51 |
+| PR41 | Refresh Catalog Contracts And Stable Instrument Identities | merged. PR: https://github.com/SergejSchweizer/portfell/pull/51 |
+| PR42 | Selection Predicate And Metric-Requirement Contracts | merged. PR: https://github.com/SergejSchweizer/portfell/pull/51 |
+| PR43 | Selection Identity, Candidate And Final Membership Contracts | merged. PR: https://github.com/SergejSchweizer/portfell/pull/51 |
+| PR44 | Update Contracts, Pinned Inputs, And Shared Work Planner | merged. PR: https://github.com/SergejSchweizer/portfell/pull/51 |
+| PR45 | Refresh Complete EODHD Catalog Synchronization | merged. PR: https://github.com/SergejSchweizer/portfell/pull/53 |
+| PR46 | Refresh All-ISIN Market Data And Versioned Inputs | merged. PR: https://github.com/SergejSchweizer/portfell/pull/53 |
+| PR47 | Refresh Service, Standalone CLI, And Atomic Publication | merged. PR: https://github.com/SergejSchweizer/portfell/pull/53 |
+| PR48 | Selection Service, Current Pointer, And Standalone CLI | merged. PR: https://github.com/SergejSchweizer/portfell/pull/53 |
+| PR49 | Update Incremental Per-ISIN Metric Cache | merged. PR: https://github.com/SergejSchweizer/portfell/pull/53 |
+| PR50 | Update Screening Classifications And Selection Finalization | merged. PR: https://github.com/SergejSchweizer/portfell/pull/53 |
+| PR51 | Update Selection Calendar And Comparable Metric Cache | merged. PR: https://github.com/SergejSchweizer/portfell/pull/53 |
+| PR52 | Update Incremental Pair Metric Cache | merged. PR: https://github.com/SergejSchweizer/portfell/pull/53 |
+| PR53 | Update Evaluation Profiles And Selection Analysis Manifests | merged. PR: https://github.com/SergejSchweizer/portfell/pull/53 |
+| PR54 | Update Service, Standalone CLI, And Atomic Publication | merged. PR: https://github.com/SergejSchweizer/portfell/pull/53 |
+| PR55 | Three-Module Cutover, Legacy Migration, And Documentation | merged. PR: https://github.com/SergejSchweizer/portfell/pull/53 |
+| PR56 | Return Semantics And Data-Quality Gate | merged. PR: https://github.com/SergejSchweizer/portfell/pull/83 |
+| PR57 | Instrument-Level Rebalancing Drift And Cost Basis | merged. PR: https://github.com/SergejSchweizer/portfell/pull/85 |
+| PR58 | Risk Model Package And Covariance Diagnostics | merged. PR: https://github.com/SergejSchweizer/portfell/pull/89 |
+| PR59 | Production Numerical Solver Boundary | addressed; no dedicated PR under this branch name |
+| PR60 | Production Minimum Variance And Equal Risk Contribution | merged. PR: https://github.com/SergejSchweizer/portfell/pull/101 |
+| PR61 | True HRP And Minimum CVaR Optimizers | merged. PR: https://github.com/SergejSchweizer/portfell/pull/104 and https://github.com/SergejSchweizer/portfell/pull/109 |
+| PR62A | Jurisdiction-Neutral Tax, Cost, And Cash-Flow Contracts | merged. PR: https://github.com/SergejSchweizer/portfell/pull/112 |
+| PR63 | Portfolio Profile Contracts And Balanced Ensemble Candidate | merged. PR: https://github.com/SergejSchweizer/portfell/pull/113 |
+| PR64 | Walk-Forward Model Comparison Scorecard | merged. PR: https://github.com/SergejSchweizer/portfell/pull/114 |
+| PR65 | Stress, Bootstrap, And Sensitivity Analysis | merged. PR: https://github.com/SergejSchweizer/portfell/pull/115 |
+| PR66 | Explainable Recommendation Report | merged. PR: https://github.com/SergejSchweizer/portfell/pull/116 |
+| PR69 | Multivariate Statistics Baseline Module And CLI | merged. PR: https://github.com/SergejSchweizer/portfell/pull/79 |
+| PR70 | Multivariate Production Portfolio Adapter | merged. PR: https://github.com/SergejSchweizer/portfell/pull/117 |
+| PR71 | Multivariate Income And Recommendation Outputs | merged. PR: https://github.com/SergejSchweizer/portfell/pull/118 |
+| PR72 | Multivariate Trading And Monitoring Handoff | merged. PR: https://github.com/SergejSchweizer/portfell/pull/119 |
+| PR73 | Generic Listing And Pair Statistics Cache | merged. PR: https://github.com/SergejSchweizer/portfell/pull/80 |
+| PR74 | Selection Statistics Views | merged. PR: https://github.com/SergejSchweizer/portfell/pull/120 |
+| PR75 | Multivariate Selection Cache Consumption | merged. PR: https://github.com/SergejSchweizer/portfell/pull/121 |
+
+## Completed And Superseded Detailed Records
+
+### Completed Hosted Stack Records
+
 ### PR92. Content-Addressed Univariate And Return Artifact Cache
 
 Branch: `feat/content-addressed-univariate-cache`.
@@ -328,26 +622,6 @@ Security: A user may reuse a pair artifact only when authorized for both underly
 Determinism: Pair orientation, alignment rows, common-date hash, bucket assignment, and artifact id are independent of selection order and worker scheduling.
 
 Idempotency: Repeated overlapping selections reuse existing pair artifacts and calculate only missing exact keys once.
-
-### PR94. Content-Addressed Multivariate, Portfolio, Backtest, And Report Artifacts
-
-Branch: `feat/content-addressed-portfolio-artifacts`.
-
-Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/137.
-
-Priority: P1 portfolio-level reuse.
-
-Depends on: PR93.
-
-Scope: Build shared multivariate and downstream artifact identities from the sorted authorized listing-input artifact ids, selection definition and membership, return matrix, risk model, constraints, optimizer settings, costs, walk-forward windows, stress settings, recommendation template, and algorithm versions. Store physical artifacts globally while creating separate user-owned analysis runs and project references. Remove user id from physical cache keys and include it only in authorization and provenance records.
-
-Acceptance: Two users with identical authorized snapshots and settings reuse one physical artifact while retaining separate runs. Different visible end dates, revisions, selections, constraints, costs, risk models, or algorithm versions produce distinct artifacts. Direct artifact-id access, cross-project run access, and stale project pointers are rejected.
-
-Security: Every response resolves through an authenticated user-owned analysis run; no endpoint serves shared artifact paths directly. Artifact dependency closure is checked before reuse.
-
-Determinism: Artifact ids and reports derive only from exact immutable inputs, explicit settings, and versioned algorithms.
-
-Idempotency: Repeated identical analyses return the existing completed result or join the active computation without duplicate artifacts, portfolio rows, or reports.
 
 ### PR95. Docker Compose PostgreSQL, API, Web, And Shared Runtime Storage
 
@@ -468,6 +742,10 @@ Security: Add a final threat-model review, authorization matrix, penetration-tes
 Determinism: Replaying identical user snapshots, selections, settings, and algorithm versions produces identical analytical artifact ids and values across restart and restore.
 
 Idempotency: Retrying the complete workflow creates no duplicate users, credentials, observations, grants, snapshots, calculations, analyses, or reports.
+
+### Superseded Research Funnel UI Stack
+
+Historical only. The following plan is superseded by PR110 through PR115 and must not be implemented as active scope.
 
 ## Portfell Research Funnel UI PR Stack
 
@@ -654,49 +932,3 @@ Security: Browser storage, URLs, client logs, screenshots, test traces, source m
 Determinism: Visual baselines use pinned browsers, fonts supplied by standard image packages rather than committed proprietary font files, fixed viewport fixtures, stable synthetic data, fixed locale/time zone, and disabled nondeterministic animation. E2E routes resolve exact snapshots, selections, and runs.
 
 Idempotency: Re-running the complete UI funnel against unchanged authorized inputs creates no duplicate projects, refreshes, selections, analyses, reports, or exports; restart and browser refresh resume persisted state.
-
-## Series Completion Gate
-
-Final hosted-security branch: `feat/hosted-multitenant-cutover`.
-
-Final UI branch: `feat/web-ui-production-cutover`.
-
-Squash rule: Every PR title and final squash commit subject must use `type(optional-scope): subject`. Branches PR85 through PR100 remain stacked on their declared dependencies. PR101, PR109, and PR102 through PR108 form a sequential post-PR100 UI stack and must be restacked after predecessor merges.
-
-Main-merge rule: No branch or pull request is merged into `main` unless the maintainer explicitly requests that `main` merge in the current task. Backlog continuation and UI work produce stacked, pushed PR branches by default; they remain open until the maintainer asks to land a PR or the full stack.
-
-Local UI stack runtime: While editing any UI stack branch, run `docker compose --env-file .env.local up --build --watch web` from that active branch. This makes the local Docker Web container rebuild from the current branch state after UI source changes. If Compose watch is not available, run `uv run portfell-compose-web-watch` from the active branch.
-
-Required gates: Use the current pre-merge, post-merge, auto-merge, branch-protection, shard, and coverage policy documented in [GATES.md](GATES.md).
-
-The hosted-security series is incomplete while any of these conditions remains true:
-
-- a provider key or KEK can enter Git, PostgreSQL plaintext, images, logs, browser storage, URLs, or CI;
-- shared physical data existence can create access without a successful user-key-backed request;
-- a hosted analytical workflow can read outside the authenticated user's immutable snapshot;
-- a statistics or portfolio cache can be reused without exact input-hash equality and authorization to its dependency closure;
-- direct artifact paths or ids can bypass a user-owned analysis run;
-- a new user can see pre-existing provider data;
-- one user's refresh can silently expand another user's visible date range or revision set;
-- public-hosted mode can start while licensing, privacy, credential, backup, or security gates are unresolved.
-
-The UI series is incomplete while any of these conditions remains true:
-
-- Docker Compose still serves a placeholder instead of the real Next.js Portfell application;
-- the persisted funnel cannot be resumed from Data through Report with immutable project, snapshot, selection, and run identities;
-- changing an upstream snapshot or filter does not mark dependent downstream results stale;
-- the browser performs financial calculations or authorization decisions;
-- data tables, search, facets, pair views, charts, reports, or exports can reveal rows outside the authenticated user's entitlement;
-- the UI cannot explain why an instrument was excluded, why a model differs, or which assumptions and constraints produced the result;
-- desktop, tablet, mobile, keyboard, screen-reader, error, loading, empty, and large-dataset paths are not covered by automated tests;
-- a clean documented Docker Compose startup cannot reach the production UI without editing repository source files.
-
-## Update Rules
-
-Update this file whenever:
-
-- a PR is opened, pushed, merged, blocked, split, or superseded;
-- a security or licensing decision changes the dependency order;
-- a new secret, external provider, user-data category, dataset, or authorization path is introduced;
-- an implementation discovers that an acceptance criterion cannot be met safely;
-- a production incident, restore drill, or threat-model review creates follow-up work.
