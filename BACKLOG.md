@@ -302,7 +302,7 @@ The series is sequential and must remain on the active UI branch stack until exp
 
 Branch: `feat/project-sidebar-context-api`.
 
-Git status: in progress. PR: TBD.
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/199.
 
 Priority: P0 sidebar data foundation.
 

@@ -41,9 +41,14 @@ PROJECT_SIDEBAR_PR_DEPENDENCIES = {
     119: "PR118",
 }
 PROJECT_SIDEBAR_PR_STATUSES = {
-    117: "in progress",
+    117: "pushed",
     118: "not started",
     119: "not started",
+}
+PROJECT_SIDEBAR_PR_URLS = {
+    117: "https://github.com/SergejSchweizer/portfell/pull/199",
+    118: "TBD",
+    119: "TBD",
 }
 SIMPLE_UI_PR_TITLES = {
     120: "Platform-Inspired Visual Foundations And Core Components",
@@ -168,7 +173,10 @@ def test_project_sidebar_stack_is_atomic_ordered_and_complete() -> None:
         section = _pr_section(backlog, pr_number)
         positions.append(sidebar.index(f"### PR{pr_number}. {title}"))
         assert f"Depends on: {PROJECT_SIDEBAR_PR_DEPENDENCIES[pr_number]}." in section
-        assert f"Git status: {PROJECT_SIDEBAR_PR_STATUSES[pr_number]}. PR: TBD." in section
+        assert (
+            f"Git status: {PROJECT_SIDEBAR_PR_STATUSES[pr_number]}. "
+            f"PR: {PROJECT_SIDEBAR_PR_URLS[pr_number]}."
+        ) in section
         for required_field in (
             "Scope:",
             "Acceptance:",
