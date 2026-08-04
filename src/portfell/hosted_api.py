@@ -26,6 +26,7 @@ from portfell.entitlements import (
 )
 from portfell.hosted_credentials import (
     CredentialStatus,
+    CredentialStore,
     CredentialVaultError,
     EodhdCredentialVault,
     InMemoryCredentialStore,
@@ -227,7 +228,11 @@ class AnalysisRecord:
 class HostedApiState:
     """In-memory hosted API repository set for deterministic tests and local dev."""
 
-    credentials: InMemoryCredentialStore = field(default_factory=InMemoryCredentialStore)
+    credentials: CredentialStore = field(default_factory=InMemoryCredentialStore)
+    credential_key_encryption_key: KeyEncryptionKey | None = field(
+        default_factory=lambda: KeyEncryptionKey("dev-v1", b"0" * 32)
+    )
+    credential_fingerprint_secret: bytes = b"portfell-dev-fingerprint-secret"
     entitlements: InMemoryEntitlementStore = field(default_factory=InMemoryEntitlementStore)
     projects_by_id: dict[str, ProjectRecord] = field(
         default_factory=lambda: dict[str, ProjectRecord]()
@@ -273,12 +278,12 @@ class HostedApiState:
     current_project_id_by_user: dict[str, str] = field(default_factory=lambda: dict[str, str]())
 
     def credential_vault(self) -> EodhdCredentialVault:
-        """Return a deterministic local credential vault."""
+        """Return the vault configured for this API state."""
 
         return EodhdCredentialVault(
             store=self.credentials,
-            key_encryption_key=KeyEncryptionKey("dev-v1", b"0" * 32),
-            fingerprint_secret=b"portfell-dev-fingerprint-secret",
+            key_encryption_key=self.credential_key_encryption_key,
+            fingerprint_secret=self.credential_fingerprint_secret,
         )
 
 

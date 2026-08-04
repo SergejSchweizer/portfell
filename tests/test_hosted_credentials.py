@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from portfell.hosted_credentials import (
@@ -10,6 +12,7 @@ from portfell.hosted_credentials import (
     KeyEncryptionKey,
     PostgresCredentialStore,
     mask_provider_key,
+    read_credential_secret,
     redact_credential_text,
 )
 
@@ -182,4 +185,33 @@ def test_redaction_and_short_masking_do_not_expose_secret() -> None:
             provider_key="abcd-secret-token-1234",
         )
         == "provider failed for <redacted>"
+    )
+
+
+def test_read_credential_secret_fails_closed_for_missing_or_invalid_files(tmp_path: Path) -> None:
+    secret_path = tmp_path / "credential-secret"
+
+    with pytest.raises(CredentialVaultError, match="unavailable"):
+        read_credential_secret(
+            secret_path,
+            name="fingerprint secret",
+            allowed_lengths=frozenset({32}),
+        )
+
+    secret_path.write_bytes(b"invalid")
+    with pytest.raises(CredentialVaultError, match="invalid length"):
+        read_credential_secret(
+            secret_path,
+            name="fingerprint secret",
+            allowed_lengths=frozenset({32}),
+        )
+
+    secret_path.write_bytes(b"1" * 32)
+    assert (
+        read_credential_secret(
+            secret_path,
+            name="fingerprint secret",
+            allowed_lengths=frozenset({32}),
+        )
+        == b"1" * 32
     )

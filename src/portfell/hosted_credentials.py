@@ -9,6 +9,7 @@ import os
 import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
+from pathlib import Path
 from typing import Protocol, cast, runtime_checkable
 
 from cryptography.exceptions import InvalidTag
@@ -17,6 +18,31 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 class CredentialVaultError(RuntimeError):
     """Raised when hosted credential handling fails closed."""
+
+
+def read_credential_secret(path: Path, *, name: str, allowed_lengths: frozenset[int]) -> bytes:
+    """Load one required binary credential secret from an external file."""
+
+    try:
+        value = path.read_bytes().strip()
+    except OSError as error:
+        raise CredentialVaultError(f"{name} is unavailable") from error
+    if len(value) not in allowed_lengths:
+        raise CredentialVaultError(f"{name} has an invalid length")
+    return value
+
+
+def load_key_encryption_key(path: Path, *, version: str) -> KeyEncryptionKey:
+    """Load a versioned AES key-encryption key from an external secret file."""
+
+    return KeyEncryptionKey(
+        version=version,
+        material=read_credential_secret(
+            path,
+            name="credential key-encryption key",
+            allowed_lengths=frozenset({16, 24, 32}),
+        ),
+    )
 
 
 @dataclass(frozen=True)
