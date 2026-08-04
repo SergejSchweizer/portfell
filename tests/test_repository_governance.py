@@ -22,6 +22,14 @@ FOUR_PAGE_PR_DEPENDENCIES = {
     114: "PR113",
     115: "PR114",
 }
+FOUR_PAGE_GITHUB_PRS = {
+    110: 190,
+    111: 197,
+    112: 192,
+    113: 193,
+    114: 194,
+    115: 195,
+}
 
 HOSTED_REQUIREMENTS_BY_PR = {
     84: "Architecture decision, threat model, and prohibited designs",
@@ -69,9 +77,9 @@ def test_four_page_stack_is_first_and_follows_dependency_order() -> None:
 
         assert position < hosted_start
         assert f"Depends on: {FOUR_PAGE_PR_DEPENDENCIES[pr_number]}." in section
-        github_pr = pr_number + 80
+        github_pr = FOUR_PAGE_GITHUB_PRS[pr_number]
         assert (
-            f"Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/{github_pr}."
+            f"Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/{github_pr}."
         ) in section
         assert "Scope:" in section
         assert "Acceptance:" in section

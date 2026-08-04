@@ -44,7 +44,7 @@ The stack is deliberately sequential. Each PR must be independently reviewable, 
 
 Branch: `feat/four-page-workflow-state`.
 
-Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/190.
+Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/190.
 
 Priority: P0 workflow foundation.
 
@@ -80,7 +80,7 @@ Idempotency: Repeating `GET /api/workflow` performs no writes and creates no pro
 
 Branch: `feat/metadata-filter-quote-progress`.
 
-Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/191.
+Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/197.
 
 Priority: P0 first runnable page.
 
@@ -121,7 +121,7 @@ Idempotency: Retrying credential save, metadata refresh, identical filtering, po
 
 Branch: `feat/univariate-statistics-page`.
 
-Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/192.
+Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/192.
 
 Priority: P1 second workflow page.
 
@@ -159,7 +159,7 @@ Idempotency: Identical run creation is deduplicated by the canonical input hash.
 
 Branch: `feat/univariate-filter-page`.
 
-Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/193.
+Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/193.
 
 Priority: P1 third workflow page.
 
@@ -197,7 +197,7 @@ Idempotency: Reapplying an identical normalized predicate set reuses the same se
 
 Branch: `feat/bivariate-statistics-page`.
 
-Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/194.
+Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/194.
 
 Priority: P1 fourth workflow page.
 
@@ -235,7 +235,7 @@ Idempotency: Identical source selection and algorithm inputs resolve to one logi
 
 Branch: `refactor/four-page-ui-completion-gate`.
 
-Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/195.
+Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/195.
 
 Priority: P1 cutover completion.
 
@@ -274,7 +274,7 @@ Idempotency: Replaying the complete synthetic workflow creates no duplicate cred
 
 Branch: `refactor/remove-google-authentication`.
 
-Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/196.
+Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/196.
 
 Priority: P0 local-runtime simplification.
 
