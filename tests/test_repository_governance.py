@@ -30,6 +30,33 @@ FOUR_PAGE_GITHUB_PRS = {
     114: 194,
     115: 195,
 }
+PROJECT_SIDEBAR_PR_TITLES = {
+    117: "Persisted Current-Project Context And Project-Scoped Workflow API",
+    118: "Desktop Sidebar, Project Dropdown, And Workflow Hierarchy",
+    119: "Responsive Sidebar Drawer, Accessibility, And Completion Gate",
+}
+PROJECT_SIDEBAR_PR_DEPENDENCIES = {
+    117: "PR116",
+    118: "PR117",
+    119: "PR118",
+}
+PROJECT_SIDEBAR_PR_STATUSES = {
+    117: "in progress",
+    118: "not started",
+    119: "not started",
+}
+SIMPLE_UI_PR_TITLES = {
+    120: "Platform-Inspired Visual Foundations And Core Components",
+    121: "Platform-Inspired Header, Sidebar, And Navigation Refinement",
+    122: "Platform-Inspired Forms, Progress, Tables, And Page States",
+    123: "Simple UI Motion, Accessibility, Visual Regression, And Completion Gate",
+}
+SIMPLE_UI_PR_DEPENDENCIES = {
+    120: "PR119",
+    121: "PR120",
+    122: "PR121",
+    123: "PR122",
+}
 
 HOSTED_REQUIREMENTS_BY_PR = {
     84: "Architecture decision, threat model, and prohibited designs",
@@ -128,6 +155,78 @@ def test_four_page_stack_defines_exact_canonical_routes_and_no_retired_metadata_
     assert positions == sorted(positions)
     assert "canonical Python operation is `fetch_all_metadata`" in active
     assert "`fetch_all_isins` must not be reintroduced" in active
+
+
+def test_project_sidebar_stack_is_atomic_ordered_and_complete() -> None:
+    backlog = (REPOSITORY_ROOT / "BACKLOG.md").read_text(encoding="utf-8")
+    sidebar_start = backlog.index("## Active Project Sidebar PR Stack")
+    hosted_start = backlog.index("## Active Hosted Multi-Tenant Portfell PR Stack")
+    sidebar = backlog[sidebar_start:hosted_start]
+    positions: list[int] = []
+
+    for pr_number, title in PROJECT_SIDEBAR_PR_TITLES.items():
+        section = _pr_section(backlog, pr_number)
+        positions.append(sidebar.index(f"### PR{pr_number}. {title}"))
+        assert f"Depends on: {PROJECT_SIDEBAR_PR_DEPENDENCIES[pr_number]}." in section
+        assert f"Git status: {PROJECT_SIDEBAR_PR_STATUSES[pr_number]}. PR: TBD." in section
+        for required_field in (
+            "Scope:",
+            "Acceptance:",
+            "Out of scope:",
+            "Security:",
+            "Determinism:",
+            "Idempotency:",
+        ):
+            assert required_field in section
+
+        branch_match = re.search(r"^Branch: `([^`]+)`\.$", section, flags=re.MULTILINE)
+        assert branch_match is not None, f"PR{pr_number} has no Branch entry"
+        assert TYPED_BRANCH_PATTERN.fullmatch(branch_match.group(1))
+
+    assert positions == sorted(positions)
+    assert "Project -> Metadata Filter -> Univariate Statistics" in sidebar
+    assert "one canonical `workflowPages` registry" in sidebar
+    assert "### Project Sidebar Series Completion Gate" in sidebar
+    assert "[GATES.md](GATES.md)" in sidebar
+
+
+def test_platform_inspired_simple_ui_stack_is_atomic_ordered_and_mark_neutral() -> None:
+    backlog = (REPOSITORY_ROOT / "BACKLOG.md").read_text(encoding="utf-8")
+    design_start = backlog.index("## Active Platform-Inspired Simple UI PR Stack")
+    hosted_start = backlog.index("## Active Hosted Multi-Tenant Portfell PR Stack")
+    design = backlog[design_start:hosted_start]
+    positions: list[int] = []
+
+    for pr_number, title in SIMPLE_UI_PR_TITLES.items():
+        section = _pr_section(backlog, pr_number)
+        positions.append(design.index(f"### PR{pr_number}. {title}"))
+        assert f"Depends on: {SIMPLE_UI_PR_DEPENDENCIES[pr_number]}." in section
+        assert "Git status: not started. PR: TBD." in section
+        for required_field in (
+            "Scope:",
+            "Acceptance:",
+            "Out of scope:",
+            "Security:",
+            "Determinism:",
+            "Idempotency:",
+        ):
+            assert required_field in section
+
+        branch_match = re.search(r"^Branch: `([^`]+)`\.$", section, flags=re.MULTILINE)
+        assert branch_match is not None, f"PR{pr_number} has no Branch entry"
+        assert TYPED_BRANCH_PATTERN.fullmatch(branch_match.group(1))
+
+    assert positions == sorted(positions)
+    for required_rule in (
+        "without copying either company's branding",
+        "one restrained blue accent",
+        "one icon library",
+        "prefers-reduced-motion",
+        "no critical or serious violations",
+        "### Platform-Inspired Simple UI Series Completion Gate",
+        "[GATES.md](GATES.md)",
+    ):
+        assert required_rule in design
 
 
 def test_quality_gates_are_documented_centrally() -> None:

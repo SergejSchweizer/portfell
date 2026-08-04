@@ -122,6 +122,12 @@ HOSTED_TABLES: tuple[HostedTable, ...] = (
     HostedTable("portfell_app.users", True, False, "Internal user identities."),
     HostedTable("portfell_app.provider_credentials", True, False, "Encrypted EODHD credentials."),
     HostedTable("portfell_app.projects", True, False, "User research projects."),
+    HostedTable(
+        "portfell_app.current_project_preferences",
+        True,
+        False,
+        "One current-project pointer per user.",
+    ),
     HostedTable("portfell_app.download_runs", True, True, "User-key-backed provider requests."),
     HostedTable(
         "portfell_app.market_objects", False, True, "Shared immutable market object catalog."
@@ -422,10 +428,28 @@ drop table if exists portfell_app.sessions;
 drop table if exists portfell_app.external_identities;
 """
 
+_CURRENT_PROJECT_PREFERENCE_SQL = """
+create table if not exists portfell_app.current_project_preferences (
+    user_id uuid primary key references portfell_app.users(user_id) on delete cascade,
+    project_id uuid references portfell_app.projects(project_id) on delete set null,
+    updated_at timestamptz not null default now()
+);
+
+alter table portfell_app.current_project_preferences enable row level security;
+alter table portfell_app.current_project_preferences force row level security;
+drop policy if exists user_isolation on portfell_app.current_project_preferences;
+create policy user_isolation on portfell_app.current_project_preferences
+    using (user_id = nullif(current_setting('portfell.current_user_id', true), '')::uuid)
+    with check (user_id = nullif(current_setting('portfell.current_user_id', true), '')::uuid);
+grant select, insert, update on portfell_app.current_project_preferences to portfell_app;
+grant select on portfell_app.current_project_preferences to portfell_readonly;
+"""
+
 MIGRATIONS: tuple[HostedMigration, ...] = (
     HostedMigration(1, "hosted_catalog_base_schema", _BASE_SCHEMA_SQL),
     HostedMigration(2, "hosted_catalog_rls_and_grants", _RLS_POLICY_SQL),
     HostedMigration(3, "remove_google_authentication", _REMOVE_GOOGLE_AUTH_SQL),
+    HostedMigration(4, "current_project_preference", _CURRENT_PROJECT_PREFERENCE_SQL),
 )
 
 

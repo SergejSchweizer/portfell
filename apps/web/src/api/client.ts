@@ -1,5 +1,5 @@
 
-import type { ApiWorkflow } from "../contracts";
+import type { ApiProjectContext, ApiWorkflow } from "../contracts";
 
 export class ApiError extends Error {
   constructor(
@@ -38,4 +38,19 @@ export function postJson<TResponse>(path: string, body: unknown): Promise<TRespo
 
 export function loadWorkflow(): Promise<ApiWorkflow> {
   return requestJson<ApiWorkflow>("/api/workflow");
+}
+
+export function loadProjectContext(): Promise<ApiProjectContext> {
+  return requestJson<ApiProjectContext>("/api/project-context");
+}
+
+export function selectCurrentProject(projectId: string): Promise<ApiProjectContext> {
+  return requestJson<ApiProjectContext>("/api/project-context/current-project", {
+    method: "PUT",
+    body: JSON.stringify({ project_id: projectId }),
+  });
+}
+
+export function loadProjectWorkflow(projectId: string): Promise<ApiWorkflow> {
+  return requestJson<ApiWorkflow>(`/api/projects/${encodeURIComponent(projectId)}/workflow`);
 }

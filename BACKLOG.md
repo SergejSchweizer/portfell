@@ -6,6 +6,8 @@ Last reviewed: 2026-08-04
 
 - [Backlog Policy](#backlog-policy)
 - [Active Four-Page Portfell UI PR Stack](#active-four-page-portfell-ui-pr-stack)
+- [Active Project Sidebar PR Stack](#active-project-sidebar-pr-stack)
+- [Active Platform-Inspired Simple UI PR Stack](#active-platform-inspired-simple-ui-pr-stack)
 - [Active Hosted Multi-Tenant Portfell PR Stack](#active-hosted-multi-tenant-portfell-pr-stack)
 - [Current Architectural Decision](#current-architectural-decision)
 - [Series Completion Gate](#series-completion-gate)
@@ -289,6 +291,316 @@ Security: The local runtime is not a multi-user or public-hosted deployment boun
 Determinism: Every request resolves to the fixed local workspace identity without browser-supplied user or session state.
 
 Idempotency: Applying the catalog retirement migration repeatedly leaves the schema unchanged after the first successful application.
+
+## Active Project Sidebar PR Stack
+
+This series adds one persistent application sidebar without changing the four canonical workflow routes. On desktop, the sidebar shows the current project as a dropdown and the workflow as an ordered hierarchy beneath it. On narrow viewports, the same sidebar content appears in an accessible drawer opened from the header. The hierarchy is exactly `Project -> Metadata Filter -> Univariate Statistics -> Univariate Filter -> Bivariate Statistics`; it is not a filesystem tree, an arbitrary nested-project model, or a second route registry.
+
+The series is sequential and must remain on the active UI branch stack until explicitly landed. Each PR must follow [GATES.md](GATES.md), update implementation and UI specifications together, and leave all existing four-page routes directly addressable. Browser code may render and request project context, but project ownership, current-project persistence, workflow status, and stage locking remain server-owned.
+
+### PR117. Persisted Current-Project Context And Project-Scoped Workflow API
+
+Branch: `feat/project-sidebar-context-api`.
+
+Git status: in progress. PR: TBD.
+
+Priority: P0 sidebar data foundation.
+
+Depends on: PR116.
+
+Scope:
+
+- Add a server-owned current-project preference for the fixed local workspace user. Store the pointer in the application catalog through a new ordered, checksum-stable migration; do not modify the text of existing migrations. The preference may be absent when no project exists.
+- Add `GET /project-context`. Return `{current_project_id, current_project, projects}` where `current_project` is either `null` or `{project_id, name, selected_count, data_loaded}`, and `projects` is a deterministic list of those same project summaries.
+- Add `PUT /project-context/current-project` with JSON `{project_id}`. Accept only a project owned by the current local workspace, persist the pointer, and return the same contract as `GET /project-context`.
+- Sort projects case-insensitively by `name`, then by `project_id`. Do not use creation time, dictionary iteration order, or browser sorting.
+- Define deterministic defaulting: when no preference exists and projects exist, select the first item in the canonical sort order and persist it; when no projects exist, return `current_project_id=null`, `current_project=null`, and `projects=[]` without creating a project.
+- When `POST /api/metadata-filter` creates or reuses a project, make that project current in the same successful operation. A failed or zero-result filter must not change the current-project pointer.
+- When the current project is deleted, clear the pointer and select the next canonical project if one exists. Deleting a non-current project must not change the pointer.
+- Replace implicit latest-selection workflow lookup with `GET /projects/{project_id}/workflow`. Resolve every stage only from records belonging to that project and workspace. Keep `GET /workflow` temporarily as an internal compatibility endpoint only if an existing non-Web caller still requires it; otherwise delete it in this PR.
+- Add Python response models or typed row builders for project context rather than assembling different shapes in multiple endpoints. Add matching `ApiProjectSummary`, `ApiProjectContext`, and project-scoped `ApiWorkflow` TypeScript contracts in `apps/web/src/contracts.ts`.
+- Add `loadProjectContext()`, `selectCurrentProject(projectId)`, and `loadProjectWorkflow(projectId)` to `apps/web/src/api/client.ts`. Pages and shell code must not call `fetch` directly.
+- Update `CONTRACTS.md` and create `docs/ui/layout/sidebar.md` with the server-owned inputs and empty/loading/error contracts needed by PR118. This PR does not render the sidebar.
+
+Acceptance:
+
+- API tests cover zero projects, one project, canonical ordering, explicit selection, repeated selection, process restart with the same catalog, current-project deletion, non-current deletion, unknown project, and a project id owned by another workspace fixture.
+- `PUT /project-context/current-project` returns `404` for unknown or inaccessible ids and leaves the previous pointer unchanged.
+- Two projects with different selections and runs return different project-scoped workflow identifiers and statuses; switching the current project never leaks identifiers from the previous project.
+- Repeating `GET /project-context` and `GET /projects/{project_id}/workflow` performs no writes after the deterministic default has been established.
+- Existing project creation, metadata filtering, quote loading, and four workflow-stage tests remain green.
+- TypeScript accepts the API responses without `any`, unchecked casts, or duplicated project-summary types.
+
+Out of scope: Sidebar markup, project creation or deletion controls in the Web UI, project renaming, nested projects, drag-and-drop ordering, authentication, and multi-user account switching.
+
+Security: Every project and workflow lookup is resolved inside the fixed local workspace boundary. A supplied project id is an identifier, not authorization; unknown and inaccessible ids return the same `404` shape and never disclose project names or stage identifiers.
+
+Determinism: The current project, project ordering, response serialization, and project-scoped workflow state derive from persisted workspace records and explicit tie-breakers.
+
+Idempotency: Repeating the same current-project selection preserves one preference row and returns byte-equivalent context apart from transport metadata.
+
+### PR118. Desktop Sidebar, Project Dropdown, And Workflow Hierarchy
+
+Branch: `feat/project-sidebar-shell`.
+
+Git status: not started. PR: TBD.
+
+Priority: P0 visible navigation.
+
+Depends on: PR117.
+
+Scope:
+
+- Refactor `apps/web/src/shell/frame.tsx` into a stable application layout with header, sidebar, and main content regions. Keep the EODHD key and `Fetch all metadata` action in the header.
+- Add `apps/web/src/shell/project-sidebar.tsx`. At the top render a visible `Project` label and a native `<select>` whose selected option text is the exact current project name. Use project ids only as option values; never display ids as labels.
+- Under the dropdown render one `Workflow` navigation landmark as an ordered list. Derive its four entries from `workflowPages` in `apps/web/src/routes.tsx`; do not create a second page array. Render the exact order Metadata Filter, Univariate Statistics, Univariate Filter, Bivariate Statistics.
+- Make the hierarchy visually explicit with a project root, one vertical connector, numbered stage markers, and indentation. Use CSS borders and existing text/icon primitives; do not add a chart or tree library.
+- Render each stage's server status (`locked`, `ready`, `running`, `complete`, `failed`, or `stale`) as both visible text and a non-color-only marker. The active route uses `aria-current="page"`.
+- Keep locked stages visible but render them as non-links with `aria-disabled="true"`. Ready, running, complete, failed, and stale stages remain navigable so users can inspect their state.
+- On dropdown change, disable the selector, call `PUT /api/project-context/current-project`, load `GET /api/projects/{project_id}/workflow`, then navigate to the selected project's first non-locked stage. If every later stage is locked, navigate to `/metadata-filter`.
+- Dispatch one typed shell context update after a successful switch so all four pages clear project-specific transient state and reload server-owned state. Do not use Redux, Zustand, React Context as a global data cache, browser storage, URL fragments, or a full page reload.
+- If switching fails, keep the prior project selected, keep the current page content, expose the server error in an `aria-live` region, and re-enable the selector.
+- Define exact shell states: loading skeleton with fixed sidebar width; no-project state showing `No projects yet` and only Metadata Filter as available; ready state; switching state; and recoverable load/switch failure.
+- Update all four pages to use the shell's selected `project_id` when invoking project-bound endpoints. A project switch must clear stale run ids, selections, tables, progress, and error messages before the replacement project's requests begin.
+- Add styles to the existing production stylesheet `apps/web/styles/app.css`: desktop sidebar width `272px`, header spanning full width, sidebar below the header, independently scrolling main content, and no nested cards. Keep the sidebar visible at viewport widths of `901px` and above.
+- Update `docs/ui/header.md`, `docs/ui/layout/sidebar.md`, and all four files under `docs/ui/windows/` with final desktop layout, project-switch behavior, hierarchy states, and page reset rules.
+
+Acceptance:
+
+- At `1440x900` and `1024x768`, the sidebar is visible without user action, is exactly one persistent left column, and does not overlap the header or main content.
+- The current project name is visible in the closed dropdown; opening it lists every project once in API order.
+- Selecting another project updates the dropdown, hierarchy statuses, route, and page data without reloading the document. Returning to the prior project restores its server-owned workflow state.
+- With no projects, the dropdown is disabled, `No projects yet` is visible, Metadata Filter remains navigable, and no synthetic project is created.
+- Every workflow item comes from `workflowPages`; tests fail if sidebar labels, paths, order, or count diverge from the canonical route registry.
+- Component tests cover loading, empty, ready, locked, switching, failed switch, successful switch, and stale-stage rendering.
+- Existing direct links, browser back/forward behavior, EODHD credential submission, metadata refresh, and all four page actions continue to work.
+- `npm run typecheck`, `npm run build`, `node --check server.js`, focused Python API tests, and repository `pr-quality` pass.
+
+Out of scope: Mobile drawer behavior, create/rename/delete project controls, free-form hierarchy editing, collapsing individual workflow stages, route additions, and visual-regression baselines.
+
+Security: Project ids are sent only to project-scoped API endpoints. The browser never infers ownership, broadens project access, stores project context persistently, or renders provider credentials in the sidebar.
+
+Determinism: Given the same project-context and workflow responses, the dropdown order, selected project, hierarchy order, status labels, and target route are identical.
+
+Idempotency: Selecting the already-current project performs no navigation reset and creates no duplicate preference, project, selection, run, or artifact.
+
+### PR119. Responsive Sidebar Drawer, Accessibility, And Completion Gate
+
+Branch: `feat/project-sidebar-completion-gate`.
+
+Git status: not started. PR: TBD.
+
+Priority: P1 responsive and regression completion.
+
+Depends on: PR118.
+
+Scope:
+
+- At viewport widths of `900px` and below, replace the persistent sidebar column with a header menu icon button using the existing icon library. Give it the accessible name `Open project navigation`, `aria-expanded`, and `aria-controls` targeting the drawer.
+- Render the same `ProjectSidebar` component inside a left drawer; do not duplicate dropdown or hierarchy markup. The drawer width is `min(320px, 88vw)` and main content must remain readable at `320px` viewport width.
+- Implement drawer focus management: opening moves focus to the project selector or first available workflow link; `Escape`, backdrop click, successful navigation, and browser route change close it; closing returns focus to the opener. Trap keyboard focus while open and prevent background scrolling.
+- Add a backdrop and restrained open/close transition that honors `prefers-reduced-motion`. The drawer must not rely on swipe gestures and must remain usable at 200% browser zoom.
+- Use the proper landmarks: one banner, one project-navigation landmark, and one main region. Ensure dropdown label association, visible focus, minimum control size, status text independent of color, and no duplicate navigation landmark while the drawer is closed.
+- Add Playwright coverage at `1440x900`, `1024x768`, `768x1024`, and `390x844`. Cover initial project display, project switching, locked hierarchy, direct-link refresh, back/forward navigation, drawer keyboard operation, focus return, no-project state, and failed context request.
+- Add screenshot baselines for desktop ready state, desktop no-project state, mobile drawer open, and mobile locked hierarchy. Mask only nondeterministic provider-derived counts; do not mask the project name, stage labels, status labels, or layout geometry.
+- Add a canvas/pixel or bounding-box assertion proving the sidebar/drawer is nonblank, inside the viewport, and non-overlapping with header and main content at each tested viewport.
+- Extend repository governance tests so the production shell must contain one `ProjectSidebar`, one project dropdown contract, one canonical `workflowPages` registry, and matching `docs/ui/layout/sidebar.md`; forbid a second hard-coded workflow-navigation list.
+- Update `README.md` and `docs/ui/page-development.md` with the final responsive shell contract and the rule that future workflow routes automatically flow into the sidebar hierarchy through `workflowPages`.
+
+Acceptance:
+
+- Desktop behavior from PR118 remains unchanged above `900px`; mobile and tablet widths expose the same project name and hierarchy through the drawer.
+- Keyboard-only tests can open the drawer, change projects, traverse every available stage, close with `Escape`, and observe focus return without reaching background controls while open.
+- Automated accessibility checks report no critical or serious violations on all four routes in desktop and mobile layouts.
+- Screenshots show no clipped dropdown text, overlapping landmarks, off-screen drawer content, horizontal page scrolling, or layout shift when statuses change.
+- A full synthetic workflow remains project-isolated across two projects before and after refresh, project switching, direct linking, and browser back/forward navigation.
+- All commands required by [GATES.md](GATES.md), including Python tests, TypeScript checking, Vite build, Node syntax checking, Playwright, Ruff, Pyright, import-linter, and repository quality checks, pass.
+
+Out of scope: Offline support, touch gestures, user-customizable sidebar width, persisted collapsed state, themes, nested projects, and new workflow pages.
+
+Security: Drawer state and responsive behavior do not change authorization. Browser tests verify that failed or inaccessible project selection reveals no foreign project metadata and leaves the existing project context intact.
+
+Determinism: Fixed fixtures, viewport sizes, reduced-motion settings, project order, and workflow responses produce stable screenshots and focus sequences.
+
+Idempotency: Repeated open/close, route navigation, refresh, and current-project selection leave server state unchanged except for one intentional current-project preference update.
+
+### Project Sidebar Series Completion Gate
+
+The project-sidebar series is complete only after PR117 through PR119 are merged and all required pre-merge and post-merge checks in [GATES.md](GATES.md) pass. Completion additionally requires one server-owned current-project pointer, project-scoped workflow resolution, one canonical `workflowPages` registry, a visible desktop sidebar, an accessible mobile drawer, deterministic project switching, synchronized layout/page specifications, and passing two-project isolation plus visual-regression tests.
+
+## Active Platform-Inspired Simple UI PR Stack
+
+This series applies the shared simplicity principles of modern Google and Apple product interfaces to Portfell without copying either company's branding, proprietary fonts, logos, icons, exact components, trade dress, or full design system. The intended result is a quiet operational interface with strong information hierarchy, restrained color, generous but efficient spacing, familiar controls, immediate feedback, predictable navigation, and accessible motion. Portfell remains visually distinct and optimized for repeated financial research work rather than resembling a consumer marketing page.
+
+The series begins only after the project-sidebar stack is complete. Each PR is independently reviewable, updates implementation and specifications together, and follows [GATES.md](GATES.md). No PR may change financial calculations, server-owned workflow rules, project authorization, API response meaning, or the four canonical route paths.
+
+### PR120. Platform-Inspired Visual Foundations And Core Components
+
+Branch: `refactor/platform-simple-ui-foundations`.
+
+Git status: not started. PR: TBD.
+
+Priority: P1 visual foundation.
+
+Depends on: PR119.
+
+Scope:
+
+- Create `docs/ui/design-system.md` as the canonical Portfell visual contract. State the principles explicitly: content before decoration, one clear primary action per task region, progressive disclosure, familiar platform behavior, readable density, visible system status, direct manipulation only where reversible, and no decorative elements that compete with financial data.
+- Define all production design tokens once in `apps/web/styles/app.css` under `:root`. Use semantic names rather than component-specific names: canvas, surface, surface-subtle, text, text-muted, border, border-strong, accent, accent-hover, focus, success, warning, danger, and disabled.
+- Use a neutral canvas and white primary surfaces with one restrained blue accent. Semantic success, warning, and danger colors may appear only for matching status or destructive actions. Forbid gradients, decorative blobs, glassmorphism, tinted page-wide backgrounds, and color-only status communication.
+- Define a fixed typography scale with sizes `12`, `14`, `16`, `20`, and `28px`; line heights of at least `1.35`; normal letter spacing of `0`; and weights limited to `400`, `500`, `600`, and `700`. Use a licensed, locally bundled UI typeface or the existing platform stack when bundling would add unjustified weight. Do not reference San Francisco, Product Sans, Google Sans, or remote font CDNs.
+- Define spacing tokens on a `4px` base (`4`, `8`, `12`, `16`, `24`, `32`, `48`) and radius tokens limited to `4`, `6`, and `8px`. Shadows are allowed only for floating drawers, menus, dialogs, and focus elevation; ordinary page sections and panels use spacing or a one-pixel border.
+- Define stable control heights: `40px` compact desktop fields, `44px` primary/mobile controls, and `32px` icon buttons. All interactive targets remain at least `44x44px` on touch layouts through padding or an invisible target area.
+- Add `lucide-react` as the single icon library. Use icons only where they clarify a familiar action or status. Every icon-only button requires an accessible name and tooltip; do not add manually drawn SVGs, emoji, Apple symbols, Google Material Symbols, or mixed icon libraries.
+- Refactor `Button`, `Panel`, `StatusBadge`, `LoadingState`, `EmptyState`, and `ProgressStepper` to consume semantic tokens. Keep existing public props unless a typed extension is required. Buttons support primary, secondary, quiet, and danger appearances; only one primary button is allowed per visible task region.
+- Add shared `IconButton`, `Field`, and `InlineNotice` components with typed props. `Field` owns label, hint, error, control association, and reserved message height; `InlineNotice` supports information, success, warning, and error without using color alone.
+- Replace raw colors, ad hoc border radii, and duplicated focus styles in production CSS with tokens. Do not redesign shell or page layout in this PR beyond changes required to adopt the components.
+- Update `docs/ui/page-development.md` so future UI work must use tokens and shared controls, and add a repository test that rejects new raw hexadecimal colors outside the token declaration block.
+
+Acceptance:
+
+- Token documentation lists every semantic token, permitted use, contrast requirement, and prohibited use; production CSS contains one source of truth for each value.
+- All shared components render default, hover, active, focus-visible, disabled, loading where applicable, and error where applicable states without layout shift.
+- Primary, secondary, quiet, and danger buttons remain distinguishable in forced-colors mode and at 200% zoom.
+- Text and controls meet WCAG 2.2 AA contrast; focus indicators have at least a `2px` visible outline with separation from the component edge.
+- No route, API call, page order, server-owned status, financial value, or project-switch behavior changes.
+- Component tests cover keyboard activation, disabled behavior, accessible names, label/error association, status text, and icon-only tooltips.
+- `npm ci`, `npm run typecheck`, `npm run build`, focused UI tests, and repository `pr-quality` pass.
+
+Out of scope: Sidebar layout changes, page-specific form/table redesign, dark mode, user themes, charts, new routes, branded Apple or Google assets, and screenshot baseline replacement.
+
+Security: Shared components never render secret values in hints, errors, tooltips, DOM data attributes, or analytics hooks. Password/provider-key fields preserve their existing write-only behavior.
+
+Determinism: Identical component props and token values produce identical class names, text, icon selection, dimensions, and DOM order.
+
+Idempotency: Re-rendering or repeatedly activating disabled/loading controls performs no duplicate request or state mutation.
+
+### PR121. Platform-Inspired Header, Sidebar, And Navigation Refinement
+
+Branch: `refactor/platform-simple-ui-shell`.
+
+Git status: not started. PR: TBD.
+
+Priority: P1 shell clarity.
+
+Depends on: PR120.
+
+Scope:
+
+- Apply the foundation tokens and shared components to `ShellFrame` and `ProjectSidebar` without changing the project-context API or canonical route registry.
+- Make the desktop header a stable `64px` bar with Portfell as the strongest label, a concise secondary workspace label, and the metadata credential action aligned to the right. Avoid oversized branding, marketing copy, hero treatment, or decorative header backgrounds.
+- Keep the desktop sidebar `272px` wide. Use a flat surface separated from main content by one border; do not wrap the sidebar, project selector, or workflow hierarchy in cards.
+- Render the project selector as the sidebar's first control with a compact `Project` label, current project name, chevron icon, loading state, empty state, and error state. Long project names truncate visually with a native title/accessible full name and never widen the sidebar.
+- Refine the workflow hierarchy to use quiet labels, consistent `40px` rows, one vertical connector, compact status icon plus text, and a restrained accent treatment for the active route. Locked stages remain legible and visible rather than fading below accessible contrast.
+- Use familiar symbols from Lucide for menu, chevron, lock, running, complete, warning, and error. Do not place icons in every navigation row unless the icon communicates state.
+- Keep the desktop sidebar persistent and the PR119 mobile drawer behavior intact. The mobile header contains only brand, current-project summary, and menu control; credential entry moves into a clearly labeled drawer/header action region if it cannot fit without wrapping.
+- Set main content to a readable maximum width between `1120px` and `1280px`, aligned consistently from the sidebar edge. Data tables may use the full available width; forms and status copy should not stretch to unreadable line lengths.
+- Preserve normal browser navigation, direct links, visible page titles, sidebar project switching, drawer focus management, and all shell landmarks.
+- Update `docs/ui/header.md` and `docs/ui/layout/sidebar.md` with exact desktop/mobile dimensions, truncation, hierarchy styling, icon semantics, and credential-control placement.
+
+Acceptance:
+
+- At `1440x900` and `1024x768`, header, sidebar, and main content align to one spacing grid with no overlap, nested cards, or unexpected horizontal scrolling.
+- At `390x844`, the closed shell shows a single menu button and no duplicate hidden navigation landmark; the open drawer exposes the complete project name and hierarchy.
+- Project names of 1, 40, 100, and 200 characters do not resize the sidebar, cover controls, or become inaccessible.
+- Active, locked, ready, running, complete, failed, and stale hierarchy states are distinguishable by text and shape as well as color.
+- Credential entry remains write-only, keyboard reachable, and absent from browser storage, URLs, logs, screenshots, and sidebar content.
+- Playwright shell tests cover desktop, tablet, mobile, long names, project switching, all workflow statuses, drawer open/close, and failed context loading.
+- Existing four-page route and API regression tests remain green; full frontend build and repository `pr-quality` pass.
+
+Out of scope: Form-field redesign inside pages, table density, new project actions, collapsible desktop sidebar, themes, account controls, and financial visualization.
+
+Security: The refined shell reveals only project names returned by the current workspace context. Truncation and tooltips must not expose ids, foreign names, credentials, or internal error traces.
+
+Determinism: Fixed viewport, project context, route, and workflow state produce stable shell geometry, label order, icon choice, truncation, and focus order.
+
+Idempotency: Reopening navigation, selecting the current route, or selecting the current project creates no duplicate requests or mutations beyond existing explicit refresh behavior.
+
+### PR122. Platform-Inspired Forms, Progress, Tables, And Page States
+
+Branch: `refactor/platform-simple-ui-workspaces`.
+
+Git status: not started. PR: TBD.
+
+Priority: P1 workflow usability.
+
+Depends on: PR121.
+
+Scope:
+
+- Apply the shared visual foundation to all four page components and their specifications without changing API contracts or financial/statistical behavior.
+- Give each page one compact title row containing page title, short current-state summary, and at most one primary action. Supporting actions use secondary, quiet, or icon-button appearances according to consequence.
+- Replace ad hoc label/input markup with `Field`. Keep labels above controls, hints concise, validation adjacent to the relevant field, and reserved message space where asynchronous validation would otherwise shift the layout.
+- Use responsive form grids with explicit minimum widths. Metadata filters use at most four columns on wide desktop, two on tablet, and one on mobile. Predicate rows keep metric, operator, value, and remove action aligned without shrinking text below readable widths.
+- Use familiar menus/selects for option sets, icon buttons for add/remove where the symbol is unambiguous, and text plus icon for consequential commands. Destructive removal uses danger styling only when data is actually deleted; removing an unsaved predicate is a quiet action.
+- Replace generic paragraphs for locked, empty, failed, stale, and success states with `InlineNotice`, `EmptyState`, or `StatusBadge` as appropriate. Every state includes a concrete next action when one exists; do not add instructional feature-tour copy.
+- Keep progress indicators spatially stable. Show label, numeric completion, progress bar, and status summary in that order. Running actions remain in place with a spinner and verb change; they do not resize or move adjacent controls.
+- Standardize tables: sticky header only when the table scrolls, tabular numerals for financial values, right alignment for numbers, left alignment for identities, `44px` minimum rows, subtle row hover, visible keyboard focus, and deterministic empty/loading/error rows.
+- Add horizontal table scrolling only inside the table region. At narrow widths, preserve column labels and values; do not convert financial tables into nested cards or hide required columns without a documented column-priority rule.
+- Centralize formatters for percentages, ratios, counts, covariance, and missing values. Preserve server values and existing precision contracts; do not calculate financial metrics in React.
+- Update all four `docs/ui/windows/*.md` specifications with control hierarchy, responsive grids, status components, table alignment, primary-action rules, and exact DOM ordering of progress/action regions.
+
+Acceptance:
+
+- Every visible input has a programmatically associated label; every validation error is associated with its control and announced once.
+- Each task region has zero or one primary button. Tests fail when two primary actions appear in the same visible panel.
+- Metadata, predicate, univariate, and bivariate controls fit at `1440`, `1024`, `768`, `390`, and `320px` widths without text overlap or page-level horizontal scrolling.
+- Numeric table cells use tabular numerals, stable formatting, correct alignment, explicit missing-value text, and unchanged server-provided values.
+- Locked, ready, running, complete, failed, stale, empty, and partial-failure states are covered with deterministic fixtures on every applicable page.
+- Keyboard tests traverse controls and tables in visual order; icon-only actions expose accessible names and tooltips.
+- Existing workflow, project isolation, idempotency, and API tests remain unchanged and green. TypeScript, Vite build, Playwright, and repository `pr-quality` pass.
+
+Out of scope: New calculations, charts, exports, bulk editing, virtualized tables, page routes, API response changes, dark mode, and user-selectable density.
+
+Security: Error and empty states redact provider keys, internal paths, unrestricted dataset ids, and foreign project identifiers. Formatters accept display values only and never broaden data access.
+
+Determinism: Identical server responses and viewport constraints produce identical action hierarchy, field order, status selection, table ordering, formatting, and responsive tracks.
+
+Idempotency: Disabled/running controls reject duplicate activation, and visual state transitions do not create additional projects, selections, runs, or artifacts.
+
+### PR123. Simple UI Motion, Accessibility, Visual Regression, And Completion Gate
+
+Branch: `chore/platform-simple-ui-completion-gate`.
+
+Git status: not started. PR: TBD.
+
+Priority: P1 quality completion.
+
+Depends on: PR122.
+
+Scope:
+
+- Define restrained motion tokens: `120ms` for control feedback, `180ms` for menus/drawers, and no routine transition above `240ms`. Animate only opacity and transform where practical; never animate financial values, table geometry, progress meaning, or layout dimensions.
+- Honor `prefers-reduced-motion` by removing nonessential transitions and preserving immediate state feedback. Loading indicators may remain but must not flash faster than accessibility guidance permits.
+- Add automated accessibility checks for all four routes and shared shell states using a maintained Playwright-compatible engine. Test keyboard-only navigation, focus visibility, landmark uniqueness, heading order, labels, status announcements, forced colors, 200% zoom, and reduced motion.
+- Replace or add visual baselines for desktop (`1440x900`, `1024x768`), tablet (`768x1024`), and mobile (`390x844`, `320x568`) across shell ready/empty/error, drawer open, each page ready, each page running, one representative table, and one validation failure.
+- Use deterministic fixtures and mask only genuinely nondeterministic provider-derived values. Never mask project name, route title, controls, workflow statuses, table headers, focus indicator, or geometry under test.
+- Add bounding-box and pixel checks proving header, sidebar/drawer, main content, forms, notices, progress, and tables are nonblank, inside the viewport, and non-overlapping. Fail on page-level horizontal scrolling at every target viewport.
+- Add governance checks requiring `docs/ui/design-system.md`, semantic token usage, one icon library, one route registry, synchronized layout/page specs, and prohibited-pattern checks for gradients, decorative blobs, raw production colors outside tokens, mixed icon libraries, and Apple/Google brand assets.
+- Measure production JavaScript and CSS output. Record a deterministic budget in `docs/ui/design-system.md`; fail CI if the design refinement increases compressed initial JavaScript by more than `25 KiB` or CSS by more than `12 KiB` relative to the PR120 baseline without an approved documented exception.
+- Update `README.md` with the final shell description and add a short design review checklist to `docs/ui/page-development.md` covering hierarchy, primary action, token use, responsive fit, keyboard operation, reduced motion, and screenshot review.
+
+Acceptance:
+
+- Automated accessibility scans report no critical or serious violations for every tested route and shared shell state.
+- Keyboard-only users can complete project switching and the full four-stage workflow without focus loss, focus traps outside the open drawer, or inaccessible icon controls.
+- At 200% zoom and all target viewports, text remains readable, controls remain reachable, and there is no incoherent overlap or page-level horizontal scrolling.
+- Reduced-motion tests observe no nonessential animation; standard-motion tests observe only documented durations and properties.
+- Visual snapshots are stable across two consecutive clean runs and show a quiet, consistent, content-first Portfell interface rather than Apple or Google branding.
+- Bundle budgets, full Playwright suite, Python tests, TypeScript checking, Vite build, Node syntax checking, Ruff, Pyright, import-linter, and every required check in [GATES.md](GATES.md) pass.
+
+Out of scope: Dark mode, custom themes, marketing pages, illustration, 3D, charts, native mobile applications, offline support, analytics, and copying proprietary platform assets or components.
+
+Security: Accessibility, screenshot, and performance artifacts contain only deterministic synthetic fixtures; CI uploads contain no provider credentials, production project names, private data, internal paths, or session material.
+
+Determinism: Pinned browser/runtime versions, fixed fixtures, fixed viewports, reduced-motion settings, token values, and font assets produce stable screenshots, bundle measurements, and accessibility results.
+
+Idempotency: Repeated visual, accessibility, and performance checks do not mutate application state or tracked baselines unless an explicit reviewed update command is run.
+
+### Platform-Inspired Simple UI Series Completion Gate
+
+The platform-inspired simple UI series is complete only after PR120 through PR123 are merged and all required checks in [GATES.md](GATES.md) pass. Completion requires a documented mark-neutral visual language, semantic tokens, one icon library, consistent shared controls, refined shell/sidebar and four workflow pages, responsive and zoom-safe layouts, restrained reduced-motion-aware animation, stable visual baselines, accessibility coverage, bundle budgets, and explicit checks preventing Apple or Google brand assets from entering the product.
 
 ## Active Hosted Multi-Tenant Portfell PR Stack
 

@@ -77,6 +77,12 @@ class ProjectCreateRequest(BaseModel):
     name: str = Field(min_length=1, max_length=120)
 
 
+class CurrentProjectRequest(BaseModel):
+    """Request to select the current local-workspace project."""
+
+    project_id: str = Field(min_length=1, max_length=160)
+
+
 class MetadataFilterProjectRequest(BaseModel):
     """Request to create one project from metadata-filter criteria."""
 
@@ -238,6 +244,7 @@ class HostedApiState:
     current_filter_selection_by_user: dict[str, str] = field(
         default_factory=lambda: dict[str, str]()
     )
+    current_project_id_by_user: dict[str, str] = field(default_factory=lambda: dict[str, str]())
 
     def credential_vault(self) -> EodhdCredentialVault:
         """Return a deterministic local credential vault."""
@@ -274,43 +281,21 @@ def create_app(state: HostedApiState | None = None) -> FastAPI:
         user: ApiUser = Depends(current_user),
         api_state: HostedApiState = Depends(current_state),
     ) -> JsonRow:
-        selection = _workflow_selection(api_state, user.user_id)
-        if selection is None:
-            return {
-                "stages": resolve_workflow(
-                    metadata_revision_id=None,
-                    metadata_selection_id=None,
-                    quote_run_id=None,
-                )
-            }
-        quote_run_id = _quote_run_id_for_project(api_state, selection.project_id, user.user_id)
-        metadata_revision_id = api_state.metadata_revisions_by_user.get(
-            user.user_id,
-            _opaque_id("metadata-revision", selection.selection_id),
-        )
-        univariate_run = _univariate_run_for_quote(api_state, quote_run_id, user.user_id)
-        filter_selection = _filter_selection_for_run(
+        project = _current_project(api_state, user.user_id)
+        return _workflow_row(
             api_state,
-            None if univariate_run is None else univariate_run.run_id,
             user.user_id,
+            None if project is None else project.project_id,
         )
-        bivariate_run = _bivariate_run_for_selection(
-            api_state,
-            None if filter_selection is None else filter_selection.selection_id,
-            user.user_id,
-        )
-        return {
-            "stages": resolve_workflow(
-                metadata_revision_id=metadata_revision_id,
-                metadata_selection_id=selection.selection_id,
-                quote_run_id=quote_run_id,
-                univariate_run_id=None if univariate_run is None else univariate_run.run_id,
-                univariate_filter_selection_id=(
-                    None if filter_selection is None else filter_selection.selection_id
-                ),
-                bivariate_run_id=None if bivariate_run is None else bivariate_run.run_id,
-            )
-        }
+
+    @app.get("/projects/{project_id}/workflow")
+    def project_workflow(
+        project_id: str,
+        user: ApiUser = Depends(current_user),
+        api_state: HostedApiState = Depends(current_state),
+    ) -> JsonRow:
+        _require_user_row(api_state.projects_by_id, project_id, user.user_id)
+        return _workflow_row(api_state, user.user_id, project_id)
 
     @app.get("/credentials/eodhd")
     def credential_status(
@@ -447,6 +432,7 @@ def create_app(state: HostedApiState | None = None) -> FastAPI:
         project_id = _opaque_id("project", f"{user.user_id}:{payload.name}")
         project = ProjectRecord(project_id=project_id, user_id=user.user_id, name=payload.name)
         api_state.projects_by_id.setdefault(project_id, project)
+        _set_current_project(api_state, user.user_id, project_id)
         _remember_idempotency(
             api_state, user.user_id, f"project:{payload.name}", idempotency_key, project_id
         )
@@ -463,10 +449,26 @@ def create_app(state: HostedApiState | None = None) -> FastAPI:
         _remove_discontinued_projects(api_state, user.user_id)
         items = [
             _project_with_selection_row(api_state, project, user.user_id)
-            for project in api_state.projects_by_id.values()
-            if project.user_id == user.user_id
+            for project in _projects_for_user(api_state, user.user_id)
         ]
         return {"items": _page(items, limit=limit, offset=offset)}
+
+    @app.get("/project-context")
+    def project_context(
+        user: ApiUser = Depends(current_user),
+        api_state: HostedApiState = Depends(current_state),
+    ) -> JsonRow:
+        return _project_context_row(api_state, user.user_id)
+
+    @app.put("/project-context/current-project")
+    def select_current_project(
+        payload: CurrentProjectRequest,
+        user: ApiUser = Depends(workspace_user),
+        api_state: HostedApiState = Depends(current_state),
+    ) -> JsonRow:
+        _set_current_project(api_state, user.user_id, payload.project_id)
+        _audit(api_state, user.user_id, "project.current.select")
+        return _project_context_row(api_state, user.user_id)
 
     @app.delete("/projects/{project_id}")
     def delete_project(
@@ -486,6 +488,9 @@ def create_app(state: HostedApiState | None = None) -> FastAPI:
             for row_id, row in api_state.analyses_by_id.items()
             if row.project_id != project_id or row.user_id != user.user_id
         }
+        if api_state.current_project_id_by_user.get(user.user_id) == project_id:
+            api_state.current_project_id_by_user.pop(user.user_id, None)
+            _current_project(api_state, user.user_id)
         _audit(api_state, user.user_id, "project.delete")
         return {"status": "deleted", "project_id": project_id}
 
@@ -558,6 +563,7 @@ def create_app(state: HostedApiState | None = None) -> FastAPI:
         if cached_project_id is not None:
             project = api_state.projects_by_id[cached_project_id]
             selection = _selection_for_project(api_state, project.project_id, user.user_id)
+            _set_current_project(api_state, user.user_id, project.project_id)
             return _metadata_filter_project_row(project, selection, len(selected_rows))
         project_id = _opaque_id("project", f"{user.user_id}:{project_name}")
         project = ProjectRecord(project_id=project_id, user_id=user.user_id, name=project_name)
@@ -584,6 +590,7 @@ def create_app(state: HostedApiState | None = None) -> FastAPI:
         api_state.selections_by_id.setdefault(selection_id, selection)
         api_state.current_metadata_selection_by_user[user.user_id] = selection_id
         api_state.current_filter_selection_by_user.pop(user.user_id, None)
+        _set_current_project(api_state, user.user_id, project_id)
         _write_hosted_metadata_selection(selection_id, selected_rows, predicates)
         _remember_idempotency(
             api_state,
@@ -1251,6 +1258,97 @@ def _load_selected_isins_row(
 
 def _project_row(project: ProjectRecord) -> JsonRow:
     return {"project_id": project.project_id, "name": project.name}
+
+
+def _projects_for_user(state: HostedApiState, user_id: str) -> list[ProjectRecord]:
+    return sorted(
+        (project for project in state.projects_by_id.values() if project.user_id == user_id),
+        key=lambda project: (project.name.casefold(), project.project_id),
+    )
+
+
+def _current_project(state: HostedApiState, user_id: str) -> ProjectRecord | None:
+    project_id = state.current_project_id_by_user.get(user_id)
+    project = state.projects_by_id.get(project_id) if project_id is not None else None
+    if project is not None and project.user_id == user_id:
+        return project
+    projects = _projects_for_user(state, user_id)
+    if not projects:
+        state.current_project_id_by_user.pop(user_id, None)
+        return None
+    state.current_project_id_by_user[user_id] = projects[0].project_id
+    return projects[0]
+
+
+def _set_current_project(state: HostedApiState, user_id: str, project_id: str) -> None:
+    _require_user_row(state.projects_by_id, project_id, user_id)
+    state.current_project_id_by_user[user_id] = project_id
+
+
+def _project_context_row(state: HostedApiState, user_id: str) -> JsonRow:
+    _remove_discontinued_projects(state, user_id)
+    project = _current_project(state, user_id)
+    projects = [
+        _project_with_selection_row(state, item, user_id)
+        for item in _projects_for_user(state, user_id)
+    ]
+    current = None if project is None else _project_with_selection_row(state, project, user_id)
+    return {
+        "current_project_id": None if project is None else project.project_id,
+        "current_project": current,
+        "projects": projects,
+    }
+
+
+def _workflow_row(state: HostedApiState, user_id: str, project_id: str | None) -> JsonRow:
+    if project_id is None:
+        return {
+            "stages": resolve_workflow(
+                metadata_revision_id=None,
+                metadata_selection_id=None,
+                quote_run_id=None,
+            )
+        }
+    selection = next(
+        (
+            selection
+            for selection in state.selections_by_id.values()
+            if selection.project_id == project_id and selection.user_id == user_id
+        ),
+        None,
+    )
+    if selection is None:
+        return {
+            "stages": resolve_workflow(
+                metadata_revision_id=None,
+                metadata_selection_id=None,
+                quote_run_id=None,
+            )
+        }
+    quote_run_id = _quote_run_id_for_project(state, project_id, user_id)
+    metadata_revision_id = state.metadata_revisions_by_user.get(
+        user_id,
+        _opaque_id("metadata-revision", selection.selection_id),
+    )
+    univariate_run = _univariate_run_for_quote(state, quote_run_id, user_id)
+    filter_selection = _filter_selection_for_run(
+        state, None if univariate_run is None else univariate_run.run_id, user_id
+    )
+    bivariate_run = _bivariate_run_for_selection(
+        state, None if filter_selection is None else filter_selection.selection_id, user_id
+    )
+    return {
+        "stages": resolve_workflow(
+            metadata_revision_id=metadata_revision_id,
+            metadata_selection_id=selection.selection_id,
+            quote_run_id=quote_run_id,
+            univariate_run_id=None if univariate_run is None else univariate_run.run_id,
+            univariate_filter_selection_id=(
+                None if filter_selection is None else filter_selection.selection_id
+            ),
+            bivariate_run_id=None if bivariate_run is None else bivariate_run.run_id,
+        )
+    }
 
 
 def _remove_discontinued_projects(state: HostedApiState, user_id: str) -> None:
