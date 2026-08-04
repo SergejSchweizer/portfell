@@ -150,7 +150,10 @@ def test_commit_range_uses_main_for_github_push_event(
     assert commit_range(runner=runner) == "abc123..HEAD"
 
 
-def test_quality_gate_runs_commands_before_commit_validation() -> None:
+def test_quality_gate_runs_commands_before_commit_validation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("GITHUB_BASE_REF", raising=False)
     calls: list[Sequence[str]] = []
 
     def runner(command: Sequence[str], **_: object) -> subprocess.CompletedProcess[str]:
