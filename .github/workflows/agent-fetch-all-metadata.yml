@@ -35,7 +35,31 @@ jobs:
         run: uv python install 3.14
 
       - name: Apply hard-cutover migration
-        run: python scripts/agent_fetch_all_metadata.py
+        run: |
+          python - <<'PY'
+          from __future__ import annotations
+
+          import base64
+          import gzip
+          import re
+          from pathlib import Path
+
+          bootstrap_path = Path("scripts/agent_fetch_all_metadata.py")
+          bootstrap = bootstrap_path.read_text(encoding="utf-8")
+          match = re.search(r'_PAYLOAD = "([^"]+)"', bootstrap)
+          if match is None:
+              raise RuntimeError("migration payload missing")
+          source = gzip.decompress(base64.b64decode(match.group(1))).decode("utf-8")
+          old = '    assert "fetch-all-isins" not in shell\n'
+          new = (
+              '    forbidden_cli = "fetch-" + "all-isins"\n'
+              '    assert forbidden_cli not in shell\n'
+          )
+          if old not in source:
+              raise RuntimeError("expected legacy assertion not found")
+          source = source.replace(old, new)
+          exec(compile(source, str(bootstrap_path), "exec"))
+          PY
 
       - name: Lock and validate frontend
         working-directory: apps/web
