@@ -648,7 +648,7 @@ Idempotency: Re-resolving or bootstrapping the local principal creates at most o
 
 Branch: `feat/postgres-credential-repository`.
 
-Git status: not started. PR: TBD.
+Git status: in progress. PR: https://github.com/SergejSchweizer/portfell/pull/211.
 
 Priority: P0 durable encrypted storage.
 
