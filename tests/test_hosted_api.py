@@ -7,7 +7,9 @@ from fastapi.testclient import TestClient
 
 from portfell.entitlements import ProviderDownloadRun
 from portfell.hosted_api import (
+    ApiUser,
     HostedApiState,
+    LocalWorkspaceUserProvider,
     ProjectRecord,
     SelectionRecord,
     create_app,
@@ -41,6 +43,25 @@ def test_local_workspace_requires_no_authentication_or_csrf() -> None:
     assert client.get("/health").json() == {"status": "ok"}
     assert client.get("/auth/google/start").status_code == 404
     assert client.post("/projects", json={"name": "Core"}).status_code == 200
+
+
+def test_local_workspace_user_provider_is_stable_and_server_owned() -> None:
+    provider = LocalWorkspaceUserProvider(user_id="workspace-a")
+    first = provider.current_user()
+    second = provider.current_user()
+
+    assert first == ApiUser(user_id="workspace-a")
+    assert second == first
+
+
+def test_api_uses_injected_current_user_provider() -> None:
+    provider = LocalWorkspaceUserProvider(user_id="workspace-a")
+    client = TestClient(create_app(current_user_provider=provider))
+
+    client.post("/credentials/eodhd", json={"provider_key": "secret-provider-token"})
+    status = _json(client.get("/credentials/eodhd"))
+
+    assert status["status"] == "active"
 
 
 def test_workflow_starts_with_only_metadata_ready() -> None:

@@ -748,13 +748,14 @@ Mutating routes require CSRF. Retry-sensitive routes accept idempotency keys. Us
 
 However, the active API state is `HostedApiState`, an in-memory repository set intended for deterministic tests and local development. It currently uses:
 
-- request headers such as `X-Portfell-User` for development identity;
+- a configured server-owned local-workspace principal for development identity;
 - a fixed development CSRF contract;
 - an in-memory credential store and deterministic development KEK;
 - in-memory projects, selections, downloads, analyses, audit events, and idempotency references;
 - deterministic local responses rather than the full local analytical pipeline.
 
 API state is therefore lost when the API process restarts, even though the PostgreSQL and shared-data Docker volumes persist.
+The local principal is not browser-controlled and is suitable only for the single-user local deployment; it is not a substitute for authentication on a public deployment.
 
 ### PostgreSQL: running infrastructure plus implemented schema contract
 
