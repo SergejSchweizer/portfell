@@ -1,11 +1,11 @@
-"""Tests for camovar.risk_model: covariance estimators and diagnostics (PR58)."""
+"""Tests for portfell.risk_model: covariance estimators and diagnostics (PR58)."""
 
 from __future__ import annotations
 
 import pytest
 
-from camovar.gold_pair_stats import sample_covariance as baseline_sample_covariance
-from camovar.risk_model import (
+from portfell.gold_pair_stats import sample_covariance as baseline_sample_covariance
+from portfell.risk_model import (
     STABILITY_ILL_CONDITIONED,
     STABILITY_MODERATE,
     STABILITY_SINGULAR,

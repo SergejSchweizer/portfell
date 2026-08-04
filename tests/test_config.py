@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from camovar.config import (
+from portfell.config import (
     EodhdConfig,
     MissingConfigError,
     load_eodhd_config,

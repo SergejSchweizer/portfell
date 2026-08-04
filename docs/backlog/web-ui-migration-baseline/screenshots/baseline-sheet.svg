@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1320" height="1440" viewBox="0 0 1320 1440" role="img" aria-labelledby="title desc">
-  <title id="title">Camovar Web UI migration baseline sheet</title>
+  <title id="title">Portfell Web UI migration baseline sheet</title>
   <desc id="desc">Composite deterministic visual baseline covering login, dashboard, project shell, statistics, loading, complete, warning, failed, and empty states across desktop, tablet, and mobile viewports.</desc>
   <style>
     .bg { fill: #f8fafd; }
@@ -12,7 +12,7 @@
   </style>
   <rect class="bg" x="0" y="0" width="1320" height="1440" />
 
-  <text class="heading" x="24" y="40">Camovar Web UI migration baseline</text>
+  <text class="heading" x="24" y="40">Portfell Web UI migration baseline</text>
   <text class="muted" x="24" y="66">Desktop / tablet / mobile panels preserve the current login, dashboard, project shell, statistics, loading, complete, warning, failed, and empty states.</text>
 
   <g transform="translate(24,96)">

@@ -25,7 +25,7 @@ This file is the workflow reference for coding agents and maintainers. It should
 - Do not merge any branch or pull request into `main` unless the maintainer explicitly requests that `main` merge in the current task.
 - When continuing backlog or UI work without an explicit `main` merge request, create, push, and publish stacked PR branches, then leave them open for later landing.
 - UI work must stay on the active UI branch stack until the maintainer asks to land it. Base each follow-up UI branch on the previous UI branch, and run `docker compose --env-file .env.local up --build --watch web` from the active branch so local Docker shows the current UI stack state.
-- If Compose watch is unavailable during UI stack work, run `uv run camovar-compose-web-watch` from the active branch as the local Docker rebuild fallback.
+- If Compose watch is unavailable during UI stack work, run `uv run portfell-compose-web-watch` from the active branch as the local Docker rebuild fallback.
 - Use `Branch: <type>/<scope>-<short-description>` until a planned branch is created, then keep the exact published branch path in the backlog entry.
 - Use `Git status: not started` and `PR: TBD` until work begins.
 - Replace `PR: TBD` with the pull request URL once the PR exists.
@@ -133,3 +133,7 @@ Evidence:
 - 2026-06-28 `660f9f2` Deduplicate README table of contents
 - 2026-06-26 `40cc90e` Merge branch 'codex/docs-update-missing-values'
 - 2026-05-25 `b8b5b82` Refine raw dataset docs and Deribit endpoint sections (#7)
+
+## UI changes
+
+Read `docs/ui/page-development.md` before adding or changing a React page. Keep `apps/web/src/routes.tsx`, the page component, its `docs/ui/windows/<route-slug>.md` specification, typed API contracts, and regression tests synchronized in the same pull request. Do not add compatibility renderers or browser-owned financial, ingestion, authentication, or authorization logic.

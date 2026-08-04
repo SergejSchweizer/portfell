@@ -2,14 +2,14 @@ from pathlib import Path
 
 import pytest
 
-from camovar.bivariate_statistics import (
+from portfell.bivariate_statistics import (
     build_bivariate_statistics,
     resolve_worker_count,
     write_bivariate_statistics,
 )
-from camovar.paths import LakePaths
-from camovar.run_state import read_job_manifest
-from camovar.table_io import read_rows, write_rows
+from portfell.paths import LakePaths
+from portfell.run_state import read_job_manifest
+from portfell.table_io import read_rows, write_rows
 
 
 def _return(isin: str, exchange: str, code: str, date: str, value: float) -> dict[str, object]:

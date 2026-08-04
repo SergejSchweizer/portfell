@@ -8,5 +8,5 @@ export type StatusBadgeProps = Readonly<{
 }>;
 
 export function StatusBadge({ tone = "neutral", children }: StatusBadgeProps) {
-  return <span className={`camovar-status-badge camovar-status-badge--${tone}`}>{children}</span>;
+  return <span className={`portfell-status-badge portfell-status-badge--${tone}`}>{children}</span>;
 }

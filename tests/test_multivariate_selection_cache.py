@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from camovar.multivariate_statistics import (
+from portfell.multivariate_statistics import (
     MultivariateStatisticsConfig,
     write_multivariate_statistics,
 )
-from camovar.paths import LakePaths
-from camovar.portfolio import PortfolioConstraints
-from camovar.table_io import read_rows, write_rows
+from portfell.paths import LakePaths
+from portfell.portfolio import PortfolioConstraints
+from portfell.table_io import read_rows, write_rows
 
 
 def _quote(

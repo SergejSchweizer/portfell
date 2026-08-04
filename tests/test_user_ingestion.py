@@ -2,18 +2,18 @@ from __future__ import annotations
 
 import pytest
 
-from camovar.entitlements import InMemoryEntitlementStore
-from camovar.hosted_credentials import (
+from portfell.entitlements import InMemoryEntitlementStore
+from portfell.hosted_credentials import (
     EodhdCredentialVault,
     InMemoryCredentialStore,
     KeyEncryptionKey,
 )
-from camovar.shared_observations import (
+from portfell.shared_observations import (
     MarketObservation,
     SharedMarketObservationStore,
     SharedObservationCatalog,
 )
-from camovar.user_ingestion import (
+from portfell.user_ingestion import (
     ProviderCapability,
     ProviderFetchResult,
     UsageLedger,

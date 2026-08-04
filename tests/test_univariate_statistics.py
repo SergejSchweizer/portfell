@@ -4,9 +4,9 @@ from pathlib import Path
 
 import pytest
 
-from camovar.paths import LakePaths
-from camovar.table_io import read_rows
-from camovar.univariate_statistics import (
+from portfell.paths import LakePaths
+from portfell.table_io import read_rows
+from portfell.univariate_statistics import (
     build_quote_returns,
     build_univariate_statistics,
     write_univariate_statistics,

@@ -2,7 +2,7 @@
 
 import pytest
 
-from camovar.stress import (
+from portfell.stress import (
     BLOCK_BOOTSTRAP_SCENARIO,
     CORRELATION_CONVERGENCE_SCENARIO,
     COVARIANCE_PERTURBATION_SCENARIO,

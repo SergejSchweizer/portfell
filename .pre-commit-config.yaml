@@ -1,14 +1,14 @@
 repos:
   - repo: local
     hooks:
-      - id: camovar-quality-pr
-        name: camovar quality pr
-        entry: uv run camovar-quality pr
+      - id: portfell-quality-pr
+        name: portfell quality pr
+        entry: uv run portfell-quality pr
         language: system
         pass_filenames: false
         stages: [pre-commit]
-      - id: camovar-conventional-commit
-        name: camovar conventional commit
-        entry: uv run camovar-quality --commit-msg-file
+      - id: portfell-conventional-commit
+        name: portfell conventional commit
+        entry: uv run portfell-quality --commit-msg-file
         language: system
         stages: [commit-msg]

@@ -27,6 +27,10 @@
 !docker/**
 !apps/
 !apps/**
+apps/**/node_modules/
+apps/**/dist/
+apps/**/.vite/
+apps/**/coverage/
 !GATES.md
 
 # Public examples are allowed; local secrets stay ignored.

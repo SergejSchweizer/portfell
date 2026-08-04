@@ -9,7 +9,7 @@ from math import isnan, nan
 
 import pytest
 
-from camovar.portfolio import (
+from portfell.portfolio import (
     PortfolioConstraints,
     build_diversification_metric_rows,
     build_optimizer_diagnostics,

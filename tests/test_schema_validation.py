@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-import camovar.schema_validation as schema_validation
-from camovar.schemas import DATASET_CONTRACTS, SCHEMAS, DatasetContract
+import portfell.schema_validation as schema_validation
+from portfell.schemas import DATASET_CONTRACTS, SCHEMAS, DatasetContract
 
 
 def test_registered_schemas_are_valid() -> None:

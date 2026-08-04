@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from camovar.hosted_credentials import (
+from portfell.hosted_credentials import (
     CredentialVaultError,
     EodhdCredentialVault,
     InMemoryCredentialStore,

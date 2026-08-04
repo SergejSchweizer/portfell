@@ -11,7 +11,7 @@ export type ButtonProps = Readonly<
 
 export function Button({ variant = "secondary", className, children, ...props }: ButtonProps) {
   return (
-    <button {...props} className={["camovar-button", `camovar-button--${variant}`, className].filter(Boolean).join(" ")}>
+    <button {...props} className={["portfell-button", `portfell-button--${variant}`, className].filter(Boolean).join(" ")}>
       {children}
     </button>
   );

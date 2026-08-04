@@ -35,7 +35,7 @@ export function AuthenticatedShell() {
   }
 
   return (
-    <section className="camovar-authenticated-shell" data-route="authenticated-shell">
+    <section className="portfell-authenticated-shell" data-route="authenticated-shell">
       <Panel title="Session">
         <StatusBadge tone={session.data.authenticated ? "success" : "warning"}>
           {session.data.authenticated ? "authenticated" : "anonymous"}

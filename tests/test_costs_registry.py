@@ -4,8 +4,8 @@ from decimal import Decimal
 
 import pytest
 
-from camovar.costs.contracts import ComponentCostEstimate, ExecutionContext
-from camovar.costs.registry import CostProfileRegistry, UnsupportedCostProfileError
+from portfell.costs.contracts import ComponentCostEstimate, ExecutionContext
+from portfell.costs.registry import CostProfileRegistry, UnsupportedCostProfileError
 
 
 class _FlatFeeBrokerProfile:

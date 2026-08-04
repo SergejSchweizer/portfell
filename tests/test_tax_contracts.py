@@ -5,7 +5,7 @@ from decimal import Decimal
 
 import pytest
 
-from camovar.tax.contracts import (
+from portfell.tax.contracts import (
     FundTaxFactsResult,
     InvestorTaxProfile,
     TaxCalculationResult,

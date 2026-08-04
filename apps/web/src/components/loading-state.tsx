@@ -7,7 +7,7 @@ export type LoadingStateProps = Readonly<{
 
 export function LoadingState({ label = "Loading", children }: LoadingStateProps) {
   return (
-    <section className="camovar-loading-state" aria-label={label}>
+    <section className="portfell-loading-state" aria-label={label}>
       <p>{label}</p>
       {children}
     </section>

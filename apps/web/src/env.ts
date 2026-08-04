@@ -14,16 +14,16 @@ function readQueryFixture(): string {
 }
 
 export function readPublicRuntimeEnv(): PublicRuntimeEnv {
-  const uiFixtureMode = import.meta.env.VITE_CAMOVAR_UI_FIXTURE_MODE || "production";
+  const uiFixtureMode = import.meta.env.VITE_PORTFELL_UI_FIXTURE_MODE || "production";
   const queryFixture = readQueryFixture();
   const uiFixture =
     uiFixtureMode === "test" || uiFixtureMode === "local-dev"
-      ? import.meta.env.VITE_CAMOVAR_UI_FIXTURE || queryFixture
+      ? import.meta.env.VITE_PORTFELL_UI_FIXTURE || queryFixture
       : "";
 
   return {
-    apiBaseUrl: import.meta.env.VITE_CAMOVAR_API_BASE_URL || "/api",
-    authMode: import.meta.env.VITE_CAMOVAR_AUTH_MODE || "local-dev",
+    apiBaseUrl: import.meta.env.VITE_PORTFELL_API_BASE_URL || "/api",
+    authMode: import.meta.env.VITE_PORTFELL_AUTH_MODE || "local-dev",
     uiFixture,
     uiFixtureMode,
   };

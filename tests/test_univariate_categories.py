@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from camovar.schemas import required_fields
-from camovar.univariate_categories import (
+from portfell.schemas import required_fields
+from portfell.univariate_categories import (
     UNIVARIATE_PORTFOLIO_CATEGORIES,
     categorized_univariate_fields,
     category_for_univariate_field,

@@ -1,26 +1,26 @@
-name: camovar
+name: portfell
 
 services:
   postgres:
     image: postgres:17-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: camovar
-      POSTGRES_USER: camovar_app
+      POSTGRES_DB: portfell
+      POSTGRES_USER: portfell_app
       POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
       PGDATA: /var/lib/postgresql/data/pgdata
     secrets:
       - postgres_password
     volumes:
-      - camovar-postgres-data:/var/lib/postgresql/data
+      - portfell-postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U camovar_app -d camovar"]
+      test: ["CMD-SHELL", "pg_isready -U portfell_app -d portfell"]
       interval: 10s
       timeout: 5s
       retries: 10
       start_period: 20s
     networks:
-      - camovar-internal
+      - portfell-internal
     expose:
       - "5432"
     read_only: true
@@ -42,36 +42,36 @@ services:
       dockerfile: apps/api/Dockerfile
     restart: unless-stopped
     environment:
-      CAMOVAR_ENV: development
-      CAMOVAR_DATABASE_URL: postgresql://camovar_app@postgres:5432/camovar
-      CAMOVAR_SHARED_DATA_ROOT: /srv/camovar/shared-data
-      CAMOVAR_LAKE_ROOT: /srv/camovar/lake
-      CAMOVAR_SESSION_SECRET_FILE: /run/secrets/session_secret
-      CAMOVAR_EODHD_KEK_FILE: /run/secrets/eodhd_kek
-      CAMOVAR_GOOGLE_CLIENT_SECRET_FILE: /run/secrets/google_client_secret
+      PORTFELL_ENV: development
+      PORTFELL_DATABASE_URL: postgresql://portfell_app@postgres:5432/portfell
+      PORTFELL_SHARED_DATA_ROOT: /srv/portfell/shared-data
+      PORTFELL_LAKE_ROOT: /srv/portfell/lake
+      PORTFELL_SESSION_SECRET_FILE: /run/secrets/session_secret
+      PORTFELL_EODHD_KEK_FILE: /run/secrets/eodhd_kek
+      PORTFELL_GOOGLE_CLIENT_SECRET_FILE: /run/secrets/google_client_secret
     secrets:
       - session_secret
       - eodhd_kek
       - google_client_secret
     volumes:
-      - camovar-shared-data:/srv/camovar/shared-data
-      - ./lake:/srv/camovar/lake
+      - portfell-shared-data:/srv/portfell/shared-data
+      - ./lake:/srv/portfell/lake
     depends_on:
       postgres:
         condition: service_healthy
     ports:
-      - "0.0.0.0:${CAMOVAR_API_PORT:-8000}:8000"
+      - "0.0.0.0:${PORTFELL_API_PORT:-8000}:8000"
     healthcheck:
-      test: ["CMD", "python", "-m", "camovar.hosted_runtime", "health"]
+      test: ["CMD", "python", "-m", "portfell.hosted_runtime", "health"]
       interval: 10s
       timeout: 5s
       retries: 10
       start_period: 20s
     networks:
-      - camovar-internal
-      - camovar-public
+      - portfell-internal
+      - portfell-public
     group_add:
-      - "${CAMOVAR_LAKE_GROUP_ID:-10}"
+      - "${PORTFELL_LAKE_GROUP_ID:-10}"
     read_only: true
     tmpfs:
       - /tmp
@@ -100,20 +100,20 @@ services:
     restart: unless-stopped
     environment:
       NODE_ENV: development
-      CAMOVAR_API_BASE_URL: http://api:8000
-      CAMOVAR_AUTH_MODE: ${CAMOVAR_AUTH_MODE:-google}
-      CAMOVAR_GOOGLE_CLIENT_ID: ${CAMOVAR_GOOGLE_CLIENT_ID:-}
-      CAMOVAR_GOOGLE_REDIRECT_URI: ${CAMOVAR_GOOGLE_REDIRECT_URI:-http://localhost:3000/auth/google/callback}
-      CAMOVAR_GOOGLE_ALLOWED_DOMAIN: ${CAMOVAR_GOOGLE_ALLOWED_DOMAIN:-}
-      CAMOVAR_LOCAL_DEV_GOOGLE_EMAIL: ${CAMOVAR_LOCAL_DEV_GOOGLE_EMAIL:-local-google-dev-user@example.test}
-      CAMOVAR_GOOGLE_CLIENT_SECRET_FILE: /run/secrets/google_client_secret
+      PORTFELL_API_BASE_URL: http://api:8000
+      PORTFELL_AUTH_MODE: ${PORTFELL_AUTH_MODE:-google}
+      PORTFELL_GOOGLE_CLIENT_ID: ${PORTFELL_GOOGLE_CLIENT_ID:-}
+      PORTFELL_GOOGLE_REDIRECT_URI: ${PORTFELL_GOOGLE_REDIRECT_URI:-http://localhost:3000/auth/google/callback}
+      PORTFELL_GOOGLE_ALLOWED_DOMAIN: ${PORTFELL_GOOGLE_ALLOWED_DOMAIN:-}
+      PORTFELL_LOCAL_DEV_GOOGLE_EMAIL: ${PORTFELL_LOCAL_DEV_GOOGLE_EMAIL:-local-google-dev-user@example.test}
+      PORTFELL_GOOGLE_CLIENT_SECRET_FILE: /run/secrets/google_client_secret
     secrets:
       - google_client_secret
     depends_on:
       api:
         condition: service_healthy
     ports:
-      - "0.0.0.0:${CAMOVAR_WEB_PORT:-3000}:3000"
+      - "0.0.0.0:${PORTFELL_WEB_PORT:-3000}:3000"
     healthcheck:
       test: ["CMD", "node", "server.js", "--health"]
       interval: 10s
@@ -121,7 +121,7 @@ services:
       retries: 10
       start_period: 20s
     networks:
-      - camovar-public
+      - portfell-public
     read_only: true
     tmpfs:
       - /tmp
@@ -136,20 +136,20 @@ services:
           memory: 512M
 
 networks:
-  camovar-internal:
+  portfell-internal:
     internal: true
-  camovar-public:
+  portfell-public:
 
 volumes:
-  camovar-postgres-data:
-  camovar-shared-data:
+  portfell-postgres-data:
+  portfell-shared-data:
 
 secrets:
   postgres_password:
-    file: ${CAMOVAR_POSTGRES_PASSWORD_FILE:?set an absolute external secret path}
+    file: ${PORTFELL_POSTGRES_PASSWORD_FILE:?set an absolute external secret path}
   session_secret:
-    file: ${CAMOVAR_SESSION_SECRET_FILE:?set an absolute external secret path}
+    file: ${PORTFELL_SESSION_SECRET_FILE:?set an absolute external secret path}
   eodhd_kek:
-    file: ${CAMOVAR_EODHD_KEK_FILE:?set an absolute external secret path}
+    file: ${PORTFELL_EODHD_KEK_FILE:?set an absolute external secret path}
   google_client_secret:
-    file: ${CAMOVAR_GOOGLE_CLIENT_SECRET_FILE:?set an absolute external secret path}
+    file: ${PORTFELL_GOOGLE_CLIENT_SECRET_FILE:?set an absolute external secret path}

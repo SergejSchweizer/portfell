@@ -2,7 +2,7 @@
 
 import pytest
 
-from camovar.recommendation import (
+from portfell.recommendation import (
     BEST_DEFENSIVE,
     BEST_DIVERSIFIED,
     BEST_ENSEMBLE,

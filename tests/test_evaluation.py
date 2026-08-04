@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from camovar.evaluation import (
+from portfell.evaluation import (
     ANNUAL_TRADING_DAYS,
     build_asset_metrics,
     build_drawdowns,
@@ -16,8 +16,8 @@ from camovar.evaluation import (
     write_evaluation_outputs,
     write_portfolio_evaluation,
 )
-from camovar.paths import LakePaths
-from camovar.table_io import read_rows, write_rows
+from portfell.paths import LakePaths
+from portfell.table_io import read_rows, write_rows
 
 
 def _return_row(

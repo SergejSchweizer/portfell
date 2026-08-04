@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from camovar.artifact_cache import (
+from portfell.artifact_cache import (
     ArtifactCacheError,
     InMemoryAnalysisRunStore,
     InMemoryArtifactCache,
@@ -11,7 +11,7 @@ from camovar.artifact_cache import (
     create_portfolio_artifact,
     create_return_artifact,
 )
-from camovar.scoped_inputs import ScopedMarketInputs, SelectionInputRef, UserDataSnapshotRef
+from portfell.scoped_inputs import ScopedMarketInputs, SelectionInputRef, UserDataSnapshotRef
 
 
 def _inputs(user_id: str = "user-a", snapshot_hash: str = "quote-hash") -> ScopedMarketInputs:
