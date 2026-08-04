@@ -91,6 +91,20 @@ tsconfig = json.loads(tsconfig_path.read_text(encoding="utf-8"))
 tsconfig.pop("references", None)
 tsconfig_path.write_text(json.dumps(tsconfig, indent=2) + "\n", encoding="utf-8")
 
+resource_path = Path("apps/web/src/hooks/use-resource.ts")
+resource_text = resource_path.read_text(encoding="utf-8")
+old_resource_variant = '  | Readonly<{ status: "idle" | "loading" }>\n'
+new_resource_variants = (
+    '  | Readonly<{ status: "idle" }>\n'
+    '  | Readonly<{ status: "loading" }>\n'
+)
+if old_resource_variant not in resource_text:
+    raise RuntimeError("combined resource state variant was not found")
+resource_path.write_text(
+    resource_text.replace(old_resource_variant, new_resource_variants),
+    encoding="utf-8",
+)
+
 forbidden = (
     "fetch_all_" + "isins",
     "fetch-all-" + "isins",
