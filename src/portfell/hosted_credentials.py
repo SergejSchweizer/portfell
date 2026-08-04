@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import json
 import os
 import uuid
+from collections.abc import Mapping
 from dataclasses import dataclass, replace
-from typing import Protocol, runtime_checkable
+from typing import Protocol, cast, runtime_checkable
 
 from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -108,6 +110,173 @@ class InMemoryCredentialStore:
         """Return the current logical credential record when present."""
 
         return self._records_by_user_provider.get((user_id, provider))
+
+
+class CredentialCursor(Protocol):
+    """Minimal cursor result contract used by the PostgreSQL credential store."""
+
+    def fetchone(self) -> tuple[object, ...] | None:
+        """Return one database row when available."""
+
+        ...
+
+
+class CredentialConnection(Protocol):
+    """Minimal parameterized SQL connection contract for encrypted credentials."""
+
+    def execute(self, sql: str, parameters: tuple[object, ...] = ()) -> CredentialCursor:
+        """Execute parameterized SQL and return a cursor-like result."""
+
+        ...
+
+
+class PostgresCredentialStore:
+    """Persist encrypted credentials through parameterized PostgreSQL statements."""
+
+    def __init__(self, connection: CredentialConnection) -> None:
+        self._connection = connection
+
+    def upsert(self, record: EncryptedCredentialRecord) -> None:
+        """Replace the active credential without retaining multiple active records."""
+
+        self._connection.execute(
+            """
+update portfell_app.provider_credentials
+set status = 'deleted', deleted_at = now(), updated_at = now()
+where user_id = %s and provider = %s and status = 'active' and credential_id <> %s
+""",
+            (record.user_id, record.provider, record.credential_id),
+        )
+        self._connection.execute(
+            """
+insert into portfell_app.provider_credentials (
+    credential_id, user_id, provider, status, ciphertext, nonce, wrapped_data_key,
+    wrap_nonce, key_version, associated_data, fingerprint_hmac, masked_label
+) values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s)
+on conflict (credential_id) do update set
+    status = excluded.status,
+    ciphertext = excluded.ciphertext,
+    nonce = excluded.nonce,
+    wrapped_data_key = excluded.wrapped_data_key,
+    wrap_nonce = excluded.wrap_nonce,
+    key_version = excluded.key_version,
+    associated_data = excluded.associated_data,
+    fingerprint_hmac = excluded.fingerprint_hmac,
+    masked_label = excluded.masked_label,
+    updated_at = now(),
+    revoked_at = case when excluded.status = 'revoked' then now() else null end,
+    deleted_at = case when excluded.status = 'deleted' then now() else null end
+""",
+            (
+                record.credential_id,
+                record.user_id,
+                record.provider,
+                record.status,
+                record.ciphertext,
+                record.nonce,
+                record.wrapped_data_key,
+                record.wrap_nonce,
+                record.key_version,
+                json.dumps(
+                    {
+                        "credential_id": record.associated_data.credential_id,
+                        "user_id": record.associated_data.user_id,
+                        "provider": record.associated_data.provider,
+                        "schema_version": record.associated_data.schema_version,
+                    },
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ),
+                record.fingerprint_hmac,
+                record.masked_label,
+            ),
+        )
+
+    def get(self, *, user_id: str, provider: str = "eodhd") -> EncryptedCredentialRecord | None:
+        """Load the latest logical credential record for one user and provider."""
+
+        cursor = self._connection.execute(
+            """
+select credential_id, user_id, provider, status, ciphertext, nonce, wrapped_data_key,
+       wrap_nonce, key_version, associated_data, fingerprint_hmac, masked_label
+from portfell_app.provider_credentials
+where user_id = %s and provider = %s
+order by updated_at desc, credential_id desc
+limit 1
+""",
+            (user_id, provider),
+        )
+        row = cursor.fetchone()
+        return None if row is None else _record_from_postgres_row(row)
+
+
+def _record_from_postgres_row(row: tuple[object, ...]) -> EncryptedCredentialRecord:
+    """Reconstruct one encrypted credential record from a strictly shaped row."""
+
+    if len(row) != 12:
+        raise CredentialVaultError("credential row has an invalid shape")
+    associated_data_value = row[9]
+    if not isinstance(associated_data_value, Mapping):
+        raise CredentialVaultError("credential associated data is invalid")
+    associated_data = cast("Mapping[str, object]", associated_data_value)
+    schema_version = associated_data.get("schema_version")
+    if not isinstance(schema_version, int):
+        raise CredentialVaultError("credential associated data schema is invalid")
+    credential_id = _credential_text(row[0])
+    user_id = _credential_text(row[1])
+    provider = _credential_text(row[2])
+    status = _credential_text(row[3])
+    ciphertext = _credential_bytes(row[4])
+    nonce = _credential_bytes(row[5])
+    wrapped_data_key = _credential_bytes(row[6])
+    wrap_nonce = _credential_bytes(row[7])
+    key_version = _credential_text(row[8])
+    fingerprint_hmac = _credential_text(row[10])
+    masked_label = _credential_text(row[11])
+    associated_credential_id = _credential_text(associated_data.get("credential_id"))
+    associated_user_id = _credential_text(associated_data.get("user_id"))
+    associated_provider = _credential_text(associated_data.get("provider"))
+    if (associated_credential_id, associated_user_id, associated_provider) != (
+        credential_id,
+        user_id,
+        provider,
+    ):
+        raise CredentialVaultError("credential associated data does not match row ownership")
+    return EncryptedCredentialRecord(
+        credential_id=credential_id,
+        user_id=user_id,
+        provider=provider,
+        status=status,
+        ciphertext=ciphertext,
+        nonce=nonce,
+        wrapped_data_key=wrapped_data_key,
+        wrap_nonce=wrap_nonce,
+        key_version=key_version,
+        associated_data=CredentialAssociatedData(
+            credential_id=associated_credential_id,
+            user_id=associated_user_id,
+            provider=associated_provider,
+            schema_version=schema_version,
+        ),
+        fingerprint_hmac=fingerprint_hmac,
+        masked_label=masked_label,
+    )
+
+
+def _credential_text(value: object) -> str:
+    """Require one text value from an encrypted credential row."""
+
+    if not isinstance(value, str):
+        raise CredentialVaultError("credential row contains invalid text")
+    return value
+
+
+def _credential_bytes(value: object) -> bytes:
+    """Require one encrypted byte value from an encrypted credential row."""
+
+    if not isinstance(value, bytes):
+        raise CredentialVaultError("credential row contains invalid encrypted material")
+    return value
 
 
 class EodhdCredentialVault:
