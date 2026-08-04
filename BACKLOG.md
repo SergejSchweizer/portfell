@@ -613,7 +613,7 @@ The implementation order is strict. Persistence and identity land before runtime
 
 Branch: `refactor/persistent-credential-boundaries`.
 
-Git status: not started. PR: TBD.
+Git status: in progress. PR: https://github.com/SergejSchweizer/portfell/pull/210.
 
 Priority: P0 identity and persistence boundary.
 
