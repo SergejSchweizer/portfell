@@ -15,6 +15,10 @@ The page preflights through `POST /api/bivariate-statistics/plan`, starts
 `GET /api/bivariate-statistics/runs/{run_id}/results`. Pair construction, limits, calculations,
 storage, and ranking remain backend responsibilities.
 
+The persistent project sidebar identifies the active project and four-stage
+workflow hierarchy. A project switch clears the local pair plan, run, results,
+and status message before this page loads the replacement project workflow.
+
 ## Acceptance
 
 The page blocks execution when upstream filtering is incomplete, empty, stale, or over the configured

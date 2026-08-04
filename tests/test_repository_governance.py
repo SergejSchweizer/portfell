@@ -42,7 +42,7 @@ PROJECT_SIDEBAR_PR_DEPENDENCIES = {
 }
 PROJECT_SIDEBAR_PR_STATUSES = {
     117: "pushed",
-    118: "not started",
+    118: "in progress",
     119: "not started",
 }
 PROJECT_SIDEBAR_PR_URLS = {

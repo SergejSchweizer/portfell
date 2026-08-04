@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { loadWorkflow, postJson, requestJson } from "../api/client";
 import { Button } from "../components/button";
 import { LoadingState } from "../components/loading-state";
@@ -12,10 +12,22 @@ function metric(value: number | null | undefined): string {
 }
 
 export function UnivariateStatisticsPage() {
-  const workflow = useResource(loadWorkflow);
+  const [workflowRevision, setWorkflowRevision] = useState(0);
+  const workflow = useResource(loadWorkflow, [workflowRevision]);
   const [run, setRun] = useState<ApiResearchRun | null>(null);
   const [results, setResults] = useState<ApiPage<ApiUnivariateRow> | null>(null);
   const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    const resetProjectState = () => {
+      setRun(null);
+      setResults(null);
+      setMessage("");
+      setWorkflowRevision((value) => value + 1);
+    };
+    window.addEventListener("portfell:project-updated", resetProjectState);
+    return () => window.removeEventListener("portfell:project-updated", resetProjectState);
+  }, []);
 
   if (workflow.status === "loading" || workflow.status === "idle") {
     return <LoadingState label="Loading univariate statistics" />;

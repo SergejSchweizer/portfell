@@ -87,8 +87,10 @@ def test_four_page_ui_uses_canonical_server_owned_workflow_contracts() -> None:
         assert removed not in hosted_api
 
     frame = (WEB_ROOT / "src" / "shell" / "frame.tsx").read_text(encoding="utf-8")
-    assert 'status === "locked"' in frame
-    assert 'aria-disabled="true"' in frame
+    sidebar = (WEB_ROOT / "src" / "shell" / "project-sidebar.tsx").read_text(encoding="utf-8")
+    assert "ProjectSidebar" in frame
+    assert "workflowPages" in sidebar
+    assert 'aria-disabled="true"' in sidebar
     assert not (WEB_ROOT / "src" / "shell" / "authenticated-shell.tsx").exists()
 
 
@@ -106,3 +108,14 @@ def test_project_context_client_contracts_precede_sidebar_rendering() -> None:
     for contract in ("ApiProjectSummary", "ApiProjectContext"):
         assert f"export type {contract}" in contracts
     assert sidebar_specification.exists()
+
+
+def test_project_switch_resets_all_four_page_local_workflow_states() -> None:
+    for page_name in (
+        "metadata-filter.tsx",
+        "univariate-statistics.tsx",
+        "univariate-filter.tsx",
+        "bivariate-statistics.tsx",
+    ):
+        page = (WEB_ROOT / "src" / "pages" / page_name).read_text(encoding="utf-8")
+        assert 'window.addEventListener("portfell:project-updated"' in page

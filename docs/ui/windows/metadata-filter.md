@@ -20,6 +20,11 @@ the operation is running.
 
 Idle, filtering, selection-ready, quote-running, quote-complete, quote-failed, metadata-empty, and metadata-unavailable states must be explicit. A metadata refresh invalidates and reloads the available filter options.
 
+The selected project is shown in the persistent sidebar. A project switch clears
+the transient project/selection ids and quote progress before this page requests
+replacement server-owned state; entered filter values remain available for the
+next project-specific submission.
+
 ## Acceptance
 
 The progress indicator precedes the quote action in document order. The action remains disabled until a project selection exists. All fields have visible labels, status changes use `aria-live`, and no filtering or ingestion business logic is implemented in the browser.

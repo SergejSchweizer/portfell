@@ -15,6 +15,10 @@ immutable metadata selection and quote run ids, and loads bounded results from
 `GET /api/univariate-statistics/runs/{run_id}/results`. It renders server progress and returned
 statistics without recomputing them in React.
 
+The persistent project sidebar supplies the active project and its workflow
+status. After a project switch, local run, result-table, and status-message
+state are cleared before the project-scoped workflow is reloaded.
+
 ## Acceptance
 
 The primary action is disabled when prerequisites are missing or a run is active. Locked state links
