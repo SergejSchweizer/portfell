@@ -10,8 +10,13 @@ Run and present server-computed univariate statistics for the active project aft
 
 ## Contract
 
-The page requests the active project state, starts the univariate-statistics workflow through the API, renders running, empty, success, and failure states, and displays returned statistics without recomputing them in React.
+The page loads `GET /api/workflow`, starts `POST /api/univariate-statistics/runs` with the
+immutable metadata selection and quote run ids, and loads bounded results from
+`GET /api/univariate-statistics/runs/{run_id}/results`. It renders server progress and returned
+statistics without recomputing them in React.
 
 ## Acceptance
 
-The primary action is disabled when prerequisites are missing or a run is active. Results use typed contracts, accessible table semantics, stable loading feedback, and a clear upstream-data requirement.
+The primary action is disabled when prerequisites are missing or a run is active. Locked state links
+to Metadata Filter. Results use typed contracts, accessible table semantics, stable loading feedback,
+bounded pagination, and a clear upstream-data requirement.
