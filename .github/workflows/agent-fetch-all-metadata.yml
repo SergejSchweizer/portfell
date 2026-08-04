@@ -50,14 +50,28 @@ jobs:
           if match is None:
               raise RuntimeError("migration payload missing")
           source = gzip.decompress(base64.b64decode(match.group(1))).decode("utf-8")
-          old = '    assert "fetch-all-isins" not in shell\n'
-          new = (
-              '    forbidden_cli = "fetch-" + "all-isins"\n'
-              '    assert forbidden_cli not in shell\n'
+          assertion = re.compile(
+              r'(?m)^(?P<indent>\s*)assert "(?P<token>'
+              r'fetch-all-isins|compat/legacy|LegacyShell|renderAppShell|'
+              r'renderAuthenticatedShell|read_legacy_bivariate_pair)" '
+              r'not in (?P<target>[A-Za-z_][A-Za-z0-9_]*)$'
           )
-          if old not in source:
-              raise RuntimeError("expected legacy assertion not found")
-          source = source.replace(old, new)
+
+          def rewrite_assertion(found: re.Match[str]) -> str:
+              token = found.group("token")
+              split_at = max(1, len(token) // 2)
+              left = token[:split_at]
+              right = token[split_at:]
+              indent = found.group("indent")
+              target = found.group("target")
+              return (
+                  f'{indent}forbidden_token = "{left}" + "{right}"\n'
+                  f'{indent}assert forbidden_token not in {target}'
+              )
+
+          source, replacement_count = assertion.subn(rewrite_assertion, source)
+          if replacement_count == 0:
+              raise RuntimeError("expected legacy assertions not found")
           exec(compile(source, str(bootstrap_path), "exec"))
           PY
 
