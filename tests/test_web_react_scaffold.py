@@ -119,3 +119,21 @@ def test_project_switch_resets_all_four_page_local_workflow_states() -> None:
     ):
         page = (WEB_ROOT / "src" / "pages" / page_name).read_text(encoding="utf-8")
         assert 'window.addEventListener("portfell:project-updated"' in page
+
+
+def test_mobile_drawer_reuses_the_canonical_project_sidebar() -> None:
+    frame = (WEB_ROOT / "src" / "shell" / "frame.tsx").read_text(encoding="utf-8")
+    sidebar = (WEB_ROOT / "src" / "shell" / "project-sidebar.tsx").read_text(encoding="utf-8")
+    styles = (WEB_ROOT / "styles" / "app.css").read_text(encoding="utf-8")
+
+    assert frame.count("<ProjectSidebar") == 1
+    assert 'aria-label="Open project navigation"' in frame
+    assert 'aria-controls="project-navigation-drawer"' in frame
+    assert 'document.body.style.overflow = "hidden"' in frame
+    assert 'event.key === "Escape"' in frame
+    assert "projectSelector?.disabled ? focusable()[0]" in frame
+    assert "project-navigation-drawer" in sidebar
+    assert "workflowPages" in sidebar
+    assert "@media (max-width: 900px)" in styles
+    assert "min(320px, 88vw)" in styles
+    assert "prefers-reduced-motion" in styles

@@ -388,7 +388,7 @@ Idempotency: Selecting the already-current project performs no navigation reset 
 
 Branch: `feat/project-sidebar-completion-gate`.
 
-Git status: not started. PR: TBD.
+Git status: in progress. PR: TBD.
 
 Priority: P1 responsive and regression completion.
 

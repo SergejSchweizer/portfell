@@ -32,6 +32,19 @@ Bivariate Statistics. The active stage uses `aria-current="page"`; locked
 stages remain visible, include text status, and are non-links with
 `aria-disabled="true"`.
 
+## Mobile Drawer
+
+At widths of `900px` and below, the persistent sidebar is replaced with one
+header menu control named `Open project navigation`. The same `ProjectSidebar`
+instance becomes a left drawer with a width of `min(320px, 88vw)`; there is no
+second project selector or workflow list.
+
+Opening the drawer moves focus to the project selector, or the first available
+workflow link when no selector is available. Focus remains in the drawer until
+it closes. Escape, the backdrop, a successful project switch, and route changes
+close it and return focus to the menu control. While open, background scrolling
+is disabled. The drawer transition is removed for reduced-motion users.
+
 ## Project Switch
 
 After a successful project switch, the shell refreshes the selected project's
