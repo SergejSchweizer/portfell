@@ -445,11 +445,38 @@ grant select, insert, update on portfell_app.current_project_preferences to port
 grant select on portfell_app.current_project_preferences to portfell_readonly;
 """
 
+_CREDENTIAL_WRAP_NONCE_SQL = """
+alter table portfell_app.provider_credentials
+    add column if not exists wrap_nonce bytea;
+
+do $$
+begin
+    if exists (
+        select 1
+        from portfell_app.provider_credentials
+        where wrap_nonce is null
+    ) then
+        raise exception 'provider credential rows require a wrap nonce migration';
+    end if;
+end $$;
+
+alter table portfell_app.provider_credentials
+    alter column wrap_nonce set not null;
+
+alter table portfell_app.provider_credentials
+    drop constraint if exists provider_credentials_user_id_provider_status_key;
+
+create unique index if not exists provider_credentials_one_active_user_provider_idx
+    on portfell_app.provider_credentials (user_id, provider)
+    where status = 'active';
+"""
+
 MIGRATIONS: tuple[HostedMigration, ...] = (
     HostedMigration(1, "hosted_catalog_base_schema", _BASE_SCHEMA_SQL),
     HostedMigration(2, "hosted_catalog_rls_and_grants", _RLS_POLICY_SQL),
     HostedMigration(3, "remove_google_authentication", _REMOVE_GOOGLE_AUTH_SQL),
     HostedMigration(4, "current_project_preference", _CURRENT_PROJECT_PREFERENCE_SQL),
+    HostedMigration(5, "provider_credential_wrap_nonce", _CREDENTIAL_WRAP_NONCE_SQL),
 )
 
 
