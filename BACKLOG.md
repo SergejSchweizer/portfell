@@ -613,7 +613,7 @@ The implementation order is strict. Persistence and identity land before runtime
 
 Branch: `refactor/persistent-credential-boundaries`.
 
-Git status: in progress. PR: https://github.com/SergejSchweizer/portfell/pull/210.
+Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/210.
 
 Priority: P0 identity and persistence boundary.
 
@@ -648,7 +648,7 @@ Idempotency: Re-resolving or bootstrapping the local principal creates at most o
 
 Branch: `feat/postgres-credential-repository`.
 
-Git status: not started. PR: TBD.
+Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/211.
 
 Priority: P0 durable encrypted storage.
 
@@ -684,7 +684,7 @@ Idempotency: Retrying an identical logical upsert cannot create a second active 
 
 Branch: `feat/persistent-credential-runtime`.
 
-Git status: not started. PR: TBD.
+Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/213.
 
 Priority: P0 production cutover.
 
