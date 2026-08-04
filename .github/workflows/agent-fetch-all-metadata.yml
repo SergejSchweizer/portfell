@@ -58,6 +58,7 @@ jobs:
               if not str(error).startswith("forbidden legacy token"):
                   raise
 
+          Path("sitecustomize.py").unlink(missing_ok=True)
           template = Path(".agent/test_web_react_scaffold.py")
           shutil.copyfile(template, Path("tests/test_web_react_scaffold.py"))
           template.unlink()
@@ -116,6 +117,45 @@ jobs:
           if removed_contracts != 1:
               raise RuntimeError("obsolete bivariate contract was not removed")
           contracts_path.write_text(contracts, encoding="utf-8")
+
+          path_assertion = '''    assert paths.gold_bivariate_statistics_pair(
+              "XETRA",
+              "IE0000000001",
+              "AAA",
+              "AS",
+              "IE0000000002",
+              "BBB",
+          ) == Path("lake/gold/bivariate_statistics/XETRA/IE0000000001/AAA/AS__IE0000000002__BBB.parquet")
+          '''
+          paths_test_path = Path("tests/test_paths.py")
+          paths_test = paths_test_path.read_text(encoding="utf-8")
+          if path_assertion not in paths_test:
+              raise RuntimeError("obsolete path assertion was not found")
+          paths_test_path.write_text(
+              paths_test.replace(path_assertion, ""), encoding="utf-8"
+          )
+
+          cli_assertion = '''    assert (
+              read_rows(
+                  paths.gold_bivariate_statistics_pair(
+                      "XETRA",
+                      "IE1",
+                      "AAA",
+                      "AS",
+                      "IE2",
+                      "BBB",
+                  )
+              )
+              == []
+          )
+          '''
+          cli_test_path = Path("tests/test_cli.py")
+          cli_test = cli_test_path.read_text(encoding="utf-8")
+          if cli_assertion not in cli_test:
+              raise RuntimeError("obsolete CLI assertion was not found")
+          cli_test_path.write_text(
+              cli_test.replace(cli_assertion, ""), encoding="utf-8"
+          )
 
           forbidden = (
               "fetch_all_isins",
@@ -182,7 +222,9 @@ jobs:
             tests/test_hosted_web_ui.py \
             tests/test_hosted_runtime_compose.py \
             tests/test_entrypoints.py \
-            tests/test_bivariate_statistics.py -q
+            tests/test_bivariate_statistics.py \
+            tests/test_paths.py \
+            tests/test_cli.py -q
 
       - name: Commit generated migration
         run: |
