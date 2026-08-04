@@ -684,7 +684,7 @@ Idempotency: Retrying an identical logical upsert cannot create a second active 
 
 Branch: `feat/persistent-credential-runtime`.
 
-Git status: not started. PR: TBD.
+Git status: in progress. PR: https://github.com/SergejSchweizer/portfell/pull/213.
 
 Priority: P0 production cutover.
 
