@@ -21,6 +21,7 @@ export function MetadataFilterPage() {
   const [currency, setCurrency] = useState("");
   const [name, setName] = useState("");
   const [projectId, setProjectId] = useState("");
+  const [metadataSelectionId, setMetadataSelectionId] = useState("");
   const [selectionStatus, setSelectionStatus] = useState("Choose at least one metadata filter.");
   const [quoteStatus, setQuoteStatus] = useState<"idle" | "running" | "complete" | "failed">("idle");
   const [quoteProgress, setQuoteProgress] = useState(0);
@@ -36,10 +37,11 @@ export function MetadataFilterPage() {
     event.preventDefault();
     setSelectionStatus("Applying metadata filter…");
     setProjectId("");
+    setMetadataSelectionId("");
     setQuoteStatus("idle");
     setQuoteProgress(0);
     try {
-      const result = await postJson<ApiMetadataProject>("/api/metadata-filter/projects", {
+      const result = await postJson<ApiMetadataProject>("/api/metadata-filter", {
         exchange,
         name,
         instrument_type: instrumentType,
@@ -47,27 +49,30 @@ export function MetadataFilterPage() {
         currency,
       });
       setProjectId(result.project.project_id);
+      setMetadataSelectionId(result.selection.selection_id);
       setSelectionStatus(`${result.selected_count.toLocaleString()} listings selected.`);
       setQuoteMessage("Selection ready. Fetch historical quotes to continue.");
+      window.dispatchEvent(new Event("portfell:workflow-updated"));
     } catch (error) {
       setSelectionStatus(error instanceof Error ? error.message : "Metadata filter failed.");
     }
   }
 
   async function fetchQuotes() {
-    if (!projectId || quoteStatus === "running") return;
+    if (!metadataSelectionId || quoteStatus === "running") return;
     setQuoteStatus("running");
     setQuoteProgress(0);
     setQuoteMessage("Fetching quotes and building the Silver dataset…");
     try {
-      const result = await postJson<ApiQuoteFetch>("/api/data/load-selected-isins", {
-        project_id: projectId,
+      const result = await postJson<ApiQuoteFetch>("/api/quote-runs", {
+        metadata_selection_id: metadataSelectionId,
       });
       setQuoteProgress(100);
       setQuoteStatus("complete");
       setQuoteMessage(
         `${(result.quote_successes ?? result.selected_listing_count ?? 0).toLocaleString()} listings fetched; ${(result.quote_errors ?? 0).toLocaleString()} failed.`,
       );
+      window.dispatchEvent(new Event("portfell:workflow-updated"));
     } catch (error) {
       setQuoteStatus("failed");
       setQuoteProgress(0);
@@ -142,7 +147,7 @@ export function MetadataFilterPage() {
             <Button
               type="button"
               variant="primary"
-              disabled={!projectId || quoteStatus === "running"}
+              disabled={!projectId || !metadataSelectionId || quoteStatus === "running"}
               onClick={() => void fetchQuotes()}
             >
               {quoteStatus === "running" ? "Fetching quotes…" : "Fetch quotes"}
