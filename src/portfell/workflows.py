@@ -41,7 +41,11 @@ from portfell.search import (
     write_search_run,
 )
 from portfell.selection_filters import parse_predicates
-from portfell.silver import build_silver_quotes, read_silver_quotes
+from portfell.silver import (
+    build_silver_quotes,
+    read_silver_quotes,
+    read_silver_quotes_for_listings,
+)
 from portfell.table_io import read_json, read_rows, write_rows
 from portfell.univariate_filter import run_univariate_filter, selection_rows
 from portfell.univariate_statistics import (
@@ -174,6 +178,7 @@ def run_fetch_all_quotes_workflow(
     concurrency: int = 2,
     eodhd_config: EodhdConfig | None = None,
     capture_scoped_rows: bool = False,
+    memory_safe: bool = False,
     on_progress: Callable[[int, int, int], None] | None = None,
 ) -> dict[str, Any]:
     """Fetch Bronze quote inputs for the latest Metadata Filter selection."""
@@ -194,6 +199,7 @@ def run_fetch_all_quotes_workflow(
                 raise ValueError(f"metadata-filter selection does not contain ISIN: {isin}")
         if limit is not None:
             selection_rows = selection_rows[:limit]
+        selected_listings = {(str(row["exchange"]), str(row["isin"])) for row in selection_rows}
         plan = _build_fetch_all_quotes_plan(
             selection_rows,
             run_id=resolved_run_id,
@@ -201,9 +207,12 @@ def run_fetch_all_quotes_workflow(
             end_date=resolved_end_date,
         )
         if gap_aware:
-            plan = build_gap_bronze_plan(
-                plan, read_silver_quotes(paths), end_date=resolved_end_date
+            existing_quotes = (
+                read_silver_quotes_for_listings(paths, selected_listings)
+                if memory_safe
+                else read_silver_quotes(paths)
             )
+            plan = build_gap_bronze_plan(plan, existing_quotes, end_date=resolved_end_date)
         write_rows(paths.bronze_plan(resolved_run_id), plan)
         total_tasks = len(plan) * (1 + len(ADDITIONAL_EODHD_DATASETS)) + 1
         completed_tasks = 0
@@ -242,7 +251,14 @@ def run_fetch_all_quotes_workflow(
                 concurrency=concurrency,
                 on_item_complete=record_progress,
             )
-        silver_rows = build_silver_quotes(paths, concurrency=concurrency)
+        silver_rows = build_silver_quotes(
+            paths,
+            concurrency=concurrency,
+            listings=selected_listings if memory_safe else None,
+            load_rows=not memory_safe,
+        )
+        if memory_safe:
+            silver_rows = read_silver_quotes_for_listings(paths, selected_listings)
         coverage = write_bronze_manifests(
             paths,
             run_id=resolved_run_id,

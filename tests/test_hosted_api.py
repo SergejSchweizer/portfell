@@ -375,6 +375,7 @@ def test_load_selected_isins_runs_fetch_all_quotes_for_metadata_selection(
     assert calls[0]["root"] == lake_root
     assert calls[0]["selection_id"] == selection_id
     assert calls[0]["concurrency"] == 2
+    assert calls[0]["memory_safe"] is True
     assert calls[0]["eodhd_config"].api_token == "secret-provider-token"
     assert persisted_selection_rows[0]["isin"] == "IE1"
     assert persisted_selection_rows[0]["exchange"] == "XETRA"

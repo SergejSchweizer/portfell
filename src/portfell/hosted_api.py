@@ -1365,6 +1365,7 @@ def _run_quote_fetch(
             concurrency=2,
             eodhd_config=EodhdConfig(api_token=provider_key),
             capture_scoped_rows=True,
+            memory_safe=True,
             on_progress=update_progress,
         )
     except Exception:
