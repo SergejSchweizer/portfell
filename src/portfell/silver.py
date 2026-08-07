@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Collection, Mapping, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from typing import Any
@@ -122,6 +122,7 @@ def build_silver_quotes(
     concurrency: int = 2,
     listings: Collection[tuple[str, str]] | None = None,
     load_rows: bool = True,
+    on_listing_complete: Callable[[], None] | None = None,
 ) -> list[JsonRow]:
     """Build Silver quotes from Bronze files without materializing all Bronze rows."""
 
@@ -132,4 +133,6 @@ def build_silver_quotes(
             continue
         quote_rows = build_silver_quote_rows(read_rows(bronze_path))
         write_silver_quotes(paths, quote_rows, concurrency=concurrency)
+        if on_listing_complete is not None:
+            on_listing_complete()
     return read_silver_quotes(paths) if load_rows else []

@@ -16,7 +16,9 @@ from portfell.bivariate_statistics import resolve_worker_count, write_bivariate_
 from portfell.bronze import (
     ADDITIONAL_EODHD_DATASETS,
     QUOTE_DATASET,
+    build_coverage,
     build_gap_bronze_plan,
+    build_quote_gap_rows,
     eodhd_dataset_loader,
     write_bronze_manifests,
     write_quotes_to_bronze,
@@ -34,6 +36,7 @@ from portfell.multivariate_statistics import (
 from portfell.paths import LakePaths
 from portfell.portfolio import PortfolioConstraints
 from portfell.run_locks import module_run_lock
+from portfell.schemas import required_fields
 from portfell.search import (
     approve_universe,
     normalize_name,
@@ -44,9 +47,8 @@ from portfell.selection_filters import parse_predicates
 from portfell.silver import (
     build_silver_quotes,
     read_silver_quotes,
-    read_silver_quotes_for_listings,
 )
-from portfell.table_io import read_json, read_rows, write_rows
+from portfell.table_io import read_json, read_rows, write_csv, write_rows
 from portfell.univariate_filter import run_univariate_filter, selection_rows
 from portfell.univariate_statistics import (
     DEFAULT_CONFIDENCE_LEVEL,
@@ -207,14 +209,14 @@ def run_fetch_all_quotes_workflow(
             end_date=resolved_end_date,
         )
         if gap_aware:
-            existing_quotes = (
-                read_silver_quotes_for_listings(paths, selected_listings)
-                if memory_safe
-                else read_silver_quotes(paths)
-            )
-            plan = build_gap_bronze_plan(plan, existing_quotes, end_date=resolved_end_date)
+            if memory_safe:
+                plan = _build_memory_safe_gap_plan(paths, plan, end_date=resolved_end_date)
+            else:
+                plan = build_gap_bronze_plan(
+                    plan, read_silver_quotes(paths), end_date=resolved_end_date
+                )
         write_rows(paths.bronze_plan(resolved_run_id), plan)
-        total_tasks = len(plan) * (1 + len(ADDITIONAL_EODHD_DATASETS)) + 1
+        total_tasks = len(plan) * (1 + len(ADDITIONAL_EODHD_DATASETS)) + len(selected_listings) + 1
         completed_tasks = 0
         failed_tasks = 0
         progress_lock = threading.Lock()
@@ -256,16 +258,25 @@ def run_fetch_all_quotes_workflow(
             concurrency=concurrency,
             listings=selected_listings if memory_safe else None,
             load_rows=not memory_safe,
+            on_listing_complete=(lambda: record_progress(True)) if memory_safe else None,
         )
         if memory_safe:
-            silver_rows = read_silver_quotes_for_listings(paths, selected_listings)
-        coverage = write_bronze_manifests(
-            paths,
-            run_id=resolved_run_id,
-            quote_rows=silver_rows,
-            plan=plan,
-            as_of=resolved_end_date,
-        )
+            coverage, silver_quote_rows = _write_memory_safe_quote_manifests(
+                paths,
+                run_id=resolved_run_id,
+                plan=plan,
+                listings=selected_listings,
+                as_of=resolved_end_date,
+            )
+        else:
+            coverage = write_bronze_manifests(
+                paths,
+                run_id=resolved_run_id,
+                quote_rows=silver_rows,
+                plan=plan,
+                as_of=resolved_end_date,
+            )
+            silver_quote_rows = len(silver_rows)
         record_progress(True)
         log_event(
             LOGGER,
@@ -288,10 +299,12 @@ def run_fetch_all_quotes_workflow(
             "run_id": resolved_run_id,
             "selection_id": resolved_selection_id,
             "selected_listing_count": len(selection_rows),
-            "silver_quote_rows": len(silver_rows),
+            "silver_quote_rows": silver_quote_rows,
         }
         if capture_scoped_rows:
-            summary["scoped_quote_rows"] = _filter_quotes_to_selection(silver_rows, selection_rows)
+            summary["scoped_quote_rows"] = (
+                _filter_quotes_to_selection(silver_rows, selection_rows) if not memory_safe else ()
+            )
         return summary
 
 
@@ -318,6 +331,65 @@ def _build_fetch_all_quotes_plan(
             }
         )
     return plan
+
+
+def _build_memory_safe_gap_plan(
+    paths: LakePaths,
+    plan: Sequence[Mapping[str, Any]],
+    *,
+    end_date: date,
+) -> list[dict[str, Any]]:
+    """Build quote gaps one listing at a time to bound hosted API memory."""
+
+    gap_plan: list[dict[str, Any]] = []
+    for item in plan:
+        existing_rows = read_rows(paths.silver_quote_file(str(item["exchange"]), str(item["isin"])))
+        gap_plan.extend(build_gap_bronze_plan((item,), existing_rows, end_date=end_date))
+    return gap_plan
+
+
+def _write_memory_safe_quote_manifests(
+    paths: LakePaths,
+    *,
+    run_id: str,
+    plan: Sequence[Mapping[str, Any]],
+    listings: set[tuple[str, str]],
+    as_of: date,
+) -> tuple[list[dict[str, Any]], int]:
+    """Write quote manifests while holding data for only one listing at a time."""
+
+    plan_by_listing: dict[tuple[str, str], list[Mapping[str, Any]]] = {}
+    for item in plan:
+        plan_by_listing.setdefault((str(item["exchange"]), str(item["isin"])), []).append(item)
+    coverage: list[dict[str, Any]] = []
+    gaps: list[dict[str, Any]] = []
+    quote_row_count = 0
+    for exchange, isin in sorted(listings):
+        quote_rows = read_rows(paths.silver_quote_file(exchange, isin))
+        quote_row_count += len(quote_rows)
+        coverage.extend(build_coverage(quote_rows, run_id=run_id))
+        gaps.extend(
+            build_quote_gap_rows(
+                plan_by_listing.get((exchange, isin), ()),
+                quote_rows,
+                run_id=run_id,
+                as_of=as_of,
+            )
+        )
+    write_rows(paths.quote_gaps(), gaps)
+    write_rows(paths.coverage(), coverage)
+    write_rows(
+        paths.bronze_runs(),
+        [
+            {
+                "run_id": run_id,
+                "started_at": datetime.now(UTC).replace(microsecond=0).isoformat(),
+                "quote_rows": quote_row_count,
+            }
+        ],
+    )
+    write_csv(paths.coverage().with_suffix(".csv"), coverage, required_fields("coverage"))
+    return coverage, quote_row_count
 
 
 def run_metadata_filter_workflow(
