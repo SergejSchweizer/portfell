@@ -20,18 +20,28 @@ def test_web_has_exactly_four_research_pages() -> None:
     assert routes.count('path: "/') == len(expected)
 
 
-def test_metadata_page_orders_progress_before_fetch_quotes_action() -> None:
-    page = (WEB_ROOT / "src" / "pages" / "metadata-filter.tsx").read_text(encoding="utf-8")
-    assert "Fetch quotes" in page
-    assert "postJson" in page
-    assert '"/api/quote-runs"' in page
-    assert page.index("<progress") < page.index("quote-fetch__action")
-    assert page.index("quote-fetch__action") < page.index("Fetch quotes")
-    assert "loadQuoteRun" in page
-    assert "quote-fetch tasks completed" in page
-    assert "estimatedRemainingTime" in page
-    assert "remaining" in page
-    assert "value={quoteProgress}" in page
+def test_workflow_pages_place_ingestion_actions_before_their_stage_controls() -> None:
+    metadata_page = (WEB_ROOT / "src" / "pages" / "metadata-filter.tsx").read_text(encoding="utf-8")
+    univariate_page = (WEB_ROOT / "src" / "pages" / "univariate-statistics.tsx").read_text(
+        encoding="utf-8"
+    )
+    assert "Fetch all metadata" in metadata_page
+    assert metadata_page.index("Refresh Listing Metadata") < metadata_page.index("Metadata Filter")
+    assert '"/univariate-statistics"' in metadata_page
+    assert "Fetch quotes" not in metadata_page
+    assert "Fetch quotes" in univariate_page
+    assert "postJson" in univariate_page
+    assert '"/api/quote-runs"' in univariate_page
+    assert univariate_page.index("Fetch Historical Quotes") < univariate_page.index(
+        "Univariate Statistics"
+    )
+    assert univariate_page.index("<progress") < univariate_page.index("quote-fetch__action")
+    assert univariate_page.index("quote-fetch__action") < univariate_page.index("Fetch quotes")
+    assert "loadQuoteRun" in univariate_page
+    assert "quote-fetch tasks completed" in univariate_page
+    assert "estimatedRemainingTime" in univariate_page
+    assert "remaining" in univariate_page
+    assert "value={quoteProgress}" in univariate_page
 
 
 def test_vite_build_is_the_canonical_web_runtime() -> None:
@@ -139,24 +149,24 @@ def test_metadata_filter_restores_saved_project_filter_values() -> None:
     assert "setName(filter.name)" in page
 
 
-def test_metadata_refresh_keeps_the_entered_eodhd_key_in_the_header_field() -> None:
-    frame = (WEB_ROOT / "src" / "shell" / "frame.tsx").read_text(encoding="utf-8")
+def test_metadata_refresh_keeps_the_entered_eodhd_key_in_the_metadata_panel() -> None:
+    page = (WEB_ROOT / "src" / "pages" / "metadata-filter.tsx").read_text(encoding="utf-8")
 
-    assert 'await postJson("/api/credentials/eodhd", { provider_key: providerKey.trim() })' in frame
-    assert 'setProviderKey("")' not in frame
+    assert 'await postJson("/api/credentials/eodhd", { provider_key: providerKey.trim() })' in page
+    assert 'setProviderKey("")' not in page
 
 
-def test_header_uses_masked_saved_credential_without_browser_secret_persistence() -> None:
-    frame = (WEB_ROOT / "src" / "shell" / "frame.tsx").read_text(encoding="utf-8")
+def test_metadata_panel_uses_masked_saved_credential_without_browser_secret_persistence() -> None:
+    page = (WEB_ROOT / "src" / "pages" / "metadata-filter.tsx").read_text(encoding="utf-8")
     client = (WEB_ROOT / "src" / "api" / "client.ts").read_text(encoding="utf-8")
 
-    assert "loadEodhdCredentialStatus" in frame
-    assert "loadEodhdCredentialValue" in frame
-    assert "setProviderKey(savedProviderKey.data.provider_key)" in frame
-    assert "Saved: {credential.data.masked_label}" in frame
-    assert "!providerKey.trim() && !hasSavedCredential" in frame
-    assert 'setProviderKey("")' not in frame
-    assert 'type="text"' in frame
+    assert "loadEodhdCredentialStatus" in page
+    assert "loadEodhdCredentialValue" in page
+    assert "setProviderKey(savedProviderKey.data.provider_key)" in page
+    assert "Saved: {credential.data.masked_label}" in page
+    assert "!providerKey.trim() && !hasSavedCredential" in page
+    assert 'setProviderKey("")' not in page
+    assert 'type="text"' in page
     assert 'requestJson<ApiCredentialStatus>("/api/credentials/eodhd")' in client
     assert 'requestJson<ApiCredentialValue>("/api/credentials/eodhd/value")' in client
 
@@ -169,14 +179,14 @@ def test_post_requests_support_browsers_without_crypto_random_uuid() -> None:
     assert '"Idempotency-Key": createIdempotencyKey()' in client
 
 
-def test_metadata_header_shows_progress_under_the_eodhd_key_while_fetching() -> None:
-    frame = (WEB_ROOT / "src" / "shell" / "frame.tsx").read_text(encoding="utf-8")
+def test_metadata_panel_shows_progress_under_the_eodhd_key_while_fetching() -> None:
+    page = (WEB_ROOT / "src" / "pages" / "metadata-filter.tsx").read_text(encoding="utf-8")
     styles = (WEB_ROOT / "styles" / "app.css").read_text(encoding="utf-8")
 
-    assert 'fetching ? <progress className="metadata-fetch__progress"' in frame
-    assert "max={100} value={metadataProgress}" in frame
-    assert "loadMetadataFetchRun" in frame
-    assert "exchanges completed" in frame
+    assert 'fetching ? <progress className="metadata-fetch__progress"' in page
+    assert "max={100} value={metadataProgress}" in page
+    assert "loadMetadataFetchRun" in page
+    assert "exchanges completed" in page
     assert ".metadata-fetch__progress { height: 4px;" in styles
 
 

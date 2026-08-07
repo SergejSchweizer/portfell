@@ -6,29 +6,21 @@
 
 ## Purpose
 
-Create a server-owned project selection from listing metadata, then fetch historical quotes for that selection.
+Refresh listing metadata and create a server-owned project selection from it.
 
 ## Inputs and actions
 
-The page exposes exchange, instrument type, country, currency, and name filters. `Apply metadata filter` creates the selection through the server. After a valid project exists, the page shows quote-fetch progress, status text, and a right-aligned `Fetch quotes` action beneath the progress indicator.
+The first white panel owns listing-metadata refresh: EODHD key, saved-key state, determinate exchange progress, status text, and `Fetch all metadata`. The Metadata Filter panel follows it and exposes exchange, instrument type, country, currency, and name filters.
 
-The persistent header fetches listing metadata. While that request is active, it
-shows a narrow determinate progress bar directly below the EODHD key input. The
-browser polls the metadata-run status endpoint and renders its real completed
-exchange count and percentage.
-
-`Fetch quotes` calls `/api/quote-runs` with the persisted metadata selection id. The server returns
-`total`, `completed`, `failed`, and `percent` progress values. Duplicate submission is disabled while
-the operation is running. The page polls the quote-run status endpoint and renders those values as a determinate progress bar and provider-task count.
+After a successful `Apply metadata filter` response, the browser dispatches the server-owned workflow refresh and navigates to `/univariate-statistics`. Quote fetching belongs to that next stage.
 
 ## States
 
-Idle, filtering, selection-ready, quote-running, quote-complete, quote-failed, metadata-empty, and metadata-unavailable states must be explicit. A metadata refresh invalidates and reloads the available filter options.
+Idle, metadata-fetching, metadata-fetch-failed, filtering, selection-ready, metadata-empty, and metadata-unavailable states must be explicit. A metadata refresh invalidates and reloads the available filter options.
 
 The selected project is shown in the persistent sidebar. A project switch, or
-opening this page after a switch, loads the saved server-owned filter values,
-selection id, and listing count for that project before quote progress is shown.
+opening this page after a switch, loads the saved server-owned filter values and listing count.
 
 ## Acceptance
 
-The progress indicator precedes the quote action in document order. The action remains disabled until a project selection exists. All fields have visible labels, status changes use `aria-live`, and no filtering or ingestion business logic is implemented in the browser.
+The metadata panel precedes the filter dropdowns in document order. Metadata refresh remains disabled without an entered or saved key. All fields have visible labels, status changes use `aria-live`, and no filtering or ingestion business logic is implemented in the browser.

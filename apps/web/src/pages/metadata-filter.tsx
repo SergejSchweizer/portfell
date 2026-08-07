@@ -1,43 +1,42 @@
 
 import { useEffect, useState, type FormEvent } from "react";
-import { loadProjectContext, loadProjectMetadataFilter, loadQuoteRun, postJson, requestJson } from "../api/client";
+import {
+  loadEodhdCredentialStatus,
+  loadEodhdCredentialValue,
+  loadMetadataFetchRun,
+  loadProjectContext,
+  loadProjectMetadataFilter,
+  postJson,
+  requestJson,
+} from "../api/client";
 import { Button } from "../components/button";
 import { EmptyState } from "../components/empty-state";
 import { LoadingState } from "../components/loading-state";
 import { Panel } from "../components/panel";
-import type { ApiFieldOptions, ApiMetadataProject, ApiProjectSummary, ApiQuoteFetch } from "../contracts";
+import type { ApiFieldOptions, ApiMetadataFetch, ApiMetadataProject, ApiProjectSummary } from "../contracts";
 import { useResource } from "../hooks/use-resource";
 
 async function loadFieldOptions(): Promise<ApiFieldOptions> {
   return requestJson<ApiFieldOptions>("/api/metadata-filter/options");
 }
 
-function estimatedRemainingTime(startedAt: number | undefined, completed: number, total: number): string {
-  if (!startedAt || completed <= 0 || total <= completed) return "";
-  const elapsedMilliseconds = Date.now() - startedAt * 1_000;
-  if (elapsedMilliseconds <= 0) return "";
-  const remainingSeconds = Math.ceil((elapsedMilliseconds / 1_000 / completed) * (total - completed));
-  if (remainingSeconds < 60) return " (less than 1 min remaining)";
-  const hours = Math.floor(remainingSeconds / 3_600);
-  const minutes = Math.ceil((remainingSeconds % 3_600) / 60);
-  return hours > 0 ? ` (about ${hours}h ${minutes}m remaining)` : ` (about ${minutes} min remaining)`;
-}
-
 export function MetadataFilterPage() {
   const [metadataRevision, setMetadataRevision] = useState(0);
   const options = useResource(loadFieldOptions, [metadataRevision]);
+  const credential = useResource(loadEodhdCredentialStatus, []);
+  const savedProviderKey = useResource(loadEodhdCredentialValue, []);
+  const [providerKey, setProviderKey] = useState("");
+  const [fetching, setFetching] = useState(false);
+  const [metadataRunId, setMetadataRunId] = useState<string | null>(null);
+  const [metadataProgress, setMetadataProgress] = useState(0);
+  const [metadataStatus, setMetadataStatus] = useState("Enter an EODHD key to refresh listing metadata.");
   const [exchange, setExchange] = useState("");
   const [instrumentType, setInstrumentType] = useState("");
   const [country, setCountry] = useState("");
   const [currency, setCurrency] = useState("");
   const [name, setName] = useState("");
-  const [projectId, setProjectId] = useState("");
-  const [metadataSelectionId, setMetadataSelectionId] = useState("");
   const [selectionStatus, setSelectionStatus] = useState("Choose at least one metadata filter.");
-  const [quoteStatus, setQuoteStatus] = useState<"idle" | "running" | "complete" | "failed">("idle");
-  const [quoteProgress, setQuoteProgress] = useState(0);
-  const [quoteMessage, setQuoteMessage] = useState("Quotes have not been fetched for this selection.");
-  const [quoteRunId, setQuoteRunId] = useState<string | null>(null);
+  const hasSavedCredential = credential.status === "ready" && credential.data.status === "active";
 
   useEffect(() => {
     const refresh = () => setMetadataRevision((value) => value + 1);
@@ -46,16 +45,54 @@ export function MetadataFilterPage() {
   }, []);
 
   useEffect(() => {
+    if (savedProviderKey.status === "ready") setProviderKey(savedProviderKey.data.provider_key);
+  }, [savedProviderKey.status]);
+
+  useEffect(() => {
+    if (!metadataRunId || !fetching) return;
+    const activeRunId = metadataRunId;
+    let cancelled = false;
+    let timeoutId: number | undefined;
+
+    async function pollMetadataRun() {
+      try {
+        const result = await loadMetadataFetchRun(activeRunId);
+        if (cancelled) return;
+        setMetadataProgress(result.percent);
+        if (result.status === "running") {
+          setMetadataStatus(`Fetching metadata: ${result.completed.toLocaleString()} of ${result.total.toLocaleString()} exchanges completed.`);
+          timeoutId = window.setTimeout(() => void pollMetadataRun(), 750);
+          return;
+        }
+        setFetching(false);
+        setMetadataRunId(null);
+        if (result.status === "failed") {
+          setMetadataStatus(result.error_code ?? "Metadata fetch failed.");
+          return;
+        }
+        setMetadataStatus(`${(result.row_count ?? 0).toLocaleString()} metadata rows from ${result.exchange_count ?? 0} exchanges loaded.`);
+        window.dispatchEvent(new Event("portfell:metadata-updated"));
+        window.dispatchEvent(new Event("portfell:workflow-updated"));
+      } catch (error) {
+        if (cancelled) return;
+        setFetching(false);
+        setMetadataRunId(null);
+        setMetadataStatus(error instanceof Error ? error.message : "Metadata fetch failed.");
+      }
+    }
+
+    void pollMetadataRun();
+    return () => {
+      cancelled = true;
+      if (timeoutId !== undefined) window.clearTimeout(timeoutId);
+    };
+  }, [fetching, metadataRunId]);
+
+  useEffect(() => {
     let cancelled = false;
 
     const resetProjectState = () => {
-      setProjectId("");
-      setMetadataSelectionId("");
       setSelectionStatus("Choose at least one metadata filter.");
-      setQuoteStatus("idle");
-      setQuoteProgress(0);
-      setQuoteMessage("Quotes have not been fetched for this selection.");
-      setQuoteRunId(null);
     };
 
     const loadProjectFilter = async (project: ApiProjectSummary | null) => {
@@ -64,9 +101,6 @@ export function MetadataFilterPage() {
         return;
       }
       setSelectionStatus("Loading saved metadata filter…");
-      setQuoteStatus("idle");
-      setQuoteProgress(0);
-      setQuoteRunId(null);
       try {
         const filter = await loadProjectMetadataFilter(project.project_id);
         if (cancelled) return;
@@ -75,10 +109,7 @@ export function MetadataFilterPage() {
         setCountry(filter.country);
         setCurrency(filter.currency);
         setName(filter.name);
-        setProjectId(filter.project_id);
-        setMetadataSelectionId(filter.selection_id);
         setSelectionStatus(`${filter.selected_count.toLocaleString()} listings selected.`);
-        setQuoteMessage(project.data_loaded ? "Quotes are available for this selection." : "Selection ready. Fetch historical quotes to continue.");
       } catch (error) {
         if (cancelled) return;
         resetProjectState();
@@ -102,60 +133,26 @@ export function MetadataFilterPage() {
     };
   }, []);
 
-  useEffect(() => {
-    if (!quoteRunId || quoteStatus !== "running") return;
-    const activeRunId = quoteRunId;
-    let cancelled = false;
-    let timeoutId: number | undefined;
-
-    async function pollQuoteRun() {
-      try {
-        const result = await loadQuoteRun(activeRunId);
-        if (cancelled) return;
-        const completed = result.completed ?? 0;
-        const total = result.total ?? 0;
-        const failed = result.failed ?? 0;
-        setQuoteProgress(result.percent ?? 0);
-        if (result.status === "running") {
-          setQuoteMessage(
-            `${completed.toLocaleString()} of ${total.toLocaleString()} quote-fetch tasks completed${estimatedRemainingTime(result.started_at, completed, total)}.`,
-          );
-          timeoutId = window.setTimeout(() => void pollQuoteRun(), 750);
-          return;
-        }
-        if (result.status === "failed") {
-          setQuoteStatus("failed");
-          setQuoteMessage("Quote fetch failed. Retry the run after checking the selected listings.");
-          return;
-        }
-        setQuoteStatus("complete");
-        setQuoteProgress(100);
-        setQuoteMessage(
-          `${(result.quote_successes ?? result.selected_listing_count ?? 0).toLocaleString()} listings fetched; ${failed.toLocaleString()} provider tasks failed.`,
-        );
-        window.dispatchEvent(new Event("portfell:workflow-updated"));
-      } catch (error) {
-        if (cancelled) return;
-        setQuoteStatus("failed");
-        setQuoteMessage(error instanceof Error ? error.message : "Quote fetch failed.");
-      }
+  async function fetchMetadata(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if ((!providerKey.trim() && !hasSavedCredential) || fetching) return;
+    setFetching(true);
+    setMetadataProgress(0);
+    setMetadataStatus(providerKey.trim() ? "Saving key and fetching metadata..." : "Fetching metadata...");
+    try {
+      if (providerKey.trim()) await postJson("/api/credentials/eodhd", { provider_key: providerKey.trim() });
+      const result = await postJson<ApiMetadataFetch>("/api/metadata/fetch-all", {});
+      setMetadataRunId(result.metadata_run_id);
+      setMetadataProgress(result.percent);
+    } catch (error) {
+      setMetadataStatus(error instanceof Error ? error.message : "Metadata fetch failed.");
+      setFetching(false);
     }
-
-    void pollQuoteRun();
-    return () => {
-      cancelled = true;
-      if (timeoutId !== undefined) window.clearTimeout(timeoutId);
-    };
-  }, [quoteRunId, quoteStatus]);
+  }
 
   async function applyFilter(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSelectionStatus("Applying metadata filter…");
-    setProjectId("");
-    setMetadataSelectionId("");
-    setQuoteStatus("idle");
-    setQuoteProgress(0);
-    setQuoteRunId(null);
     try {
       const result = await postJson<ApiMetadataProject>("/api/metadata-filter", {
         exchange,
@@ -164,32 +161,12 @@ export function MetadataFilterPage() {
         country,
         currency,
       });
-      setProjectId(result.project.project_id);
-      setMetadataSelectionId(result.selection.selection_id);
       setSelectionStatus(`${result.selected_count.toLocaleString()} listings selected.`);
-      setQuoteMessage("Selection ready. Fetch historical quotes to continue.");
       window.dispatchEvent(new Event("portfell:workflow-updated"));
+      window.history.pushState({}, "", "/univariate-statistics");
+      window.dispatchEvent(new Event("portfell:navigation"));
     } catch (error) {
       setSelectionStatus(error instanceof Error ? error.message : "Metadata filter failed.");
-    }
-  }
-
-  async function fetchQuotes() {
-    if (!metadataSelectionId || quoteStatus === "running") return;
-    setQuoteStatus("running");
-    setQuoteProgress(0);
-    setQuoteMessage("Fetching quotes and building the Silver dataset…");
-    try {
-      const result = await postJson<ApiQuoteFetch>("/api/quote-runs", {
-        metadata_selection_id: metadataSelectionId,
-      });
-      setQuoteRunId(result.download_run_id);
-      setQuoteProgress(result.percent ?? 0);
-      setQuoteMessage("Quote fetch started. Waiting for the first completed provider task…");
-    } catch (error) {
-      setQuoteStatus("failed");
-      setQuoteProgress(0);
-      setQuoteMessage(error instanceof Error ? error.message : "Quote fetch failed.");
     }
   }
 
@@ -201,13 +178,29 @@ export function MetadataFilterPage() {
     return (
       <EmptyState
         title="Metadata unavailable"
-        description="Use the EODHD key field in the header and fetch all metadata first."
+        description="Use the EODHD key field above and fetch all metadata first."
       />
     );
   }
 
   return (
-    <section data-route="metadata-filter-page">
+    <section className="metadata-filter-page" data-route="metadata-filter-page">
+      <Panel title="Refresh Listing Metadata">
+        <form className="metadata-fetch metadata-fetch--page" onSubmit={fetchMetadata}>
+          <div className="metadata-fetch__credential-input">
+            <label>
+              EODHD key
+              <input type="text" autoComplete="off" value={providerKey} onChange={(event) => setProviderKey(event.target.value)} placeholder="Enter provider key" />
+            </label>
+            {fetching ? <progress className="metadata-fetch__progress" max={100} value={metadataProgress} aria-label={`Fetching metadata: ${metadataProgress}%`} /> : null}
+            {hasSavedCredential ? <span className="metadata-fetch__credential">Saved: {credential.data.masked_label}</span> : null}
+          </div>
+          <Button type="submit" variant="primary" disabled={(!providerKey.trim() && !hasSavedCredential) || fetching}>
+            {fetching ? "Fetching…" : "Fetch all metadata"}
+          </Button>
+          <output className="metadata-fetch__status" aria-live="polite">{metadataStatus}</output>
+        </form>
+      </Panel>
       <Panel title="Metadata Filter">
         <form className="metadata-filter-form" onSubmit={applyFilter}>
           <label>
@@ -247,26 +240,6 @@ export function MetadataFilterPage() {
           </div>
         </form>
         <p className="status-line" aria-live="polite">{selectionStatus}</p>
-
-        <div className="quote-fetch">
-          <label htmlFor="quote-progress">Quote fetch progress</label>
-          <progress
-            id="quote-progress"
-            max={100}
-            value={quoteProgress}
-          />
-          <p className="status-line" aria-live="polite">{quoteMessage}</p>
-          <div className="quote-fetch__action">
-            <Button
-              type="button"
-              variant="primary"
-              disabled={!projectId || !metadataSelectionId || quoteStatus === "running"}
-              onClick={() => void fetchQuotes()}
-            >
-              {quoteStatus === "running" ? "Fetching quotes…" : "Fetch quotes"}
-            </Button>
-          </div>
-        </div>
       </Panel>
     </section>
   );
