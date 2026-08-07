@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import hmac
 import json
 import os
+import tempfile
 import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
@@ -37,12 +39,32 @@ def load_key_encryption_key(path: Path, *, version: str) -> KeyEncryptionKey:
 
     return KeyEncryptionKey(
         version=version,
-        material=read_credential_secret(
-            path,
-            name="credential key-encryption key",
-            allowed_lengths=frozenset({16, 24, 32}),
-        ),
+        material=_read_key_encryption_key_material(path),
     )
+
+
+def _read_key_encryption_key_material(path: Path) -> bytes:
+    try:
+        value = path.read_bytes().strip()
+    except OSError as error:
+        raise CredentialVaultError("credential key-encryption key is unavailable") from error
+    if len(value) in {16, 24, 32}:
+        return value
+    try:
+        decoded = base64.b64decode(value, validate=True)
+    except ValueError:
+        pass
+    else:
+        if len(decoded) in {16, 24, 32}:
+            return decoded
+    try:
+        decoded = bytes.fromhex(value.decode("ascii"))
+    except UnicodeDecodeError, ValueError:
+        pass
+    else:
+        if len(decoded) in {16, 24, 32}:
+            return decoded
+    raise CredentialVaultError("credential key-encryption key has an invalid length")
 
 
 @dataclass(frozen=True)
@@ -136,6 +158,58 @@ class InMemoryCredentialStore:
         """Return the current logical credential record when present."""
 
         return self._records_by_user_provider.get((user_id, provider))
+
+
+class FileCredentialStore:
+    """Persist encrypted credential records atomically in a trusted local volume."""
+
+    def __init__(self, path: Path) -> None:
+        self._path = path
+
+    def upsert(self, record: EncryptedCredentialRecord) -> None:
+        """Store an encrypted credential without serializing provider plaintext."""
+
+        records = self._load_records()
+        records[(record.user_id, record.provider)] = record
+        self._save_records(records)
+
+    def get(self, *, user_id: str, provider: str = "eodhd") -> EncryptedCredentialRecord | None:
+        """Return the current encrypted record for one local workspace user."""
+
+        return self._load_records().get((user_id, provider))
+
+    def _load_records(self) -> dict[tuple[str, str], EncryptedCredentialRecord]:
+        try:
+            payload = cast("object", json.loads(self._path.read_text(encoding="utf-8")))
+        except FileNotFoundError:
+            return {}
+        except json.JSONDecodeError as error:
+            raise CredentialVaultError("credential store is invalid") from error
+        if not isinstance(payload, list):
+            raise CredentialVaultError("credential store has an invalid shape")
+        records: dict[tuple[str, str], EncryptedCredentialRecord] = {}
+        for item in cast("list[object]", payload):
+            if not isinstance(item, dict):
+                raise CredentialVaultError("credential store has an invalid record")
+            record = _record_from_file_row(cast("dict[str, object]", item))
+            records[(record.user_id, record.provider)] = record
+        return records
+
+    def _save_records(self, records: Mapping[tuple[str, str], EncryptedCredentialRecord]) -> None:
+        self._path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        payload = [_record_to_file_row(record) for _, record in sorted(records.items())]
+        with tempfile.NamedTemporaryFile(
+            "w",
+            dir=self._path.parent,
+            encoding="utf-8",
+            delete=False,
+        ) as temporary:
+            json.dump(payload, temporary, sort_keys=True, separators=(",", ":"))
+            temporary.flush()
+            os.fsync(temporary.fileno())
+            temporary_path = Path(temporary.name)
+        temporary_path.chmod(0o600)
+        temporary_path.replace(self._path)
 
 
 class CredentialCursor(Protocol):
@@ -287,6 +361,50 @@ def _record_from_postgres_row(row: tuple[object, ...]) -> EncryptedCredentialRec
         fingerprint_hmac=fingerprint_hmac,
         masked_label=masked_label,
     )
+
+
+def _record_to_file_row(record: EncryptedCredentialRecord) -> dict[str, object]:
+    return {
+        "credential_id": record.credential_id,
+        "user_id": record.user_id,
+        "provider": record.provider,
+        "status": record.status,
+        "ciphertext": base64.b64encode(record.ciphertext).decode("ascii"),
+        "nonce": base64.b64encode(record.nonce).decode("ascii"),
+        "wrapped_data_key": base64.b64encode(record.wrapped_data_key).decode("ascii"),
+        "wrap_nonce": base64.b64encode(record.wrap_nonce).decode("ascii"),
+        "key_version": record.key_version,
+        "associated_data": {
+            "credential_id": record.associated_data.credential_id,
+            "user_id": record.associated_data.user_id,
+            "provider": record.associated_data.provider,
+            "schema_version": record.associated_data.schema_version,
+        },
+        "fingerprint_hmac": record.fingerprint_hmac,
+        "masked_label": record.masked_label,
+    }
+
+
+def _record_from_file_row(row: Mapping[str, object]) -> EncryptedCredentialRecord:
+    try:
+        return _record_from_postgres_row(
+            (
+                row["credential_id"],
+                row["user_id"],
+                row["provider"],
+                row["status"],
+                base64.b64decode(_credential_text(row["ciphertext"]), validate=True),
+                base64.b64decode(_credential_text(row["nonce"]), validate=True),
+                base64.b64decode(_credential_text(row["wrapped_data_key"]), validate=True),
+                base64.b64decode(_credential_text(row["wrap_nonce"]), validate=True),
+                row["key_version"],
+                row["associated_data"],
+                row["fingerprint_hmac"],
+                row["masked_label"],
+            )
+        )
+    except (KeyError, ValueError) as error:
+        raise CredentialVaultError("credential store record is invalid") from error
 
 
 def _credential_text(value: object) -> str:

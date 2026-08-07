@@ -1,15 +1,26 @@
 
 import { useEffect, useState, type FormEvent } from "react";
-import { postJson, requestJson } from "../api/client";
+import { loadProjectContext, loadProjectMetadataFilter, loadQuoteRun, postJson, requestJson } from "../api/client";
 import { Button } from "../components/button";
 import { EmptyState } from "../components/empty-state";
 import { LoadingState } from "../components/loading-state";
 import { Panel } from "../components/panel";
-import type { ApiFieldOptions, ApiMetadataProject, ApiQuoteFetch } from "../contracts";
+import type { ApiFieldOptions, ApiMetadataProject, ApiProjectSummary, ApiQuoteFetch } from "../contracts";
 import { useResource } from "../hooks/use-resource";
 
 async function loadFieldOptions(): Promise<ApiFieldOptions> {
   return requestJson<ApiFieldOptions>("/api/metadata-filter/options");
+}
+
+function estimatedRemainingTime(startedAt: number | undefined, completed: number, total: number): string {
+  if (!startedAt || completed <= 0 || total <= completed) return "";
+  const elapsedMilliseconds = Date.now() - startedAt * 1_000;
+  if (elapsedMilliseconds <= 0) return "";
+  const remainingSeconds = Math.ceil((elapsedMilliseconds / 1_000 / completed) * (total - completed));
+  if (remainingSeconds < 60) return " (less than 1 min remaining)";
+  const hours = Math.floor(remainingSeconds / 3_600);
+  const minutes = Math.ceil((remainingSeconds % 3_600) / 60);
+  return hours > 0 ? ` (about ${hours}h ${minutes}m remaining)` : ` (about ${minutes} min remaining)`;
 }
 
 export function MetadataFilterPage() {
@@ -26,6 +37,7 @@ export function MetadataFilterPage() {
   const [quoteStatus, setQuoteStatus] = useState<"idle" | "running" | "complete" | "failed">("idle");
   const [quoteProgress, setQuoteProgress] = useState(0);
   const [quoteMessage, setQuoteMessage] = useState("Quotes have not been fetched for this selection.");
+  const [quoteRunId, setQuoteRunId] = useState<string | null>(null);
 
   useEffect(() => {
     const refresh = () => setMetadataRevision((value) => value + 1);
@@ -34,6 +46,8 @@ export function MetadataFilterPage() {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+
     const resetProjectState = () => {
       setProjectId("");
       setMetadataSelectionId("");
@@ -41,10 +55,98 @@ export function MetadataFilterPage() {
       setQuoteStatus("idle");
       setQuoteProgress(0);
       setQuoteMessage("Quotes have not been fetched for this selection.");
+      setQuoteRunId(null);
     };
-    window.addEventListener("portfell:project-updated", resetProjectState);
-    return () => window.removeEventListener("portfell:project-updated", resetProjectState);
+
+    const loadProjectFilter = async (project: ApiProjectSummary | null) => {
+      if (!project?.selection_id) {
+        resetProjectState();
+        return;
+      }
+      setSelectionStatus("Loading saved metadata filter…");
+      setQuoteStatus("idle");
+      setQuoteProgress(0);
+      setQuoteRunId(null);
+      try {
+        const filter = await loadProjectMetadataFilter(project.project_id);
+        if (cancelled) return;
+        setExchange(filter.exchange);
+        setInstrumentType(filter.instrument_type);
+        setCountry(filter.country);
+        setCurrency(filter.currency);
+        setName(filter.name);
+        setProjectId(filter.project_id);
+        setMetadataSelectionId(filter.selection_id);
+        setSelectionStatus(`${filter.selected_count.toLocaleString()} listings selected.`);
+        setQuoteMessage(project.data_loaded ? "Quotes are available for this selection." : "Selection ready. Fetch historical quotes to continue.");
+      } catch (error) {
+        if (cancelled) return;
+        resetProjectState();
+        setSelectionStatus(error instanceof Error ? error.message : "Saved metadata filter could not be loaded.");
+      }
+    };
+
+    const restoreCurrentProject = () => {
+      void loadProjectContext().then((context) => loadProjectFilter(context.current_project));
+    };
+    const handleProjectUpdate = (event: Event) => {
+      const context = (event as CustomEvent<{ current_project: ApiProjectSummary | null }>).detail;
+      void loadProjectFilter(context.current_project);
+    };
+
+    restoreCurrentProject();
+    window.addEventListener("portfell:project-updated", handleProjectUpdate);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("portfell:project-updated", handleProjectUpdate);
+    };
   }, []);
+
+  useEffect(() => {
+    if (!quoteRunId || quoteStatus !== "running") return;
+    const activeRunId = quoteRunId;
+    let cancelled = false;
+    let timeoutId: number | undefined;
+
+    async function pollQuoteRun() {
+      try {
+        const result = await loadQuoteRun(activeRunId);
+        if (cancelled) return;
+        const completed = result.completed ?? 0;
+        const total = result.total ?? 0;
+        const failed = result.failed ?? 0;
+        setQuoteProgress(result.percent ?? 0);
+        if (result.status === "running") {
+          setQuoteMessage(
+            `${completed.toLocaleString()} of ${total.toLocaleString()} quote-fetch tasks completed${estimatedRemainingTime(result.started_at, completed, total)}.`,
+          );
+          timeoutId = window.setTimeout(() => void pollQuoteRun(), 750);
+          return;
+        }
+        if (result.status === "failed") {
+          setQuoteStatus("failed");
+          setQuoteMessage("Quote fetch failed. Retry the run after checking the selected listings.");
+          return;
+        }
+        setQuoteStatus("complete");
+        setQuoteProgress(100);
+        setQuoteMessage(
+          `${(result.quote_successes ?? result.selected_listing_count ?? 0).toLocaleString()} listings fetched; ${failed.toLocaleString()} provider tasks failed.`,
+        );
+        window.dispatchEvent(new Event("portfell:workflow-updated"));
+      } catch (error) {
+        if (cancelled) return;
+        setQuoteStatus("failed");
+        setQuoteMessage(error instanceof Error ? error.message : "Quote fetch failed.");
+      }
+    }
+
+    void pollQuoteRun();
+    return () => {
+      cancelled = true;
+      if (timeoutId !== undefined) window.clearTimeout(timeoutId);
+    };
+  }, [quoteRunId, quoteStatus]);
 
   async function applyFilter(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -53,6 +155,7 @@ export function MetadataFilterPage() {
     setMetadataSelectionId("");
     setQuoteStatus("idle");
     setQuoteProgress(0);
+    setQuoteRunId(null);
     try {
       const result = await postJson<ApiMetadataProject>("/api/metadata-filter", {
         exchange,
@@ -80,12 +183,9 @@ export function MetadataFilterPage() {
       const result = await postJson<ApiQuoteFetch>("/api/quote-runs", {
         metadata_selection_id: metadataSelectionId,
       });
-      setQuoteProgress(100);
-      setQuoteStatus("complete");
-      setQuoteMessage(
-        `${(result.quote_successes ?? result.selected_listing_count ?? 0).toLocaleString()} listings fetched; ${(result.quote_errors ?? 0).toLocaleString()} failed.`,
-      );
-      window.dispatchEvent(new Event("portfell:workflow-updated"));
+      setQuoteRunId(result.download_run_id);
+      setQuoteProgress(result.percent ?? 0);
+      setQuoteMessage("Quote fetch started. Waiting for the first completed provider task…");
     } catch (error) {
       setQuoteStatus("failed");
       setQuoteProgress(0);
@@ -153,7 +253,7 @@ export function MetadataFilterPage() {
           <progress
             id="quote-progress"
             max={100}
-            value={quoteStatus === "running" ? undefined : quoteProgress}
+            value={quoteProgress}
           />
           <p className="status-line" aria-live="polite">{quoteMessage}</p>
           <div className="quote-fetch__action">

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Protocol, cast
@@ -37,6 +37,7 @@ def fetch_all_metadata(
     *,
     exchange_codes: Sequence[str] = (),
     include_delisted: bool = False,
+    on_progress: Callable[[int, int, int], None] | None = None,
 ) -> AllMetadataFetchResult:
     """Fetch and normalize all available EODHD listing metadata with ISINs."""
     explicit_exchanges = bool(exchange_codes)
@@ -44,7 +45,9 @@ def fetch_all_metadata(
     fetched_at = datetime.now(UTC).replace(microsecond=0).isoformat()
     rows: list[JsonRow] = []
     skipped_exchanges: list[str] = []
-    for exchange in resolved_exchanges:
+    if on_progress is not None:
+        on_progress(0, len(resolved_exchanges), 0)
+    for completed, exchange in enumerate(resolved_exchanges, start=1):
         try:
             payload = client.get_json(
                 f"/exchange-symbol-list/{exchange}",
@@ -54,12 +57,16 @@ def fetch_all_metadata(
             if explicit_exchanges or error.status_code not in {403, 404}:
                 raise
             skipped_exchanges.append(exchange)
+            if on_progress is not None:
+                on_progress(completed, len(resolved_exchanges), len(skipped_exchanges))
             continue
         rows.extend(
             _normalize_listing(row, source_exchange=exchange, fetched_at=fetched_at)
             for row in _payload_rows(payload)
             if str(row.get("Isin", row.get("isin", ""))).strip()
         )
+        if on_progress is not None:
+            on_progress(completed, len(resolved_exchanges), len(skipped_exchanges))
     return AllMetadataFetchResult(
         rows=tuple(
             sorted(rows, key=lambda row: (str(row["isin"]), str(row["exchange"]), str(row["code"])))

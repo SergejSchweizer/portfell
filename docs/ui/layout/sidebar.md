@@ -13,6 +13,20 @@ not create, sort, authorize, or persist projects in the browser.
 - `workflowPages` in `apps/web/src/routes.tsx` remains the only workflow route
   registry.
 
+## Header Metadata Fetch
+
+The persistent header contains the EODHD key input and `Fetch all metadata`
+action. While the server-owned metadata request is active, a narrow determinate
+progress bar appears directly below the key input and the action is disabled.
+The browser polls the metadata-run status endpoint and renders its completed
+exchange count and percentage.
+
+For the trusted local workspace runtime, an existing EODHD credential is
+decrypted server-side for the stable workspace user and prefilled into the
+visible header field after a reload. The browser keeps that value only in React
+state; it does not write the provider key to cookies, local storage, or session
+storage.
+
 ## Required States
 
 - Loading: reserve the final sidebar width while context is loading.
@@ -54,7 +68,9 @@ is disabled. The drawer transition is removed for reduced-motion users.
 After a successful project switch, the shell refreshes the selected project's
 workflow and sends one typed update to the four route pages. Pages clear their
 transient selections, results, progress, and errors before loading replacement
-server-owned data. A failed switch keeps the prior project and route intact.
+server-owned data. Metadata Filter additionally loads saved field values through
+`GET /api/projects/{project_id}/metadata-filter`. A failed switch keeps the prior
+project and route intact.
 
 ## Boundaries
 

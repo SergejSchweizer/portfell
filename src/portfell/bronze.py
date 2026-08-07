@@ -398,6 +398,7 @@ def write_quotes_to_bronze(
     run_date: date,
     loader: QuoteLoader,
     concurrency: int = 2,
+    on_item_complete: Callable[[bool], None] | None = None,
 ) -> tuple[list[JsonRow], list[JsonRow]]:
     """Write planned EOD quote payloads into Bronze.
 
@@ -412,6 +413,7 @@ def write_quotes_to_bronze(
         run_date=run_date,
         loader=loader,
         concurrency=concurrency,
+        on_item_complete=on_item_complete,
     )
 
 
@@ -423,6 +425,7 @@ def write_eodhd_dataset_to_bronze(
     run_date: date,
     loader: QuoteLoader,
     concurrency: int = 2,
+    on_item_complete: Callable[[bool], None] | None = None,
 ) -> tuple[list[JsonRow], list[JsonRow]]:
     """Write one EODHD dataset into Bronze using its dataset strategy."""
     worker_count = max(1, concurrency)
@@ -469,6 +472,8 @@ def write_eodhd_dataset_to_bronze(
                     "symbol": item["symbol"],
                 },
             )
+            if on_item_complete is not None:
+                on_item_complete(True)
             return success, None
         except Exception as error:  # noqa: BLE001 - record and continue batch failures.
             elapsed_seconds = monotonic() - started_at
@@ -493,6 +498,8 @@ def write_eodhd_dataset_to_bronze(
                     "symbol": item["symbol"],
                 },
             )
+            if on_item_complete is not None:
+                on_item_complete(False)
             return None, failure
 
     successes_by_index: dict[int, JsonRow] = {}
@@ -574,6 +581,7 @@ def write_raw_eodhd_datasets_to_bronze(
     run_date: date,
     loaders: Mapping[str, RawDataLoader],
     concurrency: int = 2,
+    on_item_complete: Callable[[bool], None] | None = None,
 ) -> tuple[list[JsonRow], list[JsonRow]]:
     """Archive planned raw per-symbol EODHD datasets that are not normalized yet."""
     successes: list[JsonRow] = []
@@ -588,6 +596,7 @@ def write_raw_eodhd_datasets_to_bronze(
             run_date=run_date,
             loader=loader,
             concurrency=concurrency,
+            on_item_complete=on_item_complete,
         )
         successes.extend(dataset_successes)
         errors.extend(dataset_errors)

@@ -6,7 +6,9 @@ COPY pyproject.toml README.md ./
 COPY src ./src
 RUN uv pip install --system .
 
-RUN useradd --system --create-home --uid 10001 portfell
+RUN useradd --system --create-home --uid 10001 portfell \
+	&& mkdir -p /srv/portfell/shared-data \
+	&& chown portfell:portfell /srv/portfell/shared-data
 USER portfell
 
 EXPOSE 8000

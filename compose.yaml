@@ -68,6 +68,7 @@ services:
       - portfell-public
     group_add:
       - "${PORTFELL_LAKE_GROUP_ID:-10}"
+      - "${PORTFELL_SECRET_GROUP_ID:-100}"
     read_only: true
     tmpfs:
       - /tmp
@@ -78,7 +79,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "2.0"
+          cpus: "6.0"
           memory: 1G
 
   web:

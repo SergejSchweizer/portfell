@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from typing import Any
@@ -105,8 +105,34 @@ def read_silver_quotes(paths: LakePaths) -> list[JsonRow]:
     return rows
 
 
-def build_silver_quotes(paths: LakePaths, *, concurrency: int = 2) -> list[JsonRow]:
-    """Build Silver quotes from all available Bronze quote rows."""
-    quote_rows = build_silver_quote_rows(read_bronze_quote_rows(paths))
-    write_silver_quotes(paths, quote_rows, concurrency=concurrency)
-    return read_silver_quotes(paths)
+def read_silver_quotes_for_listings(
+    paths: LakePaths, listings: Collection[tuple[str, str]]
+) -> list[JsonRow]:
+    """Read Silver quote rows only for the requested exchange and ISIN pairs."""
+
+    rows: list[JsonRow] = []
+    for exchange, isin in sorted(listings):
+        rows.extend(read_rows(paths.silver_quote_file(exchange, isin)))
+    return rows
+
+
+def build_silver_quotes(
+    paths: LakePaths,
+    *,
+    concurrency: int = 2,
+    listings: Collection[tuple[str, str]] | None = None,
+    load_rows: bool = True,
+    on_listing_complete: Callable[[], None] | None = None,
+) -> list[JsonRow]:
+    """Build Silver quotes from Bronze files without materializing all Bronze rows."""
+
+    selected_listings = set(listings) if listings is not None else None
+    for bronze_path in sorted((paths.bronze / "quotes").glob("*/*/*.parquet")):
+        listing = (bronze_path.parent.parent.name, bronze_path.stem)
+        if selected_listings is not None and listing not in selected_listings:
+            continue
+        quote_rows = build_silver_quote_rows(read_rows(bronze_path))
+        write_silver_quotes(paths, quote_rows, concurrency=concurrency)
+        if on_listing_complete is not None:
+            on_listing_complete()
+    return read_silver_quotes(paths) if load_rows else []
