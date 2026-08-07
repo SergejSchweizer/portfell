@@ -1,5 +1,5 @@
 
-import type { ApiCredentialStatus, ApiProjectContext, ApiWorkflow } from "../contracts";
+import type { ApiCredentialStatus, ApiCredentialValue, ApiMetadataFetch, ApiProjectContext, ApiQuoteFetch, ApiWorkflow } from "../contracts";
 
 export class ApiError extends Error {
   constructor(
@@ -8,6 +8,25 @@ export class ApiError extends Error {
   ) {
     super(code);
   }
+}
+
+function createIdempotencyKey(): string {
+  if (typeof globalThis.crypto?.randomUUID === "function") {
+    return globalThis.crypto.randomUUID();
+  }
+
+  const bytes = new Uint8Array(16);
+  if (typeof globalThis.crypto?.getRandomValues === "function") {
+    globalThis.crypto.getRandomValues(bytes);
+  } else {
+    for (let index = 0; index < bytes.length; index += 1) {
+      bytes[index] = Math.floor(Math.random() * 256);
+    }
+  }
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
 export async function requestJson<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -35,7 +54,7 @@ export function postJson<TResponse>(path: string, body: unknown): Promise<TRespo
   return requestJson<TResponse>(path, {
     method: "POST",
     body: JSON.stringify(body),
-    headers: { "Idempotency-Key": crypto.randomUUID() },
+    headers: { "Idempotency-Key": createIdempotencyKey() },
   });
 }
 
@@ -45,6 +64,14 @@ export function loadWorkflow(): Promise<ApiWorkflow> {
 
 export function loadEodhdCredentialStatus(): Promise<ApiCredentialStatus> {
   return requestJson<ApiCredentialStatus>("/api/credentials/eodhd");
+}
+
+export function loadEodhdCredentialValue(): Promise<ApiCredentialValue> {
+  return requestJson<ApiCredentialValue>("/api/credentials/eodhd/value");
+}
+
+export function loadMetadataFetchRun(metadataRunId: string): Promise<ApiMetadataFetch> {
+  return requestJson<ApiMetadataFetch>(`/api/metadata/fetch-all/${encodeURIComponent(metadataRunId)}`);
 }
 
 export function loadProjectContext(): Promise<ApiProjectContext> {
@@ -60,4 +87,8 @@ export function selectCurrentProject(projectId: string): Promise<ApiProjectConte
 
 export function loadProjectWorkflow(projectId: string): Promise<ApiWorkflow> {
   return requestJson<ApiWorkflow>(`/api/projects/${encodeURIComponent(projectId)}/workflow`);
+}
+
+export function loadQuoteRun(quoteRunId: string): Promise<ApiQuoteFetch> {
+  return requestJson<ApiQuoteFetch>(`/api/quote-runs/${encodeURIComponent(quoteRunId)}`);
 }

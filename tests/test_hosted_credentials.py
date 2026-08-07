@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 from pathlib import Path
 
 import pytest
@@ -8,9 +9,11 @@ from portfell.hosted_credentials import (
     CredentialStore,
     CredentialVaultError,
     EodhdCredentialVault,
+    FileCredentialStore,
     InMemoryCredentialStore,
     KeyEncryptionKey,
     PostgresCredentialStore,
+    load_key_encryption_key,
     mask_provider_key,
     read_credential_secret,
     redact_credential_text,
@@ -47,6 +50,26 @@ def test_in_memory_store_implements_credential_store_protocol() -> None:
     store = InMemoryCredentialStore()
 
     assert isinstance(store, CredentialStore)
+
+
+def test_file_credential_store_persists_only_encrypted_material(tmp_path: Path) -> None:
+    key = KeyEncryptionKey("test-v1", b"1" * 32)
+    credential_path = tmp_path / "encrypted-credentials.json"
+    first = EodhdCredentialVault(
+        store=FileCredentialStore(credential_path),
+        key_encryption_key=key,
+        fingerprint_secret=b"test-fingerprint-secret",
+    )
+
+    first.set_credential(user_id="user-1", provider_key="abcd-secret-token-1234")
+    restored = EodhdCredentialVault(
+        store=FileCredentialStore(credential_path),
+        key_encryption_key=key,
+        fingerprint_secret=b"test-fingerprint-secret",
+    )
+
+    assert restored.unwrap_for_provider_call(user_id="user-1") == "abcd-secret-token-1234"
+    assert "abcd-secret-token-1234" not in credential_path.read_text(encoding="utf-8")
 
 
 class _FakeCursor:
@@ -215,3 +238,12 @@ def test_read_credential_secret_fails_closed_for_missing_or_invalid_files(tmp_pa
         )
         == b"1" * 32
     )
+
+
+def test_load_key_encryption_key_decodes_base64_material(tmp_path: Path) -> None:
+    secret_path = tmp_path / "eodhd-kek"
+    secret_path.write_bytes(base64.b64encode(b"1" * 32))
+
+    key = load_key_encryption_key(secret_path, version="test-v1")
+
+    assert key.material == b"1" * 32

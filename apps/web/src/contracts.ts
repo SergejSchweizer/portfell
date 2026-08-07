@@ -27,12 +27,17 @@ export type ApiWorkflow = Readonly<{
 }>;
 
 export type ApiMetadataFetch = Readonly<{
-  status: "succeeded";
-  row_count: number;
-  exchange_count: number;
-  requested_exchange_count: number;
-  skipped_exchange_count: number;
-  skipped_exchanges: readonly string[];
+  metadata_run_id: string;
+  status: "running" | "succeeded" | "failed";
+  total: number;
+  completed: number;
+  percent: number;
+  row_count?: number;
+  exchange_count?: number;
+  requested_exchange_count?: number;
+  skipped_exchange_count?: number;
+  skipped_exchanges?: readonly string[];
+  error_code?: string;
 }>;
 
 export type ApiCredentialStatus = Readonly<{
@@ -43,6 +48,10 @@ export type ApiCredentialStatus = Readonly<{
   masked_label: string;
 }>;
 
+export type ApiCredentialValue = Readonly<{
+  provider_key: string;
+}>;
+
 export type ApiMetadataProject = Readonly<{
   project: Readonly<{ project_id: string; name: string }>;
   selection: Readonly<{ selection_id: string; name: string }>;
@@ -50,7 +59,8 @@ export type ApiMetadataProject = Readonly<{
 }>;
 
 export type ApiQuoteFetch = Readonly<{
-  status: "succeeded";
+  download_run_id: string;
+  status: "running" | "succeeded" | "partial" | "failed";
   total?: number;
   completed?: number;
   failed?: number;

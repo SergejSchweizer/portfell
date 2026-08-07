@@ -10,11 +10,11 @@ import json
 import os
 import uuid
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
-from fastapi import Depends, FastAPI, Header, HTTPException, status
+from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, status
 from pydantic import BaseModel, Field
 
 from portfell.config import EodhdConfig
@@ -29,8 +29,10 @@ from portfell.hosted_credentials import (
     CredentialStore,
     CredentialVaultError,
     EodhdCredentialVault,
+    FileCredentialStore,
     InMemoryCredentialStore,
     KeyEncryptionKey,
+    load_key_encryption_key,
 )
 from portfell.hosted_research_workflow import (
     FilterSelection,
@@ -42,6 +44,7 @@ from portfell.hosted_research_workflow import (
     page_rows,
     pair_plan,
 )
+from portfell.hosted_workspace import LocalWorkspaceStore
 from portfell.http import EodhdHttpError
 from portfell.metadata_filter import write_metadata_selection
 from portfell.paths import LakePaths
@@ -246,6 +249,7 @@ class HostedApiState:
     download_summaries_by_id: dict[str, JsonRow] = field(
         default_factory=lambda: dict[str, JsonRow]()
     )
+    metadata_runs_by_id: dict[str, JsonRow] = field(default_factory=lambda: dict[str, JsonRow]())
     analyses_by_id: dict[str, AnalysisRecord] = field(
         default_factory=lambda: dict[str, AnalysisRecord]()
     )
@@ -276,6 +280,7 @@ class HostedApiState:
         default_factory=lambda: dict[str, str]()
     )
     current_project_id_by_user: dict[str, str] = field(default_factory=lambda: dict[str, str]())
+    workspace_store: LocalWorkspaceStore | None = None
 
     def credential_vault(self) -> EodhdCredentialVault:
         """Return the vault configured for this API state."""
@@ -285,6 +290,42 @@ class HostedApiState:
             key_encryption_key=self.credential_key_encryption_key,
             fingerprint_secret=self.credential_fingerprint_secret,
         )
+
+
+def create_persistent_local_workspace_state(
+    shared_data_root: Path,
+    *,
+    key_encryption_key: KeyEncryptionKey,
+) -> HostedApiState:
+    """Load the durable local workspace from the API shared-data volume."""
+
+    workspace_store = LocalWorkspaceStore(shared_data_root / "local-workspace.json")
+    state = HostedApiState(
+        credentials=FileCredentialStore(shared_data_root / "encrypted-credentials.json"),
+        credential_key_encryption_key=key_encryption_key,
+        workspace_store=workspace_store,
+    )
+    _restore_local_workspace(state, workspace_store.load())
+    return state
+
+
+def create_runtime_app() -> FastAPI:
+    """Create the persistent container runtime application when secrets are configured."""
+
+    shared_data_root = os.environ.get("PORTFELL_SHARED_DATA_ROOT")
+    key_path = os.environ.get("PORTFELL_EODHD_KEK_FILE")
+    if not shared_data_root or not key_path:
+        return create_app()
+    key_encryption_key = load_key_encryption_key(
+        Path(key_path),
+        version=os.environ.get("PORTFELL_EODHD_KEK_VERSION", "local-v1"),
+    )
+    return create_app(
+        create_persistent_local_workspace_state(
+            Path(shared_data_root),
+            key_encryption_key=key_encryption_key,
+        )
+    )
 
 
 def create_app(
@@ -342,6 +383,19 @@ def create_app(
     ) -> JsonRow:
         try:
             return _credential_status_row(api_state.credential_vault().status(user_id=user.user_id))
+        except Exception as error:
+            raise _http_error(status.HTTP_404_NOT_FOUND, "credential_not_found") from error
+
+    @app.get("/credentials/eodhd/value")
+    def credential_value(
+        user: ApiUser = Depends(workspace_user),
+        api_state: HostedApiState = Depends(current_state),
+    ) -> JsonRow:
+        try:
+            provider_key = api_state.credential_vault().unwrap_for_provider_call(
+                user_id=user.user_id
+            )
+            return {"provider_key": provider_key}
         except Exception as error:
             raise _http_error(status.HTTP_404_NOT_FOUND, "credential_not_found") from error
 
@@ -548,6 +602,7 @@ def create_app(
 
     @app.post("/metadata/fetch-all")
     def fetch_all_metadata_for_metadata_filter(
+        background_tasks: BackgroundTasks,
         user: ApiUser = Depends(workspace_user),
         api_state: HostedApiState = Depends(current_state),
     ) -> JsonRow:
@@ -559,35 +614,36 @@ def create_app(
             raise _http_error(
                 status.HTTP_422_UNPROCESSABLE_CONTENT, "eodhd_key_required"
             ) from error
-        try:
-            summary = run_fetch_all_metadata_workflow(
-                root=_lake_paths().root,
-                eodhd_config=EodhdConfig(api_token=provider_key),
-            )
-        except EodhdHttpError as error:
-            if error.status_code in {401, 403}:
-                raise _http_error(
-                    status.HTTP_422_UNPROCESSABLE_CONTENT, "eodhd_key_rejected"
-                ) from error
-            raise _http_error(status.HTTP_502_BAD_GATEWAY, "eodhd_metadata_unavailable") from error
-        except ValueError as error:
-            raise _http_error(
-                status.HTTP_502_BAD_GATEWAY, "eodhd_metadata_invalid_response"
-            ) from error
-        api_state.metadata_revisions_by_user[user.user_id] = _opaque_id(
-            "metadata-revision", _stable_hash(summary)
-        )
-        api_state.current_metadata_selection_by_user.pop(user.user_id, None)
-        api_state.current_filter_selection_by_user.pop(user.user_id, None)
-        _audit(api_state, user.user_id, "fetch_all_metadata.completed")
-        return {
-            "status": "succeeded",
-            "row_count": int(summary["all_isins_rows"]),
-            "exchange_count": int(summary["exchange_count"]),
-            "requested_exchange_count": int(summary["requested_exchange_count"]),
-            "skipped_exchange_count": int(summary["skipped_exchange_count"]),
-            "skipped_exchanges": list(summary["skipped_exchanges"]),
+        metadata_run_id = _opaque_id("metadata-run", f"{user.user_id}:{uuid.uuid4()}")
+        api_state.metadata_runs_by_id[metadata_run_id] = {
+            "metadata_run_id": metadata_run_id,
+            "user_id": user.user_id,
+            "status": "running",
+            "total": 0,
+            "completed": 0,
+            "skipped_exchange_count": 0,
+            "percent": 0,
         }
+        background_tasks.add_task(
+            _run_metadata_fetch,
+            api_state,
+            user.user_id,
+            metadata_run_id,
+            provider_key,
+        )
+        _audit(api_state, user.user_id, "fetch_all_metadata.started")
+        return _metadata_fetch_row(api_state.metadata_runs_by_id[metadata_run_id])
+
+    @app.get("/metadata/fetch-all/{metadata_run_id}")
+    def metadata_fetch_status(
+        metadata_run_id: str,
+        user: ApiUser = Depends(workspace_user),
+        api_state: HostedApiState = Depends(current_state),
+    ) -> JsonRow:
+        metadata_run = api_state.metadata_runs_by_id.get(metadata_run_id)
+        if metadata_run is None or metadata_run.get("user_id") != user.user_id:
+            raise _http_error(status.HTTP_404_NOT_FOUND, "metadata_run_not_found")
+        return _metadata_fetch_row(metadata_run)
 
     @app.post("/metadata-filter")
     def create_metadata_filter_project(
@@ -690,6 +746,7 @@ def create_app(
     @app.post("/quote-runs")
     def load_selected_isins(
         payload: LoadSelectedIsinsRequest,
+        background_tasks: BackgroundTasks,
         user: ApiUser = Depends(workspace_user),
         api_state: HostedApiState = Depends(current_state),
         idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
@@ -731,28 +788,24 @@ def create_app(
             raise _http_error(
                 status.HTTP_422_UNPROCESSABLE_CONTENT, "eodhd_credential_required"
             ) from error
-        summary = run_fetch_all_quotes_workflow(
-            root=_lake_paths().root,
-            run_id=_opaque_id("fetch-all-quotes", request_hash),
-            selection_id=selection.selection_id,
-            concurrency=max(1, os.cpu_count() or 1),
-            eodhd_config=EodhdConfig(api_token=provider_key),
-            capture_scoped_rows=True,
-        )
-        scoped_quote_rows = tuple(dict(row) for row in summary.pop("scoped_quote_rows", ()))
         run = ProviderDownloadRun(
             download_run_id=_opaque_id("fetch-all-quotes", f"{user.user_id}:{request_hash}"),
             user_id=user.user_id,
             credential_id="project-selection",
             provider="eodhd",
-            status="succeeded",
+            status="running",
             returned_observation_ids=selection.member_ids,
             request_hash=request_hash,
         )
         api_state.downloads_by_id[run.download_run_id] = run
-        api_state.quote_rows_by_run_id[run.download_run_id] = scoped_quote_rows
-        api_state.download_summaries_by_id[run.download_run_id] = dict(summary)
-        publish_user_data_snapshot(store=api_state.entitlements, run=run)
+        api_state.download_summaries_by_id[run.download_run_id] = {
+            "total": len(selection.member_ids) * 3 + 1,
+            "completed": 0,
+            "failed": 0,
+            "percent": 0,
+            "progress": 0,
+            "selected_listing_count": len(selection.member_ids),
+        }
         _remember_idempotency(
             api_state,
             user.user_id,
@@ -760,8 +813,17 @@ def create_app(
             idempotency_key,
             run.download_run_id,
         )
-        _audit(api_state, user.user_id, "fetch_all_quotes.load_selected_isins")
-        return _load_selected_isins_row(run, summary=summary)
+        background_tasks.add_task(
+            _run_quote_fetch,
+            api_state,
+            run,
+            selection.selection_id,
+            provider_key,
+        )
+        _audit(api_state, user.user_id, "fetch_all_quotes.started")
+        return _load_selected_isins_row(
+            run, summary=api_state.download_summaries_by_id[run.download_run_id]
+        )
 
     @app.get("/quote-runs/{quote_run_id}")
     def quote_run_status(
@@ -1278,25 +1340,160 @@ def _download_row(run: ProviderDownloadRun) -> JsonRow:
     }
 
 
+def _run_quote_fetch(
+    state: HostedApiState,
+    run: ProviderDownloadRun,
+    selection_id: str,
+    provider_key: str,
+) -> None:
+    def update_progress(completed: int, total: int, failed: int) -> None:
+        percent = min(99, round((completed / total) * 100)) if total else 0
+        state.download_summaries_by_id[run.download_run_id] = {
+            **state.download_summaries_by_id[run.download_run_id],
+            "completed": completed,
+            "failed": failed,
+            "percent": percent,
+            "progress": percent,
+            "total": total,
+        }
+
+    try:
+        summary = run_fetch_all_quotes_workflow(
+            root=_lake_paths().root,
+            run_id=_opaque_id("fetch-all-quotes", run.request_hash),
+            selection_id=selection_id,
+            concurrency=2,
+            eodhd_config=EodhdConfig(api_token=provider_key),
+            capture_scoped_rows=True,
+            on_progress=update_progress,
+        )
+    except Exception:
+        state.downloads_by_id[run.download_run_id] = replace(run, status="failed")
+        state.download_summaries_by_id[run.download_run_id] = {
+            **state.download_summaries_by_id[run.download_run_id],
+            "percent": 0,
+            "progress": 0,
+        }
+        _audit(state, run.user_id, "fetch_all_quotes.failed")
+        return
+
+    scoped_quote_rows = tuple(dict(row) for row in summary.pop("scoped_quote_rows", ()))
+    completed = int(state.download_summaries_by_id[run.download_run_id]["completed"])
+    total = int(state.download_summaries_by_id[run.download_run_id]["total"])
+    failed = int(state.download_summaries_by_id[run.download_run_id]["failed"])
+    completed_run = replace(run, status="partial" if failed else "succeeded")
+    state.downloads_by_id[run.download_run_id] = completed_run
+    state.quote_rows_by_run_id[run.download_run_id] = scoped_quote_rows
+    state.download_summaries_by_id[run.download_run_id] = {
+        **summary,
+        "completed": completed,
+        "failed": failed,
+        "percent": 100,
+        "progress": 100,
+        "total": total,
+    }
+    if completed_run.status == "succeeded":
+        publish_user_data_snapshot(store=state.entitlements, run=completed_run)
+    _audit(state, run.user_id, "fetch_all_quotes.completed")
+
+
+def _run_metadata_fetch(
+    state: HostedApiState,
+    user_id: str,
+    metadata_run_id: str,
+    provider_key: str,
+) -> None:
+    def update_progress(completed: int, total: int, skipped: int) -> None:
+        percent = round((completed / total) * 100) if total else 0
+        state.metadata_runs_by_id[metadata_run_id] = {
+            **state.metadata_runs_by_id[metadata_run_id],
+            "completed": completed,
+            "total": total,
+            "skipped_exchange_count": skipped,
+            "percent": percent,
+        }
+
+    try:
+        summary = run_fetch_all_metadata_workflow(
+            root=_lake_paths().root,
+            eodhd_config=EodhdConfig(api_token=provider_key),
+            on_progress=update_progress,
+        )
+    except EodhdHttpError as error:
+        error_code = (
+            "eodhd_key_rejected"
+            if error.status_code in {401, 403}
+            else "eodhd_metadata_unavailable"
+        )
+        state.metadata_runs_by_id[metadata_run_id] = {
+            **state.metadata_runs_by_id[metadata_run_id],
+            "status": "failed",
+            "error_code": error_code,
+        }
+        _audit(state, user_id, "fetch_all_metadata.failed")
+        return
+    except ValueError:
+        state.metadata_runs_by_id[metadata_run_id] = {
+            **state.metadata_runs_by_id[metadata_run_id],
+            "status": "failed",
+            "error_code": "eodhd_metadata_invalid_response",
+        }
+        _audit(state, user_id, "fetch_all_metadata.failed")
+        return
+    except Exception:
+        state.metadata_runs_by_id[metadata_run_id] = {
+            **state.metadata_runs_by_id[metadata_run_id],
+            "status": "failed",
+            "error_code": "metadata_fetch_failed",
+        }
+        _audit(state, user_id, "fetch_all_metadata.failed")
+        return
+
+    state.metadata_revisions_by_user[user_id] = _opaque_id(
+        "metadata-revision", _stable_hash(summary)
+    )
+    state.current_metadata_selection_by_user.pop(user_id, None)
+    state.current_filter_selection_by_user.pop(user_id, None)
+    state.metadata_runs_by_id[metadata_run_id] = {
+        **state.metadata_runs_by_id[metadata_run_id],
+        "status": "succeeded",
+        "row_count": int(summary["all_isins_rows"]),
+        "exchange_count": int(summary["exchange_count"]),
+        "requested_exchange_count": int(summary["requested_exchange_count"]),
+        "skipped_exchange_count": int(summary["skipped_exchange_count"]),
+        "skipped_exchanges": list(summary["skipped_exchanges"]),
+        "percent": 100,
+    }
+    _audit(state, user_id, "fetch_all_metadata.completed")
+
+
+def _metadata_fetch_row(metadata_run: Mapping[str, Any]) -> JsonRow:
+    return {key: value for key, value in metadata_run.items() if key != "user_id"}
+
+
 def _load_selected_isins_row(
     run: ProviderDownloadRun,
     *,
     summary: Mapping[str, Any] | None = None,
 ) -> JsonRow:
     workflow_summary = dict(summary or {})
+    total = int(workflow_summary.get("total", len(run.returned_observation_ids)))
+    completed = int(workflow_summary.get("completed", workflow_summary.get("quote_successes", 0)))
+    failed = int(workflow_summary.get("failed", workflow_summary.get("quote_errors", 0)))
+    percent = int(workflow_summary.get("percent", 100 if run.status == "succeeded" else 0))
     return {
         **_download_row(run),
         "kind": "load-data",
-        "total": len(run.returned_observation_ids),
-        "completed": int(workflow_summary.get("quote_successes", 0)),
-        "failed": int(workflow_summary.get("quote_errors", 0)),
-        "percent": 100,
-        "progress": 100,
+        "total": total,
+        "completed": completed,
+        "failed": failed,
+        "percent": percent,
+        "progress": percent,
         "quote_errors": int(workflow_summary.get("quote_errors", 0)),
         "quote_successes": int(workflow_summary.get("quote_successes", 0)),
         "raw_dataset_errors": int(workflow_summary.get("raw_dataset_errors", 0)),
         "raw_dataset_successes": int(workflow_summary.get("raw_dataset_successes", 0)),
-        "run_id": str(workflow_summary.get("run_id", run.download_run_id)),
+        "run_id": run.download_run_id,
         "selected_listing_count": int(
             workflow_summary.get("selected_listing_count", len(run.returned_observation_ids))
         ),
@@ -1513,6 +1710,93 @@ def _remember_idempotency(
 
 def _audit(state: HostedApiState, user_id: str, action: str) -> None:
     state.audit_events.append({"user_id": user_id, "action": action})
+    _persist_local_workspace(state)
+
+
+def _persist_local_workspace(state: HostedApiState) -> None:
+    if state.workspace_store is None:
+        return
+    state.workspace_store.save(
+        {
+            "projects": [
+                {"project_id": project.project_id, "user_id": project.user_id, "name": project.name}
+                for project in state.projects_by_id.values()
+            ],
+            "selections": [
+                {
+                    "selection_id": selection.selection_id,
+                    "user_id": selection.user_id,
+                    "project_id": selection.project_id,
+                    "name": selection.name,
+                    "member_ids": list(selection.member_ids),
+                }
+                for selection in state.selections_by_id.values()
+            ],
+            "current_project_id_by_user": state.current_project_id_by_user,
+            "current_metadata_selection_by_user": state.current_metadata_selection_by_user,
+            "metadata_revisions_by_user": state.metadata_revisions_by_user,
+        }
+    )
+
+
+def _restore_local_workspace(state: HostedApiState, payload: Mapping[str, object]) -> None:
+    projects = payload.get("projects", [])
+    selections = payload.get("selections", [])
+    if not isinstance(projects, list) or not isinstance(selections, list):
+        raise ValueError("local workspace state has an invalid shape")
+    for project in cast("list[object]", projects):
+        if not isinstance(project, Mapping):
+            raise ValueError("local workspace project is invalid")
+        project_row = cast("Mapping[str, object]", project)
+        project_id = _workspace_text(project_row, "project_id")
+        state.projects_by_id[project_id] = ProjectRecord(
+            project_id=project_id,
+            user_id=_workspace_text(project_row, "user_id"),
+            name=_workspace_text(project_row, "name"),
+        )
+    for selection in cast("list[object]", selections):
+        if not isinstance(selection, Mapping):
+            raise ValueError("local workspace selection is invalid")
+        selection_row = cast("Mapping[str, object]", selection)
+        member_ids = selection_row.get("member_ids")
+        if not isinstance(member_ids, list):
+            raise ValueError("local workspace selection members are invalid")
+        member_id_values = cast("list[object]", member_ids)
+        if not all(isinstance(value, str) for value in member_id_values):
+            raise ValueError("local workspace selection members are invalid")
+        selection_id = _workspace_text(selection_row, "selection_id")
+        state.selections_by_id[selection_id] = SelectionRecord(
+            selection_id=selection_id,
+            user_id=_workspace_text(selection_row, "user_id"),
+            project_id=_workspace_text(selection_row, "project_id"),
+            name=_workspace_text(selection_row, "name"),
+            member_ids=tuple(cast("list[str]", member_id_values)),
+        )
+    state.current_project_id_by_user = _workspace_string_map(
+        payload.get("current_project_id_by_user", {})
+    )
+    state.current_metadata_selection_by_user = _workspace_string_map(
+        payload.get("current_metadata_selection_by_user", {})
+    )
+    state.metadata_revisions_by_user = _workspace_string_map(
+        payload.get("metadata_revisions_by_user", {})
+    )
+
+
+def _workspace_text(row: Mapping[str, object], key: str) -> str:
+    value = row.get(key)
+    if not isinstance(value, str) or not value:
+        raise ValueError(f"local workspace {key} is invalid")
+    return value
+
+
+def _workspace_string_map(value: object) -> dict[str, str]:
+    if not isinstance(value, Mapping):
+        raise ValueError("local workspace mapping is invalid")
+    mapping = cast("Mapping[str, object]", value)
+    if not all(isinstance(item, str) for item in mapping.values()):
+        raise ValueError("local workspace mapping is invalid")
+    return {key: cast(str, item) for key, item in mapping.items()}
 
 
 def _opaque_id(kind: str, value: str) -> str:
@@ -1528,4 +1812,4 @@ def _http_error(status_code: int, code: str) -> HTTPException:
     return HTTPException(status_code=status_code, detail={"code": code})
 
 
-app = create_app()
+app = create_runtime_app()

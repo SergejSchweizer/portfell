@@ -36,7 +36,10 @@ def test_compose_defines_persistent_internal_postgres_and_shared_data() -> None:
     assert "portfell-shared-data:/srv/portfell/shared-data" in api["volumes"]
     assert "./lake:/srv/portfell/lake" in api["volumes"]
     assert api["environment"]["PORTFELL_LAKE_ROOT"] == "/srv/portfell/lake"
-    assert api["group_add"] == ["${PORTFELL_LAKE_GROUP_ID:-10}"]
+    assert api["group_add"] == [
+        "${PORTFELL_LAKE_GROUP_ID:-10}",
+        "${PORTFELL_SECRET_GROUP_ID:-100}",
+    ]
 
 
 def test_compose_exposes_only_api_and_web_development_ports() -> None:

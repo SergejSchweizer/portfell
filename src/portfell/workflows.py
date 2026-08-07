@@ -6,7 +6,8 @@ import csv
 import json
 import logging
 import os
-from collections.abc import Mapping, Sequence
+import threading
+from collections.abc import Callable, Mapping, Sequence
 from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any, cast
@@ -126,6 +127,7 @@ def run_fetch_all_metadata_workflow(
     exchange_codes: Sequence[str] = (),
     include_delisted: bool = False,
     eodhd_config: EodhdConfig | None = None,
+    on_progress: Callable[[int, int, int], None] | None = None,
 ) -> dict[str, Any]:
     """Fetch and persist the complete EODHD listing metadata dataset."""
     paths = LakePaths(root=root)
@@ -135,8 +137,19 @@ def run_fetch_all_metadata_workflow(
             client,
             exchange_codes=exchange_codes,
             include_delisted=include_delisted,
+            on_progress=(
+                (lambda completed, total, skipped: on_progress(completed, total + 1, skipped))
+                if on_progress is not None
+                else None
+            ),
         )
         written = write_all_metadata(paths, fetch_result.rows)
+        if on_progress is not None:
+            on_progress(
+                len(fetch_result.requested_exchanges) + 1,
+                len(fetch_result.requested_exchanges) + 1,
+                len(fetch_result.skipped_exchanges),
+            )
         return {
             "all_isins_rows": len(written),
             "exchange_count": len({str(row["source_exchange"]) for row in written}),
@@ -161,6 +174,7 @@ def run_fetch_all_quotes_workflow(
     concurrency: int = 2,
     eodhd_config: EodhdConfig | None = None,
     capture_scoped_rows: bool = False,
+    on_progress: Callable[[int, int, int], None] | None = None,
 ) -> dict[str, Any]:
     """Fetch Bronze quote inputs for the latest Metadata Filter selection."""
     paths = LakePaths(root=root)
@@ -191,6 +205,20 @@ def run_fetch_all_quotes_workflow(
                 plan, read_silver_quotes(paths), end_date=resolved_end_date
             )
         write_rows(paths.bronze_plan(resolved_run_id), plan)
+        total_tasks = len(plan) * (1 + len(ADDITIONAL_EODHD_DATASETS)) + 1
+        completed_tasks = 0
+        failed_tasks = 0
+        progress_lock = threading.Lock()
+
+        def record_progress(succeeded: bool) -> None:
+            nonlocal completed_tasks, failed_tasks
+            with progress_lock:
+                completed_tasks += 1
+                if not succeeded:
+                    failed_tasks += 1
+                if on_progress is not None:
+                    on_progress(completed_tasks, total_tasks, failed_tasks)
+
         client = EodhdClient(eodhd_config or load_eodhd_config())
         quote_successes, quote_errors = write_quotes_to_bronze(
             paths,
@@ -198,6 +226,7 @@ def run_fetch_all_quotes_workflow(
             run_date=resolved_end_date,
             loader=eodhd_dataset_loader(client, QUOTE_DATASET),
             concurrency=concurrency,
+            on_item_complete=record_progress,
         )
         raw_successes: list[dict[str, Any]] = []
         raw_errors: list[dict[str, Any]] = []
@@ -211,6 +240,7 @@ def run_fetch_all_quotes_workflow(
                     for strategy in ADDITIONAL_EODHD_DATASETS
                 },
                 concurrency=concurrency,
+                on_item_complete=record_progress,
             )
         silver_rows = build_silver_quotes(paths, concurrency=concurrency)
         coverage = write_bronze_manifests(
@@ -220,6 +250,7 @@ def run_fetch_all_quotes_workflow(
             plan=plan,
             as_of=resolved_end_date,
         )
+        record_progress(True)
         log_event(
             LOGGER,
             logging.INFO,

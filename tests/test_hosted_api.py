@@ -13,6 +13,7 @@ from portfell.hosted_api import (
     ProjectRecord,
     SelectionRecord,
     create_app,
+    create_persistent_local_workspace_state,
 )
 from portfell.hosted_credentials import InMemoryCredentialStore, KeyEncryptionKey
 from portfell.paths import LakePaths
@@ -79,6 +80,35 @@ def test_api_uses_injected_credential_vault_dependencies() -> None:
         state.credential_vault().unwrap_for_provider_call(user_id="user-a")
         == "secret-provider-token"
     )
+
+
+def test_persistent_local_workspace_restores_credential_and_projects_after_restart(
+    tmp_path: Path,
+) -> None:
+    key = KeyEncryptionKey("test-v1", b"1" * 32)
+    first_client = _client(
+        create_persistent_local_workspace_state(tmp_path, key_encryption_key=key)
+    )
+    first_client.post("/credentials/eodhd", json={"provider_key": "secret-provider-token"})
+    project = _json(first_client.post("/projects", json={"name": "Core"}))
+
+    restored_client = _client(
+        create_persistent_local_workspace_state(tmp_path, key_encryption_key=key)
+    )
+
+    assert _json(restored_client.get("/credentials/eodhd/value")) == {
+        "provider_key": "secret-provider-token"
+    }
+    context = _json(restored_client.get("/project-context"))
+    assert context["current_project_id"] == project["project_id"]
+    assert context["projects"] == [
+        {
+            "project_id": project["project_id"],
+            "name": "Core",
+            "selected_count": 0,
+            "data_loaded": False,
+        }
+    ]
 
 
 def test_workflow_starts_with_only_metadata_ready() -> None:
@@ -281,6 +311,7 @@ def test_load_selected_isins_runs_fetch_all_quotes_for_metadata_selection(
 
     def fake_fetch_all_quotes_workflow(**kwargs: Any) -> dict[str, Any]:
         calls.append(kwargs)
+        kwargs["on_progress"](3, 4, 0)
         return {
             "coverage_rows": 1,
             "raw_dataset_errors": 0,
@@ -332,6 +363,9 @@ def test_load_selected_isins_runs_fetch_all_quotes_for_metadata_selection(
             json={"project_id": created["project"]["project_id"]},
         )
     )
+    loaded_status = _json(
+        client.get(f"/quote-runs/{loaded_data['download_run_id']}", headers=_headers(csrf=False))
+    )
     paths = LakePaths(root=lake_root)
     persisted_selection_rows = read_rows(paths.metadata_filter_isins(selection_id))
     current_selection = read_json(paths.current_metadata_filter_selection())
@@ -340,20 +374,25 @@ def test_load_selected_isins_runs_fetch_all_quotes_for_metadata_selection(
     assert len(calls) == 1
     assert calls[0]["root"] == lake_root
     assert calls[0]["selection_id"] == selection_id
+    assert calls[0]["concurrency"] == 2
     assert calls[0]["eodhd_config"].api_token == "secret-provider-token"
     assert persisted_selection_rows[0]["isin"] == "IE1"
     assert persisted_selection_rows[0]["exchange"] == "XETRA"
     assert persisted_selection_rows[0]["code"] == "AAA"
     assert current_selection["selection_id"] == selection_id
-    assert loaded_data == loaded_data_again
+    assert loaded_data["download_run_id"] == loaded_data_again["download_run_id"]
+    assert loaded_data["status"] == "running"
+    assert loaded_data_again["status"] == "succeeded"
     assert loaded_data["kind"] == "load-data"
     assert loaded_data["observation_count"] == 1
-    assert loaded_data["quote_successes"] == 1
-    assert loaded_data["raw_dataset_successes"] == 2
-    assert loaded_data["selected_listing_count"] == 1
-    assert loaded_data["selected_count"] == 1
-    assert loaded_data["silver_quote_rows"] == 42
-    assert loaded_data["status"] == "succeeded"
+    assert loaded_data_again["quote_successes"] == 1
+    assert loaded_data_again["raw_dataset_successes"] == 2
+    assert loaded_data_again["selected_listing_count"] == 1
+    assert loaded_data_again["selected_count"] == 1
+    assert loaded_data_again["silver_quote_rows"] == 42
+    assert loaded_status["completed"] == 3
+    assert loaded_status["total"] == 4
+    assert loaded_status["percent"] == 100
     assert reloaded_project["data_loaded"] is True
 
 
@@ -401,7 +440,12 @@ def test_fetch_all_metadata_for_metadata_filter_requires_eodhd_key(
     )
     credential_status = _json(client.get("/credentials/eodhd", headers=_headers(csrf=False)))
     fetched = _json(client.post("/metadata/fetch-all", headers=_headers()))
-    fetched_again = _json(client.post("/metadata/fetch-all", headers=_headers()))
+    fetched_status = _json(
+        client.get(
+            f"/metadata/fetch-all/{fetched['metadata_run_id']}",
+            headers=_headers(csrf=False),
+        )
+    )
 
     assert rejected.status_code == 422
     assert _json(rejected)["detail"]["code"] == "eodhd_key_required"
@@ -409,18 +453,20 @@ def test_fetch_all_metadata_for_metadata_filter_requires_eodhd_key(
     assert calls == [
         "/exchanges-list/",
         "/exchange-symbol-list/XETRA",
-        "/exchanges-list/",
-        "/exchange-symbol-list/XETRA",
     ]
-    assert fetched == {
+    assert fetched["status"] == "running"
+    assert fetched_status == {
         "exchange_count": 1,
+        "completed": 2,
+        "metadata_run_id": fetched["metadata_run_id"],
+        "percent": 100,
         "requested_exchange_count": 1,
         "row_count": 1,
         "skipped_exchange_count": 0,
         "skipped_exchanges": [],
         "status": "succeeded",
+        "total": 2,
     }
-    assert fetched_again == fetched
 
 
 def test_fetch_all_metadata_rejects_an_invalid_eodhd_key_without_a_server_error(
@@ -446,10 +492,15 @@ def test_fetch_all_metadata_rejects_an_invalid_eodhd_key_without_a_server_error(
         json={"provider_key": "test-invalid-eodhd-key"},
     )
 
-    response = client.post("/metadata/fetch-all", headers=_headers())
+    started = _json(client.post("/metadata/fetch-all", headers=_headers()))
+    response = client.get(
+        f"/metadata/fetch-all/{started['metadata_run_id']}",
+        headers=_headers(csrf=False),
+    )
 
-    assert response.status_code == 422
-    assert _json(response)["detail"]["code"] == "eodhd_key_rejected"
+    assert response.status_code == 200
+    assert _json(response)["status"] == "failed"
+    assert _json(response)["error_code"] == "eodhd_key_rejected"
 
 
 def test_fetch_all_metadata_rejects_an_invalid_eodhd_payload_without_a_server_error(
@@ -475,10 +526,15 @@ def test_fetch_all_metadata_rejects_an_invalid_eodhd_payload_without_a_server_er
         json={"provider_key": "test-invalid-eodhd-key"},
     )
 
-    response = client.post("/metadata/fetch-all", headers=_headers())
+    started = _json(client.post("/metadata/fetch-all", headers=_headers()))
+    response = client.get(
+        f"/metadata/fetch-all/{started['metadata_run_id']}",
+        headers=_headers(csrf=False),
+    )
 
-    assert response.status_code == 502
-    assert _json(response)["detail"]["code"] == "eodhd_metadata_invalid_response"
+    assert response.status_code == 200
+    assert _json(response)["status"] == "failed"
+    assert _json(response)["error_code"] == "eodhd_metadata_invalid_response"
 
 
 def test_projects_selections_and_analyses_use_the_local_workspace() -> None:

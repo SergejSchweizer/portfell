@@ -35,10 +35,12 @@ class FakeClient:
 
 
 def test_fetch_all_metadata_enumerates_exchanges_and_keeps_isin_rows() -> None:
-    result = fetch_all_metadata(FakeClient())
+    progress: list[tuple[int, int, int]] = []
+    result = fetch_all_metadata(FakeClient(), on_progress=lambda *values: progress.append(values))
 
     assert result.requested_exchanges == ("US", "XETRA")
     assert result.skipped_exchanges == ()
+    assert progress == [(0, 2, 0), (1, 2, 0), (2, 2, 0)]
     assert list(result.rows) == [
         {
             "isin": "IE1",
