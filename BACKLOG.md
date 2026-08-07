@@ -984,7 +984,7 @@ This series addresses the three highest-leverage structural risks in the active 
 
 Branch: `refactor/hosted-api-boundaries`.
 
-Git status: in progress. PR: TBD.
+Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/218.
 
 Priority: P0 architecture and change-isolation baseline.
 
