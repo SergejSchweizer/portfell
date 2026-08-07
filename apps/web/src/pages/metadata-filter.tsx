@@ -1,11 +1,11 @@
 
 import { useEffect, useState, type FormEvent } from "react";
-import { loadQuoteRun, postJson, requestJson } from "../api/client";
+import { loadProjectContext, loadProjectMetadataFilter, loadQuoteRun, postJson, requestJson } from "../api/client";
 import { Button } from "../components/button";
 import { EmptyState } from "../components/empty-state";
 import { LoadingState } from "../components/loading-state";
 import { Panel } from "../components/panel";
-import type { ApiFieldOptions, ApiMetadataProject, ApiQuoteFetch } from "../contracts";
+import type { ApiFieldOptions, ApiMetadataProject, ApiProjectSummary, ApiQuoteFetch } from "../contracts";
 import { useResource } from "../hooks/use-resource";
 
 async function loadFieldOptions(): Promise<ApiFieldOptions> {
@@ -35,6 +35,8 @@ export function MetadataFilterPage() {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+
     const resetProjectState = () => {
       setProjectId("");
       setMetadataSelectionId("");
@@ -44,8 +46,49 @@ export function MetadataFilterPage() {
       setQuoteMessage("Quotes have not been fetched for this selection.");
       setQuoteRunId(null);
     };
-    window.addEventListener("portfell:project-updated", resetProjectState);
-    return () => window.removeEventListener("portfell:project-updated", resetProjectState);
+
+    const loadProjectFilter = async (project: ApiProjectSummary | null) => {
+      if (!project?.selection_id) {
+        resetProjectState();
+        return;
+      }
+      setSelectionStatus("Loading saved metadata filter…");
+      setQuoteStatus("idle");
+      setQuoteProgress(0);
+      setQuoteRunId(null);
+      try {
+        const filter = await loadProjectMetadataFilter(project.project_id);
+        if (cancelled) return;
+        setExchange(filter.exchange);
+        setInstrumentType(filter.instrument_type);
+        setCountry(filter.country);
+        setCurrency(filter.currency);
+        setName(filter.name);
+        setProjectId(filter.project_id);
+        setMetadataSelectionId(filter.selection_id);
+        setSelectionStatus(`${filter.selected_count.toLocaleString()} listings selected.`);
+        setQuoteMessage(project.data_loaded ? "Quotes are available for this selection." : "Selection ready. Fetch historical quotes to continue.");
+      } catch (error) {
+        if (cancelled) return;
+        resetProjectState();
+        setSelectionStatus(error instanceof Error ? error.message : "Saved metadata filter could not be loaded.");
+      }
+    };
+
+    const restoreCurrentProject = () => {
+      void loadProjectContext().then((context) => loadProjectFilter(context.current_project));
+    };
+    const handleProjectUpdate = (event: Event) => {
+      const context = (event as CustomEvent<{ current_project: ApiProjectSummary | null }>).detail;
+      void loadProjectFilter(context.current_project);
+    };
+
+    restoreCurrentProject();
+    window.addEventListener("portfell:project-updated", handleProjectUpdate);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("portfell:project-updated", handleProjectUpdate);
+    };
   }, []);
 
   useEffect(() => {

@@ -1,5 +1,5 @@
 
-import type { ApiCredentialStatus, ApiCredentialValue, ApiMetadataFetch, ApiProjectContext, ApiQuoteFetch, ApiWorkflow } from "../contracts";
+import type { ApiCredentialStatus, ApiCredentialValue, ApiMetadataFetch, ApiProjectContext, ApiProjectMetadataFilter, ApiQuoteFetch, ApiWorkflow } from "../contracts";
 
 export class ApiError extends Error {
   constructor(
@@ -76,6 +76,10 @@ export function loadMetadataFetchRun(metadataRunId: string): Promise<ApiMetadata
 
 export function loadProjectContext(): Promise<ApiProjectContext> {
   return requestJson<ApiProjectContext>("/api/project-context");
+}
+
+export function loadProjectMetadataFilter(projectId: string): Promise<ApiProjectMetadataFilter> {
+  return requestJson<ApiProjectMetadataFilter>(`/api/projects/${encodeURIComponent(projectId)}/metadata-filter`);
 }
 
 export function selectCurrentProject(projectId: string): Promise<ApiProjectContext> {

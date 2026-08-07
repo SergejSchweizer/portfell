@@ -25,10 +25,9 @@ the operation is running. The page polls the quote-run status endpoint and rende
 
 Idle, filtering, selection-ready, quote-running, quote-complete, quote-failed, metadata-empty, and metadata-unavailable states must be explicit. A metadata refresh invalidates and reloads the available filter options.
 
-The selected project is shown in the persistent sidebar. A project switch clears
-the transient project/selection ids and quote progress before this page requests
-replacement server-owned state; entered filter values remain available for the
-next project-specific submission.
+The selected project is shown in the persistent sidebar. A project switch, or
+opening this page after a switch, loads the saved server-owned filter values,
+selection id, and listing count for that project before quote progress is shown.
 
 ## Acceptance
 

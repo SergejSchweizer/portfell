@@ -672,6 +672,52 @@ def test_project_context_defaults_selects_and_clears_current_project() -> None:
     assert missing.status_code == 404
 
 
+def test_project_metadata_filter_restores_saved_field_values(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    monkeypatch.setenv("PORTFELL_LAKE_ROOT", str(tmp_path / "lake"))
+    state = HostedApiState(
+        all_isins_rows=(
+            {
+                "isin": "IE1",
+                "exchange": "XETRA",
+                "code": "AAA",
+                "name": "Example UCITS ETF",
+                "instrument_type": "ETF",
+                "country": "IE",
+                "currency": "EUR",
+            },
+        )
+    )
+    client = _client(state)
+    created = _json(
+        client.post(
+            "/metadata-filter",
+            headers=_headers(idempotency="metadata-filter-project-values"),
+            json={
+                "exchange": "XETRA",
+                "name": "UCITS ETF",
+                "instrument_type": "ETF",
+                "country": "IE",
+                "currency": "EUR",
+            },
+        )
+    )
+
+    restored = _json(client.get(f"/projects/{created['project']['project_id']}/metadata-filter"))
+
+    assert restored == {
+        "project_id": created["project"]["project_id"],
+        "selection_id": created["selection"]["selection_id"],
+        "selected_count": 1,
+        "exchange": "XETRA",
+        "instrument_type": "ETF",
+        "country": "IE",
+        "currency": "EUR",
+        "name": "UCITS ETF",
+    }
+
+
 def test_project_context_is_empty_without_projects() -> None:
     client = _client()
 

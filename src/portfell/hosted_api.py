@@ -48,8 +48,8 @@ from portfell.hosted_workspace import LocalWorkspaceStore
 from portfell.http import EodhdHttpError
 from portfell.metadata_filter import write_metadata_selection
 from portfell.paths import LakePaths
-from portfell.selection_filters import Predicate, filter_rows
-from portfell.table_io import JsonRow, read_rows
+from portfell.selection_filters import Predicate, filter_rows, parse_predicates
+from portfell.table_io import JsonRow, read_json, read_rows
 from portfell.workflow_state import resolve_workflow
 from portfell.workflows import (
     run_fetch_all_metadata_workflow,
@@ -561,6 +561,16 @@ def create_app(
         _set_current_project(api_state, user.user_id, payload.project_id)
         _audit(api_state, user.user_id, "project.current.select")
         return _project_context_row(api_state, user.user_id)
+
+    @app.get("/projects/{project_id}/metadata-filter")
+    def project_metadata_filter(
+        project_id: str,
+        user: ApiUser = Depends(current_user),
+        api_state: HostedApiState = Depends(current_state),
+    ) -> JsonRow:
+        project = _require_user_row(api_state.projects_by_id, project_id, user.user_id)
+        selection = _selection_for_project(api_state, project.project_id, user.user_id)
+        return _project_metadata_filter_row(project, selection)
 
     @app.delete("/projects/{project_id}")
     def delete_project(
@@ -1505,6 +1515,35 @@ def _load_selected_isins_row(
 
 def _project_row(project: ProjectRecord) -> JsonRow:
     return {"project_id": project.project_id, "name": project.name}
+
+
+def _project_metadata_filter_row(project: ProjectRecord, selection: SelectionRecord) -> JsonRow:
+    fields: JsonRow = {
+        "exchange": "",
+        "instrument_type": "",
+        "country": "",
+        "currency": "",
+        "name": "",
+    }
+    manifest_path = _lake_paths().metadata_filter_manifest(selection.selection_id)
+    if manifest_path.exists():
+        predicates = read_json(manifest_path).get("predicates", [])
+        if not isinstance(predicates, list):
+            raise HostedApiError("metadata filter manifest is invalid")
+        predicate_values = cast("list[object]", predicates)
+        if not all(isinstance(item, str) for item in predicate_values):
+            raise HostedApiError("metadata filter manifest is invalid")
+        for predicate in parse_predicates(cast("list[str]", predicate_values)):
+            if predicate.field == "name" and predicate.operator == "~":
+                fields["name"] = predicate.expected
+            elif predicate.field in fields and predicate.operator == "=":
+                fields[predicate.field] = predicate.expected
+    return {
+        "project_id": project.project_id,
+        "selection_id": selection.selection_id,
+        "selected_count": len(selection.member_ids),
+        **fields,
+    }
 
 
 def _projects_for_user(state: HostedApiState, user_id: str) -> list[ProjectRecord]:

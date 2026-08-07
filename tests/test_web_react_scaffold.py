@@ -106,9 +106,10 @@ def test_project_context_client_contracts_precede_sidebar_rendering() -> None:
         "/api/project-context",
         "/api/project-context/current-project",
         "/api/projects/${encodeURIComponent(projectId)}/workflow",
+        "/api/projects/${encodeURIComponent(projectId)}/metadata-filter",
     ):
         assert endpoint in client
-    for contract in ("ApiProjectSummary", "ApiProjectContext"):
+    for contract in ("ApiProjectSummary", "ApiProjectContext", "ApiProjectMetadataFilter"):
         assert f"export type {contract}" in contracts
     assert sidebar_specification.exists()
 
@@ -122,6 +123,18 @@ def test_project_switch_resets_all_four_page_local_workflow_states() -> None:
     ):
         page = (WEB_ROOT / "src" / "pages" / page_name).read_text(encoding="utf-8")
         assert 'window.addEventListener("portfell:project-updated"' in page
+
+
+def test_metadata_filter_restores_saved_project_filter_values() -> None:
+    page = (WEB_ROOT / "src" / "pages" / "metadata-filter.tsx").read_text(encoding="utf-8")
+
+    assert "loadProjectContext" in page
+    assert "loadProjectMetadataFilter" in page
+    assert "setExchange(filter.exchange)" in page
+    assert "setInstrumentType(filter.instrument_type)" in page
+    assert "setCountry(filter.country)" in page
+    assert "setCurrency(filter.currency)" in page
+    assert "setName(filter.name)" in page
 
 
 def test_metadata_refresh_keeps_the_entered_eodhd_key_in_the_header_field() -> None:

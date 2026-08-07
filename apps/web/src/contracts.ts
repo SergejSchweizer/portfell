@@ -90,6 +90,17 @@ export type ApiProjectContext = Readonly<{
   projects: readonly ApiProjectSummary[];
 }>;
 
+export type ApiProjectMetadataFilter = Readonly<{
+  project_id: string;
+  selection_id: string;
+  selected_count: number;
+  exchange: string;
+  instrument_type: string;
+  country: string;
+  currency: string;
+  name: string;
+}>;
+
 export type ApiResearchRun = Readonly<{
   run_id: string;
   status: "running" | "complete" | "failed";

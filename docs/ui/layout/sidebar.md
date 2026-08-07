@@ -68,7 +68,9 @@ is disabled. The drawer transition is removed for reduced-motion users.
 After a successful project switch, the shell refreshes the selected project's
 workflow and sends one typed update to the four route pages. Pages clear their
 transient selections, results, progress, and errors before loading replacement
-server-owned data. A failed switch keeps the prior project and route intact.
+server-owned data. Metadata Filter additionally loads saved field values through
+`GET /api/projects/{project_id}/metadata-filter`. A failed switch keeps the prior
+project and route intact.
 
 ## Boundaries
 
