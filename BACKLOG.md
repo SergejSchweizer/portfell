@@ -984,7 +984,7 @@ This series addresses the three highest-leverage structural risks in the active 
 
 Branch: `refactor/hosted-api-boundaries`.
 
-Git status: not started. PR: TBD.
+Git status: in progress. PR: TBD.
 
 Priority: P0 architecture and change-isolation baseline.
 

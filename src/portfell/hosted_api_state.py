@@ -1,0 +1,160 @@
+"""State records and repository container for the hosted API."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Protocol
+
+from portfell.entitlements import InMemoryEntitlementStore, ProviderDownloadRun
+from portfell.hosted_credentials import (
+    CredentialStore,
+    EodhdCredentialVault,
+    InMemoryCredentialStore,
+    KeyEncryptionKey,
+)
+from portfell.hosted_research_workflow import FilterSelection, ResearchRun
+from portfell.hosted_workspace import LocalWorkspaceStore
+from portfell.table_io import JsonRow
+
+DEFAULT_LOCAL_WORKSPACE_USER_ID = "user-a"
+
+
+class UserOwnedRow(Protocol):
+    """Protocol for rows that are scoped to one hosted API user."""
+
+    @property
+    def user_id(self) -> str:
+        """User that owns the row."""
+        ...
+
+
+@dataclass(frozen=True)
+class ApiUser:
+    """A server-resolved API user."""
+
+    user_id: str
+
+
+class CurrentUserProvider(Protocol):
+    """Resolve the request principal without browser-controlled identity input."""
+
+    def current_user(self) -> ApiUser:
+        """Return the server-owned user for the current request."""
+        ...
+
+
+@dataclass(frozen=True)
+class LocalWorkspaceUserProvider:
+    """Resolve the stable single-user local-workspace principal."""
+
+    user_id: str = DEFAULT_LOCAL_WORKSPACE_USER_ID
+
+    def __post_init__(self) -> None:
+        if not self.user_id.strip():
+            raise ValueError("local workspace user id is required")
+
+    def current_user(self) -> ApiUser:
+        """Return the configured server-side local principal."""
+
+        return ApiUser(user_id=self.user_id)
+
+
+@dataclass(frozen=True)
+class ProjectRecord:
+    """User-owned project record."""
+
+    project_id: str
+    user_id: str
+    name: str
+
+
+@dataclass(frozen=True)
+class SelectionRecord:
+    """User-owned selection record."""
+
+    selection_id: str
+    user_id: str
+    project_id: str
+    name: str
+    member_ids: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class AnalysisRecord:
+    """User-owned analysis run record."""
+
+    run_id: str
+    user_id: str
+    project_id: str
+    selection_id: str
+    logical_hash: str
+    status: str
+    metrics: tuple[JsonRow, ...]
+    returns: tuple[JsonRow, ...]
+    weights: tuple[JsonRow, ...]
+    report: JsonRow
+
+
+@dataclass
+class HostedApiState:
+    """In-memory hosted API repository set for deterministic tests and local dev."""
+
+    credentials: CredentialStore = field(default_factory=InMemoryCredentialStore)
+    credential_key_encryption_key: KeyEncryptionKey | None = field(
+        default_factory=lambda: KeyEncryptionKey("dev-v1", b"0" * 32)
+    )
+    credential_fingerprint_secret: bytes = b"portfell-dev-fingerprint-secret"
+    entitlements: InMemoryEntitlementStore = field(default_factory=InMemoryEntitlementStore)
+    projects_by_id: dict[str, ProjectRecord] = field(
+        default_factory=lambda: dict[str, ProjectRecord]()
+    )
+    selections_by_id: dict[str, SelectionRecord] = field(
+        default_factory=lambda: dict[str, SelectionRecord]()
+    )
+    downloads_by_id: dict[str, ProviderDownloadRun] = field(
+        default_factory=lambda: dict[str, ProviderDownloadRun]()
+    )
+    download_summaries_by_id: dict[str, JsonRow] = field(
+        default_factory=lambda: dict[str, JsonRow]()
+    )
+    metadata_runs_by_id: dict[str, JsonRow] = field(default_factory=lambda: dict[str, JsonRow]())
+    analyses_by_id: dict[str, AnalysisRecord] = field(
+        default_factory=lambda: dict[str, AnalysisRecord]()
+    )
+    idempotency_refs: dict[tuple[str, str, str], str] = field(
+        default_factory=lambda: dict[tuple[str, str, str], str]()
+    )
+    audit_events: list[JsonRow] = field(default_factory=lambda: list[JsonRow]())
+    all_isins_rows: tuple[JsonRow, ...] = field(default_factory=tuple)
+    univariate_statistics_rows: tuple[JsonRow, ...] = field(default_factory=tuple)
+    metadata_revisions_by_user: dict[str, str] = field(default_factory=lambda: dict[str, str]())
+    quote_rows_by_run_id: dict[str, tuple[JsonRow, ...]] = field(
+        default_factory=lambda: dict[str, tuple[JsonRow, ...]]()
+    )
+    univariate_runs_by_id: dict[str, ResearchRun] = field(
+        default_factory=lambda: dict[str, ResearchRun]()
+    )
+    filter_selections_by_id: dict[str, FilterSelection] = field(
+        default_factory=lambda: dict[str, FilterSelection]()
+    )
+    bivariate_runs_by_id: dict[str, ResearchRun] = field(
+        default_factory=lambda: dict[str, ResearchRun]()
+    )
+    quote_run_by_univariate_run_id: dict[str, str] = field(default_factory=lambda: dict[str, str]())
+    current_metadata_selection_by_user: dict[str, str] = field(
+        default_factory=lambda: dict[str, str]()
+    )
+    current_filter_selection_by_user: dict[str, str] = field(
+        default_factory=lambda: dict[str, str]()
+    )
+    current_project_id_by_user: dict[str, str] = field(default_factory=lambda: dict[str, str]())
+    workspace_store: LocalWorkspaceStore | None = None
+
+    def credential_vault(self) -> EodhdCredentialVault:
+        """Return the vault configured for this API state."""
+
+        return EodhdCredentialVault(
+            store=self.credentials,
+            key_encryption_key=self.credential_key_encryption_key,
+            fingerprint_secret=self.credential_fingerprint_secret,
+        )

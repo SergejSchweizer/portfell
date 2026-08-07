@@ -102,9 +102,13 @@ def test_hosted_api_uses_a_current_user_provider_boundary() -> None:
     hosted_api = (REPOSITORY_ROOT / "src" / "portfell" / "hosted_api.py").read_text(
         encoding="utf-8"
     )
+    hosted_api_state = (REPOSITORY_ROOT / "src" / "portfell" / "hosted_api_state.py").read_text(
+        encoding="utf-8"
+    )
 
     assert "\nLOCAL_WORKSPACE_USER_ID =" not in hosted_api
-    assert "class CurrentUserProvider(Protocol):" in hosted_api
+    assert "class CurrentUserProvider(Protocol):" in hosted_api_state
+    assert '"CurrentUserProvider"' in hosted_api
     assert "current_user_provider: CurrentUserProvider | None" in hosted_api
 
 
