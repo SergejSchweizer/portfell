@@ -927,7 +927,9 @@ The catalogue below groups modules by responsibility. Public modules should depe
 | `portfell.user_ingestion` | User-key-backed provider orchestration. | Implemented/tested; not called by current API download route. |
 | `portfell.scoped_inputs` | Hosted/local snapshot readers and authorized inputs. | Implemented/tested; used by proof, not full API analysis path. |
 | `portfell.artifact_cache` | Exact reusable derived artifacts plus user references. | In-memory proof implementation; not full API persistence. |
-| `portfell.hosted_api` | FastAPI route and local-dev repository boundary. | Active. |
+| `portfell.hosted_api` | FastAPI composition, routes, and local application orchestration. | Active. |
+| `portfell.hosted_api_contracts` | Dependency-light hosted request contracts. | Active. |
+| `portfell.hosted_api_state` | Local principal, records, and typed in-memory repository container. | Active. |
 | `portfell.hosted_runtime` | Container health and Uvicorn startup. | Active. |
 | `portfell.security_gates` | Repository/CI security-policy validator. | Active in quality gates. |
 | `portfell.hosted_readiness` | Hosted release evidence validator. | Active validation. |

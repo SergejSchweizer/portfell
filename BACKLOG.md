@@ -1,6 +1,6 @@
 # Backlog
 
-Last reviewed: 2026-08-04
+Last reviewed: 2026-08-07
 
 ## Table Of Contents
 
@@ -10,6 +10,7 @@ Last reviewed: 2026-08-04
 - [Active Platform-Inspired Simple UI PR Stack](#active-platform-inspired-simple-ui-pr-stack)
 - [Active Persistent EODHD Credential PR Stack](#active-persistent-eodhd-credential-pr-stack)
 - [Active Hosted Multi-Tenant Portfell PR Stack](#active-hosted-multi-tenant-portfell-pr-stack)
+- [Active Architectural Refactor PR Stack](#active-architectural-refactor-pr-stack)
 - [Current Architectural Decision](#current-architectural-decision)
 - [Series Completion Gate](#series-completion-gate)
 - [Update Rules](#update-rules)
@@ -974,6 +975,127 @@ Security: Every response resolves through an authenticated user-owned analysis r
 Determinism: Artifact ids and reports derive only from exact immutable inputs, explicit settings, and versioned algorithms.
 
 Idempotency: Repeated identical analyses return the existing completed result or join the active computation without duplicate artifacts, portfolio rows, or reports.
+
+## Active Architectural Refactor PR Stack
+
+This series addresses the three highest-leverage structural risks in the active codebase. The order is deliberate: first establish a narrow hosted application boundary, then place quote ingestion behind that boundary, and finally isolate the numerical portfolio core. Each PR is independently mergeable and behavior-preserving except for explicitly stated internal contracts. No PR may add a compatibility runtime, duplicate implementation, new external service, or unrelated product behavior.
+
+### PR129. Hosted API Routers, Application Services, And State Ports
+
+Branch: `refactor/hosted-api-boundaries`.
+
+Git status: in progress. PR: TBD.
+
+Priority: P0 architecture and change-isolation baseline.
+
+Depends on: current `main`.
+
+Scope:
+
+- Reduce `portfell.hosted_api` to the FastAPI composition root, runtime factory, stable public request/response exports, and `app` entry point.
+- Move Pydantic request models and JSON response serializers into one API-contract module with no imports from workflows, lake paths, credential implementations, or mutable repositories.
+- Move `HostedApiState`, project/selection/analysis records, ownership checks, idempotency references, audit writes, and local-workspace serialization into explicit state and repository-port modules.
+- Move metadata, project/workflow, quote-run, and research orchestration into application-service modules. Services accept typed ports and values; they do not depend on FastAPI `Request`, `Depends`, `BackgroundTasks`, headers, or `HTTPException`.
+- Split route registration by credential, metadata/project, quote-run, and research concerns. Routers translate HTTP input/output only and call application services; they do not read the lake or mutate repository dictionaries directly.
+- Add import-linter contracts enforcing `routes -> application services -> ports/domain`, forbidding reverse imports and direct route imports of `bronze`, `silver`, `workflows`, `table_io`, or concrete credential stores.
+- Keep the existing route paths, methods, status codes, structured error codes, OpenAPI field names, runtime factories, and Docker entry point unchanged. Do not add routes, persistence behavior, authentication behavior, or UI changes.
+
+Acceptance:
+
+- A checked-in normalized OpenAPI snapshot and API contract tests prove the same paths, methods, request schemas, response fields, status codes, and error codes before and after extraction.
+- Existing hosted API, credential, project, workflow, security, and Web contract tests pass without weakening assertions or deleting coverage.
+- `src/portfell/hosted_api.py` contains only composition/export code and is at most 250 nonblank, non-comment lines; no extracted production module exceeds 500 such lines.
+- Route modules contain no direct filesystem calls, `LakePaths`, workflow implementation imports, mutable state-dictionary access, or provider-client construction.
+- Import-linter and architecture checks fail on fixture violations of each new dependency rule.
+- Ruff, Pyright, all test shards, coverage, architecture checks, schema validation, and every required gate in [GATES.md](GATES.md) pass.
+
+Out of scope: PostgreSQL cutover, run persistence, quote-progress redesign, authentication changes, provider concurrency changes, endpoint additions, browser changes, and analytical refactors.
+
+Security: Ownership, credential redaction, CSRF, idempotency, and audit behavior remain server-owned and are tested at both route and service boundaries; extraction must not introduce a route that can access an unscoped repository or lake path.
+
+Determinism: Identical state and requests produce byte-equivalent normalized JSON and stable ids before and after extraction; module placement cannot enter hashes or persisted rows.
+
+Idempotency: Existing idempotency keys, active-run reuse, project identities, and selection identities retain exactly the same lookup and mutation semantics after extraction.
+
+### PR130. Typed Quote Ingestion Stage Pipeline And Progress Contract
+
+Branch: `refactor/quote-ingestion-pipeline`.
+
+Git status: not started. PR: TBD.
+
+Priority: P0 ingestion reliability, observability, and testability.
+
+Depends on: PR129.
+
+Scope:
+
+- Introduce immutable `QuoteIngestionRequest`, `QuoteIngestionPlan`, `QuoteIngestionProgress`, and `QuoteIngestionResult` contracts owned by a quote-ingestion application module.
+- Represent the existing work as the ordered stages `planning`, `quotes`, `dividends`, `splits`, `silver`, and `manifests`. Each stage reports its own completed/total counts and contributes to one deterministic aggregate total.
+- Move gap-aware per-listing planning, EODHD dataset execution, Silver per-listing conversion, and manifest publication behind typed stage functions. Retain the existing EODHD dataset strategies and table schemas rather than creating parallel quote/dividend/split implementations.
+- Resolve worker count once at the application boundary and pass it explicitly to every parallel stage. Keep bounded execution, per-root locking, atomic table writes, and memory-safe per-listing processing.
+- Replace positional integer progress callbacks with one typed progress event. The hosted service serializes that event; the CLI may adapt it to logs without owning progress arithmetic.
+- Make the final result expose provider successes/failures, selected listing count, Silver row count, coverage count, and exact completed stage totals. Failed items remain isolated and do not discard successful Bronze writes.
+- Remove obsolete progress arithmetic and duplicate orchestration from `portfell.workflows` only after all callers use the typed pipeline. Do not add Celery, Redis, a message broker, a scheduler, or a second run-state store.
+
+Acceptance:
+
+- Fixture runs with one, multiple, partially cached, fully cached, and partially failing listings emit the exact documented stage order and monotonic progress; aggregate completed never exceeds aggregate total.
+- A fully cached rerun performs no provider request for covered quote intervals and preserves existing Bronze rows, Silver rows, coverage rows, and gap manifests.
+- Golden table tests prove byte-equivalent normalized Bronze, Silver, coverage, gap, and run-manifest content for unchanged fixtures.
+- Peak-memory regression coverage proves planning and post-processing read at most one selected listing's Silver rows at a time; tests fail if a full-lake quote read returns to the hosted path.
+- Concurrency tests prove at most the resolved worker count is active, one logical run owns the module lock, and a duplicate request joins the existing active run rather than starting work.
+- Hosted quote status uses the typed stage and counts; the browser contains no independent task-total or progress calculation.
+- Ruff, Pyright, all test shards, coverage, architecture checks, schema validation, and every required gate in [GATES.md](GATES.md) pass.
+
+Out of scope: Durable run recovery after process death, database-backed queues, new provider endpoints, schema renames, retention changes, retry-policy changes, and UI redesign.
+
+Security: Provider keys remain bounded to client construction and never enter requests, plans, progress events, results, logs, manifests, hashes, or browser responses; user/project scope is resolved before planning.
+
+Determinism: Canonically ordered listings and fixed stage order produce identical plans, totals, manifests, and result summaries for identical lake state, dates, selection, and configuration.
+
+Idempotency: Repeating an identical request reuses covered data, merges rows by canonical keys, joins an active logical run, and produces no duplicate Bronze observations, manifests, or run records.
+
+### PR131. Portfolio Solver Core, Diagnostics, And Persistence Boundaries
+
+Branch: `refactor/portfolio-core-boundaries`.
+
+Git status: not started. PR: TBD.
+
+Priority: P1 numerical correctness and optimizer extensibility.
+
+Depends on: current `main`.
+
+Scope:
+
+- Keep `portfell.portfolio` as the stable public facade while moving implementation into cohesive modules under `portfell.portfolio_parts`.
+- Move `PortfolioConstraints`, validation, covariance completeness, bound activity, and constraint residuals into a constraints module with no lake or CLI dependencies.
+- Move objective-independent solver dispatch, production-solver adapters, candidate-limit policy, fallback enumeration, and solver diagnostics into a solver-orchestration module.
+- Move minimum variance, minimum CVaR, maximum diversification, risk contribution, and HRP objective calculations into objective modules that consume typed matrices and constraints and perform no file I/O.
+- Move row construction, lake reads/writes, and replacement semantics into a portfolio-artifact adapter. It may call the numerical core, but the numerical core cannot import `LakePaths`, schemas, table I/O, CLI, hosted API, or workflows.
+- Preserve all current facade function signatures and exported dataclasses used by callers. Re-exports are allowed only from `portfell.portfolio`; no second implementation or compatibility package may remain.
+- Add import-linter contracts enforcing `portfolio facade/artifact adapter -> solver orchestration -> objectives/constraints`, with objectives and constraints forbidden from importing persistence or application layers.
+
+Acceptance:
+
+- Golden numerical tests prove identical weights, objective values, diagnostics, constraint violations, linkage rows, cluster rows, and risk-contribution rows for every existing optimizer fixture, including failure and fallback cases.
+- Repeated runs preserve current deterministic row ordering, float tolerances, solver selection, candidate limits, and artifact replacement keys.
+- `src/portfell/portfolio.py` is at most 300 nonblank, non-comment lines and contains no objective implementation, candidate enumeration, clustering recursion, or direct optimization loop.
+- Every objective can be tested from in-memory typed inputs without constructing `LakePaths` or writing files; artifact tests use fake or temporary adapters without invoking private objective functions.
+- Import-linter and architecture checks reject objective-to-I/O, objective-to-workflow, and constraints-to-solver-orchestration reverse dependencies.
+- No algorithm version, persisted schema, public CLI option, workflow output, or recommendation input changes in this PR.
+- Ruff, Pyright, all test shards, coverage, architecture checks, schema validation, and every required gate in [GATES.md](GATES.md) pass.
+
+Out of scope: New optimizers, changed numerical tolerances, performance tuning, GPU/vector-library adoption, portfolio schema changes, profile changes, recommendation changes, and browser features.
+
+Security: The numerical core accepts already-scoped rows and cannot open unrestricted lake paths, resolve users, inspect credentials, or broaden selection membership.
+
+Determinism: Identical ordered matrices, constraints, solver configuration, and algorithm versions produce the same selected method, weights, diagnostics, and artifact rows within the existing exact/tolerance assertions.
+
+Idempotency: Repeating portfolio construction with identical inputs preserves artifact identities and replacement keys and does not append duplicate weight, cluster, linkage, diagnostic, or risk-contribution rows.
+
+### Architectural Refactor Series Completion Gate
+
+The architectural refactor series is complete only after PR129 through PR131 are merged and every required pre-merge and post-merge check in [GATES.md](GATES.md) passes. Completion requires normalized API-contract equivalence, typed and monotonic quote-stage progress, delta-only ingestion, numerical portfolio equivalence, the new import-linter dependency rules, no duplicate implementation or compatibility runtime, and updated [ARCHITECTURE.md](ARCHITECTURE.md) module ownership descriptions.
 
 ## Current Architectural Decision
 
