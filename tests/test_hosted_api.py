@@ -5,6 +5,7 @@ from typing import Any, cast
 
 from fastapi.testclient import TestClient
 
+import portfell.hosted_api as hosted_api
 from portfell.entitlements import ProviderDownloadRun
 from portfell.hosted_api import (
     ApiUser,
@@ -395,6 +396,87 @@ def test_load_selected_isins_runs_fetch_all_quotes_for_metadata_selection(
     assert loaded_status["total"] == 4
     assert loaded_status["percent"] == 100
     assert reloaded_project["data_loaded"] is True
+
+
+def test_load_selected_isins_reuses_running_quote_run_for_new_idempotency_key(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    lake_root = tmp_path / "lake"
+    monkeypatch.setenv("PORTFELL_LAKE_ROOT", str(lake_root))
+    calls: list[dict[str, Any]] = []
+    state = HostedApiState(
+        all_isins_rows=(
+            {
+                "isin": "IE1",
+                "exchange": "XETRA",
+                "code": "AAA",
+                "name": "Example UCITS ETF",
+                "instrument_type": "ETF",
+                "country": "IE",
+                "currency": "EUR",
+            },
+        )
+    )
+
+    def fake_fetch_all_quotes_workflow(**kwargs: Any) -> dict[str, Any]:
+        calls.append(kwargs)
+        return {
+            "coverage_rows": 0,
+            "raw_dataset_errors": 0,
+            "raw_dataset_successes": 0,
+            "quote_errors": 0,
+            "quote_successes": 0,
+            "run_id": kwargs["run_id"],
+            "selection_id": kwargs["selection_id"],
+            "selected_listing_count": 1,
+            "silver_quote_rows": 0,
+        }
+
+    monkeypatch.setattr(
+        "portfell.hosted_api.run_fetch_all_quotes_workflow",
+        fake_fetch_all_quotes_workflow,
+    )
+    client = _client(state)
+    client.post("/credentials/eodhd", json={"provider_key": "secret-provider-token"})
+    created = _json(
+        client.post(
+            "/metadata-filter",
+            json={"exchange": "XETRA", "name": "UCITS ETF", "instrument_type": "ETF"},
+        )
+    )
+    selection = state.selections_by_id[created["selection"]["selection_id"]]
+    request_hash = hosted_api._stable_hash(
+        {
+            "project_id": created["project"]["project_id"],
+            "selection_id": selection.selection_id,
+            "member_ids": list(selection.member_ids),
+        }
+    )
+    run = ProviderDownloadRun(
+        download_run_id=hosted_api._opaque_id("fetch-all-quotes", f"user-a:{request_hash}"),
+        user_id="user-a",
+        credential_id="project-selection",
+        provider="eodhd",
+        status="running",
+        returned_observation_ids=selection.member_ids,
+        request_hash=request_hash,
+    )
+    state.downloads_by_id[run.download_run_id] = run
+    state.download_summaries_by_id[run.download_run_id] = {"total": 4, "completed": 2}
+
+    response = _json(
+        client.post(
+            "/quote-runs",
+            headers=_headers(idempotency="new-quote-run-request"),
+            json={"project_id": created["project"]["project_id"]},
+        )
+    )
+
+    assert response["download_run_id"] == run.download_run_id
+    assert response["status"] == "running"
+    assert response["completed"] == 2
+    assert calls == []
 
 
 def test_fetch_all_metadata_for_metadata_filter_requires_eodhd_key(

@@ -790,6 +790,20 @@ def create_app(
                 "member_ids": list(selection.member_ids),
             }
         )
+        download_run_id = _opaque_id("fetch-all-quotes", f"{user.user_id}:{request_hash}")
+        active_run = api_state.downloads_by_id.get(download_run_id)
+        if active_run is not None and active_run.status == "running":
+            _remember_idempotency(
+                api_state,
+                user.user_id,
+                f"fetch-all-quotes:{project_id}",
+                idempotency_key,
+                active_run.download_run_id,
+            )
+            return _load_selected_isins_row(
+                active_run,
+                summary=api_state.download_summaries_by_id.get(active_run.download_run_id),
+            )
         try:
             provider_key = api_state.credential_vault().unwrap_for_provider_call(
                 user_id=user.user_id
@@ -799,7 +813,7 @@ def create_app(
                 status.HTTP_422_UNPROCESSABLE_CONTENT, "eodhd_credential_required"
             ) from error
         run = ProviderDownloadRun(
-            download_run_id=_opaque_id("fetch-all-quotes", f"{user.user_id}:{request_hash}"),
+            download_run_id=download_run_id,
             user_id=user.user_id,
             credential_id="project-selection",
             provider="eodhd",
