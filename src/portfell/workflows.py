@@ -210,6 +210,14 @@ def run_fetch_all_quotes_workflow(
         )
         if gap_aware:
             if memory_safe:
+                # A failed hosted run can leave successful provider writes in Bronze before
+                # Silver is reached. Materialize them so retry planning remains delta-only.
+                build_silver_quotes(
+                    paths,
+                    concurrency=concurrency,
+                    listings=selected_listings,
+                    load_rows=False,
+                )
                 plan = _build_memory_safe_gap_plan(paths, plan, end_date=resolved_end_date)
             else:
                 plan = build_gap_bronze_plan(

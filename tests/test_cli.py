@@ -403,6 +403,90 @@ def test_fetch_all_quotes_workflow_accepts_explicit_metadata_selection(
     assert len(read_rows(paths.silver_quote_file("XETRA", "IE0000000001"))) == 1
 
 
+def test_memory_safe_quote_retry_reuses_partial_bronze_writes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "lake"
+    paths = LakePaths(root=root)
+    write_rows(
+        paths.metadata_filter_isins("selection-1"),
+        [
+            {
+                "selection_id": "selection-1",
+                "isin": "IE1",
+                "code": "AAA",
+                "exchange": "XETRA",
+                "name": "Already fetched ETF",
+                "source_module": "metadata_filter",
+            },
+            {
+                "selection_id": "selection-1",
+                "isin": "IE2",
+                "code": "BBB",
+                "exchange": "XETRA",
+                "name": "Missing ETF",
+                "source_module": "metadata_filter",
+            },
+        ],
+    )
+    write_rows(
+        paths.bronze_quote_file("XETRA", 2026, "IE1"),
+        [
+            {
+                "run_id": "failed-run",
+                "isin": "IE1",
+                "code": "AAA",
+                "exchange": "XETRA",
+                "date": "2026-01-01",
+                "close": 100.0,
+                "adjusted_close": 100.0,
+            }
+        ],
+    )
+    requested_paths: list[str] = []
+
+    class FakeClient:
+        def get_json(
+            self, path: str, params: dict[str, str] | None = None
+        ) -> list[dict[str, object]]:
+            del params
+            requested_paths.append(path)
+            if path == "/eod/BBB.XETRA":
+                return [
+                    {
+                        "date": "2026-01-01",
+                        "open": 200.0,
+                        "high": 201.0,
+                        "low": 199.0,
+                        "close": 200.0,
+                        "adjusted_close": 200.0,
+                        "volume": 10,
+                    }
+                ]
+            raise AssertionError(path)
+
+    def fake_client_factory(_config: object) -> FakeClient:
+        return FakeClient()
+
+    monkeypatch.setattr("portfell.workflows.load_eodhd_config", lambda: object())
+    monkeypatch.setattr("portfell.workflows.EodhdClient", fake_client_factory)
+
+    summary = run_fetch_all_quotes_workflow(
+        root=root,
+        run_id="retry-run",
+        selection_id="selection-1",
+        end_date=date.fromisoformat("2026-01-01"),
+        concurrency=1,
+        include_raw_datasets=False,
+        memory_safe=True,
+    )
+
+    assert requested_paths == ["/eod/BBB.XETRA"]
+    assert summary["quote_successes"] == 1
+    assert len(read_rows(paths.silver_quote_file("XETRA", "IE1"))) == 1
+    assert len(read_rows(paths.silver_quote_file("XETRA", "IE2"))) == 1
+
+
 def test_cli_runs_univariate_and_bivariate_statistics_modules(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
