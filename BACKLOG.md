@@ -36,7 +36,7 @@ Completed entries are never deleted. Superseded plans are moved to the historica
 
 Branch: `feat/workflow-ingestion-controls`.
 
-Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/222.
+Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/222.
 
 Priority: P1 workflow clarity.
 
