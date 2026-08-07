@@ -216,7 +216,11 @@ def run_fetch_all_quotes_workflow(
                     plan, read_silver_quotes(paths), end_date=resolved_end_date
                 )
         write_rows(paths.bronze_plan(resolved_run_id), plan)
-        total_tasks = len(plan) * (1 + len(ADDITIONAL_EODHD_DATASETS)) + len(selected_listings) + 1
+        provider_task_count = len(plan) * (
+            1 + (len(ADDITIONAL_EODHD_DATASETS) if include_raw_datasets else 0)
+        )
+        silver_task_count = len(selected_listings) if memory_safe else 0
+        total_tasks = provider_task_count + silver_task_count + 1
         completed_tasks = 0
         failed_tasks = 0
         progress_lock = threading.Lock()

@@ -6,6 +6,7 @@ import logging
 from collections.abc import Callable, Collection, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 from portfell.bronze import merge_rows
@@ -127,12 +128,26 @@ def build_silver_quotes(
     """Build Silver quotes from Bronze files without materializing all Bronze rows."""
 
     selected_listings = set(listings) if listings is not None else None
+    bronze_paths_by_listing: dict[tuple[str, str], list[Path]] = {}
     for bronze_path in sorted((paths.bronze / "quotes").glob("*/*/*.parquet")):
         listing = (bronze_path.parent.parent.name, bronze_path.stem)
         if selected_listings is not None and listing not in selected_listings:
             continue
-        quote_rows = build_silver_quote_rows(read_rows(bronze_path))
-        write_silver_quotes(paths, quote_rows, concurrency=concurrency)
+        bronze_paths_by_listing.setdefault(listing, []).append(bronze_path)
+    listings_to_build = (
+        sorted(selected_listings)
+        if selected_listings is not None
+        else sorted(bronze_paths_by_listing)
+    )
+    for listing in listings_to_build:
+        bronze_rows = [
+            row
+            for bronze_path in bronze_paths_by_listing.get(listing, ())
+            for row in read_rows(bronze_path)
+        ]
+        if bronze_rows:
+            quote_rows = build_silver_quote_rows(bronze_rows)
+            write_silver_quotes(paths, quote_rows, concurrency=concurrency)
         if on_listing_complete is not None:
             on_listing_complete()
     return read_silver_quotes(paths) if load_rows else []

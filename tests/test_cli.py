@@ -295,11 +295,13 @@ def test_fetch_all_quotes_workflow_writes_bronze_and_silver(
     monkeypatch.setattr("portfell.workflows.load_eodhd_config", lambda: object())
     monkeypatch.setattr("portfell.workflows.EodhdClient", fake_client_factory)
 
+    progress: list[tuple[int, int, int]] = []
     summary = run_fetch_all_quotes_workflow(
         root=root,
         run_id="quotes-run",
         end_date=date.fromisoformat("2026-01-02"),
         concurrency=1,
+        on_progress=lambda completed, total, failed: progress.append((completed, total, failed)),
     )
 
     assert summary["quote_successes"] == 1
@@ -313,6 +315,8 @@ def test_fetch_all_quotes_workflow_writes_bronze_and_silver(
     )
     assert len(read_rows(paths.bronze_dataset_file("splits", "XETRA", 2026, "IE0000000001"))) == 1
     assert len(read_rows(paths.silver_quote_file("XETRA", "IE0000000001"))) == 2
+    assert progress[-1] == (4, 4, 0)
+    assert all(completed <= total for completed, total, _ in progress)
 
 
 def test_fetch_all_quotes_workflow_accepts_explicit_metadata_selection(

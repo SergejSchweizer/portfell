@@ -119,6 +119,10 @@ def test_silver_reads_bronze_partitions_and_writes_listing_files(tmp_path: Path)
 def test_silver_build_can_stream_one_listing_without_loading_all_rows(tmp_path: Path) -> None:
     paths = LakePaths(root=tmp_path / "lake")
     write_rows(
+        paths.bronze_quote_file("XETRA", 2025, "IE1"),
+        [_silver_quote("IE1", "XETRA", "AAA", "2025-01-01", 90.0)],
+    )
+    write_rows(
         paths.bronze_quote_file("XETRA", 2026, "IE1"),
         [_silver_quote("IE1", "XETRA", "AAA", "2026-01-01", 100.0)],
     )
@@ -127,16 +131,19 @@ def test_silver_build_can_stream_one_listing_without_loading_all_rows(tmp_path: 
         [_silver_quote("IE2", "XETRA", "BBB", "2026-01-01", 200.0)],
     )
 
+    completed_listings: list[None] = []
     rebuilt = build_silver_quotes(
         paths,
         concurrency=1,
-        listings={("XETRA", "IE1")},
+        listings={("XETRA", "IE1"), ("XETRA", "IE3")},
         load_rows=False,
+        on_listing_complete=lambda: completed_listings.append(None),
     )
 
     assert rebuilt == []
-    assert read_rows(paths.silver_quote_file("XETRA", "IE1"))
+    assert len(read_rows(paths.silver_quote_file("XETRA", "IE1"))) == 2
     assert not paths.silver_quote_file("XETRA", "IE2").exists()
+    assert completed_listings == [None, None]
 
 
 def test_workflow_search_supports_csv_and_rejects_invalid_json(tmp_path: Path) -> None:
