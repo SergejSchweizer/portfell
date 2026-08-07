@@ -5,6 +5,7 @@ Last reviewed: 2026-08-07
 ## Table Of Contents
 
 - [Backlog Policy](#backlog-policy)
+- [Active Workflow Ingestion UI PR](#active-workflow-ingestion-ui-pr)
 - [Active Four-Page Portfell UI PR Stack](#active-four-page-portfell-ui-pr-stack)
 - [Active Project Sidebar PR Stack](#active-project-sidebar-pr-stack)
 - [Active Platform-Inspired Simple UI PR Stack](#active-platform-inspired-simple-ui-pr-stack)
@@ -29,6 +30,43 @@ Every active item must contain `Branch`, `Git status`, `PR`, `Priority`, `Depend
 
 Completed entries are never deleted. Superseded plans are moved to the historical section and explicitly marked non-active. Backlog identifiers are never reused.
 
+## Active Workflow Ingestion UI PR
+
+### PR132. Stage-Owned Ingestion Controls
+
+Branch: `feat/workflow-ingestion-controls`.
+
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/222.
+
+Priority: P1 workflow clarity.
+
+Depends on: current `main`.
+
+Scope:
+
+- Move EODHD credential entry and `Fetch all metadata` from the persistent header into a first white panel on Metadata Filter.
+- Move quote fetching from Metadata Filter into a first white panel on Univariate Statistics.
+- Navigate to Univariate Statistics after a successful metadata-filter submission.
+- Preserve server-owned credentials, metadata refresh, quote ingestion, workflow state, and polling contracts.
+- Synchronize page specifications and React scaffold/Playwright regression contracts.
+
+Acceptance:
+
+- Metadata Filter displays the metadata-refresh panel before all filter controls, and the header contains no ingestion form.
+- Applying a valid metadata filter navigates to `/univariate-statistics`.
+- Univariate Statistics displays determinate quote progress and `Fetch quotes` in its first white panel before the statistics controls.
+- Existing server API routes, request payloads, and run-polling semantics remain unchanged.
+
+Security: The browser continues to use only the existing credential and workflow endpoints; no credential or ingestion logic moves client-side.
+
+Determinism: Page placement changes do not alter persisted metadata selections, quote runs, or analytical result identities.
+
+Idempotency: Existing metadata and quote requests retain their server-side idempotency behavior.
+
+### Workflow Ingestion UI Series Completion Gate
+
+This PR is complete only after it is merged with the required checks in [GATES.md](GATES.md) passing, the page specifications and regression tests are synchronized, and no header-owned ingestion control remains.
+
 ## Active Four-Page Portfell UI PR Stack
 
 This is the canonical UI implementation stack. It supersedes the former eight-stage research-funnel UI plan. The production application has exactly four pages, in this order:
@@ -40,7 +78,7 @@ metadata_filter
     -> bivariate_statistics
 ```
 
-The persistent header contains the EODHD credential input and the metadata refresh action. The canonical Python operation is `fetch_all_metadata`; the removed name `fetch_all_isins` must not be reintroduced as a function, module, command, route, alias, compatibility shim, or documentation term.
+Metadata Filter begins with the EODHD credential input and metadata refresh action in its own panel, before all metadata dropdowns. Univariate Statistics begins with quote fetching and progress in its own panel. The canonical Python operation is `fetch_all_metadata`; the removed name `fetch_all_isins` must not be reintroduced as a function, module, command, route, alias, compatibility shim, or documentation term.
 
 The stack is deliberately sequential. Each PR must be independently reviewable, must leave the repository green, and must not implement scope assigned to a later PR. Browser code owns presentation and transient interaction state only. Credentials, authorization, workflow status, selections, calculations, persistence, invalidation, and financial/statistical logic remain server-owned.
 

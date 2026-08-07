@@ -18,10 +18,14 @@ async function installWorkflowApi(page: import("@playwright/test").Page) {
     if (request.method() === "GET" && (path === "/api/workflow" || path === "/api/projects/project-1/workflow")) return json(workflow);
     if (request.method() === "GET" && path === "/api/metadata-filter/options") return json({ exchange: ["XETRA"], instrument_type: ["ETF"], country: ["IE"], currency: ["EUR"] });
     if (request.method() === "GET" && path === "/api/univariate-filter/metrics") return json({ items: [{ metric: "annualized_volatility", label: "Annualized volatility" }] });
+    if (request.method() === "GET" && path === "/api/credentials/eodhd") return json({ credential_id: "credential-1", provider: "eodhd", status: "active", key_version: "1", masked_label: "test…key" });
+    if (request.method() === "GET" && path === "/api/credentials/eodhd/value") return json({ provider_key: "" });
     if (request.method() === "POST" && path === "/api/credentials/eodhd") return json({ status: "active" });
-    if (request.method() === "POST" && path === "/api/metadata/fetch-all") return json({ status: "succeeded", row_count: 2, exchange_count: 1, requested_exchange_count: 1, skipped_exchange_count: 0, skipped_exchanges: [] });
+    if (request.method() === "POST" && path === "/api/metadata/fetch-all") return json({ metadata_run_id: "metadata-run-1", status: "running", total: 1, completed: 0, percent: 0 });
+    if (request.method() === "GET" && path === "/api/metadata/fetch-all/metadata-run-1") return json({ metadata_run_id: "metadata-run-1", status: "succeeded", total: 1, completed: 1, percent: 100, row_count: 2, exchange_count: 1, requested_exchange_count: 1, skipped_exchange_count: 0, skipped_exchanges: [] });
     if (request.method() === "POST" && path === "/api/metadata-filter") return json({ project: { project_id: "project-1" }, selection: { selection_id: "metadata-1" }, selected_count: 2 });
-    if (request.method() === "POST" && path === "/api/quote-runs") return json({ status: "complete", quote_successes: 2, quote_errors: 0, selected_listing_count: 2 });
+    if (request.method() === "POST" && path === "/api/quote-runs") return json({ download_run_id: "quote-run-1", status: "running", total: 2, completed: 0, failed: 0, percent: 0, selected_listing_count: 2 });
+    if (request.method() === "GET" && path === "/api/quote-runs/quote-run-1") return json({ download_run_id: "quote-run-1", status: "succeeded", total: 2, completed: 2, failed: 0, percent: 100, selected_listing_count: 2, quote_successes: 2, quote_errors: 0 });
     if (request.method() === "POST" && path === "/api/univariate-statistics/runs") return json({ run_id: "univariate-1", status: "complete", percent: 100 });
     if (request.method() === "GET" && path.includes("/univariate-statistics/runs/")) return json({ items: [], total: 0 });
     if (request.method() === "POST" && path === "/api/univariate-filter") return json({ selection_id: "filter-1", input_count: 2, selected_count: 2, excluded_count: 0 });
@@ -44,9 +48,8 @@ test("research workflow exercises every current field and action sequentially", 
   await page.getByLabel("Currency").selectOption("EUR");
   await page.getByLabel("Name contains").fill("UCITS");
   await page.getByRole("button", { name: "Apply metadata filter" }).click();
+  await expect(page).toHaveURL(/\/univariate-statistics$/);
   await page.getByRole("button", { name: "Fetch quotes" }).click();
-
-  await page.goto("/univariate-statistics");
   await page.getByRole("button", { name: "Compute univariate statistics" }).click();
 
   await page.goto("/univariate-filter");

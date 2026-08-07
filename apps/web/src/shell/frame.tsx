@@ -1,17 +1,12 @@
 
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Menu } from "lucide-react";
 import {
-  loadEodhdCredentialStatus,
-  loadEodhdCredentialValue,
-  loadMetadataFetchRun,
   loadProjectContext,
   loadProjectWorkflow,
-  postJson,
   selectCurrentProject,
 } from "../api/client";
-import { Button } from "../components/button";
-import type { ApiMetadataFetch, ApiProjectContext, ApiWorkflow } from "../contracts";
+import type { ApiProjectContext, ApiWorkflow } from "../contracts";
 import { useResource } from "../hooks/use-resource";
 import { workflowPages, type WorkflowPageId } from "../routes";
 import { ProjectSidebar } from "./project-sidebar";
@@ -31,21 +26,13 @@ const emptyWorkflow: ApiWorkflow = {
 };
 
 export function ShellFrame({ currentPage, children }: ShellFrameProps) {
-  const [providerKey, setProviderKey] = useState("");
-  const [fetching, setFetching] = useState(false);
-  const [metadataRunId, setMetadataRunId] = useState<string | null>(null);
-  const [metadataProgress, setMetadataProgress] = useState(0);
-  const [status, setStatus] = useState("Enter an EODHD key to refresh listing metadata.");
   const [contextRevision, setContextRevision] = useState(0);
   const [workflowRevision, setWorkflowRevision] = useState(0);
   const [switching, setSwitching] = useState(false);
   const [switchError, setSwitchError] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
-  const credential = useResource(loadEodhdCredentialStatus, []);
-  const savedProviderKey = useResource(loadEodhdCredentialValue, []);
   const context = useResource(loadProjectContext, [contextRevision]);
-  const hasSavedCredential = credential.status === "ready" && credential.data.status === "active";
   const projectId = context.status === "ready" ? context.data.current_project_id : null;
   const workflow = useResource(
     () => projectId ? loadProjectWorkflow(projectId) : Promise.resolve(emptyWorkflow),
@@ -107,74 +94,6 @@ export function ShellFrame({ currentPage, children }: ShellFrameProps) {
     setDrawerOpen(false);
   }, [currentPage]);
 
-  useEffect(() => {
-    if (savedProviderKey.status === "ready") {
-      setProviderKey(savedProviderKey.data.provider_key);
-    }
-  }, [savedProviderKey.status]);
-
-  useEffect(() => {
-    if (!metadataRunId || !fetching) return;
-    const activeRunId = metadataRunId;
-    let cancelled = false;
-    let timeoutId: number | undefined;
-
-    async function pollMetadataRun() {
-      try {
-        const result = await loadMetadataFetchRun(activeRunId);
-        if (cancelled) return;
-        setMetadataProgress(result.percent);
-        if (result.status === "running") {
-          setStatus(`Fetching metadata: ${result.completed.toLocaleString()} of ${result.total.toLocaleString()} exchanges completed.`);
-          timeoutId = window.setTimeout(() => void pollMetadataRun(), 750);
-          return;
-        }
-        setFetching(false);
-        setMetadataRunId(null);
-        if (result.status === "failed") {
-          setStatus(result.error_code ?? "Metadata fetch failed.");
-          return;
-        }
-        setStatus(`${(result.row_count ?? 0).toLocaleString()} metadata rows from ${result.exchange_count ?? 0} exchanges loaded.`);
-        window.dispatchEvent(new Event("portfell:metadata-updated"));
-        window.dispatchEvent(new Event("portfell:workflow-updated"));
-      } catch (error) {
-        if (cancelled) return;
-        setFetching(false);
-        setMetadataRunId(null);
-        setStatus(error instanceof Error ? error.message : "Metadata fetch failed.");
-      }
-    }
-
-    void pollMetadataRun();
-    return () => {
-      cancelled = true;
-      if (timeoutId !== undefined) window.clearTimeout(timeoutId);
-    };
-  }, [fetching, metadataRunId]);
-
-  async function fetchMetadata(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if ((!providerKey.trim() && !hasSavedCredential) || fetching) return;
-    setFetching(true);
-    setMetadataProgress(0);
-    setStatus(providerKey.trim() ? "Saving key and fetching metadata..." : "Fetching metadata...");
-    try {
-      if (providerKey.trim()) {
-        await postJson("/api/credentials/eodhd", { provider_key: providerKey.trim() });
-      }
-      const result = await postJson<ApiMetadataFetch>(
-        "/api/metadata/fetch-all",
-        {},
-      );
-      setMetadataRunId(result.metadata_run_id);
-      setMetadataProgress(result.percent);
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Metadata fetch failed.");
-      setFetching(false);
-    }
-  }
-
   async function changeProject(nextProjectId: string): Promise<boolean> {
     if (!projectId || nextProjectId === projectId || switching) return false;
     setSwitching(true);
@@ -215,26 +134,6 @@ export function ShellFrame({ currentPage, children }: ShellFrameProps) {
         >
           <Menu aria-hidden="true" />
         </button>
-        <form className="metadata-fetch" onSubmit={fetchMetadata}>
-          <div className="metadata-fetch__credential-input">
-            <label>
-              EODHD key
-              <input
-                type="text"
-                autoComplete="off"
-                value={providerKey}
-                onChange={(event) => setProviderKey(event.target.value)}
-                placeholder="Enter provider key"
-              />
-            </label>
-            {fetching ? <progress className="metadata-fetch__progress" max={100} value={metadataProgress} aria-label={`Fetching metadata: ${metadataProgress}%`} /> : null}
-            {hasSavedCredential ? <span className="metadata-fetch__credential">Saved: {credential.data.masked_label}</span> : null}
-          </div>
-          <Button type="submit" variant="primary" disabled={(!providerKey.trim() && !hasSavedCredential) || fetching}>
-            {fetching ? "Fetching…" : "Fetch all metadata"}
-          </Button>
-          <output className="metadata-fetch__status" aria-live="polite">{status}</output>
-        </form>
       </header>
 
       <div className="app-workspace">

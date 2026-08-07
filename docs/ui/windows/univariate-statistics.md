@@ -6,11 +6,13 @@
 
 ## Purpose
 
-Run and present server-computed univariate statistics for the active project after quote data is available.
+Fetch historical quotes, then run and present server-computed univariate statistics for the active project.
 
 ## Contract
 
-The page loads `GET /api/workflow`, starts `POST /api/univariate-statistics/runs` with the
+The first white panel owns quote fetch progress and starts `POST /api/quote-runs` with the persisted metadata selection id. It polls `GET /api/quote-runs/{id}` and renders the server-provided `total`, `completed`, `failed`, and `percent` values before its action.
+
+The statistics panel loads `GET /api/workflow`, starts `POST /api/univariate-statistics/runs` with the
 immutable metadata selection and quote run ids, and loads bounded results from
 `GET /api/univariate-statistics/runs/{run_id}/results`. It renders server progress and returned
 statistics without recomputing them in React.
@@ -21,6 +23,4 @@ state are cleared before the project-scoped workflow is reloaded.
 
 ## Acceptance
 
-The primary action is disabled when prerequisites are missing or a run is active. Locked state links
-to Metadata Filter. Results use typed contracts, accessible table semantics, stable loading feedback,
-bounded pagination, and a clear upstream-data requirement.
+The quote panel is first in document order and its action is disabled without a metadata selection or while a fetch is active. The statistics action is disabled when prerequisites are missing or a run is active. Results use typed contracts, accessible table semantics, stable loading feedback, bounded pagination, and a clear upstream-data requirement.
