@@ -28,7 +28,9 @@ def test_metadata_page_orders_progress_before_fetch_quotes_action() -> None:
     assert page.index("<progress") < page.index("quote-fetch__action")
     assert page.index("quote-fetch__action") < page.index("Fetch quotes")
     assert "loadQuoteRun" in page
-    assert "provider tasks completed" in page
+    assert "quote-fetch tasks completed" in page
+    assert "estimatedRemainingTime" in page
+    assert "remaining" in page
     assert "value={quoteProgress}" in page
 
 

@@ -329,6 +329,7 @@ def test_load_selected_isins_runs_fetch_all_quotes_for_metadata_selection(
         "portfell.hosted_api.run_fetch_all_quotes_workflow",
         fake_fetch_all_quotes_workflow,
     )
+    monkeypatch.setattr(hosted_api.os, "process_cpu_count", lambda: 6)
     client = _client(state)
     client.post(
         "/credentials/eodhd",
@@ -375,7 +376,7 @@ def test_load_selected_isins_runs_fetch_all_quotes_for_metadata_selection(
     assert len(calls) == 1
     assert calls[0]["root"] == lake_root
     assert calls[0]["selection_id"] == selection_id
-    assert calls[0]["concurrency"] == 2
+    assert calls[0]["concurrency"] == 6
     assert calls[0]["memory_safe"] is True
     assert calls[0]["eodhd_config"].api_token == "secret-provider-token"
     assert persisted_selection_rows[0]["isin"] == "IE1"
@@ -393,9 +394,59 @@ def test_load_selected_isins_runs_fetch_all_quotes_for_metadata_selection(
     assert loaded_data_again["selected_count"] == 1
     assert loaded_data_again["silver_quote_rows"] == 42
     assert loaded_status["completed"] == 3
+    assert loaded_status["started_at"] > 0
     assert loaded_status["total"] == 4
     assert loaded_status["percent"] == 100
     assert reloaded_project["data_loaded"] is True
+
+
+def test_quote_run_progress_is_visible_after_the_first_completed_task(
+    monkeypatch: Any,
+) -> None:
+    state = HostedApiState()
+    run = ProviderDownloadRun(
+        download_run_id="quote-run-progress",
+        user_id="user-a",
+        credential_id="project-selection",
+        provider="eodhd",
+        status="running",
+        returned_observation_ids=("IE1:XETRA:AAA",),
+        request_hash="request-a",
+    )
+    state.downloads_by_id[run.download_run_id] = run
+    state.download_summaries_by_id[run.download_run_id] = {
+        "total": 10_000,
+        "completed": 0,
+        "failed": 0,
+        "percent": 0,
+    }
+
+    def fake_fetch_all_quotes_workflow(**kwargs: Any) -> dict[str, Any]:
+        kwargs["on_progress"](1, 10_000, 0)
+        assert state.download_summaries_by_id[run.download_run_id]["percent"] == 1
+        return {
+            "coverage_rows": 0,
+            "raw_dataset_errors": 0,
+            "raw_dataset_successes": 0,
+            "quote_errors": 0,
+            "quote_successes": 0,
+            "run_id": kwargs["run_id"],
+            "selection_id": kwargs["selection_id"],
+            "selected_listing_count": 1,
+            "silver_quote_rows": 0,
+        }
+
+    monkeypatch.setattr(
+        "portfell.hosted_api.run_fetch_all_quotes_workflow",
+        fake_fetch_all_quotes_workflow,
+    )
+
+    hosted_api._run_quote_fetch(
+        state,
+        run,
+        "selection-a",
+        "unused-provider-key",
+    )
 
 
 def test_load_selected_isins_reuses_running_quote_run_for_new_idempotency_key(

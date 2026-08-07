@@ -12,6 +12,17 @@ async function loadFieldOptions(): Promise<ApiFieldOptions> {
   return requestJson<ApiFieldOptions>("/api/metadata-filter/options");
 }
 
+function estimatedRemainingTime(startedAt: number | undefined, completed: number, total: number): string {
+  if (!startedAt || completed <= 0 || total <= completed) return "";
+  const elapsedMilliseconds = Date.now() - startedAt * 1_000;
+  if (elapsedMilliseconds <= 0) return "";
+  const remainingSeconds = Math.ceil((elapsedMilliseconds / 1_000 / completed) * (total - completed));
+  if (remainingSeconds < 60) return " (less than 1 min remaining)";
+  const hours = Math.floor(remainingSeconds / 3_600);
+  const minutes = Math.ceil((remainingSeconds % 3_600) / 60);
+  return hours > 0 ? ` (about ${hours}h ${minutes}m remaining)` : ` (about ${minutes} min remaining)`;
+}
+
 export function MetadataFilterPage() {
   const [metadataRevision, setMetadataRevision] = useState(0);
   const options = useResource(loadFieldOptions, [metadataRevision]);
@@ -106,7 +117,9 @@ export function MetadataFilterPage() {
         const failed = result.failed ?? 0;
         setQuoteProgress(result.percent ?? 0);
         if (result.status === "running") {
-          setQuoteMessage(`${completed.toLocaleString()} of ${total.toLocaleString()} provider tasks completed.`);
+          setQuoteMessage(
+            `${completed.toLocaleString()} of ${total.toLocaleString()} quote-fetch tasks completed${estimatedRemainingTime(result.started_at, completed, total)}.`,
+          );
           timeoutId = window.setTimeout(() => void pollQuoteRun(), 750);
           return;
         }

@@ -8,6 +8,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import time
 import uuid
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field, replace
@@ -828,6 +829,7 @@ def create_app(
             "failed": 0,
             "percent": 0,
             "progress": 0,
+            "started_at": time.time(),
             "selected_listing_count": len(selection.member_ids),
         }
         _remember_idempotency(
@@ -1370,8 +1372,10 @@ def _run_quote_fetch(
     selection_id: str,
     provider_key: str,
 ) -> None:
+    concurrency = max(1, os.process_cpu_count() or os.cpu_count() or 1)
+
     def update_progress(completed: int, total: int, failed: int) -> None:
-        percent = min(99, round((completed / total) * 100)) if total else 0
+        percent = min(99, max(1, round((completed / total) * 100))) if completed and total else 0
         state.download_summaries_by_id[run.download_run_id] = {
             **state.download_summaries_by_id[run.download_run_id],
             "completed": completed,
@@ -1386,7 +1390,7 @@ def _run_quote_fetch(
             root=_lake_paths().root,
             run_id=_opaque_id("fetch-all-quotes", run.request_hash),
             selection_id=selection_id,
-            concurrency=2,
+            concurrency=concurrency,
             eodhd_config=EodhdConfig(api_token=provider_key),
             capture_scoped_rows=True,
             memory_safe=True,
@@ -1406,6 +1410,9 @@ def _run_quote_fetch(
     completed = int(state.download_summaries_by_id[run.download_run_id]["completed"])
     total = int(state.download_summaries_by_id[run.download_run_id]["total"])
     failed = int(state.download_summaries_by_id[run.download_run_id]["failed"])
+    started_at = float(
+        state.download_summaries_by_id[run.download_run_id].get("started_at", time.time())
+    )
     completed_run = replace(run, status="partial" if failed else "succeeded")
     state.downloads_by_id[run.download_run_id] = completed_run
     state.quote_rows_by_run_id[run.download_run_id] = scoped_quote_rows
@@ -1415,6 +1422,7 @@ def _run_quote_fetch(
         "failed": failed,
         "percent": 100,
         "progress": 100,
+        "started_at": started_at,
         "total": total,
     }
     if completed_run.status == "succeeded":
@@ -1514,6 +1522,7 @@ def _load_selected_isins_row(
         "failed": failed,
         "percent": percent,
         "progress": percent,
+        "started_at": float(workflow_summary.get("started_at", 0)),
         "quote_errors": int(workflow_summary.get("quote_errors", 0)),
         "quote_successes": int(workflow_summary.get("quote_successes", 0)),
         "raw_dataset_errors": int(workflow_summary.get("raw_dataset_errors", 0)),

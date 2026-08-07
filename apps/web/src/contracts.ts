@@ -66,6 +66,7 @@ export type ApiQuoteFetch = Readonly<{
   failed?: number;
   percent?: number;
   progress?: number;
+  started_at?: number;
   selected_listing_count?: number;
   quote_successes?: number;
   quote_errors?: number;
