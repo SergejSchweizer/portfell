@@ -193,6 +193,12 @@ export type ApiBivariateSummary = Readonly<{
   metrics: Readonly<Record<string, ApiBivariateMetricSummary>>;
 }>;
 
+export type ApiPairMetricMatrix = Readonly<{
+  labels: readonly Readonly<{ isin: string; exchange: string; code: string; label: string }>[];
+  values: readonly (readonly (number | null)[])[];
+  observation_count: number;
+}>;
+
 export type ApiCovarianceMatrix = Readonly<{
   labels: readonly Readonly<{ isin: string; exchange: string; code: string; label: string }>[];
   values: readonly (readonly (number | null)[])[];

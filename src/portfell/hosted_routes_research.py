@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from typing import Literal
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Header
 
@@ -131,6 +132,14 @@ def research_router(
     @router.get("/bivariate-statistics/runs/{run_id}/summary")
     def bivariate_summary(run_id: str, user: ApiUser = Depends(current_user)) -> JsonRow:
         return call(service.bivariate_summary, user.user_id, run_id)
+
+    @router.get("/bivariate-statistics/runs/{run_id}/correlation-matrix")
+    def bivariate_correlation_matrix(
+        run_id: str,
+        metric: Literal["pearson", "spearman"] = "pearson",
+        user: ApiUser = Depends(current_user),
+    ) -> JsonRow:
+        return call(service.bivariate_correlation_matrix, user.user_id, run_id, metric)
 
     @router.get("/bivariate-statistics/runs/{run_id}/covariance-matrix")
     def bivariate_covariance_matrix(run_id: str, user: ApiUser = Depends(current_user)) -> JsonRow:

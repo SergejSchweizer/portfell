@@ -977,6 +977,18 @@ def test_scoped_research_runs_filter_and_build_unique_pairs() -> None:
             headers=_headers(csrf=False),
         )
     )
+    pearson_matrix = _json(
+        client.get(
+            f"/bivariate-statistics/runs/{bivariate['run_id']}/correlation-matrix?metric=pearson",
+            headers=_headers(csrf=False),
+        )
+    )
+    spearman_matrix = _json(
+        client.get(
+            f"/bivariate-statistics/runs/{bivariate['run_id']}/correlation-matrix?metric=spearman",
+            headers=_headers(csrf=False),
+        )
+    )
 
     assert repeated["run_id"] == univariate["run_id"]
     assert univariate_status["status"] == "complete"
@@ -987,6 +999,9 @@ def test_scoped_research_runs_filter_and_build_unique_pairs() -> None:
     assert len(pair_rows) == 3
     assert len({(row["left_id"], row["right_id"]) for row in pair_rows}) == 3
     assert summary["pair_count"] == 3
+    assert pearson_matrix["values"][0][0] is None
+    assert isinstance(pearson_matrix["values"][0][1], float)
+    assert isinstance(spearman_matrix["values"][0][1], float)
     assert set(summary["metrics"]) >= {
         "pearson_correlation",
         "downside_correlation",

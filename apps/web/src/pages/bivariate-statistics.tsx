@@ -4,7 +4,7 @@ import { loadWorkflow, postJson, requestJson } from "../api/client";
 import { Button } from "../components/button";
 import { LoadingState } from "../components/loading-state";
 import { Panel } from "../components/panel";
-import type { ApiBivariateMetricSummary, ApiBivariateRow, ApiBivariateSummary, ApiCovarianceMatrix, ApiPage, ApiPairPlan, ApiResearchRun } from "../contracts";
+import type { ApiBivariateMetricSummary, ApiBivariateRow, ApiBivariateSummary, ApiCovarianceMatrix, ApiPage, ApiPairMetricMatrix, ApiPairPlan, ApiResearchRun } from "../contracts";
 import { useResource } from "../hooks/use-resource";
 
 function metric(value: number | null | undefined): string {
@@ -61,12 +61,36 @@ function BivariateMetricWindow({
   </section>;
 }
 
+function PairMatrix({
+  matrix, title, hoveredCell, setHoveredCell,
+}: {
+  matrix: ApiPairMetricMatrix | null; title: string;
+  hoveredCell: { row: number; column: number } | null;
+  setHoveredCell: (value: { row: number; column: number } | null) => void;
+}) {
+  const extent = Math.max(0, ...(matrix?.values.flat().flatMap((value) => value === null ? [] : [Math.abs(value)]) ?? []));
+  const highlightedRow = (index: number): boolean => hoveredCell?.row === index;
+  const highlightedColumn = (index: number): boolean => hoveredCell?.column === index;
+  return <div className="bivariate-statistic__results">
+    {matrix === null ? <p className="status-line">Compute bivariate statistics to populate the {title.toLowerCase()} matrix.</p> : matrix.labels.length > 0 ? <>
+      <p className="bivariate-statistic__matrix-caption">Daily log-return {title.toLowerCase()} matrix · {matrix.observation_count.toLocaleString()} shared observations</p>
+      <table className="covariance-matrix" onMouseLeave={() => setHoveredCell(null)}>
+        <thead><tr><th scope="col">ISIN</th>{matrix.labels.map((label, index) => <th scope="col" key={label.isin} className={highlightedColumn(index) ? "is-hovered-column" : undefined} title={`${label.label} · ${label.isin}`} onMouseEnter={() => setHoveredCell({ row: index, column: index })}>{label.label}</th>)}</tr></thead>
+        <tbody>{matrix.labels.map((label, rowIndex) => <tr key={label.isin}><th scope="row" className={highlightedRow(rowIndex) ? "is-hovered-row" : undefined} title={`${label.label} · ${label.isin}`} onMouseEnter={() => setHoveredCell({ row: rowIndex, column: rowIndex })}>{label.label}</th>{matrix.values[rowIndex].map((value, columnIndex) => { const column = matrix.labels[columnIndex]; return <td key={`${label.isin}:${column.isin}`} className={`${value === null ? "covariance-matrix__empty" : ""} ${highlightedRow(rowIndex) ? "is-hovered-row" : ""} ${highlightedColumn(columnIndex) ? "is-hovered-column" : ""}`.trim() || undefined} title={value === null ? `Row: ${label.label} (${label.isin})\nColumn: ${column.label} (${column.isin})\nDuplicate or self relation omitted` : `Row: ${label.label} (${label.isin})\nColumn: ${column.label} (${column.isin})\n${title}: ${metric(value)}`} style={value === null ? undefined : { backgroundColor: covarianceColor(value, extent) }} onMouseEnter={() => setHoveredCell({ row: rowIndex, column: columnIndex })}>{metric(value)}</td>})}</tr>)}</tbody>
+      </table>
+      <p className="covariance-matrix__legend"><span className="covariance-matrix__legend-negative" /> Negative <span className="covariance-matrix__legend-neutral" /> Near zero <span className="covariance-matrix__legend-positive" /> Positive</p>
+    </> : <p className="status-line">No common log-return observations are available.</p>}
+  </div>;
+}
+
 export function BivariateStatisticsPage() {
   const [workflowRevision, setWorkflowRevision] = useState(0);
   const workflow = useResource(loadWorkflow, [workflowRevision]);
   const [run, setRun] = useState<ApiResearchRun | null>(null);
   const [results, setResults] = useState<ApiPage<ApiBivariateRow> | null>(null);
   const [covarianceMatrix, setCovarianceMatrix] = useState<ApiCovarianceMatrix | null>(null);
+  const [pearsonMatrix, setPearsonMatrix] = useState<ApiPairMetricMatrix | null>(null);
+  const [spearmanMatrix, setSpearmanMatrix] = useState<ApiPairMetricMatrix | null>(null);
   const [summary, setSummary] = useState<ApiBivariateSummary | null>(null);
   const [hoveredMatrixCell, setHoveredMatrixCell] = useState<{ row: number; column: number } | null>(null);
   const [message, setMessage] = useState("");
@@ -76,6 +100,8 @@ export function BivariateStatisticsPage() {
       setRun(null);
       setResults(null);
       setCovarianceMatrix(null);
+      setPearsonMatrix(null);
+      setSpearmanMatrix(null);
       setSummary(null);
       setMessage("");
       setWorkflowRevision((value) => value + 1);
@@ -103,15 +129,19 @@ export function BivariateStatisticsPage() {
           setMessage("Bivariate computation failed. Please try again.");
           return;
         }
-        const [page, matrix, nextSummary] = await Promise.all([
+        const [page, matrix, nextSummary, nextPearsonMatrix, nextSpearmanMatrix] = await Promise.all([
           requestJson<ApiPage<ApiBivariateRow>>(`/api/bivariate-statistics/runs/${current.run_id}/results?limit=50&offset=0`),
           requestJson<ApiCovarianceMatrix>(`/api/bivariate-statistics/runs/${current.run_id}/covariance-matrix`),
           requestJson<ApiBivariateSummary>(`/api/bivariate-statistics/runs/${current.run_id}/summary`),
+          requestJson<ApiPairMetricMatrix>(`/api/bivariate-statistics/runs/${current.run_id}/correlation-matrix?metric=pearson`),
+          requestJson<ApiPairMetricMatrix>(`/api/bivariate-statistics/runs/${current.run_id}/correlation-matrix?metric=spearman`),
         ]);
         if (cancelled) return;
         setResults(page);
         setCovarianceMatrix(matrix);
         setSummary(nextSummary);
+        setPearsonMatrix(nextPearsonMatrix);
+        setSpearmanMatrix(nextSpearmanMatrix);
         setMessage(`${page.total.toLocaleString()} pair statistics computed.`);
         window.dispatchEvent(new Event("portfell:workflow-updated"));
       } catch (error) {
@@ -144,14 +174,18 @@ export function BivariateStatisticsPage() {
       const nextRun = await postJson<ApiResearchRun>("/api/bivariate-statistics/runs", { univariate_filter_selection_id: selectionId });
       setRun(nextRun);
       if (nextRun.status === "complete") {
-        const [page, matrix, nextSummary] = await Promise.all([
+        const [page, matrix, nextSummary, nextPearsonMatrix, nextSpearmanMatrix] = await Promise.all([
           requestJson<ApiPage<ApiBivariateRow>>(`/api/bivariate-statistics/runs/${nextRun.run_id}/results?limit=50&offset=0`),
           requestJson<ApiCovarianceMatrix>(`/api/bivariate-statistics/runs/${nextRun.run_id}/covariance-matrix`),
           requestJson<ApiBivariateSummary>(`/api/bivariate-statistics/runs/${nextRun.run_id}/summary`),
+          requestJson<ApiPairMetricMatrix>(`/api/bivariate-statistics/runs/${nextRun.run_id}/correlation-matrix?metric=pearson`),
+          requestJson<ApiPairMetricMatrix>(`/api/bivariate-statistics/runs/${nextRun.run_id}/correlation-matrix?metric=spearman`),
         ]);
         setResults(page);
         setCovarianceMatrix(matrix);
         setSummary(nextSummary);
+        setPearsonMatrix(nextPearsonMatrix);
+        setSpearmanMatrix(nextSpearmanMatrix);
         setMessage(`${page.total.toLocaleString()} pair statistics computed.`);
       }
     } catch (error) {
@@ -160,13 +194,6 @@ export function BivariateStatisticsPage() {
   }
 
   const diagnostics = covarianceMatrix?.diagnostics;
-  const covarianceExtent = Math.max(
-    0,
-    ...(covarianceMatrix?.values.flat().flatMap((value) => value === null ? [] : [Math.abs(value)]) ?? []),
-  );
-  const highlightedRow = (index: number): boolean => hoveredMatrixCell?.row === index;
-  const highlightedColumn = (index: number): boolean => hoveredMatrixCell?.column === index;
-
   return (
     <Panel title="Bivariate Statistics">
       <div className="quote-fetch quote-fetch--panel bivariate-compute">
@@ -198,25 +225,16 @@ export function BivariateStatisticsPage() {
             <div><dt>Largest risk contribution</dt><dd>{diagnostics?.largest_equal_weight_risk_contribution == null ? "—" : `${(diagnostics.largest_equal_weight_risk_contribution * 100).toFixed(1)}%`}</dd></div>
           </dl>
         </div>
-        <div className="bivariate-statistic__results">
-          {covarianceMatrix === null ? <p className="status-line">Compute bivariate statistics to populate the daily log-return covariance matrix.</p> : covarianceMatrix.labels.length > 0 ? <>
-            <p className="bivariate-statistic__matrix-caption">Daily log-return covariance matrix · {covarianceMatrix.observation_count.toLocaleString()} shared observations</p>
-            <table className="covariance-matrix" onMouseLeave={() => setHoveredMatrixCell(null)}>
-              <thead><tr><th scope="col">ISIN</th>{covarianceMatrix.labels.map((label, index) => <th scope="col" key={label.isin} className={highlightedColumn(index) ? "is-hovered-column" : undefined} title={label.isin} onMouseEnter={() => setHoveredMatrixCell({ row: index, column: index })}>{label.label}</th>)}</tr></thead>
-              <tbody>{covarianceMatrix.labels.map((label, rowIndex) => <tr key={label.isin}><th scope="row" className={highlightedRow(rowIndex) ? "is-hovered-row" : undefined} title={`${label.label} · ${label.isin}`} onMouseEnter={() => setHoveredMatrixCell({ row: rowIndex, column: rowIndex })}>{label.label}</th>{covarianceMatrix.values[rowIndex].map((value, columnIndex) => { const column = covarianceMatrix.labels[columnIndex]; return <td key={`${label.isin}:${column.isin}`} className={`${value === null ? "covariance-matrix__empty" : ""} ${highlightedRow(rowIndex) ? "is-hovered-row" : ""} ${highlightedColumn(columnIndex) ? "is-hovered-column" : ""}`.trim() || undefined} title={value === null ? `Row: ${label.label} (${label.isin})\nColumn: ${column.label} (${column.isin})\nDuplicate or self relation omitted` : `Row: ${label.label} (${label.isin})\nColumn: ${column.label} (${column.isin})\nCovariance: ${metric(value)}`} style={value === null ? undefined : { backgroundColor: covarianceColor(value, covarianceExtent) }} onMouseEnter={() => setHoveredMatrixCell({ row: rowIndex, column: columnIndex })}>{metric(value)}</td>})}</tr>)}</tbody>
-            </table>
-            <p className="covariance-matrix__legend"><span className="covariance-matrix__legend-negative" /> Negative <span className="covariance-matrix__legend-neutral" /> Near zero <span className="covariance-matrix__legend-positive" /> Positive</p>
-          </> : <p className="status-line">No common log-return observations are available.</p>}
-        </div>
+        <PairMatrix matrix={covarianceMatrix} title="Covariance" hoveredCell={hoveredMatrixCell} setHoveredCell={setHoveredMatrixCell} />
       </section>
-      <BivariateMetricWindow
-        title="Pearson and Spearman Correlation"
-        description="Linear and rank-based co-movement of daily log returns across every selected ISIN pair."
-        equation="ρᵢⱼ = Cov(Rᵢ, Rⱼ) / (σᵢσⱼ)"
-        notation="R: daily log return · σ: return standard deviation · ρ: correlation"
-        primary={summary?.metrics.pearson_correlation} secondary={summary?.metrics.spearman_correlation}
-        primaryLabel="Pearson correlation" secondaryLabel="Spearman correlation"
-      />
+      <section className="bivariate-statistic" aria-labelledby="pearson-title">
+        <div className="bivariate-statistic__facts"><h3 id="pearson-title">Pearson Correlation</h3><p>Linear co-movement of daily log returns for every filtered ISIN pair.</p><p className="univariate-equation">ρᵢⱼ = Cov(Rᵢ, Rⱼ) / (σᵢσⱼ)</p><p className="univariate-notation">R: daily log return · σ: return standard deviation · ρ: Pearson correlation</p><dl><div><dt>Pairs analysed</dt><dd>{summary?.pair_count.toLocaleString() ?? "—"}</dd></div><div><dt>Shared observations</dt><dd>{summary?.observation_count.toLocaleString() ?? "—"}</dd></div><div><dt>Average correlation</dt><dd>{percent(summary?.metrics.pearson_correlation?.mean)}</dd></div><div><dt>Median correlation</dt><dd>{percent(summary?.metrics.pearson_correlation?.median)}</dd></div><div><dt>Minimum correlation</dt><dd>{percent(summary?.metrics.pearson_correlation?.minimum)}</dd></div><div><dt>Maximum correlation</dt><dd>{percent(summary?.metrics.pearson_correlation?.maximum)}</dd></div></dl></div>
+        <PairMatrix matrix={pearsonMatrix} title="Pearson correlation" hoveredCell={hoveredMatrixCell} setHoveredCell={setHoveredMatrixCell} />
+      </section>
+      <section className="bivariate-statistic" aria-labelledby="spearman-title">
+        <div className="bivariate-statistic__facts"><h3 id="spearman-title">Spearman Correlation</h3><p>Rank-based co-movement of daily log returns for every filtered ISIN pair.</p><p className="univariate-equation">ρˢᵢⱼ = Corr(rank(Rᵢ), rank(Rⱼ))</p><p className="univariate-notation">R: daily log return · rank: ordinal return rank · ρˢ: Spearman correlation</p><dl><div><dt>Pairs analysed</dt><dd>{summary?.pair_count.toLocaleString() ?? "—"}</dd></div><div><dt>Shared observations</dt><dd>{summary?.observation_count.toLocaleString() ?? "—"}</dd></div><div><dt>Average correlation</dt><dd>{percent(summary?.metrics.spearman_correlation?.mean)}</dd></div><div><dt>Median correlation</dt><dd>{percent(summary?.metrics.spearman_correlation?.median)}</dd></div><div><dt>Minimum correlation</dt><dd>{percent(summary?.metrics.spearman_correlation?.minimum)}</dd></div><div><dt>Maximum correlation</dt><dd>{percent(summary?.metrics.spearman_correlation?.maximum)}</dd></div></dl></div>
+        <PairMatrix matrix={spearmanMatrix} title="Spearman correlation" hoveredCell={hoveredMatrixCell} setHoveredCell={setHoveredMatrixCell} />
+      </section>
       <BivariateMetricWindow
         title="Downside Correlation"
         description="Co-movement on days when both ISINs have negative daily log returns."

@@ -284,6 +284,53 @@ class ResearchService:
             },
         }
 
+    def bivariate_correlation_matrix(
+        self, user_id: str, run_id: str, metric: str
+    ) -> JsonRow:
+        """Expose the upper triangle of one correlation matrix from pair results."""
+
+        run = require_user_row(self.state.bivariate_runs_by_id, run_id, user_id)
+        metric_key = f"{metric}_correlation"
+        listings = tuple(
+            sorted(
+                {
+                    (
+                        str(row[side + "_isin"]),
+                        str(row[side + "_exchange"]),
+                        str(row[side + "_code"]),
+                    )
+                    for row in run.rows
+                    for side in ("left", "right")
+                }
+            )
+        )
+        index = {listing: position for position, listing in enumerate(listings)}
+        values_by_pair = {
+            (
+                index[(str(row["left_isin"]), str(row["left_exchange"]), str(row["left_code"]))],
+                index[(str(row["right_isin"]), str(row["right_exchange"]), str(row["right_code"]))],
+            ): float(row.get(metric_key, 0.0))
+            for row in run.rows
+        }
+        return {
+            "labels": [
+                {"isin": isin, "exchange": exchange, "code": code, "label": f"{code}.{exchange}"}
+                for isin, exchange, code in listings
+            ],
+            "values": [
+                [
+                    values_by_pair.get((row, column)) if column > row else None
+                    for column in range(len(listings))
+                ]
+                for row in range(len(listings))
+            ],
+            "observation_count": round(
+                sum(int(row.get("n_observations", 0)) for row in run.rows) / len(run.rows)
+            )
+            if run.rows
+            else 0,
+        }
+
     def bivariate_covariance_matrix(self, user_id: str, run_id: str) -> JsonRow:
         """Build a common-date daily log-return covariance matrix for one run."""
 
