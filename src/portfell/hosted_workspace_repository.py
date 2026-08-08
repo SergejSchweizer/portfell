@@ -36,6 +36,9 @@ def persist_local_workspace(state: HostedApiState) -> None:
             "current_project_id_by_user": state.current_project_id_by_user,
             "current_metadata_selection_by_user": state.current_metadata_selection_by_user,
             "metadata_revisions_by_user": state.metadata_revisions_by_user,
+            "univariate_selection_settings_by_project": (
+                state.univariate_selection_settings_by_project
+            ),
             "quote_runs": [
                 {
                     "download_run_id": row.download_run_id,
@@ -119,6 +122,15 @@ def restore_local_workspace(state: HostedApiState, payload: Mapping[str, object]
         payload.get("current_metadata_selection_by_user", {})
     )
     state.metadata_revisions_by_user = _string_map(payload.get("metadata_revisions_by_user", {}))
+    raw_settings = payload.get("univariate_selection_settings_by_project", {})
+    if not isinstance(raw_settings, Mapping):
+        raise ValueError("local workspace univariate selection settings are invalid")
+    state.univariate_selection_settings_by_project = {
+        _text_key(project_id, "univariate selection settings"): dict(
+            _mapping(settings, "univariate selection settings")
+        )
+        for project_id, settings in cast("Mapping[object, object]", raw_settings).items()
+    }
     _restore_quote_runs(state, payload)
     _restore_univariate_runs(state, payload)
 

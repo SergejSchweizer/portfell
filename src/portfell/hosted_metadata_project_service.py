@@ -165,7 +165,7 @@ class MetadataProjectService:
             project = self.state.projects_by_id[cached]
             selection = selection_for_project(self.state, project.project_id, user_id)
             set_current_project(self.state, user_id, project.project_id)
-            return self._filter_project_row(project, selection, len(selected_rows))
+            return self._filter_project_row(project, selection)
         project_id = opaque_id("project", f"{user_id}:{project_name}")
         project = ProjectRecord(project_id, user_id, project_name)
         self.state.projects_by_id.setdefault(project_id, project)
@@ -179,16 +179,14 @@ class MetadataProjectService:
         self.runtime.write_metadata_selection(selection_id, selected_rows, predicates)
         remember_idempotency(self.state, user_id, operation, idempotency_key, project_id)
         audit(self.state, user_id, "metadata_filter.project.create")
-        return self._filter_project_row(project, selection, len(selected_rows))
+        return self._filter_project_row(project, selection)
 
     @staticmethod
-    def _filter_project_row(
-        project: ProjectRecord, selection: SelectionRecord, selected_count: int
-    ) -> JsonRow:
+    def _filter_project_row(project: ProjectRecord, selection: SelectionRecord) -> JsonRow:
         return {
             "project": project_row(project),
             "selection": selection_row(selection),
-            "selected_count": selected_count,
+            "selected_count": _unique_isin_count(selection.member_ids),
         }
 
     def project_filter_row(self, project: ProjectRecord, selection: SelectionRecord) -> JsonRow:
@@ -211,7 +209,7 @@ class MetadataProjectService:
         return {
             "project_id": project.project_id,
             "selection_id": selection.selection_id,
-            "selected_count": len(selection.member_ids),
+            "selected_count": _unique_isin_count(selection.member_ids),
             **fields,
         }
 
@@ -234,3 +232,9 @@ def _unique_listings(rows: list[JsonRow]) -> list[JsonRow]:
         if isin and exchange and code:
             canonical.setdefault((isin, exchange), row)
     return list(canonical.values())
+
+
+def _unique_isin_count(member_ids: tuple[str, ...]) -> int:
+    """Count selected instruments independently of exchange/code aliases."""
+
+    return len({member_id.split(":", 1)[0] for member_id in member_ids if member_id})

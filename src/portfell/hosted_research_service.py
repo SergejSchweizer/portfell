@@ -31,6 +31,7 @@ from portfell.hosted_research_workflow import (
     ResearchRun,
     create_bivariate_run,
     create_filter_selection,
+    create_full_univariate_selection,
     create_univariate_run,
     create_univariate_run_from_statistics,
     page_rows,
@@ -118,12 +119,16 @@ class ResearchService:
                 quote_run_id=quote_run.download_run_id,
                 rows=rows,
             )
-        self.state.univariate_runs_by_id[run_id] = replace(
+        completed_run = replace(
             computed,
             run_id=run_id,
             total=run.total,
             completed=run.total,
         )
+        self.state.univariate_runs_by_id[run_id] = completed_run
+        full_selection = create_full_univariate_selection(user_id=user_id, run=completed_run)
+        self.state.filter_selections_by_id.setdefault(full_selection.selection_id, full_selection)
+        self.state.current_filter_selection_by_user[user_id] = full_selection.selection_id
         audit(self.state, user_id, "univariate_statistics.compute")
 
     def _update_univariate_progress(self, run_id: str, completed: int) -> None:

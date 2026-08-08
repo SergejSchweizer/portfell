@@ -147,6 +147,9 @@ class HostedApiState:
     current_filter_selection_by_user: dict[str, str] = field(
         default_factory=lambda: dict[str, str]()
     )
+    univariate_selection_settings_by_project: dict[str, JsonRow] = field(
+        default_factory=lambda: dict[str, JsonRow]()
+    )
     current_project_id_by_user: dict[str, str] = field(default_factory=lambda: dict[str, str]())
     workspace_store: LocalWorkspaceStore | None = None
 

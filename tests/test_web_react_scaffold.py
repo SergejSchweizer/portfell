@@ -30,7 +30,8 @@ def test_workflow_pages_place_ingestion_actions_before_their_stage_controls() ->
     assert metadata_page.index("Download Metadata") < metadata_page.index("Metadata Filter")
     assert "EODHD key" in frame
     assert "Fetch all metadata" not in frame
-    assert '"/univariate-statistics"' in metadata_page
+    assert '"/univariate-statistics"' not in metadata_page
+    assert '"portfell:workflow-updated"' in metadata_page
     assert "Download Historical Data" not in metadata_page
     assert "Download Historical Data" in univariate_page
     assert "postJson" in univariate_page

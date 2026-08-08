@@ -152,6 +152,23 @@ def create_filter_selection(
     )
 
 
+def create_full_univariate_selection(*, user_id: str, run: ResearchRun) -> FilterSelection:
+    """Select every completed univariate row for the bivariate stage."""
+
+    rows = tuple(dict(row) for row in run.rows)
+    member_ids = tuple(sorted(_listing_id(row) for row in rows))
+    identity = _stable_hash({"source_run_id": run.run_id, "selection": "all"})
+    return FilterSelection(
+        selection_id=_opaque_id("univariate-filter", f"{user_id}:{identity}"),
+        user_id=user_id,
+        source_run_id=run.run_id,
+        member_ids=member_ids,
+        predicates=(),
+        rows=rows,
+        input_count=len(rows),
+    )
+
+
 def pair_plan(
     selection: FilterSelection, *, max_pair_count: int = DEFAULT_MAX_PAIR_COUNT
 ) -> JsonRow:

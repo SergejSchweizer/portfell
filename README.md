@@ -335,7 +335,23 @@ field<value      numeric less-than
 field<=value     numeric less-than-or-equal
 ```
 
-Filterable univariate fields are the `univariate_statistics` columns. For portfolio compilation they are grouped by decision use:
+The current Univariate Statistics UI intentionally presents only the following portfolio-facing
+statistics. Their exact definitions are also shown in the UI; additional Gold fields below remain
+available as cached technical/schema data but are not user-facing statistics for now:
+
+| UI statistic | Field | Unit |
+| --- | --- | --- |
+| Annual Return | `annualized_geometric_return` | % |
+| Value at Risk | `var` | % |
+| Sortino Ratio | `sortino_ratio` | ratio |
+| Expected Shortfall | `expected_shortfall` | % |
+| Tail Observations | `tail_observation_count` | observations |
+| Sharpe Ratio | `sharpe_ratio` | ratio |
+| Maximum Drawdown | `max_drawdown` | % |
+| Trend R-squared | `trend_r_squared` | ratio |
+| Dividends | `distribution_frequency`, `annual_dividend_yield` | payout type, % |
+
+Filterable univariate fields are the full `univariate_statistics` schema. For portfolio compilation they are grouped by decision use:
 
 | Portfolio category | Purpose | Fields |
 | --- | --- | --- |
