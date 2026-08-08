@@ -1059,7 +1059,7 @@ Idempotency: Existing idempotency keys, active-run reuse, project identities, an
 
 Branch: `refactor/hosted-research-boundaries`.
 
-Git status: in progress. PR: TBD.
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/238.
 
 Priority: P0 architecture enforcement and restart-safe research orchestration.
 
