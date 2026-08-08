@@ -91,6 +91,7 @@ export function BivariateStatisticsPage() {
   const [covarianceMatrix, setCovarianceMatrix] = useState<ApiCovarianceMatrix | null>(null);
   const [pearsonMatrix, setPearsonMatrix] = useState<ApiPairMetricMatrix | null>(null);
   const [spearmanMatrix, setSpearmanMatrix] = useState<ApiPairMetricMatrix | null>(null);
+  const [downsideMatrix, setDownsideMatrix] = useState<ApiPairMetricMatrix | null>(null);
   const [summary, setSummary] = useState<ApiBivariateSummary | null>(null);
   const [hoveredMatrixCell, setHoveredMatrixCell] = useState<{ row: number; column: number } | null>(null);
   const [message, setMessage] = useState("");
@@ -102,6 +103,7 @@ export function BivariateStatisticsPage() {
       setCovarianceMatrix(null);
       setPearsonMatrix(null);
       setSpearmanMatrix(null);
+      setDownsideMatrix(null);
       setSummary(null);
       setMessage("");
       setWorkflowRevision((value) => value + 1);
@@ -129,12 +131,13 @@ export function BivariateStatisticsPage() {
           setMessage("Bivariate computation failed. Please try again.");
           return;
         }
-        const [page, matrix, nextSummary, nextPearsonMatrix, nextSpearmanMatrix] = await Promise.all([
+        const [page, matrix, nextSummary, nextPearsonMatrix, nextSpearmanMatrix, nextDownsideMatrix] = await Promise.all([
           requestJson<ApiPage<ApiBivariateRow>>(`/api/bivariate-statistics/runs/${current.run_id}/results?limit=50&offset=0`),
           requestJson<ApiCovarianceMatrix>(`/api/bivariate-statistics/runs/${current.run_id}/covariance-matrix`),
           requestJson<ApiBivariateSummary>(`/api/bivariate-statistics/runs/${current.run_id}/summary`),
           requestJson<ApiPairMetricMatrix>(`/api/bivariate-statistics/runs/${current.run_id}/correlation-matrix?metric=pearson`),
           requestJson<ApiPairMetricMatrix>(`/api/bivariate-statistics/runs/${current.run_id}/correlation-matrix?metric=spearman`),
+          requestJson<ApiPairMetricMatrix>(`/api/bivariate-statistics/runs/${current.run_id}/correlation-matrix?metric=downside`),
         ]);
         if (cancelled) return;
         setResults(page);
@@ -142,6 +145,7 @@ export function BivariateStatisticsPage() {
         setSummary(nextSummary);
         setPearsonMatrix(nextPearsonMatrix);
         setSpearmanMatrix(nextSpearmanMatrix);
+        setDownsideMatrix(nextDownsideMatrix);
         setMessage(`${page.total.toLocaleString()} pair statistics computed.`);
         window.dispatchEvent(new Event("portfell:workflow-updated"));
       } catch (error) {
@@ -174,18 +178,20 @@ export function BivariateStatisticsPage() {
       const nextRun = await postJson<ApiResearchRun>("/api/bivariate-statistics/runs", { univariate_filter_selection_id: selectionId });
       setRun(nextRun);
       if (nextRun.status === "complete") {
-        const [page, matrix, nextSummary, nextPearsonMatrix, nextSpearmanMatrix] = await Promise.all([
+        const [page, matrix, nextSummary, nextPearsonMatrix, nextSpearmanMatrix, nextDownsideMatrix] = await Promise.all([
           requestJson<ApiPage<ApiBivariateRow>>(`/api/bivariate-statistics/runs/${nextRun.run_id}/results?limit=50&offset=0`),
           requestJson<ApiCovarianceMatrix>(`/api/bivariate-statistics/runs/${nextRun.run_id}/covariance-matrix`),
           requestJson<ApiBivariateSummary>(`/api/bivariate-statistics/runs/${nextRun.run_id}/summary`),
           requestJson<ApiPairMetricMatrix>(`/api/bivariate-statistics/runs/${nextRun.run_id}/correlation-matrix?metric=pearson`),
           requestJson<ApiPairMetricMatrix>(`/api/bivariate-statistics/runs/${nextRun.run_id}/correlation-matrix?metric=spearman`),
+          requestJson<ApiPairMetricMatrix>(`/api/bivariate-statistics/runs/${nextRun.run_id}/correlation-matrix?metric=downside`),
         ]);
         setResults(page);
         setCovarianceMatrix(matrix);
         setSummary(nextSummary);
         setPearsonMatrix(nextPearsonMatrix);
         setSpearmanMatrix(nextSpearmanMatrix);
+        setDownsideMatrix(nextDownsideMatrix);
         setMessage(`${page.total.toLocaleString()} pair statistics computed.`);
       }
     } catch (error) {
@@ -235,13 +241,10 @@ export function BivariateStatisticsPage() {
         <div className="bivariate-statistic__facts"><h3 id="spearman-title">Spearman Correlation</h3><p>Rank-based co-movement of daily log returns for every filtered ISIN pair.</p><p className="univariate-equation">ρˢᵢⱼ = Corr(rank(Rᵢ), rank(Rⱼ))</p><p className="univariate-notation">R: daily log return · rank: ordinal return rank · ρˢ: Spearman correlation</p><dl><div><dt>Pairs analysed</dt><dd>{summary?.pair_count.toLocaleString() ?? "—"}</dd></div><div><dt>Shared observations</dt><dd>{summary?.observation_count.toLocaleString() ?? "—"}</dd></div><div><dt>Average correlation</dt><dd>{percent(summary?.metrics.spearman_correlation?.mean)}</dd></div><div><dt>Median correlation</dt><dd>{percent(summary?.metrics.spearman_correlation?.median)}</dd></div><div><dt>Minimum correlation</dt><dd>{percent(summary?.metrics.spearman_correlation?.minimum)}</dd></div><div><dt>Maximum correlation</dt><dd>{percent(summary?.metrics.spearman_correlation?.maximum)}</dd></div></dl></div>
         <PairMatrix matrix={spearmanMatrix} title="Spearman correlation" hoveredCell={hoveredMatrixCell} setHoveredCell={setHoveredMatrixCell} />
       </section>
-      <BivariateMetricWindow
-        title="Downside Correlation"
-        description="Co-movement on days when both ISINs have negative daily log returns."
-        equation="ρ⁻ᵢⱼ = Corr(Rᵢ, Rⱼ | Rᵢ < 0, Rⱼ < 0)"
-        notation="R: daily log return · ρ⁻: conditional downside correlation"
-        primary={summary?.metrics.downside_correlation} primaryLabel="downside correlation"
-      />
+      <section className="bivariate-statistic" aria-labelledby="downside-title">
+        <div className="bivariate-statistic__facts"><h3 id="downside-title">Downside Correlation</h3><p>Co-movement on days when both ISINs have negative daily log returns.</p><p className="univariate-equation">ρ⁻ᵢⱼ = Corr(Rᵢ, Rⱼ | Rᵢ &lt; 0, Rⱼ &lt; 0)</p><p className="univariate-notation">R: daily log return · ρ⁻: conditional downside correlation</p><dl><div><dt>Pairs analysed</dt><dd>{summary?.pair_count.toLocaleString() ?? "—"}</dd></div><div><dt>Shared observations</dt><dd>{summary?.observation_count.toLocaleString() ?? "—"}</dd></div><div><dt>Average correlation</dt><dd>{percent(summary?.metrics.downside_correlation?.mean)}</dd></div><div><dt>Median correlation</dt><dd>{percent(summary?.metrics.downside_correlation?.median)}</dd></div><div><dt>Minimum correlation</dt><dd>{percent(summary?.metrics.downside_correlation?.minimum)}</dd></div><div><dt>Maximum correlation</dt><dd>{percent(summary?.metrics.downside_correlation?.maximum)}</dd></div></dl></div>
+        <PairMatrix matrix={downsideMatrix} title="Downside correlation" hoveredCell={hoveredMatrixCell} setHoveredCell={setHoveredMatrixCell} />
+      </section>
       <BivariateMetricWindow
         title="Tail Dependence and Co-exceedance Rate"
         description="Joint lower-tail behaviour: simultaneous returns in each ISIN's worst 5% of observations."
