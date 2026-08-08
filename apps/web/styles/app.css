@@ -154,13 +154,15 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 .bivariate-compute .portfell-button { min-height: 32px; }
 .bivariate-statistic { display: grid; grid-template-columns: minmax(260px, .9fr) minmax(420px, 1.6fr); gap: var(--space-6); padding: var(--space-4); border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--canvas); }
 .bivariate-statistic__facts { display: grid; align-content: start; gap: var(--space-2); }
+.bivariate-statistic__equation { display: grid; align-content: start; justify-items: end; gap: var(--space-1); }
+.bivariate-statistic__equation .univariate-equation, .bivariate-statistic__equation .univariate-notation { max-width: 360px; margin: 0; text-align: right; }
 .bivariate-statistic h3, .bivariate-statistic p { margin: 0; }
 .bivariate-statistic > .bivariate-statistic__facts > p:not(.univariate-equation):not(.univariate-notation) { color: var(--text-muted); }
 .bivariate-statistic dl { display: grid; gap: var(--space-1); padding: 0; margin: 0; }
 .bivariate-statistic dl div { display: grid; grid-template-columns: 1fr auto; gap: var(--space-2); padding-bottom: var(--space-1); border-bottom: 1px solid var(--border); }
 .bivariate-statistic dt { color: var(--text-muted); font-size: 12px; }
 .bivariate-statistic dd { margin: 0; font-size: 14px; font-weight: 600; }
-.bivariate-statistic__results { overflow-x: auto; text-align: center; }
+.bivariate-statistic__results { grid-column: 1 / -1; overflow-x: auto; text-align: center; }
 .bivariate-statistic__results table { min-width: 500px; }
 .bivariate-statistic__matrix-caption { margin: 0 0 var(--space-2); color: var(--text-muted); font-size: 12px; }
 .covariance-matrix { min-width: max-content !important; margin: 0 auto; font-size: 10px; border-spacing: 1px; border-collapse: separate; }
@@ -279,6 +281,8 @@ th, td { padding: 10px; border-bottom: 1px solid #e5e8ec; text-align: left; }
   .dividend-statistic label { min-width: 0; }
   .univariate-group-card { grid-template-columns: 1fr; }
   .bivariate-statistic { grid-template-columns: 1fr; }
+  .bivariate-statistic__equation { justify-items: start; }
+  .bivariate-statistic__equation .univariate-equation, .bivariate-statistic__equation .univariate-notation { text-align: left; }
 }
 @media (prefers-reduced-motion: reduce) {
   .project-sidebar { transition: none; }
