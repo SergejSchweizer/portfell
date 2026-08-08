@@ -111,6 +111,17 @@ def test_workspace_repository_round_trips_durable_state(tmp_path: Path) -> None:
     state.quote_rows_by_run_id[quote_run.download_run_id] = (
         {"isin": "IE1", "exchange": "XETRA", "code": "AAA", "date": "2026-08-08"},
     )
+    univariate = ResearchRun(
+        "univariate-1",
+        "user-a",
+        "source-1",
+        "complete",
+        ({"isin": "IE1", "distribution_frequency": "annual"},),
+        1,
+        1,
+    )
+    state.univariate_runs_by_id[univariate.run_id] = univariate
+    state.quote_run_by_univariate_run_id[univariate.run_id] = quote_run.download_run_id
     remember_idempotency(state, "user-a", "fetch-all-quotes:project-1", "request-1", "quote-run-1")
 
     persist_local_workspace(state)
@@ -125,6 +136,8 @@ def test_workspace_repository_round_trips_durable_state(tmp_path: Path) -> None:
     assert restored.downloads_by_id == state.downloads_by_id
     assert restored.download_summaries_by_id == state.download_summaries_by_id
     assert restored.quote_rows_by_run_id == state.quote_rows_by_run_id
+    assert restored.univariate_runs_by_id == state.univariate_runs_by_id
+    assert restored.quote_run_by_univariate_run_id == state.quote_run_by_univariate_run_id
     assert restored.idempotency_refs == state.idempotency_refs
     assert json.loads((tmp_path / "workspace.json").read_text(encoding="utf-8"))["projects"]
 

@@ -110,6 +110,8 @@ UNIVARIATE_PORTFOLIO_CATEGORIES: tuple[UnivariateStatisticCategory, ...] = (
             "distribution_events_per_year",
             "last_distribution_date",
             "distribution_observation_count",
+            "annual_dividend_amount",
+            "annual_dividend_yield",
         ),
     ),
     UnivariateStatisticCategory(

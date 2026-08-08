@@ -54,14 +54,12 @@ def test_workflow_pages_place_ingestion_actions_before_their_stage_controls() ->
     assert "disabled={!metadata.metadata_selection_id}" in univariate_page
     assert "!metadata.quote_run_id" in univariate_page
     assert 'page.id === "univariate_statistics"' in frame
-    assert (
-        "Statistic</th><th>Description</th><th>Equation</th><th>Distribution</th><th>Filter value"
-        in univariate_page
-    )
     assert "metricDefinitions" in univariate_page
-    assert "univariate-metric-table__group" in univariate_page
-    assert "univariate-histogram" in univariate_page
-    assert "filterValues" in univariate_page
+    assert "univariate-group-card" in univariate_page
+    assert "univariate-group-card__label" in univariate_page
+    assert "univariate-equation" in univariate_page
+    assert "univariate-notation" in univariate_page
+    assert "dividendFrequency" in univariate_page
 
 
 def test_vite_build_is_the_canonical_web_runtime() -> None:

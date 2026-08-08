@@ -275,6 +275,8 @@ SCHEMAS: dict[str, tuple[str, ...]] = {
         "distribution_events_per_year",
         "last_distribution_date",
         "distribution_observation_count",
+        "annual_dividend_amount",
+        "annual_dividend_yield",
         "quarantined_price_count",
         "non_positive_price_detected",
         "duplicate_date_detected",

@@ -2,6 +2,14 @@
 
 from __future__ import annotations
 
+import os
+from collections.abc import Callable
+from concurrent.futures import ProcessPoolExecutor
+from dataclasses import replace
+from importlib import import_module
+from pathlib import Path
+from typing import Any
+
 from portfell.hosted_api_errors import HostedApplicationError
 from portfell.hosted_api_serializers import (
     analysis_row,
@@ -17,16 +25,24 @@ from portfell.hosted_api_service_support import (
     require_user_row,
     stable_hash,
 )
-from portfell.hosted_api_state import AnalysisRecord, HostedApiState
+from portfell.hosted_api_state import AnalysisRecord, HostedApiState, SelectionRecord
 from portfell.hosted_research_workflow import (
     HostedResearchError,
+    ResearchRun,
     create_bivariate_run,
     create_filter_selection,
     create_univariate_run,
+    create_univariate_run_from_statistics,
     page_rows,
     pair_plan,
 )
-from portfell.table_io import JsonRow
+from portfell.table_io import JsonRow, read_rows, write_rows
+from portfell.univariate_statistics import (
+    annual_dividend_features,
+    build_univariate_statistics,
+    distribution_features,
+    index_distribution_events,
+)
 
 
 class ResearchService:
@@ -40,18 +56,82 @@ class ResearchService:
         quote_run = require_user_row(self.state.downloads_by_id, quote_run_id, user_id)
         if quote_run.status != "succeeded":
             raise HostedApplicationError(409, "quote_run_incomplete")
-        quote_rows = self.state.quote_rows_by_run_id.get(quote_run.download_run_id)
-        if quote_rows is None:
-            raise HostedApplicationError(409, "scoped_quote_rows_unavailable")
-        run = create_univariate_run(
-            user_id=user_id,
-            selection_id=selection.selection_id,
-            quote_run_id=quote_run.download_run_id,
-            quote_rows=quote_rows,
+        source_id = stable_hash(
+            {"selection_id": selection.selection_id, "quote_run_id": quote_run.download_run_id}
         )
-        self.state.univariate_runs_by_id.setdefault(run.run_id, run)
-        self.state.quote_run_by_univariate_run_id.setdefault(run.run_id, quote_run.download_run_id)
-        return research_run_row(self.state.univariate_runs_by_id[run.run_id])
+        run_id = opaque_id("univariate-run", f"{user_id}:{source_id}")
+        existing = self.state.univariate_runs_by_id.get(run_id)
+        if existing is not None:
+            if existing.status != "failed":
+                return research_run_row(existing)
+            self.state.univariate_runs_by_id.pop(run_id, None)
+            self.state.quote_run_by_univariate_run_id.pop(run_id, None)
+        run = ResearchRun(
+            run_id=run_id,
+            user_id=user_id,
+            source_id=source_id,
+            status="running",
+            rows=(),
+            total=len(selection.member_ids),
+            completed=0,
+        )
+        self.state.univariate_runs_by_id[run.run_id] = run
+        self.state.quote_run_by_univariate_run_id[run.run_id] = quote_run.download_run_id
+        audit(self.state, user_id, "univariate_statistics.start")
+        return research_run_row(run)
+
+    def complete_univariate(self, user_id: str, selection_id: str, quote_run_id: str) -> None:
+        """Compute a previously created run outside the request-response lifecycle."""
+
+        selection = require_user_row(self.state.selections_by_id, selection_id, user_id)
+        quote_run = require_user_row(self.state.downloads_by_id, quote_run_id, user_id)
+        source_id = stable_hash(
+            {"selection_id": selection.selection_id, "quote_run_id": quote_run.download_run_id}
+        )
+        run_id = opaque_id("univariate-run", f"{user_id}:{source_id}")
+        run = require_user_row(self.state.univariate_runs_by_id, run_id, user_id)
+        if run.status != "running":
+            return
+        quote_rows = self.state.quote_rows_by_run_id.get(quote_run.download_run_id, ())
+        if quote_rows:
+            computed = create_univariate_run(
+                user_id=user_id,
+                selection_id=selection.selection_id,
+                quote_run_id=quote_run.download_run_id,
+                quote_rows=quote_rows,
+                dividend_rows=_read_scoped_lake_rows(selection, dataset="dividends"),
+            )
+        else:
+            rows = _build_scoped_univariate_rows(
+                selection,
+                on_progress=lambda completed: self._update_univariate_progress(run_id, completed),
+            )
+            if not rows:
+                self.state.univariate_runs_by_id[run_id] = replace(
+                    run, status="failed", failed=run.total
+                )
+                audit(self.state, user_id, "univariate_statistics.failed")
+                return
+            computed = create_univariate_run_from_statistics(
+                user_id=user_id,
+                selection_id=selection.selection_id,
+                quote_run_id=quote_run.download_run_id,
+                rows=rows,
+            )
+        self.state.univariate_runs_by_id[run_id] = replace(
+            computed,
+            run_id=run_id,
+            total=run.total,
+            completed=run.total,
+        )
+        audit(self.state, user_id, "univariate_statistics.compute")
+
+    def _update_univariate_progress(self, run_id: str, completed: int) -> None:
+        run = self.state.univariate_runs_by_id.get(run_id)
+        if run is not None and run.status == "running":
+            self.state.univariate_runs_by_id[run_id] = replace(
+                run, completed=min(completed, run.total)
+            )
 
     def univariate_status(self, user_id: str, run_id: str) -> JsonRow:
         return research_run_row(require_user_row(self.state.univariate_runs_by_id, run_id, user_id))
@@ -169,3 +249,78 @@ class ResearchService:
 
     def analysis_report(self, user_id: str, run_id: str) -> JsonRow:
         return self.analysis(user_id, run_id).report
+
+
+def _read_scoped_lake_rows(selection: SelectionRecord, *, dataset: str) -> tuple[JsonRow, ...]:
+    """Read durable selected quote or dividend rows after an API restart."""
+
+    paths = _lake_paths()
+    rows: list[JsonRow] = []
+    for member_id in selection.member_ids:
+        isin, exchange, code = member_id.split(":", 2)
+        source_paths = (
+            (paths.silver_quote_file(exchange, isin),)
+            if dataset == "quotes"
+            else tuple((paths.bronze / dataset / exchange).glob(f"*/{isin}.parquet"))
+        )
+        for path in source_paths:
+            rows.extend(row for row in read_rows(path) if str(row.get("code", "")) == code)
+    return tuple(rows)
+
+
+def _build_scoped_univariate_rows(
+    selection: SelectionRecord, *, on_progress: Callable[[int], None] | None = None
+) -> tuple[JsonRow, ...]:
+    """Recompute selected listings one at a time, avoiding a multi-million-row heap."""
+
+    rows: list[JsonRow] = []
+    with ProcessPoolExecutor(max_workers=os.cpu_count() or 1) as executor:
+        for index, row in enumerate(
+            executor.map(_build_scoped_univariate_listing, selection.member_ids), start=1
+        ):
+            if row is not None:
+                rows.append(row)
+            if on_progress is not None:
+                on_progress(index)
+    return tuple(rows)
+
+
+def _build_scoped_univariate_listing(member_id: str) -> JsonRow | None:
+    """Use one worker process per selected listing, bounded by available CPU cores."""
+
+    paths = _lake_paths()
+    isin, exchange, code = member_id.split(":", 2)
+    dividend_rows = [
+        row
+        for path in (paths.bronze / "dividends" / exchange).glob(f"*/{isin}.parquet")
+        for row in read_rows(path)
+        if str(row.get("code", "")) == code
+    ]
+    cached_rows = read_rows(paths.gold_univariate_statistics(exchange, isin))
+    if len(cached_rows) == 1 and str(cached_rows[0].get("code", "")) == code:
+        row = dict(cached_rows[0])
+        dates = index_distribution_events(dividend_rows).get((isin, exchange, code), ())
+        distribution = distribution_features(dates)
+        annual_dividend = annual_dividend_features(
+            dividend_rows, str(row["last_quote_date"]), float(row["end_adjusted_close"])
+        )
+        if any(row.get(key) != value for key, value in {**distribution, **annual_dividend}.items()):
+            row.update(distribution)
+            row.update(annual_dividend)
+            write_rows(paths.gold_univariate_statistics(exchange, isin), [row])
+        return row
+    quote_rows = [
+        row
+        for row in read_rows(paths.silver_quote_file(exchange, isin))
+        if str(row.get("code", "")) == code
+    ]
+    if not quote_rows:
+        return None
+    return build_univariate_statistics(quote_rows, dividend_rows=dividend_rows, concurrency=None)[0]
+
+
+def _lake_paths() -> Any:
+    """Resolve the local data-lake adapter without coupling service imports to storage."""
+
+    path_type = import_module("portfell.paths").LakePaths
+    return path_type(root=Path(os.environ.get("PORTFELL_LAKE_ROOT", "lake")))
