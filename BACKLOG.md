@@ -1112,7 +1112,7 @@ Idempotency: Repeated test runs leave repository state unchanged and create arti
 
 Branch: `chore/ui-two-project-workflow`.
 
-Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/242.
+Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/242.
 
 Priority: P0 end-to-end UI regression coverage.
 
