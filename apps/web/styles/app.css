@@ -168,6 +168,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 .covariance-matrix thead th:not(:first-child) { width: 42px; height: 82px; padding: 3px; vertical-align: bottom; overflow: hidden; text-overflow: ellipsis; writing-mode: vertical-rl; transform: rotate(180deg); text-align: left; }
 .covariance-matrix th:first-child { position: sticky; left: 0; z-index: 1; max-width: 74px; overflow: hidden; background: var(--canvas); text-align: left; text-overflow: ellipsis; }
 .covariance-matrix td { font-variant-numeric: tabular-nums; color: #17324d; }
+.covariance-matrix td.covariance-matrix__empty { background: transparent; color: transparent; }
 .covariance-matrix__legend { display: flex; justify-content: center; align-items: center; gap: 6px; margin: var(--space-2) 0 0; color: var(--text-muted); font-size: 11px; }
 .covariance-matrix__legend span { width: 10px; height: 10px; border-radius: 2px; }
 .covariance-matrix__legend-negative { background: hsl(8 74% 70%); }

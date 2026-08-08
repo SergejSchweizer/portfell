@@ -1076,6 +1076,9 @@ def test_bivariate_statistics_restore_quotes_from_the_persistent_lake(
     assert matrix["observation_count"] == 3
     assert [row["label"] for row in matrix["labels"]] == ["AAA.XETRA", "BBB.XETRA"]
     assert len(matrix["values"]) == len(matrix["values"][0]) == 2
+    assert matrix["values"][0][0] is None
+    assert matrix["values"][1] == [None, None]
+    assert isinstance(matrix["values"][0][1], float)
 
 
 def test_account_deletion_removes_user_owned_api_state() -> None:

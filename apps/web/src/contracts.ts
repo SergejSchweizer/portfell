@@ -176,6 +176,6 @@ export type ApiBivariateRow = Readonly<{
 
 export type ApiCovarianceMatrix = Readonly<{
   labels: readonly Readonly<{ isin: string; exchange: string; code: string; label: string }>[];
-  values: readonly (readonly number[])[];
+  values: readonly (readonly (number | null)[])[];
   observation_count: number;
 }>;
