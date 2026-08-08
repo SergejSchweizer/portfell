@@ -282,6 +282,7 @@ class ResearchService:
                 )
                 for name in metric_names
             },
+            "pearson_diagnostics": _pearson_diagnostics(run.rows),
         }
 
     def bivariate_correlation_matrix(
@@ -495,6 +496,65 @@ def _bivariate_metric_summary(values: list[float]) -> JsonRow:
             if count > 0
         ],
     }
+
+
+def _pearson_diagnostics(rows: tuple[JsonRow, ...]) -> JsonRow:
+    """Portfolio-selection facts derived from the full Pearson pair universe."""
+
+    values = [
+        float(row["pearson_correlation"])
+        for row in rows
+        if row.get("pearson_correlation") is not None
+    ]
+    if not values:
+        return {"high_70_pairs": 0, "high_90_pairs": 0, "low_30_pairs": 0, "negative_pairs": 0}
+    ordered = sorted(values)
+    by_listing: dict[str, list[float]] = {}
+    for row in rows:
+        value = row.get("pearson_correlation")
+        if value is None:
+            continue
+        for side in ("left", "right"):
+            label = f"{row[side + '_code']}.{row[side + '_exchange']} · {row[side + '_isin']}"
+            by_listing.setdefault(label, []).append(float(value))
+    average_by_listing = {
+        label: sum(item_values) / len(item_values)
+        for label, item_values in by_listing.items()
+        if item_values
+    }
+    most_correlated = (
+        max(average_by_listing, key=average_by_listing.get) if average_by_listing else None
+    )
+    best_diversifier = (
+        min(average_by_listing, key=average_by_listing.get) if average_by_listing else None
+    )
+    return {
+        "high_70_pairs": sum(value >= 0.70 for value in values),
+        "high_90_pairs": sum(value >= 0.90 for value in values),
+        "low_30_pairs": sum(value <= 0.30 for value in values),
+        "negative_pairs": sum(value < 0.0 for value in values),
+        "percentile_10": _percentile(ordered, 0.10),
+        "percentile_50": _percentile(ordered, 0.50),
+        "percentile_90": _percentile(ordered, 0.90),
+        "most_correlated_listing": most_correlated,
+        "most_correlated_average": (
+            average_by_listing.get(most_correlated) if most_correlated else None
+        ),
+        "best_diversifier_listing": best_diversifier,
+        "best_diversifier_average": (
+            average_by_listing.get(best_diversifier) if best_diversifier else None
+        ),
+    }
+
+
+def _percentile(ordered_values: list[float], probability: float) -> float | None:
+    if not ordered_values:
+        return None
+    index = (len(ordered_values) - 1) * probability
+    lower = int(index)
+    upper = min(lower + 1, len(ordered_values) - 1)
+    fraction = index - lower
+    return ordered_values[lower] + (ordered_values[upper] - ordered_values[lower]) * fraction
 
 
 def _covariance_diagnostics(

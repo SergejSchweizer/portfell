@@ -1005,6 +1005,8 @@ def test_scoped_research_runs_filter_and_build_unique_pairs() -> None:
     assert len(pair_rows) == 3
     assert len({(row["left_id"], row["right_id"]) for row in pair_rows}) == 3
     assert summary["pair_count"] == 3
+    assert summary["pearson_diagnostics"]["high_70_pairs"] >= 0
+    assert "most_correlated_listing" in summary["pearson_diagnostics"]
     assert pearson_matrix["values"][0][0] is None
     assert isinstance(pearson_matrix["values"][0][1], float)
     assert isinstance(spearman_matrix["values"][0][1], float)

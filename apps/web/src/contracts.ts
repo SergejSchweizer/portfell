@@ -191,6 +191,19 @@ export type ApiBivariateSummary = Readonly<{
   pair_count: number;
   observation_count: number;
   metrics: Readonly<Record<string, ApiBivariateMetricSummary>>;
+  pearson_diagnostics: Readonly<{
+    high_70_pairs: number;
+    high_90_pairs: number;
+    low_30_pairs: number;
+    negative_pairs: number;
+    percentile_10?: number | null;
+    percentile_50?: number | null;
+    percentile_90?: number | null;
+    most_correlated_listing?: string | null;
+    most_correlated_average?: number | null;
+    best_diversifier_listing?: string | null;
+    best_diversifier_average?: number | null;
+  }>;
 }>;
 
 export type ApiPairMetricMatrix = Readonly<{
