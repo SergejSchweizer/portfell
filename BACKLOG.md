@@ -1059,7 +1059,7 @@ Idempotency: Existing idempotency keys, active-run reuse, project identities, an
 
 Branch: `refactor/hosted-research-boundaries`.
 
-Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/238.
+Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/238.
 
 Priority: P0 architecture enforcement and restart-safe research orchestration.
 
@@ -1087,6 +1087,26 @@ Security: Repository operations retain mandatory user ownership checks, while se
 Determinism: Existing run identities, selection identities, matrix ordering, diagnostics, and serialized API responses remain stable for identical inputs.
 
 Idempotency: Existing active-run reuse and analysis idempotency remain unchanged; completed univariate filters and bivariate results are persisted after every durable transition.
+
+### PR134. Hosted Research Boundary Coverage Completion
+
+Branch: `fix/hosted-research-coverage`.
+
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/240.
+
+Priority: P0 post-merge quality-gate repair.
+
+Depends on: PR133.
+
+Scope: Add focused tests for the extracted hosted-research service transitions, injected persistence and data ports, local univariate adapter fallbacks, and bivariate diagnostic edge cases so the repository-wide coverage gate measures the new architecture directly.
+
+Acceptance: The exact combined coverage command passes the unchanged 95% threshold; strict Pyright, Ruff, architecture checks, and the full PR gate pass without coverage exclusions, pragma suppression, or production-code inflation.
+
+Security: Tests use synthetic users, instruments, and temporary lake roots and do not access credentials or external provider services.
+
+Determinism: All new cases use fixed rows, inline executors, and injected fake ports; no wall clock, network, or process scheduling affects assertions.
+
+Idempotency: Repeated test runs leave repository state unchanged and create artifacts only under pytest-managed temporary directories.
 
 ### PR130. Typed Quote Ingestion Stage Pipeline And Progress Contract
 
@@ -1166,7 +1186,7 @@ Idempotency: Repeating portfolio construction with identical inputs preserves ar
 
 ### Architectural Refactor Series Completion Gate
 
-The architectural refactor series is complete only after PR129 through PR131 and PR133 are merged and every required pre-merge and post-merge check in [GATES.md](GATES.md) passes. Completion requires normalized API-contract equivalence, enforced hosted research boundaries, typed and monotonic quote-stage progress, delta-only ingestion, numerical portfolio equivalence, the new import-linter dependency rules, no duplicate implementation or compatibility runtime, and updated [ARCHITECTURE.md](ARCHITECTURE.md) module ownership descriptions.
+The architectural refactor series is complete only after PR129 through PR131, PR133, and PR134 are merged and every required pre-merge and post-merge check in [GATES.md](GATES.md) passes. Completion requires normalized API-contract equivalence, enforced hosted research boundaries, typed and monotonic quote-stage progress, delta-only ingestion, numerical portfolio equivalence, the new import-linter dependency rules, no duplicate implementation or compatibility runtime, and updated [ARCHITECTURE.md](ARCHITECTURE.md) module ownership descriptions.
 
 ## Current Architectural Decision
 
