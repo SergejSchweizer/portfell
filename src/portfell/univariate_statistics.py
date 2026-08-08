@@ -64,7 +64,7 @@ def build_univariate_statistics(
     if not 0 < confidence_level < 1:
         raise ValueError("confidence_level must be in (0, 1)")
 
-    distributions_by_listing = _index_distribution_events(dividend_rows)
+    distributions_by_listing = index_distribution_events(dividend_rows)
     dividends_by_listing: dict[tuple[str, str, str], list[Mapping[str, Any]]] = {}
     for row in dividend_rows:
         key = (str(row["isin"]), str(row["exchange"]), str(row["code"]))
@@ -217,8 +217,8 @@ def _build_univariate_listing_statistics(
     downside_deviation = _downside_deviation(returns)
     tail_risk = _tail_risk(returns, confidence_level)
     log_price_trend = _log_price_trend(adjusted_closes)
-    distribution = _distribution_features(distribution_dates)
-    annual_dividend = _annual_dividend_features(dividend_rows, last_quote_date, last_close)
+    distribution = distribution_features(distribution_dates)
+    annual_dividend = annual_dividend_features(dividend_rows, last_quote_date, last_close)
     quality = evaluate_quote_quality(ordered_quotes)
     return {
         "isin": isin,
@@ -290,7 +290,7 @@ def _mean(values: Sequence[float]) -> float:
     return sum(values) / len(values) if values else 0.0
 
 
-def _index_distribution_events(
+def index_distribution_events(
     dividend_rows: Sequence[Mapping[str, Any]],
 ) -> dict[tuple[str, str, str], tuple[date, ...]]:
     indexed: dict[tuple[str, str, str], set[date]] = {}
@@ -306,7 +306,7 @@ def _index_distribution_events(
     return {key: tuple(sorted(values)) for key, values in indexed.items()}
 
 
-def _distribution_features(distribution_dates: Sequence[date]) -> JsonRow:
+def distribution_features(distribution_dates: Sequence[date]) -> JsonRow:
     observation_count = len(distribution_dates)
     if observation_count == 0:
         return {
@@ -333,7 +333,7 @@ def _distribution_features(distribution_dates: Sequence[date]) -> JsonRow:
     }
 
 
-def _annual_dividend_features(
+def annual_dividend_features(
     dividend_rows: Sequence[Mapping[str, Any]],
     last_quote_date: str,
     last_close: float,

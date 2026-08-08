@@ -92,6 +92,7 @@ export function UnivariateStatisticsPage() {
   const [workflowRevision, setWorkflowRevision] = useState(0);
   const workflow = useResource(loadWorkflow, [workflowRevision]);
   const [run, setRun] = useState<ApiResearchRun | null>(null);
+  const [univariateStartedAt, setUnivariateStartedAt] = useState<number | undefined>();
   const [results, setResults] = useState<readonly ApiUnivariateRow[] | null>(null);
   const [filterValues, setFilterValues] = useState<Record<string, string>>({});
   const [message, setMessage] = useState("");
@@ -109,6 +110,7 @@ export function UnivariateStatisticsPage() {
   useEffect(() => {
     const resetProjectState = () => {
       setRun(null);
+      setUnivariateStartedAt(undefined);
       setResults(null);
       setFilterValues({});
       setMessage("");
@@ -208,7 +210,7 @@ export function UnivariateStatisticsPage() {
         if (cancelled) return;
         setRun(current);
         if (current.status === "running") {
-          setMessage(`${current.completed.toLocaleString()} of ${current.total.toLocaleString()} listings computed.`);
+          setMessage(`${current.completed.toLocaleString()} of ${current.total.toLocaleString()} listings computed${estimatedRemainingTime(univariateStartedAt, current.completed, current.total)}.`);
           timeoutId = window.setTimeout(() => void pollUnivariateRun(), 750);
           return;
         }
@@ -230,7 +232,7 @@ export function UnivariateStatisticsPage() {
       cancelled = true;
       if (timeoutId !== undefined) window.clearTimeout(timeoutId);
     };
-  }, [run]);
+  }, [run, univariateStartedAt]);
 
   if (workflow.status === "loading" || workflow.status === "idle") {
     return <LoadingState label="Loading univariate statistics" />;
@@ -266,6 +268,7 @@ export function UnivariateStatisticsPage() {
         quote_run_id: metadata.quote_run_id,
       });
       setRun(nextRun);
+      setUnivariateStartedAt(Date.now() / 1_000);
       setResults(null);
       setMessage(`${nextRun.completed.toLocaleString()} of ${nextRun.total.toLocaleString()} listings computed.`);
     } catch (error) {

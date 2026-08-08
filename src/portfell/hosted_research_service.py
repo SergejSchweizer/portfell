@@ -5,7 +5,9 @@ from __future__ import annotations
 import os
 from collections.abc import Callable
 from dataclasses import replace
+from importlib import import_module
 from pathlib import Path
+from typing import Any, cast
 
 from portfell.hosted_api_errors import HostedApplicationError
 from portfell.hosted_api_serializers import (
@@ -33,13 +35,12 @@ from portfell.hosted_research_workflow import (
     page_rows,
     pair_plan,
 )
-from portfell.paths import LakePaths
 from portfell.table_io import JsonRow, read_rows, write_rows
 from portfell.univariate_statistics import (
-    _annual_dividend_features,
-    _distribution_features,
-    _index_distribution_events,
+    annual_dividend_features,
     build_univariate_statistics,
+    distribution_features,
+    index_distribution_events,
 )
 
 
@@ -130,6 +131,7 @@ class ResearchService:
             self.state.univariate_runs_by_id[run_id] = replace(
                 run, completed=min(completed, run.total)
             )
+
     def univariate_status(self, user_id: str, run_id: str) -> JsonRow:
         return research_run_row(require_user_row(self.state.univariate_runs_by_id, run_id, user_id))
 
@@ -251,7 +253,7 @@ class ResearchService:
 def _read_scoped_lake_rows(selection: SelectionRecord, *, dataset: str) -> tuple[JsonRow, ...]:
     """Read durable selected quote or dividend rows after an API restart."""
 
-    paths = LakePaths(root=Path(os.environ.get("PORTFELL_LAKE_ROOT", "lake")))
+    paths = _lake_paths()
     rows: list[JsonRow] = []
     for member_id in selection.member_ids:
         isin, exchange, code = member_id.split(":", 2)
@@ -270,7 +272,7 @@ def _build_scoped_univariate_rows(
 ) -> tuple[JsonRow, ...]:
     """Recompute selected listings one at a time, avoiding a multi-million-row heap."""
 
-    paths = LakePaths(root=Path(os.environ.get("PORTFELL_LAKE_ROOT", "lake")))
+    paths = _lake_paths()
     rows: list[JsonRow] = []
     for index, member_id in enumerate(selection.member_ids, start=1):
         isin, exchange, code = member_id.split(":", 2)
@@ -283,16 +285,19 @@ def _build_scoped_univariate_rows(
         cached_rows = read_rows(paths.gold_univariate_statistics(exchange, isin))
         if len(cached_rows) == 1 and str(cached_rows[0].get("code", "")) == code:
             row = dict(cached_rows[0])
-            dates = _index_distribution_events(dividend_rows).get((isin, exchange, code), ())
-            row.update(_distribution_features(dates))
-            row.update(
-                _annual_dividend_features(
-                    dividend_rows,
-                    str(row["last_quote_date"]),
-                    float(row["end_adjusted_close"]),
-                )
+            dates = index_distribution_events(dividend_rows).get((isin, exchange, code), ())
+            distribution = distribution_features(dates)
+            annual_dividend = annual_dividend_features(
+                dividend_rows,
+                str(row["last_quote_date"]),
+                float(row["end_adjusted_close"]),
             )
-            write_rows(paths.gold_univariate_statistics(exchange, isin), [row])
+            if any(
+                row.get(key) != value for key, value in {**distribution, **annual_dividend}.items()
+            ):
+                row.update(distribution)
+                row.update(annual_dividend)
+                write_rows(paths.gold_univariate_statistics(exchange, isin), [row])
             rows.append(row)
             if on_progress is not None:
                 on_progress(index)
@@ -316,3 +321,10 @@ def _build_scoped_univariate_rows(
         if on_progress is not None:
             on_progress(index)
     return tuple(rows)
+
+
+def _lake_paths() -> Any:
+    """Resolve the local data-lake adapter without coupling service imports to storage."""
+
+    path_type = cast(Any, import_module("portfell.paths").LakePaths)
+    return path_type(root=Path(os.environ.get("PORTFELL_LAKE_ROOT", "lake")))

@@ -9,6 +9,7 @@ from typing import cast
 from portfell.entitlements import ProviderDownloadRun, RunStatus
 from portfell.hosted_api_state import HostedApiState, ProjectRecord, SelectionRecord
 from portfell.hosted_research_workflow import ResearchRun
+from portfell.hosted_research_workflow import RunStatus as ResearchRunStatus
 
 
 def persist_local_workspace(state: HostedApiState) -> None:
@@ -198,16 +199,14 @@ def _restore_univariate_runs(state: HostedApiState, payload: Mapping[str, object
             run_id=_text(row, "run_id"),
             user_id=_text(row, "user_id"),
             source_id=_text(row, "source_id"),
-            status=cast(RunStatus, "failed" if status == "running" else status),
+            status=cast(ResearchRunStatus, "failed" if status == "running" else status),
             rows=tuple(
                 dict(_mapping(value, "univariate statistic"))
                 for value in _object_list(row.get("rows", []), "univariate statistics")
             ),
             total=_integer(row, "total"),
             completed=_integer(row, "completed"),
-            failed=(
-                _integer(row, "total") if status == "running" else _integer(row, "failed")
-            ),
+            failed=(_integer(row, "total") if status == "running" else _integer(row, "failed")),
         )
         quote_run_id = _text(row, "quote_run_id")
         state.univariate_runs_by_id[run.run_id] = run
