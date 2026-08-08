@@ -286,8 +286,6 @@ th, td { padding: 10px; border-bottom: 1px solid #e5e8ec; text-align: left; }
   .dividend-statistic label { min-width: 0; }
   .univariate-group-card { grid-template-columns: 1fr; }
   .bivariate-statistic { grid-template-columns: 1fr; }
-  .bivariate-statistic__facts { padding-right: 0; }
-  .bivariate-statistic__equation { grid-column: auto; grid-row: auto; }
   .bivariate-statistic dl { grid-template-columns: 1fr; }
   .bivariate-statistic__equation { justify-items: start; }
   .bivariate-statistic__equation .univariate-equation, .bivariate-statistic__equation .univariate-notation { text-align: left; }
