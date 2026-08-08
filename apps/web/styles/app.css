@@ -160,15 +160,15 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 .bivariate-statistic dl div { display: grid; grid-template-columns: 1fr auto; gap: var(--space-2); padding-bottom: var(--space-1); border-bottom: 1px solid var(--border); }
 .bivariate-statistic dt { color: var(--text-muted); font-size: 12px; }
 .bivariate-statistic dd { margin: 0; font-size: 14px; font-weight: 600; }
-.bivariate-statistic__results { overflow-x: auto; }
+.bivariate-statistic__results { overflow-x: auto; text-align: center; }
 .bivariate-statistic__results table { min-width: 500px; }
 .bivariate-statistic__matrix-caption { margin: 0 0 var(--space-2); color: var(--text-muted); font-size: 12px; }
-.covariance-matrix { min-width: max-content !important; font-size: 10px; border-spacing: 1px; border-collapse: separate; }
+.covariance-matrix { min-width: max-content !important; margin: 0 auto; font-size: 10px; border-spacing: 1px; border-collapse: separate; }
 .covariance-matrix th, .covariance-matrix td { min-width: 42px; padding: 4px 5px; white-space: nowrap; text-align: right; border: 0; }
 .covariance-matrix thead th:not(:first-child) { width: 42px; height: 82px; padding: 3px; vertical-align: bottom; overflow: hidden; text-overflow: ellipsis; writing-mode: vertical-rl; transform: rotate(180deg); text-align: left; }
 .covariance-matrix th:first-child { position: sticky; left: 0; z-index: 1; max-width: 74px; overflow: hidden; background: var(--canvas); text-align: left; text-overflow: ellipsis; }
 .covariance-matrix td { font-variant-numeric: tabular-nums; color: #17324d; }
-.covariance-matrix__legend { display: flex; align-items: center; gap: 6px; margin: var(--space-2) 0 0; color: var(--text-muted); font-size: 11px; }
+.covariance-matrix__legend { display: flex; justify-content: center; align-items: center; gap: 6px; margin: var(--space-2) 0 0; color: var(--text-muted); font-size: 11px; }
 .covariance-matrix__legend span { width: 10px; height: 10px; border-radius: 2px; }
 .covariance-matrix__legend-negative { background: hsl(8 74% 70%); }
 .covariance-matrix__legend-neutral { background: #f1f5f9; border: 1px solid var(--border); }

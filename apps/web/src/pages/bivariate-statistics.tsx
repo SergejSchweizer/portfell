@@ -140,8 +140,6 @@ export function BivariateStatisticsPage() {
             <div><dt>Average covariance</dt><dd>{averageCovariance === null ? "—" : metric(averageCovariance)}</dd></div>
             <div><dt>Positive covariance</dt><dd>{covarianceRows.length === 0 ? "—" : `${((positiveCovarianceCount / covarianceRows.length) * 100).toFixed(1)}%`}</dd></div>
           </dl>
-          <p className="univariate-equation">Cov(Rᵢ, Rⱼ) = 𝔼[(Rᵢ − μᵢ)(Rⱼ − μⱼ)]</p>
-          <p className="univariate-notation">Rᵢ, Rⱼ: paired returns · μ: mean return · 𝔼: expected value</p>
         </div>
         <div className="bivariate-statistic__results">
           {covarianceMatrix === null ? <p className="status-line">Compute bivariate statistics to populate the daily log-return covariance matrix.</p> : covarianceMatrix.labels.length > 0 ? <>
@@ -151,6 +149,8 @@ export function BivariateStatisticsPage() {
               <tbody>{covarianceMatrix.labels.map((label, rowIndex) => <tr key={label.isin}><th scope="row" title={label.isin}>{label.label}</th>{covarianceMatrix.values[rowIndex].map((value, columnIndex) => <td key={`${label.isin}:${covarianceMatrix.labels[columnIndex].isin}`} title={`Covariance: ${metric(value)}`} style={{ backgroundColor: covarianceColor(value, covarianceExtent) }}>{metric(value)}</td>)}</tr>)}</tbody>
             </table>
             <p className="covariance-matrix__legend"><span className="covariance-matrix__legend-negative" /> Negative <span className="covariance-matrix__legend-neutral" /> Near zero <span className="covariance-matrix__legend-positive" /> Positive</p>
+            <p className="univariate-equation">Cov(Rᵢ, Rⱼ) = 𝔼[(Rᵢ − μᵢ)(Rⱼ − μⱼ)]</p>
+            <p className="univariate-notation">Rᵢ, Rⱼ: paired returns · μ: mean return · 𝔼: expected value</p>
           </> : <p className="status-line">No common log-return observations are available.</p>}
         </div>
       </section>
