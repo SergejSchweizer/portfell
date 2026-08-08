@@ -178,4 +178,16 @@ export type ApiCovarianceMatrix = Readonly<{
   labels: readonly Readonly<{ isin: string; exchange: string; code: string; label: string }>[];
   values: readonly (readonly (number | null)[])[];
   observation_count: number;
+  diagnostics: Readonly<{
+    listing_count: number;
+    pair_count: number;
+    observation_count: number;
+    average_pairwise_covariance?: number | null;
+    average_pairwise_correlation?: number | null;
+    equal_weight_volatility?: number | null;
+    minimum_variance_volatility?: number | null;
+    diversification_ratio?: number | null;
+    effective_number_of_bets?: number | null;
+    largest_equal_weight_risk_contribution?: number | null;
+  }>;
 }>;
