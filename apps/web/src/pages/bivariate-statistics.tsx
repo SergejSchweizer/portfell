@@ -96,6 +96,9 @@ export function BivariateStatisticsPage() {
   const [hoveredMatrixCell, setHoveredMatrixCell] = useState<{ row: number; column: number } | null>(null);
   const [activePairwiseMetric, setActivePairwiseMetric] = useState<"covariance" | "pearson" | "spearman" | "downside">("covariance");
   const [message, setMessage] = useState("");
+  const persistedRunId = workflow.status === "ready"
+    ? workflow.data.stages.bivariate_statistics.bivariate_run_id
+    : undefined;
 
   useEffect(() => {
     const resetProjectState = () => {
@@ -161,6 +164,37 @@ export function BivariateStatisticsPage() {
   // Keep the active poll alive while the status changes to complete, otherwise
   // its matrix requests are cancelled by the effect cleanup before they render.
   }, [run?.run_id]);
+
+  useEffect(() => {
+    if (!persistedRunId || run?.run_id === persistedRunId) return;
+    let cancelled = false;
+    async function restoreBivariateRun() {
+      try {
+        const [savedRun, page, matrix, nextSummary, nextPearsonMatrix, nextSpearmanMatrix, nextDownsideMatrix] = await Promise.all([
+          requestJson<ApiResearchRun>(`/api/bivariate-statistics/runs/${persistedRunId}`),
+          requestJson<ApiPage<ApiBivariateRow>>(`/api/bivariate-statistics/runs/${persistedRunId}/results?limit=50&offset=0`),
+          requestJson<ApiCovarianceMatrix>(`/api/bivariate-statistics/runs/${persistedRunId}/covariance-matrix`),
+          requestJson<ApiBivariateSummary>(`/api/bivariate-statistics/runs/${persistedRunId}/summary`),
+          requestJson<ApiPairMetricMatrix>(`/api/bivariate-statistics/runs/${persistedRunId}/correlation-matrix?metric=pearson`),
+          requestJson<ApiPairMetricMatrix>(`/api/bivariate-statistics/runs/${persistedRunId}/correlation-matrix?metric=spearman`),
+          requestJson<ApiPairMetricMatrix>(`/api/bivariate-statistics/runs/${persistedRunId}/correlation-matrix?metric=downside`),
+        ]);
+        if (cancelled) return;
+        setRun(savedRun);
+        setResults(page);
+        setCovarianceMatrix(matrix);
+        setSummary(nextSummary);
+        setPearsonMatrix(nextPearsonMatrix);
+        setSpearmanMatrix(nextSpearmanMatrix);
+        setDownsideMatrix(nextDownsideMatrix);
+        setMessage(`${page.total.toLocaleString()} saved pair statistics restored.`);
+      } catch (error) {
+        if (!cancelled) setMessage(error instanceof Error ? error.message : "Could not restore saved bivariate statistics.");
+      }
+    }
+    void restoreBivariateRun();
+    return () => { cancelled = true; };
+  }, [persistedRunId, run?.run_id]);
 
   if (workflow.status === "loading" || workflow.status === "idle") return <LoadingState label="Loading bivariate statistics" />;
   if (workflow.status === "error") return <p>Workflow state is unavailable.</p>;

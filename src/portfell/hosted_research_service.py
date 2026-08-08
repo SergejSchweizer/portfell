@@ -42,6 +42,7 @@ from portfell.hosted_research_workflow import (
     page_rows,
     pair_plan,
 )
+from portfell.hosted_workspace_repository import persist_local_workspace
 from portfell.portfolio_parts.solvers import solve_minimum_variance
 from portfell.table_io import JsonRow, read_rows, write_rows
 from portfell.univariate_statistics import (
@@ -247,6 +248,7 @@ class ResearchService:
         self.state.bivariate_runs_by_id[run_id] = replace(
             computed, run_id=run_id, total=computed.total, completed=computed.total
         )
+        persist_local_workspace(self.state)
         audit(self.state, user_id, "bivariate_statistics.complete")
 
     def bivariate_status(self, user_id: str, run_id: str) -> JsonRow:
