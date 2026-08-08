@@ -311,6 +311,11 @@ SCHEMAS: dict[str, tuple[str, ...]] = {
         "right_variance",
         "left_beta_to_right",
         "right_beta_to_left",
+        "downside_correlation",
+        "lower_tail_dependence",
+        "tail_coexceedance_rate",
+        "rolling_correlation_stability",
+        "drawdown_overlap_rate",
         "bucket",
     ),
     "gold_runs": (

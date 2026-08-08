@@ -4,7 +4,7 @@ import { loadWorkflow, postJson, requestJson } from "../api/client";
 import { Button } from "../components/button";
 import { LoadingState } from "../components/loading-state";
 import { Panel } from "../components/panel";
-import type { ApiBivariateRow, ApiCovarianceMatrix, ApiPage, ApiPairPlan, ApiResearchRun } from "../contracts";
+import type { ApiBivariateMetricSummary, ApiBivariateRow, ApiBivariateSummary, ApiCovarianceMatrix, ApiPage, ApiPairPlan, ApiResearchRun } from "../contracts";
 import { useResource } from "../hooks/use-resource";
 
 function metric(value: number | null | undefined): string {
@@ -18,12 +18,56 @@ function covarianceColor(value: number, extent: number): string {
   return value >= 0 ? `hsl(152 58% ${lightness}%)` : `hsl(8 74% ${lightness}%)`;
 }
 
+function percent(value: number | null | undefined): string {
+  return value == null ? "—" : `${(value * 100).toFixed(1)}%`;
+}
+
+function BivariateMetricWindow({
+  title, description, equation, notation, primary, secondary, primaryLabel, secondaryLabel,
+}: {
+  title: string; description: string; equation: string; notation: string;
+  primary: ApiBivariateMetricSummary | undefined; secondary?: ApiBivariateMetricSummary | undefined;
+  primaryLabel: string; secondaryLabel?: string;
+}) {
+  const histogram = primary?.histogram ?? [];
+  const maximum = Math.max(1, ...histogram.map((bucket) => bucket.count));
+  return <section className="bivariate-statistic bivariate-statistic--metric" aria-label={title}>
+    <div className="bivariate-statistic__facts">
+      <h3>{title}</h3>
+      <p>{description}</p>
+      <p className="univariate-equation">{equation}</p>
+      <p className="univariate-notation">{notation}</p>
+      <dl>
+        <div><dt>Pairs analysed</dt><dd>{primary ? "All computed pairs" : "—"}</dd></div>
+        <div><dt>Average {primaryLabel}</dt><dd>{percent(primary?.mean)}</dd></div>
+        <div><dt>Median {primaryLabel}</dt><dd>{percent(primary?.median)}</dd></div>
+        <div><dt>Range</dt><dd>{primary ? `${percent(primary.minimum)} to ${percent(primary.maximum)}` : "—"}</dd></div>
+        {secondary && <><div><dt>Average {secondaryLabel}</dt><dd>{percent(secondary.mean)}</dd></div><div><dt>Median {secondaryLabel}</dt><dd>{percent(secondary.median)}</dd></div></>}
+      </dl>
+    </div>
+    <div className="bivariate-statistic__results">
+      {primary ? <>
+        <p className="bivariate-statistic__matrix-caption">Distribution across ISIN pairs · bar height: pair count</p>
+        <div className="bivariate-histogram" role="img" aria-label={`${title} distribution`}>
+          {histogram.map((bucket, index) => <div className="bivariate-histogram__bucket" key={`${bucket.lower}:${bucket.upper}`} title={`${(bucket.lower * 100).toFixed(2)}% to ${(bucket.upper * 100).toFixed(2)}%: ${bucket.count.toLocaleString()} ISIN pairs`}>
+            <span className="bivariate-histogram__count">{bucket.count}</span>
+            <span className="bivariate-histogram__bar" style={{ height: `${Math.max(5, bucket.count / maximum * 100)}%` }} />
+            <span className="bivariate-histogram__label">{(bucket.lower * 100).toFixed(1)}%</span>
+          </div>)}
+        </div>
+        <p className="bivariate-histogram__axis">{primaryLabel} (%)</p>
+      </> : <p className="status-line">Compute bivariate statistics to populate this distribution.</p>}
+    </div>
+  </section>;
+}
+
 export function BivariateStatisticsPage() {
   const [workflowRevision, setWorkflowRevision] = useState(0);
   const workflow = useResource(loadWorkflow, [workflowRevision]);
   const [run, setRun] = useState<ApiResearchRun | null>(null);
   const [results, setResults] = useState<ApiPage<ApiBivariateRow> | null>(null);
   const [covarianceMatrix, setCovarianceMatrix] = useState<ApiCovarianceMatrix | null>(null);
+  const [summary, setSummary] = useState<ApiBivariateSummary | null>(null);
   const [hoveredMatrixCell, setHoveredMatrixCell] = useState<{ row: number; column: number } | null>(null);
   const [message, setMessage] = useState("");
 
@@ -32,6 +76,7 @@ export function BivariateStatisticsPage() {
       setRun(null);
       setResults(null);
       setCovarianceMatrix(null);
+      setSummary(null);
       setMessage("");
       setWorkflowRevision((value) => value + 1);
     };
@@ -58,13 +103,15 @@ export function BivariateStatisticsPage() {
           setMessage("Bivariate computation failed. Please try again.");
           return;
         }
-        const [page, matrix] = await Promise.all([
+        const [page, matrix, nextSummary] = await Promise.all([
           requestJson<ApiPage<ApiBivariateRow>>(`/api/bivariate-statistics/runs/${current.run_id}/results?limit=50&offset=0`),
           requestJson<ApiCovarianceMatrix>(`/api/bivariate-statistics/runs/${current.run_id}/covariance-matrix`),
+          requestJson<ApiBivariateSummary>(`/api/bivariate-statistics/runs/${current.run_id}/summary`),
         ]);
         if (cancelled) return;
         setResults(page);
         setCovarianceMatrix(matrix);
+        setSummary(nextSummary);
         setMessage(`${page.total.toLocaleString()} pair statistics computed.`);
         window.dispatchEvent(new Event("portfell:workflow-updated"));
       } catch (error) {
@@ -97,12 +144,14 @@ export function BivariateStatisticsPage() {
       const nextRun = await postJson<ApiResearchRun>("/api/bivariate-statistics/runs", { univariate_filter_selection_id: selectionId });
       setRun(nextRun);
       if (nextRun.status === "complete") {
-        const [page, matrix] = await Promise.all([
+        const [page, matrix, nextSummary] = await Promise.all([
           requestJson<ApiPage<ApiBivariateRow>>(`/api/bivariate-statistics/runs/${nextRun.run_id}/results?limit=50&offset=0`),
           requestJson<ApiCovarianceMatrix>(`/api/bivariate-statistics/runs/${nextRun.run_id}/covariance-matrix`),
+          requestJson<ApiBivariateSummary>(`/api/bivariate-statistics/runs/${nextRun.run_id}/summary`),
         ]);
         setResults(page);
         setCovarianceMatrix(matrix);
+        setSummary(nextSummary);
         setMessage(`${page.total.toLocaleString()} pair statistics computed.`);
       }
     } catch (error) {
@@ -154,12 +203,49 @@ export function BivariateStatisticsPage() {
             <p className="bivariate-statistic__matrix-caption">Daily log-return covariance matrix · {covarianceMatrix.observation_count.toLocaleString()} shared observations</p>
             <table className="covariance-matrix" onMouseLeave={() => setHoveredMatrixCell(null)}>
               <thead><tr><th scope="col">ISIN</th>{covarianceMatrix.labels.map((label, index) => <th scope="col" key={label.isin} className={highlightedColumn(index) ? "is-hovered-column" : undefined} title={label.isin} onMouseEnter={() => setHoveredMatrixCell({ row: index, column: index })}>{label.label}</th>)}</tr></thead>
-              <tbody>{covarianceMatrix.labels.map((label, rowIndex) => <tr key={label.isin}><th scope="row" className={highlightedRow(rowIndex) ? "is-hovered-row" : undefined} title={label.isin} onMouseEnter={() => setHoveredMatrixCell({ row: rowIndex, column: rowIndex })}>{label.label}</th>{covarianceMatrix.values[rowIndex].map((value, columnIndex) => <td key={`${label.isin}:${covarianceMatrix.labels[columnIndex].isin}`} className={`${value === null ? "covariance-matrix__empty" : ""} ${highlightedRow(rowIndex) ? "is-hovered-row" : ""} ${highlightedColumn(columnIndex) ? "is-hovered-column" : ""}`.trim() || undefined} title={value === null ? "Duplicate or self relation omitted" : `Covariance: ${metric(value)}`} style={value === null ? undefined : { backgroundColor: covarianceColor(value, covarianceExtent) }} onMouseEnter={() => setHoveredMatrixCell({ row: rowIndex, column: columnIndex })}>{metric(value)}</td>)}</tr>)}</tbody>
+              <tbody>{covarianceMatrix.labels.map((label, rowIndex) => <tr key={label.isin}><th scope="row" className={highlightedRow(rowIndex) ? "is-hovered-row" : undefined} title={`${label.label} · ${label.isin}`} onMouseEnter={() => setHoveredMatrixCell({ row: rowIndex, column: rowIndex })}>{label.label}</th>{covarianceMatrix.values[rowIndex].map((value, columnIndex) => { const column = covarianceMatrix.labels[columnIndex]; return <td key={`${label.isin}:${column.isin}`} className={`${value === null ? "covariance-matrix__empty" : ""} ${highlightedRow(rowIndex) ? "is-hovered-row" : ""} ${highlightedColumn(columnIndex) ? "is-hovered-column" : ""}`.trim() || undefined} title={value === null ? `Row: ${label.label} (${label.isin})\nColumn: ${column.label} (${column.isin})\nDuplicate or self relation omitted` : `Row: ${label.label} (${label.isin})\nColumn: ${column.label} (${column.isin})\nCovariance: ${metric(value)}`} style={value === null ? undefined : { backgroundColor: covarianceColor(value, covarianceExtent) }} onMouseEnter={() => setHoveredMatrixCell({ row: rowIndex, column: columnIndex })}>{metric(value)}</td>})}</tr>)}</tbody>
             </table>
             <p className="covariance-matrix__legend"><span className="covariance-matrix__legend-negative" /> Negative <span className="covariance-matrix__legend-neutral" /> Near zero <span className="covariance-matrix__legend-positive" /> Positive</p>
           </> : <p className="status-line">No common log-return observations are available.</p>}
         </div>
       </section>
+      <BivariateMetricWindow
+        title="Pearson and Spearman Correlation"
+        description="Linear and rank-based co-movement of daily log returns across every selected ISIN pair."
+        equation="ρᵢⱼ = Cov(Rᵢ, Rⱼ) / (σᵢσⱼ)"
+        notation="R: daily log return · σ: return standard deviation · ρ: correlation"
+        primary={summary?.metrics.pearson_correlation} secondary={summary?.metrics.spearman_correlation}
+        primaryLabel="Pearson correlation" secondaryLabel="Spearman correlation"
+      />
+      <BivariateMetricWindow
+        title="Downside Correlation"
+        description="Co-movement on days when both ISINs have negative daily log returns."
+        equation="ρ⁻ᵢⱼ = Corr(Rᵢ, Rⱼ | Rᵢ < 0, Rⱼ < 0)"
+        notation="R: daily log return · ρ⁻: conditional downside correlation"
+        primary={summary?.metrics.downside_correlation} primaryLabel="downside correlation"
+      />
+      <BivariateMetricWindow
+        title="Tail Dependence and Co-exceedance Rate"
+        description="Joint lower-tail behaviour: simultaneous returns in each ISIN's worst 5% of observations."
+        equation="λᴸᵢⱼ = P(Rⱼ ≤ q₀.₀₅ⱼ | Rᵢ ≤ q₀.₀₅ᵢ)"
+        notation="q₀.₀₅: 5th-percentile return · λᴸ: lower-tail dependence"
+        primary={summary?.metrics.lower_tail_dependence} secondary={summary?.metrics.tail_coexceedance_rate}
+        primaryLabel="tail dependence" secondaryLabel="co-exceedance rate"
+      />
+      <BivariateMetricWindow
+        title="Rolling-correlation Stability"
+        description="Variation in sampled 60-observation rolling Pearson correlations; lower values are more stable."
+        equation="sᵨ = √(Σ(ρₜ − ρ̄)² / (n − 1))"
+        notation="ρₜ: rolling correlation · ρ̄: mean rolling correlation · sᵨ: its standard deviation"
+        primary={summary?.metrics.rolling_correlation_stability} primaryLabel="rolling correlation standard deviation"
+      />
+      <BivariateMetricWindow
+        title="Drawdown Overlap"
+        description="Share of observations where both ISINs are at least 5% below their preceding cumulative-return peak."
+        equation="Oᵢⱼ = (1/T) Σ 𝟙(DDᵢ ≤ −5%, DDⱼ ≤ −5%)"
+        notation="DD: drawdown · T: shared observations · 𝟙: indicator function"
+        primary={summary?.metrics.drawdown_overlap_rate} primaryLabel="drawdown overlap rate"
+      />
     </Panel>
   );
 }

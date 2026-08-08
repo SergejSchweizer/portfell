@@ -9,6 +9,7 @@ from dataclasses import replace
 from importlib import import_module
 from math import sqrt
 from pathlib import Path
+from statistics import median
 from typing import Any
 
 from portfell.gold import build_returns
@@ -255,6 +256,34 @@ class ResearchService:
         run = require_user_row(self.state.bivariate_runs_by_id, run_id, user_id)
         return page_rows(run.rows, limit=limit, offset=offset)
 
+    def bivariate_summary(self, user_id: str, run_id: str) -> JsonRow:
+        """Aggregate all pair rows for the bivariate-statistics cards."""
+
+        run = require_user_row(self.state.bivariate_runs_by_id, run_id, user_id)
+        metric_names = (
+            "pearson_correlation",
+            "spearman_correlation",
+            "downside_correlation",
+            "lower_tail_dependence",
+            "tail_coexceedance_rate",
+            "rolling_correlation_stability",
+            "drawdown_overlap_rate",
+        )
+        return {
+            "pair_count": len(run.rows),
+            "observation_count": round(
+                sum(int(row.get("n_observations", 0)) for row in run.rows) / len(run.rows)
+            )
+            if run.rows
+            else 0,
+            "metrics": {
+                name: _bivariate_metric_summary(
+                    [float(row[name]) for row in run.rows if row.get(name) is not None]
+                )
+                for name in metric_names
+            },
+        }
+
     def bivariate_covariance_matrix(self, user_id: str, run_id: str) -> JsonRow:
         """Build a common-date daily log-return covariance matrix for one run."""
 
@@ -386,6 +415,39 @@ class ResearchService:
 
     def analysis_report(self, user_id: str, run_id: str) -> JsonRow:
         return self.analysis(user_id, run_id).report
+
+
+def _bivariate_metric_summary(values: list[float]) -> JsonRow:
+    """Compact distribution data for a pairwise metric card."""
+
+    if not values:
+        return {"mean": None, "median": None, "minimum": None, "maximum": None, "histogram": []}
+    low, high = min(values), max(values)
+    bins = 8
+    counts = [0] * bins
+    if high == low:
+        counts[0] = len(values)
+        edges = [low, high]
+    else:
+        width = (high - low) / bins
+        edges = [low + width * index for index in range(bins + 1)]
+        for value in values:
+            counts[min(bins - 1, int((value - low) / width))] += 1
+    return {
+        "mean": sum(values) / len(values),
+        "median": median(values),
+        "minimum": low,
+        "maximum": high,
+        "histogram": [
+            {
+                "lower": edges[index] if len(edges) > 2 else low,
+                "upper": edges[index + 1] if len(edges) > 2 else high,
+                "count": count,
+            }
+            for index, count in enumerate(counts)
+            if count > 0
+        ],
+    }
 
 
 def _covariance_diagnostics(

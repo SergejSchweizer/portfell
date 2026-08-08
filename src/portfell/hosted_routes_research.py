@@ -128,6 +128,10 @@ def research_router(
     ) -> JsonRow:
         return call(service.bivariate_results, user.user_id, run_id, limit, offset)
 
+    @router.get("/bivariate-statistics/runs/{run_id}/summary")
+    def bivariate_summary(run_id: str, user: ApiUser = Depends(current_user)) -> JsonRow:
+        return call(service.bivariate_summary, user.user_id, run_id)
+
     @router.get("/bivariate-statistics/runs/{run_id}/covariance-matrix")
     def bivariate_covariance_matrix(run_id: str, user: ApiUser = Depends(current_user)) -> JsonRow:
         return call(service.bivariate_covariance_matrix, user.user_id, run_id)

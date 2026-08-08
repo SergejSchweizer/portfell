@@ -971,6 +971,12 @@ def test_scoped_research_runs_filter_and_build_unique_pairs() -> None:
             headers=_headers(csrf=False),
         )
     )["items"]
+    summary = _json(
+        client.get(
+            f"/bivariate-statistics/runs/{bivariate['run_id']}/summary",
+            headers=_headers(csrf=False),
+        )
+    )
 
     assert repeated["run_id"] == univariate["run_id"]
     assert univariate_status["status"] == "complete"
@@ -980,6 +986,14 @@ def test_scoped_research_runs_filter_and_build_unique_pairs() -> None:
     assert plan["allowed"] is True
     assert len(pair_rows) == 3
     assert len({(row["left_id"], row["right_id"]) for row in pair_rows}) == 3
+    assert summary["pair_count"] == 3
+    assert set(summary["metrics"]) >= {
+        "pearson_correlation",
+        "downside_correlation",
+        "lower_tail_dependence",
+        "rolling_correlation_stability",
+        "drawdown_overlap_rate",
+    }
     assert (
         client.get(
             f"/univariate-statistics/runs/{univariate['run_id']}",

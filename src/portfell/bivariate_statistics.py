@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
 from concurrent.futures import ProcessPoolExecutor
+from math import exp, sqrt
 from typing import Any
 
 from portfell.gold_pair_stats import (
@@ -26,7 +27,7 @@ from portfell.run_state import build_job_manifest, write_job_manifest
 from portfell.schemas import validate_rows
 from portfell.table_io import JsonRow, read_rows, write_rows
 
-_CURRENT_VERSION = "current"
+_CURRENT_VERSION = "v2"
 
 
 def build_bivariate_statistics(
@@ -271,7 +272,96 @@ def _build_bivariate_pair_statistics(pair: PairObservation) -> JsonRow:
         "right_variance": right_variance,
         "left_beta_to_right": _ratio(covariance, right_variance),
         "right_beta_to_left": _ratio(covariance, left_variance),
+        "downside_correlation": _downside_correlation(pair.left_values, pair.right_values),
+        "lower_tail_dependence": _lower_tail_dependence(pair.left_values, pair.right_values),
+        "tail_coexceedance_rate": _tail_coexceedance_rate(pair.left_values, pair.right_values),
+        "rolling_correlation_stability": _rolling_correlation_stability(
+            pair.left_values, pair.right_values
+        ),
+        "drawdown_overlap_rate": _drawdown_overlap_rate(pair.left_values, pair.right_values),
     }
+
+
+def _downside_correlation(left: Sequence[float], right: Sequence[float]) -> float:
+    """Correlation conditional on both daily log returns being negative."""
+    paired = [(a, b) for a, b in zip(left, right, strict=True) if a < 0 and b < 0]
+    if len(paired) < 2:
+        return 0.0
+    downside_left, downside_right = zip(*paired, strict=True)
+    return correlation_value(downside_left, downside_right, "pearson")
+
+
+def _quantile(values: Sequence[float], probability: float) -> float:
+    if not values:
+        return 0.0
+    ordered = sorted(values)
+    index = max(0, min(len(ordered) - 1, round((len(ordered) - 1) * probability)))
+    return ordered[index]
+
+
+def _tail_events(left: Sequence[float], right: Sequence[float]) -> tuple[int, int, int]:
+    if not left or len(left) != len(right):
+        return 0, 0, 0
+    left_cutoff = _quantile(left, 0.05)
+    right_cutoff = _quantile(right, 0.05)
+    left_events = sum(value <= left_cutoff for value in left)
+    right_events = sum(value <= right_cutoff for value in right)
+    joint_events = sum(
+        a <= left_cutoff and b <= right_cutoff for a, b in zip(left, right, strict=True)
+    )
+    return left_events, right_events, joint_events
+
+
+def _lower_tail_dependence(left: Sequence[float], right: Sequence[float]) -> float:
+    left_events, right_events, joint_events = _tail_events(left, right)
+    return _ratio(joint_events, min(left_events, right_events))
+
+
+def _tail_coexceedance_rate(left: Sequence[float], right: Sequence[float]) -> float:
+    _, _, joint_events = _tail_events(left, right)
+    return _ratio(joint_events, len(left))
+
+
+def _rolling_correlation_stability(left: Sequence[float], right: Sequence[float]) -> float:
+    """Standard deviation of sampled 60-observation rolling Pearson correlations."""
+    if len(left) != len(right) or len(left) < 20:
+        return 0.0
+    window = min(60, len(left))
+    step = max(1, window // 3)
+    starts = list(range(0, len(left) - window + 1, step))
+    if starts[-1] != len(left) - window:
+        starts.append(len(left) - window)
+    correlations = [
+        correlation_value(left[start : start + window], right[start : start + window], "pearson")
+        for start in starts
+    ]
+    if len(correlations) < 2:
+        return 0.0
+    mean = sum(correlations) / len(correlations)
+    return sqrt(sum((value - mean) ** 2 for value in correlations) / (len(correlations) - 1))
+
+
+def _drawdown_overlap_rate(left: Sequence[float], right: Sequence[float]) -> float:
+    """Share of days on which both assets are at least 5% below their prior peak."""
+    left_drawdowns = _drawdowns(left)
+    right_drawdowns = _drawdowns(right)
+    if not left_drawdowns or len(left_drawdowns) != len(right_drawdowns):
+        return 0.0
+    overlap = sum(
+        a <= -0.05 and b <= -0.05 for a, b in zip(left_drawdowns, right_drawdowns, strict=True)
+    )
+    return overlap / len(left_drawdowns)
+
+
+def _drawdowns(values: Sequence[float]) -> tuple[float, ...]:
+    cumulative = 0.0
+    peak = 0.0
+    output: list[float] = []
+    for value in values:
+        cumulative += value
+        peak = max(peak, cumulative)
+        output.append(exp(cumulative - peak) - 1.0)
+    return tuple(output)
 
 
 def _listing_key(listing: tuple[str, str, str]) -> str:

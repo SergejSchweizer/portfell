@@ -170,8 +170,27 @@ export type ApiBivariateRow = Readonly<{
   pearson_correlation?: number | null;
   spearman_correlation?: number | null;
   covariance?: number | null;
+  downside_correlation?: number | null;
+  lower_tail_dependence?: number | null;
+  tail_coexceedance_rate?: number | null;
+  rolling_correlation_stability?: number | null;
+  drawdown_overlap_rate?: number | null;
   left_beta_to_right?: number | null;
   right_beta_to_left?: number | null;
+}>;
+
+export type ApiBivariateMetricSummary = Readonly<{
+  mean: number | null;
+  median: number | null;
+  minimum: number | null;
+  maximum: number | null;
+  histogram: readonly Readonly<{ lower: number; upper: number; count: number }>[];
+}>;
+
+export type ApiBivariateSummary = Readonly<{
+  pair_count: number;
+  observation_count: number;
+  metrics: Readonly<Record<string, ApiBivariateMetricSummary>>;
 }>;
 
 export type ApiCovarianceMatrix = Readonly<{
