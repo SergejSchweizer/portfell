@@ -11,6 +11,13 @@ function metric(value: number | null | undefined): string {
   return value == null ? "—" : value.toFixed(4);
 }
 
+function covarianceColor(value: number, extent: number): string {
+  if (extent === 0) return "#f1f5f9";
+  const intensity = Math.min(1, Math.abs(value) / extent);
+  const lightness = 96 - intensity * 42;
+  return value >= 0 ? `hsl(152 58% ${lightness}%)` : `hsl(8 74% ${lightness}%)`;
+}
+
 export function BivariateStatisticsPage() {
   const [workflowRevision, setWorkflowRevision] = useState(0);
   const workflow = useResource(loadWorkflow, [workflowRevision]);
@@ -107,6 +114,10 @@ export function BivariateStatisticsPage() {
     ? null
     : covarianceRows.reduce((total, row) => total + (row.covariance ?? 0), 0) / covarianceRows.length;
   const positiveCovarianceCount = covarianceRows.filter((row) => (row.covariance ?? 0) > 0).length;
+  const covarianceExtent = Math.max(
+    0,
+    ...(covarianceMatrix?.values.flat().map((value) => Math.abs(value)) ?? []),
+  );
 
   return (
     <Panel title="Bivariate Statistics">
@@ -133,7 +144,14 @@ export function BivariateStatisticsPage() {
           <p className="univariate-notation">Rᵢ, Rⱼ: paired returns · μ: mean return · 𝔼: expected value</p>
         </div>
         <div className="bivariate-statistic__results">
-          {covarianceMatrix === null ? <p className="status-line">Compute bivariate statistics to populate the daily log-return covariance matrix.</p> : covarianceMatrix.labels.length > 0 ? <><p className="bivariate-statistic__matrix-caption">Daily log-return covariance matrix · {covarianceMatrix.observation_count.toLocaleString()} shared observations</p><table className="covariance-matrix"><thead><tr><th scope="col">ISIN</th>{covarianceMatrix.labels.map((label) => <th scope="col" key={label.isin} title={label.isin}>{label.label}</th>)}</tr></thead><tbody>{covarianceMatrix.labels.map((label, rowIndex) => <tr key={label.isin}><th scope="row" title={label.isin}>{label.label}</th>{covarianceMatrix.values[rowIndex].map((value, columnIndex) => <td key={`${label.isin}:${covarianceMatrix.labels[columnIndex].isin}`}>{metric(value)}</td>)}</tr>)}</tbody></table></> : <p className="status-line">No common log-return observations are available.</p>}
+          {covarianceMatrix === null ? <p className="status-line">Compute bivariate statistics to populate the daily log-return covariance matrix.</p> : covarianceMatrix.labels.length > 0 ? <>
+            <p className="bivariate-statistic__matrix-caption">Daily log-return covariance matrix · {covarianceMatrix.observation_count.toLocaleString()} shared observations</p>
+            <table className="covariance-matrix">
+              <thead><tr><th scope="col">ISIN</th>{covarianceMatrix.labels.map((label) => <th scope="col" key={label.isin} title={label.isin}>{label.label}</th>)}</tr></thead>
+              <tbody>{covarianceMatrix.labels.map((label, rowIndex) => <tr key={label.isin}><th scope="row" title={label.isin}>{label.label}</th>{covarianceMatrix.values[rowIndex].map((value, columnIndex) => <td key={`${label.isin}:${covarianceMatrix.labels[columnIndex].isin}`} title={`Covariance: ${metric(value)}`} style={{ backgroundColor: covarianceColor(value, covarianceExtent) }}>{metric(value)}</td>)}</tr>)}</tbody>
+            </table>
+            <p className="covariance-matrix__legend"><span className="covariance-matrix__legend-negative" /> Negative <span className="covariance-matrix__legend-neutral" /> Near zero <span className="covariance-matrix__legend-positive" /> Positive</p>
+          </> : <p className="status-line">No common log-return observations are available.</p>}
         </div>
       </section>
     </Panel>
