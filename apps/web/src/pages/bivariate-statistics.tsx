@@ -134,6 +134,8 @@ export function BivariateStatisticsPage() {
         <div className="bivariate-statistic__facts">
           <h3 id="covariance-title">Covariance</h3>
           <p>Joint variation of return series for every pair in the filtered ISIN universe.</p>
+          <p className="univariate-equation">Cov(Rᵢ, Rⱼ) = 𝔼[(Rᵢ − μᵢ)(Rⱼ − μⱼ)]</p>
+          <p className="univariate-notation">Rᵢ, Rⱼ: paired returns · μ: mean return · 𝔼: expected value</p>
           <dl>
             <div><dt>ISINs analysed</dt><dd>{diagnostics?.listing_count.toLocaleString() ?? "—"}</dd></div>
             <div><dt>Unique pairs</dt><dd>{diagnostics?.pair_count.toLocaleString() ?? "—"}</dd></div>
@@ -146,10 +148,6 @@ export function BivariateStatisticsPage() {
             <div><dt>Effective number of bets</dt><dd>{metric(diagnostics?.effective_number_of_bets)}</dd></div>
             <div><dt>Largest risk contribution</dt><dd>{diagnostics?.largest_equal_weight_risk_contribution == null ? "—" : `${(diagnostics.largest_equal_weight_risk_contribution * 100).toFixed(1)}%`}</dd></div>
           </dl>
-        </div>
-        <div className="bivariate-statistic__equation">
-          <p className="univariate-equation">Cov(Rᵢ, Rⱼ) = 𝔼[(Rᵢ − μᵢ)(Rⱼ − μⱼ)]</p>
-          <p className="univariate-notation">Rᵢ, Rⱼ: paired returns · μ: mean return · 𝔼: expected value</p>
         </div>
         <div className="bivariate-statistic__results">
           {covarianceMatrix === null ? <p className="status-line">Compute bivariate statistics to populate the daily log-return covariance matrix.</p> : covarianceMatrix.labels.length > 0 ? <>
