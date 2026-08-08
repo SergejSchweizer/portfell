@@ -29,6 +29,7 @@ from portfell.hosted_api_service_support import (
 )
 from portfell.hosted_api_state import AnalysisRecord, HostedApiState, SelectionRecord
 from portfell.hosted_research_workflow import (
+    FilterSelection,
     HostedResearchError,
     ResearchRun,
     create_bivariate_run,
@@ -368,7 +369,9 @@ class ResearchService:
         return self.analysis(user_id, run_id).report
 
 
-def _read_scoped_lake_rows(selection: SelectionRecord, *, dataset: str) -> tuple[JsonRow, ...]:
+def _read_scoped_lake_rows(
+    selection: SelectionRecord | FilterSelection, *, dataset: str
+) -> tuple[JsonRow, ...]:
     """Read durable selected quote or dividend rows after an API restart."""
 
     paths = _lake_paths()
