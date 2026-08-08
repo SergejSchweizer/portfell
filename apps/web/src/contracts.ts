@@ -204,6 +204,24 @@ export type ApiBivariateSummary = Readonly<{
     best_diversifier_listing?: string | null;
     best_diversifier_average?: number | null;
   }>;
+  spearman_diagnostics: Readonly<{
+    high_70_pairs: number;
+    high_90_pairs: number;
+    low_30_pairs: number;
+    negative_pairs: number;
+    percentile_10?: number | null;
+    percentile_50?: number | null;
+    percentile_90?: number | null;
+    average_pearson_gap?: number | null;
+    large_pearson_gap_pairs?: number;
+    most_correlated_listing?: string | null;
+    most_correlated_average?: number | null;
+    best_diversifier_listing?: string | null;
+    best_diversifier_average?: number | null;
+    average_rolling_stability?: number | null;
+    cluster_count?: number;
+    largest_cluster_size?: number;
+  }>;
 }>;
 
 export type ApiPairMetricMatrix = Readonly<{

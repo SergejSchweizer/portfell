@@ -27,7 +27,7 @@ from portfell.run_state import build_job_manifest, write_job_manifest
 from portfell.schemas import validate_rows
 from portfell.table_io import JsonRow, read_rows, write_rows
 
-_CURRENT_VERSION = "v2"
+_CURRENT_VERSION = "v3"
 
 
 def build_bivariate_statistics(
@@ -278,6 +278,9 @@ def _build_bivariate_pair_statistics(pair: PairObservation) -> JsonRow:
         "rolling_correlation_stability": _rolling_correlation_stability(
             pair.left_values, pair.right_values
         ),
+        "rolling_spearman_stability": _rolling_correlation_stability(
+            pair.left_values, pair.right_values, metric="spearman"
+        ),
         "drawdown_overlap_rate": _drawdown_overlap_rate(pair.left_values, pair.right_values),
     }
 
@@ -322,8 +325,10 @@ def _tail_coexceedance_rate(left: Sequence[float], right: Sequence[float]) -> fl
     return _ratio(joint_events, len(left))
 
 
-def _rolling_correlation_stability(left: Sequence[float], right: Sequence[float]) -> float:
-    """Standard deviation of sampled 60-observation rolling Pearson correlations."""
+def _rolling_correlation_stability(
+    left: Sequence[float], right: Sequence[float], *, metric: str = "pearson"
+) -> float:
+    """Standard deviation of sampled 60-observation rolling correlations."""
     if len(left) != len(right) or len(left) < 20:
         return 0.0
     window = min(60, len(left))
@@ -332,7 +337,7 @@ def _rolling_correlation_stability(left: Sequence[float], right: Sequence[float]
     if starts[-1] != len(left) - window:
         starts.append(len(left) - window)
     correlations = [
-        correlation_value(left[start : start + window], right[start : start + window], "pearson")
+        correlation_value(left[start : start + window], right[start : start + window], metric)
         for start in starts
     ]
     if len(correlations) < 2:

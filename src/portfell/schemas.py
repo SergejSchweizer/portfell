@@ -315,6 +315,7 @@ SCHEMAS: dict[str, tuple[str, ...]] = {
         "lower_tail_dependence",
         "tail_coexceedance_rate",
         "rolling_correlation_stability",
+        "rolling_spearman_stability",
         "drawdown_overlap_rate",
         "bucket",
     ),

@@ -267,6 +267,7 @@ class ResearchService:
             "lower_tail_dependence",
             "tail_coexceedance_rate",
             "rolling_correlation_stability",
+            "rolling_spearman_stability",
             "drawdown_overlap_rate",
         )
         return {
@@ -283,6 +284,7 @@ class ResearchService:
                 for name in metric_names
             },
             "pearson_diagnostics": _pearson_diagnostics(run.rows),
+            "spearman_diagnostics": _spearman_diagnostics(run.rows),
         }
 
     def bivariate_correlation_matrix(
@@ -545,6 +547,90 @@ def _pearson_diagnostics(rows: tuple[JsonRow, ...]) -> JsonRow:
             average_by_listing.get(best_diversifier) if best_diversifier else None
         ),
     }
+
+
+def _spearman_diagnostics(rows: tuple[JsonRow, ...]) -> JsonRow:
+    """Portfolio-selection facts from rank co-movement and its robustness gap."""
+
+    values = [
+        float(row["spearman_correlation"])
+        for row in rows
+        if row.get("spearman_correlation") is not None
+    ]
+    if not values:
+        return {"high_70_pairs": 0, "high_90_pairs": 0, "low_30_pairs": 0, "negative_pairs": 0}
+    ordered = sorted(values)
+    by_listing: dict[str, list[float]] = {}
+    edges: list[tuple[str, str]] = []
+    gaps: list[float] = []
+    for row in rows:
+        value = row.get("spearman_correlation")
+        if value is None:
+            continue
+        left_label = f"{row['left_code']}.{row['left_exchange']} · {row['left_isin']}"
+        right_label = f"{row['right_code']}.{row['right_exchange']} · {row['right_isin']}"
+        correlation = float(value)
+        by_listing.setdefault(left_label, []).append(correlation)
+        by_listing.setdefault(right_label, []).append(correlation)
+        if correlation >= 0.70:
+            edges.append((left_label, right_label))
+        pearson = row.get("pearson_correlation")
+        if pearson is not None:
+            gaps.append(correlation - float(pearson))
+    averages = {label: sum(items) / len(items) for label, items in by_listing.items() if items}
+    most_correlated = max(averages, key=averages.get) if averages else None
+    best_diversifier = min(averages, key=averages.get) if averages else None
+    clusters = _correlation_clusters(tuple(by_listing), edges)
+    rolling_values = [
+        float(row["rolling_spearman_stability"])
+        for row in rows
+        if row.get("rolling_spearman_stability") is not None
+    ]
+    return {
+        "high_70_pairs": sum(value >= 0.70 for value in values),
+        "high_90_pairs": sum(value >= 0.90 for value in values),
+        "low_30_pairs": sum(value <= 0.30 for value in values),
+        "negative_pairs": sum(value < 0.0 for value in values),
+        "percentile_10": _percentile(ordered, 0.10),
+        "percentile_50": _percentile(ordered, 0.50),
+        "percentile_90": _percentile(ordered, 0.90),
+        "average_pearson_gap": sum(gaps) / len(gaps) if gaps else None,
+        "large_pearson_gap_pairs": sum(abs(value) >= 0.15 for value in gaps),
+        "most_correlated_listing": most_correlated,
+        "most_correlated_average": averages.get(most_correlated) if most_correlated else None,
+        "best_diversifier_listing": best_diversifier,
+        "best_diversifier_average": averages.get(best_diversifier) if best_diversifier else None,
+        "average_rolling_stability": (
+            sum(rolling_values) / len(rolling_values) if rolling_values else None
+        ),
+        "cluster_count": len(clusters),
+        "largest_cluster_size": max((len(cluster) for cluster in clusters), default=0),
+    }
+
+
+def _correlation_clusters(
+    labels: tuple[str, ...], edges: list[tuple[str, str]]
+) -> tuple[tuple[str, ...], ...]:
+    """Connected components among pairs with rank correlation of at least 0.70."""
+
+    adjacency = {label: set() for label in labels}
+    for left, right in edges:
+        adjacency[left].add(right)
+        adjacency[right].add(left)
+    remaining = set(labels)
+    clusters: list[tuple[str, ...]] = []
+    while remaining:
+        seed = remaining.pop()
+        component = {seed}
+        frontier = [seed]
+        while frontier:
+            current = frontier.pop()
+            neighbours = adjacency[current] & remaining
+            frontier.extend(neighbours)
+            component.update(neighbours)
+            remaining.difference_update(neighbours)
+        clusters.append(tuple(sorted(component)))
+    return tuple(clusters)
 
 
 def _percentile(ordered_values: list[float], probability: float) -> float | None:
