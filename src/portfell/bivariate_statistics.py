@@ -359,9 +359,7 @@ def _rolling_correlation_stability(
     return sqrt(sum((value - mean) ** 2 for value in correlations) / (len(correlations) - 1))
 
 
-def _rolling_downside_correlation_stability(
-    left: Sequence[float], right: Sequence[float]
-) -> float:
+def _rolling_downside_correlation_stability(left: Sequence[float], right: Sequence[float]) -> float:
     if len(left) != len(right) or len(left) < 20:
         return 0.0
     window = min(60, len(left))
