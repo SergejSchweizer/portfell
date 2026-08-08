@@ -157,7 +157,9 @@ export function BivariateStatisticsPage() {
       cancelled = true;
       if (timeoutId !== undefined) window.clearTimeout(timeoutId);
     };
-  }, [run?.run_id, run?.status]);
+  // Keep the active poll alive while the status changes to complete, otherwise
+  // its matrix requests are cancelled by the effect cleanup before they render.
+  }, [run?.run_id]);
 
   if (workflow.status === "loading" || workflow.status === "idle") return <LoadingState label="Loading bivariate statistics" />;
   if (workflow.status === "error") return <p>Workflow state is unavailable.</p>;
