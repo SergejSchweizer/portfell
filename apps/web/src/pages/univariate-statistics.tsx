@@ -11,13 +11,13 @@ type MetricDefinition = Readonly<{ group: string; metric: string; label: string;
 type DividendFrequency = "accumulating" | "monthly" | "quarterly" | "semiannual" | "annual" | "unknown" | "irregular";
 
 const dividendFrequencyOptions: readonly Readonly<{ value: DividendFrequency; label: string }>[] = [
-  { value: "accumulating", label: "Keine" },
-  { value: "monthly", label: "Monatlich" },
-  { value: "quarterly", label: "Quartalsweise" },
-  { value: "semiannual", label: "Halbjährlich" },
-  { value: "annual", label: "Jährlich" },
-  { value: "unknown", label: "Unbekannt" },
-  { value: "irregular", label: "Unregelmäßig" },
+  { value: "accumulating", label: "None" },
+  { value: "monthly", label: "Monthly" },
+  { value: "quarterly", label: "Quarterly" },
+  { value: "semiannual", label: "Semi-annual" },
+  { value: "annual", label: "Annual" },
+  { value: "unknown", label: "Unknown" },
+  { value: "irregular", label: "Irregular" },
 ];
 
 const metricDefinitions: readonly MetricDefinition[] = [
@@ -65,6 +65,18 @@ function dividendFrequency(value: ApiUnivariateRow): DividendFrequency {
     : "unknown";
 }
 
+async function loadUnivariateResults(runId: string): Promise<readonly ApiUnivariateRow[]> {
+  const firstPage = await requestJson<ApiPage<ApiUnivariateRow>>(
+    `/api/univariate-statistics/runs/${runId}/results?limit=200&offset=0`,
+  );
+  const pages = await Promise.all(
+    Array.from({ length: Math.ceil(firstPage.total / 200) - 1 }, (_, index) => requestJson<ApiPage<ApiUnivariateRow>>(
+      `/api/univariate-statistics/runs/${runId}/results?limit=200&offset=${(index + 1) * 200}`,
+    )),
+  );
+  return [...firstPage.items, ...pages.flatMap((page) => page.items)];
+}
+
 function estimatedRemainingTime(startedAt: number | undefined, completed: number, total: number): string {
   if (!startedAt || completed <= 0 || total <= completed) return "";
   const elapsedMilliseconds = Date.now() - startedAt * 1_000;
@@ -82,7 +94,6 @@ export function UnivariateStatisticsPage() {
   const [run, setRun] = useState<ApiResearchRun | null>(null);
   const [results, setResults] = useState<readonly ApiUnivariateRow[] | null>(null);
   const [filterValues, setFilterValues] = useState<Record<string, string>>({});
-  const [selectedDividendFrequency, setSelectedDividendFrequency] = useState<DividendFrequency>("accumulating");
   const [message, setMessage] = useState("");
   const [quoteStatus, setQuoteStatus] = useState<"idle" | "running" | "complete" | "failed">("idle");
   const [quoteProgress, setQuoteProgress] = useState(0);
@@ -91,13 +102,15 @@ export function UnivariateStatisticsPage() {
   const workflowQuoteRunId = workflow.status === "ready"
     ? workflow.data.stages.metadata_filter.quote_run_id ?? null
     : null;
+  const workflowUnivariateRunId = workflow.status === "ready"
+    ? workflow.data.stages.univariate_statistics.univariate_run_id ?? null
+    : null;
 
   useEffect(() => {
     const resetProjectState = () => {
       setRun(null);
       setResults(null);
       setFilterValues({});
-      setSelectedDividendFrequency("accumulating");
       setMessage("");
       setQuoteStatus("idle");
       setQuoteProgress(0);
@@ -159,6 +172,66 @@ export function UnivariateStatisticsPage() {
     setQuoteMessage("Restoring the current historical-data download status…");
   }, [quoteRunId, workflowQuoteRunId]);
 
+  useEffect(() => {
+    if (!workflowUnivariateRunId || results !== null) return;
+    const restoredRunId = workflowUnivariateRunId;
+    let cancelled = false;
+
+    async function restoreUnivariateResults() {
+      try {
+        const [restoredRun, restoredResults] = await Promise.all([
+          requestJson<ApiResearchRun>(`/api/univariate-statistics/runs/${restoredRunId}`),
+          loadUnivariateResults(restoredRunId),
+        ]);
+        if (cancelled) return;
+        setRun(restoredRun);
+        setResults(restoredResults);
+        setMessage(`${restoredResults.length.toLocaleString()} listings restored.`);
+      } catch (error) {
+        if (cancelled) return;
+        setMessage(error instanceof Error ? error.message : "Could not restore univariate statistics.");
+      }
+    }
+
+    void restoreUnivariateResults();
+    return () => { cancelled = true; };
+  }, [results, workflowUnivariateRunId]);
+
+  useEffect(() => {
+    if (!run || run.status !== "running") return;
+    const activeRunId = run.run_id;
+    let cancelled = false;
+    let timeoutId: number | undefined;
+    async function pollUnivariateRun() {
+      try {
+        const current = await requestJson<ApiResearchRun>(`/api/univariate-statistics/runs/${activeRunId}`);
+        if (cancelled) return;
+        setRun(current);
+        if (current.status === "running") {
+          setMessage(`${current.completed.toLocaleString()} of ${current.total.toLocaleString()} listings computed.`);
+          timeoutId = window.setTimeout(() => void pollUnivariateRun(), 750);
+          return;
+        }
+        if (current.status === "failed") {
+          setMessage("Univariate computation failed. Please try again.");
+          return;
+        }
+        const computedRows = await loadUnivariateResults(current.run_id);
+        if (cancelled) return;
+        setResults(computedRows);
+        setMessage(`${computedRows.length.toLocaleString()} listings computed.`);
+        window.dispatchEvent(new Event("portfell:workflow-updated"));
+      } catch (error) {
+        if (!cancelled) setMessage(error instanceof Error ? error.message : "Could not retrieve univariate computation status.");
+      }
+    }
+    void pollUnivariateRun();
+    return () => {
+      cancelled = true;
+      if (timeoutId !== undefined) window.clearTimeout(timeoutId);
+    };
+  }, [run]);
+
   if (workflow.status === "loading" || workflow.status === "idle") {
     return <LoadingState label="Loading univariate statistics" />;
   }
@@ -169,7 +242,20 @@ export function UnivariateStatisticsPage() {
     ...option,
     count: results?.filter((row) => dividendFrequency(row) === option.value).length ?? 0,
   }));
-  const dividendFrequencyMaximum = Math.max(...dividendFrequencyCounts.map(({ count }) => count), 1);
+  const annualDividendYields = results?.flatMap((row) => {
+    const value = Number(row.annual_dividend_yield ?? 0) * 100;
+    return Number.isFinite(value) && value >= 0 ? [value] : [];
+  }) ?? [];
+  const annualDividendYieldMaximum = Math.max(...annualDividendYields, 1);
+  const annualDividendHistogram = Array.from({ length: 8 }, (_, index) => {
+    const lower = (index / 8) * annualDividendYieldMaximum;
+    const upper = ((index + 1) / 8) * annualDividendYieldMaximum;
+    const count = annualDividendYields.filter((value) => index === 7
+      ? value >= lower && value <= upper
+      : value >= lower && value < upper).length;
+    return { label: `${lower.toFixed(1)}–${upper.toFixed(1)}%`, count };
+  });
+  const annualDividendHistogramMaximum = Math.max(...annualDividendHistogram.map(({ count }) => count), 1);
 
   async function compute() {
     if (!metadata.metadata_selection_id || !metadata.quote_run_id) return;
@@ -180,18 +266,8 @@ export function UnivariateStatisticsPage() {
         quote_run_id: metadata.quote_run_id,
       });
       setRun(nextRun);
-      const firstPage = await requestJson<ApiPage<ApiUnivariateRow>>(
-        `/api/univariate-statistics/runs/${nextRun.run_id}/results?limit=200&offset=0`,
-      );
-      const pages = await Promise.all(
-        Array.from({ length: Math.ceil(firstPage.total / 200) - 1 }, (_, index) => requestJson<ApiPage<ApiUnivariateRow>>(
-          `/api/univariate-statistics/runs/${nextRun.run_id}/results?limit=200&offset=${(index + 1) * 200}`,
-        )),
-      );
-      const computedRows = [...firstPage.items, ...pages.flatMap((page) => page.items)];
-      setResults(computedRows);
-      setMessage(`${computedRows.length.toLocaleString()} listings computed.`);
-      window.dispatchEvent(new Event("portfell:workflow-updated"));
+      setResults(null);
+      setMessage(`${nextRun.completed.toLocaleString()} of ${nextRun.total.toLocaleString()} listings computed.`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Univariate computation failed.");
     }
@@ -247,29 +323,28 @@ export function UnivariateStatisticsPage() {
               </Button>
             </div>
           </div>
+          <section className="dividend-statistic" aria-labelledby="dividend-statistic-title">
+            <div className="dividend-statistic__details">
+              <div>
+                <h3 id="dividend-statistic-title">Dividends</h3>
+                <p>Distribution frequency and trailing annual dividend yield by ISIN.</p>
+              </div>
+              <ul className="dividend-frequency-list" aria-label="Dividend payout frequencies">
+                {dividendFrequencyCounts.map(({ value, label, count }) => <li key={value}>
+                  <span>{label}</span><strong>{results && results.length > 0 ? `${((count / results.length) * 100).toFixed(1)}%` : "0.0%"}</strong><small>{count} ISINs</small>
+                </li>)}
+              </ul>
+            </div>
+            {results === null ? <p className="status-line">Compute univariate statistics to populate this histogram.</p> : <div className="dividend-histogram" role="img" aria-label={`Annual dividend yield distribution for ${results.length} ISINs`}>
+              {annualDividendHistogram.map(({ label, count }) => <div className="dividend-histogram__bar" key={label}>
+                <span className="dividend-histogram__count">{count}</span>
+                <span className="dividend-histogram__column" style={{ height: `${count === 0 ? 4 : Math.max(12, (count / annualDividendHistogramMaximum) * 100)}%` }} />
+                <span className="dividend-histogram__label">{label}</span>
+              </div>)}
+            </div>}
+          </section>
           {results && results.length > 0 ? (
             <>
-              <section className="dividend-statistic" aria-labelledby="dividend-statistic-title">
-                <div className="dividend-statistic__header">
-                  <div>
-                    <h3 id="dividend-statistic-title">Dividends</h3>
-                    <p>Dividend payout frequency by ISIN.</p>
-                  </div>
-                  <label>
-                    Payout frequency
-                    <select value={selectedDividendFrequency} onChange={(event) => setSelectedDividendFrequency(event.target.value as DividendFrequency)}>
-                      {dividendFrequencyOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                    </select>
-                  </label>
-                </div>
-                <div className="dividend-histogram" role="img" aria-label={`Dividend payout frequency for ${results.length} ISINs; ${dividendFrequencyCounts.map(({ label, count }) => `${label}: ${count}`).join(", ")}`}>
-                  {dividendFrequencyCounts.map(({ value, label, count }) => <div className="dividend-histogram__bar" key={value} data-selected={value === selectedDividendFrequency}>
-                    <span className="dividend-histogram__count">{count}</span>
-                    <span className="dividend-histogram__column" style={{ height: `${count === 0 ? 4 : Math.max(12, (count / dividendFrequencyMaximum) * 100)}%` }} />
-                    <span className="dividend-histogram__label">{label}</span>
-                  </div>)}
-                </div>
-              </section>
               <div className="univariate-metric-table">
                 <table>
                   <thead><tr><th>Statistic</th><th>Description</th><th>Equation</th><th>Distribution</th><th>Filter value</th></tr></thead>

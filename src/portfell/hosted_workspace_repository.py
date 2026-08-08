@@ -8,6 +8,7 @@ from typing import cast
 
 from portfell.entitlements import ProviderDownloadRun, RunStatus
 from portfell.hosted_api_state import HostedApiState, ProjectRecord, SelectionRecord
+from portfell.hosted_research_workflow import ResearchRun
 
 
 def persist_local_workspace(state: HostedApiState) -> None:
@@ -50,6 +51,20 @@ def persist_local_workspace(state: HostedApiState) -> None:
             "quote_rows_by_run_id": {
                 run_id: list(rows) for run_id, rows in state.quote_rows_by_run_id.items()
             },
+            "univariate_runs": [
+                {
+                    "run_id": run.run_id,
+                    "user_id": run.user_id,
+                    "source_id": run.source_id,
+                    "status": run.status,
+                    "rows": list(run.rows),
+                    "total": run.total,
+                    "completed": run.completed,
+                    "failed": run.failed,
+                    "quote_run_id": state.quote_run_by_univariate_run_id.get(run.run_id, ""),
+                }
+                for run in state.univariate_runs_by_id.values()
+            ],
             "idempotency_refs": [
                 {
                     "user_id": user_id,
@@ -104,6 +119,7 @@ def restore_local_workspace(state: HostedApiState, payload: Mapping[str, object]
     )
     state.metadata_revisions_by_user = _string_map(payload.get("metadata_revisions_by_user", {}))
     _restore_quote_runs(state, payload)
+    _restore_univariate_runs(state, payload)
 
 
 def _restore_quote_runs(state: HostedApiState, payload: Mapping[str, object]) -> None:
@@ -170,6 +186,34 @@ def _restore_quote_runs(state: HostedApiState, payload: Mapping[str, object]) ->
     }
 
 
+def _restore_univariate_runs(state: HostedApiState, payload: Mapping[str, object]) -> None:
+    """Restore completed project-scoped statistics and their source quote run."""
+
+    for item in _object_list(payload.get("univariate_runs", []), "univariate runs"):
+        row = _mapping(item, "univariate run")
+        status = _text(row, "status")
+        if status not in {"running", "complete", "failed"}:
+            raise ValueError("local workspace univariate run status is invalid")
+        run = ResearchRun(
+            run_id=_text(row, "run_id"),
+            user_id=_text(row, "user_id"),
+            source_id=_text(row, "source_id"),
+            status=cast(RunStatus, "failed" if status == "running" else status),
+            rows=tuple(
+                dict(_mapping(value, "univariate statistic"))
+                for value in _object_list(row.get("rows", []), "univariate statistics")
+            ),
+            total=_integer(row, "total"),
+            completed=_integer(row, "completed"),
+            failed=(
+                _integer(row, "total") if status == "running" else _integer(row, "failed")
+            ),
+        )
+        quote_run_id = _text(row, "quote_run_id")
+        state.univariate_runs_by_id[run.run_id] = run
+        state.quote_run_by_univariate_run_id[run.run_id] = quote_run_id
+
+
 def _text(row: Mapping[str, object], key: str) -> str:
     value = row.get(key)
     if not isinstance(value, str) or not value:
@@ -208,4 +252,11 @@ def _mapping(value: object, label: str) -> Mapping[str, object]:
 def _text_key(value: object, label: str) -> str:
     if not isinstance(value, str) or not value:
         raise ValueError(f"local workspace {label} key is invalid")
+    return value
+
+
+def _integer(row: Mapping[str, object], key: str) -> int:
+    value = row.get(key)
+    if not isinstance(value, int) or value < 0:
+        raise ValueError(f"local workspace {key} is invalid")
     return value

@@ -947,6 +947,9 @@ def test_scoped_research_runs_filter_and_build_unique_pairs() -> None:
     }
     univariate = _json(client.post("/univariate-statistics/runs", headers=_headers(), json=request))
     repeated = _json(client.post("/univariate-statistics/runs", headers=_headers(), json=request))
+    univariate_status = _json(
+        client.get(f"/univariate-statistics/runs/{univariate['run_id']}", headers=_headers())
+    )
     filtered = _json(
         client.post(
             "/univariate-filter",
@@ -967,8 +970,8 @@ def test_scoped_research_runs_filter_and_build_unique_pairs() -> None:
         )
     )["items"]
 
-    assert repeated == univariate
-    assert univariate["status"] == "complete"
+    assert repeated["run_id"] == univariate["run_id"]
+    assert univariate_status["status"] == "complete"
     assert filtered["input_count"] == filtered["selected_count"] == 3
     assert filtered["excluded_count"] == 0
     assert plan["theoretical_pair_count"] == 3

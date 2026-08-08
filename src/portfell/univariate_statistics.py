@@ -65,6 +65,10 @@ def build_univariate_statistics(
         raise ValueError("confidence_level must be in (0, 1)")
 
     distributions_by_listing = _index_distribution_events(dividend_rows)
+    dividends_by_listing: dict[tuple[str, str, str], list[Mapping[str, Any]]] = {}
+    for row in dividend_rows:
+        key = (str(row["isin"]), str(row["exchange"]), str(row["code"]))
+        dividends_by_listing.setdefault(key, []).append(row)
     quotes_by_listing: dict[tuple[str, str, str], list[Mapping[str, Any]]] = {}
     for row in quote_rows:
         key = (str(row["isin"]), str(row["exchange"]), str(row["code"]))
@@ -75,6 +79,7 @@ def build_univariate_statistics(
             key,
             tuple(dict(row) for row in quotes),
             distributions_by_listing.get(key, ()),
+            tuple(dict(row) for row in dividends_by_listing.get(key, ())),
             confidence_level,
         )
         for key, quotes in sorted(quotes_by_listing.items())
@@ -185,10 +190,11 @@ def _build_univariate_listing_statistics(
         tuple[str, str, str],
         tuple[Mapping[str, Any], ...],
         Sequence[date],
+        Sequence[Mapping[str, Any]],
         float,
     ],
 ) -> JsonRow:
-    (isin, exchange, code), quotes, distribution_dates, confidence_level = task
+    (isin, exchange, code), quotes, distribution_dates, dividend_rows, confidence_level = task
     ordered_quotes = sorted(quotes, key=lambda row: str(row["date"]))
     ordered_returns = build_quote_returns(ordered_quotes)
     returns = [float(row["return"]) for row in ordered_returns]
@@ -212,6 +218,7 @@ def _build_univariate_listing_statistics(
     tail_risk = _tail_risk(returns, confidence_level)
     log_price_trend = _log_price_trend(adjusted_closes)
     distribution = _distribution_features(distribution_dates)
+    annual_dividend = _annual_dividend_features(dividend_rows, last_quote_date, last_close)
     quality = evaluate_quote_quality(ordered_quotes)
     return {
         "isin": isin,
@@ -264,6 +271,8 @@ def _build_univariate_listing_statistics(
         "distribution_events_per_year": distribution["distribution_events_per_year"],
         "last_distribution_date": distribution["last_distribution_date"],
         "distribution_observation_count": distribution["distribution_observation_count"],
+        "annual_dividend_amount": annual_dividend["annual_dividend_amount"],
+        "annual_dividend_yield": annual_dividend["annual_dividend_yield"],
         "quarantined_price_count": quality["quarantined_price_count"],
         "non_positive_price_detected": quality["non_positive_price_detected"],
         "duplicate_date_detected": quality["duplicate_date_detected"],
@@ -321,6 +330,28 @@ def _distribution_features(distribution_dates: Sequence[date]) -> JsonRow:
         "distribution_events_per_year": events_per_year,
         "last_distribution_date": distribution_dates[-1].isoformat(),
         "distribution_observation_count": observation_count,
+    }
+
+
+def _annual_dividend_features(
+    dividend_rows: Sequence[Mapping[str, Any]],
+    last_quote_date: str,
+    last_close: float,
+) -> JsonRow:
+    """Return trailing-twelve-month cash dividends and yield for one listing."""
+
+    end_date = date.fromisoformat(last_quote_date)
+    start_ordinal = end_date.toordinal() - 365
+    amount = sum(
+        float(row.get("value", row.get("unadjustedValue", 0.0)) or 0.0)
+        for row in dividend_rows
+        if row.get("date")
+        and start_ordinal < date.fromisoformat(str(row["date"])).toordinal() <= end_date.toordinal()
+        and float(row.get("value", row.get("unadjustedValue", 0.0)) or 0.0) > 0
+    )
+    return {
+        "annual_dividend_amount": amount,
+        "annual_dividend_yield": 0.0 if last_close <= 0 else amount / last_close,
     }
 
 

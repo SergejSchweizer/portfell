@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from fastapi import APIRouter, Depends, Header
+from fastapi import APIRouter, BackgroundTasks, Depends, Header
 
 from portfell.hosted_api_contracts import (
     AnalysisCreateRequest,
@@ -32,14 +32,24 @@ def research_router(
 
     @router.post("/univariate-statistics/runs")
     def start_univariate(
-        payload: UnivariateRunRequest, user: ApiUser = Depends(workspace_user)
+        payload: UnivariateRunRequest,
+        background_tasks: BackgroundTasks,
+        user: ApiUser = Depends(workspace_user),
     ) -> JsonRow:
-        return call(
+        row = call(
             service.start_univariate,
             user.user_id,
             payload.metadata_selection_id,
             payload.quote_run_id,
         )
+        if row["status"] == "running":
+            background_tasks.add_task(
+                service.complete_univariate,
+                user.user_id,
+                payload.metadata_selection_id,
+                payload.quote_run_id,
+            )
+        return row
 
     @router.get("/univariate-statistics/runs/{run_id}")
     def univariate_status(run_id: str, user: ApiUser = Depends(current_user)) -> JsonRow:

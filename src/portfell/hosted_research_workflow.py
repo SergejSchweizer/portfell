@@ -52,18 +52,46 @@ class FilterSelection:
 
 
 def create_univariate_run(
-    *, user_id: str, selection_id: str, quote_run_id: str, quote_rows: Sequence[Mapping[str, Any]]
+    *,
+    user_id: str,
+    selection_id: str,
+    quote_run_id: str,
+    quote_rows: Sequence[Mapping[str, Any]],
+    dividend_rows: Sequence[Mapping[str, Any]] = (),
 ) -> ResearchRun:
     """Compute univariate rows from already scoped quote rows."""
 
+    rows = tuple(
+        build_univariate_statistics(
+            quote_rows,
+            dividend_rows=dividend_rows,
+            concurrency=1,
+        )
+    )
+    return create_univariate_run_from_statistics(
+        user_id=user_id,
+        selection_id=selection_id,
+        quote_run_id=quote_run_id,
+        rows=rows,
+    )
+
+
+def create_univariate_run_from_statistics(
+    *,
+    user_id: str,
+    selection_id: str,
+    quote_run_id: str,
+    rows: Sequence[Mapping[str, Any]],
+) -> ResearchRun:
+    """Create a deterministic run from already computed per-listing rows."""
+
     source = _stable_hash({"selection_id": selection_id, "quote_run_id": quote_run_id})
-    rows = tuple(build_univariate_statistics(quote_rows, concurrency=1))
     return ResearchRun(
         run_id=_opaque_id("univariate-run", f"{user_id}:{source}"),
         user_id=user_id,
         source_id=source,
         status="complete",
-        rows=rows,
+        rows=tuple(dict(row) for row in rows),
         total=len(rows),
         completed=len(rows),
     )
