@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Literal
 
@@ -152,20 +152,27 @@ def create_filter_selection(
     )
 
 
-def create_full_univariate_selection(*, user_id: str, run: ResearchRun) -> FilterSelection:
-    """Select every completed univariate row for the bivariate stage."""
+def create_full_univariate_selection(
+    *, user_id: str, run: ResearchRun, rows: Sequence[Mapping[str, Any]] | None = None
+) -> FilterSelection:
+    """Create the bivariate input selection from completed univariate rows."""
 
-    rows = tuple(dict(row) for row in run.rows)
-    member_ids = tuple(sorted(_listing_id(row) for row in rows))
-    identity = _stable_hash({"source_run_id": run.run_id, "selection": "all"})
+    selected_rows = tuple(dict(row) for row in (run.rows if rows is None else rows))
+    member_ids = tuple(sorted(_listing_id(row) for row in selected_rows))
+    identity = _stable_hash(
+        {
+            "source_run_id": run.run_id,
+            "selection": "all" if rows is None else list(member_ids),
+        }
+    )
     return FilterSelection(
         selection_id=_opaque_id("univariate-filter", f"{user_id}:{identity}"),
         user_id=user_id,
         source_run_id=run.run_id,
         member_ids=member_ids,
         predicates=(),
-        rows=rows,
-        input_count=len(rows),
+        rows=selected_rows,
+        input_count=len(selected_rows),
     )
 
 
@@ -190,6 +197,7 @@ def create_bivariate_run(
     selection: FilterSelection,
     quote_rows: Sequence[Mapping[str, Any]],
     max_pair_count: int = DEFAULT_MAX_PAIR_COUNT,
+    on_progress: Callable[[int, int], None] | None = None,
 ) -> ResearchRun:
     """Compute pair statistics from quote rows restricted to selected listings."""
 
@@ -200,7 +208,10 @@ def create_bivariate_run(
     scoped_quotes = tuple(row for row in quote_rows if _listing_id(row) in members)
     rows = tuple(
         build_bivariate_statistics(
-            build_returns(scoped_quotes), concurrency=1, max_pair_count=max_pair_count
+            build_returns(scoped_quotes),
+            concurrency=None,
+            max_pair_count=max_pair_count,
+            on_progress=on_progress,
         )
     )
     ordered = tuple(

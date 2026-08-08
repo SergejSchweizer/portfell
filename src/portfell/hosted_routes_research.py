@@ -99,13 +99,21 @@ def research_router(
     @router.post("/bivariate-statistics/runs")
     def start_bivariate(
         payload: BivariateSelectionRequest,
+        background_tasks: BackgroundTasks,
         user: ApiUser = Depends(workspace_user),
     ) -> JsonRow:
-        return call(
+        row = call(
             service.start_bivariate,
             user.user_id,
             payload.univariate_filter_selection_id,
         )
+        if row["status"] == "running":
+            background_tasks.add_task(
+                service.complete_bivariate,
+                user.user_id,
+                payload.univariate_filter_selection_id,
+            )
+        return row
 
     @router.get("/bivariate-statistics/runs/{run_id}")
     def bivariate_status(run_id: str, user: ApiUser = Depends(current_user)) -> JsonRow:
@@ -119,6 +127,10 @@ def research_router(
         offset: int = 0,
     ) -> JsonRow:
         return call(service.bivariate_results, user.user_id, run_id, limit, offset)
+
+    @router.get("/bivariate-statistics/runs/{run_id}/covariance-matrix")
+    def bivariate_covariance_matrix(run_id: str, user: ApiUser = Depends(current_user)) -> JsonRow:
+        return call(service.bivariate_covariance_matrix, user.user_id, run_id)
 
     @router.post("/analyses")
     def create_analysis(

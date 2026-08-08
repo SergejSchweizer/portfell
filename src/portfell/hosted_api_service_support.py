@@ -295,11 +295,17 @@ def workflow_row(
     filtered = _filter_selection(
         state, None if univariate_run is None else univariate_run.run_id, user_id
     )
-    if univariate_run is not None and univariate_run.status == "complete" and filtered is None:
-        filtered = create_full_univariate_selection(user_id=user_id, run=univariate_run)
-        state.filter_selections_by_id.setdefault(filtered.selection_id, filtered)
-        state.current_filter_selection_by_user[user_id] = filtered.selection_id
-        persist_local_workspace(state)
+    if univariate_run is not None and univariate_run.status == "complete":
+        selected_for_bivariate = create_full_univariate_selection(
+            user_id=user_id, run=univariate_run, rows=selected_univariate_rows
+        )
+        if filtered is None or filtered.selection_id != selected_for_bivariate.selection_id:
+            state.filter_selections_by_id.setdefault(
+                selected_for_bivariate.selection_id, selected_for_bivariate
+            )
+            state.current_filter_selection_by_user[user_id] = selected_for_bivariate.selection_id
+            persist_local_workspace(state)
+        filtered = selected_for_bivariate
     bivariate_run = _bivariate_run(state, filtered, user_id)
     return {
         "stages": resolve_workflow(

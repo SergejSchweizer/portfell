@@ -137,7 +137,7 @@ function ShellFrameContent({ currentPage, children }: ShellFrameProps) {
       <header className="app-header">
         <div>
           <strong className="brand">Portfell</strong>
-          <span className="brand-subtitle">Four-stage statistics workflow</span>
+          <span className="brand-subtitle">Portfolio Research Engine</span>
           <div className="process-overview" aria-label="Process overview">
             <div className="process-overview__step" data-complete={workflow.status === "ready" && workflow.data.process_overview?.metadata_downloaded_isins ? "true" : "false"}>
               <small>1 · Metadata download</small>

@@ -4,7 +4,7 @@ import { loadWorkflow, postJson, requestJson } from "../api/client";
 import { Button } from "../components/button";
 import { LoadingState } from "../components/loading-state";
 import { Panel } from "../components/panel";
-import type { ApiBivariateRow, ApiPage, ApiPairPlan, ApiResearchRun } from "../contracts";
+import type { ApiBivariateRow, ApiCovarianceMatrix, ApiPage, ApiPairPlan, ApiResearchRun } from "../contracts";
 import { useResource } from "../hooks/use-resource";
 
 function metric(value: number | null | undefined): string {
@@ -14,16 +14,16 @@ function metric(value: number | null | undefined): string {
 export function BivariateStatisticsPage() {
   const [workflowRevision, setWorkflowRevision] = useState(0);
   const workflow = useResource(loadWorkflow, [workflowRevision]);
-  const [plan, setPlan] = useState<ApiPairPlan | null>(null);
   const [run, setRun] = useState<ApiResearchRun | null>(null);
   const [results, setResults] = useState<ApiPage<ApiBivariateRow> | null>(null);
+  const [covarianceMatrix, setCovarianceMatrix] = useState<ApiCovarianceMatrix | null>(null);
   const [message, setMessage] = useState("");
 
   useEffect(() => {
     const resetProjectState = () => {
-      setPlan(null);
       setRun(null);
       setResults(null);
+      setCovarianceMatrix(null);
       setMessage("");
       setWorkflowRevision((value) => value + 1);
     };
@@ -31,40 +31,102 @@ export function BivariateStatisticsPage() {
     return () => window.removeEventListener("portfell:project-updated", resetProjectState);
   }, []);
 
+  useEffect(() => {
+    if (!run || run.status !== "running") return;
+    const activeRunId = run.run_id;
+    let cancelled = false;
+    let timeoutId: number | undefined;
+    async function pollBivariateRun() {
+      try {
+        const current = await requestJson<ApiResearchRun>(`/api/bivariate-statistics/runs/${activeRunId}`);
+        if (cancelled) return;
+        setRun(current);
+        if (current.status === "running") {
+          setMessage(`${current.completed.toLocaleString()} of ${current.total.toLocaleString()} pair statistics computed.`);
+          timeoutId = window.setTimeout(() => void pollBivariateRun(), 750);
+          return;
+        }
+        if (current.status === "failed") {
+          setMessage("Bivariate computation failed. Please try again.");
+          return;
+        }
+        const [page, matrix] = await Promise.all([
+          requestJson<ApiPage<ApiBivariateRow>>(`/api/bivariate-statistics/runs/${current.run_id}/results?limit=50&offset=0`),
+          requestJson<ApiCovarianceMatrix>(`/api/bivariate-statistics/runs/${current.run_id}/covariance-matrix`),
+        ]);
+        if (cancelled) return;
+        setResults(page);
+        setCovarianceMatrix(matrix);
+        setMessage(`${page.total.toLocaleString()} pair statistics computed.`);
+        window.dispatchEvent(new Event("portfell:workflow-updated"));
+      } catch (error) {
+        if (!cancelled) setMessage(error instanceof Error ? error.message : "Could not retrieve bivariate computation status.");
+      }
+    }
+    void pollBivariateRun();
+    return () => {
+      cancelled = true;
+      if (timeoutId !== undefined) window.clearTimeout(timeoutId);
+    };
+  }, [run?.run_id, run?.status]);
+
   if (workflow.status === "loading" || workflow.status === "idle") return <LoadingState label="Loading bivariate statistics" />;
   if (workflow.status === "error") return <p>Workflow state is unavailable.</p>;
   const selectionId = workflow.data.stages.univariate_filter.univariate_filter_selection_id;
   if (!selectionId) {
-    return <Panel title="Bivariate Statistics"><p>Complete a non-empty <a href="/univariate-filter">Univariate Filter</a> selection first.</p></Panel>;
-  }
-
-  async function createPlan() {
-    const nextPlan = await postJson<ApiPairPlan>("/api/bivariate-statistics/plan", { univariate_filter_selection_id: selectionId });
-    setPlan(nextPlan);
-    setMessage(nextPlan.allowed ? `${nextPlan.theoretical_pair_count} pairs are ready.` : `Pair count exceeds the ${nextPlan.pair_limit} limit or has fewer than two listings.`);
+    return <Panel title="Bivariate Statistics"><p>Complete univariate statistics and select at least two ISINs first.</p></Panel>;
   }
 
   async function compute() {
-    setMessage("Computing pair statistics…");
+    setMessage("Planning bivariate statistics…");
     try {
+      const nextPlan = await postJson<ApiPairPlan>("/api/bivariate-statistics/plan", { univariate_filter_selection_id: selectionId });
+      if (!nextPlan.allowed) {
+        setMessage(`Pair count exceeds the ${nextPlan.pair_limit} limit or has fewer than two selected ISINs.`);
+        return;
+      }
+      setMessage("Computing bivariate statistics…");
       const nextRun = await postJson<ApiResearchRun>("/api/bivariate-statistics/runs", { univariate_filter_selection_id: selectionId });
       setRun(nextRun);
-      const page = await requestJson<ApiPage<ApiBivariateRow>>(`/api/bivariate-statistics/runs/${nextRun.run_id}/results?limit=50&offset=0`);
-      setResults(page);
-      setMessage(`${page.total} pair rows computed.`);
-      window.dispatchEvent(new Event("portfell:workflow-updated"));
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Bivariate computation failed.");
     }
   }
 
+  const covarianceRows = results?.items.filter((row) => row.covariance != null) ?? [];
+  const averageCovariance = covarianceRows.length === 0
+    ? null
+    : covarianceRows.reduce((total, row) => total + (row.covariance ?? 0), 0) / covarianceRows.length;
+  const positiveCovarianceCount = covarianceRows.filter((row) => (row.covariance ?? 0) > 0).length;
+
   return (
     <Panel title="Bivariate Statistics">
-      <Button type="button" onClick={() => void createPlan()}>Plan pairs</Button>
-      <Button type="button" variant="primary" disabled={!plan?.allowed || run?.status === "running"} onClick={() => void compute()}>Compute bivariate statistics</Button>
-      <p aria-live="polite">{message}</p>
-      {run && <progress max={100} value={run.percent} aria-label="Bivariate progress" />}
-      {results && results.items.length > 0 ? <table><thead><tr><th>Left</th><th>Right</th><th>Observations</th><th>Pearson</th><th>Spearman</th><th>Covariance</th><th>β L→R</th><th>β R→L</th></tr></thead><tbody>{results.items.map((row) => <tr key={`${row.left_isin}:${row.left_exchange}:${row.left_code}:${row.right_isin}:${row.right_exchange}:${row.right_code}`}><td>{row.left_code}.{row.left_exchange}</td><td>{row.right_code}.{row.right_exchange}</td><td>{row.n_observations}</td><td>{metric(row.pearson_correlation)}</td><td>{metric(row.spearman_correlation)}</td><td>{metric(row.covariance)}</td><td>{metric(row.left_beta_to_right)}</td><td>{metric(row.right_beta_to_left)}</td></tr>)}</tbody></table> : results ? <p>No pair rows are available.</p> : null}
+      <div className="quote-fetch quote-fetch--panel bivariate-compute">
+        <label htmlFor="bivariate-progress">Bivariate statistics progress</label>
+        <progress id="bivariate-progress" max={100} value={run?.percent ?? 0} />
+        <p className="status-line" aria-live="polite">{message || "Compute statistics for the ISINs selected in univariate statistics."}</p>
+        <div className="quote-fetch__action">
+          <Button type="button" variant="primary" disabled={run?.status === "running"} onClick={() => void compute()}>
+            {run?.status === "running" ? "Computing…" : "Compute Bivariate Statistics"}
+          </Button>
+        </div>
+      </div>
+      <section className="bivariate-statistic" aria-labelledby="covariance-title">
+        <div className="bivariate-statistic__facts">
+          <h3 id="covariance-title">Covariance</h3>
+          <p>Joint variation of return series for every pair in the filtered ISIN universe.</p>
+          <dl>
+            <div><dt>Pairs analysed</dt><dd>{covarianceRows.length.toLocaleString()}</dd></div>
+            <div><dt>Average covariance</dt><dd>{averageCovariance === null ? "—" : metric(averageCovariance)}</dd></div>
+            <div><dt>Positive covariance</dt><dd>{covarianceRows.length === 0 ? "—" : `${((positiveCovarianceCount / covarianceRows.length) * 100).toFixed(1)}%`}</dd></div>
+          </dl>
+          <p className="univariate-equation">Cov(Rᵢ, Rⱼ) = 𝔼[(Rᵢ − μᵢ)(Rⱼ − μⱼ)]</p>
+          <p className="univariate-notation">Rᵢ, Rⱼ: paired returns · μ: mean return · 𝔼: expected value</p>
+        </div>
+        <div className="bivariate-statistic__results">
+          {covarianceMatrix === null ? <p className="status-line">Compute bivariate statistics to populate the daily log-return covariance matrix.</p> : covarianceMatrix.labels.length > 0 ? <><p className="bivariate-statistic__matrix-caption">Daily log-return covariance matrix · {covarianceMatrix.observation_count.toLocaleString()} shared observations</p><table className="covariance-matrix"><thead><tr><th scope="col">ISIN</th>{covarianceMatrix.labels.map((label) => <th scope="col" key={label.isin} title={label.isin}>{label.label}</th>)}</tr></thead><tbody>{covarianceMatrix.labels.map((label, rowIndex) => <tr key={label.isin}><th scope="row" title={label.isin}>{label.label}</th>{covarianceMatrix.values[rowIndex].map((value, columnIndex) => <td key={`${label.isin}:${covarianceMatrix.labels[columnIndex].isin}`}>{metric(value)}</td>)}</tr>)}</tbody></table></> : <p className="status-line">No common log-return observations are available.</p>}
+        </div>
+      </section>
     </Panel>
   );
 }

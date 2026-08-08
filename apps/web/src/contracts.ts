@@ -173,3 +173,9 @@ export type ApiBivariateRow = Readonly<{
   left_beta_to_right?: number | null;
   right_beta_to_left?: number | null;
 }>;
+
+export type ApiCovarianceMatrix = Readonly<{
+  labels: readonly Readonly<{ isin: string; exchange: string; code: string; label: string }>[];
+  values: readonly (readonly number[])[];
+  observation_count: number;
+}>;

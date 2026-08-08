@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from concurrent.futures import ProcessPoolExecutor
 from typing import Any
 
@@ -36,6 +36,7 @@ def build_bivariate_statistics(
     concurrency: int | None = None,
     max_pair_count: int = DEFAULT_MAX_PAIR_COUNT,
     chunk_size: int = DEFAULT_PAIR_CHUNK_SIZE,
+    on_progress: Callable[[int, int], None] | None = None,
 ) -> list[JsonRow]:
     """Compute pairwise statistics from aligned return rows.
 
@@ -61,6 +62,9 @@ def build_bivariate_statistics(
         skip_same_isin=skip_same_isin,
     )
     rows: list[JsonRow] = []
+    completed = 0
+    if on_progress is not None:
+        on_progress(completed, plan.theoretical_pair_count)
     executor = ProcessPoolExecutor(max_workers=plan.worker_count) if plan.worker_count > 1 else None
     try:
         for chunk in chunked_pairs(pairs, plan.chunk_size):
@@ -68,6 +72,9 @@ def build_bivariate_statistics(
                 rows.extend(_build_bivariate_pair_statistics(pair) for pair in chunk)
             else:
                 rows.extend(executor.map(_build_bivariate_pair_statistics, chunk))
+            completed += len(chunk)
+            if on_progress is not None:
+                on_progress(completed, plan.theoretical_pair_count)
     finally:
         if executor is not None:
             executor.shutdown()

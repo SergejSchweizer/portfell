@@ -10,6 +10,8 @@ from importlib import import_module
 from pathlib import Path
 from typing import Any
 
+from portfell.gold import build_returns
+from portfell.gold_pair_stats import sample_covariance
 from portfell.hosted_api_errors import HostedApplicationError
 from portfell.hosted_api_serializers import (
     analysis_row,
@@ -168,19 +170,75 @@ class ResearchService:
 
     def start_bivariate(self, user_id: str, selection_id: str) -> JsonRow:
         selection = require_user_row(self.state.filter_selections_by_id, selection_id, user_id)
+        plan = pair_plan(selection)
+        if not plan["allowed"]:
+            raise HostedApplicationError(422, "pair_plan_not_runnable")
+        source = stable_hash(
+            {"selection_id": selection.selection_id, "members": list(selection.member_ids)}
+        )
+        run_id = opaque_id("bivariate-run", f"{user_id}:{source}")
+        existing = self.state.bivariate_runs_by_id.get(run_id)
+        if existing is not None and existing.status != "failed":
+            return research_run_row(existing)
+        run = ResearchRun(
+            run_id=run_id,
+            user_id=user_id,
+            source_id=source,
+            status="running",
+            rows=(),
+            total=int(plan["theoretical_pair_count"]),
+            completed=0,
+        )
+        self.state.bivariate_runs_by_id[run_id] = run
+        audit(self.state, user_id, "bivariate_statistics.start")
+        return research_run_row(run)
+
+    def complete_bivariate(self, user_id: str, selection_id: str) -> None:
+        """Compute every bivariate statistic in the background using all CPU cores."""
+
+        selection = require_user_row(self.state.filter_selections_by_id, selection_id, user_id)
+        source = stable_hash(
+            {"selection_id": selection.selection_id, "members": list(selection.member_ids)}
+        )
+        run_id = opaque_id("bivariate-run", f"{user_id}:{source}")
+        run = require_user_row(self.state.bivariate_runs_by_id, run_id, user_id)
+        if run.status != "running":
+            return
         source_run = require_user_row(
             self.state.univariate_runs_by_id, selection.source_run_id, user_id
         )
         quote_run_id = self.state.quote_run_by_univariate_run_id.get(source_run.run_id, "")
         quote_rows = self.state.quote_rows_by_run_id.get(quote_run_id)
         if quote_rows is None:
-            raise HostedApplicationError(409, "scoped_quote_rows_unavailable")
+            self.state.bivariate_runs_by_id[run_id] = replace(
+                run, status="failed", failed=run.total
+            )
+            return
+
+        def update_progress(completed: int, total: int) -> None:
+            active = self.state.bivariate_runs_by_id.get(run_id)
+            if active is not None and active.status == "running":
+                self.state.bivariate_runs_by_id[run_id] = replace(
+                    active, completed=min(completed, total), total=total
+                )
+
         try:
-            run = create_bivariate_run(user_id=user_id, selection=selection, quote_rows=quote_rows)
-        except HostedResearchError as error:
-            raise HostedApplicationError(422, str(error)) from error
-        self.state.bivariate_runs_by_id.setdefault(run.run_id, run)
-        return research_run_row(self.state.bivariate_runs_by_id[run.run_id])
+            computed = create_bivariate_run(
+                user_id=user_id,
+                selection=selection,
+                quote_rows=quote_rows,
+                on_progress=update_progress,
+            )
+        except HostedResearchError:
+            self.state.bivariate_runs_by_id[run_id] = replace(
+                run, status="failed", failed=run.total
+            )
+            audit(self.state, user_id, "bivariate_statistics.failed")
+            return
+        self.state.bivariate_runs_by_id[run_id] = replace(
+            computed, run_id=run_id, total=computed.total, completed=computed.total
+        )
+        audit(self.state, user_id, "bivariate_statistics.complete")
 
     def bivariate_status(self, user_id: str, run_id: str) -> JsonRow:
         return research_run_row(require_user_row(self.state.bivariate_runs_by_id, run_id, user_id))
@@ -188,6 +246,56 @@ class ResearchService:
     def bivariate_results(self, user_id: str, run_id: str, limit: int, offset: int) -> JsonRow:
         run = require_user_row(self.state.bivariate_runs_by_id, run_id, user_id)
         return page_rows(run.rows, limit=limit, offset=offset)
+
+    def bivariate_covariance_matrix(self, user_id: str, run_id: str) -> JsonRow:
+        """Build a common-date daily log-return covariance matrix for one run."""
+
+        run = require_user_row(self.state.bivariate_runs_by_id, run_id, user_id)
+        selection = next(
+            (
+                item
+                for item in self.state.filter_selections_by_id.values()
+                if item.user_id == user_id
+                and stable_hash(
+                    {"selection_id": item.selection_id, "members": list(item.member_ids)}
+                )
+                == run.source_id
+            ),
+            None,
+        )
+        if selection is None:
+            raise HostedApplicationError(404, "not_found")
+        quote_run_id = self.state.quote_run_by_univariate_run_id.get(selection.source_run_id, "")
+        quotes = self.state.quote_rows_by_run_id.get(quote_run_id, ())
+        members = set(selection.member_ids)
+        values_by_listing: dict[tuple[str, str, str], dict[str, float]] = {}
+        scoped_quotes = tuple(
+            row
+            for row in quotes
+            if f"{row.get('isin', '')}:{row.get('exchange', '')}:{row.get('code', '')}" in members
+        )
+        for row in build_returns(scoped_quotes):
+            key = (str(row["isin"]), str(row["exchange"]), str(row["code"]))
+            values_by_listing.setdefault(key, {})[str(row["date"])] = float(row["return"])
+        listings = tuple(sorted(values_by_listing))
+        common_dates = (
+            set.intersection(*(set(values_by_listing[key]) for key in listings))
+            if listings
+            else set()
+        )
+        dates = tuple(sorted(common_dates))
+        values = [tuple(values_by_listing[key][date] for date in dates) for key in listings]
+        return {
+            "labels": [
+                {"isin": isin, "exchange": exchange, "code": code, "label": f"{code}.{exchange}"}
+                for isin, exchange, code in listings
+            ],
+            "values": [
+                [sample_covariance(left, right) for right in values]
+                for left in values
+            ],
+            "observation_count": len(dates),
+        }
 
     def create_analysis(
         self,
