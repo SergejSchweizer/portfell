@@ -1055,6 +1055,39 @@ Determinism: Identical state and requests produce byte-equivalent normalized JSO
 
 Idempotency: Existing idempotency keys, active-run reuse, project identities, and selection identities retain exactly the same lookup and mutation semantics after extraction.
 
+### PR133. Hosted Research Service Boundary Completion
+
+Branch: `refactor/hosted-research-boundaries`.
+
+Git status: in progress. PR: TBD.
+
+Priority: P0 architecture enforcement and restart-safe research orchestration.
+
+Depends on: current `main`.
+
+Scope:
+
+- Replace the hidden monolithic `research_service.py` implementation with one route-facing facade and separate univariate, bivariate, and analysis services.
+- Move bivariate matrices, summaries, and portfolio diagnostics into pure typed calculation modules.
+- Put mutable hosted research state behind a typed repository port, local lake access behind a research-data port, and workspace writes behind a persistence port.
+- Compose concrete local adapters only in `hosted_api`; application services must not import local runtime, lake paths, workspace persistence, or repository adapters.
+- Remove dynamic imports and broad Pyright suppressions from the hosted research path.
+- Extend import, typing, module-size, and regression gates so the real implementation cannot escape through a compatibility wrapper or filename change.
+
+Acceptance:
+
+- `research_service.py` no longer exists and every route-facing research operation retains its existing method and API behavior through `hosted_research_service.ResearchService`.
+- Univariate, bivariate, and analysis services are independently typed, below the hosted module-size limit, and operate through injected ports.
+- Bivariate diagnostics and matrix read models are pure functions with no hosted state, filesystem, HTTP, or persistence dependencies.
+- Architecture tests fail if a hidden research service, dynamic `import_module` dependency, broad unknown-type suppression, concrete adapter import, or oversized hosted module is introduced.
+- Focused hosted and bivariate tests, strict Pyright, Ruff, Import Linter, the full PR quality gate, and Docker health validation pass.
+
+Security: Repository operations retain mandatory user ownership checks, while services cannot open unrestricted lake paths or bypass the scoped data adapter.
+
+Determinism: Existing run identities, selection identities, matrix ordering, diagnostics, and serialized API responses remain stable for identical inputs.
+
+Idempotency: Existing active-run reuse and analysis idempotency remain unchanged; completed univariate filters and bivariate results are persisted after every durable transition.
+
 ### PR130. Typed Quote Ingestion Stage Pipeline And Progress Contract
 
 Branch: `refactor/quote-ingestion-pipeline`.
@@ -1133,7 +1166,7 @@ Idempotency: Repeating portfolio construction with identical inputs preserves ar
 
 ### Architectural Refactor Series Completion Gate
 
-The architectural refactor series is complete only after PR129 through PR131 are merged and every required pre-merge and post-merge check in [GATES.md](GATES.md) passes. Completion requires normalized API-contract equivalence, typed and monotonic quote-stage progress, delta-only ingestion, numerical portfolio equivalence, the new import-linter dependency rules, no duplicate implementation or compatibility runtime, and updated [ARCHITECTURE.md](ARCHITECTURE.md) module ownership descriptions.
+The architectural refactor series is complete only after PR129 through PR131 and PR133 are merged and every required pre-merge and post-merge check in [GATES.md](GATES.md) passes. Completion requires normalized API-contract equivalence, enforced hosted research boundaries, typed and monotonic quote-stage progress, delta-only ingestion, numerical portfolio equivalence, the new import-linter dependency rules, no duplicate implementation or compatibility runtime, and updated [ARCHITECTURE.md](ARCHITECTURE.md) module ownership descriptions.
 
 ## Current Architectural Decision
 

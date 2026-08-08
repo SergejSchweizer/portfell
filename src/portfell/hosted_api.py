@@ -9,6 +9,7 @@ from typing import Any
 from fastapi import FastAPI
 
 from portfell.entitlements import ProviderDownloadRun
+from portfell.hosted_analysis_service import HostedAnalysisService
 from portfell.hosted_api_contracts import (
     AnalysisCreateRequest,
     BivariateSelectionRequest,
@@ -35,6 +36,7 @@ from portfell.hosted_api_state import (
     SelectionRecord,
     UserOwnedRow,
 )
+from portfell.hosted_bivariate_service import BivariateResearchService
 from portfell.hosted_credential_project_service import CredentialProjectService
 from portfell.hosted_credentials import (
     FileCredentialStore,
@@ -43,11 +45,15 @@ from portfell.hosted_credentials import (
 )
 from portfell.hosted_metadata_project_service import MetadataProjectService
 from portfell.hosted_quote_run_service import QuoteRunService
+from portfell.hosted_research_persistence import LocalResearchPersistence
+from portfell.hosted_research_ports import ResearchDataPort
+from portfell.hosted_research_repository import HostedResearchRepository
 from portfell.hosted_research_service import ResearchService
 from portfell.hosted_routes_credentials import credential_router
 from portfell.hosted_routes_metadata_projects import metadata_project_router
 from portfell.hosted_routes_quote_runs import quote_run_router
 from portfell.hosted_routes_research import research_router
+from portfell.hosted_univariate_service import UnivariateResearchService
 from portfell.hosted_workspace import LocalWorkspaceStore
 from portfell.hosted_workspace_repository import restore_local_workspace
 from portfell.workflows import (
@@ -106,6 +112,18 @@ def _runtime() -> LocalHostedRuntime:
     )
 
 
+def _research_service(state: HostedApiState, data: ResearchDataPort) -> ResearchService:
+    """Compose the research facade from explicit repository and adapter boundaries."""
+
+    repository = HostedResearchRepository(state)
+    persistence = LocalResearchPersistence(state)
+    return ResearchService(
+        UnivariateResearchService(repository, data, persistence),
+        BivariateResearchService(repository, data, persistence),
+        HostedAnalysisService(repository, persistence),
+    )
+
+
 def create_persistent_local_workspace_state(
     shared_data_root: Path,
     *,
@@ -138,7 +156,7 @@ def create_app(
     credentials = CredentialProjectService(resolved_state, runtime)
     metadata = MetadataProjectService(resolved_state, runtime)
     quotes = QuoteRunService(resolved_state, runtime)
-    research = ResearchService(resolved_state)
+    research = _research_service(resolved_state, runtime)
 
     def current_user() -> ApiUser:
         return provider.current_user()

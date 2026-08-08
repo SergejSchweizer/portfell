@@ -9,6 +9,14 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 PACKAGE_ROOT = REPOSITORY_ROOT / "src" / "portfell"
 ROUTE_GLOB = "hosted_routes_*.py"
 SERVICE_GLOB = "hosted_*_service.py"
+RESEARCH_SERVICE_MODULES = frozenset(
+    {
+        "hosted_analysis_service.py",
+        "hosted_bivariate_service.py",
+        "hosted_research_service.py",
+        "hosted_univariate_service.py",
+    }
+)
 FORBIDDEN_ROUTE_IMPORTS = frozenset(
     {
         "portfell.bronze",
@@ -32,6 +40,8 @@ FORBIDDEN_SERVICE_IMPORTS = frozenset(
         "portfell.hosted_routes_metadata_projects",
         "portfell.hosted_routes_quote_runs",
         "portfell.hosted_routes_research",
+        "portfell.hosted_research_persistence",
+        "portfell.hosted_research_repository",
         "portfell.metadata_filter",
         "portfell.paths",
         "portfell.workflows",
@@ -86,6 +96,26 @@ def test_hosted_services_are_fastapi_free_and_runtime_port_driven() -> None:
         assert _forbidden_imports(source, FORBIDDEN_SERVICE_IMPORTS) == set(), path
 
 
+def test_hosted_services_do_not_hide_dependencies_or_disable_strict_typing() -> None:
+    forbidden_type_suppressions = (
+        "reportUnknownVariableType=false",
+        "reportCallIssue=false",
+        "reportArgumentType=false",
+        "reportUnknownArgumentType=false",
+        "reportUnknownMemberType=false",
+    )
+    for path in PACKAGE_ROOT.glob(SERVICE_GLOB):
+        source = path.read_text(encoding="utf-8")
+        assert "import_module(" not in source, path
+        assert all(value not in source for value in forbidden_type_suppressions), path
+
+
+def test_research_implementation_is_split_and_covered_by_hosted_service_gates() -> None:
+    service_names = {path.name for path in PACKAGE_ROOT.glob(SERVICE_GLOB)}
+    assert service_names >= RESEARCH_SERVICE_MODULES
+    assert not (PACKAGE_ROOT / "research_service.py").exists()
+
+
 @pytest.mark.parametrize(
     ("source", "violation"),
     [
@@ -133,3 +163,5 @@ def test_hosted_production_module_size_limits() -> None:
     assert _production_line_count(PACKAGE_ROOT / "hosted_api.py") <= 250
     for path in PACKAGE_ROOT.glob("hosted_*.py"):
         assert _production_line_count(path) <= 500, path
+    assert _production_line_count(PACKAGE_ROOT / "bivariate_diagnostics.py") <= 400
+    assert _production_line_count(PACKAGE_ROOT / "bivariate_views.py") <= 250

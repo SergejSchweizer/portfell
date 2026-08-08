@@ -17,7 +17,6 @@ from portfell.hosted_api import (
     create_persistent_local_workspace_state,
 )
 from portfell.hosted_credentials import InMemoryCredentialStore, KeyEncryptionKey
-from portfell.hosted_research_service import ResearchService
 from portfell.hosted_research_workflow import FilterSelection, ResearchRun
 from portfell.paths import LakePaths
 from portfell.table_io import read_json, read_rows, write_rows
@@ -1100,7 +1099,9 @@ def test_bivariate_statistics_restore_quotes_from_the_persistent_lake(
             json={"univariate_filter_selection_id": filtered.selection_id},
         )
     )
-    ResearchService(state).complete_bivariate("user-a", filtered.selection_id)
+    hosted_api._research_service(state, hosted_api._runtime()).complete_bivariate(
+        "user-a", filtered.selection_id
+    )
     completed = _json(
         client.get(f"/bivariate-statistics/runs/{run['run_id']}", headers=_headers(csrf=False))
     )
