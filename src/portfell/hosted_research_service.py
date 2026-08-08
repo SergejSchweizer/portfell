@@ -208,8 +208,13 @@ class ResearchService:
             self.state.univariate_runs_by_id, selection.source_run_id, user_id
         )
         quote_run_id = self.state.quote_run_by_univariate_run_id.get(source_run.run_id, "")
-        quote_rows = self.state.quote_rows_by_run_id.get(quote_run_id)
-        if quote_rows is None:
+        quote_rows = self.state.quote_rows_by_run_id.get(quote_run_id, ())
+        # Hosted downloads deliberately avoid retaining every quote row in process
+        # memory. The Silver lake is the durable source of truth, so restore the
+        # selected rows from it after a container restart (or memory-safe download).
+        if not quote_rows:
+            quote_rows = _read_scoped_lake_rows(selection, dataset="quotes")
+        if not quote_rows:
             self.state.bivariate_runs_by_id[run_id] = replace(
                 run, status="failed", failed=run.total
             )
@@ -267,6 +272,8 @@ class ResearchService:
             raise HostedApplicationError(404, "not_found")
         quote_run_id = self.state.quote_run_by_univariate_run_id.get(selection.source_run_id, "")
         quotes = self.state.quote_rows_by_run_id.get(quote_run_id, ())
+        if not quotes:
+            quotes = _read_scoped_lake_rows(selection, dataset="quotes")
         members = set(selection.member_ids)
         values_by_listing: dict[tuple[str, str, str], dict[str, float]] = {}
         scoped_quotes = tuple(
