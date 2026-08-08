@@ -88,6 +88,15 @@ export function BivariateStatisticsPage() {
       setMessage("Computing bivariate statistics…");
       const nextRun = await postJson<ApiResearchRun>("/api/bivariate-statistics/runs", { univariate_filter_selection_id: selectionId });
       setRun(nextRun);
+      if (nextRun.status === "complete") {
+        const [page, matrix] = await Promise.all([
+          requestJson<ApiPage<ApiBivariateRow>>(`/api/bivariate-statistics/runs/${nextRun.run_id}/results?limit=50&offset=0`),
+          requestJson<ApiCovarianceMatrix>(`/api/bivariate-statistics/runs/${nextRun.run_id}/covariance-matrix`),
+        ]);
+        setResults(page);
+        setCovarianceMatrix(matrix);
+        setMessage(`${page.total.toLocaleString()} pair statistics computed.`);
+      }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Bivariate computation failed.");
     }
