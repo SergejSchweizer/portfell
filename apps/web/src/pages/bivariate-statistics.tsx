@@ -116,7 +116,7 @@ export function BivariateStatisticsPage() {
   const positiveCovarianceCount = covarianceRows.filter((row) => (row.covariance ?? 0) > 0).length;
   const covarianceExtent = Math.max(
     0,
-    ...(covarianceMatrix?.values.flat().map((value) => Math.abs(value)) ?? []),
+    ...(covarianceMatrix?.values.flat().flatMap((value) => value === null ? [] : [Math.abs(value)]) ?? []),
   );
 
   return (
@@ -146,7 +146,7 @@ export function BivariateStatisticsPage() {
             <p className="bivariate-statistic__matrix-caption">Daily log-return covariance matrix · {covarianceMatrix.observation_count.toLocaleString()} shared observations</p>
             <table className="covariance-matrix">
               <thead><tr><th scope="col">ISIN</th>{covarianceMatrix.labels.map((label) => <th scope="col" key={label.isin} title={label.isin}>{label.label}</th>)}</tr></thead>
-              <tbody>{covarianceMatrix.labels.map((label, rowIndex) => <tr key={label.isin}><th scope="row" title={label.isin}>{label.label}</th>{covarianceMatrix.values[rowIndex].map((value, columnIndex) => <td key={`${label.isin}:${covarianceMatrix.labels[columnIndex].isin}`} title={`Covariance: ${metric(value)}`} style={{ backgroundColor: covarianceColor(value, covarianceExtent) }}>{metric(value)}</td>)}</tr>)}</tbody>
+              <tbody>{covarianceMatrix.labels.map((label, rowIndex) => <tr key={label.isin}><th scope="row" title={label.isin}>{label.label}</th>{covarianceMatrix.values[rowIndex].map((value, columnIndex) => <td key={`${label.isin}:${covarianceMatrix.labels[columnIndex].isin}`} className={value === null ? "covariance-matrix__empty" : undefined} title={value === null ? "Duplicate or self relation omitted" : `Covariance: ${metric(value)}`} style={value === null ? undefined : { backgroundColor: covarianceColor(value, covarianceExtent) }}>{metric(value)}</td>)}</tr>)}</tbody>
             </table>
             <p className="covariance-matrix__legend"><span className="covariance-matrix__legend-negative" /> Negative <span className="covariance-matrix__legend-neutral" /> Near zero <span className="covariance-matrix__legend-positive" /> Positive</p>
             <p className="univariate-equation">Cov(Rᵢ, Rⱼ) = 𝔼[(Rᵢ − μᵢ)(Rⱼ − μⱼ)]</p>

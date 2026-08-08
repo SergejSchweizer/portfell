@@ -298,7 +298,15 @@ class ResearchService:
                 {"isin": isin, "exchange": exchange, "code": code, "label": f"{code}.{exchange}"}
                 for isin, exchange, code in listings
             ],
-            "values": [[sample_covariance(left, right) for right in values] for left in values],
+            # Covariance is symmetric, so calculate and expose only the upper
+            # triangle. Diagonal self-relations are deliberately omitted.
+            "values": [
+                [
+                    None if column_index <= row_index else sample_covariance(left, right)
+                    for column_index, right in enumerate(values)
+                ]
+                for row_index, left in enumerate(values)
+            ],
             "observation_count": len(dates),
         }
 
