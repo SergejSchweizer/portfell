@@ -8,7 +8,7 @@ from concurrent.futures import ProcessPoolExecutor
 from dataclasses import replace
 from importlib import import_module
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 from portfell.hosted_api_errors import HostedApplicationError
 from portfell.hosted_api_serializers import (
@@ -322,5 +322,5 @@ def _build_scoped_univariate_listing(member_id: str) -> JsonRow | None:
 def _lake_paths() -> Any:
     """Resolve the local data-lake adapter without coupling service imports to storage."""
 
-    path_type = cast(Any, import_module("portfell.paths").LakePaths)
+    path_type = import_module("portfell.paths").LakePaths
     return path_type(root=Path(os.environ.get("PORTFELL_LAKE_ROOT", "lake")))
