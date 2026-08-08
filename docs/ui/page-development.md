@@ -36,7 +36,7 @@ visual contract changes.
 2. Add the component import, a stable `WorkflowPageId`, title, path, and component entry to `apps/web/src/routes.tsx`.
 3. Put the entry in its intended workflow order. The navigation is derived from `workflowPages`; do not create a second route or navigation registry.
 4. Create `docs/ui/windows/<route-slug>.md` in the same pull request. Define purpose, server-owned inputs, layout regions, states, actions, dependencies, accessibility, responsive behavior, fixtures, tests, security, and out-of-scope behavior.
-5. Add or reuse typed API contracts in `apps/web/src/contracts.ts`. Use `requestJson` or `postJson` from `apps/web/src/api/client.ts`; do not call `fetch` directly from a page.
+5. Add or reuse typed API contracts in `apps/web/src/contracts.ts` and record every consumed endpoint in `apps/web/api-contracts.json`. The consumer-contract tests verify that this inventory covers every React API path and matches FastAPI's method, request-schema, and query-parameter contracts. Use `requestJson` or `postJson` from `apps/web/src/api/client.ts`; do not call `fetch` directly from a page.
 6. Reuse components from `apps/web/src/components/`. Extract a shared component only when at least two pages need the same behavior or the component has an independently testable contract.
 7. Add responsive and state-specific styles to `apps/web/src/styles.css`. Preserve visible keyboard focus, associated labels, `aria-live` status messaging, and meaningful disabled states.
 8. Extend route and page-contract tests. At minimum, assert the route registration, the primary API action, and the ordering of critical controls.
