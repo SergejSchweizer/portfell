@@ -137,17 +137,58 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
   background: var(--canvas);
 }
 .dividend-statistic__details { display: grid; align-content: start; gap: var(--space-4); }
+.dividend-statistic__right { display: grid; grid-template-rows: auto minmax(0, 1fr); gap: var(--space-2); min-width: 0; }
+.portfolio-selection { justify-self: end; display: grid; gap: var(--space-1); min-width: 180px; color: var(--text-muted); font-size: 12px; }
 .dividend-statistic h3, .dividend-statistic p { margin: 0; }
 .dividend-statistic p { margin-top: var(--space-1); color: var(--text-muted); }
 .dividend-statistic label { display: grid; gap: var(--space-1); min-width: 160px; color: var(--text-muted); }
 .dividend-frequency-list { display: grid; gap: var(--space-1); padding: 0; margin: 0; list-style: none; }
 .dividend-frequency-list li { display: grid; grid-template-columns: 1fr auto auto; gap: var(--space-2); align-items: baseline; padding-bottom: var(--space-1); border-bottom: 1px solid var(--border); }
+.dividend-frequency-list li span { display: flex; align-items: center; gap: var(--space-1); }
+.dividend-frequency-swatch { width: 10px; height: 10px; border-radius: 50%; background: var(--text-muted); }
+.dividend-frequency-swatch[data-frequency="monthly"], .dividend-histogram__column i[data-frequency="monthly"], .univariate-group-card__bar i[data-frequency="monthly"] { background: #2f80ed; }
+.dividend-frequency-swatch[data-frequency="quarterly"], .dividend-histogram__column i[data-frequency="quarterly"], .univariate-group-card__bar i[data-frequency="quarterly"] { background: #27ae60; }
+.dividend-frequency-swatch[data-frequency="semiannual"], .dividend-histogram__column i[data-frequency="semiannual"], .univariate-group-card__bar i[data-frequency="semiannual"] { background: #f2994a; }
+.dividend-frequency-swatch[data-frequency="annual"], .dividend-histogram__column i[data-frequency="annual"], .univariate-group-card__bar i[data-frequency="annual"] { background: #9b51e0; }
+.dividend-frequency-swatch[data-frequency="irregular"], .dividend-histogram__column i[data-frequency="irregular"], .univariate-group-card__bar i[data-frequency="irregular"] { background: #eb5757; }
+.dividend-frequency-swatch[data-frequency="unknown"], .dividend-histogram__column i[data-frequency="unknown"], .univariate-group-card__bar i[data-frequency="unknown"] { background: #828282; }
+.dividend-frequency-swatch[data-frequency="accumulating"], .dividend-histogram__column i[data-frequency="accumulating"], .univariate-group-card__bar i[data-frequency="accumulating"] { background: #bdbdbd; }
 .dividend-frequency-list small { min-width: 72px; color: var(--text-muted); text-align: right; }
-.dividend-histogram { display: flex; align-items: end; gap: var(--space-1); min-height: 128px; padding: var(--space-2) var(--space-2) 0; border-bottom: 1px solid var(--border-strong); }
-.dividend-histogram__bar { display: grid; grid-template-rows: auto minmax(4px, 78px) auto; flex: 1; min-width: 34px; gap: var(--space-1); align-items: end; text-align: center; color: var(--text-muted); }
+.dividend-histogram { display: grid; grid-template-columns: 22px minmax(0, 1fr); grid-template-rows: minmax(190px, 1fr) auto; height: 100%; min-height: 240px; padding: var(--space-2) var(--space-2) 0; border-bottom: 1px solid var(--border-strong); }
+.dividend-histogram__plot { display: flex; align-items: stretch; gap: var(--space-1); min-height: 0; border-left: 1px solid var(--border-strong); border-bottom: 1px solid var(--border-strong); }
+.dividend-histogram__axis { color: var(--text-muted); font-size: 11px; line-height: 14px; }
+.dividend-histogram__axis--y { display: flex; align-items: center; justify-content: center; writing-mode: vertical-rl; transform: rotate(180deg); }
+.dividend-histogram__axis--x { grid-column: 2; padding: var(--space-1) 0; text-align: center; }
+.dividend-histogram__bar { position: relative; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; flex: 1; min-width: 34px; gap: var(--space-1); align-items: end; text-align: center; color: var(--text-muted); outline: none; }
 .dividend-histogram__count { font-weight: 600; color: var(--text); }
-.dividend-histogram__column { display: block; width: 100%; align-self: end; background: var(--accent); border-radius: var(--radius-sm) var(--radius-sm) 0 0; opacity: .7; }
+.dividend-histogram__column { display: flex; flex-direction: column-reverse; width: 100%; align-self: end; background: var(--surface-subtle); border-radius: var(--radius-sm) var(--radius-sm) 0 0; overflow: hidden; }
+.dividend-histogram__column i { display: block; min-height: 2px; }
 .dividend-histogram__label { min-height: 38px; font-size: 11px; line-height: 14px; overflow-wrap: anywhere; }
+.dividend-histogram__tooltip { position: absolute; z-index: 2; bottom: calc(100% + var(--space-2)); left: 50%; display: none; width: max-content; max-width: 180px; padding: var(--space-2); border-radius: var(--radius-sm); background: var(--text); color: var(--surface); box-shadow: var(--shadow-md); font-size: 12px; line-height: 18px; text-align: left; transform: translateX(-50%); }
+.dividend-histogram__tooltip strong, .dividend-histogram__tooltip span { display: block; }
+.dividend-histogram__bar:hover .dividend-histogram__tooltip, .dividend-histogram__bar:focus-visible .dividend-histogram__tooltip { display: block; }
+.univariate-group-grid { display: grid; grid-template-columns: 1fr; gap: var(--space-4); margin: 0 0 var(--space-6); }
+.univariate-group-card { display: grid; grid-template-columns: minmax(280px, .9fr) minmax(420px, 1.6fr); gap: var(--space-6); min-height: 220px; padding: var(--space-4); border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--canvas); }
+.univariate-group-card__facts { display: grid; align-content: start; gap: var(--space-2); }
+.univariate-group-card h3, .univariate-group-card p { margin: 0; }
+.univariate-group-card p { color: var(--text-muted); }
+.univariate-group-card dl { display: grid; gap: var(--space-1); padding: 0; margin: 0; }
+.univariate-group-card dl div { display: grid; grid-template-columns: 1fr auto; gap: var(--space-2); align-items: baseline; padding-bottom: var(--space-1); border-bottom: 1px solid var(--border); }
+.univariate-group-card dt { color: var(--text-muted); font-size: 12px; }
+.univariate-group-card dd { margin: 0; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; text-align: right; }
+.univariate-equation { width: 100%; max-width: 100%; margin: var(--space-2) 0 0; overflow-wrap: anywhere; color: #000; font-family: Georgia, "Times New Roman", serif; font-size: 14px; font-style: italic; line-height: 20px; letter-spacing: .01em; text-align: center; }
+.univariate-notation { width: 100%; margin: 0; color: #000; font-size: 12px; line-height: 17px; text-align: center; }
+.univariate-group-card__chart { display: grid; grid-template-columns: 22px minmax(0, 1fr); grid-template-rows: minmax(180px, 1fr) auto; min-height: 210px; }
+.univariate-group-card__axis { color: var(--text-muted); font-size: 11px; line-height: 14px; }
+.univariate-group-card__axis--y { display: flex; align-items: center; justify-content: center; writing-mode: vertical-rl; transform: rotate(180deg); }
+.univariate-group-card__axis--x { grid-column: 2; padding-top: var(--space-1); text-align: center; }
+.univariate-group-card__plot { display: flex; align-items: stretch; gap: 3px; min-height: 180px; padding: var(--space-2); border-left: 1px solid var(--border-strong); border-bottom: 1px solid var(--border-strong); }
+.univariate-group-card__bar { position: relative; display: grid; grid-template-rows: minmax(0, 1fr) auto; flex: 1; min-width: 24px; gap: var(--space-1); outline: none; }
+.univariate-group-card__column { display: flex; flex-direction: column-reverse; width: 100%; align-self: end; border-radius: 2px 2px 0 0; overflow: hidden; }
+.univariate-group-card__column i { display: block; min-height: 2px; }
+.univariate-group-card__label { min-height: 30px; color: var(--text-muted); font-size: 10px; line-height: 12px; overflow-wrap: anywhere; text-align: center; }
+.univariate-group-card__bar::after { position: absolute; z-index: 3; bottom: calc(100% + 6px); left: 50%; display: none; width: max-content; max-width: 240px; padding: 6px 8px; border-radius: var(--radius-sm); background: var(--text); color: var(--surface); font-size: 12px; line-height: 16px; content: attr(data-tooltip); transform: translateX(-50%); }
+.univariate-group-card__bar:hover::after, .univariate-group-card__bar:focus-visible::after { display: block; }
 .univariate-metric-table { overflow-x: auto; }
 .univariate-metric-table table { min-width: 980px; }
 .univariate-metric-table th[scope="row"] { min-width: 160px; }
@@ -181,6 +222,7 @@ th, td { padding: 10px; border-bottom: 1px solid #e5e8ec; text-align: left; }
   .predicate-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .dividend-statistic { grid-template-columns: 1fr; }
   .dividend-statistic label { min-width: 0; }
+  .univariate-group-card { grid-template-columns: 1fr; }
 }
 @media (prefers-reduced-motion: reduce) {
   .project-sidebar { transition: none; }

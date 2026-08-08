@@ -143,7 +143,7 @@ class MetadataProjectService:
         )
         if not predicates:
             raise HostedApplicationError(422, "metadata_filter_required")
-        selected_rows = filter_rows(self._all_isins_rows(), predicates)
+        selected_rows = _unique_listings(filter_rows(self._all_isins_rows(), predicates))
         if not selected_rows:
             raise HostedApplicationError(422, "metadata_filter_empty")
         project_name = (
@@ -169,15 +169,7 @@ class MetadataProjectService:
         project_id = opaque_id("project", f"{user_id}:{project_name}")
         project = ProjectRecord(project_id, user_id, project_name)
         self.state.projects_by_id.setdefault(project_id, project)
-        members = tuple(
-            sorted(
-                {
-                    f"{row['isin']}:{row['exchange']}:{row['code']}"
-                    for row in selected_rows
-                    if row.get("isin") and row.get("exchange") and row.get("code")
-                }
-            )
-        )
+        members = tuple(f"{row['isin']}:{row['exchange']}:{row['code']}" for row in selected_rows)
         selection_id = opaque_id("selection", f"{user_id}:{project_id}:{project_name}:{members}")
         selection = SelectionRecord(selection_id, user_id, project_id, project_name, members)
         self.state.selections_by_id.setdefault(selection_id, selection)
@@ -222,3 +214,23 @@ class MetadataProjectService:
             "selected_count": len(selection.member_ids),
             **fields,
         }
+
+
+def _unique_listings(rows: list[JsonRow]) -> list[JsonRow]:
+    """Keep one canonical ticker for each valid ISIN/Exchange instrument."""
+
+    canonical: dict[tuple[str, str], JsonRow] = {}
+    for row in sorted(
+        rows,
+        key=lambda value: (
+            str(value.get("isin", "")),
+            str(value.get("exchange", "")),
+            str(value.get("code", "")),
+        ),
+    ):
+        isin = str(row.get("isin", "")).strip()
+        exchange = str(row.get("exchange", "")).strip()
+        code = str(row.get("code", "")).strip()
+        if isin and exchange and code:
+            canonical.setdefault((isin, exchange), row)
+    return list(canonical.values())

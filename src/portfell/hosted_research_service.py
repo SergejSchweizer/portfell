@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from collections.abc import Callable
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import replace
 from importlib import import_module
 from pathlib import Path
@@ -272,55 +273,50 @@ def _build_scoped_univariate_rows(
 ) -> tuple[JsonRow, ...]:
     """Recompute selected listings one at a time, avoiding a multi-million-row heap."""
 
-    paths = _lake_paths()
     rows: list[JsonRow] = []
-    for index, member_id in enumerate(selection.member_ids, start=1):
-        isin, exchange, code = member_id.split(":", 2)
-        dividend_rows = [
-            row
-            for path in (paths.bronze / "dividends" / exchange).glob(f"*/{isin}.parquet")
-            for row in read_rows(path)
-            if str(row.get("code", "")) == code
-        ]
-        cached_rows = read_rows(paths.gold_univariate_statistics(exchange, isin))
-        if len(cached_rows) == 1 and str(cached_rows[0].get("code", "")) == code:
-            row = dict(cached_rows[0])
-            dates = index_distribution_events(dividend_rows).get((isin, exchange, code), ())
-            distribution = distribution_features(dates)
-            annual_dividend = annual_dividend_features(
-                dividend_rows,
-                str(row["last_quote_date"]),
-                float(row["end_adjusted_close"]),
-            )
-            if any(
-                row.get(key) != value for key, value in {**distribution, **annual_dividend}.items()
-            ):
-                row.update(distribution)
-                row.update(annual_dividend)
-                write_rows(paths.gold_univariate_statistics(exchange, isin), [row])
-            rows.append(row)
+    with ProcessPoolExecutor(max_workers=os.cpu_count() or 1) as executor:
+        for index, row in enumerate(
+            executor.map(_build_scoped_univariate_listing, selection.member_ids), start=1
+        ):
+            if row is not None:
+                rows.append(row)
             if on_progress is not None:
                 on_progress(index)
-            continue
-        quote_rows = [
-            row
-            for row in read_rows(paths.silver_quote_file(exchange, isin))
-            if str(row.get("code", "")) == code
-        ]
-        if not quote_rows:
-            if on_progress is not None:
-                on_progress(index)
-            continue
-        rows.extend(
-            build_univariate_statistics(
-                quote_rows,
-                dividend_rows=dividend_rows,
-                concurrency=1,
-            )
-        )
-        if on_progress is not None:
-            on_progress(index)
     return tuple(rows)
+
+
+def _build_scoped_univariate_listing(member_id: str) -> JsonRow | None:
+    """Use one worker process per selected listing, bounded by available CPU cores."""
+
+    paths = _lake_paths()
+    isin, exchange, code = member_id.split(":", 2)
+    dividend_rows = [
+        row
+        for path in (paths.bronze / "dividends" / exchange).glob(f"*/{isin}.parquet")
+        for row in read_rows(path)
+        if str(row.get("code", "")) == code
+    ]
+    cached_rows = read_rows(paths.gold_univariate_statistics(exchange, isin))
+    if len(cached_rows) == 1 and str(cached_rows[0].get("code", "")) == code:
+        row = dict(cached_rows[0])
+        dates = index_distribution_events(dividend_rows).get((isin, exchange, code), ())
+        distribution = distribution_features(dates)
+        annual_dividend = annual_dividend_features(
+            dividend_rows, str(row["last_quote_date"]), float(row["end_adjusted_close"])
+        )
+        if any(row.get(key) != value for key, value in {**distribution, **annual_dividend}.items()):
+            row.update(distribution)
+            row.update(annual_dividend)
+            write_rows(paths.gold_univariate_statistics(exchange, isin), [row])
+        return row
+    quote_rows = [
+        row
+        for row in read_rows(paths.silver_quote_file(exchange, isin))
+        if str(row.get("code", "")) == code
+    ]
+    if not quote_rows:
+        return None
+    return build_univariate_statistics(quote_rows, dividend_rows=dividend_rows, concurrency=None)[0]
 
 
 def _lake_paths() -> Any:

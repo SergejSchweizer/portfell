@@ -65,7 +65,7 @@ def create_univariate_run(
         build_univariate_statistics(
             quote_rows,
             dividend_rows=dividend_rows,
-            concurrency=1,
+            concurrency=None,
         )
     )
     return create_univariate_run_from_statistics(

@@ -1,13 +1,13 @@
 
-import { Fragment, useEffect, useState } from "react";
-import { loadQuoteRun, loadWorkflow, postJson, requestJson } from "../api/client";
+import { useEffect, useState } from "react";
+import { loadProjectContext, loadQuoteRun, loadWorkflow, postJson, requestJson } from "../api/client";
 import { Button } from "../components/button";
 import { LoadingState } from "../components/loading-state";
 import { Panel } from "../components/panel";
 import type { ApiPage, ApiQuoteFetch, ApiResearchRun, ApiUnivariateRow } from "../contracts";
 import { useResource } from "../hooks/use-resource";
 
-type MetricDefinition = Readonly<{ group: string; metric: string; label: string; description: string; equation: string }>;
+type MetricDefinition = Readonly<{ group: string; metric: string; label: string; description: string; equation: string; notation: string; unit?: string }>;
 type DividendFrequency = "accumulating" | "monthly" | "quarterly" | "semiannual" | "annual" | "unknown" | "irregular";
 
 const dividendFrequencyOptions: readonly Readonly<{ value: DividendFrequency; label: string }>[] = [
@@ -21,41 +21,21 @@ const dividendFrequencyOptions: readonly Readonly<{ value: DividendFrequency; la
 ];
 
 const metricDefinitions: readonly MetricDefinition[] = [
-  { group: "History Coverage", metric: "quote_observation_count", label: "Quote observations", description: "Number of adjusted-close observations.", equation: "n" },
-  { group: "History Coverage", metric: "return_observation_count", label: "Return observations", description: "Number of daily returns used.", equation: "n - 1" },
-  { group: "Return Level", metric: "total_return", label: "Total return", description: "Change across the full price history.", equation: "P_T / P_0 - 1" },
-  { group: "Return Level", metric: "cagr", label: "CAGR", description: "Annualized compound growth rate.", equation: "(P_T / P_0)^{1/y} - 1" },
-  { group: "Return Level", metric: "annualized_return", label: "Annualized log return", description: "Mean daily log return annualized to 252 trading days.", equation: "252 · mean(r_log)" },
-  { group: "Return Level", metric: "annualized_geometric_return", label: "Annualized geometric return", description: "Compounded annualized log return.", equation: "e^{252 · mean(r_log)} - 1" },
-  { group: "Return Distribution", metric: "mean_log_return", label: "Mean log return", description: "Average daily log return.", equation: "mean(ln(P_t / P_{t-1}))" },
-  { group: "Return Distribution", metric: "median_log_return", label: "Median log return", description: "Median daily log return.", equation: "median(r_log)" },
-  { group: "Return Distribution", metric: "min_log_return", label: "Minimum log return", description: "Worst observed daily log return.", equation: "min(r_log)" },
-  { group: "Return Distribution", metric: "max_log_return", label: "Maximum log return", description: "Best observed daily log return.", equation: "max(r_log)" },
-  { group: "Return Distribution", metric: "positive_day_ratio", label: "Positive-day ratio", description: "Share of days with positive log return.", equation: "count(r_log > 0) / n" },
-  { group: "Volatility And Downside Risk", metric: "daily_log_return_std", label: "Daily log-return deviation", description: "Sample deviation of daily log returns.", equation: "std(r_log)" },
-  { group: "Volatility And Downside Risk", metric: "annualized_volatility", label: "Annualized volatility", description: "Daily log-return deviation annualized to 252 days.", equation: "std(r_log) · sqrt(252)" },
-  { group: "Volatility And Downside Risk", metric: "downside_deviation", label: "Downside deviation", description: "Deviation of negative daily log returns.", equation: "sqrt(mean(min(r_log, 0)^2)) · sqrt(252)" },
-  { group: "Risk-Adjusted Performance", metric: "sharpe_ratio", label: "Sharpe ratio", description: "Annualized return per unit of total volatility.", equation: "R_ann / sigma_ann" },
-  { group: "Risk-Adjusted Performance", metric: "sortino_ratio", label: "Sortino ratio", description: "Annualized return per unit of downside deviation.", equation: "R_ann / downside_deviation" },
-  { group: "Tail Risk", metric: "var", label: "Value at Risk", description: "Historical loss quantile at the configured confidence level.", equation: "-Q_{1-c}(r_log)" },
-  { group: "Tail Risk", metric: "expected_shortfall", label: "Expected shortfall", description: "Mean loss beyond historical Value at Risk.", equation: "-mean(r_log | r_log <= Q_{1-c})" },
-  { group: "Tail Risk", metric: "tail_observation_count", label: "Tail observations", description: "Returns included in the expected-shortfall tail.", equation: "count(r_log <= Q_{1-c})" },
-  { group: "Drawdown And Trend", metric: "max_drawdown", label: "Maximum drawdown", description: "Largest peak-to-trough adjusted-close decline.", equation: "min(P_t / max(P_{0..t}) - 1)" },
-  { group: "Drawdown And Trend", metric: "log_price_slope", label: "Log-price slope", description: "Linear trend slope of log adjusted closes.", equation: "slope(ln(P_t), t)" },
-  { group: "Drawdown And Trend", metric: "trend_r_squared", label: "Trend R-squared", description: "Fit quality of the log-price trend.", equation: "R^2(ln(P_t), t)" },
-  { group: "Income Distribution", metric: "distribution_events_per_year", label: "Distribution events per year", description: "Annualized frequency of positive distributions.", equation: "events / elapsed_years" },
-  { group: "Income Distribution", metric: "distribution_observation_count", label: "Distribution observations", description: "Number of positive distribution events.", equation: "count(distributions > 0)" },
-  { group: "Data Quality And Production Readiness", metric: "quarantined_price_count", label: "Quarantined prices", description: "Price observations excluded by quality validation.", equation: "count(quarantined prices)" },
+  { group: "Risk", metric: "var", label: "Value at Risk", description: "Historical loss quantile at the configured confidence level.", equation: "VaRα = −Q₁₋α(rₜ)", notation: "α: confidence level · Q: return quantile · rₜ: log return at time t", unit: "%" },
+  { group: "Risk", metric: "sortino_ratio", label: "Sortino ratio", description: "Annualized return per unit of downside deviation.", equation: "Sortino = (Rₐₙₙ − rƒ) / σd", notation: "Rₐₙₙ: annualized return · rƒ: risk-free rate · σd: downside deviation", unit: "ratio" },
+  { group: "Risk", metric: "expected_shortfall", label: "Expected shortfall", description: "Mean loss beyond historical Value at Risk.", equation: "ESα = −𝔼[rₜ | rₜ ≤ Q₁₋α(rₜ)]", notation: "α: confidence level · 𝔼: expected value · Q: return quantile · rₜ: log return", unit: "%" },
+  { group: "Risk", metric: "tail_observation_count", label: "Tail observations", description: "Returns included in the expected-shortfall tail.", equation: "Ntail = Σ 𝟙{rₜ ≤ Q₁₋α(rₜ)}", notation: "Σ: sum · 𝟙: indicator · α: confidence level · Q: quantile · rₜ: log return", unit: "observations" },
+  { group: "Risk", metric: "sharpe_ratio", label: "Sharpe ratio", description: "Annualized return per unit of total volatility.", equation: "Sharpe = (Rₐₙₙ − rƒ) / σₐₙₙ", notation: "Rₐₙₙ: annualized return · rƒ: risk-free rate · σₐₙₙ: annualized volatility", unit: "ratio" },
+  { group: "Risk", metric: "max_drawdown", label: "Maximum drawdown", description: "Largest peak-to-trough adjusted-close decline.", equation: "MDD = minₜ(Pₜ / maxᵤ≤ₜ Pᵤ − 1)", notation: "Pₜ: price at time t · Pᵤ: prior price · min/max: worst peak-to-trough change", unit: "%" },
+  { group: "Trend", metric: "trend_r_squared", label: "Trend R-squared", description: "Fit quality of the log-price trend.", equation: "R² = 1 − SSE / SST,  ln(Pₜ) = β₀ + β₁t + εₜ", notation: "SSE: residual error · SST: total error · β₀/β₁: trend coefficients · εₜ: residual", unit: "ratio" },
+  { group: "Income", metric: "distribution_events_per_year", label: "Distribution events per year", description: "Annualized frequency of positive distributions.", equation: "λdist = Ndistributions / Tyears", notation: "λdist: annual event rate · Ndistributions: positive payouts · Tyears: observed years", unit: "events/year" },
 ];
 
-function histogram(values: readonly number[]): readonly number[] {
-  if (values.length === 0) return [];
-  const minimum = Math.min(...values);
-  const maximum = Math.max(...values);
-  if (minimum === maximum) return [values.length];
-  const buckets = Array.from({ length: 12 }, () => 0);
-  for (const value of values) buckets[Math.min(11, Math.floor(((value - minimum) / (maximum - minimum)) * 12))] += 1;
-  return buckets;
+
+function formatStatistic(value: number, unit?: string): string {
+  if (unit === "%") return `${(value * 100).toFixed(2)}%`;
+  if (unit === "observations") return `${Math.round(value)} observations`;
+  return `${value.toFixed(2)}${unit ? ` ${unit}` : ""}`;
 }
 
 function dividendFrequency(value: ApiUnivariateRow): DividendFrequency {
@@ -94,7 +74,8 @@ export function UnivariateStatisticsPage() {
   const [run, setRun] = useState<ApiResearchRun | null>(null);
   const [univariateStartedAt, setUnivariateStartedAt] = useState<number | undefined>();
   const [results, setResults] = useState<readonly ApiUnivariateRow[] | null>(null);
-  const [filterValues, setFilterValues] = useState<Record<string, string>>({});
+  const [portfolioDividendFrequency, setPortfolioDividendFrequency] = useState<DividendFrequency>("accumulating");
+  const [statisticOrder, setStatisticOrder] = useState<string[]>(() => metricDefinitions.map((definition) => definition.metric));
   const [message, setMessage] = useState("");
   const [quoteStatus, setQuoteStatus] = useState<"idle" | "running" | "complete" | "failed">("idle");
   const [quoteProgress, setQuoteProgress] = useState(0);
@@ -108,11 +89,19 @@ export function UnivariateStatisticsPage() {
     : null;
 
   useEffect(() => {
+    const saved = window.localStorage.getItem("portfell:univariate-statistic-order");
+    if (!saved) return;
+    try {
+      const order = JSON.parse(saved) as string[];
+      if (order.length === metricDefinitions.length && new Set(order).size === metricDefinitions.length && order.every((metric) => metricDefinitions.some((definition) => definition.metric === metric))) setStatisticOrder(order);
+    } catch { /* ignore an invalid saved order */ }
+  }, []);
+
+  useEffect(() => {
     const resetProjectState = () => {
       setRun(null);
       setUnivariateStartedAt(undefined);
       setResults(null);
-      setFilterValues({});
       setMessage("");
       setQuoteStatus("idle");
       setQuoteProgress(0);
@@ -200,6 +189,19 @@ export function UnivariateStatisticsPage() {
   }, [results, workflowUnivariateRunId]);
 
   useEffect(() => {
+    let cancelled = false;
+    void loadProjectContext().then((context) => {
+      const projectId = context.current_project_id;
+      if (!projectId || cancelled) return;
+      const saved = window.localStorage.getItem(`portfell:portfolio-dividend-frequency:${projectId}`);
+      if (dividendFrequencyOptions.some((option) => option.value === saved)) {
+        setPortfolioDividendFrequency(saved as DividendFrequency);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [workflowRevision]);
+
+  useEffect(() => {
     if (!run || run.status !== "running") return;
     const activeRunId = run.run_id;
     let cancelled = false;
@@ -246,16 +248,23 @@ export function UnivariateStatisticsPage() {
   }));
   const annualDividendYields = results?.flatMap((row) => {
     const value = Number(row.annual_dividend_yield ?? 0) * 100;
-    return Number.isFinite(value) && value >= 0 ? [value] : [];
+    return Number.isFinite(value) && value >= 0 ? [{ value, frequency: dividendFrequency(row) }] : [];
   }) ?? [];
-  const annualDividendYieldMaximum = Math.max(...annualDividendYields, 1);
+  const annualDividendYieldMaximum = Math.max(...annualDividendYields.map(({ value }) => value), 1);
   const annualDividendHistogram = Array.from({ length: 8 }, (_, index) => {
     const lower = (index / 8) * annualDividendYieldMaximum;
     const upper = ((index + 1) / 8) * annualDividendYieldMaximum;
-    const count = annualDividendYields.filter((value) => index === 7
+    const values = annualDividendYields.filter(({ value }) => index === 7
       ? value >= lower && value <= upper
-      : value >= lower && value < upper).length;
-    return { label: `${lower.toFixed(1)}–${upper.toFixed(1)}%`, count };
+      : value >= lower && value < upper);
+    return {
+      label: `${lower.toFixed(1)}–${upper.toFixed(1)}%`,
+      count: values.length,
+      frequencies: dividendFrequencyOptions.map((option) => ({
+        ...option,
+        count: values.filter(({ frequency }) => frequency === option.value).length,
+      })),
+    };
   });
   const annualDividendHistogramMaximum = Math.max(...annualDividendHistogram.map(({ count }) => count), 1);
 
@@ -334,40 +343,111 @@ export function UnivariateStatisticsPage() {
               </div>
               <ul className="dividend-frequency-list" aria-label="Dividend payout frequencies">
                 {dividendFrequencyCounts.map(({ value, label, count }) => <li key={value}>
-                  <span>{label}</span><strong>{results && results.length > 0 ? `${((count / results.length) * 100).toFixed(1)}%` : "0.0%"}</strong><small>{count} ISINs</small>
+                  <span><i className="dividend-frequency-swatch" data-frequency={value} />{label}</span><strong>{results && results.length > 0 ? `${((count / results.length) * 100).toFixed(1)}%` : "0.0%"}</strong><small>{count} ISINs</small>
                 </li>)}
               </ul>
+              <p className="univariate-equation" aria-label="Annual dividend yield equals annual distributions divided by price times one hundred percent">Dividend yield = Σ Dₜ / P × 100%</p>
+              <p className="univariate-notation">Σ: sum of payouts · Dₜ: distribution paid at time t · P: current price</p>
             </div>
+            <div className="dividend-statistic__right">
+              <label className="portfolio-selection">
+                Portfolio selection
+                <select value={portfolioDividendFrequency} onChange={(event) => {
+                  const value = event.target.value as DividendFrequency;
+                  setPortfolioDividendFrequency(value);
+                  void loadProjectContext().then((context) => {
+                    if (context.current_project_id) window.localStorage.setItem(`portfell:portfolio-dividend-frequency:${context.current_project_id}`, value);
+                  });
+                }}>
+                  {dividendFrequencyOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
+              </label>
             {results === null ? <p className="status-line">Compute univariate statistics to populate this histogram.</p> : <div className="dividend-histogram" role="img" aria-label={`Annual dividend yield distribution for ${results.length} ISINs`}>
-              {annualDividendHistogram.map(({ label, count }) => <div className="dividend-histogram__bar" key={label}>
-                <span className="dividend-histogram__count">{count}</span>
-                <span className="dividend-histogram__column" style={{ height: `${count === 0 ? 4 : Math.max(12, (count / annualDividendHistogramMaximum) * 100)}%` }} />
-                <span className="dividend-histogram__label">{label}</span>
-              </div>)}
+              <span className="dividend-histogram__axis dividend-histogram__axis--y">ISIN count</span>
+              <div className="dividend-histogram__plot">
+                {annualDividendHistogram.map(({ label, count, frequencies }) => <div className="dividend-histogram__bar" key={label} tabIndex={0} aria-label={`${label}: ${count} ISINs; ${frequencies.filter((frequency) => frequency.count > 0).map((frequency) => `${frequency.label} ${frequency.count}`).join(", ")}`}>
+                  <span className="dividend-histogram__count">{count}</span>
+                  <span className="dividend-histogram__column" style={{ height: `${(count / annualDividendHistogramMaximum) * 100}%` }}>
+                    {frequencies.filter((frequency) => frequency.count > 0).map(({ value, count: frequencyCount }) => <i key={value} data-frequency={value} style={{ flexGrow: frequencyCount }} />)}
+                  </span>
+                  <span className="dividend-histogram__label">{label}</span>
+                  <span className="dividend-histogram__tooltip" role="tooltip">
+                    <strong>{label} annual dividend yield</strong>
+                    <span>{count} ISINs</span>
+                    {frequencies.filter((frequency) => frequency.count > 0).map((frequency) => <span key={frequency.value}>{frequency.label}: {frequency.count}</span>)}
+                  </span>
+                </div>)}
+              </div>
+              <span className="dividend-histogram__axis dividend-histogram__axis--x">Annual dividend yield (%)</span>
             </div>}
+            </div>
           </section>
           {results && results.length > 0 ? (
             <>
-              <div className="univariate-metric-table">
-                <table>
-                  <thead><tr><th>Statistic</th><th>Description</th><th>Equation</th><th>Distribution</th><th>Filter value</th></tr></thead>
-                  <tbody>
-                    {metricDefinitions.map((definition, index) => {
-                      const values = results.flatMap((row) => typeof row[definition.metric] === "number" && Number.isFinite(row[definition.metric]) ? [row[definition.metric] as number] : []);
-                      const buckets = histogram(values);
-                      const maximum = Math.max(...buckets, 1);
-                      const priorGroup = metricDefinitions[index - 1]?.group;
-                      return <Fragment key={definition.metric}>
-                        {definition.group !== priorGroup ? <tr className="univariate-metric-table__group"><th colSpan={5}>{definition.group}</th></tr> : null}
-                        <tr>
-                          <th scope="row">{definition.label}</th><td>{definition.description}</td><td><code>{definition.equation}</code></td>
-                          <td><div className="univariate-histogram" aria-label={`${definition.label} distribution from ${values.length} listings`}>{buckets.map((count, bucket) => <span key={bucket} style={{ height: `${Math.max(8, (count / maximum) * 100)}%` }} />)}</div></td>
-                          <td><input type="number" step="any" value={filterValues[definition.metric] ?? ""} onChange={(event) => setFilterValues((current) => ({ ...current, [definition.metric]: event.target.value }))} aria-label={`${definition.label} filter value`} /></td>
-                        </tr>
-                      </Fragment>;
-                    })}
-                  </tbody>
-                </table>
+              <div className="univariate-group-grid">
+                {statisticOrder.map((metric) => {
+                  const statistic = metricDefinitions.find((definition) => definition.metric === metric)!;
+                  const metricValues = results.flatMap((row) => typeof row[statistic.metric] === "number" && Number.isFinite(row[statistic.metric])
+                    ? [{ value: row[statistic.metric] as number, frequency: dividendFrequency(row) }]
+                    : []);
+                  const values = metricValues.map(({ value }) => value);
+                  const minimum = values.length > 0 ? Math.min(...values) : 0;
+                  const maximumValue = values.length > 0 ? Math.max(...values) : 0;
+                  const buckets = values.length === 0 ? [] : Array.from({ length: 12 }, (_, index) => {
+                    const lower = minimum + ((maximumValue - minimum) / 12) * index;
+                    const upper = minimum + ((maximumValue - minimum) / 12) * (index + 1);
+                    const entries = metricValues.filter(({ value }) => minimum === maximumValue || (index === 11 ? value >= lower && value <= upper : value >= lower && value < upper));
+                    return {
+                      lower,
+                      upper,
+                      count: entries.length,
+                      frequencies: dividendFrequencyOptions.map((option) => ({
+                        ...option,
+                        count: entries.filter(({ frequency }) => frequency === option.value).length,
+                      })),
+                    };
+                  });
+                  const maximum = Math.max(...buckets.map(({ count }) => count), 1);
+                  const average = values.length === 0 ? 0 : values.reduce((sum, value) => sum + value, 0) / values.length;
+                  return <section className="univariate-group-card" key={statistic.metric} draggable onDragStart={(event) => event.dataTransfer.setData("text/plain", statistic.metric)} onDragOver={(event) => event.preventDefault()} onDrop={(event) => {
+                    const source = event.dataTransfer.getData("text/plain");
+                    if (!source || source === statistic.metric) return;
+                    setStatisticOrder((current) => {
+                      const next = current.filter((item) => item !== source);
+                      next.splice(next.indexOf(statistic.metric), 0, source);
+                      window.localStorage.setItem("portfell:univariate-statistic-order", JSON.stringify(next));
+                      return next;
+                    });
+                  }} aria-labelledby={`group-${statistic.metric}`}>
+                    <div className="univariate-group-card__facts">
+                      <h3 id={`group-${statistic.metric}`}>{statistic.label}</h3>
+                      <p>{statistic.description}</p>
+                      <dl>
+                        <div><dt>ISINs</dt><dd>{values.length}</dd></div>
+                        <div><dt>Average</dt><dd>{formatStatistic(average, statistic.unit)}</dd></div>
+                        <div><dt>Range</dt><dd>{values.length ? `${formatStatistic(Math.min(...values), statistic.unit)} – ${formatStatistic(Math.max(...values), statistic.unit)}` : "—"}</dd></div>
+                      </dl>
+                      <p className="univariate-equation" aria-label={`Formula: ${statistic.equation}`}>{statistic.equation}</p>
+                      <p className="univariate-notation">{statistic.notation}</p>
+                    </div>
+                    <div className="univariate-group-card__chart" role="img" aria-label={`${statistic.label} distribution across ${values.length} ISINs`}>
+                      <span className="univariate-group-card__axis univariate-group-card__axis--y">ISIN count</span>
+                      <div className="univariate-group-card__plot">
+                        {buckets.length === 0 ? <span className="status-line">No values available.</span> : buckets.map(({ lower, upper, count, frequencies }, bucket) => {
+                          const range = minimum === maximumValue ? formatStatistic(minimum, statistic.unit) : `${formatStatistic(lower, statistic.unit)} – ${formatStatistic(upper, statistic.unit)}`;
+                          const breakdown = frequencies.filter((frequency) => frequency.count > 0).map((frequency) => `${frequency.label}: ${frequency.count}`).join(", ");
+                          return <div className="univariate-group-card__bar" key={bucket} tabIndex={0} data-tooltip={`${range}: ${count} ISINs${breakdown ? ` (${breakdown})` : ""}`} aria-label={`${range}: ${count} ISINs${breakdown ? `; ${breakdown}` : ""}`}>
+                            <span className="univariate-group-card__column" style={{ height: `${count === 0 ? 2 : (count / maximum) * 100}%` }}>
+                              {frequencies.filter((frequency) => frequency.count > 0).map(({ value, count: frequencyCount }) => <i key={value} data-frequency={value} style={{ flexGrow: frequencyCount }} />)}
+                            </span>
+                            <span className="univariate-group-card__label">{range}</span>
+                          </div>;
+                        })}
+                      </div>
+                      <span className="univariate-group-card__axis univariate-group-card__axis--x">{statistic.label} value</span>
+                    </div>
+                  </section>;
+                })}
               </div>
             </>
           ) : results ? <p>No univariate rows matched the pinned selection.</p> : null}
