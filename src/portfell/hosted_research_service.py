@@ -278,22 +278,19 @@ class ResearchService:
             key = (str(row["isin"]), str(row["exchange"]), str(row["code"]))
             values_by_listing.setdefault(key, {})[str(row["date"])] = float(row["return"])
         listings = tuple(sorted(values_by_listing))
-        common_dates = (
-            set.intersection(*(set(values_by_listing[key]) for key in listings))
-            if listings
-            else set()
-        )
-        dates = tuple(sorted(common_dates))
-        values = [tuple(values_by_listing[key][date] for date in dates) for key in listings]
+        common_dates: set[str] = set(values_by_listing[listings[0]]) if listings else set()
+        for listing in listings[1:]:
+            common_dates.intersection_update(values_by_listing[listing])
+        dates: tuple[str, ...] = tuple(sorted(common_dates))
+        values: list[tuple[float, ...]] = [
+            tuple(values_by_listing[listing][date] for date in dates) for listing in listings
+        ]
         return {
             "labels": [
                 {"isin": isin, "exchange": exchange, "code": code, "label": f"{code}.{exchange}"}
                 for isin, exchange, code in listings
             ],
-            "values": [
-                [sample_covariance(left, right) for right in values]
-                for left in values
-            ],
+            "values": [[sample_covariance(left, right) for right in values] for left in values],
             "observation_count": len(dates),
         }
 
