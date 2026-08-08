@@ -25,3 +25,7 @@ status; the in-progress predicate draft remains an interaction-only draft.
 Missing or stale upstream statistics produce a locked state. Invalid thresholds are rejected visibly.
 Predicates use AND semantics, submission is idempotent, and stale results are cleared immediately when
 an input changes.
+
+The stateful two-project browser journey changes every predicate field, adds
+and removes a predicate, submits the filter, and asserts the returned result
+summary.

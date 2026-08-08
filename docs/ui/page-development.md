@@ -89,6 +89,14 @@ node --check server.js
 
 Before merging, confirm that generated directories such as `apps/web/node_modules/` and `apps/web/dist/` are not tracked. The pull request must pass the repository `pr-quality` gate.
 
+For a cross-page workflow change, add or extend the stateful two-project browser
+journey in `apps/web/tests/two-project-workflow.spec.ts`. It must create both
+projects through the visible metadata form, exercise every visible input and
+action in the affected workflow pages, and verify that saved state remains
+isolated after switching projects. Browser mocks may provide deterministic
+server responses, but they must behave as a stateful API rather than returning
+one fixed project for every request.
+
 ## Pull-request contract
 
 A UI pull request is complete only when:

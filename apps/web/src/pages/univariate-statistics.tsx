@@ -258,7 +258,9 @@ export function UnivariateStatisticsPage() {
       cancelled = true;
       if (timeoutId !== undefined) window.clearTimeout(timeoutId);
     };
-  }, [run, univariateStartedAt]);
+  // Keep the active poll alive while the status changes to complete, otherwise
+  // its result request is cancelled by the effect cleanup before cards render.
+  }, [run?.run_id, univariateStartedAt]);
 
   if (workflow.status === "loading" || workflow.status === "idle") {
     return <LoadingState label="Loading univariate statistics" />;

@@ -1108,6 +1108,26 @@ Determinism: All new cases use fixed rows, inline executors, and injected fake p
 
 Idempotency: Repeated test runs leave repository state unchanged and create artifacts only under pytest-managed temporary directories.
 
+### PR135. Stateful Two-Project UI Workflow Coverage
+
+Branch: `chore/ui-two-project-workflow`.
+
+Git status: in progress. PR: TBD.
+
+Priority: P0 end-to-end UI regression coverage.
+
+Depends on: current `main`.
+
+Scope: Add a stateful browser journey that creates two dummy projects through the visible metadata form, exercises every current research-workflow field and action, verifies project-scoped persistence after switching projects, and covers desktop, tablet, and mobile layouts. Repair the univariate completion lifecycle so completed results reliably render before the test evaluates the statistic controls.
+
+Acceptance: The journey covers credential and metadata actions; all metadata fields; historical-data and univariate actions; all nine portfolio-selection controls; histogram hover content; univariate predicate add, edit, remove, and apply controls; project switching and restored saved state; bivariate compute; and all four pairwise-dependence tabs. It uses a deterministic stateful API fixture and passes in every configured Playwright viewport.
+
+Security: Browser fixtures use synthetic projects, instrument identifiers, and provider keys only. They never contact a real provider, persist credentials, or expose application secrets.
+
+Determinism: The fixture owns fixed run states, rows, matrices, and project identities. It returns project-scoped responses rather than a single hard-coded global response, so switching behavior is repeatable.
+
+Idempotency: Each Playwright worker constructs fresh in-memory fixture state. Re-running the journey creates no real projects, provider calls, or durable application data.
+
 ### PR130. Typed Quote Ingestion Stage Pipeline And Progress Contract
 
 Branch: `refactor/quote-ingestion-pipeline`.

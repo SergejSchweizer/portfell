@@ -26,3 +26,6 @@ and status message before this page loads the replacement project workflow.
 The page blocks execution when upstream filtering is incomplete, empty, stale, or over the configured
 pair limit. It prevents duplicate runs, represents empty and partial results explicitly, and provides
 accessible tabular output on desktop and a usable responsive representation on narrow screens.
+
+The stateful two-project browser journey computes the active project's pair
+statistics and selects every pairwise-dependence tab.
