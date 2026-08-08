@@ -17,8 +17,10 @@ from portfell.hosted_api import (
     create_persistent_local_workspace_state,
 )
 from portfell.hosted_credentials import InMemoryCredentialStore, KeyEncryptionKey
+from portfell.hosted_research_service import ResearchService
+from portfell.hosted_research_workflow import FilterSelection, ResearchRun
 from portfell.paths import LakePaths
-from portfell.table_io import read_json, read_rows
+from portfell.table_io import read_json, read_rows, write_rows
 
 
 def _client(state: HostedApiState | None = None) -> TestClient:
@@ -985,6 +987,95 @@ def test_scoped_research_runs_filter_and_build_unique_pairs() -> None:
         ).status_code
         == 200
     )
+
+
+def test_bivariate_statistics_restore_quotes_from_the_persistent_lake(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """Bivariate runs must not depend on transient quote rows after a restart."""
+
+    monkeypatch.setenv("PORTFELL_LAKE_ROOT", str(tmp_path))
+    project = ProjectRecord(project_id="project-a", user_id="user-a", name="Research")
+    selection = SelectionRecord(
+        selection_id="metadata-selection-a",
+        user_id="user-a",
+        project_id=project.project_id,
+        name="Research",
+        member_ids=("IE1:XETRA:AAA", "IE2:XETRA:BBB"),
+    )
+    quote_run = ProviderDownloadRun(
+        download_run_id="quote-run-a",
+        user_id="user-a",
+        credential_id="credential-a",
+        provider="eodhd",
+        status="succeeded",
+        returned_observation_ids=selection.member_ids,
+        request_hash="quote-request-a",
+    )
+    statistic_rows = tuple(
+        {"isin": isin, "exchange": "XETRA", "code": code}
+        for isin, code in (("IE1", "AAA"), ("IE2", "BBB"))
+    )
+    univariate = ResearchRun(
+        "univariate-run-a", "user-a", "source-a", "complete", statistic_rows, 2, 2
+    )
+    filtered = FilterSelection(
+        "univariate-filter-a",
+        "user-a",
+        univariate.run_id,
+        selection.member_ids,
+        (),
+        statistic_rows,
+        2,
+    )
+    paths = LakePaths(root=tmp_path)
+    for isin, code, base in (("IE1", "AAA", 100), ("IE2", "BBB", 80)):
+        write_rows(
+            paths.silver_quote_file("XETRA", isin),
+            [
+                {
+                    "isin": isin,
+                    "exchange": "XETRA",
+                    "code": code,
+                    "date": f"2026-01-0{day}",
+                    "adjusted_close": base + day,
+                }
+                for day in range(1, 5)
+            ],
+        )
+    state = HostedApiState(
+        projects_by_id={project.project_id: project},
+        selections_by_id={selection.selection_id: selection},
+        downloads_by_id={quote_run.download_run_id: quote_run},
+        univariate_runs_by_id={univariate.run_id: univariate},
+        filter_selections_by_id={filtered.selection_id: filtered},
+        quote_run_by_univariate_run_id={univariate.run_id: quote_run.download_run_id},
+    )
+    client = _client(state)
+
+    run = _json(
+        client.post(
+            "/bivariate-statistics/runs",
+            headers=_headers(),
+            json={"univariate_filter_selection_id": filtered.selection_id},
+        )
+    )
+    ResearchService(state).complete_bivariate("user-a", filtered.selection_id)
+    completed = _json(
+        client.get(f"/bivariate-statistics/runs/{run['run_id']}", headers=_headers(csrf=False))
+    )
+    matrix = _json(
+        client.get(
+            f"/bivariate-statistics/runs/{run['run_id']}/covariance-matrix",
+            headers=_headers(csrf=False),
+        )
+    )
+
+    assert completed["status"] == "complete"
+    assert completed["total"] == 1
+    assert matrix["observation_count"] == 3
+    assert [row["label"] for row in matrix["labels"]] == ["AAA.XETRA", "BBB.XETRA"]
+    assert len(matrix["values"]) == len(matrix["values"][0]) == 2
 
 
 def test_account_deletion_removes_user_owned_api_state() -> None:
