@@ -85,6 +85,25 @@ jobs:
       - name: Pyright
         run: uv run pyright
 
+  merge-web-unit-quality:
+    name: merge-web-unit-quality
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          fetch-depth: 0
+          ref: ${{ github.sha }}
+
+      - name: Install Web dependencies
+        run: |
+          docker run --rm --user "$(id -u):$(id -g)" \
+            -v "$GITHUB_WORKSPACE:/workspace" \
+            -w /workspace/apps/web \
+            node:24-alpine \
+            sh -lc 'npm ci && npm run typecheck && npm run test:coverage'
+
   merge-unit-tests:
     name: merge-unit-tests-${{ matrix.shard }}
     runs-on: ubuntu-latest
@@ -187,6 +206,7 @@ jobs:
     needs:
       - merge-lint-quality
       - merge-type-quality
+      - merge-web-unit-quality
       - merge-unit-tests
       - merge-integration-tests
     if: always()
@@ -220,11 +240,12 @@ jobs:
         env:
           LINT_RESULT: ${{ needs.merge-lint-quality.result }}
           TYPE_RESULT: ${{ needs.merge-type-quality.result }}
+          WEB_UNIT_RESULT: ${{ needs.merge-web-unit-quality.result }}
           UNIT_RESULT: ${{ needs.merge-unit-tests.result }}
           INTEGRATION_RESULT: ${{ needs.merge-integration-tests.result }}
         run: |
-          if [[ "$LINT_RESULT" != "success" || "$TYPE_RESULT" != "success" || "$UNIT_RESULT" != "success" || "$INTEGRATION_RESULT" != "success" ]]; then
-            echo "merge-gate failed: lint=$LINT_RESULT type=$TYPE_RESULT unit=$UNIT_RESULT integration=$INTEGRATION_RESULT" >&2
+          if [[ "$LINT_RESULT" != "success" || "$TYPE_RESULT" != "success" || "$WEB_UNIT_RESULT" != "success" || "$UNIT_RESULT" != "success" || "$INTEGRATION_RESULT" != "success" ]]; then
+            echo "merge-gate failed: lint=$LINT_RESULT type=$TYPE_RESULT web_unit=$WEB_UNIT_RESULT unit=$UNIT_RESULT integration=$INTEGRATION_RESULT" >&2
             exit 1
           fi
           echo "merge-gate prerequisites passed."

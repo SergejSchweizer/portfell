@@ -81,6 +81,25 @@ jobs:
       - name: Pyright
         run: uv run pyright
 
+  pr-web-unit-quality:
+    name: pr-web-unit-quality
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Install Web dependencies
+        run: |
+          docker run --rm --user "$(id -u):$(id -g)" \
+            -v "$GITHUB_WORKSPACE:/workspace" \
+            -w /workspace/apps/web \
+            node:24-alpine \
+            sh -lc 'npm ci && npm run typecheck && npm run test:coverage'
+
   pr-unit-tests:
     name: pr-unit-tests-${{ matrix.shard }}
     runs-on: ubuntu-latest
@@ -159,6 +178,7 @@ jobs:
     needs:
       - pr-lint-quality
       - pr-type-quality
+      - pr-web-unit-quality
       - pr-unit-tests
       - pr-integration-tests
     if: always()
@@ -168,11 +188,12 @@ jobs:
         env:
           LINT_RESULT: ${{ needs.pr-lint-quality.result }}
           TYPE_RESULT: ${{ needs.pr-type-quality.result }}
+          WEB_UNIT_RESULT: ${{ needs.pr-web-unit-quality.result }}
           UNIT_RESULT: ${{ needs.pr-unit-tests.result }}
           INTEGRATION_RESULT: ${{ needs.pr-integration-tests.result }}
         run: |
-          if [[ "$LINT_RESULT" != "success" || "$TYPE_RESULT" != "success" || "$UNIT_RESULT" != "success" || "$INTEGRATION_RESULT" != "success" ]]; then
-            echo "pr-quality failed: lint=$LINT_RESULT type=$TYPE_RESULT unit=$UNIT_RESULT integration=$INTEGRATION_RESULT" >&2
+          if [[ "$LINT_RESULT" != "success" || "$TYPE_RESULT" != "success" || "$WEB_UNIT_RESULT" != "success" || "$UNIT_RESULT" != "success" || "$INTEGRATION_RESULT" != "success" ]]; then
+            echo "pr-quality failed: lint=$LINT_RESULT type=$TYPE_RESULT web_unit=$WEB_UNIT_RESULT unit=$UNIT_RESULT integration=$INTEGRATION_RESULT" >&2
             exit 1
           fi
           echo "pr-quality passed."

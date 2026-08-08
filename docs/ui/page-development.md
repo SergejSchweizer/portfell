@@ -83,6 +83,7 @@ Run from `apps/web`:
 ```bash
 npm ci
 npm run typecheck
+npm run test:coverage
 npm run build
 node --check server.js
 ```

@@ -34,17 +34,27 @@ function response(route: Route, body: unknown) {
 }
 
 function workflow(project: Project | undefined) {
-  const hasProject = Boolean(project);
-  const quoteReady = Boolean(project?.quoteRunId);
-  const univariateReady = Boolean(project?.univariateRunId);
+  if (!project) {
+    return {
+      stages: {
+        metadata_filter: { status: "ready" },
+        univariate_statistics: { status: "locked" },
+        univariate_filter: { status: "locked" },
+        bivariate_statistics: { status: "locked" },
+      },
+      process_overview: { metadata_downloaded_isins: 4 },
+    };
+  }
+  const quoteReady = Boolean(project.quoteRunId);
+  const univariateReady = Boolean(project.univariateRunId);
   return {
     stages: {
-      metadata_filter: hasProject ? { status: "complete", metadata_selection_id: `selection-${project.id}`, quote_run_id: project.quoteRunId } : { status: "ready" },
-      univariate_statistics: hasProject ? { status: univariateReady ? "complete" : quoteReady ? "ready" : "ready", univariate_run_id: project?.univariateRunId } : { status: "locked" },
-      univariate_filter: univariateReady ? { status: "complete", univariate_filter_selection_id: `filter-${project?.id}` } : { status: "locked" },
-      bivariate_statistics: univariateReady ? { status: project?.bivariateRunId ? "complete" : "ready", bivariate_run_id: project?.bivariateRunId } : { status: "locked" },
+      metadata_filter: { status: "complete", metadata_selection_id: `selection-${project.id}`, quote_run_id: project.quoteRunId },
+      univariate_statistics: { status: univariateReady ? "complete" : quoteReady ? "ready" : "ready", univariate_run_id: project.univariateRunId },
+      univariate_filter: univariateReady ? { status: "complete", univariate_filter_selection_id: `filter-${project.id}` } : { status: "locked" },
+      bivariate_statistics: univariateReady ? { status: project.bivariateRunId ? "complete" : "ready", bivariate_run_id: project.bivariateRunId } : { status: "locked" },
     },
-    process_overview: hasProject ? { metadata_downloaded_isins: 4, metadata_filter_isins: 3, univariate_statistics_isins: univariateReady ? 3 : null } : { metadata_downloaded_isins: 4 },
+    process_overview: { metadata_downloaded_isins: 4, metadata_filter_isins: 3, univariate_statistics_isins: univariateReady ? 3 : null },
   };
 }
 
