@@ -8,6 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "e2e": "playwright test"
   },
   "dependencies": {
@@ -19,8 +21,13 @@
     "@playwright/test": "^1.55.0",
     "@types/react": "^19.1.12",
     "@types/react-dom": "^19.1.9",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
     "@vitejs/plugin-react": "^5.0.1",
+    "@vitest/coverage-v8": "^4.0.17",
+    "jsdom": "^27.4.0",
     "typescript": "^5.8.3",
-    "vite": "^7.0.6"
+    "vite": "^7.0.6",
+    "vitest": "^4.0.17"
   }
 }

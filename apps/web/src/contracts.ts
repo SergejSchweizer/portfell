@@ -143,6 +143,18 @@ export type ApiMetric = Readonly<{
   operators: readonly string[];
 }>;
 
+export type ApiMetricList = Readonly<{
+  items: readonly ApiMetric[];
+}>;
+
+export type ApiDividendFrequency = "accumulating" | "monthly" | "quarterly" | "semiannual" | "annual" | "irregular";
+
+export type ApiUnivariateSelectionSettings = Readonly<{
+  dividend_frequencies: ApiDividendFrequency[];
+  statistic_labels: Record<string, string[]>;
+  statistic_ranges: Record<string, Readonly<{ minimum: number; maximum: number }>[]>;
+}>;
+
 export type ApiFilterSelection = Readonly<{
   selection_id: string;
   source_run_id: string;

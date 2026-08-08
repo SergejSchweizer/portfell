@@ -52,3 +52,7 @@ selection and unlocks Bivariate Statistics directly; Univariate Filter is not sh
 ## Acceptance
 
 The quote panel is first in document order and its `Download Historical Data` action is disabled without a metadata selection or while a download is active. A failed download displays the server-provided safe error code. The statistics action is disabled when prerequisites are missing or a run is active. Results use typed contracts, accessible table semantics, stable loading feedback, bounded pagination, and a clear upstream-data requirement.
+
+The stateful two-project browser journey exercises historical-data and compute
+actions, every project-persisted portfolio-selection field, histogram hover
+content, and restoration of saved selections after switching projects.

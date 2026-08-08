@@ -4,17 +4,13 @@ import { loadProjectContext, loadQuoteRun, loadWorkflow, postJson, requestJson }
 import { Button } from "../components/button";
 import { LoadingState } from "../components/loading-state";
 import { Panel } from "../components/panel";
-import type { ApiPage, ApiQuoteFetch, ApiResearchRun, ApiUnivariateRow } from "../contracts";
+import type { ApiDividendFrequency, ApiPage, ApiQuoteFetch, ApiResearchRun, ApiUnivariateRow, ApiUnivariateSelectionSettings } from "../contracts";
 import { useResource } from "../hooks/use-resource";
 
 type MetricDefinition = Readonly<{ group: string; metric: string; label: string; description: string; equation: string; notation: string; unit?: string }>;
-type DividendFrequency = "accumulating" | "monthly" | "quarterly" | "semiannual" | "annual" | "irregular";
+type DividendFrequency = ApiDividendFrequency;
 type SelectionRange = Readonly<{ minimum: number; maximum: number }>;
-type UnivariateSelectionSettings = Readonly<{
-  dividend_frequencies: DividendFrequency[];
-  statistic_labels: Record<string, string[]>;
-  statistic_ranges: Record<string, SelectionRange[]>;
-}>;
+type UnivariateSelectionSettings = ApiUnivariateSelectionSettings;
 
 const dividendFrequencyOptions: readonly Readonly<{ value: DividendFrequency; label: string }>[] = [
   { value: "accumulating", label: "None / unknown" },
@@ -258,7 +254,9 @@ export function UnivariateStatisticsPage() {
       cancelled = true;
       if (timeoutId !== undefined) window.clearTimeout(timeoutId);
     };
-  }, [run, univariateStartedAt]);
+  // Keep the active poll alive while the status changes to complete, otherwise
+  // its result request is cancelled by the effect cleanup before cards render.
+  }, [run?.run_id, univariateStartedAt]);
 
   if (workflow.status === "loading" || workflow.status === "idle") {
     return <LoadingState label="Loading univariate statistics" />;
