@@ -287,6 +287,7 @@ class ResearchService:
             },
             "pearson_diagnostics": _pearson_diagnostics(run.rows),
             "spearman_diagnostics": _spearman_diagnostics(run.rows),
+            "downside_diagnostics": _downside_diagnostics(run.rows),
         }
 
     def bivariate_correlation_matrix(
@@ -604,6 +605,73 @@ def _spearman_diagnostics(rows: tuple[JsonRow, ...]) -> JsonRow:
         "best_diversifier_average": averages.get(best_diversifier) if best_diversifier else None,
         "average_rolling_stability": (
             sum(rolling_values) / len(rolling_values) if rolling_values else None
+        ),
+        "cluster_count": len(clusters),
+        "largest_cluster_size": max((len(cluster) for cluster in clusters), default=0),
+    }
+
+
+def _downside_diagnostics(rows: tuple[JsonRow, ...]) -> JsonRow:
+    """Portfolio-selection facts for dependence conditional on joint negative returns."""
+
+    values = [
+        float(row["downside_correlation"])
+        for row in rows
+        if row.get("downside_correlation") is not None
+    ]
+    if not values:
+        return {"high_70_pairs": 0, "high_90_pairs": 0, "low_30_pairs": 0, "negative_pairs": 0}
+    ordered = sorted(values)
+    by_listing: dict[str, list[float]] = {}
+    edges: list[tuple[str, str]] = []
+    gaps: list[float] = []
+    observation_counts: list[int] = []
+    stability_values: list[float] = []
+    worst_pair: tuple[str, str, float] | None = None
+    for row in rows:
+        value = row.get("downside_correlation")
+        if value is None:
+            continue
+        left_label = f"{row['left_code']}.{row['left_exchange']} · {row['left_isin']}"
+        right_label = f"{row['right_code']}.{row['right_exchange']} · {row['right_isin']}"
+        correlation = float(value)
+        by_listing.setdefault(left_label, []).append(correlation)
+        by_listing.setdefault(right_label, []).append(correlation)
+        if correlation >= 0.70:
+            edges.append((left_label, right_label))
+        if worst_pair is None or correlation > worst_pair[2]:
+            worst_pair = (left_label, right_label, correlation)
+        pearson = row.get("pearson_correlation")
+        if pearson is not None:
+            gaps.append(correlation - float(pearson))
+        if row.get("downside_observation_count") is not None:
+            observation_counts.append(int(row["downside_observation_count"]))
+        if row.get("rolling_downside_stability") is not None:
+            stability_values.append(float(row["rolling_downside_stability"]))
+    averages = {label: sum(items) / len(items) for label, items in by_listing.items() if items}
+    most_correlated = max(averages, key=averages.get) if averages else None
+    best_diversifier = min(averages, key=averages.get) if averages else None
+    clusters = _correlation_clusters(tuple(by_listing), edges)
+    return {
+        "high_70_pairs": sum(value >= 0.70 for value in values),
+        "high_90_pairs": sum(value >= 0.90 for value in values),
+        "low_30_pairs": sum(value <= 0.30 for value in values),
+        "negative_pairs": sum(value < 0.0 for value in values),
+        "percentile_10": _percentile(ordered, 0.10),
+        "percentile_50": _percentile(ordered, 0.50),
+        "percentile_90": _percentile(ordered, 0.90),
+        "average_pearson_gap": sum(gaps) / len(gaps) if gaps else None,
+        "large_pearson_gap_pairs": sum(abs(value) >= 0.15 for value in gaps),
+        "most_correlated_listing": most_correlated,
+        "most_correlated_average": averages.get(most_correlated) if most_correlated else None,
+        "best_diversifier_listing": best_diversifier,
+        "best_diversifier_average": averages.get(best_diversifier) if best_diversifier else None,
+        "worst_pair": None if worst_pair is None else f"{worst_pair[0]} ↔ {worst_pair[1]}",
+        "worst_pair_correlation": None if worst_pair is None else worst_pair[2],
+        "median_joint_negative_days": median(observation_counts) if observation_counts else None,
+        "minimum_joint_negative_days": min(observation_counts) if observation_counts else None,
+        "average_rolling_stability": (
+            sum(stability_values) / len(stability_values) if stability_values else None
         ),
         "cluster_count": len(clusters),
         "largest_cluster_size": max((len(cluster) for cluster in clusters), default=0),

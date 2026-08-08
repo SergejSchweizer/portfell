@@ -27,7 +27,7 @@ from portfell.run_state import build_job_manifest, write_job_manifest
 from portfell.schemas import validate_rows
 from portfell.table_io import JsonRow, read_rows, write_rows
 
-_CURRENT_VERSION = "v3"
+_CURRENT_VERSION = "v4"
 
 
 def build_bivariate_statistics(
@@ -242,6 +242,9 @@ def _build_bivariate_pair_statistics(pair: PairObservation) -> JsonRow:
     covariance = sample_covariance(pair.left_values, pair.right_values)
     left_variance = sample_covariance(pair.left_values, pair.left_values)
     right_variance = sample_covariance(pair.right_values, pair.right_values)
+    downside_correlation, downside_observations = _downside_correlation_with_count(
+        pair.left_values, pair.right_values
+    )
     return {
         "pair_key": _pair_key(pair.left, pair.right),
         "left_listing_key": _listing_key(pair.left),
@@ -272,7 +275,8 @@ def _build_bivariate_pair_statistics(pair: PairObservation) -> JsonRow:
         "right_variance": right_variance,
         "left_beta_to_right": _ratio(covariance, right_variance),
         "right_beta_to_left": _ratio(covariance, left_variance),
-        "downside_correlation": _downside_correlation(pair.left_values, pair.right_values),
+        "downside_correlation": downside_correlation,
+        "downside_observation_count": downside_observations,
         "lower_tail_dependence": _lower_tail_dependence(pair.left_values, pair.right_values),
         "tail_coexceedance_rate": _tail_coexceedance_rate(pair.left_values, pair.right_values),
         "rolling_correlation_stability": _rolling_correlation_stability(
@@ -281,17 +285,26 @@ def _build_bivariate_pair_statistics(pair: PairObservation) -> JsonRow:
         "rolling_spearman_stability": _rolling_correlation_stability(
             pair.left_values, pair.right_values, metric="spearman"
         ),
+        "rolling_downside_stability": _rolling_downside_correlation_stability(
+            pair.left_values, pair.right_values
+        ),
         "drawdown_overlap_rate": _drawdown_overlap_rate(pair.left_values, pair.right_values),
     }
 
 
 def _downside_correlation(left: Sequence[float], right: Sequence[float]) -> float:
     """Correlation conditional on both daily log returns being negative."""
+    return _downside_correlation_with_count(left, right)[0]
+
+
+def _downside_correlation_with_count(
+    left: Sequence[float], right: Sequence[float]
+) -> tuple[float, int]:
     paired = [(a, b) for a, b in zip(left, right, strict=True) if a < 0 and b < 0]
     if len(paired) < 2:
-        return 0.0
+        return 0.0, len(paired)
     downside_left, downside_right = zip(*paired, strict=True)
-    return correlation_value(downside_left, downside_right, "pearson")
+    return correlation_value(downside_left, downside_right, "pearson"), len(paired)
 
 
 def _quantile(values: Sequence[float], probability: float) -> float:
@@ -338,6 +351,26 @@ def _rolling_correlation_stability(
         starts.append(len(left) - window)
     correlations = [
         correlation_value(left[start : start + window], right[start : start + window], metric)
+        for start in starts
+    ]
+    if len(correlations) < 2:
+        return 0.0
+    mean = sum(correlations) / len(correlations)
+    return sqrt(sum((value - mean) ** 2 for value in correlations) / (len(correlations) - 1))
+
+
+def _rolling_downside_correlation_stability(
+    left: Sequence[float], right: Sequence[float]
+) -> float:
+    if len(left) != len(right) or len(left) < 20:
+        return 0.0
+    window = min(60, len(left))
+    step = max(1, window // 3)
+    starts = list(range(0, len(left) - window + 1, step))
+    if starts[-1] != len(left) - window:
+        starts.append(len(left) - window)
+    correlations = [
+        _downside_correlation(left[start : start + window], right[start : start + window])
         for start in starts
     ]
     if len(correlations) < 2:

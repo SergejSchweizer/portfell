@@ -1008,6 +1008,7 @@ def test_scoped_research_runs_filter_and_build_unique_pairs() -> None:
     assert summary["pearson_diagnostics"]["high_70_pairs"] >= 0
     assert "most_correlated_listing" in summary["pearson_diagnostics"]
     assert summary["spearman_diagnostics"]["cluster_count"] >= 0
+    assert summary["downside_diagnostics"]["minimum_joint_negative_days"] >= 0
     assert pearson_matrix["values"][0][0] is None
     assert isinstance(pearson_matrix["values"][0][1], float)
     assert isinstance(spearman_matrix["values"][0][1], float)
