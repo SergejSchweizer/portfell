@@ -24,7 +24,7 @@ export function BivariateStatisticsPage() {
   const [run, setRun] = useState<ApiResearchRun | null>(null);
   const [results, setResults] = useState<ApiPage<ApiBivariateRow> | null>(null);
   const [covarianceMatrix, setCovarianceMatrix] = useState<ApiCovarianceMatrix | null>(null);
-  const [highlightedIsins, setHighlightedIsins] = useState<readonly number[]>([]);
+  const [hoveredMatrixCell, setHoveredMatrixCell] = useState<{ row: number; column: number } | null>(null);
   const [message, setMessage] = useState("");
 
   useEffect(() => {
@@ -115,7 +115,8 @@ export function BivariateStatisticsPage() {
     0,
     ...(covarianceMatrix?.values.flat().flatMap((value) => value === null ? [] : [Math.abs(value)]) ?? []),
   );
-  const highlighted = (index: number): boolean => highlightedIsins.includes(index);
+  const highlightedRow = (index: number): boolean => hoveredMatrixCell?.row === index;
+  const highlightedColumn = (index: number): boolean => hoveredMatrixCell?.column === index;
 
   return (
     <Panel title="Bivariate Statistics">
@@ -153,9 +154,9 @@ export function BivariateStatisticsPage() {
         <div className="bivariate-statistic__results">
           {covarianceMatrix === null ? <p className="status-line">Compute bivariate statistics to populate the daily log-return covariance matrix.</p> : covarianceMatrix.labels.length > 0 ? <>
             <p className="bivariate-statistic__matrix-caption">Daily log-return covariance matrix · {covarianceMatrix.observation_count.toLocaleString()} shared observations</p>
-            <table className="covariance-matrix" onMouseLeave={() => setHighlightedIsins([])}>
-              <thead><tr><th scope="col">ISIN</th>{covarianceMatrix.labels.map((label, index) => <th scope="col" key={label.isin} className={highlighted(index) ? "is-highlighted" : undefined} title={label.isin} onMouseEnter={() => setHighlightedIsins([index])}>{label.label}</th>)}</tr></thead>
-              <tbody>{covarianceMatrix.labels.map((label, rowIndex) => <tr key={label.isin}><th scope="row" className={highlighted(rowIndex) ? "is-highlighted" : undefined} title={label.isin} onMouseEnter={() => setHighlightedIsins([rowIndex])}>{label.label}</th>{covarianceMatrix.values[rowIndex].map((value, columnIndex) => <td key={`${label.isin}:${covarianceMatrix.labels[columnIndex].isin}`} className={`${value === null ? "covariance-matrix__empty" : ""} ${highlighted(rowIndex) || highlighted(columnIndex) ? "is-highlighted" : ""}`.trim() || undefined} title={value === null ? "Duplicate or self relation omitted" : `Covariance: ${metric(value)}`} style={value === null ? undefined : { backgroundColor: covarianceColor(value, covarianceExtent) }} onMouseEnter={() => setHighlightedIsins(rowIndex === columnIndex ? [rowIndex] : [rowIndex, columnIndex])}>{metric(value)}</td>)}</tr>)}</tbody>
+            <table className="covariance-matrix" onMouseLeave={() => setHoveredMatrixCell(null)}>
+              <thead><tr><th scope="col">ISIN</th>{covarianceMatrix.labels.map((label, index) => <th scope="col" key={label.isin} className={highlightedColumn(index) ? "is-hovered-column" : undefined} title={label.isin} onMouseEnter={() => setHoveredMatrixCell({ row: index, column: index })}>{label.label}</th>)}</tr></thead>
+              <tbody>{covarianceMatrix.labels.map((label, rowIndex) => <tr key={label.isin}><th scope="row" className={highlightedRow(rowIndex) ? "is-hovered-row" : undefined} title={label.isin} onMouseEnter={() => setHoveredMatrixCell({ row: rowIndex, column: rowIndex })}>{label.label}</th>{covarianceMatrix.values[rowIndex].map((value, columnIndex) => <td key={`${label.isin}:${covarianceMatrix.labels[columnIndex].isin}`} className={`${value === null ? "covariance-matrix__empty" : ""} ${highlightedRow(rowIndex) ? "is-hovered-row" : ""} ${highlightedColumn(columnIndex) ? "is-hovered-column" : ""}`.trim() || undefined} title={value === null ? "Duplicate or self relation omitted" : `Covariance: ${metric(value)}`} style={value === null ? undefined : { backgroundColor: covarianceColor(value, covarianceExtent) }} onMouseEnter={() => setHoveredMatrixCell({ row: rowIndex, column: columnIndex })}>{metric(value)}</td>)}</tr>)}</tbody>
             </table>
             <p className="covariance-matrix__legend"><span className="covariance-matrix__legend-negative" /> Negative <span className="covariance-matrix__legend-neutral" /> Near zero <span className="covariance-matrix__legend-positive" /> Positive</p>
           </> : <p className="status-line">No common log-return observations are available.</p>}
