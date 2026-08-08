@@ -100,6 +100,8 @@ class LocalHostedRuntime:
                 else "eodhd_metadata_unavailable"
             )
             raise HostedRuntimeError(code) from error
+        except PermissionError as error:
+            raise HostedRuntimeError("lake_write_permission_denied") from error
         except ValueError as error:
             raise HostedRuntimeError("eodhd_metadata_invalid_response") from error
 

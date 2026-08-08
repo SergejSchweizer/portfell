@@ -9,6 +9,7 @@ import {
 import type { ApiProjectContext, ApiWorkflow } from "../contracts";
 import { useResource } from "../hooks/use-resource";
 import { workflowPages, type WorkflowPageId } from "../routes";
+import { MetadataFetchProvider, useMetadataFetch } from "./metadata-fetch-context";
 import { ProjectSidebar } from "./project-sidebar";
 
 export type ShellFrameProps = Readonly<{
@@ -26,12 +27,25 @@ const emptyWorkflow: ApiWorkflow = {
 };
 
 export function ShellFrame({ currentPage, children }: ShellFrameProps) {
+  return (
+    <MetadataFetchProvider>
+      <ShellFrameContent currentPage={currentPage}>{children}</ShellFrameContent>
+    </MetadataFetchProvider>
+  );
+}
+
+function ShellFrameContent({ currentPage, children }: ShellFrameProps) {
   const [contextRevision, setContextRevision] = useState(0);
   const [workflowRevision, setWorkflowRevision] = useState(0);
   const [switching, setSwitching] = useState(false);
   const [switchError, setSwitchError] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const {
+    providerKey,
+    setProviderKey,
+    maskedCredentialLabel,
+  } = useMetadataFetch();
   const context = useResource(loadProjectContext, [contextRevision]);
   const projectId = context.status === "ready" ? context.data.current_project_id : null;
   const workflow = useResource(
@@ -101,7 +115,9 @@ export function ShellFrame({ currentPage, children }: ShellFrameProps) {
     try {
       const nextContext = await selectCurrentProject(nextProjectId);
       const nextWorkflow = await loadProjectWorkflow(nextProjectId);
-      const target = workflowPages.find((page) => nextWorkflow.stages[page.id].status !== "locked") ?? workflowPages[0];
+      const target = nextWorkflow.stages.univariate_statistics.status !== "locked"
+        ? workflowPages.find((page) => page.id === "univariate_statistics")!
+        : workflowPages[0];
       window.dispatchEvent(new CustomEvent<ApiProjectContext>("portfell:project-updated", { detail: nextContext }));
       window.history.pushState({}, "", target.path);
       window.dispatchEvent(new Event("portfell:navigation"));
@@ -122,6 +138,15 @@ export function ShellFrame({ currentPage, children }: ShellFrameProps) {
         <div>
           <strong className="brand">Portfell</strong>
           <span className="brand-subtitle">Four-stage statistics workflow</span>
+        </div>
+        <div className="app-header__metadata">
+          <div className="metadata-fetch__credential-input">
+            <label>
+              EODHD key
+              <input type="text" autoComplete="off" value={providerKey} onChange={(event) => setProviderKey(event.target.value)} placeholder="Enter provider key" />
+            </label>
+            {maskedCredentialLabel ? <span className="metadata-fetch__credential">Saved: {maskedCredentialLabel}</span> : null}
+          </div>
         </div>
         <button
           ref={menuButtonRef}

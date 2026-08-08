@@ -107,6 +107,7 @@ def quote_run_row(run: ProviderDownloadRun, *, summary: Mapping[str, Any] | None
         ),
         "selected_count": len(run.returned_observation_ids),
         "silver_quote_rows": int(values.get("silver_quote_rows", 0)),
+        "error_code": str(values.get("error_code", "")),
     }
 
 

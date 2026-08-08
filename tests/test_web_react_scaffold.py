@@ -22,26 +22,46 @@ def test_web_has_exactly_four_research_pages() -> None:
 
 def test_workflow_pages_place_ingestion_actions_before_their_stage_controls() -> None:
     metadata_page = (WEB_ROOT / "src" / "pages" / "metadata-filter.tsx").read_text(encoding="utf-8")
+    frame = (WEB_ROOT / "src" / "shell" / "frame.tsx").read_text(encoding="utf-8")
     univariate_page = (WEB_ROOT / "src" / "pages" / "univariate-statistics.tsx").read_text(
         encoding="utf-8"
     )
     assert "Fetch all metadata" in metadata_page
-    assert metadata_page.index("Refresh Listing Metadata") < metadata_page.index("Metadata Filter")
+    assert metadata_page.index("Download Metadata") < metadata_page.index("Metadata Filter")
+    assert "EODHD key" in frame
+    assert "Fetch all metadata" not in frame
     assert '"/univariate-statistics"' in metadata_page
-    assert "Fetch quotes" not in metadata_page
-    assert "Fetch quotes" in univariate_page
+    assert "Download Historical Data" not in metadata_page
+    assert "Download Historical Data" in univariate_page
     assert "postJson" in univariate_page
     assert '"/api/quote-runs"' in univariate_page
-    assert univariate_page.index("Fetch Historical Quotes") < univariate_page.index(
+    assert univariate_page.index("Download Historical Data") < univariate_page.index(
         "Univariate Statistics"
     )
     assert univariate_page.index("<progress") < univariate_page.index("quote-fetch__action")
-    assert univariate_page.index("quote-fetch__action") < univariate_page.index("Fetch quotes")
+    assert univariate_page.index("quote-fetch__action") < univariate_page.rindex(
+        "Download Historical Data"
+    )
     assert "loadQuoteRun" in univariate_page
+    assert "Restoring the current historical-data download status" in univariate_page
+    assert "workflowQuoteRunId" in univariate_page
     assert "quote-fetch tasks completed" in univariate_page
     assert "estimatedRemainingTime" in univariate_page
     assert "remaining" in univariate_page
     assert "value={quoteProgress}" in univariate_page
+    assert "error_code" in univariate_page
+    assert "Refresh Historical Download Status" in univariate_page
+    assert "disabled={!metadata.metadata_selection_id}" in univariate_page
+    assert "!metadata.quote_run_id" in univariate_page
+    assert 'page.id === "univariate_statistics"' in frame
+    assert (
+        "Statistic</th><th>Description</th><th>Equation</th><th>Distribution</th><th>Filter value"
+        in univariate_page
+    )
+    assert "metricDefinitions" in univariate_page
+    assert "univariate-metric-table__group" in univariate_page
+    assert "univariate-histogram" in univariate_page
+    assert "filterValues" in univariate_page
 
 
 def test_vite_build_is_the_canonical_web_runtime() -> None:
@@ -149,24 +169,31 @@ def test_metadata_filter_restores_saved_project_filter_values() -> None:
     assert "setName(filter.name)" in page
 
 
-def test_metadata_refresh_keeps_the_entered_eodhd_key_in_the_metadata_panel() -> None:
-    page = (WEB_ROOT / "src" / "pages" / "metadata-filter.tsx").read_text(encoding="utf-8")
+def test_metadata_refresh_keeps_the_entered_eodhd_key_in_the_header() -> None:
+    context = (WEB_ROOT / "src" / "shell" / "metadata-fetch-context.tsx").read_text(
+        encoding="utf-8"
+    )
 
-    assert 'await postJson("/api/credentials/eodhd", { provider_key: providerKey.trim() })' in page
-    assert 'setProviderKey("")' not in page
+    assert (
+        'await postJson("/api/credentials/eodhd", { provider_key: providerKey.trim() })' in context
+    )
+    assert 'setProviderKey("")' not in context
 
 
-def test_metadata_panel_uses_masked_saved_credential_without_browser_secret_persistence() -> None:
-    page = (WEB_ROOT / "src" / "pages" / "metadata-filter.tsx").read_text(encoding="utf-8")
+def test_metadata_header_uses_masked_saved_credential_without_browser_secret_persistence() -> None:
+    frame = (WEB_ROOT / "src" / "shell" / "frame.tsx").read_text(encoding="utf-8")
+    context = (WEB_ROOT / "src" / "shell" / "metadata-fetch-context.tsx").read_text(
+        encoding="utf-8"
+    )
     client = (WEB_ROOT / "src" / "api" / "client.ts").read_text(encoding="utf-8")
 
-    assert "loadEodhdCredentialStatus" in page
-    assert "loadEodhdCredentialValue" in page
-    assert "setProviderKey(savedProviderKey.data.provider_key)" in page
-    assert "Saved: {credential.data.masked_label}" in page
-    assert "!providerKey.trim() && !hasSavedCredential" in page
-    assert 'setProviderKey("")' not in page
-    assert 'type="text"' in page
+    assert "loadEodhdCredentialStatus" in context
+    assert "loadEodhdCredentialValue" in context
+    assert "setProviderKey(savedProviderKey.data.provider_key)" in context
+    assert "Saved: {maskedCredentialLabel}" in frame
+    assert "!providerKey.trim() && !hasSavedCredential" in context
+    assert 'setProviderKey("")' not in context
+    assert 'type="text"' in frame
     assert 'requestJson<ApiCredentialStatus>("/api/credentials/eodhd")' in client
     assert 'requestJson<ApiCredentialValue>("/api/credentials/eodhd/value")' in client
 
@@ -179,14 +206,25 @@ def test_post_requests_support_browsers_without_crypto_random_uuid() -> None:
     assert '"Idempotency-Key": createIdempotencyKey()' in client
 
 
-def test_metadata_panel_shows_progress_under_the_eodhd_key_while_fetching() -> None:
+def test_metadata_panel_uses_the_historical_data_progress_status_action_layout() -> None:
+    frame = (WEB_ROOT / "src" / "shell" / "frame.tsx").read_text(encoding="utf-8")
     page = (WEB_ROOT / "src" / "pages" / "metadata-filter.tsx").read_text(encoding="utf-8")
+    context = (WEB_ROOT / "src" / "shell" / "metadata-fetch-context.tsx").read_text(
+        encoding="utf-8"
+    )
     styles = (WEB_ROOT / "styles" / "app.css").read_text(encoding="utf-8")
 
-    assert 'fetching ? <progress className="metadata-fetch__progress"' in page
+    assert 'fetching ? <progress className="metadata-fetch__progress"' not in frame
+    assert 'id="metadata-progress"' in page
     assert "max={100} value={metadataProgress}" in page
-    assert "loadMetadataFetchRun" in page
-    assert "exchanges completed" in page
+    assert page.index("metadata-progress") < page.index("Fetch all metadata")
+    assert "metadataStatus" not in frame
+    assert "metadataStatus" in page
+    status_output = '<output className="status-line" aria-live="polite">{metadataStatus}</output>'
+    assert page.index("metadata-progress") < page.index(status_output)
+    assert page.index(status_output) < page.index("Fetch all metadata")
+    assert "loadMetadataFetchRun" in context
+    assert "exchanges completed" in context
     assert ".metadata-fetch__progress { height: 4px;" in styles
 
 

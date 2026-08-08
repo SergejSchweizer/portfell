@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from collections.abc import Callable
 from dataclasses import replace
@@ -21,7 +22,10 @@ from portfell.hosted_api_service_support import (
 )
 from portfell.hosted_api_state import HostedApiState
 from portfell.hosted_credentials import CredentialVaultError
+from portfell.hosted_workspace_repository import persist_local_workspace
 from portfell.table_io import JsonRow
+
+LOGGER = logging.getLogger(__name__)
 
 
 class QuoteRunService:
@@ -108,7 +112,10 @@ class QuoteRunService:
     def run_quote_fetch(
         self, run: ProviderDownloadRun, selection_id: str, provider_key: str
     ) -> None:
+        last_persisted_at = 0.0
+
         def update_progress(completed: int, total: int, failed: int) -> None:
+            nonlocal last_persisted_at
             percent = (
                 min(99, max(1, round((completed / total) * 100))) if completed and total else 0
             )
@@ -120,6 +127,9 @@ class QuoteRunService:
                 "progress": percent,
                 "total": total,
             }
+            if time.monotonic() - last_persisted_at >= 5.0:
+                persist_local_workspace(self.state)
+                last_persisted_at = time.monotonic()
 
         try:
             summary = self.runtime.run_quotes(
@@ -129,12 +139,14 @@ class QuoteRunService:
                 concurrency=self.runtime.process_cpu_count(),
                 on_progress=update_progress,
             )
-        except Exception:
+        except Exception as error:
+            LOGGER.exception("Quote download failed for selection %s", selection_id)
             self.state.downloads_by_id[run.download_run_id] = replace(run, status="failed")
             self.state.download_summaries_by_id[run.download_run_id] = {
                 **self.state.download_summaries_by_id[run.download_run_id],
                 "percent": 0,
                 "progress": 0,
+                "error_code": f"quote_download_{type(error).__name__.lower()}",
             }
             audit(self.state, run.user_id, "fetch_all_quotes.failed")
             return

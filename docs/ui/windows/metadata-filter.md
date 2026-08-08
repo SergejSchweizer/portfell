@@ -6,13 +6,13 @@
 
 ## Purpose
 
-Refresh listing metadata and create a server-owned project selection from it.
+Download listing metadata and create a server-owned project selection from it.
 
 ## Inputs and actions
 
-The first white panel owns listing-metadata refresh: EODHD key, saved-key state, determinate exchange progress, status text, and `Fetch all metadata`. The Metadata Filter panel follows it and exposes exchange, instrument type, country, currency, and name filters.
+The persistent header owns the EODHD key and saved-key state. The first white panel uses the same progress, status, and action layout as Download Historical Data, and owns `Fetch all metadata`, its determinate exchange progress, and all metadata-fetch status messages. Metadata rows and completed-exchange coverage persist in the server-owned lake; later automatic refreshes query the exchange registry and download only exchange listings not yet covered. The Metadata Filter panel follows it and exposes exchange, instrument type, country, currency, and name filters.
 
-After a successful `Apply metadata filter` response, the browser dispatches the server-owned workflow refresh and navigates to `/univariate-statistics`. Quote fetching belongs to that next stage.
+After a successful `Create new project` response, the browser dispatches the server-owned workflow refresh and navigates to `/univariate-statistics`. Quote fetching belongs to that next stage.
 
 ## States
 
@@ -23,4 +23,4 @@ opening this page after a switch, loads the saved server-owned filter values and
 
 ## Acceptance
 
-The metadata panel precedes the filter dropdowns in document order. Metadata refresh remains disabled without an entered or saved key. All fields have visible labels, status changes use `aria-live`, and no filtering or ingestion business logic is implemented in the browser.
+The metadata action panel precedes the filter dropdowns in document order. Its progress, status, and action use the same order and controls as Download Historical Data. Metadata refresh remains disabled without an entered or saved header key. All fields have visible labels, status changes use `aria-live`, and no filtering or ingestion business logic is implemented in the browser.

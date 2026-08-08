@@ -9,11 +9,12 @@ import pytest
 import portfell.hosted_api as hosted_api
 import portfell.hosted_api_local_runtime as local_runtime_module
 from portfell.entitlements import ProviderDownloadRun
-from portfell.hosted_api_errors import HostedApplicationError
+from portfell.hosted_api_errors import HostedApplicationError, HostedRuntimeError
 from portfell.hosted_api_local_runtime import LocalHostedRuntime
 from portfell.hosted_api_service_support import (
     current_project,
     idempotent_response,
+    opaque_id,
     page,
     project_context_row,
     project_data_loaded,
@@ -21,6 +22,7 @@ from portfell.hosted_api_service_support import (
     require_user_row,
     selection_for_project,
     set_current_project,
+    stable_hash,
     workflow_row,
 )
 from portfell.hosted_api_state import (
@@ -74,6 +76,14 @@ def _empty_workflow(**_kwargs: Any) -> dict[str, Any]:
     return {}
 
 
+def _permission_denied_workflow(**_kwargs: Any) -> dict[str, Any]:
+    raise PermissionError("lake is read-only")
+
+
+def _discard_progress(_completed: int, _total: int, _skipped: int) -> None:
+    return None
+
+
 def _one_isin_row(_path: Path) -> list[JsonRow]:
     return [{"isin": "IE1"}]
 
@@ -88,6 +98,20 @@ def test_workspace_repository_round_trips_durable_state(tmp_path: Path) -> None:
     state.current_project_id_by_user["user-a"] = "project-1"
     state.current_metadata_selection_by_user["user-a"] = "selection-1"
     state.metadata_revisions_by_user["user-a"] = "revision-1"
+    quote_run = ProviderDownloadRun(
+        "quote-run-1", "user-a", "credential-1", "eodhd", "succeeded", ("IE1",), "hash-1"
+    )
+    state.downloads_by_id[quote_run.download_run_id] = quote_run
+    state.download_summaries_by_id[quote_run.download_run_id] = {
+        "total": 1,
+        "completed": 1,
+        "failed": 0,
+        "percent": 100,
+    }
+    state.quote_rows_by_run_id[quote_run.download_run_id] = (
+        {"isin": "IE1", "exchange": "XETRA", "code": "AAA", "date": "2026-08-08"},
+    )
+    remember_idempotency(state, "user-a", "fetch-all-quotes:project-1", "request-1", "quote-run-1")
 
     persist_local_workspace(state)
     restored = HostedApiState()
@@ -98,7 +122,31 @@ def test_workspace_repository_round_trips_durable_state(tmp_path: Path) -> None:
     assert restored.current_project_id_by_user == {"user-a": "project-1"}
     assert restored.current_metadata_selection_by_user == {"user-a": "selection-1"}
     assert restored.metadata_revisions_by_user == {"user-a": "revision-1"}
+    assert restored.downloads_by_id == state.downloads_by_id
+    assert restored.download_summaries_by_id == state.download_summaries_by_id
+    assert restored.quote_rows_by_run_id == state.quote_rows_by_run_id
+    assert restored.idempotency_refs == state.idempotency_refs
     assert json.loads((tmp_path / "workspace.json").read_text(encoding="utf-8"))["projects"]
+
+
+def test_workspace_restore_marks_interrupted_quote_runs_retryable(tmp_path: Path) -> None:
+    store = LocalWorkspaceStore(tmp_path / "workspace.json")
+    state = HostedApiState(workspace_store=store)
+    run = ProviderDownloadRun(
+        "quote-run-1", "user-a", "credential-1", "eodhd", "running", ("IE1",), "hash-1"
+    )
+    state.downloads_by_id[run.download_run_id] = run
+    state.download_summaries_by_id[run.download_run_id] = {"total": 10, "completed": 4}
+    persist_local_workspace(state)
+
+    restored = HostedApiState()
+    restore_local_workspace(restored, store.load())
+
+    assert restored.downloads_by_id[run.download_run_id].status == "failed"
+    assert (
+        restored.download_summaries_by_id[run.download_run_id]["error_code"]
+        == "quote_run_interrupted_by_restart"
+    )
 
 
 def test_local_workspace_principal_rejects_blank_user_id() -> None:
@@ -130,6 +178,17 @@ def test_local_runtime_validates_metadata_manifests(
 
     monkeypatch.setattr(local_runtime_module, "read_rows", _one_isin_row)
     assert runtime.all_isins_rows() == ({"isin": "IE1"},)
+
+
+def test_local_runtime_reports_metadata_lake_permission_errors() -> None:
+    runtime = LocalHostedRuntime(
+        quote_workflow=_empty_workflow,
+        metadata_workflow=_permission_denied_workflow,
+        cpu_count=lambda: 1,
+    )
+
+    with pytest.raises(HostedRuntimeError, match="lake_write_permission_denied"):
+        runtime.run_metadata(provider_key="secret", on_progress=_discard_progress)
 
 
 def test_quote_fetch_compatibility_hook_delegates(
@@ -209,6 +268,34 @@ def test_services_fail_closed_without_credentials_or_quote_selection() -> None:
         )
 
 
+def test_quote_run_reuses_an_active_run_without_an_idempotency_key() -> None:
+    state = HostedApiState()
+    state.projects_by_id["project-1"] = ProjectRecord("project-1", "user-a", "Income")
+    state.selections_by_id["selection-1"] = SelectionRecord(
+        "selection-1", "user-a", "project-1", "Income", ("IE1",)
+    )
+    state.credential_vault().set_credential(user_id="user-a", provider_key="test-key")
+    runtime = LocalHostedRuntime(
+        quote_workflow=_empty_workflow,
+        metadata_workflow=_empty_workflow,
+        cpu_count=lambda: 4,
+    )
+    service = QuoteRunService(state, runtime)
+
+    first, first_task = service.start(
+        "user-a", project_id="project-1", selection_id=None, idempotency_key=None
+    )
+    second, second_task = service.start(
+        "user-a", project_id="project-1", selection_id=None, idempotency_key=None
+    )
+
+    assert first["status"] == "running"
+    assert first_task is not None
+    assert second["download_run_id"] == first["download_run_id"]
+    assert second["status"] == "running"
+    assert second_task is None
+
+
 def test_project_context_cleans_discontinued_projects_and_tracks_loaded_data() -> None:
     state = HostedApiState()
     state.projects_by_id = {
@@ -224,7 +311,11 @@ def test_project_context_cleans_discontinued_projects_and_tracks_loaded_data() -
         "selection-a": SelectionRecord(
             "selection-a", "user-a", "project-a", "Current", ("IE1", "IE2")
         ),
+        "selection-a-new": SelectionRecord(
+            "selection-a-new", "user-a", "project-a", "Current", ("IE3",)
+        ),
     }
+    state.current_metadata_selection_by_user["user-a"] = "selection-a-new"
     run = ProviderDownloadRun(
         download_run_id="run-1",
         user_id="user-a",
@@ -243,12 +334,12 @@ def test_project_context_cleans_discontinued_projects_and_tracks_loaded_data() -
 
     assert context["current_project_id"] == "project-a"
     assert [row["project_id"] for row in context["projects"]] == ["project-a", "project-b"]
-    assert context["projects"][0]["selected_count"] == 2
+    assert context["projects"][0]["selected_count"] == 1
     assert context["projects"][0]["data_loaded"] is True
     assert "removed" not in state.projects_by_id
     assert "other" in state.projects_by_id
     assert project_data_loaded(state, "project-b", "user-a") is False
-    assert selection_for_project(state, "project-a", "user-a").selection_id == "selection-a"
+    assert selection_for_project(state, "project-a", "user-a").selection_id == "selection-a-new"
     with pytest.raises(HostedApplicationError, match="not_found"):
         selection_for_project(state, "project-b", "user-a")
 
@@ -289,3 +380,25 @@ def test_workflow_row_resolves_completed_research_chain() -> None:
     assert stages["univariate_statistics"]["status"] == "complete"
     assert stages["univariate_filter"]["status"] == "complete"
     assert workflow_row(state, "user-a", None)["stages"]["metadata_filter"]["status"] == "ready"
+
+
+def test_workflow_row_exposes_an_active_quote_run_for_the_current_selection() -> None:
+    state = HostedApiState()
+    selection = SelectionRecord("selection-1", "user-a", "project-1", "UCITS", ("IE1",))
+    state.selections_by_id[selection.selection_id] = selection
+    request_hash = stable_hash(
+        {
+            "project_id": selection.project_id,
+            "selection_id": selection.selection_id,
+            "member_ids": list(selection.member_ids),
+        }
+    )
+    run_id = opaque_id("fetch-all-quotes", f"user-a:{request_hash}")
+    state.downloads_by_id[run_id] = ProviderDownloadRun(
+        run_id, "user-a", "credential-1", "eodhd", "running", selection.member_ids, request_hash
+    )
+
+    stages = workflow_row(state, "user-a", selection.project_id)["stages"]
+
+    assert stages["metadata_filter"]["quote_run_id"] == run_id
+    assert stages["univariate_statistics"]["status"] == "ready"

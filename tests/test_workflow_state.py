@@ -9,6 +9,11 @@ def test_workflow_transitions_in_order_with_immutable_identifiers() -> None:
         metadata_selection_id=None,
         quote_run_id=None,
     )
+    selected = resolve_workflow(
+        metadata_revision_id="metadata-revision-1",
+        metadata_selection_id="metadata-selection-1",
+        quote_run_id=None,
+    )
     quoted = resolve_workflow(
         metadata_revision_id="metadata-revision-1",
         metadata_selection_id="metadata-selection-1",
@@ -28,6 +33,12 @@ def test_workflow_transitions_in_order_with_immutable_identifiers() -> None:
         "univariate_filter": {"status": "locked"},
         "bivariate_statistics": {"status": "locked"},
     }
+    assert selected["metadata_filter"] == {
+        "status": "complete",
+        "metadata_revision_id": "metadata-revision-1",
+        "metadata_selection_id": "metadata-selection-1",
+    }
+    assert selected["univariate_statistics"] == {"status": "ready"}
     assert quoted["metadata_filter"] == {
         "status": "complete",
         "metadata_revision_id": "metadata-revision-1",

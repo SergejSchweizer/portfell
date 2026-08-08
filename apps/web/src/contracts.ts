@@ -71,6 +71,7 @@ export type ApiQuoteFetch = Readonly<{
   quote_successes?: number;
   quote_errors?: number;
   silver_quote_rows?: number;
+  error_code?: string;
 }>;
 
 export type ApiProjects = Readonly<{
@@ -128,7 +129,7 @@ export type ApiUnivariateRow = Readonly<{
   sharpe_ratio?: number | null;
   max_drawdown?: number | null;
   expected_shortfall?: number | null;
-}>;
+} & Record<string, string | number | boolean | null | undefined>>;
 
 export type ApiMetric = Readonly<{
   metric: string;

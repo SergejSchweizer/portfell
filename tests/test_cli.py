@@ -463,6 +463,13 @@ def test_memory_safe_quote_retry_reuses_partial_bronze_writes(
                         "volume": 10,
                     }
                 ]
+            if path in {
+                "/div/AAA.XETRA",
+                "/div/BBB.XETRA",
+                "/splits/AAA.XETRA",
+                "/splits/BBB.XETRA",
+            }:
+                return []
             raise AssertionError(path)
 
     def fake_client_factory(_config: object) -> FakeClient:
@@ -477,12 +484,15 @@ def test_memory_safe_quote_retry_reuses_partial_bronze_writes(
         selection_id="selection-1",
         end_date=date.fromisoformat("2026-01-01"),
         concurrency=1,
-        include_raw_datasets=False,
         memory_safe=True,
     )
 
-    assert requested_paths == ["/eod/BBB.XETRA"]
+    assert "/eod/AAA.XETRA" not in requested_paths
+    assert "/eod/BBB.XETRA" in requested_paths
+    assert "/div/AAA.XETRA" in requested_paths
+    assert "/splits/AAA.XETRA" in requested_paths
     assert summary["quote_successes"] == 1
+    assert summary["raw_dataset_successes"] == 4
     assert len(read_rows(paths.silver_quote_file("XETRA", "IE1"))) == 1
     assert len(read_rows(paths.silver_quote_file("XETRA", "IE2"))) == 1
 

@@ -47,7 +47,7 @@ test("research workflow exercises every current field and action sequentially", 
   await page.getByLabel("Country").selectOption("IE");
   await page.getByLabel("Currency").selectOption("EUR");
   await page.getByLabel("Name contains").fill("UCITS");
-  await page.getByRole("button", { name: "Apply metadata filter" }).click();
+  await page.getByRole("button", { name: "Create new project" }).click();
   await expect(page).toHaveURL(/\/univariate-statistics$/);
   await page.getByRole("button", { name: "Fetch quotes" }).click();
   await page.getByRole("button", { name: "Compute univariate statistics" }).click();
