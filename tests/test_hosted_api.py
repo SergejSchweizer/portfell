@@ -971,6 +971,30 @@ def test_scoped_research_runs_filter_and_build_unique_pairs() -> None:
             headers=_headers(csrf=False),
         )
     )["items"]
+    summary = _json(
+        client.get(
+            f"/bivariate-statistics/runs/{bivariate['run_id']}/summary",
+            headers=_headers(csrf=False),
+        )
+    )
+    pearson_matrix = _json(
+        client.get(
+            f"/bivariate-statistics/runs/{bivariate['run_id']}/correlation-matrix?metric=pearson",
+            headers=_headers(csrf=False),
+        )
+    )
+    spearman_matrix = _json(
+        client.get(
+            f"/bivariate-statistics/runs/{bivariate['run_id']}/correlation-matrix?metric=spearman",
+            headers=_headers(csrf=False),
+        )
+    )
+    downside_matrix = _json(
+        client.get(
+            f"/bivariate-statistics/runs/{bivariate['run_id']}/correlation-matrix?metric=downside",
+            headers=_headers(csrf=False),
+        )
+    )
 
     assert repeated["run_id"] == univariate["run_id"]
     assert univariate_status["status"] == "complete"
@@ -980,6 +1004,22 @@ def test_scoped_research_runs_filter_and_build_unique_pairs() -> None:
     assert plan["allowed"] is True
     assert len(pair_rows) == 3
     assert len({(row["left_id"], row["right_id"]) for row in pair_rows}) == 3
+    assert summary["pair_count"] == 3
+    assert summary["pearson_diagnostics"]["high_70_pairs"] >= 0
+    assert "most_correlated_listing" in summary["pearson_diagnostics"]
+    assert summary["spearman_diagnostics"]["cluster_count"] >= 0
+    assert summary["downside_diagnostics"]["minimum_joint_negative_days"] >= 0
+    assert pearson_matrix["values"][0][0] is None
+    assert isinstance(pearson_matrix["values"][0][1], float)
+    assert isinstance(spearman_matrix["values"][0][1], float)
+    assert isinstance(downside_matrix["values"][0][1], float)
+    assert set(summary["metrics"]) >= {
+        "pearson_correlation",
+        "downside_correlation",
+        "lower_tail_dependence",
+        "rolling_correlation_stability",
+        "drawdown_overlap_rate",
+    }
     assert (
         client.get(
             f"/univariate-statistics/runs/{univariate['run_id']}",

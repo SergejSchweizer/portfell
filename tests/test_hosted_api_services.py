@@ -122,6 +122,16 @@ def test_workspace_repository_round_trips_durable_state(tmp_path: Path) -> None:
     )
     state.univariate_runs_by_id[univariate.run_id] = univariate
     state.quote_run_by_univariate_run_id[univariate.run_id] = quote_run.download_run_id
+    bivariate = ResearchRun(
+        "bivariate-1",
+        "user-a",
+        "source-bivariate-1",
+        "complete",
+        ({"left_isin": "IE1", "right_isin": "IE2", "pearson_correlation": 0.2},),
+        1,
+        1,
+    )
+    state.bivariate_runs_by_id[bivariate.run_id] = bivariate
     remember_idempotency(state, "user-a", "fetch-all-quotes:project-1", "request-1", "quote-run-1")
 
     persist_local_workspace(state)
@@ -137,6 +147,7 @@ def test_workspace_repository_round_trips_durable_state(tmp_path: Path) -> None:
     assert restored.download_summaries_by_id == state.download_summaries_by_id
     assert restored.quote_rows_by_run_id == state.quote_rows_by_run_id
     assert restored.univariate_runs_by_id == state.univariate_runs_by_id
+    assert restored.bivariate_runs_by_id == state.bivariate_runs_by_id
     assert restored.quote_run_by_univariate_run_id == state.quote_run_by_univariate_run_id
     assert restored.idempotency_refs == state.idempotency_refs
     assert json.loads((tmp_path / "workspace.json").read_text(encoding="utf-8"))["projects"]

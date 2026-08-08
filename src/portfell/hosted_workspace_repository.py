@@ -69,6 +69,20 @@ def persist_local_workspace(state: HostedApiState) -> None:
                 }
                 for run in state.univariate_runs_by_id.values()
             ],
+            "bivariate_runs": [
+                {
+                    "run_id": run.run_id,
+                    "user_id": run.user_id,
+                    "source_id": run.source_id,
+                    "status": run.status,
+                    "rows": list(run.rows),
+                    "total": run.total,
+                    "completed": run.completed,
+                    "failed": run.failed,
+                }
+                for run in state.bivariate_runs_by_id.values()
+                if run.status == "complete"
+            ],
             "idempotency_refs": [
                 {
                     "user_id": user_id,
@@ -133,6 +147,7 @@ def restore_local_workspace(state: HostedApiState, payload: Mapping[str, object]
     }
     _restore_quote_runs(state, payload)
     _restore_univariate_runs(state, payload)
+    _restore_bivariate_runs(state, payload)
 
 
 def _restore_quote_runs(state: HostedApiState, payload: Mapping[str, object]) -> None:
@@ -223,6 +238,30 @@ def _restore_univariate_runs(state: HostedApiState, payload: Mapping[str, object
         quote_run_id = _text(row, "quote_run_id")
         state.univariate_runs_by_id[run.run_id] = run
         state.quote_run_by_univariate_run_id[run.run_id] = quote_run_id
+
+
+def _restore_bivariate_runs(state: HostedApiState, payload: Mapping[str, object]) -> None:
+    """Restore completed pair statistics so a project's active workflow can reuse them."""
+
+    for item in _object_list(payload.get("bivariate_runs", []), "bivariate runs"):
+        row = _mapping(item, "bivariate run")
+        status = _text(row, "status")
+        if status != "complete":
+            raise ValueError("local workspace bivariate run status is invalid")
+        run = ResearchRun(
+            run_id=_text(row, "run_id"),
+            user_id=_text(row, "user_id"),
+            source_id=_text(row, "source_id"),
+            status="complete",
+            rows=tuple(
+                dict(_mapping(value, "bivariate statistic"))
+                for value in _object_list(row.get("rows", []), "bivariate statistics")
+            ),
+            total=_integer(row, "total"),
+            completed=_integer(row, "completed"),
+            failed=_integer(row, "failed"),
+        )
+        state.bivariate_runs_by_id[run.run_id] = run
 
 
 def _text(row: Mapping[str, object], key: str) -> str:

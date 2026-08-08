@@ -170,8 +170,86 @@ export type ApiBivariateRow = Readonly<{
   pearson_correlation?: number | null;
   spearman_correlation?: number | null;
   covariance?: number | null;
+  downside_correlation?: number | null;
+  lower_tail_dependence?: number | null;
+  tail_coexceedance_rate?: number | null;
+  rolling_correlation_stability?: number | null;
+  drawdown_overlap_rate?: number | null;
   left_beta_to_right?: number | null;
   right_beta_to_left?: number | null;
+}>;
+
+export type ApiBivariateMetricSummary = Readonly<{
+  mean: number | null;
+  median: number | null;
+  minimum: number | null;
+  maximum: number | null;
+  histogram: readonly Readonly<{ lower: number; upper: number; count: number }>[];
+}>;
+
+export type ApiBivariateSummary = Readonly<{
+  pair_count: number;
+  observation_count: number;
+  metrics: Readonly<Record<string, ApiBivariateMetricSummary>>;
+  pearson_diagnostics: Readonly<{
+    high_70_pairs: number;
+    high_90_pairs: number;
+    low_30_pairs: number;
+    negative_pairs: number;
+    percentile_10?: number | null;
+    percentile_50?: number | null;
+    percentile_90?: number | null;
+    most_correlated_listing?: string | null;
+    most_correlated_average?: number | null;
+    best_diversifier_listing?: string | null;
+    best_diversifier_average?: number | null;
+  }>;
+  spearman_diagnostics: Readonly<{
+    high_70_pairs: number;
+    high_90_pairs: number;
+    low_30_pairs: number;
+    negative_pairs: number;
+    percentile_10?: number | null;
+    percentile_50?: number | null;
+    percentile_90?: number | null;
+    average_pearson_gap?: number | null;
+    large_pearson_gap_pairs?: number;
+    most_correlated_listing?: string | null;
+    most_correlated_average?: number | null;
+    best_diversifier_listing?: string | null;
+    best_diversifier_average?: number | null;
+    average_rolling_stability?: number | null;
+    cluster_count?: number;
+    largest_cluster_size?: number;
+  }>;
+  downside_diagnostics: Readonly<{
+    high_70_pairs: number;
+    high_90_pairs: number;
+    low_30_pairs: number;
+    negative_pairs: number;
+    percentile_10?: number | null;
+    percentile_50?: number | null;
+    percentile_90?: number | null;
+    average_pearson_gap?: number | null;
+    large_pearson_gap_pairs?: number;
+    most_correlated_listing?: string | null;
+    most_correlated_average?: number | null;
+    best_diversifier_listing?: string | null;
+    best_diversifier_average?: number | null;
+    worst_pair?: string | null;
+    worst_pair_correlation?: number | null;
+    median_joint_negative_days?: number | null;
+    minimum_joint_negative_days?: number | null;
+    average_rolling_stability?: number | null;
+    cluster_count?: number;
+    largest_cluster_size?: number;
+  }>;
+}>;
+
+export type ApiPairMetricMatrix = Readonly<{
+  labels: readonly Readonly<{ isin: string; exchange: string; code: string; label: string }>[];
+  values: readonly (readonly (number | null)[])[];
+  observation_count: number;
 }>;
 
 export type ApiCovarianceMatrix = Readonly<{
