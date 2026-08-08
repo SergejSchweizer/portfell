@@ -930,6 +930,14 @@ The catalogue below groups modules by responsibility. Public modules should depe
 | `portfell.hosted_api` | FastAPI composition, routes, and local application orchestration. | Active. |
 | `portfell.hosted_api_contracts` | Dependency-light hosted request contracts. | Active. |
 | `portfell.hosted_api_state` | Local principal, records, and typed in-memory repository container. | Active. |
+| `portfell.hosted_research_service` | Route-facing facade over concern-specific research services. | Active. |
+| `portfell.hosted_univariate_service` | Univariate run and filter-selection transitions. | Active. |
+| `portfell.hosted_bivariate_service` | Bivariate run transitions and read-model coordination. | Active. |
+| `portfell.hosted_analysis_service` | Analysis idempotency and result retrieval. | Active. |
+| `portfell.hosted_research_ports` | Typed research data, persistence, and repository boundaries. | Active. |
+| `portfell.hosted_research_repository` | User-scoped adapter over local hosted state. | Active local adapter. |
+| `portfell.hosted_research_persistence` | Local workspace persistence adapter for research transitions. | Active local adapter. |
+| `portfell.bivariate_views` / `bivariate_diagnostics` | Pure bivariate matrices, summaries, and portfolio facts. | Active. |
 | `portfell.hosted_runtime` | Container health and Uvicorn startup. | Active. |
 | `portfell.security_gates` | Repository/CI security-policy validator. | Active in quality gates. |
 | `portfell.hosted_readiness` | Hosted release evidence validator. | Active validation. |
@@ -974,7 +982,11 @@ math core   -X->  database credentials or user authorization decisions
 hosted API  -X->  unrestricted global Silver/Gold scans
 ```
 
-Import Linter currently enforces that evaluation does not depend on ingestion modules and that shared infrastructure does not depend on workflow modules.
+Import Linter enforces evaluation/ingestion and shared-infrastructure boundaries, route-to-service
+direction, application-service isolation from HTTP and concrete research adapters, and independence
+of hosted ports from services and routes. Architecture tests also reject hidden service
+implementations, dynamic dependency loading, broad strict-type suppressions, and oversized hosted
+modules.
 
 ## Determinism, Idempotency, And Concurrency
 
