@@ -8,7 +8,7 @@ import logging
 import os
 import threading
 from collections.abc import Callable, Mapping, Sequence
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any, cast
 
@@ -135,13 +135,16 @@ def run_fetch_all_metadata_workflow(
     eodhd_config: EodhdConfig | None = None,
     on_progress: Callable[[int, int, int], None] | None = None,
 ) -> dict[str, Any]:
-    """Fetch and persist the complete EODHD listing metadata dataset."""
+    """Persist all listing metadata and fetch only missing automatic exchanges."""
     paths = LakePaths(root=root)
     with module_run_lock(paths, "fetch-all-metadata"):
+        existing_rows = read_rows(paths.all_isins())
+        completed_exchanges = _completed_metadata_exchanges(paths, existing_rows)
         client = EodhdClient(eodhd_config or load_eodhd_config())
         fetch_result = fetch_all_metadata(
             client,
             exchange_codes=exchange_codes,
+            known_exchange_codes=() if exchange_codes else tuple(sorted(completed_exchanges)),
             include_delisted=include_delisted,
             on_progress=(
                 (lambda completed, total, skipped: on_progress(completed, total + 1, skipped))
@@ -149,7 +152,24 @@ def run_fetch_all_metadata_workflow(
                 else None
             ),
         )
-        written = write_all_metadata(paths, fetch_result.rows)
+        refreshed_exchanges = set(fetch_result.requested_exchanges) - set(
+            fetch_result.skipped_exchanges
+        )
+        retained_rows = (
+            existing_rows
+            if not refreshed_exchanges
+            else [
+                row
+                for row in existing_rows
+                if str(row.get("source_exchange", "")) not in refreshed_exchanges
+            ]
+        )
+        completed_exchanges.update(refreshed_exchanges)
+        written = write_all_metadata(
+            paths,
+            [*retained_rows, *fetch_result.rows],
+            completed_exchanges=tuple(completed_exchanges),
+        )
         if on_progress is not None:
             on_progress(
                 len(fetch_result.requested_exchanges) + 1,
@@ -164,6 +184,23 @@ def run_fetch_all_metadata_workflow(
             "skipped_exchange_count": len(fetch_result.skipped_exchanges),
             "skipped_exchanges": list(fetch_result.skipped_exchanges),
         }
+
+
+def _completed_metadata_exchanges(
+    paths: LakePaths, existing_rows: Sequence[Mapping[str, Any]]
+) -> set[str]:
+    if paths.all_isins_manifest().exists():
+        manifest = read_json(paths.all_isins_manifest())
+        completed = manifest.get("completed_exchanges", [])
+        if isinstance(completed, list):
+            values = cast(list[object], completed)
+            if all(isinstance(exchange, str) for exchange in values):
+                return {exchange for exchange in cast(list[str], values) if exchange}
+    return {
+        str(row.get("source_exchange", "")).strip()
+        for row in existing_rows
+        if str(row.get("source_exchange", "")).strip()
+    }
 
 
 def run_fetch_all_quotes_workflow(
@@ -189,7 +226,13 @@ def run_fetch_all_quotes_workflow(
         resolved_end_date = end_date or date.today()
         resolved_run_id = run_id or generated_run_id("fetch-all-quotes", run_date=resolved_end_date)
         resolved_selection_id = selection_id or _latest_metadata_selection_id(paths)
-        selection_rows = _metadata_selection_rows(paths, resolved_selection_id)
+        selection_rows = [
+            row
+            for row in _metadata_selection_rows(paths, resolved_selection_id)
+            if _valid_selection_isin(row.get("isin", ""))
+        ]
+        if not selection_rows:
+            raise ValueError("metadata-filter selection contains no valid ISINs")
         if isin is not None:
             normalized_isin = isin.casefold()
             selection_rows = [
@@ -224,9 +267,21 @@ def run_fetch_all_quotes_workflow(
                     plan, read_silver_quotes(paths), end_date=resolved_end_date
                 )
         write_rows(paths.bronze_plan(resolved_run_id), plan)
-        provider_task_count = len(plan) * (
-            1 + (len(ADDITIONAL_EODHD_DATASETS) if include_raw_datasets else 0)
+        raw_plans = (
+            {
+                strategy.name: _build_raw_dataset_delta_plan(
+                    paths,
+                    selection_rows,
+                    run_id=resolved_run_id,
+                    end_date=resolved_end_date,
+                    dataset=strategy.name,
+                )
+                for strategy in ADDITIONAL_EODHD_DATASETS
+            }
+            if include_raw_datasets
+            else {}
         )
+        provider_task_count = len(plan) + sum(len(raw_plan) for raw_plan in raw_plans.values())
         silver_task_count = len(selected_listings) if memory_safe else 0
         total_tasks = provider_task_count + silver_task_count + 1
         completed_tasks = 0
@@ -254,17 +309,17 @@ def run_fetch_all_quotes_workflow(
         raw_successes: list[dict[str, Any]] = []
         raw_errors: list[dict[str, Any]] = []
         if include_raw_datasets:
-            raw_successes, raw_errors = write_raw_eodhd_datasets_to_bronze(
-                paths,
-                plan,
-                run_date=resolved_end_date,
-                loaders={
-                    strategy.name: eodhd_dataset_loader(client, strategy)
-                    for strategy in ADDITIONAL_EODHD_DATASETS
-                },
-                concurrency=concurrency,
-                on_item_complete=record_progress,
-            )
+            for strategy in ADDITIONAL_EODHD_DATASETS:
+                successes, errors = write_raw_eodhd_datasets_to_bronze(
+                    paths,
+                    raw_plans[strategy.name],
+                    run_date=resolved_end_date,
+                    loaders={strategy.name: eodhd_dataset_loader(client, strategy)},
+                    concurrency=concurrency,
+                    on_item_complete=record_progress,
+                )
+                raw_successes.extend(successes)
+                raw_errors.extend(errors)
         silver_rows = build_silver_quotes(
             paths,
             concurrency=concurrency,
@@ -358,6 +413,44 @@ def _build_memory_safe_gap_plan(
         existing_rows = read_rows(paths.silver_quote_file(str(item["exchange"]), str(item["isin"])))
         gap_plan.extend(build_gap_bronze_plan((item,), existing_rows, end_date=end_date))
     return gap_plan
+
+
+def _build_raw_dataset_delta_plan(
+    paths: LakePaths,
+    selection_rows: Sequence[Mapping[str, Any]],
+    *,
+    run_id: str,
+    end_date: date,
+    dataset: str,
+) -> list[dict[str, Any]]:
+    """Plan per-listing raw-data deltas independently from quote gaps."""
+    latest_dates: dict[tuple[str, str, str], date] = {}
+    for path in (paths.bronze / dataset).glob("*/*/*.parquet"):
+        for row in read_rows(path):
+            key = (str(row.get("isin", "")), str(row.get("code", "")), str(row.get("exchange", "")))
+            raw_date = str(row.get("date", ""))
+            if not all(key) or not raw_date:
+                continue
+            observed_date = date.fromisoformat(raw_date)
+            latest_dates[key] = max(latest_dates.get(key, observed_date), observed_date)
+    plan: list[dict[str, Any]] = []
+    for row in selection_rows:
+        key = (str(row["isin"]), str(row["code"]), str(row["exchange"]))
+        latest_date = latest_dates.get(key)
+        plan.append(
+            {
+                "run_id": run_id,
+                "isin": key[0],
+                "code": key[1],
+                "exchange": key[2],
+                "symbol": f"{key[1]}.{key[2]}",
+                "start_date": (
+                    "" if latest_date is None else (latest_date - timedelta(days=1)).isoformat()
+                ),
+                "end_date": end_date.isoformat(),
+            }
+        )
+    return plan
 
 
 def _write_memory_safe_quote_manifests(
@@ -608,6 +701,10 @@ def _metadata_selection_rows(paths: LakePaths, selection_id: str) -> list[dict[s
     if not selection_path.exists():
         raise FileNotFoundError(f"metadata-filter selection does not exist: {selection_id}")
     return read_rows(selection_path)
+
+
+def _valid_selection_isin(value: object) -> bool:
+    return str(value).strip().casefold() not in {"", "none", "null"}
 
 
 def _read_bronze_dividends(paths: LakePaths) -> list[dict[str, Any]]:

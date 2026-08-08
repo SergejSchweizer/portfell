@@ -37,7 +37,7 @@ def test_compose_defines_persistent_internal_postgres_and_shared_data() -> None:
     assert "./lake:/srv/portfell/lake" in api["volumes"]
     assert api["environment"]["PORTFELL_LAKE_ROOT"] == "/srv/portfell/lake"
     assert api["group_add"] == [
-        "${PORTFELL_LAKE_GROUP_ID:-10}",
+        "${PORTFELL_LAKE_GROUP_ID:-1001}",
         "${PORTFELL_SECRET_GROUP_ID:-100}",
     ]
 

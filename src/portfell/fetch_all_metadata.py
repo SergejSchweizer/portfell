@@ -36,12 +36,19 @@ def fetch_all_metadata(
     client: EodhdJsonClient,
     *,
     exchange_codes: Sequence[str] = (),
+    known_exchange_codes: Sequence[str] = (),
     include_delisted: bool = False,
     on_progress: Callable[[int, int, int], None] | None = None,
 ) -> AllMetadataFetchResult:
-    """Fetch and normalize all available EODHD listing metadata with ISINs."""
+    """Fetch and normalize missing EODHD listing metadata with ISINs."""
     explicit_exchanges = bool(exchange_codes)
-    resolved_exchanges = tuple(exchange_codes) or _fetch_exchange_codes(client)
+    available_exchanges = tuple(exchange_codes) or _fetch_exchange_codes(client)
+    known_exchanges = set(known_exchange_codes)
+    resolved_exchanges = (
+        available_exchanges
+        if explicit_exchanges
+        else tuple(exchange for exchange in available_exchanges if exchange not in known_exchanges)
+    )
     fetched_at = datetime.now(UTC).replace(microsecond=0).isoformat()
     rows: list[JsonRow] = []
     skipped_exchanges: list[str] = []
@@ -63,7 +70,7 @@ def fetch_all_metadata(
         rows.extend(
             _normalize_listing(row, source_exchange=exchange, fetched_at=fetched_at)
             for row in _payload_rows(payload)
-            if str(row.get("Isin", row.get("isin", ""))).strip()
+            if _valid_isin(row.get("Isin", row.get("isin", "")))
         )
         if on_progress is not None:
             on_progress(completed, len(resolved_exchanges), len(skipped_exchanges))
@@ -76,9 +83,14 @@ def fetch_all_metadata(
     )
 
 
-def write_all_metadata(paths: LakePaths, rows: Sequence[Mapping[str, Any]]) -> list[JsonRow]:
+def write_all_metadata(
+    paths: LakePaths,
+    rows: Sequence[Mapping[str, Any]],
+    *,
+    completed_exchanges: Sequence[str] = (),
+) -> list[JsonRow]:
     """Write the reference all-ISIN dataset and manifest."""
-    normalized = [dict(row) for row in rows]
+    normalized = [dict(row) for row in rows if _valid_isin(row.get("isin", ""))]
     validate_rows("all_isins", normalized)
     write_rows(paths.all_isins(), normalized)
     write_json(
@@ -87,6 +99,7 @@ def write_all_metadata(paths: LakePaths, rows: Sequence[Mapping[str, Any]]) -> l
             "dataset": "all_isins",
             "path": str(paths.all_isins()),
             "row_count": len(normalized),
+            "completed_exchanges": sorted(set(completed_exchanges)),
             "updated_at": datetime.now(UTC).replace(microsecond=0).isoformat(),
         },
     )
@@ -125,13 +138,21 @@ def _normalize_listing(
     )
     name = str(raw.get("Name", raw.get("name", ""))).strip()
     return {
-        "isin": str(raw.get("Isin", raw.get("isin", ""))).strip(),
+        "isin": _text(raw.get("Isin", raw.get("isin", ""))),
         "exchange": exchange,
-        "code": str(raw.get("Code", raw.get("code", ""))).strip(),
+        "code": _text(raw.get("Code", raw.get("code", ""))),
         "name": name,
-        "instrument_type": str(raw.get("Type", raw.get("type", ""))).strip(),
-        "country": str(raw.get("Country", raw.get("country", ""))).strip(),
-        "currency": str(raw.get("Currency", raw.get("currency", ""))).strip(),
+        "instrument_type": _text(raw.get("Type", raw.get("type", ""))),
+        "country": _text(raw.get("Country", raw.get("country", ""))),
+        "currency": _text(raw.get("Currency", raw.get("currency", ""))),
         "source_exchange": source_exchange,
         "fetched_at": fetched_at,
     }
+
+
+def _valid_isin(value: object) -> bool:
+    return _text(value).casefold() not in {"", "none", "null"}
+
+
+def _text(value: object) -> str:
+    return "" if value is None else str(value).strip()

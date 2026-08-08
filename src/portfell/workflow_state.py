@@ -49,19 +49,21 @@ def resolve_workflow(
         "univariate_filter": WorkflowStage("locked"),
         "bivariate_statistics": WorkflowStage("locked"),
     }
-    if not (metadata_revision_id and metadata_selection_id and quote_run_id):
+    if not (metadata_revision_id and metadata_selection_id):
         return {stage_id: stages[stage_id].to_row() for stage_id in WORKFLOW_STAGE_IDS}
 
+    metadata_identifiers = {
+        "metadata_revision_id": metadata_revision_id,
+        "metadata_selection_id": metadata_selection_id,
+    }
+    if quote_run_id:
+        metadata_identifiers["quote_run_id"] = quote_run_id
     stages["metadata_filter"] = WorkflowStage(
         "complete",
-        {
-            "metadata_revision_id": metadata_revision_id,
-            "metadata_selection_id": metadata_selection_id,
-            "quote_run_id": quote_run_id,
-        },
+        metadata_identifiers,
     )
     stages["univariate_statistics"] = WorkflowStage("ready")
-    if not univariate_run_id:
+    if not (quote_run_id and univariate_run_id):
         return {stage_id: stages[stage_id].to_row() for stage_id in WORKFLOW_STAGE_IDS}
 
     stages["univariate_statistics"] = WorkflowStage(

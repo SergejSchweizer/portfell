@@ -146,6 +146,28 @@ def test_silver_build_can_stream_one_listing_without_loading_all_rows(tmp_path: 
     assert completed_listings == [None, None]
 
 
+def test_silver_builds_independent_listings_with_configured_concurrency(tmp_path: Path) -> None:
+    paths = LakePaths(root=tmp_path / "lake")
+    for isin, code, close in (("IE1", "AAA", 100.0), ("IE2", "BBB", 200.0)):
+        write_rows(
+            paths.bronze_quote_file("XETRA", 2026, isin),
+            [_silver_quote(isin, "XETRA", code, "2026-01-01", close)],
+        )
+
+    completed_listings: list[None] = []
+    rebuilt = build_silver_quotes(
+        paths,
+        concurrency=2,
+        load_rows=False,
+        on_listing_complete=lambda: completed_listings.append(None),
+    )
+
+    assert rebuilt == []
+    assert len(read_rows(paths.silver_quote_file("XETRA", "IE1"))) == 1
+    assert len(read_rows(paths.silver_quote_file("XETRA", "IE2"))) == 1
+    assert len(completed_listings) == 2
+
+
 def test_workflow_search_supports_csv_and_rejects_invalid_json(tmp_path: Path) -> None:
     root = tmp_path / "lake"
     csv_path = tmp_path / "candidates.csv"

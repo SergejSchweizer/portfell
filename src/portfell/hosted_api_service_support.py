@@ -99,6 +99,18 @@ def set_current_project(state: HostedApiState, user_id: str, project_id: str) ->
 
 
 def selection_for_project(state: HostedApiState, project_id: str, user_id: str) -> SelectionRecord:
+    current_selection_id = state.current_metadata_selection_by_user.get(user_id)
+    current_selection = (
+        state.selections_by_id.get(current_selection_id)
+        if current_selection_id is not None
+        else None
+    )
+    if (
+        current_selection is not None
+        and current_selection.user_id == user_id
+        and current_selection.project_id == project_id
+    ):
+        return current_selection
     for selection in state.selections_by_id.values():
         if selection.project_id == project_id and selection.user_id == user_id:
             return selection
@@ -169,7 +181,20 @@ def project_context_row(state: HostedApiState, user_id: str) -> JsonRow:
     }
 
 
-def _quote_run_id(state: HostedApiState, project_id: str, user_id: str) -> str | None:
+def _quote_run_id(
+    state: HostedApiState, project_id: str, selection: SelectionRecord, user_id: str
+) -> str | None:
+    active_request_hash = stable_hash(
+        {
+            "project_id": project_id,
+            "selection_id": selection.selection_id,
+            "member_ids": list(selection.member_ids),
+        }
+    )
+    active_run_id = opaque_id("fetch-all-quotes", f"{user_id}:{active_request_hash}")
+    active_run = state.downloads_by_id.get(active_run_id)
+    if active_run is not None and active_run.user_id == user_id and active_run.status == "running":
+        return active_run_id
     operation = f"fetch-all-quotes:{project_id}"
     run_ids = sorted(
         run_id
@@ -233,21 +258,17 @@ def _bivariate_run(
 def workflow_row(state: HostedApiState, user_id: str, project_id: str | None) -> JsonRow:
     selection = None
     if project_id is not None:
-        selection = next(
-            (
-                row
-                for row in state.selections_by_id.values()
-                if row.project_id == project_id and row.user_id == user_id
-            ),
-            None,
-        )
+        try:
+            selection = selection_for_project(state, project_id, user_id)
+        except HostedApplicationError:
+            selection = None
     if selection is None:
         return {
             "stages": resolve_workflow(
                 metadata_revision_id=None, metadata_selection_id=None, quote_run_id=None
             )
         }
-    quote_run_id = _quote_run_id(state, selection.project_id, user_id)
+    quote_run_id = _quote_run_id(state, selection.project_id, selection, user_id)
     metadata_revision_id = state.metadata_revisions_by_user.get(
         user_id, opaque_id("metadata-revision", selection.selection_id)
     )

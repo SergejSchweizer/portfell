@@ -137,3 +137,5 @@ Evidence:
 ## UI changes
 
 Read `docs/ui/page-development.md` before adding or changing a React page. Keep `apps/web/src/routes.tsx`, the page component, its `docs/ui/windows/<route-slug>.md` specification, typed API contracts, and regression tests synchronized in the same pull request. Do not add compatibility renderers or browser-owned financial, ingestion, authentication, or authorization logic.
+
+After every UI change, rebuild and validate the web Docker image from the current branch with `docker build --file apps/web/Dockerfile --tag portfell-web:latest .`. If the local Compose configuration requires unrelated runtime secrets, do not create placeholder secrets just to build the web image; use the direct web-image build instead.

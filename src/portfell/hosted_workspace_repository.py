@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import replace
 from typing import cast
 
+from portfell.entitlements import ProviderDownloadRun, RunStatus
 from portfell.hosted_api_state import HostedApiState, ProjectRecord, SelectionRecord
 
 
 def persist_local_workspace(state: HostedApiState) -> None:
-    """Persist the durable subset of hosted state when a store is configured."""
+    """Persist local-workspace state and completed quote-run inputs when configured."""
 
     if state.workspace_store is None:
         return
@@ -32,6 +34,31 @@ def persist_local_workspace(state: HostedApiState) -> None:
             "current_project_id_by_user": state.current_project_id_by_user,
             "current_metadata_selection_by_user": state.current_metadata_selection_by_user,
             "metadata_revisions_by_user": state.metadata_revisions_by_user,
+            "quote_runs": [
+                {
+                    "download_run_id": row.download_run_id,
+                    "user_id": row.user_id,
+                    "credential_id": row.credential_id,
+                    "provider": row.provider,
+                    "status": row.status,
+                    "returned_observation_ids": list(row.returned_observation_ids),
+                    "request_hash": row.request_hash,
+                }
+                for row in state.downloads_by_id.values()
+            ],
+            "quote_run_summaries": state.download_summaries_by_id,
+            "quote_rows_by_run_id": {
+                run_id: list(rows) for run_id, rows in state.quote_rows_by_run_id.items()
+            },
+            "idempotency_refs": [
+                {
+                    "user_id": user_id,
+                    "operation": operation,
+                    "idempotency_key": idempotency_key,
+                    "row_id": row_id,
+                }
+                for (user_id, operation, idempotency_key), row_id in state.idempotency_refs.items()
+            ],
         }
     )
 
@@ -76,6 +103,71 @@ def restore_local_workspace(state: HostedApiState, payload: Mapping[str, object]
         payload.get("current_metadata_selection_by_user", {})
     )
     state.metadata_revisions_by_user = _string_map(payload.get("metadata_revisions_by_user", {}))
+    _restore_quote_runs(state, payload)
+
+
+def _restore_quote_runs(state: HostedApiState, payload: Mapping[str, object]) -> None:
+    """Restore durable quote results; interrupted work is explicitly retryable."""
+
+    quote_runs = _object_list(payload.get("quote_runs", []), "quote runs")
+    for item in quote_runs:
+        row = _mapping(item, "quote run")
+        observation_ids = _string_list(
+            row.get("returned_observation_ids"), "quote run observations"
+        )
+        status = _text(row, "status")
+        if status not in {"planned", "running", "succeeded", "failed", "partial"}:
+            raise ValueError("local workspace quote run status is invalid")
+        run = ProviderDownloadRun(
+            download_run_id=_text(row, "download_run_id"),
+            user_id=_text(row, "user_id"),
+            credential_id=_text(row, "credential_id"),
+            provider=_text(row, "provider"),
+            status=cast(RunStatus, status),
+            returned_observation_ids=tuple(observation_ids),
+            request_hash=_text(row, "request_hash"),
+        )
+        # A background task cannot survive a container restart. Do not restore it as active.
+        state.downloads_by_id[run.download_run_id] = (
+            replace(run, status="failed") if run.status == "running" else run
+        )
+
+    raw_summaries = payload.get("quote_run_summaries", {})
+    if not isinstance(raw_summaries, Mapping):
+        raise ValueError("local workspace quote run summaries are invalid")
+    summaries = cast(Mapping[object, object], raw_summaries)
+    state.download_summaries_by_id = {
+        _text_key(run_id, "quote run summary"): dict(_mapping(summary, "quote run summary"))
+        for run_id, summary in summaries.items()
+    }
+    for run_id, run in state.downloads_by_id.items():
+        if run.status == "failed" and run_id in state.download_summaries_by_id:
+            state.download_summaries_by_id[run_id] = {
+                **state.download_summaries_by_id[run_id],
+                "error_code": "quote_run_interrupted_by_restart",
+            }
+
+    raw_persisted_rows = payload.get("quote_rows_by_run_id", {})
+    if not isinstance(raw_persisted_rows, Mapping):
+        raise ValueError("local workspace quote rows are invalid")
+    persisted_rows = cast(Mapping[object, object], raw_persisted_rows)
+    state.quote_rows_by_run_id = {
+        _text_key(run_id, "quote rows"): tuple(
+            dict(_mapping(row, "quote row")) for row in _object_list(rows, "quote rows")
+        )
+        for run_id, rows in persisted_rows.items()
+    }
+
+    references = _object_list(payload.get("idempotency_refs", []), "idempotency refs")
+    state.idempotency_refs = {
+        (
+            _text(row, "user_id"),
+            _text(row, "operation"),
+            _text(row, "idempotency_key"),
+        ): _text(row, "row_id")
+        for item in references
+        for row in (_mapping(item, "idempotency ref"),)
+    }
 
 
 def _text(row: Mapping[str, object], key: str) -> str:
@@ -92,3 +184,28 @@ def _string_map(value: object) -> dict[str, str]:
     if not all(isinstance(item, str) for item in mapping.values()):
         raise ValueError("local workspace mapping is invalid")
     return {key: cast(str, item) for key, item in mapping.items()}
+
+
+def _object_list(value: object, label: str) -> list[object]:
+    if not isinstance(value, list):
+        raise ValueError(f"local workspace {label} are invalid")
+    return cast(list[object], value)
+
+
+def _string_list(value: object, label: str) -> list[str]:
+    values = _object_list(value, label)
+    if not all(isinstance(item, str) and item for item in values):
+        raise ValueError(f"local workspace {label} are invalid")
+    return cast(list[str], values)
+
+
+def _mapping(value: object, label: str) -> Mapping[str, object]:
+    if not isinstance(value, Mapping):
+        raise ValueError(f"local workspace {label} is invalid")
+    return cast(Mapping[str, object], value)
+
+
+def _text_key(value: object, label: str) -> str:
+    if not isinstance(value, str) or not value:
+        raise ValueError(f"local workspace {label} key is invalid")
+    return value

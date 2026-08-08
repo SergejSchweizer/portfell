@@ -139,7 +139,8 @@ def build_silver_quotes(
         if selected_listings is not None
         else sorted(bronze_paths_by_listing)
     )
-    for listing in listings_to_build:
+
+    def build_listing(listing: tuple[str, str]) -> None:
         bronze_rows = [
             row
             for bronze_path in bronze_paths_by_listing.get(listing, ())
@@ -147,7 +148,15 @@ def build_silver_quotes(
         ]
         if bronze_rows:
             quote_rows = build_silver_quote_rows(bronze_rows)
-            write_silver_quotes(paths, quote_rows, concurrency=concurrency)
+            write_silver_quotes(paths, quote_rows, concurrency=1)
         if on_listing_complete is not None:
             on_listing_complete()
+
+    workers = max(1, concurrency)
+    if workers == 1 or len(listings_to_build) <= 1:
+        for listing in listings_to_build:
+            build_listing(listing)
+    else:
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            list(executor.map(build_listing, listings_to_build))
     return read_silver_quotes(paths) if load_rows else []

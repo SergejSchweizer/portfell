@@ -67,7 +67,7 @@ services:
       - portfell-internal
       - portfell-public
     group_add:
-      - "${PORTFELL_LAKE_GROUP_ID:-10}"
+      - "${PORTFELL_LAKE_GROUP_ID:-1001}"
       - "${PORTFELL_SECRET_GROUP_ID:-100}"
     read_only: true
     tmpfs:
