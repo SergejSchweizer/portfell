@@ -7,6 +7,7 @@ from collections.abc import Callable
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import replace
 from importlib import import_module
+from math import sqrt
 from pathlib import Path
 from typing import Any
 
@@ -40,6 +41,7 @@ from portfell.hosted_research_workflow import (
     page_rows,
     pair_plan,
 )
+from portfell.portfolio_parts.solvers import solve_minimum_variance
 from portfell.table_io import JsonRow, read_rows, write_rows
 from portfell.univariate_statistics import (
     annual_dividend_features,
@@ -293,21 +295,30 @@ class ResearchService:
         values: list[tuple[float, ...]] = [
             tuple(values_by_listing[listing][date] for date in dates) for listing in listings
         ]
+        covariance_values: list[list[float]] = [[0.0] * len(values) for _ in values]
+        matrix_values: list[list[float | None]] = []
+        for row_index, left in enumerate(values):
+            display_row: list[float | None] = []
+            for column_index, right in enumerate(values):
+                if column_index < row_index:
+                    covariance = covariance_values[column_index][row_index]
+                else:
+                    covariance = sample_covariance(left, right)
+                    covariance_values[row_index][column_index] = covariance
+                    covariance_values[column_index][row_index] = covariance
+                display_row.append(None if column_index <= row_index else covariance)
+            matrix_values.append(display_row)
+        diagnostics = _covariance_diagnostics(listings, covariance_values, len(dates))
         return {
             "labels": [
                 {"isin": isin, "exchange": exchange, "code": code, "label": f"{code}.{exchange}"}
                 for isin, exchange, code in listings
             ],
-            # Covariance is symmetric, so calculate and expose only the upper
-            # triangle. Diagonal self-relations are deliberately omitted.
-            "values": [
-                [
-                    None if column_index <= row_index else sample_covariance(left, right)
-                    for column_index, right in enumerate(values)
-                ]
-                for row_index, left in enumerate(values)
-            ],
+            # Covariance is symmetric, so expose only the upper triangle.
+            # Diagonal self-relations are kept only for portfolio diagnostics.
+            "values": matrix_values,
             "observation_count": len(dates),
+            "diagnostics": diagnostics,
         }
 
     def create_analysis(
@@ -375,6 +386,68 @@ class ResearchService:
 
     def analysis_report(self, user_id: str, run_id: str) -> JsonRow:
         return self.analysis(user_id, run_id).report
+
+
+def _covariance_diagnostics(
+    listings: tuple[tuple[str, str, str], ...],
+    covariance: list[list[float]],
+    observation_count: int,
+) -> JsonRow:
+    """Return portfolio-relevant facts from one dense covariance estimate."""
+
+    count = len(listings)
+    if count == 0:
+        return {"listing_count": 0, "pair_count": 0, "observation_count": observation_count}
+    pairs = [covariance[left][right] for left in range(count) for right in range(left + 1, count)]
+    correlations = [
+        value / sqrt(covariance[left][left] * covariance[right][right])
+        for left in range(count)
+        for right, value in enumerate(covariance[left])
+        if right > left and covariance[left][left] > 0 and covariance[right][right] > 0
+    ]
+    weights = [1.0 / count] * count
+    covariance_weights = [
+        sum(value * weight for value, weight in zip(row, weights, strict=True))
+        for row in covariance
+    ]
+    equal_variance = sum(
+        weight * value for weight, value in zip(weights, covariance_weights, strict=True)
+    )
+    equal_volatility = sqrt(max(0.0, equal_variance))
+    weighted_volatility = sum(
+        weight * sqrt(max(0.0, covariance[index][index])) for index, weight in enumerate(weights)
+    )
+    risk_contributions = [
+        weight * value for weight, value in zip(weights, covariance_weights, strict=True)
+    ]
+    risk_shares = (
+        [value / equal_variance for value in risk_contributions] if equal_variance > 0 else []
+    )
+    effective_bets = 1.0 / sum(share * share for share in risk_shares) if risk_shares else None
+    covariance_map = {
+        (left, right): covariance[left_index][right_index]
+        for left_index, left in enumerate(listings)
+        for right_index, right in enumerate(listings)
+    }
+    minimum_variance = solve_minimum_variance(
+        listings, covariance_map, min_weight=0.0, max_weight=1.0
+    )
+    return {
+        "listing_count": count,
+        "pair_count": len(pairs),
+        "observation_count": observation_count,
+        "average_pairwise_covariance": (sum(pairs) / len(pairs)) if pairs else None,
+        "average_pairwise_correlation": (sum(correlations) / len(correlations))
+        if correlations
+        else None,
+        "equal_weight_volatility": equal_volatility,
+        "minimum_variance_volatility": sqrt(max(0.0, minimum_variance.objective_value)),
+        "diversification_ratio": (weighted_volatility / equal_volatility)
+        if equal_volatility
+        else None,
+        "effective_number_of_bets": effective_bets,
+        "largest_equal_weight_risk_contribution": max(risk_shares) if risk_shares else None,
+    }
 
 
 def _read_scoped_lake_rows(

@@ -109,11 +109,7 @@ export function BivariateStatisticsPage() {
     }
   }
 
-  const covarianceRows = results?.items.filter((row) => row.covariance != null) ?? [];
-  const averageCovariance = covarianceRows.length === 0
-    ? null
-    : covarianceRows.reduce((total, row) => total + (row.covariance ?? 0), 0) / covarianceRows.length;
-  const positiveCovarianceCount = covarianceRows.filter((row) => (row.covariance ?? 0) > 0).length;
+  const diagnostics = covarianceMatrix?.diagnostics;
   const covarianceExtent = Math.max(
     0,
     ...(covarianceMatrix?.values.flat().flatMap((value) => value === null ? [] : [Math.abs(value)]) ?? []),
@@ -136,9 +132,16 @@ export function BivariateStatisticsPage() {
           <h3 id="covariance-title">Covariance</h3>
           <p>Joint variation of return series for every pair in the filtered ISIN universe.</p>
           <dl>
-            <div><dt>Pairs analysed</dt><dd>{covarianceRows.length.toLocaleString()}</dd></div>
-            <div><dt>Average covariance</dt><dd>{averageCovariance === null ? "—" : metric(averageCovariance)}</dd></div>
-            <div><dt>Positive covariance</dt><dd>{covarianceRows.length === 0 ? "—" : `${((positiveCovarianceCount / covarianceRows.length) * 100).toFixed(1)}%`}</dd></div>
+            <div><dt>ISINs analysed</dt><dd>{diagnostics?.listing_count.toLocaleString() ?? "—"}</dd></div>
+            <div><dt>Unique pairs</dt><dd>{diagnostics?.pair_count.toLocaleString() ?? "—"}</dd></div>
+            <div><dt>Shared observations</dt><dd>{diagnostics?.observation_count.toLocaleString() ?? "—"}</dd></div>
+            <div><dt>Average covariance</dt><dd>{metric(diagnostics?.average_pairwise_covariance)}</dd></div>
+            <div><dt>Average correlation</dt><dd>{metric(diagnostics?.average_pairwise_correlation)}</dd></div>
+            <div><dt>Equal-weight volatility</dt><dd>{metric(diagnostics?.equal_weight_volatility)}</dd></div>
+            <div><dt>Minimum-variance volatility</dt><dd>{metric(diagnostics?.minimum_variance_volatility)}</dd></div>
+            <div><dt>Diversification ratio</dt><dd>{metric(diagnostics?.diversification_ratio)}</dd></div>
+            <div><dt>Effective number of bets</dt><dd>{metric(diagnostics?.effective_number_of_bets)}</dd></div>
+            <div><dt>Largest risk contribution</dt><dd>{diagnostics?.largest_equal_weight_risk_contribution == null ? "—" : `${(diagnostics.largest_equal_weight_risk_contribution * 100).toFixed(1)}%`}</dd></div>
           </dl>
         </div>
         <div className="bivariate-statistic__equation">
