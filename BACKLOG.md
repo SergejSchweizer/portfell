@@ -1092,7 +1092,7 @@ Idempotency: Existing active-run reuse and analysis idempotency remain unchanged
 
 Branch: `fix/hosted-research-coverage`.
 
-Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/240.
+Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/240.
 
 Priority: P0 post-merge quality-gate repair.
 
