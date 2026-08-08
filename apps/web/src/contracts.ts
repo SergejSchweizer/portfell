@@ -24,6 +24,11 @@ export type ApiWorkflow = Readonly<{
     univariate_filter_selection_id?: string;
     bivariate_run_id?: string;
   }>>>;
+  process_overview?: Readonly<{
+    metadata_downloaded_isins: number;
+    metadata_filter_isins?: number;
+    univariate_statistics_isins?: number | null;
+  }>;
 }>;
 
 export type ApiMetadataFetch = Readonly<{

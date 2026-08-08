@@ -8,6 +8,7 @@ from portfell.entitlements import (
     publish_user_data_snapshot,
 )
 from portfell.hosted_api_errors import HostedApplicationError
+from portfell.hosted_api_ports import HostedRuntimePort
 from portfell.hosted_api_serializers import (
     credential_status_row,
     download_row,
@@ -32,14 +33,16 @@ from portfell.hosted_api_service_support import (
     workflow_row,
 )
 from portfell.hosted_api_state import HostedApiState, ProjectRecord, SelectionRecord
+from portfell.hosted_workspace_repository import persist_local_workspace
 from portfell.table_io import JsonRow
 
 
 class CredentialProjectService:
     """Own credential, basic download, project, and account state transitions."""
 
-    def __init__(self, state: HostedApiState) -> None:
+    def __init__(self, state: HostedApiState, runtime: HostedRuntimePort | None = None) -> None:
         self.state = state
+        self.runtime = runtime
 
     def workflow(self, user_id: str, project_id: str | None = None) -> JsonRow:
         if project_id is None:
@@ -47,7 +50,22 @@ class CredentialProjectService:
             project_id = None if project is None else project.project_id
         else:
             require_user_row(self.state.projects_by_id, project_id, user_id)
-        return workflow_row(self.state, user_id, project_id)
+        metadata_rows = self.state.all_isins_rows
+        if project_id is not None and not metadata_rows and self.runtime is not None:
+            metadata_rows = self.runtime.all_isins_rows()
+        metadata_downloaded_isins = len(
+            {
+                str(row.get("isin", "")).strip()
+                for row in metadata_rows
+                if str(row.get("isin", "")).strip()
+            }
+        )
+        return workflow_row(
+            self.state,
+            user_id,
+            project_id,
+            metadata_downloaded_isins=metadata_downloaded_isins,
+        )
 
     def credential_status(self, user_id: str) -> JsonRow:
         try:
@@ -175,6 +193,23 @@ class CredentialProjectService:
     ) -> tuple[ProjectRecord, SelectionRecord]:
         project = require_user_row(self.state.projects_by_id, project_id, user_id)
         return project, selection_for_project(self.state, project_id, user_id)
+
+    def univariate_selection_settings(self, user_id: str, project_id: str) -> JsonRow:
+        require_user_row(self.state.projects_by_id, project_id, user_id)
+        return {
+            "dividend_frequencies": [],
+            "statistic_labels": {},
+            "statistic_ranges": {},
+            **self.state.univariate_selection_settings_by_project.get(project_id, {}),
+        }
+
+    def save_univariate_selection_settings(
+        self, user_id: str, project_id: str, settings: JsonRow
+    ) -> JsonRow:
+        require_user_row(self.state.projects_by_id, project_id, user_id)
+        self.state.univariate_selection_settings_by_project[project_id] = dict(settings)
+        persist_local_workspace(self.state)
+        return self.univariate_selection_settings(user_id, project_id)
 
     def delete_project(self, user_id: str, project_id: str) -> JsonRow:
         require_user_row(self.state.projects_by_id, project_id, user_id)

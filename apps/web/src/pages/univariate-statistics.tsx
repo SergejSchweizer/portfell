@@ -8,19 +8,25 @@ import type { ApiPage, ApiQuoteFetch, ApiResearchRun, ApiUnivariateRow } from ".
 import { useResource } from "../hooks/use-resource";
 
 type MetricDefinition = Readonly<{ group: string; metric: string; label: string; description: string; equation: string; notation: string; unit?: string }>;
-type DividendFrequency = "accumulating" | "monthly" | "quarterly" | "semiannual" | "annual" | "unknown" | "irregular";
+type DividendFrequency = "accumulating" | "monthly" | "quarterly" | "semiannual" | "annual" | "irregular";
+type SelectionRange = Readonly<{ minimum: number; maximum: number }>;
+type UnivariateSelectionSettings = Readonly<{
+  dividend_frequencies: DividendFrequency[];
+  statistic_labels: Record<string, string[]>;
+  statistic_ranges: Record<string, SelectionRange[]>;
+}>;
 
 const dividendFrequencyOptions: readonly Readonly<{ value: DividendFrequency; label: string }>[] = [
-  { value: "accumulating", label: "None" },
+  { value: "accumulating", label: "None / unknown" },
   { value: "monthly", label: "Monthly" },
   { value: "quarterly", label: "Quarterly" },
   { value: "semiannual", label: "Semi-annual" },
   { value: "annual", label: "Annual" },
-  { value: "unknown", label: "Unknown" },
   { value: "irregular", label: "Irregular" },
 ];
 
 const metricDefinitions: readonly MetricDefinition[] = [
+  { group: "Return", metric: "annualized_geometric_return", label: "Annual Return", description: "Compound annual return derived from daily log returns.", equation: "Rₐₙₙ = e^(252 · 𝔼[rₜ]) − 1", notation: "Rₐₙₙ: annual return · rₜ: daily log return · 𝔼: expected value · 252: trading days", unit: "%" },
   { group: "Risk", metric: "var", label: "Value at Risk", description: "Historical loss quantile at the configured confidence level.", equation: "VaRα = −Q₁₋α(rₜ)", notation: "α: confidence level · Q: return quantile · rₜ: log return at time t", unit: "%" },
   { group: "Risk", metric: "sortino_ratio", label: "Sortino ratio", description: "Annualized return per unit of downside deviation.", equation: "Sortino = (Rₐₙₙ − rƒ) / σd", notation: "Rₐₙₙ: annualized return · rƒ: risk-free rate · σd: downside deviation", unit: "ratio" },
   { group: "Risk", metric: "expected_shortfall", label: "Expected shortfall", description: "Mean loss beyond historical Value at Risk.", equation: "ESα = −𝔼[rₜ | rₜ ≤ Q₁₋α(rₜ)]", notation: "α: confidence level · 𝔼: expected value · Q: return quantile · rₜ: log return", unit: "%" },
@@ -28,7 +34,6 @@ const metricDefinitions: readonly MetricDefinition[] = [
   { group: "Risk", metric: "sharpe_ratio", label: "Sharpe ratio", description: "Annualized return per unit of total volatility.", equation: "Sharpe = (Rₐₙₙ − rƒ) / σₐₙₙ", notation: "Rₐₙₙ: annualized return · rƒ: risk-free rate · σₐₙₙ: annualized volatility", unit: "ratio" },
   { group: "Risk", metric: "max_drawdown", label: "Maximum drawdown", description: "Largest peak-to-trough adjusted-close decline.", equation: "MDD = minₜ(Pₜ / maxᵤ≤ₜ Pᵤ − 1)", notation: "Pₜ: price at time t · Pᵤ: prior price · min/max: worst peak-to-trough change", unit: "%" },
   { group: "Trend", metric: "trend_r_squared", label: "Trend R-squared", description: "Fit quality of the log-price trend.", equation: "R² = 1 − SSE / SST,  ln(Pₜ) = β₀ + β₁t + εₜ", notation: "SSE: residual error · SST: total error · β₀/β₁: trend coefficients · εₜ: residual", unit: "ratio" },
-  { group: "Income", metric: "distribution_events_per_year", label: "Distribution events per year", description: "Annualized frequency of positive distributions.", equation: "λdist = Ndistributions / Tyears", notation: "λdist: annual event rate · Ndistributions: positive payouts · Tyears: observed years", unit: "events/year" },
 ];
 
 
@@ -38,11 +43,17 @@ function formatStatistic(value: number, unit?: string): string {
   return `${value.toFixed(2)}${unit ? ` ${unit}` : ""}`;
 }
 
+function formatHistogramValue(value: number, unit?: string): string {
+  if (unit === "%") return (value * 100).toFixed(2);
+  if (unit === "observations") return String(Math.round(value));
+  return value.toFixed(2);
+}
+
 function dividendFrequency(value: ApiUnivariateRow): DividendFrequency {
   const frequency = value.distribution_frequency;
   return dividendFrequencyOptions.some((option) => option.value === frequency)
     ? frequency as DividendFrequency
-    : "unknown";
+    : "accumulating";
 }
 
 async function loadUnivariateResults(runId: string): Promise<readonly ApiUnivariateRow[]> {
@@ -74,7 +85,9 @@ export function UnivariateStatisticsPage() {
   const [run, setRun] = useState<ApiResearchRun | null>(null);
   const [univariateStartedAt, setUnivariateStartedAt] = useState<number | undefined>();
   const [results, setResults] = useState<readonly ApiUnivariateRow[] | null>(null);
-  const [portfolioDividendFrequency, setPortfolioDividendFrequency] = useState<DividendFrequency>("accumulating");
+  const [portfolioDividendFrequencies, setPortfolioDividendFrequencies] = useState<DividendFrequency[]>([]);
+  const [portfolioStatisticSelections, setPortfolioStatisticSelections] = useState<Record<string, string[]>>({});
+  const [portfolioStatisticRanges, setPortfolioStatisticRanges] = useState<Record<string, SelectionRange[]>>({});
   const [statisticOrder, setStatisticOrder] = useState<string[]>(() => metricDefinitions.map((definition) => definition.metric));
   const [message, setMessage] = useState("");
   const [quoteStatus, setQuoteStatus] = useState<"idle" | "running" | "complete" | "failed">("idle");
@@ -190,12 +203,23 @@ export function UnivariateStatisticsPage() {
 
   useEffect(() => {
     let cancelled = false;
-    void loadProjectContext().then((context) => {
+    void loadProjectContext().then(async (context) => {
       const projectId = context.current_project_id;
       if (!projectId || cancelled) return;
-      const saved = window.localStorage.getItem(`portfell:portfolio-dividend-frequency:${projectId}`);
-      if (dividendFrequencyOptions.some((option) => option.value === saved)) {
-        setPortfolioDividendFrequency(saved as DividendFrequency);
+      try {
+        const saved = await requestJson<UnivariateSelectionSettings>(
+          `/api/projects/${encodeURIComponent(projectId)}/univariate-selection-settings`,
+        );
+        if (cancelled) return;
+        setPortfolioDividendFrequencies(saved.dividend_frequencies.filter((value) => dividendFrequencyOptions.some((option) => option.value === value)));
+        setPortfolioStatisticSelections(saved.statistic_labels);
+        setPortfolioStatisticRanges(saved.statistic_ranges);
+      } catch {
+        if (!cancelled) {
+          setPortfolioDividendFrequencies([]);
+          setPortfolioStatisticSelections({});
+          setPortfolioStatisticRanges({});
+        }
       }
     });
     return () => { cancelled = true; };
@@ -258,7 +282,7 @@ export function UnivariateStatisticsPage() {
       ? value >= lower && value <= upper
       : value >= lower && value < upper);
     return {
-      label: `${lower.toFixed(1)}–${upper.toFixed(1)}%`,
+      label: `${lower.toFixed(1)}–${upper.toFixed(1)}`,
       count: values.length,
       frequencies: dividendFrequencyOptions.map((option) => ({
         ...option,
@@ -267,6 +291,37 @@ export function UnivariateStatisticsPage() {
     };
   });
   const annualDividendHistogramMaximum = Math.max(...annualDividendHistogram.map(({ count }) => count), 1);
+
+  async function saveProjectSelections(
+    dividendFrequencies: DividendFrequency[],
+    statisticLabels: Record<string, string[]>,
+    statisticRanges: Record<string, SelectionRange[]>,
+  ) {
+    const context = await loadProjectContext();
+    if (!context.current_project_id) return;
+    await requestJson<UnivariateSelectionSettings>(
+      `/api/projects/${encodeURIComponent(context.current_project_id)}/univariate-selection-settings`,
+      {
+        method: "PUT",
+        body: JSON.stringify({
+          dividend_frequencies: dividendFrequencies,
+          statistic_labels: statisticLabels,
+          statistic_ranges: statisticRanges,
+        }),
+      },
+    );
+    window.dispatchEvent(new Event("portfell:workflow-updated"));
+  }
+
+  function saveStatisticSelection(metric: string, values: string[], ranges: SelectionRange[]) {
+    const nextLabels = { ...portfolioStatisticSelections, [metric]: values };
+    const nextRanges = { ...portfolioStatisticRanges, [metric]: ranges };
+    setPortfolioStatisticSelections(nextLabels);
+    setPortfolioStatisticRanges(nextRanges);
+    void saveProjectSelections(portfolioDividendFrequencies, nextLabels, nextRanges).catch((error) => {
+      setMessage(error instanceof Error ? error.message : "Could not save the project selection.");
+    });
+  }
 
   async function compute() {
     if (!metadata.metadata_selection_id || !metadata.quote_run_id) return;
@@ -311,8 +366,8 @@ export function UnivariateStatisticsPage() {
 
   return (
     <section className="univariate-statistics-page" data-route="univariate-statistics-page">
-      <Panel title="Download Historical Data">
-        <div className="quote-fetch quote-fetch--panel">
+      <Panel title="Historical Data">
+        <div className="quote-fetch quote-fetch--panel historical-data">
           <label htmlFor="quote-progress">Quote fetch progress</label>
           <progress id="quote-progress" max={100} value={quoteProgress} />
           <p className="status-line" aria-live="polite">{quoteMessage}</p>
@@ -352,11 +407,11 @@ export function UnivariateStatisticsPage() {
             <div className="dividend-statistic__right">
               <label className="portfolio-selection">
                 Portfolio selection
-                <select value={portfolioDividendFrequency} onChange={(event) => {
-                  const value = event.target.value as DividendFrequency;
-                  setPortfolioDividendFrequency(value);
-                  void loadProjectContext().then((context) => {
-                    if (context.current_project_id) window.localStorage.setItem(`portfell:portfolio-dividend-frequency:${context.current_project_id}`, value);
+                <select multiple size={4} value={portfolioDividendFrequencies} onChange={(event) => {
+                  const values = Array.from(event.currentTarget.selectedOptions, (option) => option.value as DividendFrequency);
+                  setPortfolioDividendFrequencies(values);
+                  void saveProjectSelections(values, portfolioStatisticSelections, portfolioStatisticRanges).catch((error) => {
+                    setMessage(error instanceof Error ? error.message : "Could not save the project selection.");
                   });
                 }}>
                   {dividendFrequencyOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
@@ -372,9 +427,9 @@ export function UnivariateStatisticsPage() {
                   </span>
                   <span className="dividend-histogram__label">{label}</span>
                   <span className="dividend-histogram__tooltip" role="tooltip">
-                    <strong>{label} annual dividend yield</strong>
+                    <strong>{label}% annual dividend yield</strong>
                     <span>{count} ISINs</span>
-                    {frequencies.filter((frequency) => frequency.count > 0).map((frequency) => <span key={frequency.value}>{frequency.label}: {frequency.count}</span>)}
+                    {frequencies.filter((frequency) => frequency.count > 0).map((frequency) => <span className="histogram-tooltip__row" key={frequency.value}><i className="dividend-frequency-swatch" data-frequency={frequency.value} />{frequency.label}: {frequency.count}</span>)}
                   </span>
                 </div>)}
               </div>
@@ -408,7 +463,23 @@ export function UnivariateStatisticsPage() {
                     };
                   });
                   const maximum = Math.max(...buckets.map(({ count }) => count), 1);
-                  const average = values.length === 0 ? 0 : values.reduce((sum, value) => sum + value, 0) / values.length;
+                  const statisticValuesByDividendFrequency = dividendFrequencyOptions.map((option) => {
+                    const frequencyValues = metricValues.filter(({ frequency }) => frequency === option.value).map(({ value }) => value);
+                    return {
+                      ...option,
+                      count: frequencyValues.length,
+                      average: frequencyValues.length === 0 ? null : frequencyValues.reduce((sum, value) => sum + value, 0) / frequencyValues.length,
+                    };
+                  });
+                  const histogramSelectionOptions = Array.from(new Set(buckets.map(({ lower, upper }) => minimum === maximumValue
+                    ? formatHistogramValue(minimum, statistic.unit)
+                    : `${formatHistogramValue(lower, statistic.unit)} – ${formatHistogramValue(upper, statistic.unit)}`)));
+                  const histogramSelectionRanges = Object.fromEntries(buckets.map(({ lower, upper }) => [
+                    minimum === maximumValue
+                      ? formatHistogramValue(minimum, statistic.unit)
+                      : `${formatHistogramValue(lower, statistic.unit)} – ${formatHistogramValue(upper, statistic.unit)}`,
+                    { minimum: lower, maximum: upper },
+                  ]));
                   return <section className="univariate-group-card" key={statistic.metric} draggable onDragStart={(event) => event.dataTransfer.setData("text/plain", statistic.metric)} onDragOver={(event) => event.preventDefault()} onDrop={(event) => {
                     const source = event.dataTransfer.getData("text/plain");
                     if (!source || source === statistic.metric) return;
@@ -418,33 +489,59 @@ export function UnivariateStatisticsPage() {
                       window.localStorage.setItem("portfell:univariate-statistic-order", JSON.stringify(next));
                       return next;
                     });
-                  }} aria-labelledby={`group-${statistic.metric}`}>
+                    }} aria-labelledby={`group-${statistic.metric}`}>
                     <div className="univariate-group-card__facts">
                       <h3 id={`group-${statistic.metric}`}>{statistic.label}</h3>
                       <p>{statistic.description}</p>
-                      <dl>
-                        <div><dt>ISINs</dt><dd>{values.length}</dd></div>
-                        <div><dt>Average</dt><dd>{formatStatistic(average, statistic.unit)}</dd></div>
-                        <div><dt>Range</dt><dd>{values.length ? `${formatStatistic(Math.min(...values), statistic.unit)} – ${formatStatistic(Math.max(...values), statistic.unit)}` : "—"}</dd></div>
-                      </dl>
+                      <p className="univariate-group-card__fact-heading">Average {statistic.label} by dividend type</p>
+                      <ul className="dividend-frequency-list" aria-label={`Average ${statistic.label} by dividend frequency`}>
+                        {statisticValuesByDividendFrequency.map(({ value, label, count, average: frequencyAverage }) => <li key={value}>
+                          <span><i className="dividend-frequency-swatch" data-frequency={value} />{label}</span>
+                          <strong>{frequencyAverage === null ? "—" : formatStatistic(frequencyAverage, statistic.unit)}</strong>
+                          <small>{count} ISINs</small>
+                        </li>)}
+                      </ul>
                       <p className="univariate-equation" aria-label={`Formula: ${statistic.equation}`}>{statistic.equation}</p>
                       <p className="univariate-notation">{statistic.notation}</p>
                     </div>
-                    <div className="univariate-group-card__chart" role="img" aria-label={`${statistic.label} distribution across ${values.length} ISINs`}>
+                    <div className="univariate-group-card__right">
+                      <label className="portfolio-selection">
+                        Portfolio selection
+                        <select multiple size={4} value={portfolioStatisticSelections[statistic.metric] ?? []} onChange={(event) => {
+                          const values = Array.from(event.currentTarget.selectedOptions, (option) => option.value);
+                          saveStatisticSelection(
+                            statistic.metric,
+                            values,
+                            values.flatMap((value) => {
+                              const range = histogramSelectionRanges[value];
+                              return range ? [range] : [];
+                            }),
+                          );
+                        }}>
+                          {histogramSelectionOptions.map((range) => <option key={range} value={range}>{range}</option>)}
+                        </select>
+                      </label>
+                      <div className="univariate-group-card__chart" role="img" aria-label={`${statistic.label} distribution across ${values.length} ISINs`}>
                       <span className="univariate-group-card__axis univariate-group-card__axis--y">ISIN count</span>
                       <div className="univariate-group-card__plot">
                         {buckets.length === 0 ? <span className="status-line">No values available.</span> : buckets.map(({ lower, upper, count, frequencies }, bucket) => {
-                          const range = minimum === maximumValue ? formatStatistic(minimum, statistic.unit) : `${formatStatistic(lower, statistic.unit)} – ${formatStatistic(upper, statistic.unit)}`;
+                          const range = minimum === maximumValue ? formatHistogramValue(minimum, statistic.unit) : `${formatHistogramValue(lower, statistic.unit)} – ${formatHistogramValue(upper, statistic.unit)}`;
                           const breakdown = frequencies.filter((frequency) => frequency.count > 0).map((frequency) => `${frequency.label}: ${frequency.count}`).join(", ");
-                          return <div className="univariate-group-card__bar" key={bucket} tabIndex={0} data-tooltip={`${range}: ${count} ISINs${breakdown ? ` (${breakdown})` : ""}`} aria-label={`${range}: ${count} ISINs${breakdown ? `; ${breakdown}` : ""}`}>
+                          return <div className="univariate-group-card__bar" key={bucket} tabIndex={0} aria-label={`${range}: ${count} ISINs${breakdown ? `; ${breakdown}` : ""}`}>
                             <span className="univariate-group-card__column" style={{ height: `${count === 0 ? 2 : (count / maximum) * 100}%` }}>
                               {frequencies.filter((frequency) => frequency.count > 0).map(({ value, count: frequencyCount }) => <i key={value} data-frequency={value} style={{ flexGrow: frequencyCount }} />)}
                             </span>
                             <span className="univariate-group-card__label">{range}</span>
+                            <span className="univariate-group-card__tooltip" role="tooltip">
+                              <strong>{range} {statistic.unit}</strong>
+                              <span>{count} ISINs</span>
+                              {frequencies.filter((frequency) => frequency.count > 0).map((frequency) => <span className="histogram-tooltip__row" key={frequency.value}><i className="dividend-frequency-swatch" data-frequency={frequency.value} />{frequency.label}: {frequency.count}</span>)}
+                            </span>
                           </div>;
                         })}
                       </div>
-                      <span className="univariate-group-card__axis univariate-group-card__axis--x">{statistic.label} value</span>
+                      <span className="univariate-group-card__axis univariate-group-card__axis--x">{statistic.label} ({statistic.unit ?? "value"})</span>
+                      </div>
                     </div>
                   </section>;
                 })}

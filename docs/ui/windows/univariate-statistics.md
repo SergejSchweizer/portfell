@@ -20,20 +20,34 @@ statistics without recomputing them in React.
 The univariate-statistics action uses the same progress, status, and right-aligned action layout as
 the historical-data download block. After a completed computation, the page first presents a
 Dividends univariate-statistic block. It provides a payout-frequency selection and an accessible
-histogram that counts ISINs by no payout, monthly, quarterly, semiannual, annual, unknown, and
-irregular schedules. The selected schedule is visually emphasized in the histogram.
+histogram that counts ISINs by none/unknown, monthly, quarterly, semiannual, annual, and
+irregular schedules. The selected schedules are saved per project.
 
-The quantitative metrics remain in their existing univariate-statistic groups. Their five-column
-table contains the statistic name, description, equation, histogram across the computed project
-listings, and a draft filter-value input. Histograms are derived only from the completed
-server-returned result rows.
+The page currently exposes only these quantitative statistic cards, each with a formula, notation,
+dividend-type facts, a project-persisted multi-selection, and a histogram derived from completed
+server-returned rows:
+
+| Statistic | Returned field | Unit |
+| --- | --- | --- |
+| Annual Return | `annualized_geometric_return` | % |
+| Value at Risk | `var` | % |
+| Sortino Ratio | `sortino_ratio` | ratio |
+| Expected Shortfall | `expected_shortfall` | % |
+| Tail Observations | `tail_observation_count` | observations |
+| Sharpe Ratio | `sharpe_ratio` | ratio |
+| Maximum Drawdown | `max_drawdown` | % |
+| Trend R-squared | `trend_r_squared` | ratio |
+
+Other cached Gold fields remain technical implementation data and are not presented as univariate
+statistics in the UI at this time.
 
 The persistent project sidebar supplies the active project and its workflow
 status. A project with a persisted metadata selection activates this page so
 its quote-fetch action is available; a completed quote run remains required
 before statistics can be computed. After a project switch, local run,
 result-table, and status-message state are cleared before the project-scoped
-workflow is reloaded.
+workflow is reloaded. Once the univariate run completes, the server creates an all-results
+selection and unlocks Bivariate Statistics directly; Univariate Filter is not shown in the sidebar.
 
 ## Acceptance
 

@@ -138,6 +138,32 @@ function ShellFrameContent({ currentPage, children }: ShellFrameProps) {
         <div>
           <strong className="brand">Portfell</strong>
           <span className="brand-subtitle">Four-stage statistics workflow</span>
+          <div className="process-overview" aria-label="Process overview">
+            <div className="process-overview__step" data-complete={workflow.status === "ready" && workflow.data.process_overview?.metadata_downloaded_isins ? "true" : "false"}>
+              <small>1 · Metadata download</small>
+              <strong>{workflow.status === "ready" ? workflow.data.process_overview?.metadata_downloaded_isins.toLocaleString() ?? "—" : "—"} ISINs</strong>
+            </div>
+            <span className="process-overview__arrow" aria-hidden="true">→</span>
+            <div className="process-overview__step" data-complete={workflow.status === "ready" && workflow.data.process_overview?.metadata_filter_isins !== undefined ? "true" : "false"}>
+              <small>2 · Metadata filter</small>
+              <strong>{workflow.status === "ready" && workflow.data.process_overview?.metadata_filter_isins !== undefined ? workflow.data.process_overview.metadata_filter_isins.toLocaleString() : "—"} ISINs</strong>
+            </div>
+            <span className="process-overview__arrow" aria-hidden="true">→</span>
+            <div className="process-overview__step" data-complete={workflow.status === "ready" && workflow.data.process_overview?.univariate_statistics_isins != null ? "true" : "false"}>
+              <small>3 · Univariate statistics</small>
+              <strong>{workflow.status === "ready" && workflow.data.process_overview?.univariate_statistics_isins != null ? workflow.data.process_overview.univariate_statistics_isins.toLocaleString() : "—"} ISINs</strong>
+            </div>
+            <span className="process-overview__arrow" aria-hidden="true">→</span>
+            <div className="process-overview__step" data-complete="false">
+              <small>4 · Bivariate statistics</small>
+              <strong>—</strong>
+            </div>
+            <span className="process-overview__arrow" aria-hidden="true">→</span>
+            <div className="process-overview__step" data-complete="false">
+              <small>5 · Multivariate statistics</small>
+              <strong>—</strong>
+            </div>
+          </div>
         </div>
         <div className="app-header__metadata">
           <div className="metadata-fetch__credential-input">

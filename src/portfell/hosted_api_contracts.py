@@ -64,6 +64,21 @@ class UnivariateRunRequest(BaseModel):
     quote_run_id: str
 
 
+class UnivariateSelectionRangeRequest(BaseModel):
+    minimum: float
+    maximum: float
+
+
+class UnivariateSelectionSettingsRequest(BaseModel):
+    """Project-scoped UI selections used to narrow the univariate universe."""
+
+    dividend_frequencies: list[str] = Field(default_factory=list, max_length=6)
+    statistic_labels: dict[str, list[str]] = Field(default_factory=dict, max_length=20)
+    statistic_ranges: dict[str, list[UnivariateSelectionRangeRequest]] = Field(
+        default_factory=dict, max_length=20
+    )
+
+
 class NumericalPredicateRequest(BaseModel):
     """One numerical filter predicate."""
 

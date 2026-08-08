@@ -105,6 +105,11 @@ Gap-aware planning discovers missing windows from the `quotes` data type because
 
 The `univariate_statistics` row contains these fields. `README.md` keeps the longer user-facing semantics, ranges, units, and empirical bands; this contract table is the compact schema reference.
 
+The current UI intentionally exposes only `annualized_geometric_return`, `var`, `sortino_ratio`,
+`expected_shortfall`, `tail_observation_count`, `sharpe_ratio`, `max_drawdown`,
+`trend_r_squared`, and dividend frequency/yield. The remaining fields below remain part of the
+persisted technical schema and are not currently displayed as univariate statistic cards.
+
 | Field | Short description |
 | --- | --- |
 | `isin` | Instrument ISIN identifier. |

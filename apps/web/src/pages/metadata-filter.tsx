@@ -56,7 +56,7 @@ export function MetadataFilterPage() {
         setCountry(filter.country);
         setCurrency(filter.currency);
         setName(filter.name);
-        setSelectionStatus(`${filter.selected_count.toLocaleString()} listings selected.`);
+        setSelectionStatus(`${filter.selected_count.toLocaleString()} unique ISINs selected.`);
       } catch (error) {
         if (cancelled) return;
         resetProjectState();
@@ -91,10 +91,8 @@ export function MetadataFilterPage() {
         country,
         currency,
       });
-      setSelectionStatus(`${result.selected_count.toLocaleString()} listings selected.`);
+      setSelectionStatus(`${result.selected_count.toLocaleString()} unique ISINs selected.`);
       window.dispatchEvent(new Event("portfell:workflow-updated"));
-      window.history.pushState({}, "", "/univariate-statistics");
-      window.dispatchEvent(new Event("portfell:navigation"));
     } catch (error) {
       setSelectionStatus(error instanceof Error ? error.message : "Metadata filter failed.");
     }
@@ -116,7 +114,7 @@ export function MetadataFilterPage() {
   return (
     <section className="metadata-filter-page" data-route="metadata-filter-page">
       <Panel title="Download Metadata">
-        <div className="quote-fetch quote-fetch--panel">
+        <div className="quote-fetch quote-fetch--panel metadata-download">
           <label htmlFor="metadata-progress">Metadata download progress</label>
           <progress id="metadata-progress" max={100} value={metadataProgress} />
           <output className="status-line" aria-live="polite">{metadataStatus}</output>

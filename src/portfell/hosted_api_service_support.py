@@ -6,6 +6,7 @@ import hashlib
 import json
 import uuid
 from collections.abc import Mapping
+from typing import cast
 
 from portfell.hosted_api_errors import HostedApplicationError
 from portfell.hosted_api_serializers import project_row
@@ -15,7 +16,11 @@ from portfell.hosted_api_state import (
     SelectionRecord,
     UserOwnedRow,
 )
-from portfell.hosted_research_workflow import FilterSelection, ResearchRun
+from portfell.hosted_research_workflow import (
+    FilterSelection,
+    ResearchRun,
+    create_full_univariate_selection,
+)
 from portfell.hosted_workspace_repository import persist_local_workspace
 from portfell.table_io import JsonRow
 from portfell.workflow_state import resolve_workflow
@@ -138,7 +143,7 @@ def project_with_selection_row(
     return {
         **project_row(project),
         "selection_id": selection.selection_id,
-        "selected_count": len(selection.member_ids),
+        "selected_count": _unique_member_isin_count(selection.member_ids),
         "data_loaded": project_data_loaded(state, project.project_id, user_id),
     }
 
@@ -255,7 +260,13 @@ def _bivariate_run(
     return runs[0] if runs else None
 
 
-def workflow_row(state: HostedApiState, user_id: str, project_id: str | None) -> JsonRow:
+def workflow_row(
+    state: HostedApiState,
+    user_id: str,
+    project_id: str | None,
+    *,
+    metadata_downloaded_isins: int | None = None,
+) -> JsonRow:
     selection = None
     if project_id is not None:
         try:
@@ -273,9 +284,22 @@ def workflow_row(state: HostedApiState, user_id: str, project_id: str | None) ->
         user_id, opaque_id("metadata-revision", selection.selection_id)
     )
     univariate_run = _univariate_run(state, quote_run_id, user_id)
+    selected_univariate_rows = (
+        ()
+        if univariate_run is None
+        else _apply_univariate_selection_settings(
+            univariate_run.rows,
+            state.univariate_selection_settings_by_project.get(selection.project_id, {}),
+        )
+    )
     filtered = _filter_selection(
         state, None if univariate_run is None else univariate_run.run_id, user_id
     )
+    if univariate_run is not None and univariate_run.status == "complete" and filtered is None:
+        filtered = create_full_univariate_selection(user_id=user_id, run=univariate_run)
+        state.filter_selections_by_id.setdefault(filtered.selection_id, filtered)
+        state.current_filter_selection_by_user[user_id] = filtered.selection_id
+        persist_local_workspace(state)
     bivariate_run = _bivariate_run(state, filtered, user_id)
     return {
         "stages": resolve_workflow(
@@ -285,5 +309,79 @@ def workflow_row(state: HostedApiState, user_id: str, project_id: str | None) ->
             univariate_run_id=None if univariate_run is None else univariate_run.run_id,
             univariate_filter_selection_id=(None if filtered is None else filtered.selection_id),
             bivariate_run_id=None if bivariate_run is None else bivariate_run.run_id,
-        )
+        ),
+        "process_overview": {
+            "metadata_downloaded_isins": (
+                _unique_isin_count(state.all_isins_rows)
+                if metadata_downloaded_isins is None
+                else metadata_downloaded_isins
+            ),
+            "metadata_filter_isins": _unique_member_isin_count(selection.member_ids),
+            "univariate_statistics_isins": (
+                None if univariate_run is None else _unique_isin_count(selected_univariate_rows)
+            ),
+        },
     }
+
+
+def _unique_isin_count(rows: tuple[JsonRow, ...]) -> int:
+    return len(
+        {str(row.get("isin", "")).strip() for row in rows if str(row.get("isin", "")).strip()}
+    )
+
+
+def _unique_member_isin_count(member_ids: tuple[str, ...]) -> int:
+    return len({member_id.split(":", 1)[0] for member_id in member_ids if member_id})
+
+
+def _apply_univariate_selection_settings(
+    rows: tuple[JsonRow, ...], settings: JsonRow
+) -> tuple[JsonRow, ...]:
+    """Apply project dropdown selections to the completed univariate universe."""
+
+    frequencies = settings.get("dividend_frequencies", [])
+    ranges_by_metric = settings.get("statistic_ranges", {})
+    selected_frequencies: set[str] = set()
+    if isinstance(frequencies, list):
+        selected_frequencies = {
+            value for value in cast(list[object], frequencies) if isinstance(value, str)
+        }
+    selected_ranges: dict[str, tuple[Mapping[str, object], ...]] = {}
+    if isinstance(ranges_by_metric, Mapping):
+        for raw_metric, raw_ranges in cast(Mapping[object, object], ranges_by_metric).items():
+            if not isinstance(raw_metric, str) or not isinstance(raw_ranges, list):
+                continue
+            selected_ranges[raw_metric] = tuple(
+                cast(Mapping[str, object], item)
+                for item in cast(list[object], raw_ranges)
+                if isinstance(item, Mapping)
+            )
+
+    def includes_value(item: Mapping[str, object], value: float) -> bool:
+        minimum = item.get("minimum")
+        maximum = item.get("maximum")
+        return (
+            not isinstance(minimum, bool)
+            and not isinstance(maximum, bool)
+            and isinstance(minimum, int | float)
+            and isinstance(maximum, int | float)
+            and float(minimum) <= value <= float(maximum)
+        )
+
+    def matches(row: JsonRow) -> bool:
+        frequency = str(row.get("distribution_frequency", "accumulating"))
+        if frequency not in {"monthly", "quarterly", "semiannual", "annual", "irregular"}:
+            frequency = "accumulating"
+        if selected_frequencies and frequency not in selected_frequencies:
+            return False
+        for metric, ranges in selected_ranges.items():
+            if not ranges:
+                continue
+            value = row.get(metric)
+            if isinstance(value, bool) or not isinstance(value, int | float):
+                return False
+            if not any(includes_value(item, float(value)) for item in ranges):
+                return False
+        return True
+
+    return tuple(row for row in rows if matches(row))

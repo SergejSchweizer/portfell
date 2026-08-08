@@ -14,6 +14,7 @@ from portfell.hosted_api_contracts import (
     MetadataFilterProjectRequest,
     ProjectCreateRequest,
     SelectionCreateRequest,
+    UnivariateSelectionSettingsRequest,
 )
 from portfell.hosted_api_state import ApiUser
 from portfell.hosted_credential_project_service import CredentialProjectService
@@ -72,6 +73,25 @@ def metadata_project_router(
     def project_metadata_filter(project_id: str, user: ApiUser = Depends(current_user)) -> JsonRow:
         project, selection = call(projects.project_metadata_filter, user.user_id, project_id)
         return call(metadata.project_filter_row, project, selection)
+
+    @router.get("/projects/{project_id}/univariate-selection-settings")
+    def univariate_selection_settings(
+        project_id: str, user: ApiUser = Depends(current_user)
+    ) -> JsonRow:
+        return call(projects.univariate_selection_settings, user.user_id, project_id)
+
+    @router.put("/projects/{project_id}/univariate-selection-settings")
+    def save_univariate_selection_settings(
+        project_id: str,
+        payload: UnivariateSelectionSettingsRequest,
+        user: ApiUser = Depends(workspace_user),
+    ) -> JsonRow:
+        return call(
+            projects.save_univariate_selection_settings,
+            user.user_id,
+            project_id,
+            payload.model_dump(mode="json"),
+        )
 
     @router.delete("/projects/{project_id}")
     def delete_project(project_id: str, user: ApiUser = Depends(workspace_user)) -> JsonRow:

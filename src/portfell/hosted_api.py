@@ -135,7 +135,7 @@ def create_app(
         user_id=os.environ.get("PORTFELL_LOCAL_WORKSPACE_USER_ID", DEFAULT_LOCAL_WORKSPACE_USER_ID)
     )
     runtime = _runtime()
-    credentials = CredentialProjectService(resolved_state)
+    credentials = CredentialProjectService(resolved_state, runtime)
     metadata = MetadataProjectService(resolved_state, runtime)
     quotes = QuoteRunService(resolved_state, runtime)
     research = ResearchService(resolved_state)
