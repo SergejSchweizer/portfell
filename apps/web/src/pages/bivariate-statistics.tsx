@@ -94,6 +94,7 @@ export function BivariateStatisticsPage() {
   const [downsideMatrix, setDownsideMatrix] = useState<ApiPairMetricMatrix | null>(null);
   const [summary, setSummary] = useState<ApiBivariateSummary | null>(null);
   const [hoveredMatrixCell, setHoveredMatrixCell] = useState<{ row: number; column: number } | null>(null);
+  const [activePairwiseMetric, setActivePairwiseMetric] = useState<"covariance" | "pearson" | "spearman" | "downside">("covariance");
   const [message, setMessage] = useState("");
 
   useEffect(() => {
@@ -202,6 +203,18 @@ export function BivariateStatisticsPage() {
   }
 
   const diagnostics = covarianceMatrix?.diagnostics;
+  const activeCorrelation = activePairwiseMetric === "pearson"
+    ? summary?.metrics.pearson_correlation
+    : activePairwiseMetric === "spearman"
+      ? summary?.metrics.spearman_correlation
+      : summary?.metrics.downside_correlation;
+  const activeMatrix = activePairwiseMetric === "covariance"
+    ? covarianceMatrix
+    : activePairwiseMetric === "pearson"
+      ? pearsonMatrix
+      : activePairwiseMetric === "spearman"
+        ? spearmanMatrix
+        : downsideMatrix;
   return (
     <Panel title="Bivariate Statistics">
       <div className="quote-fetch quote-fetch--panel bivariate-compute">
@@ -214,38 +227,15 @@ export function BivariateStatisticsPage() {
           </Button>
         </div>
       </div>
-      <section className="bivariate-statistic" aria-labelledby="covariance-title">
-        <div className="bivariate-statistic__facts">
-          <h3 id="covariance-title">Covariance</h3>
-          <p>Joint variation of return series for every pair in the filtered ISIN universe.</p>
-          <p className="univariate-equation">Cov(Rᵢ, Rⱼ) = 𝔼[(Rᵢ − μᵢ)(Rⱼ − μⱼ)]</p>
-          <p className="univariate-notation">Rᵢ, Rⱼ: paired returns · μ: mean return · 𝔼: expected value</p>
-          <dl>
-            <div><dt>ISINs analysed</dt><dd>{diagnostics?.listing_count.toLocaleString() ?? "—"}</dd></div>
-            <div><dt>Unique pairs</dt><dd>{diagnostics?.pair_count.toLocaleString() ?? "—"}</dd></div>
-            <div><dt>Shared observations</dt><dd>{diagnostics?.observation_count.toLocaleString() ?? "—"}</dd></div>
-            <div><dt>Average covariance</dt><dd>{metric(diagnostics?.average_pairwise_covariance)}</dd></div>
-            <div><dt>Average correlation</dt><dd>{metric(diagnostics?.average_pairwise_correlation)}</dd></div>
-            <div><dt>Equal-weight volatility</dt><dd>{metric(diagnostics?.equal_weight_volatility)}</dd></div>
-            <div><dt>Minimum-variance volatility</dt><dd>{metric(diagnostics?.minimum_variance_volatility)}</dd></div>
-            <div><dt>Diversification ratio</dt><dd>{metric(diagnostics?.diversification_ratio)}</dd></div>
-            <div><dt>Effective number of bets</dt><dd>{metric(diagnostics?.effective_number_of_bets)}</dd></div>
-            <div><dt>Largest risk contribution</dt><dd>{diagnostics?.largest_equal_weight_risk_contribution == null ? "—" : `${(diagnostics.largest_equal_weight_risk_contribution * 100).toFixed(1)}%`}</dd></div>
-          </dl>
+      <section className="bivariate-statistic" aria-labelledby="pairwise-dependence-title">
+        <div className="bivariate-statistic__tabs" role="tablist" aria-label="Pairwise dependence statistic">
+          {(["covariance", "pearson", "spearman", "downside"] as const).map((metricName) => <button key={metricName} type="button" role="tab" aria-selected={activePairwiseMetric === metricName} className={activePairwiseMetric === metricName ? "is-active" : undefined} onClick={() => setActivePairwiseMetric(metricName)}>{metricName === "covariance" ? "Covariance" : metricName === "pearson" ? "Pearson" : metricName === "spearman" ? "Spearman" : "Downside"}</button>)}
         </div>
-        <PairMatrix matrix={covarianceMatrix} title="Covariance" hoveredCell={hoveredMatrixCell} setHoveredCell={setHoveredMatrixCell} />
-      </section>
-      <section className="bivariate-statistic" aria-labelledby="pearson-title">
-        <div className="bivariate-statistic__facts"><h3 id="pearson-title">Pearson Correlation</h3><p>Linear co-movement of daily log returns for every filtered ISIN pair.</p><p className="univariate-equation">ρᵢⱼ = Cov(Rᵢ, Rⱼ) / (σᵢσⱼ)</p><p className="univariate-notation">R: daily log return · σ: return standard deviation · ρ: Pearson correlation</p><dl><div><dt>Pairs analysed</dt><dd>{summary?.pair_count.toLocaleString() ?? "—"}</dd></div><div><dt>Shared observations</dt><dd>{summary?.observation_count.toLocaleString() ?? "—"}</dd></div><div><dt>Average correlation</dt><dd>{percent(summary?.metrics.pearson_correlation?.mean)}</dd></div><div><dt>Median correlation</dt><dd>{percent(summary?.metrics.pearson_correlation?.median)}</dd></div><div><dt>Minimum correlation</dt><dd>{percent(summary?.metrics.pearson_correlation?.minimum)}</dd></div><div><dt>Maximum correlation</dt><dd>{percent(summary?.metrics.pearson_correlation?.maximum)}</dd></div></dl></div>
-        <PairMatrix matrix={pearsonMatrix} title="Pearson correlation" hoveredCell={hoveredMatrixCell} setHoveredCell={setHoveredMatrixCell} />
-      </section>
-      <section className="bivariate-statistic" aria-labelledby="spearman-title">
-        <div className="bivariate-statistic__facts"><h3 id="spearman-title">Spearman Correlation</h3><p>Rank-based co-movement of daily log returns for every filtered ISIN pair.</p><p className="univariate-equation">ρˢᵢⱼ = Corr(rank(Rᵢ), rank(Rⱼ))</p><p className="univariate-notation">R: daily log return · rank: ordinal return rank · ρˢ: Spearman correlation</p><dl><div><dt>Pairs analysed</dt><dd>{summary?.pair_count.toLocaleString() ?? "—"}</dd></div><div><dt>Shared observations</dt><dd>{summary?.observation_count.toLocaleString() ?? "—"}</dd></div><div><dt>Average correlation</dt><dd>{percent(summary?.metrics.spearman_correlation?.mean)}</dd></div><div><dt>Median correlation</dt><dd>{percent(summary?.metrics.spearman_correlation?.median)}</dd></div><div><dt>Minimum correlation</dt><dd>{percent(summary?.metrics.spearman_correlation?.minimum)}</dd></div><div><dt>Maximum correlation</dt><dd>{percent(summary?.metrics.spearman_correlation?.maximum)}</dd></div></dl></div>
-        <PairMatrix matrix={spearmanMatrix} title="Spearman correlation" hoveredCell={hoveredMatrixCell} setHoveredCell={setHoveredMatrixCell} />
-      </section>
-      <section className="bivariate-statistic" aria-labelledby="downside-title">
-        <div className="bivariate-statistic__facts"><h3 id="downside-title">Downside Correlation</h3><p>Co-movement on days when both ISINs have negative daily log returns.</p><p className="univariate-equation">ρ⁻ᵢⱼ = Corr(Rᵢ, Rⱼ | Rᵢ &lt; 0, Rⱼ &lt; 0)</p><p className="univariate-notation">R: daily log return · ρ⁻: conditional downside correlation</p><dl><div><dt>Pairs analysed</dt><dd>{summary?.pair_count.toLocaleString() ?? "—"}</dd></div><div><dt>Shared observations</dt><dd>{summary?.observation_count.toLocaleString() ?? "—"}</dd></div><div><dt>Average correlation</dt><dd>{percent(summary?.metrics.downside_correlation?.mean)}</dd></div><div><dt>Median correlation</dt><dd>{percent(summary?.metrics.downside_correlation?.median)}</dd></div><div><dt>Minimum correlation</dt><dd>{percent(summary?.metrics.downside_correlation?.minimum)}</dd></div><div><dt>Maximum correlation</dt><dd>{percent(summary?.metrics.downside_correlation?.maximum)}</dd></div></dl></div>
-        <PairMatrix matrix={downsideMatrix} title="Downside correlation" hoveredCell={hoveredMatrixCell} setHoveredCell={setHoveredMatrixCell} />
+        <div className="bivariate-statistic__facts">
+          <h3 id="pairwise-dependence-title">{activePairwiseMetric === "covariance" ? "Covariance" : activePairwiseMetric === "pearson" ? "Pearson Correlation" : activePairwiseMetric === "spearman" ? "Spearman Correlation" : "Downside Correlation"}</h3>
+          {activePairwiseMetric === "covariance" ? <><p>Joint variation of return series for every pair in the filtered ISIN universe.</p><p className="univariate-equation">Cov(Rᵢ, Rⱼ) = 𝔼[(Rᵢ − μᵢ)(Rⱼ − μⱼ)]</p><p className="univariate-notation">Rᵢ, Rⱼ: paired returns · μ: mean return · 𝔼: expected value</p><dl><div><dt>ISINs analysed</dt><dd>{diagnostics?.listing_count.toLocaleString() ?? "—"}</dd></div><div><dt>Unique pairs</dt><dd>{diagnostics?.pair_count.toLocaleString() ?? "—"}</dd></div><div><dt>Shared observations</dt><dd>{diagnostics?.observation_count.toLocaleString() ?? "—"}</dd></div><div><dt>Average covariance</dt><dd>{metric(diagnostics?.average_pairwise_covariance)}</dd></div><div><dt>Average correlation</dt><dd>{metric(diagnostics?.average_pairwise_correlation)}</dd></div><div><dt>Equal-weight volatility</dt><dd>{metric(diagnostics?.equal_weight_volatility)}</dd></div><div><dt>Minimum-variance volatility</dt><dd>{metric(diagnostics?.minimum_variance_volatility)}</dd></div><div><dt>Diversification ratio</dt><dd>{metric(diagnostics?.diversification_ratio)}</dd></div><div><dt>Effective number of bets</dt><dd>{metric(diagnostics?.effective_number_of_bets)}</dd></div><div><dt>Largest risk contribution</dt><dd>{diagnostics?.largest_equal_weight_risk_contribution == null ? "—" : `${(diagnostics.largest_equal_weight_risk_contribution * 100).toFixed(1)}%`}</dd></div></dl></> : <><p>{activePairwiseMetric === "pearson" ? "Linear co-movement of daily log returns for every filtered ISIN pair." : activePairwiseMetric === "spearman" ? "Rank-based co-movement of daily log returns for every filtered ISIN pair." : "Co-movement on days when both ISINs have negative daily log returns."}</p><p className="univariate-equation">{activePairwiseMetric === "pearson" ? "ρᵢⱼ = Cov(Rᵢ, Rⱼ) / (σᵢσⱼ)" : activePairwiseMetric === "spearman" ? "ρˢᵢⱼ = Corr(rank(Rᵢ), rank(Rⱼ))" : "ρ⁻ᵢⱼ = Corr(Rᵢ, Rⱼ | Rᵢ < 0, Rⱼ < 0)"}</p><p className="univariate-notation">{activePairwiseMetric === "pearson" ? "R: daily log return · σ: return standard deviation · ρ: Pearson correlation" : activePairwiseMetric === "spearman" ? "R: daily log return · rank: ordinal return rank · ρˢ: Spearman correlation" : "R: daily log return · ρ⁻: conditional downside correlation"}</p><dl><div><dt>Pairs analysed</dt><dd>{summary?.pair_count.toLocaleString() ?? "—"}</dd></div><div><dt>Shared observations</dt><dd>{summary?.observation_count.toLocaleString() ?? "—"}</dd></div><div><dt>Average correlation</dt><dd>{percent(activeCorrelation?.mean)}</dd></div><div><dt>Median correlation</dt><dd>{percent(activeCorrelation?.median)}</dd></div><div><dt>Minimum correlation</dt><dd>{percent(activeCorrelation?.minimum)}</dd></div><div><dt>Maximum correlation</dt><dd>{percent(activeCorrelation?.maximum)}</dd></div></dl></>}
+        </div>
+        <PairMatrix matrix={activeMatrix} title={activePairwiseMetric === "covariance" ? "Covariance" : `${activePairwiseMetric[0].toUpperCase()}${activePairwiseMetric.slice(1)} correlation`} hoveredCell={hoveredMatrixCell} setHoveredCell={setHoveredMatrixCell} />
       </section>
       <BivariateMetricWindow
         title="Tail Dependence and Co-exceedance Rate"
