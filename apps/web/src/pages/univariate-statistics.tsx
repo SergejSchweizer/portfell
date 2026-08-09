@@ -375,15 +375,12 @@ export function UnivariateStatisticsPage() {
   return (
     <section className="univariate-statistics-page" data-route="univariate-statistics-page">
       <Panel title="Univariate Statistics">
-        {stage.status === "locked" ? <p>Update historical data to unlock univariate statistics.</p> : <>
+        {stage.status === "locked" ? <p>Historical data is refreshed automatically by the shared-data service. Statistics unlock when coverage is available.</p> : <>
           <div className="quote-fetch quote-fetch--panel univariate-compute">
             <label htmlFor="univariate-progress">Univariate statistics progress</label>
             <progress id="univariate-progress" max={100} value={run?.percent ?? 0} />
             <p className="status-line" aria-live="polite">{message || "Compute statistics for the downloaded historical data."}</p>
-            <div className="quote-fetch__action quote-fetch__action--dual">
-              <Button type="button" variant="secondary" disabled={!metadata.metadata_selection_id || quoteStatus === "running"} onClick={() => void fetchQuotes()} title={quoteMessage}>
-                {updateHistoricalDataLabel}
-              </Button>
+            <div className="quote-fetch__action">
               <Button type="button" variant="primary" disabled={!metadata.metadata_selection_id || !metadata.quote_run_id || run?.status === "running"} onClick={() => void compute()}>
                 {run?.status === "running" ? "Computing…" : "Compute univariate statistics"}
               </Button>

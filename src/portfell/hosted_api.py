@@ -58,6 +58,7 @@ from portfell.hosted_routes_research import research_router
 from portfell.hosted_univariate_service import UnivariateResearchService
 from portfell.hosted_workspace import LocalWorkspaceStore
 from portfell.hosted_workspace_repository import restore_local_workspace
+from portfell.shared_market_data import SharedMarketDataStore
 from portfell.workflows import (
     run_fetch_all_metadata_workflow,
     run_fetch_all_quotes_workflow,
@@ -140,6 +141,7 @@ def create_persistent_local_workspace_state(
         credentials=FileCredentialStore(shared_data_root / "encrypted-credentials.json"),
         credential_key_encryption_key=key_encryption_key,
         workspace_store=workspace_store,
+        shared_market_data_store=SharedMarketDataStore(shared_data_root),
     )
     restore_local_workspace(state, workspace_store.load())
     return state

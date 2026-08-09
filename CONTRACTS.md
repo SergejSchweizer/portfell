@@ -28,6 +28,33 @@ Portfell uses deterministic local lake artifacts under a `LakePaths` root. Table
 
 Read this after [ARCHITECTURE.md](../ARCHITECTURE.md) and before changing Search, statistics, or storage code.
 
+## Canonical Shared Market Data
+
+The hosted/local-app shared physical source is exclusively
+`$PORTFELL_SHARED_DATA_ROOT/market-data`.  A standalone CLI lake is a separate
+adapter and must never be treated as this project-independent store.  Quotes,
+dividends, and splits each have one canonical Parquet file per full listing:
+
+```text
+market-data/{dataset_type}/{exchange}/{isin}__{code}.parquet
+```
+
+The full identity is `(provider, exchange, isin, code)`; equal ISINs on a
+different exchange or code are distinct series.  Quote business keys are
+`date`; dividend keys are `(event_id or id, payment_date or date)`; split keys
+are `(date, split_factor or ratio)`.  Upserts replace the existing row for the
+same key, sort all rows and atomically replace the complete Parquet file from a
+same-directory temporary file after fsync.  Rows must contain provider
+provenance and the full listing identity, but must not contain user, project,
+credential, session, authorization, or run fields.
+
+`market-data/coverage.json` is a rebuildable index, not a source of truth.  It
+records coverage dates, row count, content hash, schema version, and a
+publication marker for each listing/dataset.  Reading physical Parquet files
+can recreate it.  Active refresh inventory is the sorted de-duplicated union
+of member ids in every non-deleted project's current metadata selection; it is
+constructed only inside the trusted runtime and is not a cross-project API.
+
 ## Layers
 
 - Bronze stores raw or near-raw EODHD search, quote, dividends, and splits payloads.

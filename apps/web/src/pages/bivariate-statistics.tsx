@@ -1,13 +1,11 @@
 
 import { useEffect, useRef, useState } from "react";
-import { loadQuoteRun, loadWorkflow } from "../api/client";
+import { loadWorkflow } from "../api/client";
 import { bivariateStatisticsApi, type BivariateRunData } from "../api/bivariate-statistics";
-import { univariateStatisticsApi } from "../api/univariate-statistics";
-import { historicalDataUpdateLabel } from "../quote-progress";
 import { Button } from "../components/button";
 import { LoadingState } from "../components/loading-state";
 import { Panel } from "../components/panel";
-import type { ApiBivariateMetricSummary, ApiBivariateRow, ApiBivariateSummary, ApiCovarianceMatrix, ApiPage, ApiPairMetricMatrix, ApiPairPlan, ApiQuoteFetch, ApiResearchRun, ApiTailRiskScatter } from "../contracts";
+import type { ApiBivariateMetricSummary, ApiBivariateRow, ApiBivariateSummary, ApiCovarianceMatrix, ApiPage, ApiPairMetricMatrix, ApiPairPlan, ApiResearchRun, ApiTailRiskScatter } from "../contracts";
 import { useResource } from "../hooks/use-resource";
 
 type PairwiseMatrixMetric = "covariance" | "pearson" | "spearman" | "downside" | "lower_tail_dependence" | "tail_coexceedance_rate" | "rolling_stability" | "drawdown_overlap" | "tail_risk_scatter";
@@ -242,11 +240,6 @@ export function BivariateStatisticsPage() {
   const [hoveredMatrixCell, setHoveredMatrixCell] = useState<{ row: number; column: number } | null>(null);
   const [activePairwiseMetric, setActivePairwiseMetric] = useState<PairwiseMatrixMetric>("covariance");
   const [message, setMessage] = useState("");
-  const [quoteRunId, setQuoteRunId] = useState<string | null>(null);
-  const [quoteStatus, setQuoteStatus] = useState<"idle" | "running" | "complete" | "failed">("idle");
-  const [quoteProgress, setQuoteProgress] = useState(0);
-  const [quoteRun, setQuoteRun] = useState<ApiQuoteFetch | null>(null);
-  const [quoteUpdatedCount, setQuoteUpdatedCount] = useState<number | null>(null);
   const persistedRunId = workflow.status === "ready"
     ? workflow.data.stages.bivariate_statistics.bivariate_run_id
     : undefined;
@@ -280,42 +273,11 @@ export function BivariateStatisticsPage() {
       setTailRiskScatter(null);
       setSummary(null);
       setMessage("");
-      setQuoteRunId(null);
-      setQuoteStatus("idle");
-      setQuoteProgress(0);
-      setQuoteRun(null);
-      setQuoteUpdatedCount(null);
       setWorkflowRevision((value) => value + 1);
     };
     window.addEventListener("portfell:project-updated", resetProjectState);
     return () => window.removeEventListener("portfell:project-updated", resetProjectState);
   }, []);
-
-  useEffect(() => {
-    if (!quoteRunId || quoteStatus !== "running") return;
-    const activeQuoteRunId = quoteRunId;
-    let cancelled = false;
-    let timeoutId: number | undefined;
-    async function pollQuoteRun() {
-      try {
-        const current = await loadQuoteRun(activeQuoteRunId);
-        if (cancelled) return;
-        setQuoteRun(current);
-        setQuoteProgress(current.percent ?? 0);
-        if (current.status === "running") {
-          timeoutId = window.setTimeout(() => void pollQuoteRun(), 750);
-          return;
-        }
-        setQuoteStatus(current.status === "failed" ? "failed" : "complete");
-        setQuoteUpdatedCount(current.quote_successes ?? current.selected_listing_count ?? 0);
-        window.dispatchEvent(new Event("portfell:workflow-updated"));
-      } catch {
-        if (!cancelled) setQuoteStatus("failed");
-      }
-    }
-    void pollQuoteRun();
-    return () => { cancelled = true; if (timeoutId !== undefined) window.clearTimeout(timeoutId); };
-  }, [quoteRunId, quoteStatus]);
 
   useEffect(() => {
     if (!run || run.status !== "running") return;
@@ -379,7 +341,6 @@ export function BivariateStatisticsPage() {
   if (workflow.status === "loading" || workflow.status === "idle") return <LoadingState label="Loading bivariate statistics" />;
   if (workflow.status === "error") return <p>Workflow state is unavailable.</p>;
   const selectionId = workflow.data.stages.univariate_statistics.univariate_selection_id;
-  const metadataSelectionId = workflow.data.stages.metadata_builder.metadata_selection_id;
   if (!selectionId) {
     return <Panel title="Bivariate Statistics"><p>Complete univariate statistics and select at least two ISINs first.</p></Panel>;
   }
@@ -404,20 +365,6 @@ export function BivariateStatisticsPage() {
       }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Bivariate computation failed.");
-    }
-  }
-
-  async function updateHistoricalData() {
-    if (!metadataSelectionId) return;
-    setQuoteStatus("running");
-    setQuoteProgress(0);
-    try {
-      const started = await univariateStatisticsApi.startQuoteRun({ metadata_selection_id: metadataSelectionId });
-      setQuoteRunId(started.download_run_id);
-      setQuoteRun(started);
-      setQuoteProgress(started.percent ?? 0);
-    } catch {
-      setQuoteStatus("failed");
     }
   }
 
@@ -464,21 +411,13 @@ export function BivariateStatisticsPage() {
   const activeMatrixTitle = activePairwiseMetric === "covariance"
     ? "Covariance"
     : pairwiseMatrixTabs.find((tab) => tab.metric === activePairwiseMetric)!.label;
-  const updateHistoricalDataLabel = quoteStatus === "running"
-    ? historicalDataUpdateLabel(quoteRun)
-    : quoteUpdatedCount !== null
-      ? `Update Historical Data · ${quoteUpdatedCount.toLocaleString()} ISINs updated`
-      : "Update Historical Data";
   return (
     <Panel title="Bivariate Statistics">
       <div className="quote-fetch quote-fetch--panel bivariate-compute">
         <label htmlFor="bivariate-progress">Bivariate statistics progress</label>
         <progress id="bivariate-progress" max={100} value={run?.percent ?? 0} />
         <p className="status-line" aria-live="polite">{message || "Compute statistics for the ISINs selected in univariate statistics."}</p>
-        <div className="quote-fetch__action quote-fetch__action--dual">
-          <Button type="button" variant="secondary" disabled={!metadataSelectionId || quoteStatus === "running"} onClick={() => void updateHistoricalData()}>
-            {updateHistoricalDataLabel}
-          </Button>
+        <div className="quote-fetch__action">
           <Button type="button" variant="primary" disabled={run?.status === "running"} onClick={() => void compute()}>
             {run?.status === "running" ? "Computing…" : "Compute Bivariate Statistics"}
           </Button>

@@ -63,6 +63,17 @@ def test_web_has_no_shared_data_mount_or_authentication_secret() -> None:
     assert "PORTFELL_API_BASE_URL" in web["environment"]
 
 
+def test_operations_refresh_is_profiled_and_has_only_the_required_secret_mount() -> None:
+    refresh = cast(
+        ComposeMapping, cast(ComposeMapping, _compose()["services"])["shared-market-refresh"]
+    )
+    assert refresh["profiles"] == ["operations"]
+    assert refresh["command"] == ["python", "-m", "portfell.shared_market_refresh"]
+    assert refresh["volumes"] == ["portfell-shared-data:/srv/portfell/shared-data"]
+    assert refresh["secrets"] == ["eodhd_kek"]
+    assert "ports" not in refresh
+
+
 def test_web_compose_develop_watch_rebuilds_local_ui_changes() -> None:
     services = cast(ComposeMapping, _compose()["services"])
     web = cast(ComposeMapping, services["web"])
