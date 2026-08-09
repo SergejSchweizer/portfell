@@ -1128,6 +1128,26 @@ Determinism: The fixture owns fixed run states, rows, matrices, and project iden
 
 Idempotency: Each Playwright worker constructs fresh in-memory fixture state. Re-running the journey creates no real projects, provider calls, or durable application data.
 
+### PR136. Result-Driven Dividends Window Visibility
+
+Branch: `fix/univariate-dividends-result-visibility`.
+
+Git status: in progress. PR: TBD.
+
+Priority: P1 univariate statistics clarity.
+
+Depends on: PR135.
+
+Scope: Hide the Dividends univariate-statistics window until a completed univariate run has loaded its result payload. Align Playwright discovery with the browser-spec files so Vitest unit tests are not accidentally executed by Playwright.
+
+Acceptance: Before completed results load, the page shows only historical-data and univariate-compute controls; no Dividends card, selection field, or histogram is rendered. Once results load, the Dividends card and histogram appear, including the empty-result state. The three-viewport workflow test asserts this transition, while Vitest and Playwright remain separate commands.
+
+Security: The change introduces no new API call, client-side business rule, or sensitive data handling.
+
+Determinism: Visibility is determined solely by the loaded server-result state (`results !== null`).
+
+Idempotency: Repeated compute and restore paths render the same result-driven Dividends window without creating client-owned state.
+
 ### PR130. Typed Quote Ingestion Stage Pipeline And Progress Contract
 
 Branch: `refactor/quote-ingestion-pipeline`.

@@ -18,8 +18,9 @@ immutable metadata selection and quote run ids, and loads bounded results from
 statistics without recomputing them in React.
 
 The univariate-statistics action uses the same progress, status, and right-aligned action layout as
-the historical-data download block. After a completed computation, the page first presents a
-Dividends univariate-statistic block. It provides a payout-frequency selection and an accessible
+the historical-data download block. The Dividends univariate-statistic block is not rendered before
+a completed computation has loaded its result payload, matching the result-driven bivariate
+statistic windows. It provides a payout-frequency selection and an accessible
 histogram that counts ISINs by none/unknown, monthly, quarterly, semiannual, annual, and
 irregular schedules. The selected schedules are saved per project.
 
@@ -51,7 +52,7 @@ selection and unlocks Bivariate Statistics directly; Univariate Filter is not sh
 
 ## Acceptance
 
-The quote panel is first in document order and its `Download Historical Data` action is disabled without a metadata selection or while a download is active. A failed download displays the server-provided safe error code. The statistics action is disabled when prerequisites are missing or a run is active. Results use typed contracts, accessible table semantics, stable loading feedback, bounded pagination, and a clear upstream-data requirement.
+The quote panel is first in document order and its `Download Historical Data` action is disabled without a metadata selection or while a download is active. A failed download displays the server-provided safe error code. The statistics action is disabled when prerequisites are missing or a run is active. No Dividends window is present before completed univariate results are loaded; it appears with the other completed-result statistics, including when the returned result set is empty. Results use typed contracts, accessible table semantics, stable loading feedback, bounded pagination, and a clear upstream-data requirement.
 
 The stateful two-project browser journey exercises historical-data and compute
 actions, every project-persisted portfolio-selection field, histogram hover
