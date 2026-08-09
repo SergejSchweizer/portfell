@@ -12,7 +12,7 @@ from portfell.contract_versioning import ContractVersion, stable_contract_id
 from portfell.multivariate_candidates import PortfolioCandidate
 from portfell.multivariate_inputs import MultivariateListingKey
 
-VALIDATION_CONTRACT = ContractVersion("multivariate.validation", 1)
+VALIDATION_CONTRACT = ContractVersion("multivariate.validation", 2)
 CandidateFactory = Callable[[Sequence[Mapping[str, Any]]], Sequence[PortfolioCandidate]]
 
 
@@ -226,7 +226,10 @@ def build_candidate_scorecards(
                 | {item.reason for item in candidate_scenarios if item.reason}
             )
         )
-        method = next((item.method for item in candidate_splits), candidate_scenarios[0].method)
+        method = next(
+            (item.method for item in candidate_splits),
+            next((item.method for item in candidate_scenarios), "unavailable"),
+        )
         scorecards.append(
             CandidateScorecard(
                 candidate_id=candidate_id,
@@ -314,7 +317,7 @@ def _scenario_values(
         return tuple((name, (), "insufficient_return_history") for name in _SCENARIO_NAMES)
     rng = Random(policy.bootstrap_seed)
     count = min(policy.bootstrap_observations, len(values))
-    bootstrap = tuple(values[rng.randrange(len(values))] for _ in range(count))
+    bootstrap = _seeded_block_bootstrap(values, count, rng)
     mean = sum(values) / len(values)
     covariance_perturbed = tuple(mean + 1.25 * (value - mean) for value in values)
     convergence = tuple(0.75 * value + 0.25 * mean for value in values)
@@ -325,6 +328,18 @@ def _scenario_values(
         ("correlation_convergence", convergence, None),
         ("distribution_cut", tuple(values), "cash_flow_evidence_only"),
     )
+
+
+def _seeded_block_bootstrap(values: Sequence[float], count: int, rng: Random) -> tuple[float, ...]:
+    """Sample deterministic contiguous five-observation blocks, not IID points."""
+    if not values or count <= 0:
+        return ()
+    block_size = min(5, len(values))
+    sampled: list[float] = []
+    while len(sampled) < count:
+        start = rng.randrange(len(values))
+        sampled.extend(values[(start + offset) % len(values)] for offset in range(block_size))
+    return tuple(sampled[:count])
 
 
 def _scenario(

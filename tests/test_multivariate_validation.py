@@ -4,6 +4,7 @@ from typing import Any
 from portfell.multivariate_candidates import PortfolioCandidate
 from portfell.multivariate_inputs import MultivariateListingKey
 from portfell.multivariate_validation import (
+    ValidationSplit,
     WalkForwardPolicy,
     build_candidate_scorecards,
     validate_candidate_stress,
@@ -109,3 +110,24 @@ def test_stress_and_scorecards_are_deterministic_and_do_not_select_a_winner() ->
     assert scenarios[-1].reason == "cash_flow_evidence_only"
     assert scorecards[0].candidate_id == candidate.candidate_id
     assert scorecards[0].scenario_count == len(scenarios)
+
+
+def test_scorecard_keeps_split_only_candidate_visible() -> None:
+    split = ValidationSplit(
+        "split-a",
+        "equal_weight",
+        "2025-01-01",
+        "2025-01-02",
+        "2025-01-03",
+        "2025-01-03",
+        0.01,
+        0.0,
+        0.01,
+        0.02,
+        "complete",
+        None,
+        "candidate-a",
+    )
+    scorecards = build_candidate_scorecards(splits=[split], scenarios=[])
+    assert scorecards[0].method == "equal_weight"
+    assert scorecards[0].scenario_count == 0
