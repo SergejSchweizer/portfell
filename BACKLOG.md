@@ -1214,7 +1214,7 @@ Series Completion Gate: Follow the current pre-merge and post-merge gates in [GA
 
 Branch: `fix/module-route-names`.
 
-Git status: in progress. PR: TBD.
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/247.
 
 Priority: P1 browser workflow clarity.
 
