@@ -137,6 +137,11 @@ def test_multivariate_service_resolves_pinned_project_dependencies_and_persists_
     components = service.components("user-a", str(started["run_id"]), limit=3, offset=0)
     assert components["total"] == 25
     assert len(components["items"]) == 3
+    updated = service.update_settings("user-a", str(started["run_id"]), (candidate_id,))
+    assert updated["run_id"] == started["run_id"]
+    assert state.multivariate_runs_by_id[str(started["run_id"])].settings[
+        "selected_candidate_ids"
+    ] == [candidate_id]
     assert state.current_multivariate_run_by_project[project_id] == started["run_id"]
     assert persistence.persisted >= 2
 

@@ -153,6 +153,24 @@ class MultivariateResearchService:
             require_user_row(self._state.multivariate_runs_by_id, run_id, user_id).artifacts
         )
 
+    def update_settings(
+        self, user_id: str, run_id: str, selected_candidate_ids: tuple[str, ...]
+    ) -> JsonRow:
+        run = require_user_row(self._state.multivariate_runs_by_id, run_id, user_id)
+        known_ids = {str(candidate.get("candidate_id")) for candidate in run.candidates}
+        if (
+            len(set(selected_candidate_ids)) != len(selected_candidate_ids)
+            or not set(selected_candidate_ids) <= known_ids
+        ):
+            raise HostedApplicationError(422, "invalid_candidate_selection")
+        updated = replace(
+            run,
+            settings={**run.settings, "selected_candidate_ids": list(selected_candidate_ids)},
+        )
+        self._state.multivariate_runs_by_id[run_id] = updated
+        self._persistence.persist()
+        return _run_row(updated)
+
     def _selection_for_bivariate(self, user_id: str, run_id: str) -> UnivariateSelection:
         bivariate = require_user_row(self._state.bivariate_runs_by_id, run_id, user_id)
         matches = [
@@ -410,6 +428,7 @@ def _run_row(run: MultivariateRunRecord) -> JsonRow:
         "completed_units": run.completed_units,
         "total_units": run.total_units,
         "estimated_remaining_seconds": None,
+        "settings": dict(run.settings),
         "warnings": list(run.warnings),
         "failure_reason": run.failure_reason,
     }
