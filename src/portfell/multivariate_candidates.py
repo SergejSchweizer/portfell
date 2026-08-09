@@ -172,9 +172,9 @@ def _candidate(
     covariances = _covariance_map(risk_model)
     try:
         weights = _weights(method, listings, covariances, return_rows, policy)
+        metrics = _metrics(listings, weights, covariances, return_rows, income, policy)
     except ValueError as error:
         return _unavailable(snapshot, risk_model, policy, method, str(error))
-    metrics = _metrics(listings, weights, covariances, return_rows, income, policy)
     identity = stable_contract_id(
         "multivariate_candidate",
         {

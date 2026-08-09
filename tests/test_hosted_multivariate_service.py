@@ -223,3 +223,113 @@ def test_multivariate_artifacts_and_project_selection_survive_workspace_restart(
     assert run.artifacts["input_snapshot"]["snapshot_id"] == run.input_snapshot_id
     assert run.settings["selected_candidate_ids"] == [candidate_id]
     assert restored.current_multivariate_run_by_project[project_id] == started["run_id"]
+
+
+def test_multivariate_service_covers_idempotency_stale_and_error_boundaries() -> None:
+    state, data, project_id, bivariate_run_id = _fixtures()
+    persistence = _Persistence()
+    service = MultivariateResearchService(state, data, persistence)
+
+    state.bivariate_runs_by_id[bivariate_run_id] = ResearchRun(
+        bivariate_run_id,
+        "user-a",
+        bivariate_source_id(next(iter(state.univariate_selections_by_id.values()))),
+        "running",
+        (),
+        0,
+        10,
+    )
+    assert service.plan("user-a", project_id, bivariate_run_id, {})["allowed"] is False
+    try:
+        service.start("user-a", project_id, bivariate_run_id, {})
+    except Exception as error:
+        assert "bivariate_run_not_complete" in str(error)
+    else:
+        raise AssertionError("an incomplete bivariate run must be rejected")
+
+    state.bivariate_runs_by_id[bivariate_run_id] = ResearchRun(
+        bivariate_run_id,
+        "user-a",
+        bivariate_source_id(next(iter(state.univariate_selections_by_id.values()))),
+        "complete",
+        (),
+        10,
+        10,
+    )
+    first = service.start("user-a", project_id, bivariate_run_id, {})
+    assert service.start("user-a", project_id, bivariate_run_id, {})["run_id"] == first["run_id"]
+    second = service.start("user-a", project_id, bivariate_run_id, {"max_weight": 0.2})
+    assert state.multivariate_runs_by_id[str(first["run_id"])].status == "stale"
+    service.complete("user-a", str(second["run_id"]))
+    assert service.structure("user-a", str(second["run_id"]))
+    assert service.validation("user-a", str(second["run_id"]))["items"]
+    assert service.components("user-a", str(second["run_id"]), 999, -1)["limit"] == 100
+    assert service.risk_contributions("user-a", str(second["run_id"]), "missing")["items"] == []
+    try:
+        service.candidate_detail("user-a", str(second["run_id"]), "missing")
+    except Exception as error:
+        assert "not_found" in str(error)
+    else:
+        raise AssertionError("unknown candidate ids must be rejected")
+    try:
+        service.update_settings("user-a", str(second["run_id"]), ("missing", "missing"))
+    except Exception as error:
+        assert "invalid_candidate_selection" in str(error)
+    else:
+        raise AssertionError("unknown or duplicate candidate ids must be rejected")
+    service.complete("user-a", str(second["run_id"]))
+
+
+def test_multivariate_service_rejects_missing_dependency_closure_and_marks_failures() -> None:
+    state, data, project_id, bivariate_run_id = _fixtures()
+    service = MultivariateResearchService(state, data, _Persistence())
+    state.univariate_selections_by_id.clear()
+    try:
+        service.plan("user-a", project_id, bivariate_run_id, {})
+    except Exception as error:
+        assert "bivariate_dependency_mismatch" in str(error)
+    else:
+        raise AssertionError("a bivariate run needs exactly one matching selection")
+
+    state, data, project_id, bivariate_run_id = _fixtures()
+    service = MultivariateResearchService(state, data, _Persistence())
+    state.selections_by_id.clear()
+    try:
+        service.plan("user-a", project_id, bivariate_run_id, {})
+    except Exception as error:
+        assert "project_metadata_dependency_mismatch" in str(error)
+    else:
+        raise AssertionError("a project needs exactly one metadata selection")
+
+    state, data, project_id, bivariate_run_id = _fixtures()
+    service = MultivariateResearchService(state, data, _Persistence())
+    state.univariate_runs_by_id["univariate-a"] = ResearchRun(
+        "univariate-a", "user-a", "wrong-source", "complete", (), 5, 5
+    )
+    started = service.start("user-a", project_id, bivariate_run_id, {"variant": "bad-source"})
+    service.complete("user-a", str(started["run_id"]))
+    assert service.status("user-a", str(started["run_id"]))["status"] == "failed"
+    service._advance("unknown-run", "build_risk_model", 1)  # pyright: ignore[reportPrivateUsage]
+
+
+def test_multivariate_service_refits_candidates_for_walk_forward_validation() -> None:
+    state, data, project_id, bivariate_run_id = _fixtures()
+    start = date(2023, 1, 1)
+    extended_quotes = tuple(
+        {
+            "isin": f"IE{index}",
+            "exchange": "X",
+            "code": f"ETF{index}",
+            "date": (start + timedelta(days=day)).isoformat(),
+            "adjusted_close": 100 + index * 5 + day * (0.03 + index * 0.001),
+        }
+        for index in range(5)
+        for day in range(505, 526)
+    )
+    service = MultivariateResearchService(
+        state, _Data((*data.quotes, *extended_quotes), data.dividends), _Persistence()
+    )
+    started = service.start("user-a", project_id, bivariate_run_id, {})
+    service.complete("user-a", str(started["run_id"]))
+    validation = service.validation("user-a", str(started["run_id"]))["items"]
+    assert any(item["kind"] == "walk_forward" and item["risk_model_id"] for item in validation)

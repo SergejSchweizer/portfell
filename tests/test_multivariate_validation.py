@@ -1,4 +1,5 @@
 from collections.abc import Mapping, Sequence
+from random import Random
 from typing import Any
 
 from portfell.multivariate_candidates import PortfolioCandidate
@@ -6,6 +7,9 @@ from portfell.multivariate_inputs import MultivariateListingKey
 from portfell.multivariate_validation import (
     ValidationSplit,
     WalkForwardPolicy,
+    _portfolio_returns_by_date,  # pyright: ignore[reportPrivateUsage]
+    _seeded_block_bootstrap,  # pyright: ignore[reportPrivateUsage]
+    _sortino,  # pyright: ignore[reportPrivateUsage]
     build_candidate_scorecards,
     validate_candidate_stress,
     validate_candidates,
@@ -135,3 +139,73 @@ def test_scorecard_keeps_split_only_candidate_visible() -> None:
     scorecards = build_candidate_scorecards(splits=[split], scenarios=[])
     assert scorecards[0].method == "equal_weight"
     assert scorecards[0].scenario_count == 0
+
+
+def test_validation_keeps_unavailable_candidates_and_empty_scenarios_explicit() -> None:
+    unavailable = PortfolioCandidate(
+        "candidate-unavailable",
+        "minimum_variance",
+        False,
+        "unavailable",
+        ("risk_model_unavailable",),
+        (),
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+    )
+    policy = WalkForwardPolicy(minimum_training_observations=2, test_window_observations=2)
+    rows = [
+        {"isin": "IE1", "exchange": "X", "code": "A", "date": f"2025-01-{day:02d}", "return": 0.01}
+        for day in range(1, 6)
+    ]
+    splits = validate_candidates(
+        candidates=[_candidate()], return_rows=rows, policy=policy, candidate_factory=lambda _: []
+    )
+    assert splits and splits[0].reason == "candidate_unavailable"
+    scenarios = validate_candidate_stress(candidates=[unavailable], return_rows=[], policy=policy)
+    assert len(scenarios) == 5
+    assert {scenario.status for scenario in scenarios} == {"unavailable"}
+
+
+def test_validation_handles_empty_returns_and_single_observation_metrics() -> None:
+    candidate = _candidate()
+    policy = WalkForwardPolicy(minimum_training_observations=1, test_window_observations=1)
+    rows = [
+        {"isin": "IE1", "exchange": "X", "code": "A", "date": "2025-01-01", "return": 0.01},
+        {"isin": "IE1", "exchange": "X", "code": "A", "date": "2025-01-02", "return": 0.01},
+    ]
+    splits = validate_candidates(candidates=[candidate], return_rows=rows, policy=policy)
+    assert splits[0].volatility is None
+    assert splits[0].sharpe_ratio is None
+    assert splits[0].sortino_ratio is None
+    scenarios = validate_candidate_stress(candidates=[candidate], return_rows=[], policy=policy)
+    assert all(scenario.status == "available_with_warning" for scenario in scenarios)
+
+
+def test_validation_helpers_preserve_unavailable_and_empty_boundaries() -> None:
+    unavailable = PortfolioCandidate(
+        "candidate-unavailable",
+        "minimum_variance",
+        False,
+        "unavailable",
+        ("risk_model_unavailable",),
+        (),
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+    )
+    assert _portfolio_returns_by_date((unavailable,), []) == {"minimum_variance": {}}
+    assert _seeded_block_bootstrap((), 0, Random(1)) == ()
+    assert _sortino(()) is None

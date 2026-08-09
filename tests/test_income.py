@@ -219,3 +219,31 @@ def test_genuine_nav_is_the_only_nav_input_and_currency_mismatch_is_unavailable(
             denominator_price=100.0,
         ).availability_reasons
     )
+
+
+def test_income_normalization_rejects_invalid_rows_and_keeps_empty_coverage_unknown() -> None:
+    listing = MultivariateListingKey("IE1", "X", "A")
+    events = normalize_distribution_events(
+        [
+            {"isin": "IE1", "exchange": "X", "code": "A", "amount": 1.0},
+            {"isin": "IE1", "exchange": "X", "code": "A", "date": "bad", "amount": 1.0},
+            {"isin": "IE1", "exchange": "X", "code": "A", "date": "2025-01-01", "amount": -1.0},
+            {
+                "isin": "IE1",
+                "exchange": "X",
+                "code": "A",
+                "date": "2025-01-01",
+                "amount": 1.0,
+                "split_factor": -1,
+            },
+        ],
+        listing=listing,
+    )
+    assert events == ()
+    evidence = build_income_evidence(
+        listing=listing, events=events, period_end="2025-12-31", denominator_price=None
+    )
+    assert "no_distribution_events" in evidence.availability_reasons
+    assert "dated_price_denominator_unavailable" in evidence.availability_reasons
+    assert evidence.observed_payment_coverage is None
+    assert evidence.distribution_trend is None
