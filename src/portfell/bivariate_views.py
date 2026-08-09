@@ -50,9 +50,15 @@ def build_bivariate_summary(rows: tuple[JsonRow, ...]) -> JsonRow:
 
 
 def build_correlation_matrix(rows: tuple[JsonRow, ...], metric: str) -> JsonRow:
-    """Expose the upper triangle of one correlation matrix from pair results."""
+    """Expose the upper triangle of one pair-metric matrix from pair results."""
 
-    metric_key = f"{metric}_correlation"
+    metric_key = {
+        "pearson": "pearson_correlation",
+        "spearman": "spearman_correlation",
+        "downside": "downside_correlation",
+        "lower_tail_dependence": "lower_tail_dependence",
+        "tail_coexceedance_rate": "tail_coexceedance_rate",
+    }[metric]
     listings = _pair_listings(rows)
     index = {listing: position for position, listing in enumerate(listings)}
     values_by_pair = {

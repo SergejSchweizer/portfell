@@ -69,6 +69,14 @@ def test_workflow_pages_place_ingestion_actions_before_their_stage_controls() ->
     assert "portfell:univariate-statistic-order" not in univariate_page
     assert "onDragStart" not in univariate_page
 
+    bivariate_page = (WEB_ROOT / "src" / "pages" / "bivariate-statistics.tsx").read_text(
+        encoding="utf-8"
+    )
+    assert 'label: "Tail Dependence"' in bivariate_page
+    assert 'label: "Co-exceedance Rate"' in bivariate_page
+    assert "lowerTailDependenceMatrix" in bivariate_page
+    assert "tailCoexceedanceRateMatrix" in bivariate_page
+
 
 def test_vite_build_is_the_canonical_web_runtime() -> None:
     package = json.loads((WEB_ROOT / "package.json").read_text(encoding="utf-8"))
@@ -236,9 +244,11 @@ def test_bivariate_facts_show_the_universe_aligned_data_period() -> None:
     page = (WEB_ROOT / "src" / "pages" / "bivariate-statistics.tsx").read_text(encoding="utf-8")
     contracts = (WEB_ROOT / "src" / "contracts.ts").read_text(encoding="utf-8")
 
-    assert page.count("Aligned data period") == 3
+    assert page.count("Aligned data period") == 4
     assert "dateStart={summary?.date_start} dateEnd={summary?.date_end}" in page
     assert "dataPeriod(matrix.date_start, matrix.date_end)" in page
+    assert "lower_tail_dependence" in page
+    assert "tail_coexceedance_rate" in page
     assert contracts.count("date_start: string;") >= 4
     assert contracts.count("date_end: string;") >= 4
 

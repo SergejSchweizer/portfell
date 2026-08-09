@@ -22,7 +22,11 @@ export type BivariateRunData = Readonly<{
   pearson: ApiPairMetricMatrix;
   spearman: ApiPairMetricMatrix;
   downside: ApiPairMetricMatrix;
+  lowerTailDependence: ApiPairMetricMatrix;
+  tailCoexceedanceRate: ApiPairMetricMatrix;
 }>;
+
+export type PairMetricMatrixKind = "pearson" | "spearman" | "downside" | "lower_tail_dependence" | "tail_coexceedance_rate";
 
 export const bivariateStatisticsApi = {
   plan: (request: BivariateSelectionRequest): Promise<ApiPairPlan> => (
@@ -49,19 +53,21 @@ export const bivariateStatisticsApi = {
   ),
   loadCorrelation: (
     runId: string,
-    metric: "pearson" | "spearman" | "downside",
+    metric: PairMetricMatrixKind,
   ): Promise<ApiPairMetricMatrix> => requestJson<ApiPairMetricMatrix>(
     `/api/bivariate-statistics/runs/${encodeURIComponent(runId)}/correlation-matrix?metric=${metric}`,
   ),
   loadRunData: async (runId: string): Promise<BivariateRunData> => {
-    const [results, covariance, summary, pearson, spearman, downside] = await Promise.all([
+    const [results, covariance, summary, pearson, spearman, downside, lowerTailDependence, tailCoexceedanceRate] = await Promise.all([
       bivariateStatisticsApi.loadResults(runId),
       bivariateStatisticsApi.loadCovariance(runId),
       bivariateStatisticsApi.loadSummary(runId),
       bivariateStatisticsApi.loadCorrelation(runId, "pearson"),
       bivariateStatisticsApi.loadCorrelation(runId, "spearman"),
       bivariateStatisticsApi.loadCorrelation(runId, "downside"),
+      bivariateStatisticsApi.loadCorrelation(runId, "lower_tail_dependence"),
+      bivariateStatisticsApi.loadCorrelation(runId, "tail_coexceedance_rate"),
     ]);
-    return { results, covariance, summary, pearson, spearman, downside };
+    return { results, covariance, summary, pearson, spearman, downside, lowerTailDependence, tailCoexceedanceRate };
   },
 };

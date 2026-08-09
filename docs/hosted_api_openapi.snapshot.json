@@ -18,7 +18,7 @@
     "quote_run_incomplete",
     "scoped_quote_rows_unavailable"
   ],
-  "normalized_sha256": "56a5362f8ac12f63db2d6ea56bf740bcc7f8b20023b383e64e5780c33d8b0c14",
+  "normalized_sha256": "80c77a6016e56f0eb0fc4c9f843f825d795ebcb5143c9b81a704bef38e8565c7",
   "operations": [
     "DELETE /account 200",
     "POST /analyses 200/422",

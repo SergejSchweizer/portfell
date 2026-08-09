@@ -27,6 +27,11 @@ Every pairwise metric and matrix in one run uses the same universe-wide date int
 and matrix contracts expose `date_start` and `date_end`; every facts table renders that aligned data
 period so values from different tabs and windows are directly comparable.
 
+The pairwise-dependence window presents Covariance, Pearson, Spearman, Downside Correlation, Tail
+Dependence, and Co-exceedance Rate as tabs. Tail Dependence and Co-exceedance Rate use the same
+upper-triangular, colour-scaled, hoverable matrix treatment as the correlation tabs. Their facts
+tables show the aligned period, pair count, shared observations, and distribution summary.
+
 The persistent project sidebar identifies the active project and three-module
 workflow hierarchy. A project switch clears the local pair plan, run, results,
 and status message before this page loads the replacement project workflow.
@@ -38,4 +43,5 @@ pair limit. It prevents duplicate runs, represents empty and partial results exp
 accessible tabular output on desktop and a usable responsive representation on narrow screens.
 
 The stateful two-project browser journey computes the active project's pair
-statistics and selects every pairwise-dependence tab.
+statistics and selects every pairwise-dependence tab, including Tail Dependence and
+Co-exceedance Rate.

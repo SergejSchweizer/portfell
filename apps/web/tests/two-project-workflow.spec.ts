@@ -240,7 +240,7 @@ test("two dummy projects created through the UI preserve every research control 
   await page.goto("/bivariate-statistics");
   await page.getByRole("button", { name: "Compute Bivariate Statistics" }).click();
   await expect(page.getByText("1 pair statistics computed.")).toBeVisible();
-  for (const tab of ["Covariance", "Pearson", "Spearman", "Downside"]) {
+  for (const tab of ["Covariance", "Pearson", "Spearman", "Downside", "Tail Dependence", "Co-exceedance Rate"]) {
     await page.getByRole("tab", { name: tab }).click();
     await expect(page.getByRole("tab", { name: tab })).toHaveAttribute("aria-selected", "true");
   }
