@@ -41,6 +41,8 @@ def resolve_workflow(
     univariate_selection_id: str | None = None,
     bivariate_run_id: str | None = None,
     bivariate_status: WorkflowStatus | None = None,
+    multivariate_run_id: str | None = None,
+    multivariate_status: WorkflowStatus | None = None,
 ) -> dict[str, dict[str, object]]:
     """Resolve the ordered workflow from immutable records without mutation."""
 
@@ -105,4 +107,12 @@ def resolve_workflow(
                     "bivariate_run_id": bivariate_run_id,
                 },
             )
+            if multivariate_run_id and multivariate_status:
+                stages["multivariate_statistics"] = WorkflowStage(
+                    multivariate_status,
+                    {
+                        **stages["multivariate_statistics"].identifiers,
+                        "multivariate_run_id": multivariate_run_id,
+                    },
+                )
     return {stage_id: stages[stage_id].to_row() for stage_id in WORKFLOW_STAGE_IDS}

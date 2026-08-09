@@ -2,10 +2,10 @@
 
 ## Purpose
 
-Multivariate Statistics is the fourth research module. It reserves the
-project-scoped hand-off from a completed Bivariate Statistics run to
-portfolio-level analysis without changing the selected universe or inventing
-portfolio results in the browser.
+Multivariate Statistics is the fourth research module. It consumes the
+project-scoped, completed Bivariate hand-off and renders only persisted API
+results for portfolio-level analysis; it never changes the selected universe
+or calculates financial values in the browser.
 
 ## Server-owned inputs
 
@@ -18,40 +18,41 @@ portfolio results in the browser.
 
 - Locked state: one `Multivariate Statistics` panel explains that Bivariate
   Statistics must complete first.
-- Ready state: one panel confirms the exact Bivariate run and Univariate
-  selection supplied to the future multivariate calculation.
-- The page contains no compute action until a project-scoped Multivariate API
-  contract and persistent run output exist.
+- Ready state: compact server-owned progress header and a compute action.
+- Complete state: Overview, Risk Structure, Portfolio Candidates, Risk
+  Contributions, Income Evidence, and Validation tabs.
 
 ## States
 
 - Loading: show the shared loading state.
 - Locked: Bivariate Statistics is incomplete, failed, running, or stale.
 - Ready: Bivariate Statistics is complete and its immutable run id is shown.
+- Running: the server-owned phase and completed/total units are displayed.
+- Complete: persisted result tabs load automatically after refresh or project
+  reactivation.
 - Failure: workflow-state retrieval failed; show a concise alert.
 - Stale: later multivariate work must return to Locked/Ready according to the
   server-owned workflow contract after an upstream change.
 
 ## Accessibility and responsive behavior
 
-The page uses the shared semantic panel and a polite status message. It has no
-custom chart, pointer, or keyboard interaction. The sidebar remains the only
+The page uses semantic panels, native progress, and keyboard-operable tabs.
+Candidate weights have a textual list alternative. The sidebar remains the
 workflow navigation at every viewport width.
 
 ## Security and boundaries
 
-The page reads typed workflow data only. It does not persist calculations,
-inspect local storage, render credentials or filesystem paths, infer
-authorization, or calculate financial values in React.
+The page uses the typed Multivariate API facade. It does not inspect local
+storage, render credentials or filesystem paths, infer authorization, or
+calculate financial values in React.
 
 ## Tests
 
-Route tests assert that the page is the fourth registered route. Workflow-state
-tests prove that it remains locked until Bivariate Statistics is complete and
-receives the pinned Bivariate run and Univariate selection identifiers.
+Route and workflow-state tests prove that it remains locked until Bivariate
+Statistics is complete. Docker builds run TypeScript checking and the production
+web build after UI changes.
 
 ## Out of scope
 
-Portfolio optimization, risk models, candidate weights, income facts,
-multivariate persistence, and any compute endpoint belong to the later
-project-scoped Multivariate Statistics implementation.
+Investment advice, tax/cost/net-income claims, trading, and browser-side model
+calculations remain out of scope.
