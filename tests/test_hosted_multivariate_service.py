@@ -133,6 +133,11 @@ def test_multivariate_service_resolves_pinned_project_dependencies_and_persists_
     persistence = _Persistence()
     service = MultivariateResearchService(state, data, persistence)
 
+    plan = service.plan("user-a", project_id, bivariate_run_id, {})
+    assert plan["allowed"] is True
+    assert plan["listing_count"] == 5
+    assert plan["phases"][-1] == "validate_candidates"
+
     started = service.start("user-a", project_id, bivariate_run_id, {})
     assert started["status"] == "running"
     assert started["estimated_remaining_seconds"] is not None
