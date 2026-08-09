@@ -40,7 +40,12 @@ describe("runtime environment and routes", () => {
   });
 
   it("registers and resolves every workflow page with a metadata fallback", () => {
-    expect(workflowPages.map((page) => page.path)).toEqual(["/metadata-builder", "/univariate-statistics", "/bivariate-statistics"]);
+    expect(workflowPages.map((page) => page.path)).toEqual([
+      "/metadata-builder",
+      "/univariate-statistics",
+      "/bivariate-statistics",
+      "/multivariate-statistics",
+    ]);
     for (const page of workflowPages) expect(currentWorkflowPage(page.path)).toBe(page);
     expect(currentWorkflowPage("/not-a-route")).toBe(workflowPages[0]);
   });
@@ -50,6 +55,7 @@ describe("runtime environment and routes", () => {
       "metadata_builder",
       "univariate_statistics",
       "bivariate_statistics",
+      "multivariate_statistics",
     ]);
     for (const page of workflowPages) {
       expect(workflowModules.some((module) => module.id === page.moduleId)).toBe(true);

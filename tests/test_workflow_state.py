@@ -31,6 +31,7 @@ def test_workflow_transitions_in_order_with_immutable_identifiers() -> None:
         "metadata_builder": {"status": "ready"},
         "univariate_statistics": {"status": "locked"},
         "bivariate_statistics": {"status": "locked"},
+        "multivariate_statistics": {"status": "locked"},
     }
     assert selected["metadata_builder"] == {
         "status": "complete",
@@ -49,3 +50,37 @@ def test_workflow_transitions_in_order_with_immutable_identifiers() -> None:
         "univariate-selection-1"
     )
     assert completed["bivariate_statistics"] == {"status": "ready"}
+    assert completed["multivariate_statistics"] == {"status": "locked"}
+
+
+def test_multivariate_statistics_unlocks_only_after_bivariate_completion() -> None:
+    running = resolve_workflow(
+        metadata_revision_id="metadata-revision-1",
+        metadata_selection_id="metadata-selection-1",
+        quote_run_id="quote-run-1",
+        univariate_run_id="univariate-run-1",
+        univariate_selection_id="univariate-selection-1",
+        bivariate_run_id="bivariate-run-1",
+        bivariate_status="running",
+    )
+    complete = resolve_workflow(
+        metadata_revision_id="metadata-revision-1",
+        metadata_selection_id="metadata-selection-1",
+        quote_run_id="quote-run-1",
+        univariate_run_id="univariate-run-1",
+        univariate_selection_id="univariate-selection-1",
+        bivariate_run_id="bivariate-run-1",
+        bivariate_status="complete",
+    )
+
+    assert running["bivariate_statistics"]["status"] == "running"
+    assert running["multivariate_statistics"] == {"status": "locked"}
+    assert complete["multivariate_statistics"] == {
+        "status": "ready",
+        "metadata_revision_id": "metadata-revision-1",
+        "metadata_selection_id": "metadata-selection-1",
+        "quote_run_id": "quote-run-1",
+        "univariate_run_id": "univariate-run-1",
+        "univariate_selection_id": "univariate-selection-1",
+        "bivariate_run_id": "bivariate-run-1",
+    }

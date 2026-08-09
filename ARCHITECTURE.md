@@ -247,7 +247,7 @@ canonical universe                                 |
 
 ## Workflow Module Boundaries
 
-The hosted browser workflow has three explicit modules. They are ordered by
+The hosted browser workflow has four explicit modules. They are ordered by
 their persisted hand-off contracts, but they do not share browser-local state:
 
 | Module | Consumes | Persists for the next module | Does not own |
@@ -255,14 +255,17 @@ their persisted hand-off contracts, but they do not share browser-local state:
 | Metadata Builder | EODHD credentials and metadata criteria | Project-scoped metadata selection | Quote ingestion or statistical calculation |
 | Univariate Statistics | Metadata selection and quote-run identifiers | Per-ISIN results and selected-ISIN set | Metadata discovery or pairwise calculation |
 | Bivariate Statistics | Univariate selected-ISIN set | Pairwise rows and matrices | Changing upstream selections or portfolio allocation |
+| Multivariate Statistics | Completed Bivariate run and selected-ISIN set | Project-scoped multivariate result when configured | Changing upstream selections or simulating portfolio output |
 
 The React route registry records this ownership in `apps/web/src/routes.tsx`.
 Each module owns a typed browser API facade under `apps/web/src/api/`, while the
 shared client remains limited to transport and workspace context. The active
 FastAPI implementation has corresponding metadata, univariate, and bivariate
-service boundaries. A future module must add an explicit persisted input/output
-contract rather than couple to another module's browser state. The detailed UI
-contract is documented in `docs/ui/workflow-modules.md`.
+service boundaries; the initial Multivariate page consumes the same persisted
+workflow hand-off until its dedicated calculation service is added. A module
+must add an explicit persisted input/output contract rather than couple to
+another module's browser state. The detailed UI contract is documented in
+`docs/ui/workflow-modules.md`.
 
 ## Local Research Funnel
 

@@ -31,7 +31,7 @@ storage.
 
 - Loading: reserve the final sidebar width while context is loading.
 - Empty: show `No projects yet`; only Metadata Builder is available.
-- Ready: show the selected project's name and the three-module hierarchy.
+- Ready: show the selected project's name and the four-module hierarchy.
 - Switching: disable the selector while the request is active.
 - Error: retain the previously selected project and announce the recoverable
   error without replacing page content.
@@ -41,7 +41,8 @@ storage.
 At viewport widths above `900px`, the sidebar is one persistent `272px` left
 column below the header. Its first control is the native project selector. The
 workflow below it is an ordered hierarchy derived exclusively from
-`workflowPages`: Metadata Builder, Univariate Statistics, and Bivariate Statistics. The active stage uses `aria-current="page"`; locked
+`workflowPages`: Metadata Builder, Univariate Statistics, Bivariate Statistics, and Multivariate
+Statistics. The active stage uses `aria-current="page"`; locked
 stages remain visible, include text status, and are non-links with
 `aria-disabled="true"`.
 

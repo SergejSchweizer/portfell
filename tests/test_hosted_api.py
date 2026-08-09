@@ -123,6 +123,7 @@ def test_workflow_starts_with_only_metadata_ready() -> None:
             "metadata_builder": {"status": "ready"},
             "univariate_statistics": {"status": "locked"},
             "bivariate_statistics": {"status": "locked"},
+            "multivariate_statistics": {"status": "locked"},
         }
     }
 
@@ -796,6 +797,7 @@ def test_project_context_defaults_selects_and_clears_current_project() -> None:
             "metadata_builder": {"status": "ready"},
             "univariate_statistics": {"status": "locked"},
             "bivariate_statistics": {"status": "locked"},
+            "multivariate_statistics": {"status": "locked"},
         }
     }
     assert deleted == {"project_id": core.project_id, "status": "deleted"}

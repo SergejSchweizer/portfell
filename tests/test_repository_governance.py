@@ -118,150 +118,49 @@ def test_hosted_api_uses_a_current_user_provider_boundary() -> None:
     assert "current_user_provider: CurrentUserProvider | None" in hosted_api
 
 
-def test_three_module_stack_is_first_and_preserves_historical_dependency_order() -> None:
+def test_monthly_distribution_multivariate_stack_is_the_only_active_series() -> None:
     backlog = (REPOSITORY_ROOT / "BACKLOG.md").read_text(encoding="utf-8")
-    active_start = backlog.index("## Active Three-Module Portfell UI PR Stack")
-    hosted_start = backlog.index("## Active Hosted Multi-Tenant Portfell PR Stack")
+    active_start = backlog.index("## Active Monthly-Distribution ETF Multivariate PR Stack")
     completed_start = backlog.index("## Completed PR History")
+    detailed_start = backlog.index("## Completed And Superseded Detailed Records")
+    active = backlog[active_start:completed_start]
+
+    assert active_start < completed_start < detailed_start
+    assert "## Active Three-Module Portfell UI PR Stack" not in backlog
+    assert "## Active Hosted Multi-Tenant Portfell PR Stack" not in backlog
+
     positions: list[int] = []
-
-    assert active_start < hosted_start < completed_start
-
-    for pr_number, title in FOUR_PAGE_PR_TITLES.items():
-        heading = f"### PR{pr_number}. {title}"
-        position = backlog.index(heading)
+    for pr_number in range(143, 151):
         section = _pr_section(backlog, pr_number)
-        positions.append(position)
-
-        assert position < hosted_start
-        assert f"Depends on: {FOUR_PAGE_PR_DEPENDENCIES[pr_number]}." in section
-        github_pr = FOUR_PAGE_GITHUB_PRS[pr_number]
-        assert (
-            f"Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/{github_pr}."
-        ) in section
-        assert "Scope:" in section
-        assert "Acceptance:" in section
-        assert "Security:" in section
-        assert "Determinism:" in section
-        assert "Idempotency:" in section
-
+        positions.append(backlog.index(f"### PR{pr_number}."))
+        assert "Git status: not started. PR: TBD." in section
+        for required_field in (
+            "Branch:",
+            "Priority:",
+            "Depends on:",
+            "Scope:",
+            "Acceptance:",
+            "Security:",
+            "Determinism:",
+            "Idempotency:",
+        ):
+            assert required_field in section
         branch_match = re.search(r"^Branch: `([^`]+)`\.$", section, flags=re.MULTILINE)
-        assert branch_match is not None, f"PR{pr_number} has no Branch entry"
+        assert branch_match is not None
         assert TYPED_BRANCH_PATTERN.fullmatch(branch_match.group(1))
 
     assert positions == sorted(positions)
+    assert "### Monthly-Distribution ETF Multivariate Series Completion Gate" in active
 
 
-def test_backlog_places_completed_and_superseded_work_at_the_bottom() -> None:
+def test_backlog_places_only_completed_records_after_the_active_series() -> None:
     backlog = (REPOSITORY_ROOT / "BACKLOG.md").read_text(encoding="utf-8")
     completed = backlog.index("## Completed PR History")
     detailed = backlog.index("## Completed And Superseded Detailed Records")
-    active = backlog.index("## Active Three-Module Portfell UI PR Stack")
-    superseded_funnel = (
-        "Data -> Metadata -> Univariate -> Filter -> Diversification"
-        " -> Portfolio -> Validation -> Report"
-    )
 
-    assert active < completed < detailed
-    assert "### Superseded Research Funnel UI Stack" in backlog[detailed:]
-    assert "Historical only." in backlog[detailed:]
-    assert superseded_funnel not in backlog[:detailed]
-
-
-def test_three_module_stack_defines_exact_canonical_modules_and_no_retired_metadata_name() -> None:
-    backlog = (REPOSITORY_ROOT / "BACKLOG.md").read_text(encoding="utf-8")
-    active = backlog[
-        backlog.index("## Active Three-Module Portfell UI PR Stack") : backlog.index(
-            "## Active Hosted Multi-Tenant Portfell PR Stack"
-        )
-    ]
-
-    ordered_modules = (
-        "metadata_builder",
-        "univariate_statistics",
-        "bivariate_statistics",
-    )
-    positions = [active.index(module) for module in ordered_modules]
-    assert positions == sorted(positions)
-    assert "canonical Python operation is `fetch_all_metadata`" in active
-    assert "`fetch_all_isins` must not be reintroduced" in active
-
-
-def test_project_sidebar_stack_is_atomic_ordered_and_complete() -> None:
-    backlog = (REPOSITORY_ROOT / "BACKLOG.md").read_text(encoding="utf-8")
-    sidebar_start = backlog.index("## Active Project Sidebar PR Stack")
-    hosted_start = backlog.index("## Active Hosted Multi-Tenant Portfell PR Stack")
-    sidebar = backlog[sidebar_start:hosted_start]
-    positions: list[int] = []
-
-    for pr_number, title in PROJECT_SIDEBAR_PR_TITLES.items():
-        section = _pr_section(backlog, pr_number)
-        positions.append(sidebar.index(f"### PR{pr_number}. {title}"))
-        assert f"Depends on: {PROJECT_SIDEBAR_PR_DEPENDENCIES[pr_number]}." in section
-        assert (
-            f"Git status: {PROJECT_SIDEBAR_PR_STATUSES[pr_number]}. "
-            f"PR: {PROJECT_SIDEBAR_PR_URLS[pr_number]}."
-        ) in section
-        for required_field in (
-            "Scope:",
-            "Acceptance:",
-            "Out of scope:",
-            "Security:",
-            "Determinism:",
-            "Idempotency:",
-        ):
-            assert required_field in section
-
-        branch_match = re.search(r"^Branch: `([^`]+)`\.$", section, flags=re.MULTILINE)
-        assert branch_match is not None, f"PR{pr_number} has no Branch entry"
-        assert TYPED_BRANCH_PATTERN.fullmatch(branch_match.group(1))
-
-    assert positions == sorted(positions)
-    assert "Project -> Metadata Builder -> Univariate Statistics" in sidebar
-    assert "one canonical `workflowPages` registry" in sidebar
-    assert "### Project Sidebar Series Completion Gate" in sidebar
-    assert "[GATES.md](GATES.md)" in sidebar
-
-
-def test_platform_inspired_simple_ui_stack_is_atomic_ordered_and_mark_neutral() -> None:
-    backlog = (REPOSITORY_ROOT / "BACKLOG.md").read_text(encoding="utf-8")
-    design_start = backlog.index("## Active Platform-Inspired Simple UI PR Stack")
-    hosted_start = backlog.index("## Active Hosted Multi-Tenant Portfell PR Stack")
-    design = backlog[design_start:hosted_start]
-    positions: list[int] = []
-
-    for pr_number, title in SIMPLE_UI_PR_TITLES.items():
-        section = _pr_section(backlog, pr_number)
-        positions.append(design.index(f"### PR{pr_number}. {title}"))
-        assert f"Depends on: {SIMPLE_UI_PR_DEPENDENCIES[pr_number]}." in section
-        assert (
-            f"Git status: {SIMPLE_UI_PR_STATUSES[pr_number]}. PR: {SIMPLE_UI_PR_URLS[pr_number]}."
-        ) in section
-        for required_field in (
-            "Scope:",
-            "Acceptance:",
-            "Out of scope:",
-            "Security:",
-            "Determinism:",
-            "Idempotency:",
-        ):
-            assert required_field in section
-
-        branch_match = re.search(r"^Branch: `([^`]+)`\.$", section, flags=re.MULTILINE)
-        assert branch_match is not None, f"PR{pr_number} has no Branch entry"
-        assert TYPED_BRANCH_PATTERN.fullmatch(branch_match.group(1))
-
-    assert positions == sorted(positions)
-    for required_rule in (
-        "without copying either company's branding",
-        "one restrained blue accent",
-        "one icon library",
-        "prefers-reduced-motion",
-        "no critical or serious violations",
-        "### Platform-Inspired Simple UI Series Completion Gate",
-        "[GATES.md](GATES.md)",
-    ):
-        assert required_rule in design
+    assert completed < detailed
+    assert "### Completed Hosted Stack Records" in backlog[detailed:]
+    assert "### Completed UI Foundation Record" in backlog[detailed:]
 
 
 def test_quality_gates_are_documented_centrally() -> None:
@@ -272,10 +171,9 @@ def test_quality_gates_are_documented_centrally() -> None:
     gates = (REPOSITORY_ROOT / "GATES.md").read_text(encoding="utf-8")
 
     for backlog_text in (
-        "current three-module contract",
-        "exactly three production modules",
-        "server-reported",
-        "all Python, TypeScript, build, browser, security, and repository gates pass",
+        "PR143 through PR150 are the only active backlog series",
+        "four modules only after",
+        "[GATES.md](GATES.md)",
     ):
         assert backlog_text in gate
 
@@ -327,7 +225,7 @@ def test_hosted_security_architecture_maps_goals_to_backlog_records() -> None:
 
     for pr_number, requirement in HOSTED_REQUIREMENTS_BY_PR.items():
         assert f"| {requirement} | PR{pr_number} |" in hosted
-        assert f"### PR{pr_number}." in backlog
+    assert "## Active Monthly-Distribution ETF Multivariate PR Stack" in backlog
 
 
 def test_github_quality_workflows_validate_and_use_squash_subject() -> None:

@@ -1,17 +1,11 @@
 # Backlog
 
-Last reviewed: 2026-08-07
+Last reviewed: 2026-08-09
 
 ## Table Of Contents
 
 - [Backlog Policy](#backlog-policy)
-- [Active Workflow Ingestion UI PR](#active-workflow-ingestion-ui-pr)
-- [Active Three-Module Portfell UI PR Stack](#active-three-module-portfell-ui-pr-stack)
-- [Active Project Sidebar PR Stack](#active-project-sidebar-pr-stack)
-- [Active Platform-Inspired Simple UI PR Stack](#active-platform-inspired-simple-ui-pr-stack)
-- [Active Persistent EODHD Credential PR Stack](#active-persistent-eodhd-credential-pr-stack)
-- [Active Hosted Multi-Tenant Portfell PR Stack](#active-hosted-multi-tenant-portfell-pr-stack)
-- [Active Architectural Refactor PR Stack](#active-architectural-refactor-pr-stack)
+- [Active Monthly-Distribution ETF Multivariate PR Stack](#active-monthly-distribution-etf-multivariate-pr-stack)
 - [Current Architectural Decision](#current-architectural-decision)
 - [Series Completion Gate](#series-completion-gate)
 - [Update Rules](#update-rules)
@@ -30,1384 +24,582 @@ Every active item must contain `Branch`, `Git status`, `PR`, `Priority`, `Depend
 
 Completed entries are never deleted. Superseded plans are moved to the historical section and explicitly marked non-active. Backlog identifiers are never reused.
 
-## Active Workflow Ingestion UI PR
+## Active Monthly-Distribution ETF Multivariate PR Stack
 
-### PR132. Stage-Owned Ingestion Controls
+This is the canonical first implementation series for the Multivariate Statistics module. Its
+initial product profile is a project-scoped universe of ETFs whose persisted Univariate
+Statistics selection classifies them as monthly distributing. The module explains the selected
+ETFs as one joint risk system, constructs comparable portfolio candidates, and validates those
+candidates. Monthly distribution frequency is an eligibility condition, not evidence that an ETF
+has a high, stable, sustainable, or tax-efficient income stream.
 
-Branch: `feat/workflow-ingestion-controls`.
-
-Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/222.
-
-Priority: P1 workflow clarity.
-
-Depends on: current `main`.
-
-Scope:
-
-- Move EODHD credential entry and `Fetch all metadata` from the persistent header into a first white panel on Metadata Builder.
-- Move quote fetching from Metadata Builder into a first white panel on Univariate Statistics.
-- Navigate to Univariate Statistics after a successful metadata-builder submission.
-- Preserve server-owned credentials, metadata refresh, quote ingestion, workflow state, and polling contracts.
-- Synchronize page specifications and React scaffold/Playwright regression contracts.
-
-Acceptance:
-
-- Metadata Builder displays the metadata-refresh panel before all filter controls, and the header contains no ingestion form.
-- Applying a valid metadata builder navigates to `/univariate-statistics`.
-- Univariate Statistics displays determinate quote progress and `Fetch quotes` in its first white panel before the statistics controls.
-- Existing server API routes, request payloads, and run-polling semantics remain unchanged.
-
-Security: The browser continues to use only the existing credential and workflow endpoints; no credential or ingestion logic moves client-side.
-
-Determinism: Page placement changes do not alter persisted metadata selections, quote runs, or analytical result identities.
-
-Idempotency: Existing metadata and quote requests retain their server-side idempotency behavior.
-
-### Workflow Ingestion UI Series Completion Gate
-
-This PR is complete only after it is merged with the required checks in [GATES.md](GATES.md) passing, the page specifications and regression tests are synchronized, and no header-owned ingestion control remains.
-
-## Active Three-Module Portfell UI PR Stack
-
-This is the canonical UI implementation stack. It supersedes the former four-page and eight-stage research-funnel UI plans. The production application has exactly three modules, in this order:
+The active browser workflow remains the existing three-module workflow until PR150 completes the
+cutover. PR143 through PR149 add dormant contracts, artifacts, calculations, and API capabilities
+without adding an incomplete page or navigation item. PR150 atomically changes the production
+workflow to:
 
 ```text
 metadata_builder
     -> univariate_statistics
     -> bivariate_statistics
+    -> multivariate_statistics
 ```
 
-Metadata Builder begins with the EODHD credential input and metadata refresh action in its own panel, before all metadata dropdowns. Univariate Statistics begins with quote fetching and progress in its own panel. The canonical Python operation is `fetch_all_metadata`; the removed name `fetch_all_isins` must not be reintroduced as a function, module, command, route, alias, compatibility shim, or documentation term.
+Every PR in this series must consume immutable project-scoped upstream identifiers. No PR may use
+a global `current_selection` pointer as analysis authority, start an upstream calculation as a
+side effect, recalculate financial values in React, label a gross historical distribution metric
+as sustainable or net income, or expose a portfolio as investment advice.
 
-The stack is deliberately sequential. Each PR must be independently reviewable, must leave the repository green, and must not implement scope assigned to a later PR. Browser code owns presentation and transient interaction state only. Credentials, authorization, workflow status, selections, calculations, persistence, invalidation, and financial/statistical logic remain server-owned.
+### PR143. Monthly-Distribution ETF Multivariate Input Snapshot
 
-### PR110. Canonical Workflow State And Four-Page API Contract
-
-Branch: `feat/four-page-workflow-state`.
-
-Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/190.
-
-Priority: P0 workflow foundation.
-
-Depends on: PR189.
-
-Scope:
-
-- Add one backend-owned workflow-state model for the current authenticated user and active project.
-- Expose `GET /api/workflow` and return exactly these stages: `metadata_builder`, `univariate_statistics`, `univariate_selection`, and `bivariate_statistics`.
-- Use only the statuses `locked`, `ready`, `running`, `complete`, `failed`, and `stale`.
-- Include immutable upstream identifiers in every completed stage: metadata revision, metadata selection id, quote run id, univariate run id, univariate selection id, and bivariate run id where applicable.
-- Define downstream invalidation rules in one backend module. A metadata refresh invalidates every downstream stage; a metadata-builder change invalidates quote loading and every later stage; a univariate-statistics change invalidates the univariate selection and bivariate statistics; a univariate-selection change invalidates bivariate statistics.
-- Add matching TypeScript contracts in `apps/web/src/contracts.ts` and one `loadWorkflow()` client function. Pages must not infer completion from local component state.
-- Persist or reconstruct workflow status from existing server-owned project, run, selection, and artifact records. Do not add Redux, Zustand, XState, React Router, WebSockets, Celery, Redis, or a generic workflow engine.
-
-Acceptance:
-
-- `GET /api/workflow` returns the same JSON for the same persisted state across repeated calls and process restarts.
-- A new user with no metadata receives `metadata_builder=ready` and the other three stages as `locked`.
-- Every upstream mutation produces the exact stale/locked transitions defined above.
-- The response never exposes an EODHD key, filesystem path, unrestricted global dataset identifier, or another user's state.
-- Unit tests cover every allowed status transition and every invalidation edge.
-- API tests prove user isolation and deterministic response ordering.
-- TypeScript compiles without casts from `unknown` to the workflow-state type.
-
-Security: Workflow state is resolved inside the authenticated user scope and never from unrestricted global lake scans.
-
-Determinism: Identical persisted identifiers and statuses produce byte-equivalent JSON after canonical serialization.
-
-Idempotency: Repeating `GET /api/workflow` performs no writes and creates no projects, runs, selections, or artifacts.
-
-### PR111. Metadata Header, Metadata Builder, And Real Quote Progress
-
-Branch: `feat/metadata-builder-quote-progress`.
-
-Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/197.
-
-Priority: P0 first runnable page.
-
-Depends on: PR110.
-
-Scope:
-
-- Keep the EODHD key input in the persistent header. Submission must call `POST /api/credentials/eodhd`, clear the input, then call the real metadata workflow through `POST /api/metadata/fetch-all`.
-- Inject the authenticated user's decrypted key into `run_fetch_all_metadata_workflow`; do not read a shared plaintext key or return the key to the browser.
-- Make `/metadata-builder` the default application route and the first workflow page.
-- Load multiple-choice values from `GET /api/metadata-builder/options` for exchange, instrument type, country, and currency; include a name-contains input.
-- Submit the filter through `POST /api/metadata-builder` and persist a deterministic metadata selection id.
-- Place the quote progress bar after all metadata controls and status text. Place a right-aligned `Fetch quotes` button beneath the progress bar.
-- Start quote ingestion with `POST /api/quote-runs` using only the current metadata selection id. Poll `GET /api/quote-runs/{run_id}` until complete or failed.
-- Return and render `total`, `completed`, `failed`, and integer `percent` values. The progress bar must represent server progress; it must not jump from zero to 100 solely because one HTTP request returned.
-- Disable duplicate metadata, filter, and quote submissions while the corresponding operation is running.
-- Refresh workflow state after every successful mutation.
-
-Acceptance:
-
-- The header never stores the provider key in URL parameters, browser storage, HTML, logs, screenshots, analytics, or API responses.
-- `fetch_all_metadata` performs a mocked provider request in tests and publishes one deterministic metadata revision.
-- The filter button remains disabled when all filter fields are empty, unless an explicit `Select all metadata` action is implemented and documented.
-- `Fetch quotes` remains disabled until a non-empty metadata selection exists.
-- The DOM order is: metadata controls, apply-filter action, selection status, progress label, progress element, progress status, right-aligned `Fetch quotes` action.
-- Polling stops on `complete`, `failed`, component unmount, route change, or request cancellation.
-- Repeating the same metadata builder returns the same logical selection id.
-- Repeating `Fetch quotes` for an already running or completed identical run returns that run instead of creating a duplicate.
-- Browser tests cover successful metadata loading, empty metadata, invalid credential, zero-result filter, partial quote failure, complete quote success, refresh recovery, and secret non-disclosure.
-
-Security: Credential decryption is limited to the provider-call boundary; quote entitlements are granted only after a successful user-key-backed request.
-
-Determinism: Canonical filter serialization and metadata revision pinning produce stable selection and quote-run identities.
-
-Idempotency: Retrying credential save, metadata refresh, identical filtering, polling, or quote-run creation does not duplicate logical state.
-
-### PR112. Functional Univariate Statistics Page
-
-Branch: `feat/univariate-statistics-page`.
-
-Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/192.
-
-Priority: P1 second workflow page.
-
-Depends on: PR111.
-
-Scope:
-
-- Replace the current read-only summary page with a complete execution page.
-- Add `POST /api/univariate-statistics/runs` with the current metadata selection id and quote run id as required immutable inputs.
-- Add `GET /api/univariate-statistics/runs/{run_id}` for status and `GET /api/univariate-statistics/runs/{run_id}/results` for server-paginated results.
-- Require quote completion before execution. Render a locked explanation and link to `/metadata-builder` when prerequisites are absent or stale.
-- Provide one `Compute univariate statistics` action, running status, cancellation-safe polling, empty state, failure state, completion summary, sorting, and pagination.
-- Render at minimum: listing identity, ISIN, symbol, exchange, observation count, annualized return, annualized volatility, Sharpe ratio, maximum drawdown, and expected shortfall when present in the backend artifact.
-- Keep units and numerical precision in typed formatter functions; do not calculate statistics in React.
-- Remove the old aggregate-only API dependency when no remaining caller uses it.
-
-Acceptance:
-
-- The page cannot start without a complete quote run for the current metadata selection.
-- The POST endpoint invokes the real univariate workflow and never returns a synthetic success response.
-- Result rows are scoped exactly to the pinned metadata selection and quote dataset.
-- Sorting and pagination are server-owned and deterministic for equal values through a stable listing-id tie-breaker.
-- Refreshing during a running job restores the same run and progress.
-- Repeating an identical request returns the existing running or completed run id.
-- Unit tests verify input pinning, selection scoping, failure propagation, deterministic ordering, and no unrestricted Gold/Silver scan.
-- Browser tests verify locked, running, empty, failed, complete, paginated, and refreshed-running states.
-
-Security: Results are resolved through the authenticated user's snapshot and entitlement scope.
-
-Determinism: The artifact id includes exact quote inputs, selection membership, parameters, and algorithm version.
-
-Idempotency: Identical run creation is deduplicated by the canonical input hash.
-
-### PR113. Functional Univariate Selection Page
-
-Branch: `feat/univariate-selection-page`.
-
-Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/193.
-
-Priority: P1 third workflow page.
-
-Depends on: PR112.
-
-Scope:
-
-- Replace the placeholder page with a typed predicate editor and persisted selection result.
-- Add `GET /api/univariate-selection/metrics` for allowed numerical metrics, labels, units, and valid operators.
-- Add `POST /api/univariate-selection` accepting `source_run_id`, optional `selection_name`, and an ordered predicate list with `metric`, `operator`, and numeric `value`.
-- Permit only `=`, `!=`, `>`, `>=`, `<`, and `<=` for numerical metrics. Apply all predicates with logical AND.
-- Canonically sort predicates for identity generation while preserving the user-visible edit order separately.
-- Return `selection_id`, `input_count`, `selected_count`, `excluded_count`, normalized predicates, and exclusion summaries.
-- Render add/remove predicate rows, visible validation, apply action, running state, result counts, and a server-paginated selected-listing table.
-- Require a completed, non-stale univariate run. Clear stale results immediately when a predicate changes after completion.
-- The backend must filter only rows belonging to the pinned source run; it must not read every persisted univariate row.
-
-Acceptance:
-
-- Invalid metrics, operators, non-finite values, empty predicate lists, and duplicate contradictory predicates return structured 4xx errors.
-- A valid predicate set selects exactly the rows produced by applying all predicates to the pinned source run.
-- `input_count = selected_count + excluded_count` in every successful response.
-- Identical normalized predicates on the same source run return the same selection id.
-- Predicate order differences do not create duplicate selections.
-- The page renders locked, editing, invalid, running, empty-result, failed, complete, and stale states.
-- Tests cover all operators, AND semantics, boundary equality, NaN/infinity rejection, source-run isolation, deterministic identity, and duplicate submission.
-
-Security: Metric discovery and filtering operate only on artifacts visible to the authenticated user.
-
-Determinism: Metric definitions, operator semantics, predicate normalization, and selection ordering are versioned.
-
-Idempotency: Reapplying an identical normalized predicate set reuses the same selection and membership rows.
-
-### PR114. Functional Bivariate Statistics Page
-
-Branch: `feat/bivariate-statistics-page`.
-
-Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/194.
-
-Priority: P1 fourth workflow page.
-
-Depends on: PR113.
-
-Scope:
-
-- Replace the placeholder page with pair-plan, execution, progress, and result views.
-- Add `POST /api/bivariate-statistics/plan` accepting the current univariate selection id and returning selected listing count, theoretical pair count, configured pair limit, and whether execution is allowed.
-- Add `POST /api/bivariate-statistics/runs`, `GET /api/bivariate-statistics/runs/{run_id}`, and `GET /api/bivariate-statistics/runs/{run_id}/results`.
-- Fail before pair generation when the theoretical pair count exceeds the configured maximum.
-- Poll real server progress using `total_pairs`, `completed_pairs`, `failed_pairs`, and integer `percent`.
-- Render server-paginated pair rows with left/right identity, observation count, Pearson correlation, Spearman correlation, covariance, left-to-right beta, and right-to-left beta where available.
-- Default ordering is descending absolute Pearson correlation, then stable left-id/right-id tie-breakers.
-- Require a complete, non-empty, non-stale univariate selection.
-- Do not transfer the complete pair dataset to the browser and do not calculate correlations in React.
-
-Acceptance:
-
-- Pair count equals `n * (n - 1) / 2` for `n` unique selected listings.
-- Same-listing pairs and duplicate reversed pairs never appear.
-- Over-limit plans return a clear non-runnable result and create no run or pair artifacts.
-- Refreshing a running page reconnects to the existing run.
-- Identical run requests reuse the existing running or completed run.
-- Result pagination and ordering are stable across repeated requests.
-- Tests cover zero, one, two, normal, partially failed, and over-limit selections; source-selection isolation; pair uniqueness; deterministic ordering; and refresh recovery.
-
-Security: Plans, runs, and pair results are scoped to the authenticated user's selected membership and allowed observations.
-
-Determinism: Pair construction, alignment rules, metric versions, ordering, and artifact identity are explicit and versioned.
-
-Idempotency: Identical source selection and algorithm inputs resolve to one logical run and artifact set.
-
-### PR115. Sequential Navigation, Final Legacy Deletion, And End-To-End Gate
-
-Branch: `refactor/four-page-ui-completion-gate`.
-
-Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/195.
-
-Priority: P1 cutover completion.
-
-Depends on: PR114.
-
-Scope:
-
-- Make `apps/web/src/routes.tsx` the only production route registry and keep exactly the four canonical routes.
-- Drive navigation status from `GET /api/workflow`. Locked pages remain visible but non-navigable and explain their prerequisite.
-- Preserve normal browser refresh, back, forward, and direct-link behavior without adding a global frontend store.
-- Delete all unused page components, shell experiments, fixture selectors, catalogues, compatibility adapters, synthetic compute endpoints, obsolete project/dashboard/settings/account/report/portfolio/diversification routes, and stale UI specifications.
-- Delete unused `AuthenticatedShell`, old aggregate-only endpoints, old HTML-rendering helpers, duplicate route lists, and any tests whose only purpose is to preserve removed files.
-- Add a repository gate that fails when removed route ids, compatibility renderer names, direct page-level `fetch(` calls, the retired metadata-fetch name, or production fixture selectors reappear.
-- Update `README.md`, `ARCHITECTURE.md`, `CONTRACTS.md`, `docs/ui/README.md`, `docs/ui/page-development.md`, and the four page specifications to describe only the final implementation.
-- Add one Playwright workflow test that completes metadata refresh, Metadata Builder project creation, quote loading, univariate statistics and selection, and bivariate statistics using deterministic mocked provider responses.
-
-Acceptance:
-
-- The production route registry contains exactly four entries in the required order.
-- No production file or documentation describes the superseded eight-stage UI as current.
-- No placeholder-only production page remains.
-- No legacy renderer, compatibility route, duplicate navigation registry, component catalogue, fixture-selection route, or browser-owned financial/statistical computation remains.
-- Direct links to locked pages render a prerequisite message without starting work.
-- A completed deterministic synthetic workflow survives browser refresh at every stage.
-- An upstream change marks all required downstream stages stale and blocks execution until recomputed.
-- `npm ci`, TypeScript checking, Vite build, Node syntax checking, Ruff, Pyright, import-linter, the full Python test suite, Playwright, and the repository `pr-quality` gate all pass.
-- A repository-wide search for forbidden legacy identifiers returns no tracked production or documentation matches.
-
-Security: The final browser bundle contains no provider secret, authorization rule, raw credential, unrestricted dataset path, or cross-user identifier.
-
-Determinism: The same mocked provider responses and user inputs produce the same workflow ids, page states, progress sequence, selections, and result ordering.
-
-Idempotency: Replaying the complete synthetic workflow creates no duplicate credentials, metadata revisions, selections, quote runs, statistical runs, or artifacts.
-
-### PR116. Remove Google Authentication Runtime
-
-Branch: `refactor/remove-google-authentication`.
-
-Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/196.
-
-Priority: P0 local-runtime simplification.
-
-Depends on: PR115.
-
-Scope: Remove Google OIDC, browser login/session handling, CSRF enforcement, runtime secret mounts, and associated catalog objects. Run the four-page workflow as one explicit local workspace until a replacement identity model is approved.
-
-Acceptance: No supported runtime route, environment variable, secret mount, browser bundle, or active security document exposes Google authentication behavior. Existing catalog volumes remove the retired identity and session tables through an ordered migration.
-
-Security: The local runtime is not a multi-user or public-hosted deployment boundary. EODHD credentials remain server-owned and encrypted.
-
-Determinism: Every request resolves to the fixed local workspace identity without browser-supplied user or session state.
-
-Idempotency: Applying the catalog retirement migration repeatedly leaves the schema unchanged after the first successful application.
-
-## Active Project Sidebar PR Stack
-
-This series adds one persistent application sidebar without changing the four canonical workflow routes. On desktop, the sidebar shows the current project as a dropdown and the workflow as an ordered hierarchy beneath it. On narrow viewports, the same sidebar content appears in an accessible drawer opened from the header. The hierarchy is exactly `Project -> Metadata Builder -> Univariate Statistics -> Univariate Selection -> Bivariate Statistics`; it is not a filesystem tree, an arbitrary nested-project model, or a second route registry.
-
-The series is sequential and must remain on the active UI branch stack until explicitly landed. Each PR must follow [GATES.md](GATES.md), update implementation and UI specifications together, and leave all existing four-page routes directly addressable. Browser code may render and request project context, but project ownership, current-project persistence, workflow status, and stage locking remain server-owned.
-
-### PR117. Persisted Current-Project Context And Project-Scoped Workflow API
-
-Branch: `feat/project-sidebar-context-api`.
-
-Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/199.
-
-Priority: P0 sidebar data foundation.
-
-Depends on: PR116.
-
-Scope:
-
-- Add a server-owned current-project preference for the fixed local workspace user. Store the pointer in the application catalog through a new ordered, checksum-stable migration; do not modify the text of existing migrations. The preference may be absent when no project exists.
-- Add `GET /project-context`. Return `{current_project_id, current_project, projects}` where `current_project` is either `null` or `{project_id, name, selected_count, data_loaded}`, and `projects` is a deterministic list of those same project summaries.
-- Add `PUT /project-context/current-project` with JSON `{project_id}`. Accept only a project owned by the current local workspace, persist the pointer, and return the same contract as `GET /project-context`.
-- Sort projects case-insensitively by `name`, then by `project_id`. Do not use creation time, dictionary iteration order, or browser sorting.
-- Define deterministic defaulting: when no preference exists and projects exist, select the first item in the canonical sort order and persist it; when no projects exist, return `current_project_id=null`, `current_project=null`, and `projects=[]` without creating a project.
-- When `POST /api/metadata-builder` creates or reuses a project, make that project current in the same successful operation. A failed or zero-result filter must not change the current-project pointer.
-- When the current project is deleted, clear the pointer and select the next canonical project if one exists. Deleting a non-current project must not change the pointer.
-- Replace implicit latest-selection workflow lookup with `GET /projects/{project_id}/workflow`. Resolve every stage only from records belonging to that project and workspace. Keep `GET /workflow` temporarily as an internal compatibility endpoint only if an existing non-Web caller still requires it; otherwise delete it in this PR.
-- Add Python response models or typed row builders for project context rather than assembling different shapes in multiple endpoints. Add matching `ApiProjectSummary`, `ApiProjectContext`, and project-scoped `ApiWorkflow` TypeScript contracts in `apps/web/src/contracts.ts`.
-- Add `loadProjectContext()`, `selectCurrentProject(projectId)`, and `loadProjectWorkflow(projectId)` to `apps/web/src/api/client.ts`. Pages and shell code must not call `fetch` directly.
-- Update `CONTRACTS.md` and create `docs/ui/layout/sidebar.md` with the server-owned inputs and empty/loading/error contracts needed by PR118. This PR does not render the sidebar.
-
-Acceptance:
-
-- API tests cover zero projects, one project, canonical ordering, explicit selection, repeated selection, process restart with the same catalog, current-project deletion, non-current deletion, unknown project, and a project id owned by another workspace fixture.
-- `PUT /project-context/current-project` returns `404` for unknown or inaccessible ids and leaves the previous pointer unchanged.
-- Two projects with different selections and runs return different project-scoped workflow identifiers and statuses; switching the current project never leaks identifiers from the previous project.
-- Repeating `GET /project-context` and `GET /projects/{project_id}/workflow` performs no writes after the deterministic default has been established.
-- Existing project creation, Metadata Builder, quote loading, and workflow-stage tests remain green.
-- TypeScript accepts the API responses without `any`, unchecked casts, or duplicated project-summary types.
-
-Out of scope: Sidebar markup, project creation or deletion controls in the Web UI, project renaming, nested projects, drag-and-drop ordering, authentication, and multi-user account switching.
-
-Security: Every project and workflow lookup is resolved inside the fixed local workspace boundary. A supplied project id is an identifier, not authorization; unknown and inaccessible ids return the same `404` shape and never disclose project names or stage identifiers.
-
-Determinism: The current project, project ordering, response serialization, and project-scoped workflow state derive from persisted workspace records and explicit tie-breakers.
-
-Idempotency: Repeating the same current-project selection preserves one preference row and returns byte-equivalent context apart from transport metadata.
-
-### PR118. Desktop Sidebar, Project Dropdown, And Workflow Hierarchy
-
-Branch: `feat/project-sidebar-shell`.
-
-Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/200.
-
-Priority: P0 visible navigation.
-
-Depends on: PR117.
-
-Scope:
-
-- Refactor `apps/web/src/shell/frame.tsx` into a stable application layout with header, sidebar, and main content regions. Keep the EODHD key and `Fetch all metadata` action in the header.
-- Add `apps/web/src/shell/project-sidebar.tsx`. At the top render a visible `Project` label and a native `<select>` whose selected option text is the exact current project name. Use project ids only as option values; never display ids as labels.
-- Under the dropdown render one `Workflow` navigation landmark as an ordered list. Derive its four entries from `workflowPages` in `apps/web/src/routes.tsx`; do not create a second page array. Render the exact order Metadata Builder, Univariate Statistics, Univariate Selection, Bivariate Statistics.
-- Make the hierarchy visually explicit with a project root, one vertical connector, numbered stage markers, and indentation. Use CSS borders and existing text/icon primitives; do not add a chart or tree library.
-- Render each stage's server status (`locked`, `ready`, `running`, `complete`, `failed`, or `stale`) as both visible text and a non-color-only marker. The active route uses `aria-current="page"`.
-- Keep locked stages visible but render them as non-links with `aria-disabled="true"`. Ready, running, complete, failed, and stale stages remain navigable so users can inspect their state.
-- On dropdown change, disable the selector, call `PUT /api/project-context/current-project`, load `GET /api/projects/{project_id}/workflow`, then navigate to the selected project's first non-locked stage. If every later stage is locked, navigate to `/metadata-builder`.
-- Dispatch one typed shell context update after a successful switch so all four pages clear project-specific transient state and reload server-owned state. Do not use Redux, Zustand, React Context as a global data cache, browser storage, URL fragments, or a full page reload.
-- If switching fails, keep the prior project selected, keep the current page content, expose the server error in an `aria-live` region, and re-enable the selector.
-- Define exact shell states: loading skeleton with fixed sidebar width; no-project state showing `No projects yet` and only Metadata Builder as available; ready state; switching state; and recoverable load/switch failure.
-- Update all four pages to use the shell's selected `project_id` when invoking project-bound endpoints. A project switch must clear stale run ids, selections, tables, progress, and error messages before the replacement project's requests begin.
-- Add styles to the existing production stylesheet `apps/web/styles/app.css`: desktop sidebar width `272px`, header spanning full width, sidebar below the header, independently scrolling main content, and no nested cards. Keep the sidebar visible at viewport widths of `901px` and above.
-- Update `docs/ui/header.md`, `docs/ui/layout/sidebar.md`, and all four files under `docs/ui/windows/` with final desktop layout, project-switch behavior, hierarchy states, and page reset rules.
-
-Acceptance:
-
-- At `1440x900` and `1024x768`, the sidebar is visible without user action, is exactly one persistent left column, and does not overlap the header or main content.
-- The current project name is visible in the closed dropdown; opening it lists every project once in API order.
-- Selecting another project updates the dropdown, hierarchy statuses, route, and page data without reloading the document. Returning to the prior project restores its server-owned workflow state.
-- With no projects, the dropdown is disabled, `No projects yet` is visible, Metadata Builder remains navigable, and no synthetic project is created.
-- Every workflow item comes from `workflowPages`; tests fail if sidebar labels, paths, order, or count diverge from the canonical route registry.
-- Component tests cover loading, empty, ready, locked, switching, failed switch, successful switch, and stale-stage rendering.
-- Existing direct links, browser back/forward behavior, EODHD credential submission, metadata refresh, and all four page actions continue to work.
-- `npm run typecheck`, `npm run build`, `node --check server.js`, focused Python API tests, and repository `pr-quality` pass.
-
-Out of scope: Mobile drawer behavior, create/rename/delete project controls, free-form hierarchy editing, collapsing individual workflow stages, route additions, and visual-regression baselines.
-
-Security: Project ids are sent only to project-scoped API endpoints. The browser never infers ownership, broadens project access, stores project context persistently, or renders provider credentials in the sidebar.
-
-Determinism: Given the same project-context and workflow responses, the dropdown order, selected project, hierarchy order, status labels, and target route are identical.
-
-Idempotency: Selecting the already-current project performs no navigation reset and creates no duplicate preference, project, selection, run, or artifact.
-
-### PR119. Responsive Sidebar Drawer, Accessibility, And Completion Gate
-
-Branch: `feat/project-sidebar-completion-gate`.
-
-Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/201.
-
-Priority: P1 responsive and regression completion.
-
-Depends on: PR118.
-
-Scope:
-
-- At viewport widths of `900px` and below, replace the persistent sidebar column with a header menu icon button using the existing icon library. Give it the accessible name `Open project navigation`, `aria-expanded`, and `aria-controls` targeting the drawer.
-- Render the same `ProjectSidebar` component inside a left drawer; do not duplicate dropdown or hierarchy markup. The drawer width is `min(320px, 88vw)` and main content must remain readable at `320px` viewport width.
-- Implement drawer focus management: opening moves focus to the project selector or first available workflow link; `Escape`, backdrop click, successful navigation, and browser route change close it; closing returns focus to the opener. Trap keyboard focus while open and prevent background scrolling.
-- Add a backdrop and restrained open/close transition that honors `prefers-reduced-motion`. The drawer must not rely on swipe gestures and must remain usable at 200% browser zoom.
-- Use the proper landmarks: one banner, one project-navigation landmark, and one main region. Ensure dropdown label association, visible focus, minimum control size, status text independent of color, and no duplicate navigation landmark while the drawer is closed.
-- Add Playwright coverage at `1440x900`, `1024x768`, `768x1024`, and `390x844`. Cover initial project display, project switching, locked hierarchy, direct-link refresh, back/forward navigation, drawer keyboard operation, focus return, no-project state, and failed context request.
-- Add screenshot baselines for desktop ready state, desktop no-project state, mobile drawer open, and mobile locked hierarchy. Mask only nondeterministic provider-derived counts; do not mask the project name, stage labels, status labels, or layout geometry.
-- Add a canvas/pixel or bounding-box assertion proving the sidebar/drawer is nonblank, inside the viewport, and non-overlapping with header and main content at each tested viewport.
-- Extend repository governance tests so the production shell must contain one `ProjectSidebar`, one project dropdown contract, one canonical `workflowPages` registry, and matching `docs/ui/layout/sidebar.md`; forbid a second hard-coded workflow-navigation list.
-- Update `README.md` and `docs/ui/page-development.md` with the final responsive shell contract and the rule that future workflow routes automatically flow into the sidebar hierarchy through `workflowPages`.
-
-Acceptance:
-
-- Desktop behavior from PR118 remains unchanged above `900px`; mobile and tablet widths expose the same project name and hierarchy through the drawer.
-- Keyboard-only tests can open the drawer, change projects, traverse every available stage, close with `Escape`, and observe focus return without reaching background controls while open.
-- Automated accessibility checks report no critical or serious violations on all four routes in desktop and mobile layouts.
-- Screenshots show no clipped dropdown text, overlapping landmarks, off-screen drawer content, horizontal page scrolling, or layout shift when statuses change.
-- A full synthetic workflow remains project-isolated across two projects before and after refresh, project switching, direct linking, and browser back/forward navigation.
-- All commands required by [GATES.md](GATES.md), including Python tests, TypeScript checking, Vite build, Node syntax checking, Playwright, Ruff, Pyright, import-linter, and repository quality checks, pass.
-
-Out of scope: Offline support, touch gestures, user-customizable sidebar width, persisted collapsed state, themes, nested projects, and new workflow pages.
-
-Security: Drawer state and responsive behavior do not change authorization. Browser tests verify that failed or inaccessible project selection reveals no foreign project metadata and leaves the existing project context intact.
-
-Determinism: Fixed fixtures, viewport sizes, reduced-motion settings, project order, and workflow responses produce stable screenshots and focus sequences.
-
-Idempotency: Repeated open/close, route navigation, refresh, and current-project selection leave server state unchanged except for one intentional current-project preference update.
-
-### Project Sidebar Series Completion Gate
-
-The project-sidebar series is complete only after PR117 through PR119 are merged and all required pre-merge and post-merge checks in [GATES.md](GATES.md) pass. Completion additionally requires one server-owned current-project pointer, project-scoped workflow resolution, one canonical `workflowPages` registry, a visible desktop sidebar, an accessible mobile drawer, deterministic project switching, synchronized layout/page specifications, and passing two-project isolation plus visual-regression tests.
-
-## Active Platform-Inspired Simple UI PR Stack
-
-This series applies the shared simplicity principles of modern Google and Apple product interfaces to Portfell without copying either company's branding, proprietary fonts, logos, icons, exact components, trade dress, or full design system. The intended result is a quiet operational interface with strong information hierarchy, restrained color, generous but efficient spacing, familiar controls, immediate feedback, predictable navigation, and accessible motion. Portfell remains visually distinct and optimized for repeated financial research work rather than resembling a consumer marketing page.
-
-The series begins only after the project-sidebar stack is complete. Each PR is independently reviewable, updates implementation and specifications together, and follows [GATES.md](GATES.md). No PR may change financial calculations, server-owned workflow rules, project authorization, API response meaning, or the four canonical route paths.
-
-### PR120. Platform-Inspired Visual Foundations And Core Components
-
-Branch: `refactor/platform-simple-ui-foundations`.
-
-Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/245.
-
-Priority: P1 visual foundation.
-
-Depends on: PR119.
-
-Scope:
-
-- Create `docs/ui/design-system.md` as the canonical Portfell visual contract. State the principles explicitly: content before decoration, one clear primary action per task region, progressive disclosure, familiar platform behavior, readable density, visible system status, direct manipulation only where reversible, and no decorative elements that compete with financial data.
-- Define all production design tokens once in `apps/web/styles/app.css` under `:root`. Use semantic names rather than component-specific names: canvas, surface, surface-subtle, text, text-muted, border, border-strong, accent, accent-hover, focus, success, warning, danger, and disabled.
-- Use a neutral canvas and white primary surfaces with one restrained blue accent. Semantic success, warning, and danger colors may appear only for matching status or destructive actions. Forbid gradients, decorative blobs, glassmorphism, tinted page-wide backgrounds, and color-only status communication.
-- Define a fixed typography scale with sizes `12`, `14`, `16`, `20`, and `28px`; line heights of at least `1.35`; normal letter spacing of `0`; and weights limited to `400`, `500`, `600`, and `700`. Use a licensed, locally bundled UI typeface or the existing platform stack when bundling would add unjustified weight. Do not reference San Francisco, Product Sans, Google Sans, or remote font CDNs.
-- Define spacing tokens on a `4px` base (`4`, `8`, `12`, `16`, `24`, `32`, `48`) and radius tokens limited to `4`, `6`, and `8px`. Shadows are allowed only for floating drawers, menus, dialogs, and focus elevation; ordinary page sections and panels use spacing or a one-pixel border.
-- Define stable control heights: `40px` compact desktop fields, `44px` primary/mobile controls, and `32px` icon buttons. All interactive targets remain at least `44x44px` on touch layouts through padding or an invisible target area.
-- Add `lucide-react` as the single icon library. Use icons only where they clarify a familiar action or status. Every icon-only button requires an accessible name and tooltip; do not add manually drawn SVGs, emoji, Apple symbols, Google Material Symbols, or mixed icon libraries.
-- Refactor `Button`, `Panel`, `StatusBadge`, `LoadingState`, `EmptyState`, and `ProgressStepper` to consume semantic tokens. Keep existing public props unless a typed extension is required. Buttons support primary, secondary, quiet, and danger appearances; only one primary button is allowed per visible task region.
-- Add shared `IconButton`, `Field`, and `InlineNotice` components with typed props. `Field` owns label, hint, error, control association, and reserved message height; `InlineNotice` supports information, success, warning, and error without using color alone.
-- Replace raw colors, ad hoc border radii, and duplicated focus styles in production CSS with tokens. Do not redesign shell or page layout in this PR beyond changes required to adopt the components.
-- Update `docs/ui/page-development.md` so future UI work must use tokens and shared controls, and add a repository test that rejects new raw hexadecimal colors outside the token declaration block.
-
-Acceptance:
-
-- Token documentation lists every semantic token, permitted use, contrast requirement, and prohibited use; production CSS contains one source of truth for each value.
-- All shared components render default, hover, active, focus-visible, disabled, loading where applicable, and error where applicable states without layout shift.
-- Primary, secondary, quiet, and danger buttons remain distinguishable in forced-colors mode and at 200% zoom.
-- Text and controls meet WCAG 2.2 AA contrast; focus indicators have at least a `2px` visible outline with separation from the component edge.
-- No route, API call, page order, server-owned status, financial value, or project-switch behavior changes.
-- Component tests cover keyboard activation, disabled behavior, accessible names, label/error association, status text, and icon-only tooltips.
-- `npm ci`, `npm run typecheck`, `npm run build`, focused UI tests, and repository `pr-quality` pass.
-
-Out of scope: Sidebar layout changes, page-specific form/table redesign, dark mode, user themes, charts, new routes, branded Apple or Google assets, and screenshot baseline replacement.
-
-Security: Shared components never render secret values in hints, errors, tooltips, DOM data attributes, or analytics hooks. Password/provider-key fields preserve their existing write-only behavior.
-
-Determinism: Identical component props and token values produce identical class names, text, icon selection, dimensions, and DOM order.
-
-Idempotency: Re-rendering or repeatedly activating disabled/loading controls performs no duplicate request or state mutation.
-
-### PR121. Platform-Inspired Header, Sidebar, And Navigation Refinement
-
-Branch: `refactor/platform-simple-ui-shell`.
-
-Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/246.
-
-Priority: P1 shell clarity.
-
-Depends on: PR120.
-
-Scope:
-
-- Apply the foundation tokens and shared components to `ShellFrame` and `ProjectSidebar` without changing the project-context API or canonical route registry.
-- Make the desktop header a stable `64px` bar with Portfell as the strongest label, a concise secondary workspace label, and the metadata credential action aligned to the right. Avoid oversized branding, marketing copy, hero treatment, or decorative header backgrounds.
-- Keep the desktop sidebar `272px` wide. Use a flat surface separated from main content by one border; do not wrap the sidebar, project selector, or workflow hierarchy in cards.
-- Render the project selector as the sidebar's first control with a compact `Project` label, current project name, chevron icon, loading state, empty state, and error state. Long project names truncate visually with a native title/accessible full name and never widen the sidebar.
-- Refine the workflow hierarchy to use quiet labels, consistent `40px` rows, one vertical connector, compact status icon plus text, and a restrained accent treatment for the active route. Locked stages remain legible and visible rather than fading below accessible contrast.
-- Use familiar symbols from Lucide for menu, chevron, lock, running, complete, warning, and error. Do not place icons in every navigation row unless the icon communicates state.
-- Keep the desktop sidebar persistent and the PR119 mobile drawer behavior intact. The mobile header contains only brand, current-project summary, and menu control; credential entry moves into a clearly labeled drawer/header action region if it cannot fit without wrapping.
-- Set main content to a readable maximum width between `1120px` and `1280px`, aligned consistently from the sidebar edge. Data tables may use the full available width; forms and status copy should not stretch to unreadable line lengths.
-- Preserve normal browser navigation, direct links, visible page titles, sidebar project switching, drawer focus management, and all shell landmarks.
-- Update `docs/ui/header.md` and `docs/ui/layout/sidebar.md` with exact desktop/mobile dimensions, truncation, hierarchy styling, icon semantics, and credential-control placement.
-
-Acceptance:
-
-- At `1440x900` and `1024x768`, header, sidebar, and main content align to one spacing grid with no overlap, nested cards, or unexpected horizontal scrolling.
-- At `390x844`, the closed shell shows a single menu button and no duplicate hidden navigation landmark; the open drawer exposes the complete project name and hierarchy.
-- Project names of 1, 40, 100, and 200 characters do not resize the sidebar, cover controls, or become inaccessible.
-- Active, locked, ready, running, complete, failed, and stale hierarchy states are distinguishable by text and shape as well as color.
-- Credential entry remains write-only, keyboard reachable, and absent from browser storage, URLs, logs, screenshots, and sidebar content.
-- Playwright shell tests cover desktop, tablet, mobile, long names, project switching, all workflow statuses, drawer open/close, and failed context loading.
-- Existing four-page route and API regression tests remain green; full frontend build and repository `pr-quality` pass.
-
-Out of scope: Form-field redesign inside pages, table density, new project actions, collapsible desktop sidebar, themes, account controls, and financial visualization.
-
-Security: The refined shell reveals only project names returned by the current workspace context. Truncation and tooltips must not expose ids, foreign names, credentials, or internal error traces.
-
-Determinism: Fixed viewport, project context, route, and workflow state produce stable shell geometry, label order, icon choice, truncation, and focus order.
-
-Idempotency: Reopening navigation, selecting the current route, or selecting the current project creates no duplicate requests or mutations beyond existing explicit refresh behavior.
-
-### PR122. Platform-Inspired Forms, Progress, Tables, And Page States
-
-Branch: `refactor/platform-simple-ui-workspaces`.
+Branch: `feat/multivariate-input-snapshot-contract`.
 
 Git status: not started. PR: TBD.
 
-Priority: P1 workflow usability.
+Priority: P0 multivariate correctness foundation.
 
-Depends on: PR121.
+Depends on: current `main`.
 
 Scope:
 
-- Apply the shared visual foundation to all four page components and their specifications without changing API contracts or financial/statistical behavior.
-- Give each page one compact title row containing page title, short current-state summary, and at most one primary action. Supporting actions use secondary, quiet, or icon-button appearances according to consequence.
-- Replace ad hoc label/input markup with `Field`. Keep labels above controls, hints concise, validation adjacent to the relevant field, and reserved message space where asynchronous validation would otherwise shift the layout.
-- Use responsive form grids with explicit minimum widths. Metadata filters use at most four columns on wide desktop, two on tablet, and one on mobile. Predicate rows keep metric, operator, value, and remove action aligned without shrinking text below readable widths.
-- Use familiar menus/selects for option sets, icon buttons for add/remove where the symbol is unambiguous, and text plus icon for consequential commands. Destructive removal uses danger styling only when data is actually deleted; removing an unsaved predicate is a quiet action.
-- Replace generic paragraphs for locked, empty, failed, stale, and success states with `InlineNotice`, `EmptyState`, or `StatusBadge` as appropriate. Every state includes a concrete next action when one exists; do not add instructional feature-tour copy.
-- Keep progress indicators spatially stable. Show label, numeric completion, progress bar, and status summary in that order. Running actions remain in place with a spinner and verb change; they do not resize or move adjacent controls.
-- Standardize tables: sticky header only when the table scrolls, tabular numerals for financial values, right alignment for numbers, left alignment for identities, `44px` minimum rows, subtle row hover, visible keyboard focus, and deterministic empty/loading/error rows.
-- Add horizontal table scrolling only inside the table region. At narrow widths, preserve column labels and values; do not convert financial tables into nested cards or hide required columns without a documented column-priority rule.
-- Centralize formatters for percentages, ratios, counts, covariance, and missing values. Preserve server values and existing precision contracts; do not calculate financial metrics in React.
-- Update all four `docs/ui/windows/*.md` specifications with control hierarchy, responsive grids, status components, table alignment, primary-action rules, and exact DOM ordering of progress/action regions.
+- Add a versioned `MultivariateInputSnapshot` contract owned by the Multivariate Statistics
+  module. It must pin `project_id`, user-owned project snapshot id, metadata selection id,
+  univariate run id, univariate selection id, bivariate run id, full sorted listing keys
+  (`isin`, `exchange`, `code`), quote and dividend artifact identities, aligned-calendar identity,
+  `date_start`, `date_end`, `observation_count`, policy version, and dependency hashes.
+- Add a versioned initial `MonthlyDistributionEtfPolicy`. Require `instrument_type=ETF`, persisted
+  `distribution_frequency=monthly`, unique full listing keys, production-eligible quote history,
+  at least two listings, and at least 504 common daily return observations. Keep every threshold
+  explicit and serializable rather than embedding it in service control flow.
+- Resolve the snapshot only from the active project's authorized, persisted Metadata Builder,
+  Univariate Statistics, and Bivariate Statistics outputs. Require the bivariate run to be complete
+  and to have exactly the same listing membership and aligned-calendar identity as the univariate
+  selection used for the snapshot.
+- Persist eligibility results and all rejection reasons, including stale upstream run, non-ETF,
+  non-monthly distribution, duplicate listing key, missing quote or dividend artifact, missing
+  bivariate dependency, membership mismatch, calendar mismatch, insufficient common history, and
+  fewer than two eligible listings.
+- Define downstream invalidation: a changed project snapshot, metadata selection, quote artifact,
+  univariate run or selection, bivariate run, listing membership, common calendar, or policy version
+  makes the Multivariate input stale. Reopening an unchanged project restores the same snapshot.
+- Provide local-lake and hosted scoped-input adapters behind the same contract. The local adapter
+  may resolve explicitly supplied selection/run ids; neither adapter may treat a latest/current
+  pointer as authorization or provenance.
+- Update schemas, path/catalog helpers, architecture rules, contract documentation, and focused
+  tests for this new dormant boundary. Do not add a browser route or run portfolio mathematics.
 
 Acceptance:
 
-- Every visible input has a programmatically associated label; every validation error is associated with its control and announced once.
-- Each task region has zero or one primary button. Tests fail when two primary actions appear in the same visible panel.
-- Metadata, predicate, univariate, and bivariate controls fit at `1440`, `1024`, `768`, `390`, and `320px` widths without text overlap or page-level horizontal scrolling.
-- Numeric table cells use tabular numerals, stable formatting, correct alignment, explicit missing-value text, and unchanged server-provided values.
-- Locked, ready, running, complete, failed, stale, empty, and partial-failure states are covered with deterministic fixtures on every applicable page.
-- Keyboard tests traverse controls and tables in visual order; icon-only actions expose accessible names and tooltips.
-- Existing workflow, project isolation, idempotency, and API tests remain unchanged and green. TypeScript, Vite build, Playwright, and repository `pr-quality` pass.
+- A fixture containing monthly ETFs with at least 504 shared returns produces one eligible snapshot
+  with canonically sorted full listing keys and exact upstream artifact identities.
+- Non-ETF and non-monthly rows are rejected even when their names contain `ETF`, `income`, or
+  `monthly`; eligibility uses typed persisted fields, not name heuristics.
+- `unknown`, `accumulating`, `irregular`, quarterly, semiannual, and annual distribution categories
+  do not satisfy the monthly policy.
+- Tests reject fewer than two eligible listings, fewer than 504 common observations, duplicate full
+  listing keys, a missing artifact, an incomplete or failed bivariate run, membership mismatch, and
+  aligned-calendar mismatch with stable machine-readable reason codes.
+- Two listings sharing an ISIN but differing by exchange or code remain distinct listing keys; the
+  snapshot identity includes all three fields and cannot collide with an ISIN-only identity.
+- A newer Metadata Builder selection cannot silently replace the older project selection pinned by
+  an existing snapshot. Changing any pinned dependency produces a different snapshot id and marks
+  downstream Multivariate state stale.
+- Local and hosted adapters produce the same normalized snapshot for equivalent authorized inputs.
+- Contract, schema, architecture, and integration tests prove that snapshot construction does not
+  start quote, univariate, or bivariate work and does not scan unrestricted lake membership.
 
-Out of scope: New calculations, charts, exports, bulk editing, virtualized tables, page routes, API response changes, dark mode, and user-selectable density.
+Security: Hosted snapshot resolution requires access to the project and the complete dependency
+closure. Guessed selection, run, listing, calendar, or shared artifact ids cannot reveal membership
+or create an authorized snapshot. Provider credentials and internal filesystem paths never appear
+in snapshot payloads, logs, errors, or browser-facing contracts.
 
-Security: Error and empty states redact provider keys, internal paths, unrestricted dataset ids, and foreign project identifiers. Formatters accept display values only and never broaden data access.
+Determinism: Snapshot identity hashes canonical full listing keys, exact immutable dependency ids,
+policy values, aligned-calendar identity, and contract/algorithm versions. Filesystem order, worker
+completion order, locale, current pointers, and wall-clock time cannot change it.
 
-Determinism: Identical server responses and viewport constraints produce identical action hierarchy, field order, status selection, table ordering, formatting, and responsive tracks.
+Idempotency: Repeating snapshot creation with identical authorized dependencies returns the same
+snapshot and eligibility rows. Concurrent identical requests join or reuse one logical result and
+never duplicate catalog references.
 
-Idempotency: Disabled/running controls reject duplicate activation, and visual state transitions do not create additional projects, selections, runs, or artifacts.
+### PR144. Canonical Multivariate Risk-Model Artifact And Optimizer Wiring
 
-### PR123. Simple UI Motion, Accessibility, Visual Regression, And Completion Gate
-
-Branch: `chore/platform-simple-ui-completion-gate`.
+Branch: `fix/multivariate-canonical-risk-model`.
 
 Git status: not started. PR: TBD.
 
-Priority: P1 quality completion.
+Priority: P0 numerical correctness.
 
-Depends on: PR122.
-
-Scope:
-
-- Define restrained motion tokens: `120ms` for control feedback, `180ms` for menus/drawers, and no routine transition above `240ms`. Animate only opacity and transform where practical; never animate financial values, table geometry, progress meaning, or layout dimensions.
-- Honor `prefers-reduced-motion` by removing nonessential transitions and preserving immediate state feedback. Loading indicators may remain but must not flash faster than accessibility guidance permits.
-- Add automated accessibility checks for all four routes and shared shell states using a maintained Playwright-compatible engine. Test keyboard-only navigation, focus visibility, landmark uniqueness, heading order, labels, status announcements, forced colors, 200% zoom, and reduced motion.
-- Replace or add visual baselines for desktop (`1440x900`, `1024x768`), tablet (`768x1024`), and mobile (`390x844`, `320x568`) across shell ready/empty/error, drawer open, each page ready, each page running, one representative table, and one validation failure.
-- Use deterministic fixtures and mask only genuinely nondeterministic provider-derived values. Never mask project name, route title, controls, workflow statuses, table headers, focus indicator, or geometry under test.
-- Add bounding-box and pixel checks proving header, sidebar/drawer, main content, forms, notices, progress, and tables are nonblank, inside the viewport, and non-overlapping. Fail on page-level horizontal scrolling at every target viewport.
-- Add governance checks requiring `docs/ui/design-system.md`, semantic token usage, one icon library, one route registry, synchronized layout/page specs, and prohibited-pattern checks for gradients, decorative blobs, raw production colors outside tokens, mixed icon libraries, and Apple/Google brand assets.
-- Measure production JavaScript and CSS output. Record a deterministic budget in `docs/ui/design-system.md`; fail CI if the design refinement increases compressed initial JavaScript by more than `25 KiB` or CSS by more than `12 KiB` relative to the PR120 baseline without an approved documented exception.
-- Update `README.md` with the final shell description and add a short design review checklist to `docs/ui/page-development.md` covering hierarchy, primary action, token use, responsive fit, keyboard operation, reduced motion, and screenshot review.
-
-Acceptance:
-
-- Automated accessibility scans report no critical or serious violations for every tested route and shared shell state.
-- Keyboard-only users can complete project switching and the full four-stage workflow without focus loss, focus traps outside the open drawer, or inaccessible icon controls.
-- At 200% zoom and all target viewports, text remains readable, controls remain reachable, and there is no incoherent overlap or page-level horizontal scrolling.
-- Reduced-motion tests observe no nonessential animation; standard-motion tests observe only documented durations and properties.
-- Visual snapshots are stable across two consecutive clean runs and show a quiet, consistent, content-first Portfell interface rather than Apple or Google branding.
-- Bundle budgets, full Playwright suite, Python tests, TypeScript checking, Vite build, Node syntax checking, Ruff, Pyright, import-linter, and every required check in [GATES.md](GATES.md) pass.
-
-Out of scope: Dark mode, custom themes, marketing pages, illustration, 3D, charts, native mobile applications, offline support, analytics, and copying proprietary platform assets or components.
-
-Security: Accessibility, screenshot, and performance artifacts contain only deterministic synthetic fixtures; CI uploads contain no provider credentials, production project names, private data, internal paths, or session material.
-
-Determinism: Pinned browser/runtime versions, fixed fixtures, fixed viewports, reduced-motion settings, token values, and font assets produce stable screenshots, bundle measurements, and accessibility results.
-
-Idempotency: Repeated visual, accessibility, and performance checks do not mutate application state or tracked baselines unless an explicit reviewed update command is run.
-
-### Platform-Inspired Simple UI Series Completion Gate
-
-The platform-inspired simple UI series is complete only after PR120 through PR123 are merged and all required checks in [GATES.md](GATES.md) pass. Completion requires a documented mark-neutral visual language, semantic tokens, one icon library, consistent shared controls, refined shell/sidebar and four workflow pages, responsive and zoom-safe layouts, restrained reduced-motion-aware animation, stable visual baselines, accessibility coverage, bundle budgets, and explicit checks preventing Apple or Google brand assets from entering the product.
-
-## Active Persistent EODHD Credential PR Stack
-
-This series makes one EODHD API key survive browser sessions, API restarts, and Docker recreation for the same server-resolved user. The plaintext key remains write-only: it is never returned to or persisted by the browser. The current local deployment is intentionally single-user after Google authentication removal, so the server owns one stable local principal; future authenticated deployments may supply a session principal through the same typed boundary without changing credential storage.
-
-The implementation order is strict. Persistence and identity land before runtime cutover, and runtime cutover lands before the UI starts relying on saved credential status. Every PR must preserve the existing mocked-provider test path and must not reintroduce Google authentication, browser secret storage, plaintext database columns, or a shared global EODHD key.
-
-### PR124. Stable Local Principal And Credential Repository Ports
-
-Branch: `refactor/persistent-credential-boundaries`.
-
-Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/210.
-
-Priority: P0 identity and persistence boundary.
-
-Depends on: current `main`.
+Depends on: PR143.
 
 Scope:
 
-- Replace the API-local `LOCAL_WORKSPACE_USER_ID = "user-a"` assumption with a typed `CurrentUserProvider` boundary that resolves a server-owned principal and never accepts a user id from request bodies, query parameters, headers supplied by the browser, or browser storage.
-- Add a deterministic single-user `LocalWorkspaceUserProvider` for the current deployment. Its UUID comes from server configuration or an idempotently bootstrapped PostgreSQL local-user row and remains stable across browser sessions, API restarts, and Docker container recreation.
-- Define a `CredentialStore` protocol containing only `upsert` and `get`; make `InMemoryCredentialStore` implement it for unit tests without changing its test semantics.
-- Change `EodhdCredentialVault` to depend on the protocol rather than the concrete in-memory class. Keep encryption, associated-data ownership checks, masking, revocation, deletion, and provider-call unwrapping inside the vault.
-- Add explicit configuration parsing and validation for the local principal. Reject empty, malformed, changing-at-runtime, or browser-provided identities before serving credential routes.
-- Document the single-user trust boundary in `ARCHITECTURE.md`, `DECISIONS.md`, and the hosted/local runtime documentation. State that this principal is not multi-user authentication and must not be exposed as an authorization mechanism on a public deployment.
+- Add an immutable, versioned Multivariate risk-model artifact built from the input snapshot's one
+  universe-wide aligned log-return matrix. Persist estimator, return type, window policy,
+  observation period, full listing order, covariance values, shrinkage intensity, eigenvalue and
+  condition diagnostics, PSD status, availability reasons, and algorithm version.
+- Use Ledoit-Wolf shrinkage as the initial production estimator while retaining sample covariance
+  and EWMA as explicit research alternatives. Never substitute bivariate pairwise-intersection
+  covariance for the joint portfolio covariance matrix.
+- Convert the selected risk-model result into the typed covariance input consumed by every
+  covariance-dependent optimizer, baseline, variance calculation, risk-contribution calculation,
+  and comparison. Remove the current path that validates a shrinkage model but passes separately
+  read sample-covariance rows to profiles.
+- Make candidate evaluation single-pass. Persist and write the exact evaluated candidate rather
+  than recomputing it in a writer. Remove implicit Equal Weight substitution from production
+  candidate persistence; unavailable or infeasible results remain unavailable or infeasible.
+- Include the risk-model artifact id, full listing keys, aligned-calendar id, estimator parameters,
+  and solver/constraint versions in candidate and production-adapter identities.
+- Keep the public portfolio solver boundary independent of project, user, provider, filesystem,
+  and browser concerns. Add conversion helpers at the Multivariate orchestration boundary rather
+  than making solvers read artifacts directly.
 
 Acceptance:
 
-- Unit tests prove two independently-created `LocalWorkspaceUserProvider` instances resolve the same configured UUID and that two different configured UUIDs never share credential records.
-- API tests prove every credential and metadata route obtains identity through `CurrentUserProvider`; no production route references `LOCAL_WORKSPACE_USER_ID` or accepts a caller-selected user id.
-- Existing tests continue to inject deterministic test users without PostgreSQL or Docker.
-- Static governance tests reject direct construction of production API users from request-controlled values and reject reintroduction of `LOCAL_WORKSPACE_USER_ID`.
-- Ruff, Pyright, focused credential/API tests, and the full repository quality gate pass.
+- A hand-checkable fixture proves that Ledoit-Wolf covariance passed to HRP, ERC, Minimum Variance,
+  portfolio variance, and risk contributions is the exact validated matrix, not the separately
+  persisted sample covariance.
+- A fixture where sample and shrinkage covariance yield materially different weights proves that
+  every reported weight and risk fact follows the selected shrinkage artifact.
+- Tests cover sample, Ledoit-Wolf, and EWMA selection; symmetric and PSD matrices; singular and
+  ill-conditioned inputs; non-finite values; incomplete listing coverage; and deterministic listing
+  ordering.
+- A rejected risk model cannot produce weights, a production label, a recommendation, or a silent
+  Equal Weight fallback. Requested and actual estimator/method labels always agree.
+- The writer persists the already-evaluated candidate exactly once. A test fails if it invokes the
+  optimizer again or changes weights between evaluation and persistence.
+- Risk-model and candidate identities change when the calendar, returns, membership, estimator,
+  estimator parameters, constraints, solver version, or algorithm version changes, and remain
+  unchanged otherwise.
+- Existing solver tolerances and supported research modes remain backward compatible through
+  explicit adapters; no compatibility facade owns production mathematics.
 
-Out of scope: PostgreSQL credential SQL, API startup wiring, UI changes, login, cookies, OAuth/OIDC, and multi-user session management.
+Security: Risk-model and solver functions accept already-scoped numeric rows only. They cannot
+resolve users, credentials, project membership, arbitrary artifact ids, or filesystem paths.
+Hosted artifact reads remain authorized through the owning input snapshot.
 
-Security: Identity is resolved exclusively on the server. The local principal is suitable only for the explicitly single-user local deployment and grants no cross-user or public-hosted security guarantee.
+Determinism: Canonical listing/date order, estimator serialization, numerical tolerances, matrix
+serialization, and candidate replacement keys are versioned. Identical inputs produce identical
+artifact ids and numerically equal outputs within committed tolerances.
 
-Determinism: The same validated server configuration resolves byte-equivalent user identity across processes and container recreation.
+Idempotency: Repeating or concurrently requesting an identical risk model or candidate reuses the
+artifact and does not append duplicate covariance, diagnostics, weights, or risk-contribution rows.
 
-Idempotency: Re-resolving or bootstrapping the local principal creates at most one logical active local user and performs no credential mutation.
+### PR145. Multivariate Portfolio-Structure Statistics
 
-### PR125. PostgreSQL Encrypted Credential Repository And Schema Migration
-
-Branch: `feat/postgres-credential-repository`.
-
-Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/211.
-
-Priority: P0 durable encrypted storage.
-
-Depends on: PR124.
-
-Scope:
-
-- Add a versioned migration for the complete persistable `EncryptedCredentialRecord`, including credential id, user id, provider, lifecycle status, ciphertext, data nonce, wrapped data key, wrap nonce, key version, canonical associated data, fingerprint HMAC, masked label, and lifecycle timestamps.
-- Reconcile the existing `portfell_app.provider_credentials` declaration with the vault model. Add any missing columns, constraints, indexes, and active-record uniqueness rules without destructive table recreation or plaintext migration.
-- Implement `PostgresCredentialStore` against the `CredentialStore` protocol using parameterized SQL and the application database role. Serialize associated data structurally and reconstruct it with strict schema/provider/user validation.
-- Make credential replacement atomic: one transaction transitions the prior active record and publishes exactly one active `(user_id, provider)` credential. Concurrent replacement must not create multiple active rows.
-- Preserve revoked and deleted records for lifecycle audit while `get` returns only the current logical record required by vault status and provider-call operations.
-- Add migration, repository, concurrency, malformed-row, and two-user isolation tests against PostgreSQL.
-
-Acceptance:
-
-- A credential encrypted before closing one repository connection is readable and decryptable through a new repository connection with the same user and KEK.
-- PostgreSQL contains no plaintext provider key; a database-only test fixture without the external KEK cannot recover the key.
-- Wrong-user reads return no record, and manually mismatched associated data fails closed before decryption.
-- Concurrent set/replace tests leave exactly one active credential and preserve valid lifecycle history.
-- Migration tests succeed from an empty database and from the current schema, and repeated migration execution is a no-op.
-- Repository integration tests, schema governance checks, Ruff, Pyright, and the full repository quality gate pass.
-
-Out of scope: FastAPI production wiring, browser behavior, credential validation against live EODHD, key rotation commands, backup procedures, and authentication changes.
-
-Security: SQL is parameterized, PostgreSQL stores only encrypted material and client-safe metadata, and user scope is enforced in every repository query in addition to vault associated data.
-
-Determinism: Row reconstruction and associated-data serialization are canonical; ciphertext remains intentionally nondeterministic.
-
-Idempotency: Retrying an identical logical upsert cannot create a second active credential or alter another user's record.
-
-### PR126. Persistent Credential Runtime Wiring And Secret Configuration
-
-Branch: `feat/persistent-credential-runtime`.
-
-Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/213.
-
-Priority: P0 production cutover.
-
-Depends on: PR125.
-
-Scope:
-
-- Add one production application factory that opens the configured PostgreSQL repository, resolves the stable server-side principal, and injects one persistent `EodhdCredentialVault` into FastAPI dependencies. Keep `HostedApiState` and `InMemoryCredentialStore` available only through explicit test/local-adapter construction.
-- Load the versioned key-encryption key and the separate credential-fingerprint HMAC secret from external secret files. Validate exact supported lengths, reject missing/unreadable files, and fail startup without printing paths or secret material.
-- Extend Compose secrets and environment contracts for the fingerprint secret and stable local principal while retaining the existing named PostgreSQL volume. Add production-example configuration with placeholders only.
-- Make `GET`, `POST`, and `DELETE /api/credentials/eodhd` use the injected persistent vault. Make `POST /api/metadata/fetch-all` unwrap the saved active credential for the current user without requiring a new key submission.
-- Return only client-safe credential status fields: provider, lifecycle status, masked label, and key version. Preserve stable structured errors for missing, revoked, deleted, unavailable-key-version, and authentication-failure cases.
-- Remove hard-coded development KEK and fingerprint material from the production application path and add governance checks preventing their reintroduction.
-
-Acceptance:
-
-- An integration test saves a synthetic key, destroys the FastAPI application and database connection, creates a new application instance, and successfully performs a mocked metadata fetch without resubmitting the key.
-- A Docker integration test recreates the API container while preserving the database volume and proves credential status plus mocked provider use remain available to the same principal.
-- Starting with a missing/invalid KEK, missing fingerprint secret, invalid principal, or unavailable database fails closed with redacted diagnostics.
-- Changing the principal produces `credential_not_found`; restoring the original principal restores access without rewriting the credential.
-- API responses, logs, health output, Compose inspection, and test artifacts contain no plaintext provider key or secret-file contents.
-- Focused integration tests, Compose configuration validation, secret-scanning checks, Ruff, Pyright, and the full repository quality gate pass.
-
-Out of scope: UI controls, browser storage, multi-user login, automatic KEK rotation, backup/restore automation, and provider-key recovery or display.
-
-Security: Secrets enter only through external files; plaintext exists only during bounded provider calls; application startup fails closed when durable encryption dependencies are unavailable.
-
-Determinism: The same database, principal, KEK version, and fingerprint secret resolve the same logical credential status across process and container restarts.
-
-Idempotency: Recreating the application or container performs no credential rewrite, duplicate bootstrap, or provider request until an explicit user action occurs.
-
-### PR127. Saved Credential Status, Replace, Delete, And Keyless Refresh UI
-
-Branch: `feat/saved-credential-ui`.
-
-Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/214.
-
-Priority: P1 session-independent credential UX.
-
-Depends on: PR126.
-
-Scope:
-
-- Load `GET /api/credentials/eodhd` when `ShellFrame` starts and model `loading`, `missing`, `active`, `revoked`, `deleted`, and `error` states with typed API contracts.
-- Keep the password field empty on every page load. For an active credential, render only the server-provided masked label and a clear `Saved` status; never prefill, reconstruct, cache, or retain plaintext in browser storage.
-- Allow `Fetch all metadata` with an active saved credential and an empty input. If the user enters a new key, save it first and then fetch metadata; clear the plaintext field immediately after the successful credential save, before starting the provider workflow.
-- Add explicit `Replace key` and `Delete key` actions. Replacement requires a newly-entered value; deletion requires confirmation, calls `DELETE /api/credentials/eodhd`, clears client credential status, and disables keyless metadata refresh.
-- Prevent duplicate save/fetch/delete requests, retain accessible progress and error announcements, and distinguish credential errors from metadata-provider errors without exposing response bodies or secret values.
-- Update `docs/ui/header.md`, relevant page specifications, and browser fixtures to describe the write-only persisted credential lifecycle.
-
-Acceptance:
-
-- Browser tests cover first entry, successful save, page reload, new browser context, keyless metadata fetch, replacement, deletion, revoked/deleted status, API failure, and recovery.
-- After reload or a new browser context, the UI displays only the masked label and can fetch metadata without key re-entry.
-- Plaintext keys are absent from `localStorage`, `sessionStorage`, IndexedDB, cookies, URLs, history state, DOM attributes, screenshots, console output, network responses, and persisted test artifacts.
-- The fetch button is enabled when either a non-empty replacement value or an active saved credential exists, and disabled for missing/revoked/deleted credentials with an empty input.
-- Keyboard and 200% zoom tests cover status, replacement, confirmation, deletion, and error recovery without overlap or focus loss.
-- TypeScript checking, Vite build, focused browser tests, accessibility checks, and the full repository quality gate pass.
-
-Out of scope: Showing/copying the saved plaintext key, browser password-manager integration, login/account UI, multiple provider keys, automatic credential validation schedules, and key rotation administration.
-
-Security: The browser receives only masked lifecycle status and never becomes a secret persistence boundary.
-
-Determinism: Identical server status produces identical labels, enabled states, action order, and accessible announcements.
-
-Idempotency: Repeated status loads are read-only; repeated guarded clicks cannot duplicate credential mutation or metadata refresh requests.
-
-### PR128. Credential Restart, Rotation, Backup, And Completion Gate
-
-Branch: `chore/persistent-credential-completion-gate`.
+Branch: `feat/multivariate-portfolio-structure`.
 
 Git status: not started. PR: TBD.
 
-Priority: P1 operational assurance.
+Priority: P1 explainable joint-system analysis.
 
-Depends on: PR127.
+Depends on: PR144.
 
 Scope:
 
-- Add an operator-only, non-HTTP command that rewraps active credential data keys from one KEK version to another without EODHD key re-entry. Require explicit old/new external secret files, dry-run output, transaction boundaries, and redacted per-record results.
-- Add encrypted-database backup and restore documentation that treats PostgreSQL backup and KEK/fingerprint-secret recovery as separate protected assets. Document that losing the KEK makes credentials unrecoverable and that database backup alone must not decrypt them.
-- Add deterministic restart coverage for API process restart, API container recreation, full Compose stop/start with preserved volumes, restored database, unchanged principal, changed principal, valid KEK rotation, missing old KEK, and tampered ciphertext.
-- Add repository gates that reject plaintext credential fields, browser secret persistence, hard-coded production cryptographic material, credential responses containing ciphertext/fingerprints, and production use of `InMemoryCredentialStore`.
-- Update `README.md`, `ARCHITECTURE.md`, `CONTRACTS.md`, `RISKS.md`, and deployment examples with final credential ownership, lifecycle, restore, deletion, and rotation behavior.
-- Record the exact pre-merge and post-merge validation commands required by [GATES.md](GATES.md), including a clean Docker rebuild from the merged branch.
+- Compute and persist structure statistics from the canonical risk-model artifact: covariance and
+  correlation summaries, covariance-stability facts, hierarchical cluster membership, principal
+  components, per-component explained variance, cumulative explained variance, effective rank,
+  effective number of independent drivers, and component loadings by listing.
+- Produce a versioned plain-language structure summary containing candidate ETF count, risk-cluster
+  count, dominant-component share, number of components required to explain committed thresholds,
+  effective rank, strongest common driver, and the largest redundancy warning supported by the
+  available evidence.
+- Keep component labels empirical and neutral (`Component 1`, `Component 2`, and so on). Do not
+  infer labels such as technology, options, rates, or geography without typed exposure metadata and
+  an explicit labeling policy.
+- Add bounded API-ready summary and detail serializers. Dense loading matrices remain server-side;
+  detail access supports deterministic component/listing pagination and top-absolute-loading views.
+- Persist formulas, units, period, observation count, risk-model id, availability state, and reason
+  codes with every fact family. Do not construct portfolio weights or add a browser page.
 
 Acceptance:
 
-- Rotation tests prove the plaintext credential remains usable after rewrap, ciphertext data is not decrypted outside the bounded rotation service, and interruption leaves every record usable under either the old or committed new version.
-- Backup/restore tests recover credential usability only when database, matching principal, and required KEK version are present.
-- Restart tests prove one initial key submission supports later browser sessions and API/container restarts without re-entry.
-- Negative tests prove database-only compromise, wrong principal, wrong KEK, missing secret, tampering, revoked/deleted records, and browser storage inspection cannot yield or use plaintext credentials.
-- Full pytest, Ruff, Pyright, import checks, TypeScript checking, Vite build, browser tests, secret scanning, Compose validation, and all required gates pass from a clean checkout.
-
-Out of scope: Public multi-user authentication, cloud-specific KMS integration, automated backup scheduling, disaster-recovery infrastructure, multiple EODHD credentials per user, and recovery of a lost provider key.
-
-Security: Rotation and restore are offline operator workflows with redacted output; no new HTTP endpoint exposes cryptographic administration.
-
-Determinism: Fixed synthetic records, principal, key versions, and backup fixtures produce stable rotation plans and restart assertions.
-
-Idempotency: Re-running a completed rotation or restore verification performs no additional rewrap and creates no duplicate active credential.
-
-### Persistent EODHD Credential Series Completion Gate
-
-The persistent EODHD credential series is complete only after PR124 through PR128 are merged and all required checks in [GATES.md](GATES.md) pass. Completion requires a stable server-owned principal, a PostgreSQL-backed encrypted credential repository, external versioned cryptographic secrets, restart-safe API wiring, masked saved-status UI, keyless refresh for an active saved credential, replace/delete lifecycle controls, rotation and restore procedures, and automated proof that plaintext keys never enter browser persistence, PostgreSQL plaintext, logs, responses, images, or repository artifacts.
-
-## Active Hosted Multi-Tenant Portfell PR Stack
-
-Priority policy: security and authorization boundaries precede UI work. No endpoint may expose market or derived data before identity, credential encryption, user entitlement snapshots, and scoped analytical input enforcement exist. Every PR must use synthetic credentials and mocked provider responses in tests.
-
-### PR84. Hosted Architecture Decision, Threat Model, And Active-Backlog Reset
-
-Branch: `docs/hosted-multitenant-security-architecture`.
-
-Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/127.
-
-Priority: P0 governance and security foundation.
-
-Depends on: current `main`.
-
-Scope: Record the PostgreSQL-first hosted architecture, Google-only authentication, encrypted persistent EODHD credentials, shared content-addressed market and statistics stores, per-user entitlements, immutable User Data Snapshots, and local-mode compatibility. Add trust boundaries, data-flow diagrams, attacker model, credential lifecycle, account deletion semantics, backup boundaries, provider-licensing assumptions, and explicit prohibited designs. Update `ARCHITECTURE.md`, `DECISIONS.md`, `RISKS.md`, `GOALS.md`, and documentation checks so future hosted work cannot silently revert to SQLite, session-only keys, global current pointers, or unrestricted lake reads.
-
-Acceptance: Documentation tests verify that every hosted goal maps to an active PR; the architecture identifies Web, API, PostgreSQL, shared storage, external secret storage, Google, and EODHD trust boundaries; all secrets and personal data are classified; unresolved licensing blocks public-hosted readiness; and the local CLI path remains documented.
-
-Security: The decision explicitly forbids secrets in Git, database plaintext, container images, CI artifacts, URLs, browser storage, client analytics, or logs. It requires an external key-encryption key and separates database backups from key recovery backups.
-
-Determinism: Architecture and readiness status derive from versioned static decision records, not the deployment environment or live provider calls.
-
-Idempotency: Re-running documentation validation against unchanged records produces no repository or runtime changes.
-
-### PR85. PostgreSQL Application Catalog, Migrations, Roles, And Row-Level Security
-
-Branch: `feat/postgres-multitenant-catalog`.
-
-Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/128.
-
-Priority: P0 persistence and isolation foundation.
-
-Depends on: PR84.
-
-Scope: Add PostgreSQL dependencies, migration tooling, repository interfaces, and schema for users, external identities, sessions, provider credentials, projects, download runs, market objects, dataset snapshots, user grants, selections, analysis runs, artifacts, artifact inputs, and audit events. Create separate owner, migration, application, and read-only roles. Enable and force Row-Level Security on user-owned tables, pass the authenticated user id through transaction-local PostgreSQL settings, and prevent the application role from owning tables or bypassing RLS.
-
-Acceptance: Migration tests start from an empty database, upgrade to head, exercise downgrade policy where supported, and prove uniqueness, foreign-key, lifecycle, and immutability constraints. Isolation tests prove User A cannot select, insert, update, or delete User B's rows even through repository mistakes. The schema records immutable artifact references without storing EODHD plaintext keys or large analytical tables in PostgreSQL.
-
-Security: Database URLs and passwords are loaded from secret files outside the checkout. PostgreSQL is not published to the public host interface by default. The application role is non-superuser, has no `BYPASSRLS`, and cannot alter security policies.
-
-Determinism: Migration order, constraint names, normalized identifiers, and serialized JSON fields are versioned and stable.
-
-Idempotency: Re-applying migrations to the same schema is a no-op; retries do not duplicate identities, grants, projects, runs, or artifacts.
-
-### PR86. Google-Only OpenID Connect And Server-Side Session Security
-
-Branch: `feat/google-oidc-authentication`.
-
-Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/129.
-
-Priority: P0 authenticated user boundary.
-
-Depends on: PR85.
-
-Scope: Add Google OpenID Connect using authorization code flow with PKCE, state, nonce, strict redirect URI validation, server-side token exchange, issuer/audience/signature/expiry checks, and Google's stable `sub` claim as the external identity key. Create short-lived, rotating server-side sessions with opaque HttpOnly, Secure, SameSite cookies; CSRF protection for state-changing requests; session revocation; login/logout/status routes; and optional domain allowlisting disabled by default.
-
-Acceptance: Tests cover first login, repeat login after months, changed Google email with unchanged `sub`, invalid issuer/audience/signature/nonce/state, replayed callback, expired session, revoked session, CSRF failure, logout, and concurrent sessions. A new user begins with no market-data grants, selections, projects, or analysis access.
-
-Security: Google client secrets, session signing or hashing keys, and callback configuration are runtime secrets or deployment configuration, never committed values. Tokens are never logged or returned after session establishment.
-
-Determinism: One `(provider, subject)` identity resolves to one internal user regardless of mutable email or display-name fields.
-
-Idempotency: Repeated valid login for the same Google `sub` updates permitted profile metadata without creating duplicate users or identities.
-
-### PR87. Encrypted EODHD Credential Vault With External Key Management
-
-Branch: `feat/encrypted-eodhd-credential-vault`.
-
-Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/130.
-
-Priority: P0 credential confidentiality.
-
-Depends on: PR86.
-
-Scope: Persist one EODHD credential per user using envelope encryption: a random per-credential data-encryption key encrypts the provider key with authenticated encryption; the data key is wrapped by a versioned Portfell key-encryption key supplied from a file or secret manager outside Git and PostgreSQL. Bind ciphertext to credential id, user id, provider, and schema version as associated data. Add set, replace, validate, status, revoke, delete, unwrap, and key-rotation services. Return only masked status metadata to clients.
-
-Acceptance: Tests cover encrypt/decrypt round trips, wrong user or associated-data rejection, tampering, wrong key version, replacement, revocation, deletion, KEK rotation without provider-key re-entry, unavailable KEK fail-closed behavior, and redaction in structured logs and exceptions. Database dumps and shared storage contain no plaintext or reversible material without the external KEK.
-
-Security: Plaintext provider keys exist only in bounded process memory during validation and provider calls. The KEK is never exposed to Web, PostgreSQL, CI, test reports, exception payloads, or ordinary application logs. Credential fingerprints use a separate keyed HMAC and are never returned in full.
-
-Determinism: Ciphertext is intentionally nondeterministic; logical credential identity and status transitions are deterministic from user, provider, and versioned lifecycle rules.
-
-Idempotency: Re-submitting the same valid key updates permitted metadata or reuses the logical credential without creating multiple active credentials.
-
-### PR88. Shared Content-Addressed Market Observation Store
-
-Branch: `feat/shared-market-observation-store`.
-
-Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/131.
-
-Priority: P0 shared physical data foundation.
-
-Depends on: PR85.
-
-Scope: Add immutable normalized market observations and append-only Parquet segments for EODHD quotes, dividends, splits, metadata, and later supported datasets. Define a stable business key and payload hash per observation; retain corrected historical values as new revisions rather than overwriting prior observations. Add atomic temporary-write, validation, content-hash, fsync, rename, and PostgreSQL catalog publication. Store segment and manifest paths outside user-specific directories.
-
-Acceptance: Tests cover identical responses, overlapping date ranges, appended dates, corrected rows with unchanged row count and end date, deleted provider rows, duplicate response rows, interrupted publication, corrupt segments, and concurrent writers. Identical normalized observations result in one physical observation and one catalog identity.
-
-Security: Shared physical presence grants no user access. Storage paths and content hashes are not accepted directly as authorization credentials. Parquet data contains no user id, provider key, session token, or credential fingerprint.
-
-Determinism: Observation ids derive from provider, dataset type, listing identity, business key, normalized payload, and schema version. Segment manifests are canonical and independent of worker completion order.
-
-Idempotency: Re-ingesting identical observations produces no duplicate physical rows or catalog objects; retries publish at most one valid object.
-
-### PR89. User Data Entitlements, Download Provenance, And Immutable Snapshots
-
-Branch: `feat/user-data-entitlement-snapshots`.
-
-Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/132.
-
-Priority: P0 authorization semantics.
-
-Depends on: PR87 and PR88.
-
-Scope: Model successful provider-backed download runs, exact returned observation sets, user grants, snapshot manifests, parent snapshots, revision selection, current project snapshot pointers, revocation, account deletion, and garbage-collection references. A grant may be created only after a successful EODHD response using the authenticated user's active credential. Build an entitlement resolver that creates an immutable User Data Snapshot containing the exact observations and revisions visible to that user at that point in time.
-
-Acceptance: Tests prove a new user sees zero data; User A cannot see later observations downloaded by User B; overlapping physical data is shared without shared entitlement; User A gains the newer range only after their own successful refresh; historical corrections from another user's request remain invisible until an own refresh; old analyses retain old snapshots; and account deletion removes credentials and grants without deleting objects still referenced by other users.
-
-Security: Every grant is linked to authenticated user, credential, provider request, normalized response, and immutable snapshot. No API or service may infer access from object existence, listing identity, date range, content hash, or another user's run.
-
-Determinism: Snapshot hashes derive from canonically ordered observation ids and revision rules, not grant timestamps or filesystem order.
-
-Idempotency: Replaying the same successful response for the same user resolves to the same logical snapshot and does not duplicate grants or manifests.
-
-### PR90. User-Key-Backed EODHD Ingestion And Refresh Planner
-
-Branch: `feat/user-scoped-eodhd-ingestion`.
-
-Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/133.
-
-Priority: P0 usable BYOK download path.
-
-Depends on: PR89.
-
-Scope: Refactor EODHD workflows to accept an injected authenticated credential context rather than loading a global token. Add user-scoped full and gap-aware download planning, Free versus paid capability discovery, usage accounting, resumable runs, provider rate-limit handling, per-credential request serialization, shared-object deduplication, and atomic entitlement publication. Even when all requested observations already exist physically, execute the provider request with the current user's key before granting access.
-
-Acceptance: Mocked integration tests cover Free and paid keys, invalid and revoked keys, quota exhaustion, retries, partial symbol failure, resume, overlapping user requests, existing shared objects, newer end dates, corrections, and concurrent identical requests. A successful run publishes a new User Data Snapshot; a partial or failed run cannot grant unreturned data.
-
-Security: Provider URLs, headers, tokens, request diagnostics, and error bodies are centrally redacted. Decryption is performed immediately before the outbound request, and plaintext credentials are never passed to workers that do not perform provider access.
-
-Determinism: Run plans derive from explicit requested scope, prior user snapshot, provider capability contract, and requested as-of date. Operational retry timing cannot affect data identities.
-
-Idempotency: Resuming a run requests only incomplete work, deduplicates shared observations, and publishes no duplicate grants or snapshots.
-
-### PR91. Scoped Analytical Input Boundary And Local Adapter Compatibility
-
-Branch: `refactor/scoped-analytical-inputs`.
-
-Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/134.
-
-Priority: P0 prevention of cross-user analytical leakage.
-
-Depends on: PR90.
-
-Scope: Introduce typed `ScopedMarketInputs`, `UserDataSnapshotRef`, `SelectionInputRef`, and snapshot-reader ports. Refactor hosted workflows so univariate, bivariate, multivariate, production portfolio, backtest, recommendation, and report paths receive already authorized immutable inputs and never call unrestricted `read_silver_quotes`, global current-selection files, or filesystem scans. Preserve current local CLI behavior through a `LocalLakeSnapshotReader`; add a hosted `EntitledSnapshotReader` backed by PostgreSQL and shared manifests.
-
-Acceptance: Architecture tests fail when hosted services import unrestricted lake readers. Multi-user tests inject extra global observations and prove they cannot influence another user's returns, statistics, data-quality checks, optimization, backtests, or recommendations. Local CLI regression tests retain current commands and outputs.
-
-Security: `user_id`, project ownership, snapshot ownership, and selection ownership are checked before resolving physical objects. The mathematical core receives no database credentials and cannot broaden the authorized scope.
-
-Determinism: Scoped input identities derive from immutable snapshot, selection, dataset schema, and revision-policy ids.
-
-Idempotency: Re-resolving unchanged authorized inputs returns the same immutable input references without copying market rows.
-
-### PR94. Content-Addressed Multivariate, Portfolio, Backtest, And Report Artifacts
-
-Branch: `feat/content-addressed-portfolio-artifacts`.
-
-Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/137.
-
-Priority: P1 portfolio-level reuse.
-
-Depends on: PR93.
-
-Scope: Build shared multivariate and downstream artifact identities from the sorted authorized listing-input artifact ids, selection definition and membership, return matrix, risk model, constraints, optimizer settings, costs, walk-forward windows, stress settings, recommendation template, and algorithm versions. Store physical artifacts globally while creating separate user-owned analysis runs and project references. Remove user id from physical cache keys and include it only in authorization and provenance records.
-
-Acceptance: Two users with identical authorized snapshots and settings reuse one physical artifact while retaining separate runs. Different visible end dates, revisions, selections, constraints, costs, risk models, or algorithm versions produce distinct artifacts. Direct artifact-id access, cross-project run access, and stale project pointers are rejected.
-
-Security: Every response resolves through an authenticated user-owned analysis run; no endpoint serves shared artifact paths directly. Artifact dependency closure is checked before reuse.
-
-Determinism: Artifact ids and reports derive only from exact immutable inputs, explicit settings, and versioned algorithms.
-
-Idempotency: Repeated identical analyses return the existing completed result or join the active computation without duplicate artifacts, portfolio rows, or reports.
-
-## Active Architectural Refactor PR Stack
-
-This series addresses the three highest-leverage structural risks in the active codebase. The order is deliberate: first establish a narrow hosted application boundary, then place quote ingestion behind that boundary, and finally isolate the numerical portfolio core. Each PR is independently mergeable and behavior-preserving except for explicitly stated internal contracts. No PR may add a compatibility runtime, duplicate implementation, new external service, or unrelated product behavior.
-
-### PR129. Hosted API Routers, Application Services, And State Ports
-
-Branch: `refactor/hosted-api-boundaries`.
-
-Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/218.
-
-Priority: P0 architecture and change-isolation baseline.
-
-Depends on: current `main`.
-
-Scope:
-
-- Reduce `portfell.hosted_api` to the FastAPI composition root, runtime factory, stable public request/response exports, and `app` entry point.
-- Move Pydantic request models and JSON response serializers into one API-contract module with no imports from workflows, lake paths, credential implementations, or mutable repositories.
-- Move `HostedApiState`, project/selection/analysis records, ownership checks, idempotency references, audit writes, and local-workspace serialization into explicit state and repository-port modules.
-- Move metadata, project/workflow, quote-run, and research orchestration into application-service modules. Services accept typed ports and values; they do not depend on FastAPI `Request`, `Depends`, `BackgroundTasks`, headers, or `HTTPException`.
-- Split route registration by credential, metadata/project, quote-run, and research concerns. Routers translate HTTP input/output only and call application services; they do not read the lake or mutate repository dictionaries directly.
-- Add import-linter contracts enforcing `routes -> application services -> ports/domain`, forbidding reverse imports and direct route imports of `bronze`, `silver`, `workflows`, `table_io`, or concrete credential stores.
-- Keep the existing route paths, methods, status codes, structured error codes, OpenAPI field names, runtime factories, and Docker entry point unchanged. Do not add routes, persistence behavior, authentication behavior, or UI changes.
-
-Acceptance:
-
-- A checked-in normalized OpenAPI snapshot and API contract tests prove the same paths, methods, request schemas, response fields, status codes, and error codes before and after extraction.
-- Existing hosted API, credential, project, workflow, security, and Web contract tests pass without weakening assertions or deleting coverage.
-- `src/portfell/hosted_api.py` contains only composition/export code and is at most 250 nonblank, non-comment lines; no extracted production module exceeds 500 such lines.
-- Route modules contain no direct filesystem calls, `LakePaths`, workflow implementation imports, mutable state-dictionary access, or provider-client construction.
-- Import-linter and architecture checks fail on fixture violations of each new dependency rule.
-- Ruff, Pyright, all test shards, coverage, architecture checks, schema validation, and every required gate in [GATES.md](GATES.md) pass.
-
-Out of scope: PostgreSQL cutover, run persistence, quote-progress redesign, authentication changes, provider concurrency changes, endpoint additions, browser changes, and analytical refactors.
-
-Security: Ownership, credential redaction, CSRF, idempotency, and audit behavior remain server-owned and are tested at both route and service boundaries; extraction must not introduce a route that can access an unscoped repository or lake path.
-
-Determinism: Identical state and requests produce byte-equivalent normalized JSON and stable ids before and after extraction; module placement cannot enter hashes or persisted rows.
-
-Idempotency: Existing idempotency keys, active-run reuse, project identities, and selection identities retain exactly the same lookup and mutation semantics after extraction.
-
-### PR133. Hosted Research Service Boundary Completion
-
-Branch: `refactor/hosted-research-boundaries`.
-
-Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/238.
-
-Priority: P0 architecture enforcement and restart-safe research orchestration.
-
-Depends on: current `main`.
-
-Scope:
-
-- Replace the hidden monolithic `research_service.py` implementation with one route-facing facade and separate univariate, bivariate, and analysis services.
-- Move bivariate matrices, summaries, and portfolio diagnostics into pure typed calculation modules.
-- Put mutable hosted research state behind a typed repository port, local lake access behind a research-data port, and workspace writes behind a persistence port.
-- Compose concrete local adapters only in `hosted_api`; application services must not import local runtime, lake paths, workspace persistence, or repository adapters.
-- Remove dynamic imports and broad Pyright suppressions from the hosted research path.
-- Extend import, typing, module-size, and regression gates so the real implementation cannot escape through a compatibility wrapper or filename change.
-
-Acceptance:
-
-- `research_service.py` no longer exists and every route-facing research operation retains its existing method and API behavior through `hosted_research_service.ResearchService`.
-- Univariate, bivariate, and analysis services are independently typed, below the hosted module-size limit, and operate through injected ports.
-- Bivariate diagnostics and matrix read models are pure functions with no hosted state, filesystem, HTTP, or persistence dependencies.
-- Architecture tests fail if a hidden research service, dynamic `import_module` dependency, broad unknown-type suppression, concrete adapter import, or oversized hosted module is introduced.
-- Focused hosted and bivariate tests, strict Pyright, Ruff, Import Linter, the full PR quality gate, and Docker health validation pass.
-
-Security: Repository operations retain mandatory user ownership checks, while services cannot open unrestricted lake paths or bypass the scoped data adapter.
-
-Determinism: Existing run identities, selection identities, matrix ordering, diagnostics, and serialized API responses remain stable for identical inputs.
-
-Idempotency: Existing active-run reuse and analysis idempotency remain unchanged; completed univariate selections and bivariate results are persisted after every durable transition.
-
-### PR134. Hosted Research Boundary Coverage Completion
-
-Branch: `fix/hosted-research-coverage`.
-
-Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/240.
-
-Priority: P0 post-merge quality-gate repair.
-
-Depends on: PR133.
-
-Scope: Add focused tests for the extracted hosted-research service transitions, injected persistence and data ports, local univariate adapter fallbacks, and bivariate diagnostic edge cases so the repository-wide coverage gate measures the new architecture directly.
-
-Acceptance: The exact combined coverage command passes the unchanged 95% threshold; strict Pyright, Ruff, architecture checks, and the full PR gate pass without coverage exclusions, pragma suppression, or production-code inflation.
-
-Security: Tests use synthetic users, instruments, and temporary lake roots and do not access credentials or external provider services.
-
-Determinism: All new cases use fixed rows, inline executors, and injected fake ports; no wall clock, network, or process scheduling affects assertions.
-
-Idempotency: Repeated test runs leave repository state unchanged and create artifacts only under pytest-managed temporary directories.
-
-### PR135. Stateful Two-Project UI Workflow Coverage
-
-Branch: `chore/ui-two-project-workflow`.
-
-Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/242.
-
-Priority: P0 end-to-end UI regression coverage.
-
-Depends on: current `main`.
-
-Scope: Add a stateful browser journey that creates two dummy projects through the visible metadata form, exercises every current research-workflow field and action, verifies project-scoped persistence after switching projects, and covers desktop, tablet, and mobile layouts. Add Vitest with a 95% minimum statement, branch, function, and line coverage threshold for the React unit-test scope, enforce it in both PR and main GitHub quality gates, and repair the univariate completion lifecycle so completed results reliably render before the test evaluates the statistic controls. Add a consumer-driven inventory that ensures every React API path is catalogued and verifies each consumed FastAPI operation's method, request schema, and query parameters.
-
-Acceptance: The journey covers credential and metadata actions; all metadata fields; historical-data and univariate actions; all nine portfolio-selection controls; histogram hover content; univariate predicate add, edit, remove, and apply controls; project switching and restored saved state; bivariate compute; and all four pairwise-dependence tabs. It uses a deterministic stateful API fixture and passes in every configured Playwright viewport. Vitest runs under JSDOM for the React client, shared components, runtime environment, routes, and resource hook, with all four coverage measurements enforced at 95% or higher in CI. Contract inventory tests fail when a React API path is missing from the inventory or when a consumed FastAPI endpoint, request-body schema, or query parameter changes without its consumer contract being updated.
-
-Security: Browser fixtures use synthetic projects, instrument identifiers, and provider keys only. They never contact a real provider, persist credentials, or expose application secrets.
-
-Determinism: The fixture owns fixed run states, rows, matrices, and project identities. It returns project-scoped responses rather than a single hard-coded global response, so switching behavior is repeatable.
-
-Idempotency: Each Playwright worker constructs fresh in-memory fixture state. Re-running the journey creates no real projects, provider calls, or durable application data.
-
-### PR136. Result-Driven Dividends Window Visibility
-
-Branch: `fix/univariate-dividends-result-visibility`.
-
-Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/244.
-
-Priority: P1 univariate statistics clarity.
-
-Depends on: PR135.
-
-Scope: Hide the Dividends univariate-statistics window until a completed univariate run has loaded its result payload. Align Playwright discovery with the browser-spec files so Vitest unit tests are not accidentally executed by Playwright. Align the declared `@playwright/test` version with the lockfile-resolved browser runtime used by the workflow tests.
-
-Acceptance: Before completed results load, the page shows only historical-data and univariate-compute controls; no Dividends card, selection field, or histogram is rendered. Once results load, the Dividends card and histogram appear, including the empty-result state. The three-viewport workflow test asserts this transition, while Vitest and Playwright remain separate commands using matching Playwright package and browser versions.
-
-Security: The change introduces no new API call, client-side business rule, or sensitive data handling.
-
-Determinism: Visibility is determined solely by the loaded server-result state (`results !== null`).
-
-Idempotency: Repeated compute and restore paths render the same result-driven Dividends window without creating client-owned state.
-
-### PR137. Workflow Module Boundaries
-
-Branch: `refactor/workflow-module-boundaries`.
-
-Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/245.
-
-Priority: P0 research-workflow architecture.
-
-Depends on: PR136.
-
-Scope: Establish Metadata Builder, Univariate Statistics, and Bivariate Statistics as the only
-explicit browser workflow modules. Give each module a typed API facade, register route ownership,
-keep shared transport and workspace context separate, and document persisted input/output hand-offs
-and rules for later modules. Metadata and univariate selectioning remain internal persistence/CLI steps,
-not standalone browser modules.
-
-Acceptance: Every active browser page has exactly one registered module owner. Module-specific API
-routes live only in the owning facade, while the shared client contains only transport and workspace
-contracts. Unit coverage exercises all facades at or above the enforced 95% thresholds, and the
-frontend API inventory continues to validate every consumed route against the FastAPI contract.
-
-Security: The refactor introduces no new endpoints or credential flow; metadata credentials remain
-within the existing server-owned credential contract.
-
-Determinism: Module communication occurs only via the existing persisted selection and run IDs, never
-via browser-local state.
-
-Idempotency: Re-loading a project and invoking a module facade leaves the existing server-owned run
-and selection semantics unchanged.
-
-Series Completion Gate: Follow the current pre-merge and post-merge gates in [GATES.md](GATES.md).
-
-### PR138. Parallel Metadata Downloads
-
-Branch: `feat/metadata-parallel-downloads`.
-
-Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/246.
-
-Priority: P1 ingestion performance.
-
-Depends on: PR137.
-
-Scope: Fetch and normalize independent EODHD exchange-symbol metadata payloads in a bounded worker
-pool sized to the available runtime CPUs. Preserve global provider request pacing, safe automatic
-403/404 skipping, deterministic rows and skipped-exchange ordering, and progress reporting.
-
-Acceptance: The hosted API forwards its available CPU count to metadata ingestion. At least two
-exchange payloads can be in flight concurrently; completed progress remains monotonic; returned rows
-and skipped exchanges remain deterministically ordered; and a one-worker invocation preserves the
-same output and failure semantics.
-
-Security: EODHD credentials remain confined to the existing HTTP client. Parallel work does not
-expose provider URLs, tokens, or raw response payloads in browser responses or logs.
-
-Determinism: Results are sorted by canonical ISIN, exchange, and code after concurrent completion.
-Provider failures retain the existing explicit-versus-automatic exchange semantics.
-
-Idempotency: Existing completed exchange coverage still prevents automatic re-downloads; concurrent
-workers only retrieve missing exchange payloads before the existing atomic reference publication.
-
-Series Completion Gate: Follow the current pre-merge and post-merge gates in [GATES.md](GATES.md).
-
-### PR139. Browser Module Route Names
-
-Branch: `fix/module-route-names`.
-
-Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/247.
-
-Priority: P1 browser workflow clarity.
-
-Depends on: PR138.
-
-Scope: Rename the browser-facing Metadata Builder route and all visible workflow labels from
-filter-oriented names to the three module names. Preserve legacy URLs only as redirects, and leave
-server API and persistence identifiers internal.
-
-Acceptance: The Metadata Builder page is served at `/metadata-builder`; browser navigation, page
-title, and process overview use the module name; legacy `/metadata-builder` and `/univariate-selection`
-URLs redirect to module routes; and no filter-named browser route remains registered.
-
-Security: Route renaming does not change API authorization, credential handling, or persisted data.
-
-Determinism: Legacy paths resolve to one fixed module route without changing browser state.
-
-Idempotency: Repeating a redirect or module navigation has no server-side effect.
-
-Series Completion Gate: Follow the current pre-merge and post-merge gates in [GATES.md](GATES.md).
-
-### PR140. Three-Module Backend And Persistence Contracts
-
-Branch: `refactor/module-contract-names`.
-
-Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/248.
-
-Priority: P0 module-boundary integrity.
-
-Depends on: PR139.
-
-Scope: Complete the breaking migration from the retired filter-stage identities to the three active
-module contracts. Rename Metadata Builder API types, routes, state, lake paths, and manifests; make
-the persisted univariate selection an output of Univariate Statistics; remove the standalone
-workflow stage and browser compatibility redirects; and update CLI, tests, contracts, and docs.
-
-Acceptance: Workflow responses contain exactly `metadata_builder`, `univariate_statistics`, and
-`bivariate_statistics`; tracked files contain no retired filter-stage identifiers
-identifiers; Bivariate Statistics consumes `univariate_selection_id` from the completed Univariate
-Statistics stage; existing lake selections are moved to the new persistence roots; and all quality,
-frontend, contract, and Docker-image checks pass.
-
-Security: The migration preserves server-owned project scope, credential boundaries, and selection
-ownership. No compatibility endpoint bypasses the canonical module contracts.
-
-Determinism: Renamed selection paths and identifiers retain canonical predicate serialization and
-stable membership ordering.
-
-Idempotency: Repeated project restoration, selection loading, and workflow reads reuse the same
-persisted artifacts without creating duplicate runs or selections.
-
-Series Completion Gate: Follow the current pre-merge and post-merge gates in [GATES.md](GATES.md).
-
-### PR142. Tail Dependence And Co-exceedance Matrices
-
-Branch: `feat/bivariate-tail-matrix-tabs`.
-
-Git status: pushed. Draft PR: https://github.com/SergejSchweizer/portfell/pull/251.
-
-Priority: P1 pairwise tail-risk visibility.
-
-Depends on: PR141.
-
-Scope: Expose persisted lower-tail-dependence and tail-coexceedance pair results as colour-scaled,
-upper-triangular matrices and a complete-pair tail-risk scatterplot. Add all views as tabs to the
-existing Bivariate Statistics dependence window, with the same aligned-period, hover, and label
-conventions as correlation matrices.
-
-Acceptance: A completed bivariate run provides typed Tail Dependence and Co-exceedance Rate matrix
-payloads; each matrix has the selected universe's shared date range and observation count; both tabs
-show matrix values, ISIN hover context, and tail-specific facts; the scatterplot has one point per
-pair, Tail Dependence on X, Co-exceedance Rate on Y, and labelled best-diversifier/risk-concentration
-quadrants; and the two-project browser journey selects every new tab.
-
-Security: Matrix reads remain authenticated, project-scoped, and derived only from persisted bivariate
-run rows.
-
-Determinism: Each matrix maps the immutable pair row values into the canonical sorted ISIN label order.
-
-Idempotency: Repeated reads of a completed run return identical matrix cells and facts.
-
-Series Completion Gate: Follow the current pre-merge and post-merge gates in [GATES.md](GATES.md).
-
-### PR141. Aligned Statistics Time Ranges
-
-Branch: `fix/aligned-statistics-time-ranges`.
-
-Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/249.
-
-Priority: P0 statistical comparability and provenance.
-
-Depends on: PR140.
-
-Scope: Align every Bivariate Statistics pair, matrix, correlation edge, and Gold covariance input to
-one universe-wide intersection of return dates. Preserve the existing universe-wide Multivariate
-Statistics return matrix and add its calculation period to research and production summaries. Add
-the aligned start/end dates to bivariate summary and matrix contracts and every bivariate facts table.
-
-Acceptance: All pair rows in a bivariate run have identical `date_start`, `date_end`, and
-`n_observations`; no pair statistics are produced when the selected universe has no common return
-date; multivariate matrices reject incomplete calendars; bivariate facts tables display the aligned
-data period; multivariate summaries expose `date_start`, `date_end`, and `observation_count`; and all
-quality, frontend, contract, and Docker checks pass.
-
-Security: Alignment operates only on the already project-scoped selected rows and never broadens
-selection membership or reads unrestricted data.
-
-Determinism: The aligned calendar is the sorted set intersection across every selected listing, and
-the `v5` bivariate cache version invalidates rows computed under pair-specific calendars.
-
-Idempotency: Repeating calculations for unchanged membership and return dates produces the same
-calendar, statistics, summaries, and persisted cache identities.
-
-Series Completion Gate: Follow the current pre-merge and post-merge gates in [GATES.md](GATES.md).
-
-### PR130. Typed Quote Ingestion Stage Pipeline And Progress Contract
-
-Branch: `refactor/quote-ingestion-pipeline`.
+- Hand-checkable diagonal, perfectly correlated, negatively correlated, and block-correlated
+  fixtures prove eigenvalues, explained variance, cumulative variance, effective rank, clusters,
+  and stable component sign normalization.
+- Input row and listing order permutations produce the same component ids, explained-variance
+  sequence, effective rank, cluster assignments, summary facts, and top-loading order.
+- Component loadings use a committed sign convention so equivalent eigensolutions do not flip UI
+  values between runs. Repeated eigenvalues produce a documented deterministic ordering or an
+  explicit ambiguity warning.
+- Tests cover one dominant driver, independent assets, near-singular covariance, insufficient
+  observations, unavailable risk model, empty component detail pages, pagination boundaries, and
+  no fabricated semantic factor labels.
+- Every result reports the exact aligned period and observation count inherited from the input
+  snapshot and references the canonical risk-model artifact.
+- Large-universe serializers return bounded summaries without materializing an unrestricted dense
+  matrix in a browser response.
+
+Security: Structure endpoints and serializers require authorization to the owning project run and
+risk-model dependency closure. Counts, components, loadings, cluster membership, and errors cannot
+reveal inaccessible listings or artifacts.
+
+Determinism: Eigenvalue ordering, eigenvector sign normalization, cluster distance/linkage policy,
+tie breaking, threshold serialization, precision, pagination, and fact ordering are versioned.
+
+Idempotency: Identical input-snapshot, risk-model, and structure-policy identities reuse the same
+statistics artifacts. Partial retries write only missing partitions and cannot duplicate component,
+loading, cluster, or summary rows.
+
+### PR146. Gross Distribution History And Monthly Income Quality
+
+Branch: `feat/monthly-etf-income-quality`.
 
 Git status: not started. PR: TBD.
 
-Priority: P0 ingestion reliability, observability, and testability.
+Priority: P1 monthly-distribution ETF evidence.
 
-Depends on: PR129.
+Depends on: PR143.
 
 Scope:
 
-- Introduce immutable `QuoteIngestionRequest`, `QuoteIngestionPlan`, `QuoteIngestionProgress`, and `QuoteIngestionResult` contracts owned by a quote-ingestion application module.
-- Represent the existing work as the ordered stages `planning`, `quotes`, `dividends`, `splits`, `silver`, and `manifests`. Each stage reports its own completed/total counts and contributes to one deterministic aggregate total.
-- Move gap-aware per-listing planning, EODHD dataset execution, Silver per-listing conversion, and manifest publication behind typed stage functions. Retain the existing EODHD dataset strategies and table schemas rather than creating parallel quote/dividend/split implementations.
-- Resolve worker count once at the application boundary and pass it explicitly to every parallel stage. Keep bounded execution, per-root locking, atomic table writes, and memory-safe per-listing processing.
-- Replace positional integer progress callbacks with one typed progress event. The hosted service serializes that event; the CLI may adapt it to logs without owning progress arithmetic.
-- Make the final result expose provider successes/failures, selected listing count, Silver row count, coverage count, and exact completed stage totals. Failed items remain isolated and do not discard successful Bronze writes.
-- Remove obsolete progress arithmetic and duplicate orchestration from `portfell.workflows` only after all callers use the typed pipeline. Do not add Celery, Redis, a message broker, a scheduler, or a second run-state store.
+- Implement the initial jurisdiction-neutral `portfell.income` boundary with typed contracts for
+  normalized distribution events, monthly buckets, `IncomePolicy`, income metrics, warnings, and
+  availability reasons. Consume only pinned dividend, split, quote, currency, and optional genuine
+  NAV artifact references from the Multivariate input snapshot.
+- Normalize ex-date, payment date with explicit fallback, amount, currency, corrections, deletions,
+  duplicates, and split effects. Aggregate events into calendar-month buckets without treating a
+  missing event as a zero payment unless coverage proves that month was observed.
+- Compute gross trailing-twelve-month distribution amount and yield, mean and median observed
+  monthly distribution, conservative lower percentile, coefficient of variation, observed payment
+  coverage, cut count, largest cut, longest falling sequence, distribution trend, price return,
+  total return, and distribution-to-total-return gap.
+- Compute NAV erosion only from an authorized genuine NAV series. Market price, adjusted close, or
+  an inferred synthetic value may not be relabeled as NAV. Report NAV erosion as unavailable when
+  genuine NAV is absent.
+- Persist immutable `income_distribution_events`, `income_monthly_distributions`, `income_metrics`,
+  and `income_warnings` artifacts with source identities and policy versions. Expose gross values as
+  historical descriptions only; net income, taxes, broker costs, and sustainable-income claims
+  remain explicitly unavailable until their verified policy adapters exist.
+- Do not change portfolio weights, rank candidates, implement country tax logic, or add UI.
 
 Acceptance:
 
-- Fixture runs with one, multiple, partially cached, fully cached, and partially failing listings emit the exact documented stage order and monotonic progress; aggregate completed never exceeds aggregate total.
-- A fully cached rerun performs no provider request for covered quote intervals and preserves existing Bronze rows, Silver rows, coverage rows, and gap manifests.
-- Golden table tests prove byte-equivalent normalized Bronze, Silver, coverage, gap, and run-manifest content for unchanged fixtures.
-- Peak-memory regression coverage proves planning and post-processing read at most one selected listing's Silver rows at a time; tests fail if a full-lake quote read returns to the hosted path.
-- Concurrency tests prove at most the resolved worker count is active, one logical run owns the module lock, and a duplicate request joins the existing active run rather than starting work.
-- Hosted quote status uses the typed stage and counts; the browser contains no independent task-total or progress calculation.
-- Ruff, Pyright, all test shards, coverage, architecture checks, schema validation, and every required gate in [GATES.md](GATES.md) pass.
+- Hand-checkable fixtures cover twelve regular monthly payments, skipped months, multiple payments
+  in one month, corrections, deletions, duplicates, split-adjusted events, currency mismatch,
+  payment-date fallback, partial observation windows, and no distributions.
+- Frequency classification alone cannot produce income-quality success. A monthly-classified ETF
+  with insufficient event history returns unavailable metrics and a stable reason code.
+- The latest payment is never annualized as the sole income estimate. TTM yield uses the documented
+  trailing window, eligible positive events, and a dated denominator from the same policy.
+- Missing months are distinguished from observed zero-payment months. Distribution cuts and trends
+  use comparable covered buckets and do not convert unknown data to zero.
+- Price return plus distributions reconciles to the implemented total-return definition on a
+  hand-checkable fixture; units and currency are explicit on every monetary value.
+- NAV-erosion tests reject adjusted close and market price as NAV, compute only from a genuine NAV
+  fixture, and otherwise return unavailable without a numeric zero.
+- Gross results never appear under names containing `net`, `after_tax`, `after_cost`, `sustainable`,
+  or `spendable`. Unsupported tax/cost inputs cannot create production-income eligibility.
+- Corrected source events or changed policy versions produce new artifacts; unchanged overlapping
+  project selections reuse the same physical income artifacts through authorized references.
 
-Out of scope: Durable run recovery after process death, database-backed queues, new provider endpoints, schema renames, retention changes, retry-policy changes, and UI redesign.
+Security: Income services consume authorized artifact references and cannot call providers, mutate
+Selection, scan another project's data, or expose raw internal paths. Currency, tax, cost, and NAV
+availability errors reveal no inaccessible source rows.
 
-Security: Provider keys remain bounded to client construction and never enter requests, plans, progress events, results, logs, manifests, hashes, or browser responses; user/project scope is resolved before planning.
+Determinism: Event normalization, duplicate/correction precedence, month assignment, fallback dates,
+percentile method, cut detection, trend calculation, precision, warning order, and artifact ids are
+versioned and independent of input order.
 
-Determinism: Canonically ordered listings and fixed stage order produce identical plans, totals, manifests, and result summaries for identical lake state, dates, selection, and configuration.
+Idempotency: Reprocessing identical source artifacts and policy reuses normalized events, monthly
+buckets, metrics, and warnings. Corrections replace the affected logical revision without appending
+duplicate payments or contaminating earlier immutable revisions.
 
-Idempotency: Repeating an identical request reuses covered data, merges rows by canonical keys, joins an active logical run, and produces no duplicate Bronze observations, manifests, or run records.
+### PR147. Monthly-Distribution ETF Portfolio Candidate Set
 
-### PR131. Portfolio Solver Core, Diagnostics, And Persistence Boundaries
-
-Branch: `refactor/portfolio-core-boundaries`.
+Branch: `feat/monthly-etf-portfolio-candidates`.
 
 Git status: not started. PR: TBD.
 
-Priority: P1 numerical correctness and optimizer extensibility.
+Priority: P1 portfolio construction.
 
-Depends on: current `main`.
+Depends on: PR145 and PR146.
 
 Scope:
 
-- Keep `portfell.portfolio` as the stable public facade while moving implementation into cohesive modules under `portfell.portfolio_parts`.
-- Move `PortfolioConstraints`, validation, covariance completeness, bound activity, and constraint residuals into a constraints module with no lake or CLI dependencies.
-- Move objective-independent solver dispatch, production-solver adapters, candidate-limit policy, fallback enumeration, and solver diagnostics into a solver-orchestration module.
-- Move minimum variance, minimum CVaR, maximum diversification, risk contribution, and HRP objective calculations into objective modules that consume typed matrices and constraints and perform no file I/O.
-- Move row construction, lake reads/writes, and replacement semantics into a portfolio-artifact adapter. It may call the numerical core, but the numerical core cannot import `LakePaths`, schemas, table I/O, CLI, hosted API, or workflows.
-- Preserve all current facade function signatures and exported dataclasses used by callers. Re-exports are allowed only from `portfell.portfolio`; no second implementation or compatibility package may remain.
-- Add import-linter contracts enforcing `portfolio facade/artifact adapter -> solver orchestration -> objectives/constraints`, with objectives and constraints forbidden from importing persistence or application layers.
+- Add a versioned initial Monthly Distribution ETF portfolio policy with long-only, fully invested,
+  explicit minimum/maximum instrument weights, minimum holding count, and feasibility checks. Use a
+  configurable 20 percent maximum-weight default and reject any membership/constraint combination
+  that cannot sum to one; do not silently relax constraints.
+- Build exactly these initial comparable candidates from the same snapshot, aligned matrix,
+  canonical risk model, constraints, and gross income artifacts: Equal Weight, Inverse Volatility,
+  Ledoit-Wolf shrinkage Minimum Variance, Equal Risk Contribution, True Hierarchical Risk Parity,
+  and historical Minimum CVaR.
+- Treat Equal Weight and Inverse Volatility as explicit baselines. Label Minimum CVaR for this
+  monthly-distribution universe as a tail-risk-aware income-universe candidate, not as an optimizer
+  of income amount, sustainability, tax efficiency, or guaranteed cash flow.
+- Persist per-candidate weights, solver diagnostics, feasibility state, baseline status, portfolio
+  volatility, variance, historical VaR/CVaR, maximum drawdown, historical total return,
+  diversification ratio, maximum weight, Herfindahl concentration, effective holding count,
+  marginal and percentage risk contributions, largest risk contributor, gross TTM distribution
+  yield, and gross historical monthly distribution estimate where available.
+- Use one common evaluation period and one common policy for all candidates. Values requiring tax,
+  broker-cost, genuine NAV, or future-return assumptions remain unavailable with reason codes.
+- Do not rank candidates, choose a winner, create trades, or add UI. The output is a comparable
+  candidate set for later validation.
 
 Acceptance:
 
-- Golden numerical tests prove identical weights, objective values, diagnostics, constraint violations, linkage rows, cluster rows, and risk-contribution rows for every existing optimizer fixture, including failure and fallback cases.
-- Repeated runs preserve current deterministic row ordering, float tolerances, solver selection, candidate limits, and artifact replacement keys.
-- `src/portfell/portfolio.py` is at most 300 nonblank, non-comment lines and contains no objective implementation, candidate enumeration, clustering recursion, or direct optimization loop.
-- Every objective can be tested from in-memory typed inputs without constructing `LakePaths` or writing files; artifact tests use fake or temporary adapters without invoking private objective functions.
-- Import-linter and architecture checks reject objective-to-I/O, objective-to-workflow, and constraints-to-solver-orchestration reverse dependencies.
-- No algorithm version, persisted schema, public CLI option, workflow output, or recommendation input changes in this PR.
-- Ruff, Pyright, all test shards, coverage, architecture checks, schema validation, and every required gate in [GATES.md](GATES.md) pass.
+- Fixtures produce all six candidates in a stable order and mark the two baselines visibly. No
+  candidate is described as universally best or as a recommendation.
+- Every feasible candidate's weights are finite, long-only, within bounds, sum to one within the
+  committed tolerance, cover only snapshot listings, and reconcile marginal to total risk within
+  tolerance.
+- Tests cover two, five, and twenty ETF universes; infeasible maximum/minimum weights; solver
+  non-convergence; singular covariance; missing income metrics; missing return rows; and an ETF
+  removed between upstream artifacts. Failures remain explicit and never become Equal Weight.
+- HRP, ERC, and Minimum Variance demonstrably consume the PR144 canonical covariance artifact.
+  Minimum CVaR consumes the same aligned return matrix and confidence policy.
+- Portfolio volatility, CVaR, drawdown, diversification, concentration, risk contributions, and
+  gross income values reconcile to hand-checkable fixtures and report units, period, observations,
+  and availability.
+- Gross distribution yield can be displayed and compared but cannot affect weights in this PR.
+  Increasing a fixture's dividend amount alone leaves every candidate weight unchanged.
+- Candidate ids change for membership, market-input, income-artifact, calendar, risk-model,
+  constraints, objective, solver, or algorithm changes and remain stable for presentation changes.
 
-Out of scope: New optimizers, changed numerical tolerances, performance tuning, GPU/vector-library adoption, portfolio schema changes, profile changes, recommendation changes, and browser features.
+Security: Candidate creation resolves only authorized snapshot and artifact dependencies. Constraint
+payloads are server-validated and cannot request internal paths, arbitrary objective code, negative
+weights, leverage, inaccessible listings, or unbounded resource usage.
 
-Security: The numerical core accepts already-scoped rows and cannot open unrestricted lake paths, resolve users, inspect credentials, or broaden selection membership.
+Determinism: Candidate order, objective labels, solver configuration and tolerances, constraints,
+weight order, risk-contribution order, units, precision, and artifact identity are versioned.
 
-Determinism: Identical ordered matrices, constraints, solver configuration, and algorithm versions produce the same selected method, weights, diagnostics, and artifact rows within the existing exact/tolerance assertions.
+Idempotency: Repeating or concurrently submitting identical candidate-set inputs returns or joins
+the same run and reuses its artifacts. No duplicate weight, diagnostic, fact, or risk-contribution
+rows are appended.
 
-Idempotency: Repeating portfolio construction with identical inputs preserves artifact identities and replacement keys and does not append duplicate weight, cluster, linkage, diagnostic, or risk-contribution rows.
+### PR148. Multivariate Walk-Forward, Stress, And Candidate Scorecard
 
-### Architectural Refactor Series Completion Gate
+Branch: `feat/multivariate-candidate-validation`.
 
-The architectural refactor series is complete only after PR129 through PR131, PR133, and PR134 are merged and every required pre-merge and post-merge check in [GATES.md](GATES.md) passes. Completion requires normalized API-contract equivalence, enforced hosted research boundaries, typed and monotonic quote-stage progress, delta-only ingestion, numerical portfolio equivalence, the new import-linter dependency rules, no duplicate implementation or compatibility runtime, and updated [ARCHITECTURE.md](ARCHITECTURE.md) module ownership descriptions.
+Git status: not started. PR: TBD.
+
+Priority: P1 out-of-sample validation.
+
+Depends on: PR147.
+
+Scope:
+
+- Extend walk-forward evaluation to all six PR147 candidate methods using identical splits,
+  estimation inputs, constraints, rebalance policy, and transaction-cost policy. Refit the risk
+  model and candidate on training data only for every split.
+- Add a versioned production policy with at least 504 training observations, a 21-trading-day test
+  window, multiple completed out-of-sample splits, monthly re-estimation/rebalancing, and an
+  explicit non-negative transaction-cost assumption. Tiny two-observation/one-observation and zero-
+  cost settings remain named test/development fixtures only.
+- Persist split-level train/test dates, risk-model id, requested and actual optimizer method,
+  weights, pre-cost return, turnover, transaction costs, post-cost return, volatility, Sharpe,
+  Sortino, CVaR, drawdown, weight stability, concentration, income availability, and failure
+  reasons.
+- Run versioned historical stress, seeded block-bootstrap, covariance perturbation, correlation
+  convergence, and distribution-cut scenarios for every feasible candidate. A distribution-cut
+  scenario affects cash-flow evidence and total-return assumptions explicitly; it must not rewrite
+  observed historical source data.
+- Produce a candidate scorecard with common out-of-sample metrics, median and adverse quantiles,
+  stress results, data sufficiency, and evidence quality. Do not select a final recommendation when
+  required evidence is unavailable or weak.
+- Do not add UI, report generation, current holdings, tax advice, or broker trade preparation.
+
+Acceptance:
+
+- Tests prove `train_end < test_start` for every split and fail if any test observation influences
+  training covariance, constraints, weights, expected-return inputs, or income statistics.
+- Simple-return wealth compounds geometrically; log-return accumulation reconciles to simple-return
+  wealth within tolerance; volatility, Sharpe, Sortino, and annualization use consistent horizons.
+- Every candidate uses identical eligible split calendars and cost assumptions. Failed splits remain
+  visible and cannot become zero-valued successes or disappear from the denominator.
+- Production eligibility is rejected below 504 training observations, with too few completed
+  splits, with zero/undefined production costs, with an ineligible risk model, or with solver,
+  constraint, return-semantics, or stress failures.
+- Turnover or transaction-cost changes alter post-cost results without altering pre-cost market
+  returns. Candidate rankings can change when costs change, and the cause remains inspectable.
+- Seeded bootstrap and perturbation fixtures are reproducible. Changed seeds, stress policy,
+  splits, costs, or algorithm versions produce new artifact identities.
+- The scorecard reports weak or unavailable income evidence rather than treating monthly frequency
+  as stable income, and it never ranks solely by in-sample return or gross yield.
+- All six methods have explicit walk-forward support or a tested unavailable reason; no method is
+  silently omitted.
+
+Security: Validation consumes the authorized candidate set and immutable dependencies only. Split,
+stress, and scorecard endpoints enforce project-run ownership and bounded policy values; seeds and
+settings cannot be used to access other snapshots or execute arbitrary code.
+
+Determinism: Split construction, information cutoffs, rebalance dates, transaction-cost arithmetic,
+scenario definitions, seeds, quantiles, score ordering, tie breaking, units, and identities are
+versioned.
+
+Idempotency: Identical validation requests reuse completed splits and scenarios and resume only
+missing deterministic work after interruption. Retries never duplicate results or change a
+completed scorecard.
+
+### PR149. Project-Persisted Multivariate Service And API Contract
+
+Branch: `feat/multivariate-project-api`.
+
+Git status: not started. PR: TBD.
+
+Priority: P1 module integration.
+
+Depends on: PR148.
+
+Scope:
+
+- Add a dedicated Multivariate application service, repository port, persistence adapter, FastAPI
+  router, and typed API contracts. Replace the generic deterministic Hosted Analysis placeholder
+  for this workflow; do not route Multivariate requests through zero-return or Equal Weight
+  placeholder behavior.
+- Add project-scoped plan, start, status, summary, structure, components, candidates,
+  candidate-detail, risk-contribution, validation, and income-evidence endpoints. Responses expose
+  persisted values only and use bounded pagination/detail views for large data.
+- Implement persisted run states `locked`, `ready`, `running`, `complete`, `failed`, and `stale`,
+  monotonic phase progress, completed/total units, current phase, elapsed time, estimated remaining
+  time when estimable, warnings, and stable failure reason codes. Use all available CPU cores by
+  default with a bounded configurable cap for local debugging.
+- Save the project's selected Multivariate policy, constraints, selected comparison candidates,
+  input snapshot id, run id, result artifact ids, and validation id immediately and atomically.
+  Reopening or switching to the project automatically resolves the completed run without starting
+  computation.
+- Extend workflow state and the header investment funnel with a dormant Multivariate stage contract.
+  It remains absent from production navigation until PR150, but upstream changes already mark its
+  persisted state stale deterministically.
+- Add normalized Python/TypeScript/API-contract fixtures, restart-persistence coverage, two-project
+  isolation, and exact backend/frontend contract tests. Do not add the React page.
+
+Acceptance:
+
+- API contract tests cover every request, response, status, pagination, availability, warning,
+  progress, and error shape and reject unknown fields, invalid enums, non-finite numbers, invalid
+  constraints, and unbounded limits.
+- Starting a valid run uses the exact PR143 snapshot, returns immediately with persisted running
+  state, advances progress monotonically through named phases, and exposes the same completed result
+  after API restart and project reactivation.
+- Identical input/settings requests return or join the same run. Changed upstream dependencies or
+  settings create a new run and mark the previous project result stale without deleting it.
+- Failed and interrupted runs preserve diagnostics and completed immutable artifacts, can resume
+  missing work safely, and never present partial results as complete.
+- Project A and Project B can use overlapping physical market/statistics artifacts while retaining
+  separate authorized run references, settings, progress, and current results. Cross-project and
+  cross-user guessed ids return the standard non-disclosing authorization response.
+- Endpoint values reconcile exactly with core artifacts; the API does not recalculate covariance,
+  PCA, weights, income, risk, scorecard, or stress metrics.
+- The generic hosted placeholder cannot satisfy or be called by any Multivariate route. Contract
+  tests fail if zero-return or synthetic Equal Weight placeholder output appears.
+- Worker-count tests prove default use of visible CPU capacity and deterministic equality with a
+  single-worker run; resource caps and pair/listing limits fail before unbounded work is scheduled.
+
+Security: Every endpoint resolves the authenticated project, snapshot, upstream dependency closure,
+run, and artifact entitlement server-side. Browser payloads cannot supply filesystem paths,
+credentials, arbitrary code/objective names, ownership fields, or unrestricted shared artifact ids.
+Errors, logs, and progress contain no provider key, token, internal path, or inaccessible membership.
+
+Determinism: Route schemas, status transitions, phase order, progress units, settings serialization,
+pagination, response ordering, invalidation rules, and run/artifact identities are versioned.
+
+Idempotency: Idempotency keys plus logical input hashes ensure concurrent identical starts join one
+run; loads and project switches are read-only; restarts and retries resume without duplicate runs,
+settings, project pointers, or artifacts.
+
+### PR150. Multivariate Statistics React Module And Four-Module Cutover
+
+Branch: `feat/multivariate-statistics-ui`.
+
+Git status: not started. PR: TBD.
+
+Priority: P1 user-facing multivariate workflow.
+
+Depends on: PR149.
+
+Scope:
+
+- Add `multivariate_statistics` as the fourth production `WorkflowModuleId`, route
+  `/multivariate-statistics`, typed browser API facade, sidebar entry, workflow unlock/invalidation
+  state, header investment-funnel step, page specification, and documentation. It unlocks only for
+  a complete matching Bivariate run and never navigates automatically merely because it unlocked.
+- Build one Multivariate Statistics page with a compact compute/progress header and these initial
+  tabs: Overview, Risk Structure, Portfolio Candidates, Risk Contributions, Income Evidence, and
+  Validation. Render only API-produced values and availability states.
+- Overview explains candidate ETF count, aligned period, observation count, risk-cluster count,
+  effective independent drivers, dominant-component share, candidate count, and warnings in plain
+  language. Dense matrices and eigenvalues remain secondary details.
+- Risk Structure renders component explained variance, effective rank, clusters, top loadings, and
+  covariance diagnostics with keyboard-accessible summaries and bounded detail loading.
+- Portfolio Candidates renders the six stable model cards with baseline badges, target-weight bars,
+  comparable facts, solver/feasibility status, method trade-offs, and no universal-best label.
+  Candidate selection changes project settings immediately but does not imply approval or trading.
+- Risk Contributions compares capital weights with percentage risk contributions and highlights the
+  largest contributors. Income Evidence distinguishes monthly frequency, gross historical income,
+  unavailable net/sustainable figures, distribution cuts, and warnings. Validation renders common
+  walk-forward, cost, stress, and evidence-quality results.
+- Restore the latest unchanged completed project run automatically on project selection. Show stale,
+  unavailable, failed, and partially resumable states explicitly. Reuse the existing historical-data
+  update behavior without embedding ingestion in this module.
+- Update `README.md`, `ARCHITECTURE.md`, `docs/ui/workflow-modules.md`, route/page documentation,
+  API contracts, unit tests, and Playwright journeys. Rebuild and validate the Web Docker image after
+  the UI change as required by `AGENTS.md`.
+
+Acceptance:
+
+- Route and navigation tests prove the application exposes exactly four production modules in the
+  required order after cutover and contains no legacy multivariate, portfolio-filter, synthetic
+  analysis, or placeholder route.
+- The Multivariate entry is locked before a complete matching Bivariate run, becomes available
+  without forced navigation after completion, and becomes stale after any pinned upstream or policy
+  change. Creating/switching a project never redirects unexpectedly.
+- Compute starts one PR149 run, displays server-owned monotonic phase progress and remaining time,
+  renders all tabs automatically on completion, and restores the same values after refresh, API/Web
+  restart, logout/login, and project switching.
+- Unit and browser tests cover eligible monthly ETF data, insufficient history, fewer than two ETFs,
+  stale bivariate input, infeasible constraints, solver failure, missing income evidence, unavailable
+  genuine NAV, weak validation, interrupted/resumed run, and two projects with different settings.
+- Every displayed number, unit, date range, warning, weight, risk contribution, component, income
+  value, and validation fact matches the typed API fixture. No JavaScript financial calculation or
+  browser-owned filtering determines results.
+- Candidate cards remain comparable at desktop, tablet, and mobile widths; tabs, charts, model cards,
+  tooltips, detail tables, and summaries are usable by keyboard and screen reader and support reduced
+  motion. Charts provide textual/table alternatives.
+- Monthly distribution is described as observed historical frequency. Gross yield is visibly gross
+  and historical; unavailable net, sustainable, tax, cost, or NAV claims are never displayed as zero.
+- Playwright creates two dummy projects through the UI, exercises every Multivariate button, tab,
+  field, project switch, stale transition, restore path, and error state, and verifies isolation.
+- Vitest and Playwright coverage is included in the repository's 95 percent coverage gate; Ruff,
+  formatting, strict Pyright, architecture checks, schema validation, Python tests, TypeScript tests,
+  production build, and Docker Web image build all pass.
+
+Security: The page uses only the typed authenticated API facade and stores no provider keys, tokens,
+artifact contents, ownership claims, or financial results in browser storage. URLs, tooltips,
+screenshots, traces, logs, source maps, and errors expose no secrets, internal paths, or other-project
+data. Client-side controls cannot broaden server-authorized membership or constraints.
+
+Determinism: Module/page order, tab order, model-card order, labels, units, precision, colors,
+accessibility summaries, chart ordering, responsive fixtures, and project-setting serialization are
+versioned and independent of browser locale or response timing.
+
+Idempotency: Refreshing, reopening a tab, changing projects, restoring a completed run, or submitting
+unchanged settings never starts another computation or duplicates state. Repeated clicks while a run
+is active join the existing run and disable duplicate submission.
+
+### Monthly-Distribution ETF Multivariate Series Completion Gate
+
+This series is complete only after PR143 through PR150 are merged in dependency order and every
+current pre-merge and post-merge requirement in [GATES.md](GATES.md) passes. Completion additionally
+requires all of the following evidence in one clean-main validation:
+
+- a project-scoped monthly-distribution ETF input snapshot with exact authorized dependency closure;
+- one canonical validated risk-model covariance used by every covariance-dependent output;
+- deterministic structure, PCA, effective-rank, clustering, gross-income, candidate, risk-
+  contribution, walk-forward, cost, stress, and scorecard artifacts;
+- no global-current-pointer authority, upstream compute side effect, silent optimizer/risk-model
+  substitution, unavailable-as-zero behavior, or production use of toy walk-forward defaults;
+- persisted restart-safe project state, exact backend/frontend contracts, two-project isolation,
+  content-addressed reuse, stale invalidation, and resumable idempotent execution;
+- exactly four production modules with the Multivariate page consuming only API-produced values;
+- explicit gross/historical and unavailable labels wherever sustainable income, genuine NAV,
+  jurisdiction tax, or broker-cost evidence is missing;
+- focused numerical fixtures, invariant/property tests, Vitest, two-project Playwright coverage,
+  at least 95 percent aggregate coverage, production frontend build, and rebuilt Docker Web image;
+- synchronized `README.md`, `ARCHITECTURE.md`, module/page documentation, schemas, API contracts,
+  backlog status, and operational runbooks.
 
 ## Current Architectural Decision
 
@@ -1431,18 +623,15 @@ The target system has these non-negotiable properties:
 
 ## Series Completion Gate
 
-The original UI series is complete, and the current three-module contract remains complete only while all of the following are true:
+PR143 through PR150 are the only active backlog series. Until PR150 lands, the production browser
+continues to expose exactly the current three modules. PR150 may change that invariant to exactly
+four modules only after every dormant contract, calculation, artifact, persistence, API, and test
+dependency in the preceding PRs is complete.
 
-- exactly three production modules exist in the required order;
-- every page invokes a real backend workflow and has locked, ready, running, complete, failed, and stale behavior where applicable;
-- quote and bivariate progress are server-reported rather than simulated in the browser;
-- every run and selection is scoped to immutable authenticated-user inputs;
-- repeated identical commands reuse existing logical state;
-- upstream changes invalidate downstream state deterministically;
-- no placeholder page, retired route, compatibility renderer, duplicate registry, synthetic compute endpoint, or retired contract documentation remains;
-- all Python, TypeScript, build, browser, security, and repository gates pass.
-
-Hosted deployment remains subject to the independent security, licensing, privacy, backup, credential, and readiness requirements in the active hosted PR stack.
+The authoritative completion criteria are the Monthly-Distribution ETF Multivariate Series
+Completion Gate above and the current pre-merge and post-merge requirements in
+[GATES.md](GATES.md). Hosted deployment remains independently subject to the existing security,
+licensing, privacy, backup, credential, and readiness gates.
 
 ## Update Rules
 
@@ -1533,6 +722,28 @@ backlog identifiers.
 | PR73 | Generic Listing And Pair Statistics Cache | merged. PR: https://github.com/SergejSchweizer/portfell/pull/80 |
 | PR74 | Selection Statistics Views | merged. PR: https://github.com/SergejSchweizer/portfell/pull/120 |
 | PR75 | Multivariate Selection Cache Consumption | merged. PR: https://github.com/SergejSchweizer/portfell/pull/121 |
+| PR110 | Canonical Workflow State And Four-Page API Contract | merged. PR: https://github.com/SergejSchweizer/portfell/pull/190 |
+| PR111 | Metadata Header, Metadata Builder, And Real Quote Progress | merged. PR: https://github.com/SergejSchweizer/portfell/pull/197 |
+| PR112 | Functional Univariate Statistics Page | merged. PR: https://github.com/SergejSchweizer/portfell/pull/192 |
+| PR113 | Functional Univariate Selection Page | merged. PR: https://github.com/SergejSchweizer/portfell/pull/193 |
+| PR114 | Functional Bivariate Statistics Page | merged. PR: https://github.com/SergejSchweizer/portfell/pull/194 |
+| PR115 | Sequential Navigation, Final Legacy Deletion, And End-To-End Gate | merged. PR: https://github.com/SergejSchweizer/portfell/pull/195 |
+| PR116 | Remove Google Authentication Runtime | merged. PR: https://github.com/SergejSchweizer/portfell/pull/196 |
+| PR124 | Stable Local Principal And Credential Repository Ports | merged. PR: https://github.com/SergejSchweizer/portfell/pull/210 |
+| PR125 | PostgreSQL Encrypted Credential Repository And Schema Migration | merged. PR: https://github.com/SergejSchweizer/portfell/pull/211 |
+| PR126 | Persistent Credential Runtime Wiring And Secret Configuration | merged. PR: https://github.com/SergejSchweizer/portfell/pull/213 |
+| PR127 | Saved Credential Status, Replace, Delete, And Keyless Refresh UI | merged. PR: https://github.com/SergejSchweizer/portfell/pull/214 |
+| PR129 | Hosted API Routers, Application Services, And State Ports | merged. PR: https://github.com/SergejSchweizer/portfell/pull/218 |
+| PR132 | Stage-Owned Ingestion Controls | merged. PR: https://github.com/SergejSchweizer/portfell/pull/222 |
+| PR133 | Hosted Research Service Boundary Completion | merged. PR: https://github.com/SergejSchweizer/portfell/pull/238 |
+| PR134 | Hosted Research Boundary Coverage Completion | merged. PR: https://github.com/SergejSchweizer/portfell/pull/240 |
+| PR135 | Stateful Two-Project UI Workflow Coverage | merged. PR: https://github.com/SergejSchweizer/portfell/pull/242 |
+| PR136 | Result-Driven Dividends Window Visibility | merged. PR: https://github.com/SergejSchweizer/portfell/pull/244 |
+| PR137 | Workflow Module Boundaries | merged. PR: https://github.com/SergejSchweizer/portfell/pull/245 |
+| PR138 | Parallel Metadata Downloads | merged. PR: https://github.com/SergejSchweizer/portfell/pull/246 |
+| PR139 | Browser Module Route Names | merged. PR: https://github.com/SergejSchweizer/portfell/pull/247 |
+| PR140 | Three-Module Backend And Persistence Contracts | merged. PR: https://github.com/SergejSchweizer/portfell/pull/248 |
+| PR141 | Aligned Statistics Time Ranges | merged. PR: https://github.com/SergejSchweizer/portfell/pull/249 |
 
 ## Completed And Superseded Detailed Records
 
@@ -1698,15 +909,9 @@ Determinism: Replaying identical user snapshots, selections, settings, and algor
 
 Idempotency: Retrying the complete workflow creates no duplicate users, credentials, observations, grants, snapshots, calculations, analyses, or reports.
 
-### Superseded Research Funnel UI Stack
+### Completed UI Foundation Record
 
-Historical only. The following plan is superseded by PR110 through PR115 and must not be implemented as active scope.
-
-## Portfell Research Funnel UI PR Stack
-
-PR97 remains the minimum functional hosted Web UI required by PR100. The following post-cutover series turns that baseline into the approved Portfell product interface: a simple Google- and Apple-inspired research workspace built around the persisted funnel `Data -> Metadata -> Univariate -> Filter -> Diversification -> Portfolio -> Validation -> Report`. These PRs must not move financial calculations or authorization decisions into the browser, weaken the PR99 readiness gate, or replace immutable project, snapshot, selection, and run identities with client-only state.
-
-PR109, then PR102 through PR108 are a stacked UI branch tree. PR109 starts from the current local-login hardening branch, PR102 starts from PR109, and each following UI PR starts from the previous UI branch until the tree is explicitly landed. Do not merge any UI stack branch into `main` unless the maintainer explicitly requests that `main` merge. During UI stack development, run `docker compose --env-file .env.local up --build --watch web` from the active UI branch so every local UI change is visible in Docker; use `uv run portfell-compose-web-watch` when Compose watch is unavailable.
+The following merged record is historical only and contains no active follow-up scope.
 
 ### PR101. Web Design System, Application Shell, And Visual Baseline
 
@@ -1727,163 +932,3 @@ Security: Fixtures contain only synthetic users, opaque ids, and synthetic finan
 Determinism: Design tokens, route definitions, formatter rules, icon mappings, funnel ordering, and screenshot fixtures are committed and versioned. Identical props produce stable accessible markup and chart-ready layout.
 
 Idempotency: Reloading or revisiting a route reconstructs the same shell from server state without creating projects, selections, downloads, or analyses.
-
-### PR109. Real Google OIDC Runtime Login And Account Identity Display
-
-Branch: `feat/web-google-oidc-runtime-login`.
-
-Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/162.
-
-Priority: P0 authenticated user boundary for the local and hosted Web UI.
-
-Depends on: PR101 and PR #160 local login hardening.
-
-Scope: Replace the local `local-dev-google` session stub as the default Web login path with a real Google OpenID Connect authorization-code flow. Wire `/auth/google/start` to create a PKCE, state, and nonce login request; redirect the browser to Google's account chooser; add `/auth/google/callback` to exchange the authorization code with Google, verify the ID token issuer, audience, signature, expiry, nonce, email verification, and optional hosted-domain rule; resolve the stable Google `sub` into the Portfell user identity; issue opaque HttpOnly session and CSRF cookies; and keep an explicit opt-in local-dev auth mode for offline Docker development. Surface the authenticated Google email or display name in lowercase under `Portfell Research` in every authenticated shell and mark local-dev sessions as `local-dev-google`.
-
-Acceptance: Tests cover Google account chooser redirect construction, callback success, first login, repeat login with changed email and unchanged `sub`, invalid state, replayed state, invalid nonce, invalid issuer, invalid audience, expired ID token, unverified email, optional hosted-domain rejection, token-exchange failure, logout, session status, local-dev fallback disabled by default outside development, and the visible lowercase identity line. Docker documentation shows the required Google OAuth client id, secret-file path, redirect URI, and local-dev override. Browser tests or HTTP-level tests prove the dashboard is not shown before real Google callback completion when local-dev mode is disabled.
-
-Security: Google client secret, session secret, tokens, authorization codes, ID tokens, refresh tokens, code verifier, nonce, state, and session cookies are never committed, logged, rendered, stored in browser storage, or included in URLs after callback completion. State and nonce are single-use and short-lived. Session cookies are HttpOnly, Secure outside local HTTP development, SameSite=Lax or stricter, path-scoped, and revocable. Local-dev auth is visibly labelled and cannot be confused with verified Google OIDC.
-
-Determinism: OIDC request serialization, state hashing, nonce validation, user identity resolution from Google `sub`, session status response shape, identity display formatting, and local-dev gating are versioned and covered by deterministic fake Google providers in tests.
-
-Idempotency: Repeating a valid login for the same Google `sub` updates permitted profile metadata without creating duplicate users. Retrying failed callbacks never creates users or sessions. Refreshing the authenticated page reuses the existing server-side session and does not create projects, selections, downloads, or analyses.
-
-### PR102. Project Dashboard, First-Run Onboarding, And Persisted Funnel State
-
-Branch: `feat/web-project-dashboard-funnel-state`.
-
-Git status: not started. PR: TBD.
-
-Priority: P1 usable product navigation.
-
-Depends on: PR109.
-
-Scope: Implement the project dashboard, recent-project table, continue-research action, data-status summary, portfolio-monitoring summary, warnings, account navigation, and first-run onboarding. Guide a new Google-authenticated user through EODHD credential setup, Free-versus-paid capability discovery, creation of a starter project, first permitted refresh, and entry into the research funnel. Persist and display the current project snapshot, universe version, candidate selection, analysis runs, completed steps, warnings, and stale downstream steps when an upstream snapshot or filter changes. The Free-key starter path must show a meaningful supported example without exposing pre-existing data the user has not refreshed with their own key.
-
-Acceptance: End-to-end tests cover a new empty user, returning user, missing credential, invalid credential, Free key, paid key, interrupted onboarding, multiple projects, continue from each funnel step, stale downstream states after metadata or threshold changes, deleted credential, and account deletion. The dashboard uses real API state and never fabricates portfolio or data availability.
-
-Security: Project and onboarding responses are resolved through the authenticated session and RLS. No project name, snapshot status, warning, or recent activity from another user can appear through guessed ids, browser cache, prefetching, or stale client state.
-
-Determinism: Funnel status is derived from persisted project pointers, immutable snapshots, selections, run status, and explicit dependency rules. The same server state produces the same current step and stale-step markings.
-
-Idempotency: Refreshing, returning after logout, or repeating the continue action reopens the existing project state and does not create duplicate projects, refreshes, selections, or analyses.
-
-### PR103. Data Coverage Workspace And Metadata Universe Builder
-
-Branch: `feat/web-data-metadata-universe-builder`.
-
-Git status: not started. PR: TBD.
-
-Priority: P1 first analytical funnel stages.
-
-Depends on: PR102.
-
-Scope: Implement the Data and Metadata stages. The Data workspace shows credential status, visible dataset coverage, per-dataset date ranges, listing counts, quality warnings, refresh planning, quota/capability messaging, run progress, partial failures, and resulting User Data Snapshot. The Metadata workspace adds server-backed search, faceted filters, sorting, bounded pagination or virtualization, column configuration, bulk selection, filter counts, eligibility warnings, and explicit creation of a versioned universe. Supported facets include instrument type, exchange, listing currency, domicile, distribution policy, history, coverage, and data-quality eligibility where available.
-
-Acceptance: Tests cover empty data, thousands of listings, Free-key limits, refresh success and partial failure, corrected provider rows, a newer user snapshot, server pagination, stable sorting, combined facets, no-result filters, bulk selection across pages, data-quality exclusions, and creation/reopening of a universe version. The UI prominently shows `visible instruments -> eligible instruments` and the exact snapshot used.
-
-Security: Queries operate only on the authenticated user's entitled snapshot. Search counts, facets, autocomplete, exports, and error messages must not disclose instruments, dates, revisions, or coverage visible only to another user.
-
-Determinism: Canonical filter serialization, sort keys, pagination cursors, column formatters, and universe summaries are stable. The same snapshot and filter definition produce the same ordered eligible membership and selection identity.
-
-Idempotency: Reapplying an unchanged filter to the same snapshot reuses the existing logical universe or returns the same identity; repeated refresh-page requests do not submit a provider call or duplicate membership rows.
-
-### PR104. Univariate Research Workspace, Fund Detail, And Metric Filter
-
-Branch: `feat/web-univariate-research-filter`.
-
-Git status: not started. PR: TBD.
-
-Priority: P1 core fund research workflow.
-
-Depends on: PR103.
-
-Scope: Implement separate Univariate Analysis and Univariate Selection stages. Provide overview, return, risk, income, drawdown, and data-quality metric groups; sortable and filterable metric tables; an income-versus-tail-risk scatterplot; fund detail drawer; total-return, price-return, drawdown, rolling-risk, and distribution-history charts; confidence and track-record warnings; metric definitions; and artifact/run provenance. Add a threshold workbench for minimum history, sustainable income, maximum drawdown, Expected Shortfall, distribution variability, NAV erosion, liquidity, and data-quality confidence. Show exclusion counts by reason, multiple reasons per fund, and an inspectable `why excluded` explanation before creating the versioned candidate set.
-
-Acceptance: Tests cover unavailable metrics, short history, invalid-price quality failures, stable and unstable distributions, NAV erosion, multiple simultaneous exclusions, boundary values, changed thresholds, cached artifact reuse, stale results after an upstream universe change, chart keyboard summaries, table exports, and deep links that reopen the same user-owned run. The browser only renders API-produced values and never recalculates financial statistics.
-
-Security: Metric and chart requests require access to the project, snapshot, universe, and user-owned run. Direct shared artifact ids, listing ids outside the snapshot, or stale project pointers cannot retrieve details or influence exclusion counts.
-
-Determinism: Metric group order, units, precision, warning classification, threshold operators, exclusion-reason ordering, and chart series ordering are versioned. Identical snapshot, universe, parameters, and algorithm versions produce the same candidate membership and presentation values.
-
-Idempotency: Reopening the stage or resubmitting identical thresholds returns the existing completed run and candidate selection without duplicate artifacts or analysis records.
-
-### PR105. Diversification Clusters, Redundancy Review, And Pair Inspector
-
-Branch: `feat/web-diversification-pair-analysis`.
-
-Git status: not started. PR: TBD.
-
-Priority: P1 bivariate decision workflow.
-
-Depends on: PR104.
-
-Scope: Implement the Diversification stage around decision-relevant pair analysis rather than a matrix-only dashboard. Add cluster summaries, cluster membership tables, correlation heatmap, top redundant pairs, diversification candidates, and a pair inspector with Pearson, Spearman, covariance, bidirectional beta, downside correlation, stress correlation, rolling correlation, common-observation count, common date range, return comparison, drawdown comparison, and data-quality warnings. Support top-k and threshold-backed API views so large candidate sets never require all pair rows in browser memory. Allow the user to mark preferred or excluded instruments within a cluster and persist the resulting pre-portfolio selection.
-
-Acceptance: Tests cover reversed pair orientation, insufficient overlap, missing metrics, large sparse candidate sets, top-k pagination, heatmap ordering, cluster labels, changed pair artifacts after corrected values, redundant-fund review, preferred-instrument persistence, stale bivariate runs, and reopening the exact pair through a stable project route. The UI remains usable without materializing a dense matrix for the broad universe.
-
-Security: Pair search, cluster counts, heatmap cells, and inspector details require authorization to both underlying return artifacts and the owning project run. Autocomplete and top-k results do not reveal inaccessible instruments or pair histories.
-
-Determinism: Cluster order, within-cluster ordering, pair orientation, heatmap axes, correlation formatting, and redundancy ranking use committed stable rules and exact artifact identities.
-
-Idempotency: Repeating the same pair query or cluster decision reuses existing artifacts and persisted selections; navigation does not schedule new pair computation unless the authorized inputs or parameters changed.
-
-### PR106. Portfolio Model Comparison And Constraint Workbench
-
-Branch: `feat/web-portfolio-model-constraint-workbench`.
-
-Git status: not started. PR: TBD.
-
-Priority: P1 multivariate portfolio decision workflow.
-
-Depends on: PR105.
-
-Scope: Implement the Portfolio stage with comparable model cards for Equal Weight, Inverse Volatility, shrinkage Minimum Variance, Equal Risk Contribution, True HRP, Maximum Diversification, Minimum CVaR, Income, and configured ensemble candidates. Add target-weight bars, risk contributions, concentration diagnostics, expected income, volatility, CVaR, drawdown, turnover, solver diagnostics, and model trade-offs. Add an understandable constraint workbench for instrument, issuer, asset-class, country, sector, currency, strategy, short-history, crypto, liquidity, income, volatility, drawdown, CVaR, turnover, and current-weight limits, with advanced risk-model and estimation settings separated from the default experience. Detect infeasible constraints and explain the conflicting limits without silently relaxing them.
-
-Acceptance: Tests cover every supported model, unavailable models, solver failure, infeasible constraints, constraint boundary values, stable model comparison ordering, selected profile defaults, cached portfolio artifacts, current versus target weights, whole-share preparation inputs, changed settings producing a new run, and unchanged settings reusing the prior run. No model is labelled universally best; baselines remain visible.
-
-Security: Every model and diagnostic response resolves through a user-owned project run and authorized dependency closure. Constraint payloads are validated server-side; the browser cannot request internal paths, override ownership, or use shared artifact ids as authorization.
-
-Determinism: Model-card order, metric definitions, constraint serialization, units, precision, weight and risk-contribution ordering, and selected-candidate rules are versioned and independent of browser locale or worker completion order.
-
-Idempotency: Repeated identical model comparisons return the existing run or join the active computation. Saving unchanged constraints does not create duplicate configurations, runs, weights, or reports.
-
-### PR107. Validation, Report, And Flatex Trade-Preparation Workspace
-
-Branch: `feat/web-validation-report-trade-preparation`.
-
-Git status: not started. PR: TBD.
-
-Priority: P1 final decision and handoff workflow.
-
-Depends on: PR106.
-
-Scope: Implement the Validation and Report stages. Add historical and walk-forward tabs, stress and bootstrap summaries, sensitivity views, costs and turnover, current-versus-target comparison, drawdown and recovery charts, risk-limit checks, model scorecards, assumptions, limitations, and an explicit Portfell assessment with passed checks and warnings. Render the explainable recommendation report and support authorized HTML/PDF download. Add Flatex-oriented trade preparation with current positions, target weights, estimated trades, whole-share rounding, minimum trade size, fees, taxes where configured, residual cash, and export; retain explicit user approval and no automatic broker execution.
-
-Acceptance: Tests cover walk-forward availability, weak out-of-sample evidence, stress failures, cost-sensitive ranking changes, current-portfolio absence, whole-share rounding, insufficient cash, tax/cost adapter differences, report regeneration, authorized download, expired/stale run handling, export contents, and explicit no-order-execution language. Reports include selected and excluded instruments with reasons, target weights, risk contributions, income, drawdown, costs, stress results, assumptions, and warnings.
-
-Security: Report and export downloads require a current authenticated user-owned run and use opaque download routes. Generated documents contain no provider key material, session token, internal path, database identity, hidden cross-user data, or unredacted exception details.
-
-Determinism: Report sections, metric precision, chart ordering, trade-rounding rules, export columns, and file naming derive from versioned templates and exact immutable run inputs.
-
-Idempotency: Repeated report or export generation for the same completed run reuses the existing authorized artifact or produces byte-stable content where timestamps are explicitly excluded; it never creates broker orders.
-
-### PR108. Responsive Accessibility, Visual Regression, Performance, And UI Cutover
-
-Branch: `feat/web-ui-production-cutover`.
-
-Git status: not started. PR: TBD.
-
-Priority: P0 final UI quality and deployment proof.
-
-Depends on: PR107.
-
-Scope: Complete the approved visual baseline across desktop, tablet, and mobile; add mobile-specific layouts rather than scaled desktop pages; finish keyboard navigation, semantic landmarks, accessible names, table and chart alternatives, contrast, focus management, reduced motion, and screen-reader announcements. Add visual-regression coverage, browser end-to-end tests for the full funnel, realistic large-table performance tests, API cancellation/retry behavior, route-level loading and error states, bundle and rendering budgets, supported-browser policy, and clean-host Docker Compose installation proof. Remove obsolete placeholder Web code and make the real Portfell UI the canonical hosted route.
-
-Acceptance: A clean checkout with documented external synthetic secret files can run `docker compose up --build`, complete Google/EODHD-mocked end-to-end scenarios, and reach the responsive GUI. Tests cover new user, returning user, Free key, paid key, two isolated users, all funnel stages, upstream invalidation, cached reuse, restart persistence, mobile navigation, keyboard-only use, automated accessibility checks, visual baselines, large datasets, slow/failed API calls, report download, logout, and account deletion. Documented performance budgets pass on representative fixtures.
-
-Security: Browser storage, URLs, client logs, screenshots, test traces, source maps, analytics, downloaded reports, and CI artifacts are scanned for provider keys, tokens, ciphertext, fingerprints, internal paths, and cross-user content. Production error pages remain redacted and authenticated data is not cached publicly.
-
-Determinism: Visual baselines use pinned browsers, fonts supplied by standard image packages rather than committed proprietary font files, fixed viewport fixtures, stable synthetic data, fixed locale/time zone, and disabled nondeterministic animation. E2E routes resolve exact snapshots, selections, and runs.
-
-Idempotency: Re-running the complete UI funnel against unchanged authorized inputs creates no duplicate projects, refreshes, selections, analyses, reports, or exports; restart and browser refresh resume persisted state.

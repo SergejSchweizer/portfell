@@ -40,6 +40,7 @@ function workflow(project: Project | undefined) {
         metadata_builder: { status: "ready" },
         univariate_statistics: { status: "locked" },
         bivariate_statistics: { status: "locked" },
+        multivariate_statistics: { status: "locked" },
       },
       process_overview: { metadata_downloaded_isins: 4 },
     };
@@ -51,6 +52,7 @@ function workflow(project: Project | undefined) {
       metadata_builder: { status: "complete", metadata_selection_id: `selection-${project.id}`, quote_run_id: project.quoteRunId },
       univariate_statistics: { status: univariateReady ? "complete" : quoteReady ? "ready" : "ready", univariate_run_id: project.univariateRunId, univariate_selection_id: univariateReady ? `univariate-selection-${project.id}` : undefined },
       bivariate_statistics: univariateReady ? { status: project.bivariateRunId ? "complete" : "ready", bivariate_run_id: project.bivariateRunId } : { status: "locked" },
+      multivariate_statistics: project.bivariateRunId ? { status: "ready", bivariate_run_id: project.bivariateRunId, univariate_selection_id: `univariate-selection-${project.id}` } : { status: "locked" },
     },
     process_overview: { metadata_downloaded_isins: 4, metadata_builder_isins: 3, univariate_statistics_isins: univariateReady ? 3 : null },
   };
@@ -245,6 +247,10 @@ test("two dummy projects created through the UI preserve every research control 
     await page.getByRole("tab", { name: tab }).click();
     await expect(page.getByRole("tab", { name: tab })).toHaveAttribute("aria-selected", "true");
   }
+  await page.getByRole("link", { name: /Multivariate Statistics Ready/ }).click();
+  await expect(page).toHaveURL(/\/multivariate-statistics$/);
+  await expect(page.getByRole("heading", { name: "Multivariate Statistics" })).toBeVisible();
+  await expect(page.getByText("Portfolio-level analysis is ready for the ISIN universe used by the completed bivariate run.")).toBeVisible();
 
   expect([...fixture.projects.values()].map((project) => project.name)).toEqual(["Alpha income", "Beta growth"]);
   expect(fixture.calls).toEqual(expect.arrayContaining([

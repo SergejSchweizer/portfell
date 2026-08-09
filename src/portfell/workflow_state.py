@@ -1,4 +1,4 @@
-"""Canonical state for the three-module research workflow."""
+"""Canonical state for the four-module research workflow."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ WorkflowStageId = Literal[
     "metadata_builder",
     "univariate_statistics",
     "bivariate_statistics",
+    "multivariate_statistics",
 ]
 WorkflowStatus = Literal["locked", "ready", "running", "complete", "failed", "stale"]
 
@@ -16,6 +17,7 @@ WORKFLOW_STAGE_IDS: tuple[WorkflowStageId, ...] = (
     "metadata_builder",
     "univariate_statistics",
     "bivariate_statistics",
+    "multivariate_statistics",
 )
 
 
@@ -38,6 +40,7 @@ def resolve_workflow(
     univariate_run_id: str | None = None,
     univariate_selection_id: str | None = None,
     bivariate_run_id: str | None = None,
+    bivariate_status: WorkflowStatus | None = None,
 ) -> dict[str, dict[str, object]]:
     """Resolve the ordered workflow from immutable records without mutation."""
 
@@ -45,6 +48,7 @@ def resolve_workflow(
         "metadata_builder": WorkflowStage("ready"),
         "univariate_statistics": WorkflowStage("locked"),
         "bivariate_statistics": WorkflowStage("locked"),
+        "multivariate_statistics": WorkflowStage("locked"),
     }
     if not (metadata_revision_id and metadata_selection_id):
         return {stage_id: stages[stage_id].to_row() for stage_id in WORKFLOW_STAGE_IDS}
@@ -77,8 +81,9 @@ def resolve_workflow(
 
     stages["bivariate_statistics"] = WorkflowStage("ready")
     if bivariate_run_id:
+        resolved_bivariate_status = bivariate_status or "complete"
         stages["bivariate_statistics"] = WorkflowStage(
-            "complete",
+            resolved_bivariate_status,
             {
                 "metadata_revision_id": metadata_revision_id,
                 "metadata_selection_id": metadata_selection_id,
@@ -88,4 +93,16 @@ def resolve_workflow(
                 "bivariate_run_id": bivariate_run_id,
             },
         )
+        if resolved_bivariate_status == "complete":
+            stages["multivariate_statistics"] = WorkflowStage(
+                "ready",
+                {
+                    "metadata_revision_id": metadata_revision_id,
+                    "metadata_selection_id": metadata_selection_id,
+                    "quote_run_id": quote_run_id,
+                    "univariate_run_id": univariate_run_id,
+                    "univariate_selection_id": univariate_selection_id,
+                    "bivariate_run_id": bivariate_run_id,
+                },
+            )
     return {stage_id: stages[stage_id].to_row() for stage_id in WORKFLOW_STAGE_IDS}
