@@ -14,6 +14,7 @@ from portfell.hosted_api_contracts import (
     AnalysisCreateRequest,
     BivariateSelectionRequest,
     MultivariateRunRequest,
+    MultivariateSettingsRequest,
     UnivariateRunRequest,
     UnivariateSelectionRequest,
 )
@@ -221,6 +222,23 @@ def research_router(
     @router.get("/multivariate-statistics/runs/{run_id}/validation")
     def multivariate_validation(run_id: str, user: ApiUser = Depends(current_user)) -> JsonRow:
         return call(service.multivariate_validation, user.user_id, run_id)
+
+    @router.get("/multivariate-statistics/runs/{run_id}/artifacts")
+    def multivariate_artifacts(run_id: str, user: ApiUser = Depends(current_user)) -> JsonRow:
+        return call(service.multivariate_artifacts, user.user_id, run_id)
+
+    @router.patch("/multivariate-statistics/runs/{run_id}/settings")
+    def update_multivariate_settings(
+        run_id: str,
+        payload: MultivariateSettingsRequest,
+        user: ApiUser = Depends(workspace_user),
+    ) -> JsonRow:
+        return call(
+            service.update_multivariate_settings,
+            user.user_id,
+            run_id,
+            tuple(payload.selected_candidate_ids),
+        )
 
     @router.post("/analyses")
     def create_analysis(

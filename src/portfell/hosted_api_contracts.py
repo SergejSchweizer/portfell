@@ -109,6 +109,12 @@ class MultivariateRunRequest(BaseModel):
     settings: JsonRow = Field(default_factory=dict)
 
 
+class MultivariateSettingsRequest(BaseModel):
+    """User presentation choices over already-computed owned candidates only."""
+
+    selected_candidate_ids: list[str] = Field(default_factory=list, max_length=6)
+
+
 class LoadSelectedIsinsRequest(BaseModel):
     """Request to load quote data for one user-owned project selection."""
 

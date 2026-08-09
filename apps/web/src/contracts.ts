@@ -128,6 +128,7 @@ export type ApiMultivariateRun = Readonly<{
   completed_units: number;
   total_units: number;
   estimated_remaining_seconds: number | null;
+  settings: Readonly<{ selected_candidate_ids?: readonly string[] }>;
   warnings: readonly string[];
   failure_reason: string | null;
 }>;
@@ -159,10 +160,73 @@ export type ApiMultivariateCandidate = Readonly<{
   volatility: number | null;
   cvar: number | null;
   gross_ttm_distribution_yield: number | null;
+  gross_monthly_distribution: number | null;
+  total_return: number | null;
+  max_drawdown: number | null;
+  diversification_ratio: number | null;
 }>;
 
 export type ApiMultivariateCandidates = Readonly<{ items: readonly ApiMultivariateCandidate[] }>;
 export type ApiMultivariateValidation = Readonly<{ items: readonly Readonly<Record<string, unknown>>[] }>;
+
+export type ApiMultivariateRiskContribution = Readonly<{
+  candidate_id: string;
+  method: string;
+  isin: string;
+  exchange: string;
+  code: string;
+  weight: number;
+  marginal_risk_contribution: number;
+  absolute_risk_contribution: number;
+  percent_risk_contribution: number;
+}>;
+
+export type ApiMultivariateRiskContributions = Readonly<{
+  items: readonly ApiMultivariateRiskContribution[];
+}>;
+
+export type ApiMultivariateIncomeEvidence = Readonly<{
+  isin: string;
+  exchange: string;
+  code: string;
+  currency: string | null;
+  event_count: number;
+  observed_month_count: number;
+  gross_ttm_distribution_amount: number | null;
+  gross_ttm_distribution_yield: number | null;
+  mean_observed_monthly_distribution: number | null;
+  median_observed_monthly_distribution: number | null;
+  lower_percentile_monthly_distribution: number | null;
+  coefficient_of_variation: number | null;
+  cut_count: number | null;
+  largest_cut: number | null;
+  longest_falling_sequence: number | null;
+  availability_reasons: readonly string[];
+  warnings: readonly string[];
+}>;
+
+export type ApiMultivariateIncomeEvidenceList = Readonly<{
+  items: readonly ApiMultivariateIncomeEvidence[];
+}>;
+
+export type ApiMultivariateComponent = Readonly<{
+  component_id: string;
+  isin: string;
+  exchange: string;
+  code: string;
+  loading: number;
+  explained_variance: number;
+  cluster: string | null;
+}>;
+
+export type ApiMultivariateComponents = Readonly<{
+  items: readonly ApiMultivariateComponent[];
+  total: number;
+  limit: number;
+  offset: number;
+}>;
+
+export type ApiMultivariateArtifacts = Readonly<Record<string, unknown>>;
 
 export type ApiPage<T> = Readonly<{
   items: readonly T[];
