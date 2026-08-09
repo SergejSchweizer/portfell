@@ -285,6 +285,10 @@ test("two dummy projects created through the UI preserve every research control 
     await expect(page.getByRole("tab", { name: tab })).toHaveAttribute("aria-selected", "true");
   }
   await page.reload();
+  const viewport = page.viewportSize();
+  if (viewport && viewport.width < 768) {
+    await page.getByRole("button", { name: "Open project navigation" }).click();
+  }
   await page.getByRole("link", { name: /Multivariate Statistics/ }).click();
   await expect(page).toHaveURL(/\/multivariate-statistics$/);
   await expect(page.getByRole("heading", { name: "Multivariate Statistics" })).toBeVisible();
