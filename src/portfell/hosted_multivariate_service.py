@@ -6,7 +6,9 @@ closure. It deliberately does not call the generic analysis placeholder.
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from dataclasses import replace
+from typing import Any
 
 from portfell.gold import build_returns
 from portfell.hosted_api_errors import HostedApplicationError
@@ -15,7 +17,7 @@ from portfell.hosted_api_state import HostedApiState, MultivariateRunRecord
 from portfell.hosted_research_ports import ResearchDataPort, ResearchPersistencePort
 from portfell.hosted_research_workflow import UnivariateSelection, bivariate_source_id
 from portfell.income import build_income_evidence, normalize_distribution_events
-from portfell.multivariate_candidates import build_candidate_set
+from portfell.multivariate_candidates import PortfolioCandidate, build_candidate_set
 from portfell.multivariate_inputs import (
     MultivariateInputDependencies,
     MultivariateListingKey,
@@ -23,7 +25,11 @@ from portfell.multivariate_inputs import (
 )
 from portfell.multivariate_risk_model import build_multivariate_risk_model
 from portfell.multivariate_structure import build_multivariate_structure
-from portfell.multivariate_validation import validate_candidates
+from portfell.multivariate_validation import (
+    build_candidate_scorecards,
+    validate_candidate_stress,
+    validate_candidates,
+)
 from portfell.table_io import JsonRow
 
 
@@ -216,7 +222,27 @@ class MultivariateResearchService:
         candidates = build_candidate_set(
             snapshot=snapshot, risk_model=risk, return_rows=returns, income=income
         )
-        validation = validate_candidates(candidates=candidates, return_rows=returns)
+
+        def refit_candidates(
+            training_rows: Sequence[Mapping[str, Any]],
+        ) -> tuple[PortfolioCandidate, ...]:
+            training_risk = build_multivariate_risk_model(
+                snapshot=snapshot, return_rows=training_rows
+            )
+            return build_candidate_set(
+                snapshot=snapshot,
+                risk_model=training_risk,
+                return_rows=training_rows,
+                income=income,
+            )
+
+        validation = validate_candidates(
+            candidates=candidates,
+            return_rows=returns,
+            candidate_factory=refit_candidates,
+        )
+        scenarios = validate_candidate_stress(candidates=candidates, return_rows=returns)
+        scorecards = build_candidate_scorecards(splits=validation, scenarios=scenarios)
         candidate_rows = tuple(
             {
                 "candidate_id": item.candidate_id,
@@ -295,7 +321,11 @@ class MultivariateResearchService:
             }
             for loading in structure.loadings
         )
-        validation_rows = tuple(item.__dict__ for item in validation)
+        validation_rows = (
+            tuple({"kind": "walk_forward", **item.__dict__} for item in validation)
+            + tuple({"kind": "stress", **item.__dict__} for item in scenarios)
+            + tuple({"kind": "scorecard", **item.__dict__} for item in scorecards)
+        )
         summary = {
             "input_snapshot_id": snapshot.snapshot_id,
             "risk_model_id": risk.risk_model_id,

@@ -1,6 +1,14 @@
+from collections.abc import Mapping, Sequence
+from typing import Any
+
 from portfell.multivariate_candidates import PortfolioCandidate
 from portfell.multivariate_inputs import MultivariateListingKey
-from portfell.multivariate_validation import WalkForwardPolicy, validate_candidates
+from portfell.multivariate_validation import (
+    WalkForwardPolicy,
+    build_candidate_scorecards,
+    validate_candidate_stress,
+    validate_candidates,
+)
 
 
 def _candidate() -> PortfolioCandidate:
@@ -43,3 +51,61 @@ def test_walk_forward_reports_insufficient_history_explicitly() -> None:
     )
     assert splits[0].status == "unavailable"
     assert splits[0].reason == "insufficient_walk_forward_history"
+
+
+def test_walk_forward_refits_only_on_each_training_slice_and_persists_turnover() -> None:
+    rows = [
+        {
+            "isin": "IE1",
+            "exchange": "X",
+            "code": "A",
+            "date": f"2025-01-{day:02d}",
+            "return": 0.01,
+        }
+        for day in range(1, 11)
+    ]
+    training_ends: list[str] = []
+
+    def refit(training_rows: Sequence[Mapping[str, Any]]) -> list[PortfolioCandidate]:
+        training_ends.append(str(training_rows[-1]["date"]))
+        return [_candidate()]
+
+    splits = validate_candidates(
+        candidates=[_candidate()],
+        return_rows=rows,
+        policy=WalkForwardPolicy(minimum_training_observations=4, test_window_observations=2),
+        candidate_factory=refit,
+    )
+
+    assert len(training_ends) == len(splits)
+    assert all(end < split.test_start for end, split in zip(training_ends, splits, strict=True))
+    assert splits[0].turnover == 1.0
+
+
+def test_stress_and_scorecards_are_deterministic_and_do_not_select_a_winner() -> None:
+    rows = [
+        {
+            "isin": "IE1",
+            "exchange": "X",
+            "code": "A",
+            "date": f"2025-01-{day:02d}",
+            "return": 0.01 if day % 2 else -0.02,
+        }
+        for day in range(1, 9)
+    ]
+    candidate = _candidate()
+    policy = WalkForwardPolicy(minimum_training_observations=4, test_window_observations=2)
+    splits = validate_candidates(candidates=[candidate], return_rows=rows, policy=policy)
+    scenarios = validate_candidate_stress(candidates=[candidate], return_rows=rows, policy=policy)
+    scorecards = build_candidate_scorecards(splits=splits, scenarios=scenarios)
+
+    assert [item.scenario for item in scenarios] == [
+        "historical",
+        "seeded_block_bootstrap",
+        "covariance_perturbation",
+        "correlation_convergence",
+        "distribution_cut",
+    ]
+    assert scenarios[-1].reason == "cash_flow_evidence_only"
+    assert scorecards[0].candidate_id == candidate.candidate_id
+    assert scorecards[0].scenario_count == len(scenarios)

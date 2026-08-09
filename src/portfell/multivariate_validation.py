@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from math import sqrt
+from math import exp, sqrt
+from random import Random
 from typing import Any
 
 from portfell.contract_versioning import ContractVersion, stable_contract_id
 from portfell.multivariate_candidates import PortfolioCandidate
+from portfell.multivariate_inputs import MultivariateListingKey
 
 VALIDATION_CONTRACT = ContractVersion("multivariate.validation", 1)
+CandidateFactory = Callable[[Sequence[Mapping[str, Any]]], Sequence[PortfolioCandidate]]
 
 
 @dataclass(frozen=True)
@@ -20,6 +23,8 @@ class WalkForwardPolicy:
     test_window_observations: int = 21
     minimum_completed_splits: int = 2
     transaction_cost_rate: float = 0.0005
+    bootstrap_seed: int = 41
+    bootstrap_observations: int = 252
 
     def to_row(self) -> dict[str, object]:
         return {
@@ -28,10 +33,19 @@ class WalkForwardPolicy:
             "test_window_observations": self.test_window_observations,
             "minimum_completed_splits": self.minimum_completed_splits,
             "transaction_cost_rate": self.transaction_cost_rate,
+            "bootstrap_seed": self.bootstrap_seed,
+            "bootstrap_observations": self.bootstrap_observations,
         }
 
 
 DEFAULT_WALK_FORWARD_POLICY = WalkForwardPolicy()
+_SCENARIO_NAMES = (
+    "historical",
+    "seeded_block_bootstrap",
+    "covariance_perturbation",
+    "correlation_convergence",
+    "distribution_cut",
+)
 
 
 @dataclass(frozen=True)
@@ -48,6 +62,38 @@ class ValidationSplit:
     volatility: float | None
     status: str
     reason: str | None
+    candidate_id: str = ""
+    turnover: float = 0.0
+
+
+@dataclass(frozen=True)
+class ValidationScenario:
+    """A deterministic historical or synthetic adverse scenario for one candidate."""
+
+    scenario_id: str
+    candidate_id: str
+    method: str
+    scenario: str
+    compounded_return: float | None
+    max_drawdown: float | None
+    value_at_risk: float | None
+    conditional_value_at_risk: float | None
+    status: str
+    reason: str | None
+
+
+@dataclass(frozen=True)
+class CandidateScorecard:
+    """Comparable summary of the same out-of-sample and stress evidence."""
+
+    candidate_id: str
+    method: str
+    completed_split_count: int
+    median_post_cost_return: float | None
+    adverse_post_cost_return: float | None
+    median_volatility: float | None
+    scenario_count: int
+    availability_reasons: tuple[str, ...]
 
 
 def validate_candidates(
@@ -55,38 +101,56 @@ def validate_candidates(
     candidates: Sequence[PortfolioCandidate],
     return_rows: Sequence[Mapping[str, Any]],
     policy: WalkForwardPolicy = DEFAULT_WALK_FORWARD_POLICY,
+    candidate_factory: CandidateFactory | None = None,
 ) -> tuple[ValidationSplit, ...]:
-    """Validate each feasible candidate on identical out-of-sample slices."""
-    by_date = _portfolio_returns_by_date(candidates, return_rows)
-    series: list[set[str]] = [set(values) for values in by_date.values() if values]
-    common_dates: set[str] = set(series[0]) if series else set()
-    for values in series[1:]:
-        common_dates &= values
-    dates: tuple[str, ...] = tuple(sorted(common_dates))
+    """Validate candidates on common out-of-sample slices.
+
+    A supplied factory receives only the training rows for each split.  This is
+    the production path: it forces risk-model and optimizer re-estimation
+    before any test observation is evaluated.  The no-factory fallback keeps
+    this pure helper useful for explicit static-weight research fixtures.
+    """
+
+    dates = _common_dates(candidates, return_rows)
     if len(dates) < policy.minimum_training_observations + policy.test_window_observations:
         return tuple(
             _unavailable(candidate, "insufficient_walk_forward_history") for candidate in candidates
         )
     results: list[ValidationSplit] = []
-    for candidate in candidates:
-        if candidate.status != "feasible":
-            results.append(_unavailable(candidate, "candidate_unavailable"))
+    previous_weights: dict[str, tuple[tuple[MultivariateListingKey, float], ...]] = {}
+    for start in range(
+        policy.minimum_training_observations, len(dates), policy.test_window_observations
+    ):
+        test_dates = dates[start : start + policy.test_window_observations]
+        if len(test_dates) != policy.test_window_observations:
             continue
-        returns = by_date[candidate.method]
-        for start in range(
-            policy.minimum_training_observations, len(dates), policy.test_window_observations
-        ):
-            test_dates = dates[start : start + policy.test_window_observations]
-            if len(test_dates) != policy.test_window_observations:
+        training_rows = [row for row in return_rows if str(row.get("date", "")) in dates[:start]]
+        evaluated = (
+            tuple(candidate_factory(training_rows)) if candidate_factory else tuple(candidates)
+        )
+        by_method = {candidate.method: candidate for candidate in evaluated}
+        for requested in candidates:
+            candidate = by_method.get(requested.method)
+            if candidate is None or candidate.status != "feasible":
+                results.append(_unavailable(requested, "candidate_unavailable"))
                 continue
+            returns = _portfolio_returns_by_date((candidate,), return_rows)[candidate.method]
             test = [returns[day] for day in test_dates]
             pre_cost = _compound(test)
-            cost = policy.transaction_cost_rate
+            previous = previous_weights.get(candidate.method)
+            turnover = _turnover(previous, candidate.weights)
+            cost = (
+                turnover * policy.transaction_cost_rate
+                if candidate_factory is not None
+                else policy.transaction_cost_rate
+            )
+            previous_weights[candidate.method] = candidate.weights
             results.append(
                 ValidationSplit(
                     split_id=stable_contract_id(
                         "multivariate_validation_split",
                         {
+                            "candidate_id": candidate.candidate_id,
                             "method": candidate.method,
                             "train_end": dates[start - 1],
                             "test_start": test_dates[0],
@@ -104,9 +168,78 @@ def validate_candidates(
                     volatility=_volatility(test),
                     status="complete",
                     reason=None,
+                    candidate_id=candidate.candidate_id,
+                    turnover=turnover,
                 )
             )
     return tuple(results)
+
+
+def validate_candidate_stress(
+    *,
+    candidates: Sequence[PortfolioCandidate],
+    return_rows: Sequence[Mapping[str, Any]],
+    policy: WalkForwardPolicy = DEFAULT_WALK_FORWARD_POLICY,
+) -> tuple[ValidationScenario, ...]:
+    """Produce deterministic scenario evidence without changing source observations.
+
+    The distribution-cut scenario intentionally has no price-return adjustment:
+    it records the cash-flow assumption boundary instead of inventing a total
+    return series.
+    """
+
+    scenarios: list[ValidationScenario] = []
+    for candidate in candidates:
+        if candidate.status != "feasible":
+            scenarios.extend(
+                _unavailable_scenario(candidate, name, "candidate_unavailable")
+                for name in _SCENARIO_NAMES
+            )
+            continue
+        values = list(
+            _portfolio_returns_by_date((candidate,), return_rows)[candidate.method].values()
+        )
+        for name, scenario_values, reason in _scenario_values(values, policy):
+            scenarios.append(_scenario(candidate, name, scenario_values, reason, policy))
+    return tuple(scenarios)
+
+
+def build_candidate_scorecards(
+    *, splits: Sequence[ValidationSplit], scenarios: Sequence[ValidationScenario]
+) -> tuple[CandidateScorecard, ...]:
+    """Aggregate comparable persisted evidence without ranking or selecting a winner."""
+
+    candidate_ids = sorted(
+        {item.candidate_id for item in splits if item.candidate_id}
+        | {item.candidate_id for item in scenarios if item.candidate_id}
+    )
+    scorecards: list[CandidateScorecard] = []
+    for candidate_id in candidate_ids:
+        candidate_splits = [item for item in splits if item.candidate_id == candidate_id]
+        candidate_scenarios = [item for item in scenarios if item.candidate_id == candidate_id]
+        completed = [item for item in candidate_splits if item.status == "complete"]
+        returns = sorted(item.post_cost_return for item in completed)
+        volatility = sorted(item.volatility for item in completed if item.volatility is not None)
+        reasons = tuple(
+            sorted(
+                {item.reason for item in candidate_splits if item.reason}
+                | {item.reason for item in candidate_scenarios if item.reason}
+            )
+        )
+        method = next((item.method for item in candidate_splits), candidate_scenarios[0].method)
+        scorecards.append(
+            CandidateScorecard(
+                candidate_id=candidate_id,
+                method=method,
+                completed_split_count=len(completed),
+                median_post_cost_return=_median(returns),
+                adverse_post_cost_return=returns[0] if returns else None,
+                median_volatility=_median(volatility),
+                scenario_count=len(candidate_scenarios),
+                availability_reasons=reasons,
+            )
+        )
+    return tuple(scorecards)
 
 
 def _portfolio_returns_by_date(
@@ -136,6 +269,139 @@ def _portfolio_returns_by_date(
     return output
 
 
+def _common_dates(
+    candidates: Sequence[PortfolioCandidate], rows: Sequence[Mapping[str, Any]]
+) -> tuple[str, ...]:
+    keys = {
+        key.as_tuple()
+        for candidate in candidates
+        if candidate.status == "feasible"
+        for key, _ in candidate.weights
+    }
+    indexed = {
+        key: {
+            str(row["date"])
+            for row in rows
+            if (str(row["isin"]), str(row["exchange"]), str(row["code"])) == key
+        }
+        for key in keys
+    }
+    available = [dates for dates in indexed.values() if dates]
+    if not available:
+        return ()
+    common = set(available[0])
+    for dates in available[1:]:
+        common &= dates
+    return tuple(sorted(common))
+
+
+def _turnover(
+    previous: tuple[tuple[MultivariateListingKey, float], ...] | None,
+    current: tuple[tuple[MultivariateListingKey, float], ...],
+) -> float:
+    if previous is None:
+        # The first out-of-sample allocation is a full rebalance from cash.
+        return 1.0
+    before = {key: weight for key, weight in previous}
+    after = {key: weight for key, weight in current}
+    return 0.5 * sum(abs(before.get(key, 0.0) - after.get(key, 0.0)) for key in before | after)
+
+
+def _scenario_values(
+    values: Sequence[float], policy: WalkForwardPolicy
+) -> tuple[tuple[str, tuple[float, ...], str | None], ...]:
+    if not values:
+        return tuple((name, (), "insufficient_return_history") for name in _SCENARIO_NAMES)
+    rng = Random(policy.bootstrap_seed)
+    count = min(policy.bootstrap_observations, len(values))
+    bootstrap = tuple(values[rng.randrange(len(values))] for _ in range(count))
+    mean = sum(values) / len(values)
+    covariance_perturbed = tuple(mean + 1.25 * (value - mean) for value in values)
+    convergence = tuple(0.75 * value + 0.25 * mean for value in values)
+    return (
+        ("historical", tuple(values), None),
+        ("seeded_block_bootstrap", bootstrap, None),
+        ("covariance_perturbation", covariance_perturbed, None),
+        ("correlation_convergence", convergence, None),
+        ("distribution_cut", tuple(values), "cash_flow_evidence_only"),
+    )
+
+
+def _scenario(
+    candidate: PortfolioCandidate,
+    name: str,
+    values: Sequence[float],
+    reason: str | None,
+    policy: WalkForwardPolicy,
+) -> ValidationScenario:
+    compounded, drawdown = _compound_and_drawdown(values)
+    losses = [-value for value in values]
+    var, cvar = _value_at_risk(losses)
+    return ValidationScenario(
+        scenario_id=stable_contract_id(
+            "multivariate_validation_scenario",
+            {"candidate_id": candidate.candidate_id, "scenario": name, "policy": policy.to_row()},
+        ),
+        candidate_id=candidate.candidate_id,
+        method=candidate.method,
+        scenario=name,
+        compounded_return=compounded,
+        max_drawdown=drawdown,
+        value_at_risk=var,
+        conditional_value_at_risk=cvar,
+        status="complete" if reason is None else "available_with_warning",
+        reason=reason,
+    )
+
+
+def _unavailable_scenario(
+    candidate: PortfolioCandidate, name: str, reason: str
+) -> ValidationScenario:
+    return ValidationScenario(
+        scenario_id=stable_contract_id(
+            "multivariate_validation_scenario",
+            {"candidate_id": candidate.candidate_id, "scenario": name, "reason": reason},
+        ),
+        candidate_id=candidate.candidate_id,
+        method=candidate.method,
+        scenario=name,
+        compounded_return=None,
+        max_drawdown=None,
+        value_at_risk=None,
+        conditional_value_at_risk=None,
+        status="unavailable",
+        reason=reason,
+    )
+
+
+def _compound_and_drawdown(values: Sequence[float]) -> tuple[float | None, float | None]:
+    if not values:
+        return None, None
+    wealth = peak = 1.0
+    drawdown = 0.0
+    for value in values:
+        wealth *= exp(value)
+        peak = max(peak, wealth)
+        drawdown = min(drawdown, wealth / peak - 1.0)
+    return wealth - 1.0, drawdown
+
+
+def _value_at_risk(losses: Sequence[float]) -> tuple[float | None, float | None]:
+    if not losses:
+        return None, None
+    ordered = sorted(losses)
+    threshold = ordered[min(len(ordered) - 1, int(0.95 * len(ordered)))]
+    tail = [value for value in ordered if value >= threshold]
+    return threshold, sum(tail) / len(tail)
+
+
+def _median(values: Sequence[float]) -> float | None:
+    if not values:
+        return None
+    middle = len(values) // 2
+    return values[middle] if len(values) % 2 else (values[middle - 1] + values[middle]) / 2
+
+
 def _unavailable(candidate: PortfolioCandidate, reason: str) -> ValidationSplit:
     return ValidationSplit(
         stable_contract_id(
@@ -152,6 +418,7 @@ def _unavailable(candidate: PortfolioCandidate, reason: str) -> ValidationSplit:
         None,
         "unavailable",
         reason,
+        candidate.candidate_id,
     )
 
 
