@@ -17,7 +17,7 @@ from portfell.hosted_api_service_support import opaque_id, require_user_row, sta
 from portfell.hosted_api_state import HostedApiState, MultivariateRunRecord, SelectionRecord
 from portfell.hosted_research_ports import ResearchDataPort, ResearchPersistencePort
 from portfell.hosted_research_workflow import UnivariateSelection, bivariate_source_id
-from portfell.income import build_income_evidence, normalize_distribution_events
+from portfell.income import INCOME_CONTRACT, build_income_evidence, normalize_distribution_events
 from portfell.multivariate_candidates import PortfolioCandidate, build_candidate_set
 from portfell.multivariate_inputs import (
     MultivariateInputDependencies,
@@ -281,6 +281,8 @@ class MultivariateResearchService:
                 events=normalize_distribution_events(dividends, listing=key),
                 period_end=snapshot.date_end or "1970-01-01",
                 denominator_price=_last_price(quotes, key),
+                period_start=snapshot.date_start,
+                start_price=_first_price(quotes, key),
             )
             for key in keys
         }
@@ -355,6 +357,7 @@ class MultivariateResearchService:
                 "currency": evidence.currency,
                 "event_count": evidence.event_count,
                 "observed_month_count": evidence.observed_month_count,
+                "observed_payment_coverage": evidence.observed_payment_coverage,
                 "gross_ttm_distribution_amount": evidence.gross_ttm_distribution_amount,
                 "gross_ttm_distribution_yield": evidence.gross_ttm_distribution_yield,
                 "mean_observed_monthly_distribution": evidence.mean_observed_monthly_distribution,
@@ -368,6 +371,10 @@ class MultivariateResearchService:
                 "cut_count": evidence.cut_count,
                 "largest_cut": evidence.largest_cut,
                 "longest_falling_sequence": evidence.longest_falling_sequence,
+                "distribution_trend": evidence.distribution_trend,
+                "price_return": evidence.price_return,
+                "total_return": evidence.total_return,
+                "distribution_to_total_return_gap": evidence.distribution_to_total_return_gap,
                 "nav_erosion": evidence.nav_erosion,
                 "availability_reasons": list(evidence.availability_reasons),
                 "warnings": list(evidence.warnings),
@@ -442,6 +449,52 @@ class MultivariateResearchService:
                     for key, cluster in structure.cluster_by_listing
                 ],
             },
+            "income_distribution_events": [
+                {
+                    "income_id": evidence.income_id,
+                    "isin": key.isin,
+                    "exchange": key.exchange,
+                    "code": key.code,
+                    "event_date": event.event_date,
+                    "amount": event.amount,
+                    "currency": event.currency,
+                    "source_id": event.source_id,
+                    "source_revision": event.source_revision,
+                    "split_adjustment_factor": event.split_adjustment_factor,
+                    "policy_version": INCOME_CONTRACT.qualified_name,
+                }
+                for key, evidence in sorted(income.items())
+                for event in normalize_distribution_events(dividends, listing=key)
+            ],
+            "income_monthly_distributions": [
+                {
+                    "income_id": evidence.income_id,
+                    "isin": key.isin,
+                    "exchange": key.exchange,
+                    "code": key.code,
+                    "month": bucket.month,
+                    "amount": bucket.amount,
+                    "currency": bucket.currency,
+                    "event_count": bucket.event_count,
+                    "source_event_ids": list(bucket.source_event_ids),
+                    "policy_version": INCOME_CONTRACT.qualified_name,
+                }
+                for key, evidence in sorted(income.items())
+                for bucket in evidence.monthly_distributions
+            ],
+            "income_metrics": list(income_rows),
+            "income_warnings": [
+                {
+                    "income_id": evidence.income_id,
+                    "isin": key.isin,
+                    "exchange": key.exchange,
+                    "code": key.code,
+                    "warning": warning,
+                    "policy_version": INCOME_CONTRACT.qualified_name,
+                }
+                for key, evidence in sorted(income.items())
+                for warning in (*evidence.availability_reasons, *evidence.warnings)
+            ],
         }
         return replace(
             run,
@@ -504,4 +557,14 @@ def _last_price(
     if not matching:
         return None
     value = sorted(matching, key=lambda row: str(row.get("date", "")))[-1].get("adjusted_close")
+    return float(value) if isinstance(value, int | float) and value > 0 else None
+
+
+def _first_price(
+    rows: tuple[JsonRow, ...] | list[JsonRow], key: MultivariateListingKey
+) -> float | None:
+    matching = [row for row in rows if MultivariateListingKey.from_row(row) == key]
+    if not matching:
+        return None
+    value = sorted(matching, key=lambda row: str(row.get("date", "")))[0].get("adjusted_close")
     return float(value) if isinstance(value, int | float) and value > 0 else None

@@ -164,6 +164,10 @@ def test_multivariate_service_resolves_pinned_project_dependencies_and_persists_
     assert len(artifacts["input_snapshot"]["dividend_artifact_ids"]) == 5
     assert artifacts["risk_model"]["estimator"] == "ledoit_wolf"
     assert artifacts["structure"]["risk_model_id"] == artifacts["risk_model"]["risk_model_id"]
+    assert len(artifacts["income_distribution_events"]) == 60
+    assert len(artifacts["income_monthly_distributions"]) == 60
+    assert len(artifacts["income_metrics"]) == 5
+    assert all("policy_version" in row for row in artifacts["income_warnings"])
     components = service.components("user-a", str(started["run_id"]), limit=3, offset=0)
     assert components["total"] == 25
     assert len(components["items"]) == 3
