@@ -36,6 +36,8 @@ class MultivariateStructureArtifact:
     effective_independent_drivers: float
     cluster_by_listing: tuple[tuple[MultivariateListingKey, str], ...]
     loadings: tuple[ComponentLoading, ...]
+    strongest_common_driver: MultivariateListingKey | None
+    largest_redundancy_warning: JsonRow | None
     availability_reasons: tuple[str, ...]
 
     @property
@@ -70,6 +72,8 @@ class MultivariateStructureArtifact:
                 "observation_count": self.observation_count,
             },
             "thresholds": thresholds,
+            "strongest_common_driver": _listing_row(self.strongest_common_driver),
+            "largest_redundancy_warning": self.largest_redundancy_warning,
             "availability_reasons": list(self.availability_reasons),
         }
 
@@ -121,6 +125,8 @@ def build_multivariate_structure(
         for listing_index, listing in enumerate(risk_model.listings)
     )
     clusters = _clusters(risk_model.listings, risk_model.covariance)
+    first_component = [item for item in loadings if item.component_id == "Component 1"]
+    strongest = max(first_component, key=lambda item: (abs(item.loading), item.listing)).listing
     identity = stable_contract_id(
         "multivariate_structure",
         {
@@ -142,6 +148,8 @@ def build_multivariate_structure(
         effective_independent_drivers=effective_rank,
         cluster_by_listing=clusters,
         loadings=loadings,
+        strongest_common_driver=strongest,
+        largest_redundancy_warning=_largest_redundancy(risk_model),
         availability_reasons=(),
     )
 
@@ -164,6 +172,8 @@ def _unavailable(
         effective_independent_drivers=0.0,
         cluster_by_listing=(),
         loadings=(),
+        strongest_common_driver=None,
+        largest_redundancy_warning=None,
         availability_reasons=(reason,),
     )
 
@@ -197,6 +207,36 @@ def _clusters(
     return tuple(
         (listing, f"Cluster {roots[root(index)]}") for index, listing in enumerate(listings)
     )
+
+
+def _largest_redundancy(risk_model: MultivariateRiskModelArtifact) -> JsonRow | None:
+    pairs: list[tuple[float, MultivariateListingKey, MultivariateListingKey]] = []
+    for left_index, left in enumerate(risk_model.listings):
+        for right_index, right in enumerate(
+            risk_model.listings[left_index + 1 :], start=left_index + 1
+        ):
+            denominator = sqrt(
+                max(risk_model.covariance[left_index][left_index], 0)
+                * max(risk_model.covariance[right_index][right_index], 0)
+            )
+            if denominator:
+                pairs.append(
+                    (risk_model.covariance[left_index][right_index] / denominator, left, right)
+                )
+    if not pairs:
+        return None
+    correlation, left, right = max(pairs, key=lambda item: (item[0], item[1], item[2]))
+    return {
+        "left": _listing_row(left),
+        "right": _listing_row(right),
+        "correlation": correlation,
+    }
+
+
+def _listing_row(listing: MultivariateListingKey | None) -> JsonRow | None:
+    if listing is None:
+        return None
+    return {"isin": listing.isin, "exchange": listing.exchange, "code": listing.code}
 
 
 def _jacobi_eigensystem(
