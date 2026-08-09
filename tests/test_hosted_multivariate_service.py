@@ -130,6 +130,10 @@ def test_multivariate_service_resolves_pinned_project_dependencies_and_persists_
     assert "max_drawdown" in detail
     assert service.risk_contributions("user-a", str(started["run_id"]), candidate_id)["items"]
     assert service.income_evidence("user-a", str(started["run_id"]))["items"]
+    artifacts = service.artifacts("user-a", str(started["run_id"]))
+    assert artifacts["input_snapshot"]["univariate_selection_id"] == "univariate-selection-a"
+    assert artifacts["risk_model"]["estimator"] == "ledoit_wolf"
+    assert artifacts["structure"]["risk_model_id"] == artifacts["risk_model"]["risk_model_id"]
     components = service.components("user-a", str(started["run_id"]), limit=3, offset=0)
     assert components["total"] == 25
     assert len(components["items"]) == 3

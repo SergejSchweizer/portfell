@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Protocol
+from typing import Any, Protocol
 
 from portfell.entitlements import InMemoryEntitlementStore, ProviderDownloadRun
 from portfell.hosted_credentials import (
@@ -114,6 +114,7 @@ class MultivariateRunRecord:
     structure: JsonRow
     candidates: tuple[JsonRow, ...]
     validation: tuple[JsonRow, ...]
+    artifacts: JsonRow = field(default_factory=lambda: dict[str, Any]())
     components: tuple[JsonRow, ...] = ()
     risk_contributions: tuple[JsonRow, ...] = ()
     income_evidence: tuple[JsonRow, ...] = ()

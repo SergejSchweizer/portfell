@@ -148,6 +148,11 @@ class MultivariateResearchService:
         run = require_user_row(self._state.multivariate_runs_by_id, run_id, user_id)
         return {"items": list(run.validation)}
 
+    def artifacts(self, user_id: str, run_id: str) -> JsonRow:
+        return dict(
+            require_user_row(self._state.multivariate_runs_by_id, run_id, user_id).artifacts
+        )
+
     def _selection_for_bivariate(self, user_id: str, run_id: str) -> UnivariateSelection:
         bivariate = require_user_row(self._state.bivariate_runs_by_id, run_id, user_id)
         matches = [
@@ -337,6 +342,45 @@ class MultivariateResearchService:
             },
             "availability_reasons": list(snapshot.availability_reasons),
         }
+        artifacts = {
+            "input_snapshot": snapshot.to_row(),
+            "risk_model": {
+                "risk_model_id": risk.risk_model_id,
+                "input_snapshot_id": risk.input_snapshot_id,
+                "contract_version": risk.contract_version.qualified_name,
+                "estimator": risk.estimator,
+                "return_type": risk.return_type,
+                "window_policy": risk.window_policy,
+                "estimator_parameters": list(risk.estimator_parameters),
+                "listing_keys": [item.as_tuple() for item in risk.listings],
+                "aligned_calendar_id": risk.aligned_calendar_id,
+                "date_start": risk.date_start,
+                "date_end": risk.date_end,
+                "observation_count": risk.observation_count,
+                "covariance": [list(row) for row in risk.covariance],
+                "shrinkage_intensity": risk.shrinkage_intensity,
+                "minimum_eigenvalue": risk.minimum_eigenvalue,
+                "condition_number": risk.condition_number,
+                "is_positive_semidefinite": risk.is_positive_semidefinite,
+                "availability_reasons": list(risk.availability_reasons),
+                "algorithm_version": risk.algorithm_version,
+            },
+            "structure": {
+                **structure.summary(),
+                "eigenvalues": list(structure.eigenvalues),
+                "explained_variance": list(structure.explained_variance),
+                "cumulative_explained_variance": list(structure.cumulative_explained_variance),
+                "clusters": [
+                    {
+                        "isin": key.isin,
+                        "exchange": key.exchange,
+                        "code": key.code,
+                        "cluster": cluster,
+                    }
+                    for key, cluster in structure.cluster_by_listing
+                ],
+            },
+        }
         return replace(
             run,
             input_snapshot_id=snapshot.snapshot_id,
@@ -347,6 +391,7 @@ class MultivariateResearchService:
             structure=structure.summary(),
             candidates=candidate_rows,
             validation=validation_rows,
+            artifacts=artifacts,
             components=components,
             risk_contributions=risk_contributions,
             income_evidence=income_rows,

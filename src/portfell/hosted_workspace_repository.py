@@ -105,6 +105,7 @@ def persist_local_workspace(state: HostedApiState) -> None:
                     "structure": run.structure,
                     "candidates": list(run.candidates),
                     "validation": list(run.validation),
+                    "artifacts": run.artifacts,
                     "components": list(run.components),
                     "risk_contributions": list(run.risk_contributions),
                     "income_evidence": list(run.income_evidence),
@@ -312,6 +313,7 @@ def _restore_multivariate_runs(state: HostedApiState, payload: Mapping[str, obje
             dict(_mapping(value, "multivariate validation"))
             for value in _object_list(row.get("validation", []), "multivariate validation")
         )
+        artifacts = dict(_mapping(row.get("artifacts", {}), "multivariate artifacts"))
         components = tuple(
             dict(_mapping(value, "multivariate component"))
             for value in _object_list(row.get("components", []), "multivariate components")
@@ -345,6 +347,7 @@ def _restore_multivariate_runs(state: HostedApiState, payload: Mapping[str, obje
             structure=dict(_mapping(row.get("structure", {}), "multivariate structure")),
             candidates=candidates,
             validation=validation,
+            artifacts=artifacts,
             components=components,
             risk_contributions=risk_contributions,
             income_evidence=income_evidence,

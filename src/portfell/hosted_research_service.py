@@ -118,6 +118,9 @@ class ResearchService:
     def multivariate_validation(self, user_id: str, run_id: str) -> JsonRow:
         return self._multivariate.validation(user_id, run_id)
 
+    def multivariate_artifacts(self, user_id: str, run_id: str) -> JsonRow:
+        return self._multivariate.artifacts(user_id, run_id)
+
     def create_analysis(
         self,
         user_id: str,

@@ -222,6 +222,10 @@ def research_router(
     def multivariate_validation(run_id: str, user: ApiUser = Depends(current_user)) -> JsonRow:
         return call(service.multivariate_validation, user.user_id, run_id)
 
+    @router.get("/multivariate-statistics/runs/{run_id}/artifacts")
+    def multivariate_artifacts(run_id: str, user: ApiUser = Depends(current_user)) -> JsonRow:
+        return call(service.multivariate_artifacts, user.user_id, run_id)
+
     @router.post("/analyses")
     def create_analysis(
         payload: AnalysisCreateRequest,
