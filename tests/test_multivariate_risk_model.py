@@ -3,7 +3,10 @@ from portfell.multivariate_inputs import (
     MultivariateListingKey,
     build_multivariate_input_snapshot,
 )
-from portfell.multivariate_risk_model import build_multivariate_risk_model
+from portfell.multivariate_risk_model import (
+    _risk_model_identity,  # pyright: ignore[reportPrivateUsage]
+    build_multivariate_risk_model,
+)
 
 
 def _key(number: int) -> MultivariateListingKey:
@@ -105,3 +108,21 @@ def test_unavailable_snapshot_never_provides_covariance_to_a_solver() -> None:
         assert str(error) == "risk model is unavailable"
     else:
         raise AssertionError("unavailable risk model must fail closed")
+
+
+def test_risk_model_reports_bad_returns_and_stably_handles_nonfinite_identity() -> None:
+    snapshot = build_multivariate_input_snapshot(
+        dependencies=_dependencies(observations=504), univariate_rows=[_row(_key(1)), _row(_key(2))]
+    )
+    artifact = build_multivariate_risk_model(snapshot=snapshot, return_rows=[], estimator="invalid")
+    assert artifact.availability_reasons[0].startswith("risk_model_error:")
+    identity = _risk_model_identity(
+        snapshot=snapshot,
+        listings=snapshot.listing_keys,
+        estimator="sample",
+        window_policy="full",
+        parameters=(),
+        covariance=((float("nan"),),),
+        algorithm_version=1,
+    )
+    assert identity

@@ -128,3 +128,38 @@ def test_same_isin_different_listing_key_remains_distinct() -> None:
     )
     assert snapshot.eligible
     assert len(snapshot.listing_keys) == 2
+
+
+def test_snapshot_records_stale_missing_and_duplicate_dependencies() -> None:
+    keys = (_key(1), _key(2))
+    snapshot = build_multivariate_input_snapshot(
+        dependencies=_dependencies(
+            keys=keys,
+            bivariate_run_id=None,
+            upstream_stale=True,
+            quote_artifact_ids={key: f"quote-{key.code}" for key in keys},
+            dividend_artifact_ids={key: f"dividend-{key.code}" for key in keys},
+        ),
+        univariate_rows=[
+            _row(keys[0], quote_history_production_eligible=False),
+            _row(keys[0]),
+            _row(keys[1]),
+        ],
+    )
+    assert "stale_upstream_dependency" in snapshot.availability_reasons
+    assert "missing_bivariate_dependency" in snapshot.availability_reasons
+    assert "missing_quote_artifact" in snapshot.eligibility[0].reasons
+    duplicate = build_multivariate_input_snapshot(
+        dependencies=_dependencies(keys=keys),
+        univariate_rows=[_row(keys[0]), _row(keys[0]), _row(keys[1])],
+    )
+    assert "duplicate_listing_key" in duplicate.availability_reasons
+
+
+def test_monthly_policy_rejects_impossible_listing_and_history_thresholds() -> None:
+    import pytest
+
+    with pytest.raises(ValueError, match="at least two"):
+        MonthlyDistributionEtfPolicy(minimum_listing_count=1)
+    with pytest.raises(ValueError, match="at least two"):
+        MonthlyDistributionEtfPolicy(minimum_common_daily_return_observations=1)

@@ -1,6 +1,16 @@
+from dataclasses import replace
+from types import SimpleNamespace
+from typing import Any
+
+import pytest
+
 from portfell.multivariate_candidates import (
     METHODS,
     MonthlyDistributionEtfPortfolioPolicy,
+    _aligned_matrix,  # pyright: ignore[reportPrivateUsage]
+    _diversification_ratio,  # pyright: ignore[reportPrivateUsage]
+    _return_and_drawdown,  # pyright: ignore[reportPrivateUsage]
+    _weights,  # pyright: ignore[reportPrivateUsage]
     build_candidate_set,
 )
 from portfell.multivariate_inputs import (
@@ -132,3 +142,87 @@ def test_infeasible_bounds_remain_explicit_for_every_candidate() -> None:
     )
     assert all(candidate.status == "unavailable" for candidate in candidates)
     assert {candidate.reasons for candidate in candidates} == {("infeasible_weight_bounds",)}
+
+
+def test_candidate_policy_and_input_failures_are_explicit() -> None:
+    with pytest.raises(ValueError, match="weights must satisfy"):
+        MonthlyDistributionEtfPortfolioPolicy(min_weight=-0.1)
+    with pytest.raises(ValueError, match="minimum_holding_count"):
+        MonthlyDistributionEtfPortfolioPolicy(minimum_holding_count=1)
+
+    snapshot = _snapshot()
+    unavailable_snapshot = replace(snapshot, availability_reasons=("missing_quote_artifact",))
+    candidates = build_candidate_set(
+        snapshot=unavailable_snapshot, risk_model=_risk_model(), return_rows=_returns(), income={}
+    )
+    assert {candidate.reasons for candidate in candidates} == {("input_snapshot_unavailable",)}
+
+    unavailable_risk = replace(_risk_model(), availability_reasons=("not_psd",))
+    candidates = build_candidate_set(
+        snapshot=snapshot, risk_model=unavailable_risk, return_rows=_returns(), income={}
+    )
+    assert {candidate.reasons for candidate in candidates} == {("risk_model_unavailable",)}
+
+    too_small = replace(snapshot, listing_keys=snapshot.listing_keys[:1])
+    candidates = build_candidate_set(
+        snapshot=too_small, risk_model=_risk_model(), return_rows=_returns(), income={}
+    )
+    assert {candidate.reasons for candidate in candidates} == {("minimum_holding_count_not_met",)}
+
+
+def test_candidate_set_reports_incomplete_return_history_without_fallback() -> None:
+    candidates = build_candidate_set(
+        snapshot=_snapshot(), risk_model=_risk_model(), return_rows=_returns()[:1], income={}
+    )
+    assert all(candidate.status == "unavailable" for candidate in candidates)
+    assert {candidate.reasons for candidate in candidates} == {
+        ("incomplete_aligned_return_history",)
+    }
+
+
+def test_candidate_helpers_keep_zero_variance_and_empty_history_unavailable() -> None:
+    key = _keys()[0].as_tuple()
+    with pytest.raises(ValueError, match="insufficient_aligned_return_history"):
+        _aligned_matrix(
+            (key,),
+            [
+                {
+                    "isin": key[0],
+                    "exchange": key[1],
+                    "code": key[2],
+                    "date": "2025-01-01",
+                    "return": 0.0,
+                }
+            ],
+        )
+    assert _diversification_ratio((key,), (1.0,), {(key, key): 0.0}, 0.0) is None
+    assert _return_and_drawdown(()) == (None, None)
+
+
+def test_candidate_solver_failures_and_unknown_method_are_explicit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import portfell.multivariate_candidates as candidates_module
+
+    keys = tuple(key.as_tuple() for key in _keys())
+    covariance = {
+        (left, right): 0.01 if left == right else 0.001 for left in keys for right in keys
+    }
+    policy = MonthlyDistributionEtfPortfolioPolicy()
+    failed = SimpleNamespace(converged=False, weights=())
+
+    def failed_solver(*args: object, **kwargs: object) -> Any:
+        del args, kwargs
+        return failed
+
+    monkeypatch.setattr(candidates_module, "solve_minimum_variance", failed_solver)
+    with pytest.raises(ValueError, match="minimum_variance_solver_not_converged"):
+        _weights("minimum_variance", _keys(), covariance, _returns(), policy)
+    monkeypatch.setattr(candidates_module, "solve_equal_risk_contribution", failed_solver)
+    with pytest.raises(ValueError, match="equal_risk_contribution_solver_not_converged"):
+        _weights("equal_risk_contribution", _keys(), covariance, _returns(), policy)
+    monkeypatch.setattr(candidates_module, "solve_minimum_cvar", failed_solver)
+    with pytest.raises(ValueError, match="minimum_cvar_solver_not_converged"):
+        _weights("minimum_cvar", _keys(), covariance, _returns(), policy)
+    with pytest.raises(ValueError, match="unsupported_candidate_method"):
+        _weights("unsupported", _keys(), covariance, _returns(), policy)

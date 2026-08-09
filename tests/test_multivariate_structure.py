@@ -52,3 +52,9 @@ def test_structure_is_deterministic_and_unavailable_risk_model_fails_closed() ->
     assert warning["correlation"] == 0.8
     unavailable = replace(_risk_model(()), availability_reasons=("bad",))
     assert not build_multivariate_structure(unavailable).available
+
+
+def test_structure_reports_zero_variance_and_no_comparable_pair_explicitly() -> None:
+    assert not build_multivariate_structure(_risk_model(((0.0, 0.0), (0.0, 0.0)))).available
+    structure = build_multivariate_structure(_risk_model(((1.0, 0.0), (0.0, 0.0))))
+    assert structure.summary()["largest_redundancy_warning"] is None
