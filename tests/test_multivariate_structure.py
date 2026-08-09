@@ -39,6 +39,7 @@ def test_structure_reports_explained_variance_effective_rank_and_bounded_loading
     assert result.explained_variance == (2 / 3, 1 / 3)
     assert result.cumulative_explained_variance[-1] == 1.0
     assert result.summary()["candidate_etf_count"] == 2
+    assert result.summary()["strongest_common_driver"] is not None
     assert result.component_page(component_id="Component 1", limit=1)["total"] == 2
 
 
@@ -46,5 +47,8 @@ def test_structure_is_deterministic_and_unavailable_risk_model_fails_closed() ->
     first = build_multivariate_structure(_risk_model(((1.0, 0.8), (0.8, 1.0))))
     second = build_multivariate_structure(_risk_model(((1.0, 0.8), (0.8, 1.0))))
     assert first.structure_id == second.structure_id
+    warning = first.summary()["largest_redundancy_warning"]
+    assert warning is not None
+    assert warning["correlation"] == 0.8
     unavailable = replace(_risk_model(()), availability_reasons=("bad",))
     assert not build_multivariate_structure(unavailable).available
