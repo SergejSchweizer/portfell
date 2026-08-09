@@ -3,7 +3,7 @@ import { expect, test, type Page, type Route } from "@playwright/test";
 type Project = {
   id: string;
   name: string;
-  filter: { exchange: string; instrument_type: string; country: string; currency: string; name: string };
+  criteria: { exchange: string; instrument_type: string; country: string; currency: string; name: string };
   quoteRunId?: string;
   univariateRunId?: string;
   bivariateRunId?: string;
@@ -37,9 +37,8 @@ function workflow(project: Project | undefined) {
   if (!project) {
     return {
       stages: {
-        metadata_filter: { status: "ready" },
+        metadata_builder: { status: "ready" },
         univariate_statistics: { status: "locked" },
-        univariate_filter: { status: "locked" },
         bivariate_statistics: { status: "locked" },
       },
       process_overview: { metadata_downloaded_isins: 4 },
@@ -49,12 +48,11 @@ function workflow(project: Project | undefined) {
   const univariateReady = Boolean(project.univariateRunId);
   return {
     stages: {
-      metadata_filter: { status: "complete", metadata_selection_id: `selection-${project.id}`, quote_run_id: project.quoteRunId },
-      univariate_statistics: { status: univariateReady ? "complete" : quoteReady ? "ready" : "ready", univariate_run_id: project.univariateRunId },
-      univariate_filter: univariateReady ? { status: "complete", univariate_filter_selection_id: `filter-${project.id}` } : { status: "locked" },
+      metadata_builder: { status: "complete", metadata_selection_id: `selection-${project.id}`, quote_run_id: project.quoteRunId },
+      univariate_statistics: { status: univariateReady ? "complete" : quoteReady ? "ready" : "ready", univariate_run_id: project.univariateRunId, univariate_selection_id: univariateReady ? `univariate-selection-${project.id}` : undefined },
       bivariate_statistics: univariateReady ? { status: project.bivariateRunId ? "complete" : "ready", bivariate_run_id: project.bivariateRunId } : { status: "locked" },
     },
-    process_overview: { metadata_downloaded_isins: 4, metadata_filter_isins: 3, univariate_statistics_isins: univariateReady ? 3 : null },
+    process_overview: { metadata_downloaded_isins: 4, metadata_builder_isins: 3, univariate_statistics_isins: univariateReady ? 3 : null },
   };
 }
 
@@ -100,7 +98,7 @@ async function installTwoProjectApi(page: Page): Promise<WorkflowFixture> {
       metadataPolls += 1;
       return response(route, { metadata_run_id: "metadata-run", status: metadataPolls === 1 ? "running" : "succeeded", total: 1, completed: metadataPolls === 1 ? 0 : 1, percent: metadataPolls === 1 ? 0 : 100, row_count: 4, exchange_count: 1, requested_exchange_count: 1, skipped_exchange_count: 0, skipped_exchanges: [] });
     }
-    if (method === "GET" && path === "/api/metadata-filter/options") return response(route, { exchange: ["XETRA", "LSE"], instrument_type: ["ETF", "FUND"], country: ["IE", "LU"], currency: ["EUR", "USD"] });
+    if (method === "GET" && path === "/api/metadata-builder/options") return response(route, { exchange: ["XETRA", "LSE"], instrument_type: ["ETF", "FUND"], country: ["IE", "LU"], currency: ["EUR", "USD"] });
     if (method === "GET" && path === "/api/project-context") return response(route, context());
     if (method === "PUT" && path === "/api/project-context/current-project") {
       currentProjectId = String(body.project_id);
@@ -109,17 +107,17 @@ async function installTwoProjectApi(page: Page): Promise<WorkflowFixture> {
     if (method === "GET" && path === "/api/workflow") return response(route, workflow(current()));
     const projectWorkflow = path.match(/^\/api\/projects\/([^/]+)\/workflow$/);
     if (method === "GET" && projectWorkflow) return response(route, workflow(projects.get(projectWorkflow[1])));
-    const projectFilter = path.match(/^\/api\/projects\/([^/]+)\/metadata-filter$/);
-    if (method === "GET" && projectFilter) {
-      const project = projects.get(projectFilter[1])!;
-      return response(route, { project_id: project.id, selection_id: `selection-${project.id}`, selected_count: 3, ...project.filter });
+    const projectCriteria = path.match(/^\/api\/projects\/([^/]+)\/metadata-builder$/);
+    if (method === "GET" && projectCriteria) {
+      const project = projects.get(projectCriteria[1])!;
+      return response(route, { project_id: project.id, selection_id: `selection-${project.id}`, selected_count: 3, ...project.criteria });
     }
-    if (method === "POST" && path === "/api/metadata-filter") {
+    if (method === "POST" && path === "/api/metadata-builder") {
       const id = `project-${projects.size + 1}`;
       const project: Project = {
         id,
         name: String(body.name),
-        filter: { exchange: String(body.exchange), instrument_type: String(body.instrument_type), country: String(body.country), currency: String(body.currency), name: String(body.name) },
+        criteria: { exchange: String(body.exchange), instrument_type: String(body.instrument_type), country: String(body.country), currency: String(body.currency), name: String(body.name) },
         settings: { dividend_frequencies: [], statistic_labels: {}, statistic_ranges: {} },
       };
       projects.set(id, project);
@@ -149,9 +147,6 @@ async function installTwoProjectApi(page: Page): Promise<WorkflowFixture> {
     }
     if (method === "GET" && /^\/api\/univariate-statistics\/runs\/[^/]+$/.test(path)) return response(route, { run_id: path.split("/").at(-1), status: "complete", total: 3, completed: 3, failed: 0, percent: 100 });
     if (method === "GET" && path.includes("/univariate-statistics/runs/") && path.endsWith("/results")) return response(route, { items: univariateRows, total: univariateRows.length, limit: 200, offset: 0 });
-    if (method === "GET" && path === "/api/univariate-filter/metrics") return response(route, { items: [{ metric: "annualized_volatility", label: "Annualized volatility", unit: "%", operators: ["<=", ">="] }, { metric: "annualized_geometric_return", label: "Annual return", unit: "%", operators: ["<=", ">="] }] });
-    if (method === "POST" && path === "/api/univariate-filter") return response(route, { selection_id: `filter-${currentProjectId}`, source_run_id: current()!.univariateRunId, input_count: 3, selected_count: 2, excluded_count: 1, predicates: body.predicates });
-    if (method === "GET" && /^\/api\/univariate-filter\/[^/]+\/results$/.test(path)) return response(route, { items: univariateRows.slice(0, 2), total: 2, limit: 50, offset: 0 });
     if (method === "POST" && path === "/api/bivariate-statistics/plan") return response(route, { selected_listing_count: 3, theoretical_pair_count: 3, pair_limit: 100, allowed: true });
     if (method === "POST" && path === "/api/bivariate-statistics/runs") {
       const project = current()!;
@@ -200,7 +195,9 @@ async function switchProject(page: Page, projectId: string) {
 
 test("two dummy projects created through the UI preserve every research control and project setting", async ({ page }) => {
   const fixture = await installTwoProjectApi(page);
-  await page.goto("/metadata-filter");
+  await page.goto("/metadata-builder");
+  await expect(page).toHaveURL(/\/metadata-builder$/);
+  await expect(page.getByText("2 · Metadata Builder")).toBeVisible();
 
   await page.getByLabel("EODHD key").fill("dummy-eodhd-key");
   await page.getByRole("button", { name: "Fetch all metadata" }).click();
@@ -211,34 +208,28 @@ test("two dummy projects created through the UI preserve every research control 
   await computeUnivariate(page);
 
   const selections = page.locator(".univariate-statistics-page .portfolio-selection select");
-  await expect(selections).toHaveCount(9);
-  await selections.nth(0).selectOption(["monthly", "annual"]);
-  for (let index = 1; index < 9; index += 1) await selections.nth(index).selectOption({ index: 0 });
+  await expect(selections).toHaveCount(1);
+  await selections.selectOption(["monthly", "annual"]);
+  for (const tab of ["Annual Return", "Value at Risk", "Sortino ratio", "Expected shortfall", "Tail observations", "Sharpe ratio", "Maximum drawdown", "Trend R-squared"]) {
+    await page.getByRole("tab", { name: tab }).click();
+    await expect(selections).toHaveCount(1);
+    await selections.selectOption({ index: 0 });
+  }
   await expect.poll(() => fixture.settingsWrites.get("project-1") ?? 0).toBeGreaterThanOrEqual(9);
+  await page.getByRole("tab", { name: "Dividends" }).click();
   await page.getByRole("img", { name: "Annual dividend yield distribution for 3 ISINs" }).locator("[tabindex=\"0\"]").first().hover();
   await expect(page.getByRole("tooltip").first()).toBeVisible();
 
-  await page.goto("/univariate-filter");
-  await page.getByLabel("Metric").selectOption("annualized_geometric_return");
-  await page.getByLabel("Operator").selectOption(">=");
-  await page.getByLabel("Value").fill("0.05");
-  await page.getByRole("button", { name: "Add predicate" }).click();
-  await page.getByLabel("Metric").last().selectOption("annualized_volatility");
-  await page.getByLabel("Operator").last().selectOption("<=");
-  await page.getByLabel("Value").last().fill("0.2");
-  await page.getByRole("button", { name: "Remove" }).last().click();
-  await page.getByRole("button", { name: "Apply filter" }).click();
-  await expect(page.getByText("2 selected; 1 excluded.")).toBeVisible();
-
-  await page.goto("/metadata-filter");
+  await page.goto("/metadata-builder");
   await createProject(page, { exchange: "LSE", instrumentType: "FUND", country: "LU", currency: "USD", name: "Beta growth" });
   await page.goto("/univariate-statistics");
   await computeUnivariate(page);
 
   await switchProject(page, "project-1");
   await expect(page).toHaveURL(/\/univariate-statistics$/);
-  await expect(selections.nth(0)).toHaveValues(["monthly", "annual"]);
-  await page.goto("/metadata-filter");
+  await page.getByRole("tab", { name: "Dividends" }).click();
+  await expect(selections).toHaveValues(["monthly", "annual"]);
+  await page.goto("/metadata-builder");
   await expect(page.getByLabel("Exchange")).toHaveValue("XETRA");
   await expect(page.getByLabel("Instrument type")).toHaveValue("ETF");
   await expect(page.getByLabel("Country")).toHaveValue("IE");
@@ -258,10 +249,9 @@ test("two dummy projects created through the UI preserve every research control 
   expect(fixture.calls).toEqual(expect.arrayContaining([
     "POST /api/credentials/eodhd",
     "POST /api/metadata/fetch-all",
-    "POST /api/metadata-filter",
+    "POST /api/metadata-builder",
     "POST /api/quote-runs",
     "POST /api/univariate-statistics/runs",
-    "POST /api/univariate-filter",
     "POST /api/bivariate-statistics/plan",
     "POST /api/bivariate-statistics/runs",
     "PUT /api/project-context/current-project",

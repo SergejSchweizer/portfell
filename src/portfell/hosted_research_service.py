@@ -34,14 +34,18 @@ class ResearchService:
     def univariate_results(self, user_id: str, run_id: str, limit: int, offset: int) -> JsonRow:
         return self._univariate.results(user_id, run_id, limit, offset)
 
-    def filter_metrics(self) -> JsonRow:
-        return self._univariate.filter_metrics()
+    def selection_metrics(self) -> JsonRow:
+        return self._univariate.selection_metrics()
 
-    def apply_filter(self, user_id: str, source_run_id: str, predicates: list[JsonRow]) -> JsonRow:
-        return self._univariate.apply_filter(user_id, source_run_id, predicates)
+    def apply_selection(
+        self, user_id: str, source_run_id: str, predicates: list[JsonRow]
+    ) -> JsonRow:
+        return self._univariate.apply_selection(user_id, source_run_id, predicates)
 
-    def filter_results(self, user_id: str, selection_id: str, limit: int, offset: int) -> JsonRow:
-        return self._univariate.filter_results(user_id, selection_id, limit, offset)
+    def selection_results(
+        self, user_id: str, selection_id: str, limit: int, offset: int
+    ) -> JsonRow:
+        return self._univariate.selection_results(user_id, selection_id, limit, offset)
 
     def bivariate_plan(self, user_id: str, selection_id: str) -> JsonRow:
         return self._bivariate.plan(user_id, selection_id)

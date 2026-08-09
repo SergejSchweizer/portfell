@@ -24,7 +24,7 @@ def build_parser() -> argparse.ArgumentParser:
     """Build the standalone fetch-all-quotes argument parser."""
     parser = argparse.ArgumentParser(
         description=(
-            "Fetch quote, dividend, and split data for the latest metadata-filter selection."
+            "Fetch quote, dividend, and split data for the latest metadata-builder selection."
         )
     )
     parser.add_argument("--debug", action="store_true", help="Write verbose DEBUG logs.")
@@ -45,7 +45,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--limit", type=int, help="Optional maximum approved listings to fetch.")
     parser.add_argument(
-        "--isin", help="Optional single ISIN from the latest metadata-filter selection to fetch."
+        "--isin", help="Optional single ISIN from the latest metadata-builder selection to fetch."
     )
     parser.add_argument(
         "--no-gap-aware",

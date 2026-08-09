@@ -1,4 +1,4 @@
-"""Univariate run and filter application service."""
+"""Univariate computation and project-scoped selection service."""
 
 from __future__ import annotations
 
@@ -6,9 +6,9 @@ from dataclasses import replace
 
 from portfell.hosted_api_errors import HostedApplicationError
 from portfell.hosted_api_serializers import (
-    filter_selection_row,
     research_run_row,
     univariate_metric_rows,
+    univariate_selection_row,
 )
 from portfell.hosted_api_service_support import opaque_id, stable_hash
 from portfell.hosted_research_ports import (
@@ -19,17 +19,17 @@ from portfell.hosted_research_ports import (
 from portfell.hosted_research_workflow import (
     HostedResearchError,
     ResearchRun,
-    create_filter_selection,
     create_full_univariate_selection,
     create_univariate_run,
     create_univariate_run_from_statistics,
+    create_univariate_selection,
     page_rows,
 )
 from portfell.table_io import JsonRow
 
 
 class UnivariateResearchService:
-    """Own univariate computation and its resulting filter selections."""
+    """Own univariate computation and its resulting persisted selections."""
 
     def __init__(
         self,
@@ -109,8 +109,8 @@ class UnivariateResearchService:
         completed = replace(computed, run_id=run_id, total=run.total, completed=run.total)
         self._repository.save_univariate_run(completed)
         full_selection = create_full_univariate_selection(user_id=user_id, run=completed)
-        saved_selection = self._repository.save_filter_selection(full_selection)
-        self._repository.set_current_filter_selection(user_id, saved_selection.selection_id)
+        saved_selection = self._repository.save_univariate_selection(full_selection)
+        self._repository.set_current_univariate_selection(user_id, saved_selection.selection_id)
         self._repository.audit(user_id, "univariate_statistics.compute")
         self._persistence.persist()
 
@@ -121,22 +121,28 @@ class UnivariateResearchService:
         run = self._repository.univariate_run(run_id, user_id)
         return page_rows(run.rows, limit=limit, offset=offset)
 
-    def filter_metrics(self) -> JsonRow:
+    def selection_metrics(self) -> JsonRow:
         return {"items": univariate_metric_rows()}
 
-    def apply_filter(self, user_id: str, source_run_id: str, predicates: list[JsonRow]) -> JsonRow:
+    def apply_selection(
+        self, user_id: str, source_run_id: str, predicates: list[JsonRow]
+    ) -> JsonRow:
         run = self._repository.univariate_run(source_run_id, user_id)
         try:
-            selection = create_filter_selection(user_id=user_id, run=run, predicate_rows=predicates)
+            selection = create_univariate_selection(
+                user_id=user_id, run=run, predicate_rows=predicates
+            )
         except HostedResearchError as error:
             raise HostedApplicationError(422, str(error)) from error
-        saved = self._repository.save_filter_selection(selection)
-        self._repository.set_current_filter_selection(user_id, saved.selection_id)
+        saved = self._repository.save_univariate_selection(selection)
+        self._repository.set_current_univariate_selection(user_id, saved.selection_id)
         self._persistence.persist()
-        return filter_selection_row(saved)
+        return univariate_selection_row(saved)
 
-    def filter_results(self, user_id: str, selection_id: str, limit: int, offset: int) -> JsonRow:
-        selection = self._repository.filter_selection(selection_id, user_id)
+    def selection_results(
+        self, user_id: str, selection_id: str, limit: int, offset: int
+    ) -> JsonRow:
+        selection = self._repository.univariate_selection(selection_id, user_id)
         return page_rows(selection.rows, limit=limit, offset=offset)
 
     def _update_progress(self, run_id: str, completed: int) -> None:

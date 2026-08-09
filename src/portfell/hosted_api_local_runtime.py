@@ -14,7 +14,7 @@ from portfell.hosted_api_errors import HostedRuntimeError
 from portfell.hosted_api_ports import ProgressCallback, Workflow
 from portfell.hosted_research_ports import ResearchDataset, UnivariateProgress
 from portfell.http import EodhdHttpError
-from portfell.metadata_filter import write_metadata_selection
+from portfell.metadata_builder import write_metadata_selection
 from portfell.paths import LakePaths
 from portfell.selection_filters import Predicate, parse_predicates
 from portfell.table_io import JsonRow, read_json, read_rows, write_rows
@@ -63,16 +63,16 @@ class LocalHostedRuntime:
             source_path=str(paths.all_isins()),
         )
 
-    def metadata_filter_predicates(self, selection_id: str) -> tuple[Predicate, ...]:
-        manifest_path = self._paths().metadata_filter_manifest(selection_id)
+    def metadata_builder_predicates(self, selection_id: str) -> tuple[Predicate, ...]:
+        manifest_path = self._paths().metadata_builder_manifest(selection_id)
         if not manifest_path.exists():
             return ()
         predicates = read_json(manifest_path).get("predicates", [])
         if not isinstance(predicates, list):
-            raise ValueError("metadata filter manifest is invalid")
+            raise ValueError("metadata builder manifest is invalid")
         values = cast("list[object]", predicates)
         if not all(isinstance(item, str) for item in values):
-            raise ValueError("metadata filter manifest is invalid")
+            raise ValueError("metadata builder manifest is invalid")
         return parse_predicates(cast("list[str]", values))
 
     def run_quotes(
@@ -95,11 +95,14 @@ class LocalHostedRuntime:
             on_progress=on_progress,
         )
 
-    def run_metadata(self, *, provider_key: str, on_progress: ProgressCallback) -> dict[str, Any]:
+    def run_metadata(
+        self, *, provider_key: str, concurrency: int, on_progress: ProgressCallback
+    ) -> dict[str, Any]:
         try:
             return self._metadata_workflow(
                 root=self._paths().root,
                 eodhd_config=EodhdConfig(api_token=provider_key),
+                concurrency=concurrency,
                 on_progress=on_progress,
             )
         except EodhdHttpError as error:

@@ -69,7 +69,7 @@ def test_build_selection_statistics_view_reports_complete_when_cache_is_populate
     selected_rows = _populate_cache(paths)
 
     view = build_selection_statistics_view(
-        paths, selection_id="sel-1", source_module="metadata_filter", listing_rows=selected_rows
+        paths, selection_id="sel-1", source_module="metadata_builder", listing_rows=selected_rows
     )
 
     assert view["univariate_status"] == "complete"
@@ -97,7 +97,7 @@ def test_build_selection_statistics_view_reports_missing_rows_deterministically(
     selected_rows.append({"isin": "IE3", "exchange": "PA", "code": "CCC"})
 
     view = build_selection_statistics_view(
-        paths, selection_id="sel-1", source_module="metadata_filter", listing_rows=selected_rows
+        paths, selection_id="sel-1", source_module="metadata_builder", listing_rows=selected_rows
     )
 
     assert view["univariate_status"] == "missing_rows"
@@ -111,10 +111,10 @@ def test_build_selection_statistics_view_is_deterministic(tmp_path: Path) -> Non
     selected_rows = _populate_cache(paths)
 
     first = build_selection_statistics_view(
-        paths, selection_id="sel-1", source_module="metadata_filter", listing_rows=selected_rows
+        paths, selection_id="sel-1", source_module="metadata_builder", listing_rows=selected_rows
     )
     second = build_selection_statistics_view(
-        paths, selection_id="sel-1", source_module="metadata_filter", listing_rows=selected_rows
+        paths, selection_id="sel-1", source_module="metadata_builder", listing_rows=selected_rows
     )
 
     assert first == second
@@ -126,13 +126,13 @@ def test_write_selection_statistics_view_persists_and_is_idempotent(tmp_path: Pa
     selected_rows = _populate_cache(paths)
 
     first = write_selection_statistics_view(
-        paths, selection_id="sel-1", source_module="metadata_filter", listing_rows=selected_rows
+        paths, selection_id="sel-1", source_module="metadata_builder", listing_rows=selected_rows
     )
-    persisted = read_json(paths.selection_statistics_view("metadata_filter", "sel-1"))
+    persisted = read_json(paths.selection_statistics_view("metadata_builder", "sel-1"))
     assert persisted == first
 
     second = write_selection_statistics_view(
-        paths, selection_id="sel-1", source_module="metadata_filter", listing_rows=selected_rows
+        paths, selection_id="sel-1", source_module="metadata_builder", listing_rows=selected_rows
     )
     assert second == first
 
@@ -144,7 +144,7 @@ def test_read_selection_statistics_returns_cached_rows_without_recomputing(
     selected_rows = _populate_cache(paths)
 
     univariate_rows, bivariate_rows, view = read_selection_statistics(
-        paths, selection_id="sel-1", source_module="metadata_filter", listing_rows=selected_rows
+        paths, selection_id="sel-1", source_module="metadata_builder", listing_rows=selected_rows
     )
 
     assert len(univariate_rows) == 3
@@ -160,5 +160,8 @@ def test_read_selection_statistics_raises_when_cache_rows_are_missing(tmp_path: 
 
     with pytest.raises(ValueError, match="selection statistics incomplete"):
         read_selection_statistics(
-            paths, selection_id="sel-1", source_module="metadata_filter", listing_rows=selected_rows
+            paths,
+            selection_id="sel-1",
+            source_module="metadata_builder",
+            listing_rows=selected_rows,
         )

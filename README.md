@@ -1,6 +1,6 @@
 # Portfell
 
-Last reviewed: 2026-07-13
+Last reviewed: 2026-08-09
 
 ## Table Of Contents
 
@@ -11,7 +11,7 @@ Last reviewed: 2026-07-13
 - [Portfolio Objective](#portfolio-objective)
 - [Portfolio Analysis And Evaluation Plan](#portfolio-analysis-and-evaluation-plan)
 - [Documentation Map](#documentation-map)
-- [Five ISIN Module Architecture](#five-isin-module-architecture)
+- [Research Module Architecture](#research-module-architecture)
 - [Scheduled Portfell Cron](#scheduled-portfell-cron)
 - [EODHD Request Safety](#eodhd-request-safety)
 - [Logging And Debugging](#logging-and-debugging)
@@ -39,7 +39,7 @@ New contributors should read the documentation in this order:
 - The main market data source is the EODHD subscription for EOD Historical Data.
 - The intended trading venue/broker is Flatex.
 - `fetch_all_metadata` enumerates EODHD exchange symbol lists and stores the complete ISIN-bearing metadata universe once under `lake/reference/all_isins/`.
-- `metadata_filter` and `univariate_filter` create referencable selections from that reference metadata or from Gold univariate statistics.
+- `metadata_builder` and `univariate_selection` create referencable selections from that reference metadata or from Gold univariate statistics.
 - Portfolio loads should use explicit persisted selections, not ad hoc discovery files.
 - EODHD HTTP requests are paced by the shared client and retry rate-limit responses with `Retry-After` support.
 
@@ -111,7 +111,7 @@ Top canonical exchanges after one-row-per-ISIN selection:
 
 1. Discover ETF and fund instruments from EODHD without committing credentials.
 2. Deduplicate the universe to one canonical listing per ISIN, preferring `XETRA` when available.
-3. Fetch Bronze end-of-day quotes for the latest `metadata_filter` selection with `fetch-all-quotes`.
+3. Fetch Bronze end-of-day quotes for the latest `metadata_builder` selection with `fetch-all-quotes`.
 4. Build Silver quotes into a reproducible local dataset.
 5. Validate coverage, missing dates, currencies, identifiers, and duplicate listings.
 6. Estimate return and risk inputs from validated quote history.
@@ -169,25 +169,30 @@ The current refactor target keeps portfolio optimization downstream from the ISI
 - [BACKLOG.md](BACKLOG.md) tracks PR-sized work and implementation status.
 - [AGENTS.md](AGENTS.md) defines agent workflow rules and generated project-history risks.
 
-## Five ISIN Module Architecture
+## Research Module Architecture
 
-Portfell's ISIN architecture target is organized around five deterministic modules:
+The active browser workflow currently has three modules: Metadata Builder,
+Univariate Statistics, and Bivariate Statistics. Their persisted input/output
+boundaries and extension rules are documented in
+[`docs/ui/workflow-modules.md`](docs/ui/workflow-modules.md).
+
+The local ISIN pipeline remains organized around these five deterministic stages:
 
 ```text
 fetch_all_metadata
-  -> metadata_filter
+  -> metadata_builder
   -> univariate_statistics
-  -> univariate_filter
+  -> univariate_selection
   -> bivariate_statistics
 ```
 
-`fetch_all_metadata` is the only source of the full EODHD ISIN universe. It refreshes an irregularly updated all-ISIN dataset and writes it once for every later module:
+`fetch_all_metadata` is the only source of the full EODHD ISIN universe. It refreshes missing exchange datasets in parallel using the available runtime CPUs, with provider request pacing, and writes the shared result once for every later module:
 
 ```bash
 uv run portfell fetch-all-metadata
 ```
 
-`fetch-all-quotes` is the quote refresh module. It reads the latest persisted `metadata_filter` selection, fetches EODHD quotes plus companion dividends and splits by default, writes Bronze inputs, rebuilds Silver quotes, and updates coverage manifests:
+`fetch-all-quotes` is the quote refresh module. It reads the latest persisted `metadata_builder` selection, fetches EODHD quotes plus companion dividends and splits by default, writes Bronze inputs, rebuilds Silver quotes, and updates coverage manifests:
 
 ```bash
 uv run portfell fetch-all-quotes
@@ -215,7 +220,7 @@ Available `fetch-all-quotes` options:
   Optional maximum approved listings to fetch.
 
 --isin <ISIN>
-  Fetch only one ISIN from the latest metadata-filter selection.
+  Fetch only one ISIN from the latest metadata-builder selection.
 
 --no-gap-aware
   Disable Silver-based gap planning and request the whole requested date window.
@@ -227,14 +232,14 @@ Available `fetch-all-quotes` options:
   Worker thread count for EODHD requests and Silver writes. Defaults to 2.
 ```
 
-`metadata_filter` reads only the all-ISIN source, applies conjunctive metadata predicates, and writes a hash-addressable selection with `isins.parquet` and `manifest.json`:
+`metadata_builder` reads only the all-ISIN source, applies conjunctive metadata predicates, and writes a hash-addressable selection with `isins.parquet` and `manifest.json`:
 
 ```bash
-uv run portfell metadata-filter --where instrument_type=ETF --where currency=EUR --where exchange=XETRA
-uv run portfell metadata-filter --name-contains "UCITS ETF"
+uv run portfell metadata-builder --where instrument_type=ETF --where currency=EUR --where exchange=XETRA
+uv run portfell metadata-builder --name-contains "UCITS ETF"
 ```
 
-Available `metadata-filter` options:
+Available `metadata-builder` options:
 
 ```text
 --debug
@@ -255,14 +260,14 @@ Available `metadata-filter` options:
 
 At least one `--where` or `--name-contains` option is required. All filters are conjunctive.
 
-`metadata-filter` CLI filter reference:
+`metadata-builder` CLI filter reference:
 
 | CLI filter | Repeatable | Applies to | Semantics | Example |
 | --- | --- | --- | --- | --- |
 | `--where <field><operator><value>` | Yes | Any `all_isins` metadata field listed below. | Adds one predicate; all predicates must match. Text comparisons are exact except `~`; numeric operators parse both sides as numbers. | `--where instrument_type=ETF` |
 | `--name-contains <text>` | Yes | `name` | Case-insensitive substring search. Repeating it requires every fragment to occur in the name. Equivalent to adding `name~<text>` predicates. | `--name-contains "UCITS ETF"` |
 | `--selection-name <name>` | No | Selection id only | Stable human-readable prefix for the generated selection id. It does not change membership. | `--selection-name ucits-etf` |
-| `--root <path>` | No | Lake location | Reads `reference/all_isins/all_isins.parquet` below this root and writes the selection below `silver/metadata_filter/`. | `--root lake` |
+| `--root <path>` | No | Lake location | Reads `reference/all_isins/all_isins.parquet` below this root and writes the selection below `silver/metadata_builder/`. | `--root lake` |
 | `--debug` | No | Logging | Enables verbose DEBUG logs for the command. | `--debug` |
 
 Supported predicate operators:
@@ -279,7 +284,7 @@ field<=value     numeric less-than-or-equal
 
 Filterable metadata fields are the `all_isins` columns:
 
-| Field | Type | Typical use with `metadata-filter` |
+| Field | Type | Typical use with `metadata-builder` |
 | --- | --- | --- |
 | `isin` | Text | Select one ISIN or exclude a known ISIN: `--where isin=IE0000000001`. |
 | `exchange` | Text | Restrict to one listing exchange: `--where exchange=XETRA`. |
@@ -297,17 +302,17 @@ Filterable metadata fields are the `all_isins` columns:
 uv run portfell univariate-statistics
 ```
 
-`univariate_statistics` only runs for the latest persisted `metadata_filter` selection. It does not scan every Silver quote file by default. Use `--selection-id <metadata_filter_selection_id>` only when intentionally rebuilding an older metadata selection.
+`univariate_statistics` only runs for the latest persisted `metadata_builder` selection. It does not scan every Silver quote file by default. Use `--selection-id <metadata_builder_selection_id>` only when intentionally rebuilding an older metadata selection.
 
 Univariate Statistics parallelizes per-listing work across all CPU cores visible to the system by default. Use `--concurrency <workers>` to cap worker processes, for example `--concurrency 1` for deterministic single-process debugging.
 
-`univariate_filter` reads the univariate statistics table, applies conjunctive metric predicates, and writes the same referencable selection shape as `metadata_filter`:
+`univariate_selection` reads the univariate statistics table, applies conjunctive metric predicates, and writes the same referencable selection shape as `metadata_builder`:
 
 ```bash
-uv run portfell univariate-filter --where sharpe_ratio>0 --where sortino_ratio>0 --where max_drawdown>-0.3
+uv run portfell univariate-selection --where sharpe_ratio>0 --where sortino_ratio>0 --where max_drawdown>-0.3
 ```
 
-Available `univariate-filter` options:
+Available `univariate-selection` options:
 
 ```text
 --debug
@@ -323,7 +328,7 @@ Available `univariate-filter` options:
   Optional stable human-readable name used in the generated selection id.
 ```
 
-Supported predicate operators are the same as `metadata-filter`:
+Supported predicate operators are the same as `metadata-builder`:
 
 ```text
 field=value      exact text match
@@ -428,17 +433,17 @@ Univariate feature semantics, ranges, and units. The empirical column is compute
 | `last_distribution_date` | Latest positive dividend event date. | ISO date, or empty when no dividend event exists. | Date | n/a |
 | `distribution_observation_count` | Number of positive dividend events used for distribution inference. | Integer `>= 0`. | Rows | `8.7322 [-43.8037, 61.2681]` |
 
-`bivariate_statistics` computes reusable pairwise statistics for the latest persisted `univariate_filter` selection by default. Pair metrics are computed once per unordered ISIN pair and only on the intersection of shared return dates:
+`bivariate_statistics` computes reusable pairwise statistics for the latest persisted `univariate_selection` selection by default. Pair metrics are computed once per unordered ISIN pair and only on the intersection of shared return dates:
 
 ```bash
 uv run portfell bivariate-statistics
 ```
 
-Use `--selection-id <selection_id>` only when intentionally rebuilding a specific `univariate_filter` or `metadata_filter` selection.
+Use `--selection-id <selection_id>` only when intentionally rebuilding a specific `univariate_selection` or `metadata_builder` selection.
 
-Bivariate Statistics parallelizes pair work across all CPU cores visible to the system by default. Use `--concurrency <workers>` to cap worker processes.
+Bivariate Statistics aligns every selected listing to one shared return-date intersection before pair work begins, so every covariance, correlation, tail, rolling, and drawdown statistic in a run represents the same period. API summaries and matrices report that period as `date_start` and `date_end`. Pair work then runs across all CPU cores visible to the system by default; use `--concurrency <workers>` to cap worker processes.
 
-`multivariate_statistics` computes portfolio-level analytics for the latest persisted `univariate_filter` selection by default. It filters Silver quotes to the selected listings, builds selected Gold risk inputs, writes an aligned return matrix and asset metrics, and runs Equal Weight, Minimum Variance, Maximum Sharpe, Risk Parity, HRP, Maximum Diversification, efficient-frontier, walk-forward, rebalance, and tail-risk outputs:
+`multivariate_statistics` computes portfolio-level analytics for the latest persisted `univariate_selection` selection by default. It filters Silver quotes to the selected listings, builds one universe-wide aligned return matrix, and uses only that shared calendar for asset, risk-model, optimization, frontier, walk-forward, rebalance, and tail-risk outputs. Both research and production summaries expose `date_start`, `date_end`, and `observation_count` for the matrix used:
 
 ```bash
 uv run portfell multivariate-statistics
@@ -450,9 +455,9 @@ Module outputs are intentionally reusable:
 
 ```text
 lake/reference/all_isins/
-lake/silver/metadata_filter/{selection_id}/
+lake/silver/metadata_builder/{selection_id}/
 lake/gold/univariate_statistics/{exchange}/{ISIN}.parquet
-lake/silver/univariate_filter/{selection_id}/
+lake/silver/univariate_selection/{selection_id}/
 lake/gold/bivariate_statistics/{left_exchange}/{left_ISIN}/{left_code}/{right_exchange}__{right_ISIN}__{right_code}.parquet
 ```
 
@@ -507,9 +512,9 @@ Target module commands should support `--debug` for more detailed module logs:
 
 ```bash
 uv run portfell fetch-all-metadata --debug
-uv run portfell metadata-filter --debug
+uv run portfell metadata-builder --debug
 uv run portfell univariate-statistics --debug
-uv run portfell univariate-filter --debug
+uv run portfell univariate-selection --debug
 uv run portfell bivariate-statistics --debug
 ```
 
@@ -552,9 +557,9 @@ Whenever one of those inputs changes, it runs:
 docker compose --env-file .env.local up --build -d web
 ```
 
-The hosted API is exposed by `portfell.hosted_api` and mounted in the API container. It provides user-scoped session, credential, download, dataset, project, metadata-filter project creation, selection, analysis, metrics, returns, weights, report, and account-deletion routes for the Web UI. The API container mounts `./lake` at `/srv/portfell/lake` so `GET /metadata-filter/options` can populate project-definition dropdowns from `lake/reference/all_isins/all_isins.parquet`, metadata-filter projects can persist their selected ISIN list, and `Load selected ISINs` can run `fetch-all-quotes` to write Bronze and Silver quote data. If the host lake is group-restricted, set `PORTFELL_LAKE_GROUP_ID` in `.env.local` to the host group id that can read and write the lake; the default is `10`.
+The hosted API is exposed by `portfell.hosted_api` and mounted in the API container. It provides user-scoped session, credential, download, dataset, project, metadata-builder project creation, selection, analysis, metrics, returns, weights, report, and account-deletion routes for the Web UI. The API container mounts `./lake` at `/srv/portfell/lake` so `GET /metadata-builder/options` can populate project-definition dropdowns from `lake/reference/all_isins/all_isins.parquet`, metadata-builder projects can persist their selected ISIN list, and `Load selected ISINs` can run `fetch-all-quotes` to write Bronze and Silver quote data. If the host lake is group-restricted, set `PORTFELL_LAKE_GROUP_ID` in `.env.local` to the host group id that can read and write the lake; the default is `10`.
 
-The Web container serves the four-page local research workspace from `apps/web/server.js`. The topbar contains the write-only EODHD key input and `Fetch all metadata` action. Desktop layouts expose the server-owned project selector and workflow hierarchy in a persistent sidebar; at `900px` and below, the same hierarchy is available through the accessible project-navigation drawer. Workflow routes come only from `apps/web/src/routes.tsx`, so a future route registration automatically participates in both navigation forms. Workflow state, credentials, selections, and calculations remain server-owned. The runtime resolves every request to one local workspace and has no login route, session cookie, callback, or end-user authentication provider. It is therefore intended only for trusted local networks; public hosting remains disabled until a replacement identity and authorization model is approved.
+The Web container serves the three-module local research workspace from `apps/web/server.js`: Metadata Builder, Univariate Statistics, and Bivariate Statistics. Desktop layouts expose the server-owned project selector and workflow hierarchy in a persistent sidebar; at `900px` and below, the same hierarchy is available through the accessible project-navigation drawer. Workflow routes come only from `apps/web/src/routes.tsx`, so a future route registration automatically participates in both navigation forms. Workflow state, credentials, selections, and calculations remain server-owned. The runtime resolves every request to one local workspace and has no login route, session cookie, callback, or end-user authentication provider. It is therefore intended only for trusted local networks; public hosting remains disabled until a replacement identity and authorization model is approved.
 
 Browser state is derived from API responses. The Web surface must not store EODHD keys, ciphertext, fingerprints, or sensitive API responses in `localStorage`, `sessionStorage`, URLs, analytics, logs, or rendered error output.
 

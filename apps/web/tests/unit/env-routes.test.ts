@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { canSelectUiFixture, readPublicRuntimeEnv } from "../../src/env";
-import { currentWorkflowPage, workflowPages } from "../../src/routes";
+import { currentWorkflowPage, workflowModules, workflowPages } from "../../src/routes";
 
 describe("runtime environment and routes", () => {
   afterEach(() => {
@@ -40,8 +40,19 @@ describe("runtime environment and routes", () => {
   });
 
   it("registers and resolves every workflow page with a metadata fallback", () => {
-    expect(workflowPages.map((page) => page.path)).toEqual(["/metadata-filter", "/univariate-statistics", "/univariate-filter", "/bivariate-statistics"]);
+    expect(workflowPages.map((page) => page.path)).toEqual(["/metadata-builder", "/univariate-statistics", "/bivariate-statistics"]);
     for (const page of workflowPages) expect(currentWorkflowPage(page.path)).toBe(page);
     expect(currentWorkflowPage("/not-a-route")).toBe(workflowPages[0]);
+  });
+
+  it("assigns every browser page to one explicit workflow module", () => {
+    expect(workflowModules.map((module) => module.id)).toEqual([
+      "metadata_builder",
+      "univariate_statistics",
+      "bivariate_statistics",
+    ]);
+    for (const page of workflowPages) {
+      expect(workflowModules.some((module) => module.id === page.moduleId)).toBe(true);
+    }
   });
 });

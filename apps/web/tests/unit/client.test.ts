@@ -5,7 +5,7 @@ import {
   loadEodhdCredentialValue,
   loadMetadataFetchRun,
   loadProjectContext,
-  loadProjectMetadataFilter,
+  loadProjectMetadataBuilder,
   loadProjectWorkflow,
   loadQuoteRun,
   loadWorkflow,
@@ -13,6 +13,10 @@ import {
   requestJson,
   selectCurrentProject,
 } from "../../src/api/client";
+import { metadataBuilderApi } from "../../src/api/metadata-builder";
+import { univariateStatisticsApi } from "../../src/api/univariate-statistics";
+import { bivariateStatisticsApi } from "../../src/api/bivariate-statistics";
+import type { ApiUnivariateSelectionSettings } from "../../src/contracts";
 
 function response(payload: unknown, ok = true, status = 200): Response {
   return { ok, status, json: vi.fn().mockResolvedValue(payload) } as unknown as Response;
@@ -71,11 +75,38 @@ describe("API client", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await Promise.all([
-      loadWorkflow(), loadEodhdCredentialStatus(), loadEodhdCredentialValue(), loadMetadataFetchRun("run/a"), loadProjectContext(), loadProjectMetadataFilter("project/a"), selectCurrentProject("project/a"), loadProjectWorkflow("project/a"), loadQuoteRun("quote/a"),
+      loadWorkflow(), loadEodhdCredentialStatus(), loadEodhdCredentialValue(), loadMetadataFetchRun("run/a"), loadProjectContext(), loadProjectMetadataBuilder("project/a"), selectCurrentProject("project/a"), loadProjectWorkflow("project/a"), loadQuoteRun("quote/a"),
     ]);
 
     expect(fetchMock.mock.calls.map(([path]) => path)).toEqual([
-      "/api/workflow", "/api/credentials/eodhd", "/api/credentials/eodhd/value", "/api/metadata/fetch-all/run%2Fa", "/api/project-context", "/api/projects/project%2Fa/metadata-filter", "/api/project-context/current-project", "/api/projects/project%2Fa/workflow", "/api/quote-runs/quote%2Fa",
+      "/api/workflow", "/api/credentials/eodhd", "/api/credentials/eodhd/value", "/api/metadata/fetch-all/run%2Fa", "/api/project-context", "/api/projects/project%2Fa/metadata-builder", "/api/project-context/current-project", "/api/projects/project%2Fa/workflow", "/api/quote-runs/quote%2Fa",
     ]);
+  });
+
+  it("keeps every workflow module facade within its published API contract", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(response({}));
+    vi.stubGlobal("fetch", fetchMock);
+    const metadataRequest = { exchange: "XETRA", name: "fund", instrument_type: "ETF", country: "DE", currency: "EUR" };
+    const univariateRequest = { metadata_selection_id: "selection/a", quote_run_id: "quote/a" };
+    const settings: ApiUnivariateSelectionSettings = { dividend_frequencies: ["monthly"], statistic_labels: {}, statistic_ranges: {} };
+    const bivariateRequest = { univariate_selection_id: "selection/a" };
+
+    await Promise.all([
+      metadataBuilderApi.loadCredentialStatus(), metadataBuilderApi.loadCredentialValue(), metadataBuilderApi.loadFetchRun("run/a"),
+      metadataBuilderApi.loadProjectCriteria("project/a"), metadataBuilderApi.loadFieldOptions(), metadataBuilderApi.saveCredential("key"),
+      metadataBuilderApi.fetchAll(), metadataBuilderApi.createProject(metadataRequest),
+      univariateStatisticsApi.startRun(univariateRequest), univariateStatisticsApi.loadRun("run/a"), univariateStatisticsApi.loadResults("run/a", 10, 5),
+      univariateStatisticsApi.startQuoteRun({ metadata_selection_id: "selection/a" }), univariateStatisticsApi.loadSelectionSettings("project/a"),
+      univariateStatisticsApi.saveSelectionSettings("project/a", settings),
+      bivariateStatisticsApi.plan(bivariateRequest), bivariateStatisticsApi.startRun(bivariateRequest), bivariateStatisticsApi.loadRun("run/a"),
+      bivariateStatisticsApi.loadRunData("run/a"),
+    ]);
+
+    expect(fetchMock.mock.calls.map(([path]) => path)).toEqual(expect.arrayContaining([
+      "/api/metadata-builder/options", "/api/metadata-builder", "/api/univariate-statistics/runs",
+      "/api/univariate-statistics/runs/run%2Fa/results?limit=10&offset=5", "/api/bivariate-statistics/plan",
+      "/api/bivariate-statistics/runs/run%2Fa/covariance-matrix",
+      "/api/bivariate-statistics/runs/run%2Fa/correlation-matrix?metric=downside",
+    ]));
   });
 });

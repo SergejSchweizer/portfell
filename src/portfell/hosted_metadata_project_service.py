@@ -1,4 +1,4 @@
-"""Metadata and metadata-filter project application service."""
+"""Metadata and metadata-builder project application service."""
 
 from __future__ import annotations
 
@@ -85,7 +85,9 @@ class MetadataProjectService:
 
         try:
             summary = self.runtime.run_metadata(
-                provider_key=provider_key, on_progress=update_progress
+                provider_key=provider_key,
+                concurrency=self.runtime.process_cpu_count(),
+                on_progress=update_progress,
             )
         except HostedRuntimeError as error:
             self._fail_metadata_fetch(user_id, run_id, error.code)
@@ -97,7 +99,7 @@ class MetadataProjectService:
             "metadata-revision", stable_hash(summary)
         )
         self.state.current_metadata_selection_by_user.pop(user_id, None)
-        self.state.current_filter_selection_by_user.pop(user_id, None)
+        self.state.current_univariate_selection_by_user.pop(user_id, None)
         self.state.metadata_runs_by_id[run_id] = {
             **self.state.metadata_runs_by_id[run_id],
             "status": "succeeded",
@@ -118,7 +120,7 @@ class MetadataProjectService:
         }
         audit(self.state, user_id, "fetch_all_metadata.failed")
 
-    def create_filter_project(
+    def create_project_from_criteria(
         self,
         user_id: str,
         *,
@@ -142,19 +144,19 @@ class MetadataProjectService:
             if value.strip()
         )
         if not predicates:
-            raise HostedApplicationError(422, "metadata_filter_required")
+            raise HostedApplicationError(422, "metadata_builder_required")
         selected_rows = _unique_listings(filter_rows(self._all_isins_rows(), predicates))
         if not selected_rows:
-            raise HostedApplicationError(422, "metadata_filter_empty")
+            raise HostedApplicationError(422, "metadata_builder_empty")
         project_name = (
             "_".join(
                 part
                 for part in ("_".join(value.strip().casefold().split()) for _, _, value in values)
                 if part
             )
-            or "metadata_filter_project"
+            or "metadata_builder_project"
         )
-        operation = f"metadata-filter-project:{project_name}"
+        operation = f"metadata-builder-project:{project_name}"
         cached = idempotent_response(
             self.state,
             user_id=user_id,
@@ -165,7 +167,7 @@ class MetadataProjectService:
             project = self.state.projects_by_id[cached]
             selection = selection_for_project(self.state, project.project_id, user_id)
             set_current_project(self.state, user_id, project.project_id)
-            return self._filter_project_row(project, selection)
+            return self._project_selection_row(project, selection)
         project_id = opaque_id("project", f"{user_id}:{project_name}")
         project = ProjectRecord(project_id, user_id, project_name)
         self.state.projects_by_id.setdefault(project_id, project)
@@ -174,22 +176,22 @@ class MetadataProjectService:
         selection = SelectionRecord(selection_id, user_id, project_id, project_name, members)
         self.state.selections_by_id.setdefault(selection_id, selection)
         self.state.current_metadata_selection_by_user[user_id] = selection_id
-        self.state.current_filter_selection_by_user.pop(user_id, None)
+        self.state.current_univariate_selection_by_user.pop(user_id, None)
         set_current_project(self.state, user_id, project_id)
         self.runtime.write_metadata_selection(selection_id, selected_rows, predicates)
         remember_idempotency(self.state, user_id, operation, idempotency_key, project_id)
-        audit(self.state, user_id, "metadata_filter.project.create")
-        return self._filter_project_row(project, selection)
+        audit(self.state, user_id, "metadata_builder.project.create")
+        return self._project_selection_row(project, selection)
 
     @staticmethod
-    def _filter_project_row(project: ProjectRecord, selection: SelectionRecord) -> JsonRow:
+    def _project_selection_row(project: ProjectRecord, selection: SelectionRecord) -> JsonRow:
         return {
             "project": project_row(project),
             "selection": selection_row(selection),
             "selected_count": _unique_isin_count(selection.member_ids),
         }
 
-    def project_filter_row(self, project: ProjectRecord, selection: SelectionRecord) -> JsonRow:
+    def project_criteria_row(self, project: ProjectRecord, selection: SelectionRecord) -> JsonRow:
         fields: JsonRow = {
             "exchange": "",
             "instrument_type": "",
@@ -198,9 +200,9 @@ class MetadataProjectService:
             "name": "",
         }
         try:
-            predicates = self.runtime.metadata_filter_predicates(selection.selection_id)
+            predicates = self.runtime.metadata_builder_predicates(selection.selection_id)
         except ValueError as error:
-            raise HostedApplicationError(500, "metadata_filter_manifest_invalid") from error
+            raise HostedApplicationError(500, "metadata_builder_manifest_invalid") from error
         for predicate in predicates:
             if predicate.field == "name" and predicate.operator == "~":
                 fields["name"] = predicate.expected

@@ -10,7 +10,7 @@ from portfell.hosted_api_service_support import (
     require_user_row,
 )
 from portfell.hosted_api_state import AnalysisRecord, HostedApiState, ProjectRecord, SelectionRecord
-from portfell.hosted_research_workflow import FilterSelection, ResearchRun
+from portfell.hosted_research_workflow import ResearchRun, UnivariateSelection
 from portfell.table_io import JsonRow
 
 
@@ -48,21 +48,21 @@ class HostedResearchRepository:
     def quote_run_id(self, univariate_run_id: str) -> str:
         return self._state.quote_run_by_univariate_run_id.get(univariate_run_id, "")
 
-    def filter_selection(self, selection_id: str, user_id: str) -> FilterSelection:
-        return require_user_row(self._state.filter_selections_by_id, selection_id, user_id)
+    def univariate_selection(self, selection_id: str, user_id: str) -> UnivariateSelection:
+        return require_user_row(self._state.univariate_selections_by_id, selection_id, user_id)
 
-    def filter_selections(self, user_id: str) -> tuple[FilterSelection, ...]:
+    def univariate_selections(self, user_id: str) -> tuple[UnivariateSelection, ...]:
         return tuple(
             selection
-            for selection in self._state.filter_selections_by_id.values()
+            for selection in self._state.univariate_selections_by_id.values()
             if selection.user_id == user_id
         )
 
-    def save_filter_selection(self, selection: FilterSelection) -> FilterSelection:
-        return self._state.filter_selections_by_id.setdefault(selection.selection_id, selection)
+    def save_univariate_selection(self, selection: UnivariateSelection) -> UnivariateSelection:
+        return self._state.univariate_selections_by_id.setdefault(selection.selection_id, selection)
 
-    def set_current_filter_selection(self, user_id: str, selection_id: str) -> None:
-        self._state.current_filter_selection_by_user[user_id] = selection_id
+    def set_current_univariate_selection(self, user_id: str, selection_id: str) -> None:
+        self._state.current_univariate_selection_by_user[user_id] = selection_id
 
     def bivariate_run(self, run_id: str, user_id: str) -> ResearchRun:
         return require_user_row(self._state.bivariate_runs_by_id, run_id, user_id)

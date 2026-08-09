@@ -31,9 +31,12 @@ _SUMMARY_METRICS = (
 def build_bivariate_summary(rows: tuple[JsonRow, ...]) -> JsonRow:
     """Aggregate pair rows for the bivariate-statistics cards."""
 
+    date_start, date_end = _shared_date_range(rows)
     return {
         "pair_count": len(rows),
         "observation_count": _average_observations(rows),
+        "date_start": date_start,
+        "date_end": date_end,
         "metrics": {
             name: bivariate_metric_summary(
                 [float(row[name]) for row in rows if row.get(name) is not None]
@@ -59,6 +62,7 @@ def build_correlation_matrix(rows: tuple[JsonRow, ...], metric: str) -> JsonRow:
         ): float(row.get(metric_key, 0.0))
         for row in rows
     }
+    date_start, date_end = _shared_date_range(rows)
     return {
         "labels": _labels(listings),
         "values": [
@@ -69,6 +73,8 @@ def build_correlation_matrix(rows: tuple[JsonRow, ...], metric: str) -> JsonRow:
             for row in range(len(listings))
         ],
         "observation_count": _average_observations(rows),
+        "date_start": date_start,
+        "date_end": date_end,
     }
 
 
@@ -94,6 +100,8 @@ def build_covariance_matrix(
             for row, values_row in enumerate(covariance_values)
         ],
         "observation_count": len(dates),
+        "date_start": dates[0] if dates else "",
+        "date_end": dates[-1] if dates else "",
         "diagnostics": covariance_diagnostics(listings, covariance_values, len(dates)),
     }
 
@@ -125,6 +133,20 @@ def _average_observations(rows: tuple[JsonRow, ...]) -> int:
     if not rows:
         return 0
     return round(sum(int(row.get("n_observations", 0)) for row in rows) / len(rows))
+
+
+def _shared_date_range(rows: tuple[JsonRow, ...]) -> tuple[str, str]:
+    ranges = {
+        (str(row.get("date_start", "")), str(row.get("date_end", "")))
+        for row in rows
+        if row.get("date_start") and row.get("date_end")
+    }
+    if len(ranges) > 1:
+        raise ValueError("bivariate rows do not share one aligned data period")
+    observation_counts = {int(row.get("n_observations", 0)) for row in rows}
+    if len(observation_counts) > 1:
+        raise ValueError("bivariate rows do not share one aligned observation count")
+    return next(iter(ranges), ("", ""))
 
 
 def _common_dates(

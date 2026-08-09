@@ -11,16 +11,16 @@ from portfell.bivariate_views import (
 )
 from portfell.hosted_api_errors import HostedApplicationError
 from portfell.hosted_api_serializers import research_run_row
-from portfell.hosted_api_service_support import opaque_id, stable_hash
+from portfell.hosted_api_service_support import opaque_id
 from portfell.hosted_research_ports import (
     ResearchDataPort,
     ResearchPersistencePort,
     ResearchRunRepository,
 )
 from portfell.hosted_research_workflow import (
-    FilterSelection,
     HostedResearchError,
     ResearchRun,
+    bivariate_source_id,
     create_bivariate_run,
     page_rows,
     pair_plan,
@@ -42,14 +42,14 @@ class BivariateResearchService:
         self._persistence = persistence
 
     def plan(self, user_id: str, selection_id: str) -> JsonRow:
-        return pair_plan(self._repository.filter_selection(selection_id, user_id))
+        return pair_plan(self._repository.univariate_selection(selection_id, user_id))
 
     def start(self, user_id: str, selection_id: str) -> JsonRow:
-        selection = self._repository.filter_selection(selection_id, user_id)
+        selection = self._repository.univariate_selection(selection_id, user_id)
         plan = pair_plan(selection)
         if not plan["allowed"]:
             raise HostedApplicationError(422, "pair_plan_not_runnable")
-        source = _selection_source(selection)
+        source = bivariate_source_id(selection)
         run_id = opaque_id("bivariate-run", f"{user_id}:{source}")
         existing = self._repository.find_bivariate_run(run_id)
         if existing is not None and existing.status != "failed":
@@ -70,8 +70,8 @@ class BivariateResearchService:
     def complete(self, user_id: str, selection_id: str) -> None:
         """Compute every bivariate statistic in the background using all CPU cores."""
 
-        selection = self._repository.filter_selection(selection_id, user_id)
-        run_id = opaque_id("bivariate-run", f"{user_id}:{_selection_source(selection)}")
+        selection = self._repository.univariate_selection(selection_id, user_id)
+        run_id = opaque_id("bivariate-run", f"{user_id}:{bivariate_source_id(selection)}")
         run = self._repository.bivariate_run(run_id, user_id)
         if run.status != "running":
             return
@@ -126,8 +126,8 @@ class BivariateResearchService:
         selection = next(
             (
                 item
-                for item in self._repository.filter_selections(user_id)
-                if _selection_source(item) == run.source_id
+                for item in self._repository.univariate_selections(user_id)
+                if bivariate_source_id(item) == run.source_id
             ),
             None,
         )
@@ -143,9 +143,3 @@ class BivariateResearchService:
         self._repository.save_bivariate_run(replace(run, status="failed", failed=run.total))
         self._repository.audit(user_id, "bivariate_statistics.failed")
         self._persistence.persist()
-
-
-def _selection_source(selection: FilterSelection) -> str:
-    return stable_hash(
-        {"selection_id": selection.selection_id, "members": list(selection.member_ids)}
-    )

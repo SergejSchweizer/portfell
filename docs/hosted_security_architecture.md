@@ -4,7 +4,7 @@ Last reviewed: 2026-08-04
 
 ## Purpose
 
-Portfell currently runs as one local workspace. It has no end-user authentication provider, browser session, callback route, or public multi-user deployment boundary. The local analytical core, encrypted EODHD credential handling, deterministic workflow state, and four-page Web workspace remain available.
+Portfell currently runs as one local workspace. It has no end-user authentication provider, browser session, callback route, or public multi-user deployment boundary. The local analytical core, encrypted EODHD credential handling, deterministic workflow state, and three-module Web workspace remain available.
 
 Public hosting is disabled until a replacement identity and authorization architecture is explicitly designed, implemented, and reviewed.
 

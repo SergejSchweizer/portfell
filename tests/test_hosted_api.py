@@ -17,7 +17,7 @@ from portfell.hosted_api import (
     create_persistent_local_workspace_state,
 )
 from portfell.hosted_credentials import InMemoryCredentialStore, KeyEncryptionKey
-from portfell.hosted_research_workflow import FilterSelection, ResearchRun
+from portfell.hosted_research_workflow import ResearchRun, UnivariateSelection
 from portfell.paths import LakePaths
 from portfell.table_io import read_json, read_rows, write_rows
 
@@ -120,9 +120,8 @@ def test_workflow_starts_with_only_metadata_ready() -> None:
 
     assert workflow == {
         "stages": {
-            "metadata_filter": {"status": "ready"},
+            "metadata_builder": {"status": "ready"},
             "univariate_statistics": {"status": "locked"},
-            "univariate_filter": {"status": "locked"},
             "bivariate_statistics": {"status": "locked"},
         }
     }
@@ -193,7 +192,7 @@ def test_downloads_publish_visible_user_datasets_and_are_idempotent() -> None:
     assert other_datasets == datasets
 
 
-def test_metadata_filter_options_and_project_creation_use_all_isins_reference() -> None:
+def test_metadata_builder_options_and_project_creation_use_all_isins_reference() -> None:
     state = HostedApiState(
         all_isins_rows=(
             {
@@ -222,10 +221,10 @@ def test_metadata_filter_options_and_project_creation_use_all_isins_reference() 
     )
     client = _client(state)
 
-    options = _json(client.get("/metadata-filter/options", headers=_headers(csrf=False)))
+    options = _json(client.get("/metadata-builder/options", headers=_headers(csrf=False)))
     created = _json(
         client.post(
-            "/metadata-filter",
+            "/metadata-builder",
             headers=_headers(idempotency="metadata-project-1"),
             json={
                 "exchange": "XETRA",
@@ -238,7 +237,7 @@ def test_metadata_filter_options_and_project_creation_use_all_isins_reference() 
     )
     repeated = _json(
         client.post(
-            "/metadata-filter",
+            "/metadata-builder",
             headers=_headers(idempotency="metadata-project-1"),
             json={
                 "exchange": "XETRA",
@@ -339,7 +338,7 @@ def test_load_selected_isins_runs_fetch_all_quotes_for_metadata_selection(
     )
     created = _json(
         client.post(
-            "/metadata-filter",
+            "/metadata-builder",
             headers=_headers(idempotency="metadata-project-load-selected-isins"),
             json={
                 "exchange": "XETRA",
@@ -370,8 +369,8 @@ def test_load_selected_isins_runs_fetch_all_quotes_for_metadata_selection(
         client.get(f"/quote-runs/{loaded_data['download_run_id']}", headers=_headers(csrf=False))
     )
     paths = LakePaths(root=lake_root)
-    persisted_selection_rows = read_rows(paths.metadata_filter_isins(selection_id))
-    current_selection = read_json(paths.current_metadata_filter_selection())
+    persisted_selection_rows = read_rows(paths.metadata_builder_isins(selection_id))
+    current_selection = read_json(paths.current_metadata_builder_selection())
     reloaded_project = _json(client.get("/projects", headers=_headers(csrf=False)))["items"][0]
 
     assert len(calls) == 1
@@ -493,7 +492,7 @@ def test_load_selected_isins_reuses_running_quote_run_for_new_idempotency_key(
     client.post("/credentials/eodhd", json={"provider_key": "secret-provider-token"})
     created = _json(
         client.post(
-            "/metadata-filter",
+            "/metadata-builder",
             json={"exchange": "XETRA", "name": "UCITS ETF", "instrument_type": "ETF"},
         )
     )
@@ -531,7 +530,7 @@ def test_load_selected_isins_reuses_running_quote_run_for_new_idempotency_key(
     assert calls == []
 
 
-def test_fetch_all_metadata_for_metadata_filter_requires_eodhd_key(
+def test_fetch_all_metadata_for_metadata_builder_requires_eodhd_key(
     tmp_path: Path,
     monkeypatch: Any,
 ) -> None:
@@ -794,9 +793,8 @@ def test_project_context_defaults_selects_and_clears_current_project() -> None:
     assert selected_context["current_project_id"] == core.project_id
     assert empty_workflow == {
         "stages": {
-            "metadata_filter": {"status": "ready"},
+            "metadata_builder": {"status": "ready"},
             "univariate_statistics": {"status": "locked"},
-            "univariate_filter": {"status": "locked"},
             "bivariate_statistics": {"status": "locked"},
         }
     }
@@ -806,7 +804,7 @@ def test_project_context_defaults_selects_and_clears_current_project() -> None:
     assert missing.status_code == 404
 
 
-def test_project_metadata_filter_restores_saved_field_values(
+def test_project_metadata_builder_restores_saved_field_values(
     tmp_path: Path, monkeypatch: Any
 ) -> None:
     monkeypatch.setenv("PORTFELL_LAKE_ROOT", str(tmp_path / "lake"))
@@ -826,8 +824,8 @@ def test_project_metadata_filter_restores_saved_field_values(
     client = _client(state)
     created = _json(
         client.post(
-            "/metadata-filter",
-            headers=_headers(idempotency="metadata-filter-project-values"),
+            "/metadata-builder",
+            headers=_headers(idempotency="metadata-builder-project-values"),
             json={
                 "exchange": "XETRA",
                 "name": "UCITS ETF",
@@ -838,7 +836,7 @@ def test_project_metadata_filter_restores_saved_field_values(
         )
     )
 
-    restored = _json(client.get(f"/projects/{created['project']['project_id']}/metadata-filter"))
+    restored = _json(client.get(f"/projects/{created['project']['project_id']}/metadata-builder"))
 
     assert restored == {
         "project_id": created["project"]["project_id"],
@@ -892,8 +890,8 @@ def test_projects_listing_removes_discontinued_statistics_smoke_project() -> Non
     )
 
 
-def test_univariate_filter_metrics_expose_numerical_contract() -> None:
-    payload = _json(_client().get("/univariate-filter/metrics", headers=_headers(csrf=False)))
+def test_univariate_selection_metrics_expose_numerical_contract() -> None:
+    payload = _json(_client().get("/univariate-selection/metrics", headers=_headers(csrf=False)))
     metrics = {row["metric"]: row for row in payload["items"]}
 
     assert metrics["annualized_volatility"]["unit"] == "ratio"
@@ -953,7 +951,7 @@ def test_scoped_research_runs_filter_and_build_unique_pairs() -> None:
     )
     filtered = _json(
         client.post(
-            "/univariate-filter",
+            "/univariate-selection",
             headers=_headers(),
             json={
                 "source_run_id": univariate["run_id"],
@@ -961,7 +959,7 @@ def test_scoped_research_runs_filter_and_build_unique_pairs() -> None:
             },
         )
     )
-    source = {"univariate_filter_selection_id": filtered["selection_id"]}
+    source = {"univariate_selection_id": filtered["selection_id"]}
     plan = _json(client.post("/bivariate-statistics/plan", headers=_headers(), json=source))
     bivariate = _json(client.post("/bivariate-statistics/runs", headers=_headers(), json=source))
     pair_rows = _json(
@@ -1058,8 +1056,8 @@ def test_bivariate_statistics_restore_quotes_from_the_persistent_lake(
     univariate = ResearchRun(
         "univariate-run-a", "user-a", "source-a", "complete", statistic_rows, 2, 2
     )
-    filtered = FilterSelection(
-        "univariate-filter-a",
+    filtered = UnivariateSelection(
+        "univariate-selection-a",
         "user-a",
         univariate.run_id,
         selection.member_ids,
@@ -1087,7 +1085,7 @@ def test_bivariate_statistics_restore_quotes_from_the_persistent_lake(
         selections_by_id={selection.selection_id: selection},
         downloads_by_id={quote_run.download_run_id: quote_run},
         univariate_runs_by_id={univariate.run_id: univariate},
-        filter_selections_by_id={filtered.selection_id: filtered},
+        univariate_selections_by_id={filtered.selection_id: filtered},
         quote_run_by_univariate_run_id={univariate.run_id: quote_run.download_run_id},
     )
     client = _client(state)
@@ -1096,7 +1094,7 @@ def test_bivariate_statistics_restore_quotes_from_the_persistent_lake(
         client.post(
             "/bivariate-statistics/runs",
             headers=_headers(),
-            json={"univariate_filter_selection_id": filtered.selection_id},
+            json={"univariate_selection_id": filtered.selection_id},
         )
     )
     hosted_api._research_service(state, hosted_api._runtime()).complete_bivariate(

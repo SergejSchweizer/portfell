@@ -1,7 +1,7 @@
 """Selection statistics views (PR74).
 
 Materializes which cached univariate/bivariate rows belong to a Metadata
-Filter or Univariate Filter selection, without recomputing statistics.
+Builder or Univariate Statistics selection, without recomputing statistics.
 Trusts the PR73 generic Gold cache: a row is considered available if it is
 present in the canonical Gold cache path for that listing/pair. Missing
 rows are reported deterministically rather than silently recomputed or

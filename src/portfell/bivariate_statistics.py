@@ -27,7 +27,7 @@ from portfell.run_state import build_job_manifest, write_job_manifest
 from portfell.schemas import validate_rows
 from portfell.table_io import JsonRow, read_rows, write_rows
 
-_CURRENT_VERSION = "v4"
+BIVARIATE_STATISTICS_VERSION = "v5"
 
 
 def build_bivariate_statistics(
@@ -88,7 +88,7 @@ def write_bivariate_statistics(
     *,
     skip_same_isin: bool = True,
     concurrency: int | None = None,
-    version: str = _CURRENT_VERSION,
+    version: str = BIVARIATE_STATISTICS_VERSION,
     bucket_count: int = DEFAULT_BUCKET_COUNT,
     max_pair_count: int = DEFAULT_MAX_PAIR_COUNT,
     chunk_size: int = DEFAULT_PAIR_CHUNK_SIZE,
@@ -414,6 +414,7 @@ def _ratio(numerator: float, denominator: float) -> float:
 
 
 __all__ = [
+    "BIVARIATE_STATISTICS_VERSION",
     "build_bivariate_statistics",
     "resolve_worker_count",
     "write_bivariate_statistics",

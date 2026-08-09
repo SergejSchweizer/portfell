@@ -1,4 +1,4 @@
-"""User-scoped execution services for the four-page hosted research workflow."""
+"""User-scoped execution services for the three-module hosted research workflow."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from portfell.bivariate_statistics import build_bivariate_statistics
+from portfell.bivariate_statistics import BIVARIATE_STATISTICS_VERSION, build_bivariate_statistics
 from portfell.gold import build_returns
 from portfell.gold_pair_stats import DEFAULT_MAX_PAIR_COUNT
 from portfell.selection_filters import Predicate, filter_rows
@@ -39,7 +39,7 @@ class ResearchRun:
 
 
 @dataclass(frozen=True)
-class FilterSelection:
+class UnivariateSelection:
     """One deterministic selection produced from a univariate run."""
 
     selection_id: str
@@ -124,9 +124,9 @@ def normalize_predicates(rows: Sequence[Mapping[str, Any]]) -> tuple[Predicate, 
     return tuple(sorted(predicates, key=lambda item: (item.field, item.operator, item.expected)))
 
 
-def create_filter_selection(
+def create_univariate_selection(
     *, user_id: str, run: ResearchRun, predicate_rows: Sequence[Mapping[str, Any]]
-) -> FilterSelection:
+) -> UnivariateSelection:
     """Apply predicates only to rows pinned to the source run."""
 
     predicates = normalize_predicates(predicate_rows)
@@ -141,8 +141,8 @@ def create_filter_selection(
             "predicates": [predicate.as_text() for predicate in predicates],
         }
     )
-    return FilterSelection(
-        selection_id=_opaque_id("univariate-filter", f"{user_id}:{identity}"),
+    return UnivariateSelection(
+        selection_id=_opaque_id("univariate-selection", f"{user_id}:{identity}"),
         user_id=user_id,
         source_run_id=run.run_id,
         member_ids=member_ids,
@@ -154,7 +154,7 @@ def create_filter_selection(
 
 def create_full_univariate_selection(
     *, user_id: str, run: ResearchRun, rows: Sequence[Mapping[str, Any]] | None = None
-) -> FilterSelection:
+) -> UnivariateSelection:
     """Create the bivariate input selection from completed univariate rows."""
 
     selected_rows = tuple(dict(row) for row in (run.rows if rows is None else rows))
@@ -165,8 +165,8 @@ def create_full_univariate_selection(
             "selection": "all" if rows is None else list(member_ids),
         }
     )
-    return FilterSelection(
-        selection_id=_opaque_id("univariate-filter", f"{user_id}:{identity}"),
+    return UnivariateSelection(
+        selection_id=_opaque_id("univariate-selection", f"{user_id}:{identity}"),
         user_id=user_id,
         source_run_id=run.run_id,
         member_ids=member_ids,
@@ -177,7 +177,7 @@ def create_full_univariate_selection(
 
 
 def pair_plan(
-    selection: FilterSelection, *, max_pair_count: int = DEFAULT_MAX_PAIR_COUNT
+    selection: UnivariateSelection, *, max_pair_count: int = DEFAULT_MAX_PAIR_COUNT
 ) -> JsonRow:
     """Return a fail-fast dense pair plan without materializing pairs."""
 
@@ -191,10 +191,21 @@ def pair_plan(
     }
 
 
+def bivariate_source_id(selection: UnivariateSelection) -> str:
+    """Hash selection membership together with the active bivariate algorithm."""
+    return _stable_hash(
+        {
+            "selection_id": selection.selection_id,
+            "members": list(selection.member_ids),
+            "algorithm_version": BIVARIATE_STATISTICS_VERSION,
+        }
+    )
+
+
 def create_bivariate_run(
     *,
     user_id: str,
-    selection: FilterSelection,
+    selection: UnivariateSelection,
     quote_rows: Sequence[Mapping[str, Any]],
     max_pair_count: int = DEFAULT_MAX_PAIR_COUNT,
     on_progress: Callable[[int, int], None] | None = None,
@@ -206,14 +217,19 @@ def create_bivariate_run(
         raise HostedResearchError("pair_plan_not_runnable")
     members = set(selection.member_ids)
     scoped_quotes = tuple(row for row in quote_rows if _listing_id(row) in members)
+    return_rows = build_returns(scoped_quotes)
+    if {_listing_id(row) for row in return_rows} != members:
+        raise HostedResearchError("bivariate_return_history_incomplete")
     rows = tuple(
         build_bivariate_statistics(
-            build_returns(scoped_quotes),
+            return_rows,
             concurrency=None,
             max_pair_count=max_pair_count,
             on_progress=on_progress,
         )
     )
+    if not rows:
+        raise HostedResearchError("bivariate_common_history_unavailable")
     ordered = tuple(
         sorted(
             rows,
@@ -224,9 +240,7 @@ def create_bivariate_run(
             ),
         )
     )
-    source = _stable_hash(
-        {"selection_id": selection.selection_id, "members": list(selection.member_ids)}
-    )
+    source = bivariate_source_id(selection)
     return ResearchRun(
         run_id=_opaque_id("bivariate-run", f"{user_id}:{source}"),
         user_id=user_id,
