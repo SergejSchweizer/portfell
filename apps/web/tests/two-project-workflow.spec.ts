@@ -184,6 +184,7 @@ async function createProject(page: Page, filter: { exchange: string; instrumentT
 }
 
 async function computeUnivariate(page: Page) {
+  await expect(page.getByRole("heading", { name: "Dividends" })).not.toBeVisible();
   await page.getByRole("button", { name: "Download Historical Data" }).click();
   await expect(page.getByText("3 listings fetched; 0 provider tasks failed.")).toBeVisible();
   await page.getByRole("button", { name: "Compute univariate statistics" }).click();

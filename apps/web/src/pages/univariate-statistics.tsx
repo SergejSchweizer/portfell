@@ -388,7 +388,7 @@ export function UnivariateStatisticsPage() {
               </Button>
             </div>
           </div>
-          <section className="dividend-statistic" aria-labelledby="dividend-statistic-title">
+          {results !== null ? <section className="dividend-statistic" aria-labelledby="dividend-statistic-title">
             <div className="dividend-statistic__details">
               <div>
                 <h3 id="dividend-statistic-title">Dividends</h3>
@@ -415,7 +415,7 @@ export function UnivariateStatisticsPage() {
                   {dividendFrequencyOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                 </select>
               </label>
-            {results === null ? <p className="status-line">Compute univariate statistics to populate this histogram.</p> : <div className="dividend-histogram" role="img" aria-label={`Annual dividend yield distribution for ${results.length} ISINs`}>
+            <div className="dividend-histogram" role="img" aria-label={`Annual dividend yield distribution for ${results.length} ISINs`}>
               <span className="dividend-histogram__axis dividend-histogram__axis--y">ISIN count</span>
               <div className="dividend-histogram__plot">
                 {annualDividendHistogram.map(({ label, count, frequencies }) => <div className="dividend-histogram__bar" key={label} tabIndex={0} aria-label={`${label}: ${count} ISINs; ${frequencies.filter((frequency) => frequency.count > 0).map((frequency) => `${frequency.label} ${frequency.count}`).join(", ")}`}>
@@ -432,9 +432,9 @@ export function UnivariateStatisticsPage() {
                 </div>)}
               </div>
               <span className="dividend-histogram__axis dividend-histogram__axis--x">Annual dividend yield (%)</span>
-            </div>}
             </div>
-          </section>
+            </div>
+          </section> : null}
           {results && results.length > 0 ? (
             <>
               <div className="univariate-group-grid">
