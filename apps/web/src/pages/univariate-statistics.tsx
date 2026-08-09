@@ -1,13 +1,15 @@
 
 import { useEffect, useState } from "react";
-import { loadProjectContext, loadQuoteRun, loadWorkflow, postJson, requestJson } from "../api/client";
+import { loadProjectContext, loadQuoteRun, loadWorkflow } from "../api/client";
+import { univariateStatisticsApi } from "../api/univariate-statistics";
 import { Button } from "../components/button";
 import { LoadingState } from "../components/loading-state";
 import { Panel } from "../components/panel";
-import type { ApiDividendFrequency, ApiPage, ApiQuoteFetch, ApiResearchRun, ApiUnivariateRow, ApiUnivariateSelectionSettings } from "../contracts";
+import type { ApiDividendFrequency, ApiQuoteFetch, ApiResearchRun, ApiUnivariateRow, ApiUnivariateSelectionSettings } from "../contracts";
 import { useResource } from "../hooks/use-resource";
 
 type MetricDefinition = Readonly<{ group: string; metric: string; label: string; description: string; equation: string; notation: string; unit?: string }>;
+type UnivariateStatisticTab = "dividends" | MetricDefinition["metric"];
 type DividendFrequency = ApiDividendFrequency;
 type SelectionRange = Readonly<{ minimum: number; maximum: number }>;
 type UnivariateSelectionSettings = ApiUnivariateSelectionSettings;
@@ -53,12 +55,10 @@ function dividendFrequency(value: ApiUnivariateRow): DividendFrequency {
 }
 
 async function loadUnivariateResults(runId: string): Promise<readonly ApiUnivariateRow[]> {
-  const firstPage = await requestJson<ApiPage<ApiUnivariateRow>>(
-    `/api/univariate-statistics/runs/${runId}/results?limit=200&offset=0`,
-  );
+  const firstPage = await univariateStatisticsApi.loadResults(runId, 200, 0);
   const pages = await Promise.all(
-    Array.from({ length: Math.ceil(firstPage.total / 200) - 1 }, (_, index) => requestJson<ApiPage<ApiUnivariateRow>>(
-      `/api/univariate-statistics/runs/${runId}/results?limit=200&offset=${(index + 1) * 200}`,
+    Array.from({ length: Math.ceil(firstPage.total / 200) - 1 }, (_, index) => (
+      univariateStatisticsApi.loadResults(runId, 200, (index + 1) * 200)
     )),
   );
   return [...firstPage.items, ...pages.flatMap((page) => page.items)];
@@ -84,27 +84,18 @@ export function UnivariateStatisticsPage() {
   const [portfolioDividendFrequencies, setPortfolioDividendFrequencies] = useState<DividendFrequency[]>([]);
   const [portfolioStatisticSelections, setPortfolioStatisticSelections] = useState<Record<string, string[]>>({});
   const [portfolioStatisticRanges, setPortfolioStatisticRanges] = useState<Record<string, SelectionRange[]>>({});
-  const [statisticOrder, setStatisticOrder] = useState<string[]>(() => metricDefinitions.map((definition) => definition.metric));
+  const [activeStatisticTab, setActiveStatisticTab] = useState<UnivariateStatisticTab>("dividends");
   const [message, setMessage] = useState("");
   const [quoteStatus, setQuoteStatus] = useState<"idle" | "running" | "complete" | "failed">("idle");
   const [quoteProgress, setQuoteProgress] = useState(0);
   const [quoteMessage, setQuoteMessage] = useState("Fetch historical quotes for this selection.");
   const [quoteRunId, setQuoteRunId] = useState<string | null>(null);
   const workflowQuoteRunId = workflow.status === "ready"
-    ? workflow.data.stages.metadata_filter.quote_run_id ?? null
+    ? workflow.data.stages.metadata_builder.quote_run_id ?? null
     : null;
   const workflowUnivariateRunId = workflow.status === "ready"
     ? workflow.data.stages.univariate_statistics.univariate_run_id ?? null
     : null;
-
-  useEffect(() => {
-    const saved = window.localStorage.getItem("portfell:univariate-statistic-order");
-    if (!saved) return;
-    try {
-      const order = JSON.parse(saved) as string[];
-      if (order.length === metricDefinitions.length && new Set(order).size === metricDefinitions.length && order.every((metric) => metricDefinitions.some((definition) => definition.metric === metric))) setStatisticOrder(order);
-    } catch { /* ignore an invalid saved order */ }
-  }, []);
 
   useEffect(() => {
     const resetProjectState = () => {
@@ -180,7 +171,7 @@ export function UnivariateStatisticsPage() {
     async function restoreUnivariateResults() {
       try {
         const [restoredRun, restoredResults] = await Promise.all([
-          requestJson<ApiResearchRun>(`/api/univariate-statistics/runs/${restoredRunId}`),
+          univariateStatisticsApi.loadRun(restoredRunId),
           loadUnivariateResults(restoredRunId),
         ]);
         if (cancelled) return;
@@ -203,9 +194,7 @@ export function UnivariateStatisticsPage() {
       const projectId = context.current_project_id;
       if (!projectId || cancelled) return;
       try {
-        const saved = await requestJson<UnivariateSelectionSettings>(
-          `/api/projects/${encodeURIComponent(projectId)}/univariate-selection-settings`,
-        );
+        const saved = await univariateStatisticsApi.loadSelectionSettings(projectId);
         if (cancelled) return;
         setPortfolioDividendFrequencies(saved.dividend_frequencies.filter((value) => dividendFrequencyOptions.some((option) => option.value === value)));
         setPortfolioStatisticSelections(saved.statistic_labels);
@@ -228,7 +217,7 @@ export function UnivariateStatisticsPage() {
     let timeoutId: number | undefined;
     async function pollUnivariateRun() {
       try {
-        const current = await requestJson<ApiResearchRun>(`/api/univariate-statistics/runs/${activeRunId}`);
+        const current = await univariateStatisticsApi.loadRun(activeRunId);
         if (cancelled) return;
         setRun(current);
         if (current.status === "running") {
@@ -263,7 +252,7 @@ export function UnivariateStatisticsPage() {
   }
   if (workflow.status === "error") return <p>Workflow state is unavailable.</p>;
   const stage = workflow.data.stages.univariate_statistics;
-  const metadata = workflow.data.stages.metadata_filter;
+  const metadata = workflow.data.stages.metadata_builder;
   const dividendFrequencyCounts = dividendFrequencyOptions.map((option) => ({
     ...option,
     count: results?.filter((row) => dividendFrequency(row) === option.value).length ?? 0,
@@ -297,17 +286,11 @@ export function UnivariateStatisticsPage() {
   ) {
     const context = await loadProjectContext();
     if (!context.current_project_id) return;
-    await requestJson<UnivariateSelectionSettings>(
-      `/api/projects/${encodeURIComponent(context.current_project_id)}/univariate-selection-settings`,
-      {
-        method: "PUT",
-        body: JSON.stringify({
-          dividend_frequencies: dividendFrequencies,
-          statistic_labels: statisticLabels,
-          statistic_ranges: statisticRanges,
-        }),
-      },
-    );
+    await univariateStatisticsApi.saveSelectionSettings(context.current_project_id, {
+      dividend_frequencies: dividendFrequencies,
+      statistic_labels: statisticLabels,
+      statistic_ranges: statisticRanges,
+    });
     window.dispatchEvent(new Event("portfell:workflow-updated"));
   }
 
@@ -325,7 +308,7 @@ export function UnivariateStatisticsPage() {
     if (!metadata.metadata_selection_id || !metadata.quote_run_id) return;
     setMessage("Computing univariate statistics…");
     try {
-      const nextRun = await postJson<ApiResearchRun>("/api/univariate-statistics/runs", {
+      const nextRun = await univariateStatisticsApi.startRun({
         metadata_selection_id: metadata.metadata_selection_id,
         quote_run_id: metadata.quote_run_id,
       });
@@ -345,7 +328,7 @@ export function UnivariateStatisticsPage() {
       quoteRunId ? "Refreshing the current historical-data download status…" : "Fetching quotes and building the Silver dataset…",
     );
     try {
-      const result = await postJson<ApiQuoteFetch>("/api/quote-runs", {
+      const result = await univariateStatisticsApi.startQuoteRun({
         metadata_selection_id: metadata.metadata_selection_id,
       });
       setQuoteRunId(result.download_run_id);
@@ -388,10 +371,15 @@ export function UnivariateStatisticsPage() {
               </Button>
             </div>
           </div>
-          {results !== null ? <section className="dividend-statistic" aria-labelledby="dividend-statistic-title">
-            <div className="dividend-statistic__details">
+          {results !== null ? <section className="univariate-statistic" aria-labelledby="univariate-statistic-title">
+            <div className="univariate-statistic__tabs" role="tablist" aria-label="Univariate statistic">
+              <button type="button" role="tab" aria-selected={activeStatisticTab === "dividends"} className={activeStatisticTab === "dividends" ? "is-active" : undefined} onClick={() => setActiveStatisticTab("dividends")}>Dividends</button>
+              {metricDefinitions.map((statistic) => <button key={statistic.metric} type="button" role="tab" aria-selected={activeStatisticTab === statistic.metric} className={activeStatisticTab === statistic.metric ? "is-active" : undefined} onClick={() => setActiveStatisticTab(statistic.metric)}>{statistic.label}</button>)}
+            </div>
+            {activeStatisticTab === "dividends" ? <div className="dividend-statistic">
+              <div className="dividend-statistic__details">
               <div>
-                <h3 id="dividend-statistic-title">Dividends</h3>
+                <h3 id="univariate-statistic-title">Dividends</h3>
                 <p>Distribution frequency and trailing annual dividend yield by ISIN.</p>
               </div>
               <ul className="dividend-frequency-list" aria-label="Dividend payout frequencies">
@@ -433,13 +421,9 @@ export function UnivariateStatisticsPage() {
               </div>
               <span className="dividend-histogram__axis dividend-histogram__axis--x">Annual dividend yield (%)</span>
             </div>
-            </div>
-          </section> : null}
-          {results && results.length > 0 ? (
-            <>
-              <div className="univariate-group-grid">
-                {statisticOrder.map((metric) => {
-                  const statistic = metricDefinitions.find((definition) => definition.metric === metric)!;
+              </div>
+            </div> : results.length > 0 ? (() => {
+                  const statistic = metricDefinitions.find((definition) => definition.metric === activeStatisticTab)!;
                   const metricValues = results.flatMap((row) => typeof row[statistic.metric] === "number" && Number.isFinite(row[statistic.metric])
                     ? [{ value: row[statistic.metric] as number, frequency: dividendFrequency(row) }]
                     : []);
@@ -478,18 +462,9 @@ export function UnivariateStatisticsPage() {
                       : `${formatHistogramValue(lower, statistic.unit)} – ${formatHistogramValue(upper, statistic.unit)}`,
                     { minimum: lower, maximum: upper },
                   ]));
-                  return <section className="univariate-group-card" key={statistic.metric} draggable onDragStart={(event) => event.dataTransfer.setData("text/plain", statistic.metric)} onDragOver={(event) => event.preventDefault()} onDrop={(event) => {
-                    const source = event.dataTransfer.getData("text/plain");
-                    if (!source || source === statistic.metric) return;
-                    setStatisticOrder((current) => {
-                      const next = current.filter((item) => item !== source);
-                      next.splice(next.indexOf(statistic.metric), 0, source);
-                      window.localStorage.setItem("portfell:univariate-statistic-order", JSON.stringify(next));
-                      return next;
-                    });
-                    }} aria-labelledby={`group-${statistic.metric}`}>
+                  return <section className="univariate-group-card" aria-labelledby="univariate-statistic-title">
                     <div className="univariate-group-card__facts">
-                      <h3 id={`group-${statistic.metric}`}>{statistic.label}</h3>
+                      <h3 id="univariate-statistic-title">{statistic.label}</h3>
                       <p>{statistic.description}</p>
                       <p className="univariate-group-card__fact-heading">Average {statistic.label} by dividend type</p>
                       <ul className="dividend-frequency-list" aria-label={`Average ${statistic.label} by dividend frequency`}>
@@ -542,10 +517,8 @@ export function UnivariateStatisticsPage() {
                       </div>
                     </div>
                   </section>;
-                })}
-              </div>
-            </>
-          ) : results ? <p>No univariate rows matched the pinned selection.</p> : null}
+                })() : <p>No univariate rows matched the pinned selection.</p>}
+          </section> : null}
         </>}
       </Panel>
     </section>

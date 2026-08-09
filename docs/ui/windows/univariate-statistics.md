@@ -8,6 +8,13 @@
 
 Download historical data, then run and present server-computed univariate statistics for the active project.
 
+## Module boundary
+
+Univariate Statistics consumes the persisted metadata selection and quote-run IDs from Metadata
+Builder. It owns per-ISIN results, per-project statistic selections, and the optional filtered
+selection consumed by Bivariate Statistics. It must not create metadata selections or calculate
+pairwise relationships.
+
 ## Contract
 
 The first white panel owns quote fetch progress and starts `POST /api/quote-runs` with the persisted metadata selection id. Each project download computes independent deltas for Quotes, Dividends, and Splits; all three datasets are merged into the server-owned Bronze lake only for the selected project's listings. It polls `GET /api/quote-runs/{id}` and renders the server-provided `total`, `completed`, `failed`, and `percent` values before its action.
@@ -24,9 +31,10 @@ statistic windows. It provides a payout-frequency selection and an accessible
 histogram that counts ISINs by none/unknown, monthly, quarterly, semiannual, annual, and
 irregular schedules. The selected schedules are saved per project.
 
-The page currently exposes only these quantitative statistic cards, each with a formula, notation,
-dividend-type facts, a project-persisted multi-selection, and a histogram derived from completed
-server-returned rows:
+After a completed run, the page presents Dividends and all quantitative statistics in one shared
+statistics window. Its horizontal tab list selects exactly one statistic at a time; the active tab
+contains that statistic's formula, notation, dividend-type facts, project-persisted multi-selection,
+and histogram derived from completed server-returned rows:
 
 | Statistic | Returned field | Unit |
 | --- | --- | --- |
@@ -47,12 +55,13 @@ status. A project with a persisted metadata selection activates this page so
 its quote-fetch action is available; a completed quote run remains required
 before statistics can be computed. After a project switch, local run,
 result-table, and status-message state are cleared before the project-scoped
-workflow is reloaded. Once the univariate run completes, the server creates an all-results
-selection and unlocks Bivariate Statistics directly; Univariate Filter is not shown in the sidebar.
+workflow is reloaded. Once the univariate run completes, the server creates the automatic all-results
+selection and unlocks Bivariate Statistics directly. There is no standalone filter module or route in
+the browser workflow.
 
 ## Acceptance
 
-The quote panel is first in document order and its `Download Historical Data` action is disabled without a metadata selection or while a download is active. A failed download displays the server-provided safe error code. The statistics action is disabled when prerequisites are missing or a run is active. No Dividends window is present before completed univariate results are loaded; it appears with the other completed-result statistics, including when the returned result set is empty. Results use typed contracts, accessible table semantics, stable loading feedback, bounded pagination, and a clear upstream-data requirement.
+The quote panel is first in document order and its `Download Historical Data` action is disabled without a metadata selection or while a download is active. A failed download displays the server-provided safe error code. The statistics action is disabled when prerequisites are missing or a run is active. No statistics window is present before completed univariate results are loaded; afterwards, one accessible tab panel contains Dividends and every quantitative statistic, including when the returned result set is empty. Results use typed contracts, accessible tab semantics, stable loading feedback, bounded pagination, and a clear upstream-data requirement.
 
 The stateful two-project browser journey exercises historical-data and compute
 actions, every project-persisted portfolio-selection field, histogram hover

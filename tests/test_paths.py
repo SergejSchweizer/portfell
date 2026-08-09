@@ -33,8 +33,8 @@ def test_lake_paths_are_deterministic() -> None:
     assert paths.silver_quote_file("XETRA", "IE0000000001") == Path(
         "lake/silver/quotes/XETRA/IE0000000001.parquet"
     )
-    assert paths.current_univariate_filter_selection() == Path(
-        "lake/silver/univariate_filter/current_selection.json"
+    assert paths.current_univariate_selection() == Path(
+        "lake/silver/univariate_selection/current_selection.json"
     )
     assert paths.gold_returns("XETRA", "IE0000000001") == Path(
         "lake/gold/returns/XETRA/IE0000000001.parquet"

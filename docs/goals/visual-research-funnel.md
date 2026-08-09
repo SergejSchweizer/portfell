@@ -37,11 +37,11 @@ The technical pipeline remains:
 
 ```text
 ISIN and listing discovery
-  -> metadata filtering
+  -> metadata selection
   -> free-key research-set selection
   -> market-history preparation
   -> univariate statistics
-  -> univariate filtering
+  -> univariate selectioning
   -> bivariate statistics
   -> multivariate statistics
   -> portfolio construction and comparison
@@ -104,9 +104,9 @@ The active stage is emphasized. Completed stages are quiet but visible. Future s
 The same visual objects should transform during the journey:
 
 1. many points represent the discovered universe;
-2. excluded points fade during metadata filtering;
+2. excluded points fade while Metadata Builder criteria are applied;
 3. the research set moves into a risk-return space;
-4. unsuitable points fade after univariate filtering;
+4. unsuitable points fade after univariate selectioning;
 5. related points move into clusters during bivariate analysis;
 6. selected clusters become portfolio building blocks;
 7. building blocks resolve into portfolio candidate cards.
@@ -337,7 +337,7 @@ Can be reused without another provider request
 [ Define eligibility ]
 ```
 
-## Metadata Filter Screen
+## Metadata Builder Screen
 
 The interface should present understandable selection cards rather than a database-style filter form.
 
@@ -469,7 +469,7 @@ recent capital preservation.
 
 Detailed metric tables remain optional.
 
-## Univariate Filter Screen
+## Univariate Selection Screen
 
 ```text
 Which funds are individually suitable

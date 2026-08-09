@@ -6,7 +6,7 @@ Last reviewed: 2026-08-07
 
 - [Backlog Policy](#backlog-policy)
 - [Active Workflow Ingestion UI PR](#active-workflow-ingestion-ui-pr)
-- [Active Four-Page Portfell UI PR Stack](#active-four-page-portfell-ui-pr-stack)
+- [Active Three-Module Portfell UI PR Stack](#active-three-module-portfell-ui-pr-stack)
 - [Active Project Sidebar PR Stack](#active-project-sidebar-pr-stack)
 - [Active Platform-Inspired Simple UI PR Stack](#active-platform-inspired-simple-ui-pr-stack)
 - [Active Persistent EODHD Credential PR Stack](#active-persistent-eodhd-credential-pr-stack)
@@ -44,16 +44,16 @@ Depends on: current `main`.
 
 Scope:
 
-- Move EODHD credential entry and `Fetch all metadata` from the persistent header into a first white panel on Metadata Filter.
-- Move quote fetching from Metadata Filter into a first white panel on Univariate Statistics.
-- Navigate to Univariate Statistics after a successful metadata-filter submission.
+- Move EODHD credential entry and `Fetch all metadata` from the persistent header into a first white panel on Metadata Builder.
+- Move quote fetching from Metadata Builder into a first white panel on Univariate Statistics.
+- Navigate to Univariate Statistics after a successful metadata-builder submission.
 - Preserve server-owned credentials, metadata refresh, quote ingestion, workflow state, and polling contracts.
 - Synchronize page specifications and React scaffold/Playwright regression contracts.
 
 Acceptance:
 
-- Metadata Filter displays the metadata-refresh panel before all filter controls, and the header contains no ingestion form.
-- Applying a valid metadata filter navigates to `/univariate-statistics`.
+- Metadata Builder displays the metadata-refresh panel before all filter controls, and the header contains no ingestion form.
+- Applying a valid metadata builder navigates to `/univariate-statistics`.
 - Univariate Statistics displays determinate quote progress and `Fetch quotes` in its first white panel before the statistics controls.
 - Existing server API routes, request payloads, and run-polling semantics remain unchanged.
 
@@ -67,18 +67,17 @@ Idempotency: Existing metadata and quote requests retain their server-side idemp
 
 This PR is complete only after it is merged with the required checks in [GATES.md](GATES.md) passing, the page specifications and regression tests are synchronized, and no header-owned ingestion control remains.
 
-## Active Four-Page Portfell UI PR Stack
+## Active Three-Module Portfell UI PR Stack
 
-This is the canonical UI implementation stack. It supersedes the former eight-stage research-funnel UI plan. The production application has exactly four pages, in this order:
+This is the canonical UI implementation stack. It supersedes the former four-page and eight-stage research-funnel UI plans. The production application has exactly three modules, in this order:
 
 ```text
-metadata_filter
+metadata_builder
     -> univariate_statistics
-    -> univariate_filter
     -> bivariate_statistics
 ```
 
-Metadata Filter begins with the EODHD credential input and metadata refresh action in its own panel, before all metadata dropdowns. Univariate Statistics begins with quote fetching and progress in its own panel. The canonical Python operation is `fetch_all_metadata`; the removed name `fetch_all_isins` must not be reintroduced as a function, module, command, route, alias, compatibility shim, or documentation term.
+Metadata Builder begins with the EODHD credential input and metadata refresh action in its own panel, before all metadata dropdowns. Univariate Statistics begins with quote fetching and progress in its own panel. The canonical Python operation is `fetch_all_metadata`; the removed name `fetch_all_isins` must not be reintroduced as a function, module, command, route, alias, compatibility shim, or documentation term.
 
 The stack is deliberately sequential. Each PR must be independently reviewable, must leave the repository green, and must not implement scope assigned to a later PR. Browser code owns presentation and transient interaction state only. Credentials, authorization, workflow status, selections, calculations, persistence, invalidation, and financial/statistical logic remain server-owned.
 
@@ -95,17 +94,17 @@ Depends on: PR189.
 Scope:
 
 - Add one backend-owned workflow-state model for the current authenticated user and active project.
-- Expose `GET /api/workflow` and return exactly these stages: `metadata_filter`, `univariate_statistics`, `univariate_filter`, and `bivariate_statistics`.
+- Expose `GET /api/workflow` and return exactly these stages: `metadata_builder`, `univariate_statistics`, `univariate_selection`, and `bivariate_statistics`.
 - Use only the statuses `locked`, `ready`, `running`, `complete`, `failed`, and `stale`.
-- Include immutable upstream identifiers in every completed stage: metadata revision, metadata selection id, quote run id, univariate run id, univariate-filter selection id, and bivariate run id where applicable.
-- Define downstream invalidation rules in one backend module. A metadata refresh invalidates every downstream stage; a metadata-filter change invalidates quote loading and every later stage; a univariate-statistics change invalidates the univariate filter and bivariate statistics; a univariate-filter change invalidates bivariate statistics.
+- Include immutable upstream identifiers in every completed stage: metadata revision, metadata selection id, quote run id, univariate run id, univariate selection id, and bivariate run id where applicable.
+- Define downstream invalidation rules in one backend module. A metadata refresh invalidates every downstream stage; a metadata-builder change invalidates quote loading and every later stage; a univariate-statistics change invalidates the univariate selection and bivariate statistics; a univariate-selection change invalidates bivariate statistics.
 - Add matching TypeScript contracts in `apps/web/src/contracts.ts` and one `loadWorkflow()` client function. Pages must not infer completion from local component state.
 - Persist or reconstruct workflow status from existing server-owned project, run, selection, and artifact records. Do not add Redux, Zustand, XState, React Router, WebSockets, Celery, Redis, or a generic workflow engine.
 
 Acceptance:
 
 - `GET /api/workflow` returns the same JSON for the same persisted state across repeated calls and process restarts.
-- A new user with no metadata receives `metadata_filter=ready` and the other three stages as `locked`.
+- A new user with no metadata receives `metadata_builder=ready` and the other three stages as `locked`.
 - Every upstream mutation produces the exact stale/locked transitions defined above.
 - The response never exposes an EODHD key, filesystem path, unrestricted global dataset identifier, or another user's state.
 - Unit tests cover every allowed status transition and every invalidation edge.
@@ -118,9 +117,9 @@ Determinism: Identical persisted identifiers and statuses produce byte-equivalen
 
 Idempotency: Repeating `GET /api/workflow` performs no writes and creates no projects, runs, selections, or artifacts.
 
-### PR111. Metadata Header, Metadata Filter, And Real Quote Progress
+### PR111. Metadata Header, Metadata Builder, And Real Quote Progress
 
-Branch: `feat/metadata-filter-quote-progress`.
+Branch: `feat/metadata-builder-quote-progress`.
 
 Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/197.
 
@@ -132,9 +131,9 @@ Scope:
 
 - Keep the EODHD key input in the persistent header. Submission must call `POST /api/credentials/eodhd`, clear the input, then call the real metadata workflow through `POST /api/metadata/fetch-all`.
 - Inject the authenticated user's decrypted key into `run_fetch_all_metadata_workflow`; do not read a shared plaintext key or return the key to the browser.
-- Make `/metadata-filter` the default application route and the first workflow page.
-- Load multiple-choice values from `GET /api/metadata-filter/options` for exchange, instrument type, country, and currency; include a name-contains input.
-- Submit the filter through `POST /api/metadata-filter` and persist a deterministic metadata selection id.
+- Make `/metadata-builder` the default application route and the first workflow page.
+- Load multiple-choice values from `GET /api/metadata-builder/options` for exchange, instrument type, country, and currency; include a name-contains input.
+- Submit the filter through `POST /api/metadata-builder` and persist a deterministic metadata selection id.
 - Place the quote progress bar after all metadata controls and status text. Place a right-aligned `Fetch quotes` button beneath the progress bar.
 - Start quote ingestion with `POST /api/quote-runs` using only the current metadata selection id. Poll `GET /api/quote-runs/{run_id}` until complete or failed.
 - Return and render `total`, `completed`, `failed`, and integer `percent` values. The progress bar must represent server progress; it must not jump from zero to 100 solely because one HTTP request returned.
@@ -149,7 +148,7 @@ Acceptance:
 - `Fetch quotes` remains disabled until a non-empty metadata selection exists.
 - The DOM order is: metadata controls, apply-filter action, selection status, progress label, progress element, progress status, right-aligned `Fetch quotes` action.
 - Polling stops on `complete`, `failed`, component unmount, route change, or request cancellation.
-- Repeating the same metadata filter returns the same logical selection id.
+- Repeating the same metadata builder returns the same logical selection id.
 - Repeating `Fetch quotes` for an already running or completed identical run returns that run instead of creating a duplicate.
 - Browser tests cover successful metadata loading, empty metadata, invalid credential, zero-result filter, partial quote failure, complete quote success, refresh recovery, and secret non-disclosure.
 
@@ -174,7 +173,7 @@ Scope:
 - Replace the current read-only summary page with a complete execution page.
 - Add `POST /api/univariate-statistics/runs` with the current metadata selection id and quote run id as required immutable inputs.
 - Add `GET /api/univariate-statistics/runs/{run_id}` for status and `GET /api/univariate-statistics/runs/{run_id}/results` for server-paginated results.
-- Require quote completion before execution. Render a locked explanation and link to `/metadata-filter` when prerequisites are absent or stale.
+- Require quote completion before execution. Render a locked explanation and link to `/metadata-builder` when prerequisites are absent or stale.
 - Provide one `Compute univariate statistics` action, running status, cancellation-safe polling, empty state, failure state, completion summary, sorting, and pagination.
 - Render at minimum: listing identity, ISIN, symbol, exchange, observation count, annualized return, annualized volatility, Sharpe ratio, maximum drawdown, and expected shortfall when present in the backend artifact.
 - Keep units and numerical precision in typed formatter functions; do not calculate statistics in React.
@@ -197,9 +196,9 @@ Determinism: The artifact id includes exact quote inputs, selection membership, 
 
 Idempotency: Identical run creation is deduplicated by the canonical input hash.
 
-### PR113. Functional Univariate Filter Page
+### PR113. Functional Univariate Selection Page
 
-Branch: `feat/univariate-filter-page`.
+Branch: `feat/univariate-selection-page`.
 
 Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/193.
 
@@ -210,8 +209,8 @@ Depends on: PR112.
 Scope:
 
 - Replace the placeholder page with a typed predicate editor and persisted selection result.
-- Add `GET /api/univariate-filter/metrics` for allowed numerical metrics, labels, units, and valid operators.
-- Add `POST /api/univariate-filter` accepting `source_run_id`, optional `selection_name`, and an ordered predicate list with `metric`, `operator`, and numeric `value`.
+- Add `GET /api/univariate-selection/metrics` for allowed numerical metrics, labels, units, and valid operators.
+- Add `POST /api/univariate-selection` accepting `source_run_id`, optional `selection_name`, and an ordered predicate list with `metric`, `operator`, and numeric `value`.
 - Permit only `=`, `!=`, `>`, `>=`, `<`, and `<=` for numerical metrics. Apply all predicates with logical AND.
 - Canonically sort predicates for identity generation while preserving the user-visible edit order separately.
 - Return `selection_id`, `input_count`, `selected_count`, `excluded_count`, normalized predicates, and exclusion summaries.
@@ -248,13 +247,13 @@ Depends on: PR113.
 Scope:
 
 - Replace the placeholder page with pair-plan, execution, progress, and result views.
-- Add `POST /api/bivariate-statistics/plan` accepting the current univariate-filter selection id and returning selected listing count, theoretical pair count, configured pair limit, and whether execution is allowed.
+- Add `POST /api/bivariate-statistics/plan` accepting the current univariate selection id and returning selected listing count, theoretical pair count, configured pair limit, and whether execution is allowed.
 - Add `POST /api/bivariate-statistics/runs`, `GET /api/bivariate-statistics/runs/{run_id}`, and `GET /api/bivariate-statistics/runs/{run_id}/results`.
 - Fail before pair generation when the theoretical pair count exceeds the configured maximum.
 - Poll real server progress using `total_pairs`, `completed_pairs`, `failed_pairs`, and integer `percent`.
 - Render server-paginated pair rows with left/right identity, observation count, Pearson correlation, Spearman correlation, covariance, left-to-right beta, and right-to-left beta where available.
 - Default ordering is descending absolute Pearson correlation, then stable left-id/right-id tie-breakers.
-- Require a complete, non-empty, non-stale univariate-filter selection.
+- Require a complete, non-empty, non-stale univariate selection.
 - Do not transfer the complete pair dataset to the browser and do not calculate correlations in React.
 
 Acceptance:
@@ -292,7 +291,7 @@ Scope:
 - Delete unused `AuthenticatedShell`, old aggregate-only endpoints, old HTML-rendering helpers, duplicate route lists, and any tests whose only purpose is to preserve removed files.
 - Add a repository gate that fails when removed route ids, compatibility renderer names, direct page-level `fetch(` calls, the retired metadata-fetch name, or production fixture selectors reappear.
 - Update `README.md`, `ARCHITECTURE.md`, `CONTRACTS.md`, `docs/ui/README.md`, `docs/ui/page-development.md`, and the four page specifications to describe only the final implementation.
-- Add one Playwright workflow test that completes metadata refresh, metadata filtering, quote loading, univariate statistics, univariate filtering, and bivariate statistics using deterministic mocked provider responses.
+- Add one Playwright workflow test that completes metadata refresh, Metadata Builder project creation, quote loading, univariate statistics and selection, and bivariate statistics using deterministic mocked provider responses.
 
 Acceptance:
 
@@ -334,7 +333,7 @@ Idempotency: Applying the catalog retirement migration repeatedly leaves the sch
 
 ## Active Project Sidebar PR Stack
 
-This series adds one persistent application sidebar without changing the four canonical workflow routes. On desktop, the sidebar shows the current project as a dropdown and the workflow as an ordered hierarchy beneath it. On narrow viewports, the same sidebar content appears in an accessible drawer opened from the header. The hierarchy is exactly `Project -> Metadata Filter -> Univariate Statistics -> Univariate Filter -> Bivariate Statistics`; it is not a filesystem tree, an arbitrary nested-project model, or a second route registry.
+This series adds one persistent application sidebar without changing the four canonical workflow routes. On desktop, the sidebar shows the current project as a dropdown and the workflow as an ordered hierarchy beneath it. On narrow viewports, the same sidebar content appears in an accessible drawer opened from the header. The hierarchy is exactly `Project -> Metadata Builder -> Univariate Statistics -> Univariate Selection -> Bivariate Statistics`; it is not a filesystem tree, an arbitrary nested-project model, or a second route registry.
 
 The series is sequential and must remain on the active UI branch stack until explicitly landed. Each PR must follow [GATES.md](GATES.md), update implementation and UI specifications together, and leave all existing four-page routes directly addressable. Browser code may render and request project context, but project ownership, current-project persistence, workflow status, and stage locking remain server-owned.
 
@@ -355,7 +354,7 @@ Scope:
 - Add `PUT /project-context/current-project` with JSON `{project_id}`. Accept only a project owned by the current local workspace, persist the pointer, and return the same contract as `GET /project-context`.
 - Sort projects case-insensitively by `name`, then by `project_id`. Do not use creation time, dictionary iteration order, or browser sorting.
 - Define deterministic defaulting: when no preference exists and projects exist, select the first item in the canonical sort order and persist it; when no projects exist, return `current_project_id=null`, `current_project=null`, and `projects=[]` without creating a project.
-- When `POST /api/metadata-filter` creates or reuses a project, make that project current in the same successful operation. A failed or zero-result filter must not change the current-project pointer.
+- When `POST /api/metadata-builder` creates or reuses a project, make that project current in the same successful operation. A failed or zero-result filter must not change the current-project pointer.
 - When the current project is deleted, clear the pointer and select the next canonical project if one exists. Deleting a non-current project must not change the pointer.
 - Replace implicit latest-selection workflow lookup with `GET /projects/{project_id}/workflow`. Resolve every stage only from records belonging to that project and workspace. Keep `GET /workflow` temporarily as an internal compatibility endpoint only if an existing non-Web caller still requires it; otherwise delete it in this PR.
 - Add Python response models or typed row builders for project context rather than assembling different shapes in multiple endpoints. Add matching `ApiProjectSummary`, `ApiProjectContext`, and project-scoped `ApiWorkflow` TypeScript contracts in `apps/web/src/contracts.ts`.
@@ -368,7 +367,7 @@ Acceptance:
 - `PUT /project-context/current-project` returns `404` for unknown or inaccessible ids and leaves the previous pointer unchanged.
 - Two projects with different selections and runs return different project-scoped workflow identifiers and statuses; switching the current project never leaks identifiers from the previous project.
 - Repeating `GET /project-context` and `GET /projects/{project_id}/workflow` performs no writes after the deterministic default has been established.
-- Existing project creation, metadata filtering, quote loading, and four workflow-stage tests remain green.
+- Existing project creation, Metadata Builder, quote loading, and workflow-stage tests remain green.
 - TypeScript accepts the API responses without `any`, unchecked casts, or duplicated project-summary types.
 
 Out of scope: Sidebar markup, project creation or deletion controls in the Web UI, project renaming, nested projects, drag-and-drop ordering, authentication, and multi-user account switching.
@@ -393,14 +392,14 @@ Scope:
 
 - Refactor `apps/web/src/shell/frame.tsx` into a stable application layout with header, sidebar, and main content regions. Keep the EODHD key and `Fetch all metadata` action in the header.
 - Add `apps/web/src/shell/project-sidebar.tsx`. At the top render a visible `Project` label and a native `<select>` whose selected option text is the exact current project name. Use project ids only as option values; never display ids as labels.
-- Under the dropdown render one `Workflow` navigation landmark as an ordered list. Derive its four entries from `workflowPages` in `apps/web/src/routes.tsx`; do not create a second page array. Render the exact order Metadata Filter, Univariate Statistics, Univariate Filter, Bivariate Statistics.
+- Under the dropdown render one `Workflow` navigation landmark as an ordered list. Derive its four entries from `workflowPages` in `apps/web/src/routes.tsx`; do not create a second page array. Render the exact order Metadata Builder, Univariate Statistics, Univariate Selection, Bivariate Statistics.
 - Make the hierarchy visually explicit with a project root, one vertical connector, numbered stage markers, and indentation. Use CSS borders and existing text/icon primitives; do not add a chart or tree library.
 - Render each stage's server status (`locked`, `ready`, `running`, `complete`, `failed`, or `stale`) as both visible text and a non-color-only marker. The active route uses `aria-current="page"`.
 - Keep locked stages visible but render them as non-links with `aria-disabled="true"`. Ready, running, complete, failed, and stale stages remain navigable so users can inspect their state.
-- On dropdown change, disable the selector, call `PUT /api/project-context/current-project`, load `GET /api/projects/{project_id}/workflow`, then navigate to the selected project's first non-locked stage. If every later stage is locked, navigate to `/metadata-filter`.
+- On dropdown change, disable the selector, call `PUT /api/project-context/current-project`, load `GET /api/projects/{project_id}/workflow`, then navigate to the selected project's first non-locked stage. If every later stage is locked, navigate to `/metadata-builder`.
 - Dispatch one typed shell context update after a successful switch so all four pages clear project-specific transient state and reload server-owned state. Do not use Redux, Zustand, React Context as a global data cache, browser storage, URL fragments, or a full page reload.
 - If switching fails, keep the prior project selected, keep the current page content, expose the server error in an `aria-live` region, and re-enable the selector.
-- Define exact shell states: loading skeleton with fixed sidebar width; no-project state showing `No projects yet` and only Metadata Filter as available; ready state; switching state; and recoverable load/switch failure.
+- Define exact shell states: loading skeleton with fixed sidebar width; no-project state showing `No projects yet` and only Metadata Builder as available; ready state; switching state; and recoverable load/switch failure.
 - Update all four pages to use the shell's selected `project_id` when invoking project-bound endpoints. A project switch must clear stale run ids, selections, tables, progress, and error messages before the replacement project's requests begin.
 - Add styles to the existing production stylesheet `apps/web/styles/app.css`: desktop sidebar width `272px`, header spanning full width, sidebar below the header, independently scrolling main content, and no nested cards. Keep the sidebar visible at viewport widths of `901px` and above.
 - Update `docs/ui/header.md`, `docs/ui/layout/sidebar.md`, and all four files under `docs/ui/windows/` with final desktop layout, project-switch behavior, hierarchy states, and page reset rules.
@@ -410,7 +409,7 @@ Acceptance:
 - At `1440x900` and `1024x768`, the sidebar is visible without user action, is exactly one persistent left column, and does not overlap the header or main content.
 - The current project name is visible in the closed dropdown; opening it lists every project once in API order.
 - Selecting another project updates the dropdown, hierarchy statuses, route, and page data without reloading the document. Returning to the prior project restores its server-owned workflow state.
-- With no projects, the dropdown is disabled, `No projects yet` is visible, Metadata Filter remains navigable, and no synthetic project is created.
+- With no projects, the dropdown is disabled, `No projects yet` is visible, Metadata Builder remains navigable, and no synthetic project is created.
 - Every workflow item comes from `workflowPages`; tests fail if sidebar labels, paths, order, or count diverge from the canonical route registry.
 - Component tests cover loading, empty, ready, locked, switching, failed switch, successful switch, and stale-stage rendering.
 - Existing direct links, browser back/forward behavior, EODHD credential submission, metadata refresh, and all four page actions continue to work.
@@ -478,7 +477,7 @@ The series begins only after the project-sidebar stack is complete. Each PR is i
 
 Branch: `refactor/platform-simple-ui-foundations`.
 
-Git status: in progress. PR: TBD.
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/245.
 
 Priority: P1 visual foundation.
 
@@ -520,7 +519,7 @@ Idempotency: Re-rendering or repeatedly activating disabled/loading controls per
 
 Branch: `refactor/platform-simple-ui-shell`.
 
-Git status: in progress. PR: TBD.
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/246.
 
 Priority: P1 shell clarity.
 
@@ -1086,7 +1085,7 @@ Security: Repository operations retain mandatory user ownership checks, while se
 
 Determinism: Existing run identities, selection identities, matrix ordering, diagnostics, and serialized API responses remain stable for identical inputs.
 
-Idempotency: Existing active-run reuse and analysis idempotency remain unchanged; completed univariate filters and bivariate results are persisted after every durable transition.
+Idempotency: Existing active-run reuse and analysis idempotency remain unchanged; completed univariate selections and bivariate results are persisted after every durable transition.
 
 ### PR134. Hosted Research Boundary Coverage Completion
 
@@ -1132,21 +1131,173 @@ Idempotency: Each Playwright worker constructs fresh in-memory fixture state. Re
 
 Branch: `fix/univariate-dividends-result-visibility`.
 
-Git status: in progress. PR: TBD.
+Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/244.
 
 Priority: P1 univariate statistics clarity.
 
 Depends on: PR135.
 
-Scope: Hide the Dividends univariate-statistics window until a completed univariate run has loaded its result payload. Align Playwright discovery with the browser-spec files so Vitest unit tests are not accidentally executed by Playwright.
+Scope: Hide the Dividends univariate-statistics window until a completed univariate run has loaded its result payload. Align Playwright discovery with the browser-spec files so Vitest unit tests are not accidentally executed by Playwright. Align the declared `@playwright/test` version with the lockfile-resolved browser runtime used by the workflow tests.
 
-Acceptance: Before completed results load, the page shows only historical-data and univariate-compute controls; no Dividends card, selection field, or histogram is rendered. Once results load, the Dividends card and histogram appear, including the empty-result state. The three-viewport workflow test asserts this transition, while Vitest and Playwright remain separate commands.
+Acceptance: Before completed results load, the page shows only historical-data and univariate-compute controls; no Dividends card, selection field, or histogram is rendered. Once results load, the Dividends card and histogram appear, including the empty-result state. The three-viewport workflow test asserts this transition, while Vitest and Playwright remain separate commands using matching Playwright package and browser versions.
 
 Security: The change introduces no new API call, client-side business rule, or sensitive data handling.
 
 Determinism: Visibility is determined solely by the loaded server-result state (`results !== null`).
 
 Idempotency: Repeated compute and restore paths render the same result-driven Dividends window without creating client-owned state.
+
+### PR137. Workflow Module Boundaries
+
+Branch: `refactor/workflow-module-boundaries`.
+
+Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/245.
+
+Priority: P0 research-workflow architecture.
+
+Depends on: PR136.
+
+Scope: Establish Metadata Builder, Univariate Statistics, and Bivariate Statistics as the only
+explicit browser workflow modules. Give each module a typed API facade, register route ownership,
+keep shared transport and workspace context separate, and document persisted input/output hand-offs
+and rules for later modules. Metadata and univariate selectioning remain internal persistence/CLI steps,
+not standalone browser modules.
+
+Acceptance: Every active browser page has exactly one registered module owner. Module-specific API
+routes live only in the owning facade, while the shared client contains only transport and workspace
+contracts. Unit coverage exercises all facades at or above the enforced 95% thresholds, and the
+frontend API inventory continues to validate every consumed route against the FastAPI contract.
+
+Security: The refactor introduces no new endpoints or credential flow; metadata credentials remain
+within the existing server-owned credential contract.
+
+Determinism: Module communication occurs only via the existing persisted selection and run IDs, never
+via browser-local state.
+
+Idempotency: Re-loading a project and invoking a module facade leaves the existing server-owned run
+and selection semantics unchanged.
+
+Series Completion Gate: Follow the current pre-merge and post-merge gates in [GATES.md](GATES.md).
+
+### PR138. Parallel Metadata Downloads
+
+Branch: `feat/metadata-parallel-downloads`.
+
+Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/246.
+
+Priority: P1 ingestion performance.
+
+Depends on: PR137.
+
+Scope: Fetch and normalize independent EODHD exchange-symbol metadata payloads in a bounded worker
+pool sized to the available runtime CPUs. Preserve global provider request pacing, safe automatic
+403/404 skipping, deterministic rows and skipped-exchange ordering, and progress reporting.
+
+Acceptance: The hosted API forwards its available CPU count to metadata ingestion. At least two
+exchange payloads can be in flight concurrently; completed progress remains monotonic; returned rows
+and skipped exchanges remain deterministically ordered; and a one-worker invocation preserves the
+same output and failure semantics.
+
+Security: EODHD credentials remain confined to the existing HTTP client. Parallel work does not
+expose provider URLs, tokens, or raw response payloads in browser responses or logs.
+
+Determinism: Results are sorted by canonical ISIN, exchange, and code after concurrent completion.
+Provider failures retain the existing explicit-versus-automatic exchange semantics.
+
+Idempotency: Existing completed exchange coverage still prevents automatic re-downloads; concurrent
+workers only retrieve missing exchange payloads before the existing atomic reference publication.
+
+Series Completion Gate: Follow the current pre-merge and post-merge gates in [GATES.md](GATES.md).
+
+### PR139. Browser Module Route Names
+
+Branch: `fix/module-route-names`.
+
+Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/247.
+
+Priority: P1 browser workflow clarity.
+
+Depends on: PR138.
+
+Scope: Rename the browser-facing Metadata Builder route and all visible workflow labels from
+filter-oriented names to the three module names. Preserve legacy URLs only as redirects, and leave
+server API and persistence identifiers internal.
+
+Acceptance: The Metadata Builder page is served at `/metadata-builder`; browser navigation, page
+title, and process overview use the module name; legacy `/metadata-builder` and `/univariate-selection`
+URLs redirect to module routes; and no filter-named browser route remains registered.
+
+Security: Route renaming does not change API authorization, credential handling, or persisted data.
+
+Determinism: Legacy paths resolve to one fixed module route without changing browser state.
+
+Idempotency: Repeating a redirect or module navigation has no server-side effect.
+
+Series Completion Gate: Follow the current pre-merge and post-merge gates in [GATES.md](GATES.md).
+
+### PR140. Three-Module Backend And Persistence Contracts
+
+Branch: `refactor/module-contract-names`.
+
+Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/248.
+
+Priority: P0 module-boundary integrity.
+
+Depends on: PR139.
+
+Scope: Complete the breaking migration from the retired filter-stage identities to the three active
+module contracts. Rename Metadata Builder API types, routes, state, lake paths, and manifests; make
+the persisted univariate selection an output of Univariate Statistics; remove the standalone
+workflow stage and browser compatibility redirects; and update CLI, tests, contracts, and docs.
+
+Acceptance: Workflow responses contain exactly `metadata_builder`, `univariate_statistics`, and
+`bivariate_statistics`; tracked files contain no retired filter-stage identifiers
+identifiers; Bivariate Statistics consumes `univariate_selection_id` from the completed Univariate
+Statistics stage; existing lake selections are moved to the new persistence roots; and all quality,
+frontend, contract, and Docker-image checks pass.
+
+Security: The migration preserves server-owned project scope, credential boundaries, and selection
+ownership. No compatibility endpoint bypasses the canonical module contracts.
+
+Determinism: Renamed selection paths and identifiers retain canonical predicate serialization and
+stable membership ordering.
+
+Idempotency: Repeated project restoration, selection loading, and workflow reads reuse the same
+persisted artifacts without creating duplicate runs or selections.
+
+Series Completion Gate: Follow the current pre-merge and post-merge gates in [GATES.md](GATES.md).
+
+### PR141. Aligned Statistics Time Ranges
+
+Branch: `fix/aligned-statistics-time-ranges`.
+
+Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/249.
+
+Priority: P0 statistical comparability and provenance.
+
+Depends on: PR140.
+
+Scope: Align every Bivariate Statistics pair, matrix, correlation edge, and Gold covariance input to
+one universe-wide intersection of return dates. Preserve the existing universe-wide Multivariate
+Statistics return matrix and add its calculation period to research and production summaries. Add
+the aligned start/end dates to bivariate summary and matrix contracts and every bivariate facts table.
+
+Acceptance: All pair rows in a bivariate run have identical `date_start`, `date_end`, and
+`n_observations`; no pair statistics are produced when the selected universe has no common return
+date; multivariate matrices reject incomplete calendars; bivariate facts tables display the aligned
+data period; multivariate summaries expose `date_start`, `date_end`, and `observation_count`; and all
+quality, frontend, contract, and Docker checks pass.
+
+Security: Alignment operates only on the already project-scoped selected rows and never broadens
+selection membership or reads unrestricted data.
+
+Determinism: The aligned calendar is the sorted set intersection across every selected listing, and
+the `v5` bivariate cache version invalidates rows computed under pair-specific calendars.
+
+Idempotency: Repeating calculations for unchanged membership and return dates produces the same
+calendar, statistics, summaries, and persisted cache identities.
+
+Series Completion Gate: Follow the current pre-merge and post-merge gates in [GATES.md](GATES.md).
 
 ### PR130. Typed Quote Ingestion Stage Pipeline And Progress Contract
 
@@ -1250,15 +1401,15 @@ The target system has these non-negotiable properties:
 
 ## Series Completion Gate
 
-The four-page UI series is complete only after PR110 through PR115 are merged and all of the following are true:
+The original UI series is complete, and the current three-module contract remains complete only while all of the following are true:
 
-- exactly four production pages exist in the required order;
+- exactly three production modules exist in the required order;
 - every page invokes a real backend workflow and has locked, ready, running, complete, failed, and stale behavior where applicable;
 - quote and bivariate progress are server-reported rather than simulated in the browser;
 - every run and selection is scoped to immutable authenticated-user inputs;
 - repeated identical commands reuse existing logical state;
 - upstream changes invalidate downstream state deterministically;
-- no placeholder page, retired route, compatibility renderer, duplicate registry, synthetic compute endpoint, or legacy documentation remains;
+- no placeholder page, retired route, compatibility renderer, duplicate registry, synthetic compute endpoint, or retired contract documentation remains;
 - all Python, TypeScript, build, browser, security, and repository gates pass.
 
 Hosted deployment remains subject to the independent security, licensing, privacy, backup, credential, and readiness requirements in the active hosted PR stack.
@@ -1447,7 +1598,7 @@ Priority: P2 end-user workflow.
 
 Depends on: PR96.
 
-Scope: Add `apps/web` with Google login, dashboard, credential settings, data-download workflow, visible-data coverage, metadata filtering, univariate statistics/filtering, bivariate statistics, multivariate portfolio analysis, report views, and logout/account-deletion flows. The browser consumes API-produced data and performs no financial calculations or authorization decisions. The credential form accepts a new key but never redisplays the stored key.
+Scope: Add `apps/web` with Google login, dashboard, credential settings, data-download workflow, visible-data coverage, metadata selection, univariate statistics and selection, bivariate statistics, multivariate portfolio analysis, report views, and logout/account-deletion flows. The browser consumes API-produced data and performs no financial calculations or authorization decisions. The credential form accepts a new key but never redisplays the stored key.
 
 Acceptance: UI tests cover first login with empty state, repeat login with persisted state, credential replacement and deletion, Free versus paid capability messaging, progress and partial failure, user-visible date coverage, no visibility of another user's newer data, statistics funnel navigation, cached analysis reuse, responsive layouts, accessibility, and API error handling.
 
@@ -1617,7 +1768,7 @@ Priority: P1 core fund research workflow.
 
 Depends on: PR103.
 
-Scope: Implement separate Univariate Analysis and Univariate Filter stages. Provide overview, return, risk, income, drawdown, and data-quality metric groups; sortable and filterable metric tables; an income-versus-tail-risk scatterplot; fund detail drawer; total-return, price-return, drawdown, rolling-risk, and distribution-history charts; confidence and track-record warnings; metric definitions; and artifact/run provenance. Add a threshold workbench for minimum history, sustainable income, maximum drawdown, Expected Shortfall, distribution variability, NAV erosion, liquidity, and data-quality confidence. Show exclusion counts by reason, multiple reasons per fund, and an inspectable `why excluded` explanation before creating the versioned candidate set.
+Scope: Implement separate Univariate Analysis and Univariate Selection stages. Provide overview, return, risk, income, drawdown, and data-quality metric groups; sortable and filterable metric tables; an income-versus-tail-risk scatterplot; fund detail drawer; total-return, price-return, drawdown, rolling-risk, and distribution-history charts; confidence and track-record warnings; metric definitions; and artifact/run provenance. Add a threshold workbench for minimum history, sustainable income, maximum drawdown, Expected Shortfall, distribution variability, NAV erosion, liquidity, and data-quality confidence. Show exclusion counts by reason, multiple reasons per fund, and an inspectable `why excluded` explanation before creating the versioned candidate set.
 
 Acceptance: Tests cover unavailable metrics, short history, invalid-price quality failures, stable and unstable distributions, NAV erosion, multiple simultaneous exclusions, boundary values, changed thresholds, cached artifact reuse, stale results after an upstream universe change, chart keyboard summaries, table exports, and deep links that reopen the same user-owned run. The browser only renders API-produced values and never recalculates financial statistics.
 

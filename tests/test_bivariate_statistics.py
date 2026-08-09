@@ -32,6 +32,7 @@ def test_bivariate_statistics_use_common_dates_and_pairwise_metrics(tmp_path: Pa
         _return("IE2", "AS", "BBB", "2026-01-02", 0.02),
         _return("IE2", "AS", "BBB", "2026-01-03", 0.01),
         _return("IE3", "XETRA", "CCC", "2026-01-02", 0.10),
+        _return("IE3", "XETRA", "CCC", "2026-01-03", 0.11),
     ]
 
     statistics = build_bivariate_statistics(returns)
@@ -44,13 +45,13 @@ def test_bivariate_statistics_use_common_dates_and_pairwise_metrics(tmp_path: Pa
     assert row["left_listing_key"] == "XETRA__IE1__AAA"
     assert row["right_listing_key"] == "AS__IE2__BBB"
     assert row["pair_key"] == "XETRA__IE1__AAA___AS__IE2__BBB"
-    assert row["date_start"] == "2026-01-01"
+    assert row["date_start"] == "2026-01-02"
     assert row["date_end"] == "2026-01-03"
-    assert row["n_observations"] == 3
+    assert row["n_observations"] == 2
     assert row["pearson_correlation"] == pytest.approx(-1.0)
-    assert row["covariance"] == pytest.approx(-0.0001)
-    assert row["left_variance"] == pytest.approx(0.0001)
-    assert row["right_variance"] == pytest.approx(0.0001)
+    assert row["covariance"] == pytest.approx(-0.00005)
+    assert row["left_variance"] == pytest.approx(0.00005)
+    assert row["right_variance"] == pytest.approx(0.00005)
     assert row["left_beta_to_right"] == pytest.approx(-1.0)
     assert row["right_beta_to_left"] == pytest.approx(-1.0)
     assert "spearman_correlation" in row
@@ -64,6 +65,19 @@ def test_bivariate_statistics_use_common_dates_and_pairwise_metrics(tmp_path: Pa
     manifest = read_job_manifest(paths, "bivariate-statistics-plan", "v1")
     assert manifest["status"] == "completed"
     assert manifest["row_counts"]["listing_count"] == 3
+    assert {
+        (item["date_start"], item["date_end"], item["n_observations"]) for item in statistics
+    } == {("2026-01-02", "2026-01-03", 2)}
+
+
+def test_bivariate_statistics_require_a_universe_wide_common_calendar() -> None:
+    returns = [
+        _return("IE1", "XETRA", "AAA", "2026-01-01", 0.01),
+        _return("IE2", "AS", "BBB", "2026-01-01", 0.02),
+        _return("IE3", "PA", "CCC", "2026-01-02", 0.03),
+    ]
+
+    assert build_bivariate_statistics(returns) == []
 
 
 def test_bivariate_statistics_reuses_cached_buckets_and_writes_delta(tmp_path: Path) -> None:

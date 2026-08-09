@@ -1,33 +1,25 @@
 
 import { useEffect, useState, type FormEvent } from "react";
-import {
-  loadProjectContext,
-  loadProjectMetadataFilter,
-  postJson,
-  requestJson,
-} from "../api/client";
+import { loadProjectContext } from "../api/client";
+import { metadataBuilderApi } from "../api/metadata-builder";
 import { Button } from "../components/button";
 import { EmptyState } from "../components/empty-state";
 import { LoadingState } from "../components/loading-state";
 import { Panel } from "../components/panel";
-import type { ApiFieldOptions, ApiMetadataProject, ApiProjectSummary } from "../contracts";
+import type { ApiProjectSummary } from "../contracts";
 import { useResource } from "../hooks/use-resource";
 import { useMetadataFetch } from "../shell/metadata-fetch-context";
 
-async function loadFieldOptions(): Promise<ApiFieldOptions> {
-  return requestJson<ApiFieldOptions>("/api/metadata-filter/options");
-}
-
-export function MetadataFilterPage() {
+export function MetadataBuilderPage() {
   const [metadataRevision, setMetadataRevision] = useState(0);
-  const options = useResource(loadFieldOptions, [metadataRevision]);
+  const options = useResource(metadataBuilderApi.loadFieldOptions, [metadataRevision]);
   const { fetchMetadata, fetching, hasSavedCredential, metadataProgress, metadataStatus, providerKey } = useMetadataFetch();
   const [exchange, setExchange] = useState("");
   const [instrumentType, setInstrumentType] = useState("");
   const [country, setCountry] = useState("");
   const [currency, setCurrency] = useState("");
   const [name, setName] = useState("");
-  const [selectionStatus, setSelectionStatus] = useState("Choose at least one metadata filter.");
+  const [selectionStatus, setSelectionStatus] = useState("Choose at least one Metadata Builder criterion.");
 
   useEffect(() => {
     const refresh = () => setMetadataRevision((value) => value + 1);
@@ -39,37 +31,37 @@ export function MetadataFilterPage() {
     let cancelled = false;
 
     const resetProjectState = () => {
-      setSelectionStatus("Choose at least one metadata filter.");
+      setSelectionStatus("Choose at least one Metadata Builder criterion.");
     };
 
-    const loadProjectFilter = async (project: ApiProjectSummary | null) => {
+    const loadProjectCriteria = async (project: ApiProjectSummary | null) => {
       if (!project?.selection_id) {
         resetProjectState();
         return;
       }
-      setSelectionStatus("Loading saved metadata filter…");
+      setSelectionStatus("Loading saved Metadata Builder criteria…");
       try {
-        const filter = await loadProjectMetadataFilter(project.project_id);
+        const criteria = await metadataBuilderApi.loadProjectCriteria(project.project_id);
         if (cancelled) return;
-        setExchange(filter.exchange);
-        setInstrumentType(filter.instrument_type);
-        setCountry(filter.country);
-        setCurrency(filter.currency);
-        setName(filter.name);
-        setSelectionStatus(`${filter.selected_count.toLocaleString()} unique ISINs selected.`);
+        setExchange(criteria.exchange);
+        setInstrumentType(criteria.instrument_type);
+        setCountry(criteria.country);
+        setCurrency(criteria.currency);
+        setName(criteria.name);
+        setSelectionStatus(`${criteria.selected_count.toLocaleString()} unique ISINs selected.`);
       } catch (error) {
         if (cancelled) return;
         resetProjectState();
-        setSelectionStatus(error instanceof Error ? error.message : "Saved metadata filter could not be loaded.");
+        setSelectionStatus(error instanceof Error ? error.message : "Saved Metadata Builder criteria could not be loaded.");
       }
     };
 
     const restoreCurrentProject = () => {
-      void loadProjectContext().then((context) => loadProjectFilter(context.current_project));
+      void loadProjectContext().then((context) => loadProjectCriteria(context.current_project));
     };
     const handleProjectUpdate = (event: Event) => {
       const context = (event as CustomEvent<{ current_project: ApiProjectSummary | null }>).detail;
-      void loadProjectFilter(context.current_project);
+      void loadProjectCriteria(context.current_project);
     };
 
     restoreCurrentProject();
@@ -80,11 +72,11 @@ export function MetadataFilterPage() {
     };
   }, []);
 
-  async function applyFilter(event: FormEvent<HTMLFormElement>) {
+  async function createProject(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setSelectionStatus("Applying metadata filter…");
+    setSelectionStatus("Building the project selection…");
     try {
-      const result = await postJson<ApiMetadataProject>("/api/metadata-filter", {
+      const result = await metadataBuilderApi.createProject({
         exchange,
         name,
         instrument_type: instrumentType,
@@ -94,7 +86,7 @@ export function MetadataFilterPage() {
       setSelectionStatus(`${result.selected_count.toLocaleString()} unique ISINs selected.`);
       window.dispatchEvent(new Event("portfell:workflow-updated"));
     } catch (error) {
-      setSelectionStatus(error instanceof Error ? error.message : "Metadata filter failed.");
+      setSelectionStatus(error instanceof Error ? error.message : "Metadata Builder could not create the project.");
     }
   }
 
@@ -112,7 +104,7 @@ export function MetadataFilterPage() {
   }
 
   return (
-    <section className="metadata-filter-page" data-route="metadata-filter-page">
+    <section className="metadata-builder-page" data-route="metadata-builder-page">
       <Panel title="Download Metadata">
         <div className="quote-fetch quote-fetch--panel metadata-download">
           <label htmlFor="metadata-progress">Metadata download progress</label>
@@ -125,8 +117,8 @@ export function MetadataFilterPage() {
           </div>
         </div>
       </Panel>
-      <Panel title="Metadata Filter">
-        <form className="metadata-filter-form" onSubmit={applyFilter}>
+      <Panel title="Metadata Builder">
+        <form className="metadata-builder-form" onSubmit={createProject}>
           <label>
             Exchange
             <select value={exchange} onChange={(event) => setExchange(event.target.value)}>
@@ -155,11 +147,11 @@ export function MetadataFilterPage() {
               {options.data.currency.map((value) => <option key={value}>{value}</option>)}
             </select>
           </label>
-          <label className="metadata-filter-form__name">
+          <label className="metadata-builder-form__name">
             Name contains
             <input value={name} onChange={(event) => setName(event.target.value)} placeholder="UCITS ETF" />
           </label>
-          <div className="metadata-filter-form__apply">
+          <div className="metadata-builder-form__apply">
             <Button type="submit" variant="primary">Create new project</Button>
           </div>
         </form>

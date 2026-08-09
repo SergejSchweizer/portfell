@@ -12,7 +12,7 @@ from portfell.selection_filters import Predicate, filter_rows, selection_id
 from portfell.table_io import JsonRow, read_rows, write_json, write_rows
 
 
-def run_metadata_filter(
+def run_metadata_builder(
     paths: LakePaths,
     predicates: Sequence[Predicate],
     *,
@@ -21,7 +21,7 @@ def run_metadata_filter(
     """Filter the reference all-ISIN dataset by metadata predicates."""
     source_rows = read_rows(paths.all_isins())
     selected_rows = filter_rows(source_rows, predicates)
-    resolved_selection_id = selection_id("metadata_filter", name, predicates)
+    resolved_selection_id = selection_id("metadata_builder", name, predicates)
     write_metadata_selection(
         paths,
         resolved_selection_id,
@@ -33,7 +33,7 @@ def run_metadata_filter(
         "input_rows": len(source_rows),
         "selected_rows": len(selected_rows),
         "selection_id": resolved_selection_id,
-        "selection_path": str(paths.metadata_filter_isins(resolved_selection_id)),
+        "selection_path": str(paths.metadata_builder_isins(resolved_selection_id)),
     }
 
 
@@ -45,15 +45,15 @@ def write_metadata_selection(
     predicates: Sequence[Predicate],
     source_path: str,
 ) -> list[JsonRow]:
-    """Write a metadata-filter selection and its manifest."""
+    """Write a metadata-builder selection and its manifest."""
     selection_rows = [_selection_row(selection_id_value, row) for row in rows]
     created_at = datetime.now(UTC).replace(microsecond=0).isoformat()
     validate_rows("isin_selection", selection_rows)
-    write_rows(paths.metadata_filter_isins(selection_id_value), selection_rows)
+    write_rows(paths.metadata_builder_isins(selection_id_value), selection_rows)
     write_json(
-        paths.metadata_filter_manifest(selection_id_value),
+        paths.metadata_builder_manifest(selection_id_value),
         {
-            "module": "metadata_filter",
+            "module": "metadata_builder",
             "selection_id": selection_id_value,
             "source_path": source_path,
             "row_count": len(selection_rows),
@@ -62,11 +62,11 @@ def write_metadata_selection(
         },
     )
     write_json(
-        paths.current_metadata_filter_selection(),
+        paths.current_metadata_builder_selection(),
         {
             "selection_id": selection_id_value,
-            "selection_path": str(paths.metadata_filter_isins(selection_id_value)),
-            "manifest_path": str(paths.metadata_filter_manifest(selection_id_value)),
+            "selection_path": str(paths.metadata_builder_isins(selection_id_value)),
+            "manifest_path": str(paths.metadata_builder_manifest(selection_id_value)),
             "updated_at": created_at,
         },
     )
@@ -80,5 +80,5 @@ def _selection_row(selection_id_value: str, row: Mapping[str, Any]) -> JsonRow:
         "exchange": str(row["exchange"]),
         "code": str(row["code"]),
         "name": str(row.get("name", "")),
-        "source_module": "metadata_filter",
+        "source_module": "metadata_builder",
     }

@@ -11,7 +11,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Header
 
 from portfell.hosted_api_contracts import (
     CurrentProjectRequest,
-    MetadataFilterProjectRequest,
+    MetadataBuilderProjectRequest,
     ProjectCreateRequest,
     SelectionCreateRequest,
     UnivariateSelectionSettingsRequest,
@@ -69,10 +69,10 @@ def metadata_project_router(
     ) -> JsonRow:
         return call(projects.select_current_project, user.user_id, payload.project_id)
 
-    @router.get("/projects/{project_id}/metadata-filter")
-    def project_metadata_filter(project_id: str, user: ApiUser = Depends(current_user)) -> JsonRow:
-        project, selection = call(projects.project_metadata_filter, user.user_id, project_id)
-        return call(metadata.project_filter_row, project, selection)
+    @router.get("/projects/{project_id}/metadata-builder")
+    def project_metadata_builder(project_id: str, user: ApiUser = Depends(current_user)) -> JsonRow:
+        project, selection = call(projects.project_metadata_builder, user.user_id, project_id)
+        return call(metadata.project_criteria_row, project, selection)
 
     @router.get("/projects/{project_id}/univariate-selection-settings")
     def univariate_selection_settings(
@@ -97,8 +97,8 @@ def metadata_project_router(
     def delete_project(project_id: str, user: ApiUser = Depends(workspace_user)) -> JsonRow:
         return call(projects.delete_project, user.user_id, project_id)
 
-    @router.get("/metadata-filter/options")
-    def metadata_filter_options(user: ApiUser = Depends(current_user)) -> JsonRow:
+    @router.get("/metadata-builder/options")
+    def metadata_builder_options(user: ApiUser = Depends(current_user)) -> JsonRow:
         _ = user
         return call(metadata.options)
 
@@ -117,14 +117,14 @@ def metadata_project_router(
     ) -> JsonRow:
         return call(metadata.metadata_fetch_status, user.user_id, metadata_run_id)
 
-    @router.post("/metadata-filter")
-    def create_metadata_filter_project(
-        payload: MetadataFilterProjectRequest,
+    @router.post("/metadata-builder")
+    def create_metadata_builder_project(
+        payload: MetadataBuilderProjectRequest,
         user: ApiUser = Depends(workspace_user),
         idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     ) -> JsonRow:
         return call(
-            metadata.create_filter_project,
+            metadata.create_project_from_criteria,
             user.user_id,
             exchange=payload.exchange,
             name=payload.name,

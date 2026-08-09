@@ -216,7 +216,7 @@ def test_fetch_all_quotes_workflow_writes_bronze_and_silver(
     root = tmp_path / "lake"
     paths = LakePaths(root=root)
     write_rows(
-        paths.metadata_filter_isins("older-selection"),
+        paths.metadata_builder_isins("older-selection"),
         [
             {
                 "selection_id": "older-selection",
@@ -224,19 +224,19 @@ def test_fetch_all_quotes_workflow_writes_bronze_and_silver(
                 "code": "OLD",
                 "exchange": "XETRA",
                 "name": "Older ETF",
-                "source_module": "metadata_filter",
+                "source_module": "metadata_builder",
             }
         ],
     )
     write_json(
-        paths.metadata_filter_manifest("older-selection"),
+        paths.metadata_builder_manifest("older-selection"),
         {
             "selection_id": "older-selection",
             "created_at": "2026-01-01T00:00:00+00:00",
         },
     )
     write_rows(
-        paths.metadata_filter_isins("latest-selection"),
+        paths.metadata_builder_isins("latest-selection"),
         [
             {
                 "selection_id": "latest-selection",
@@ -244,12 +244,12 @@ def test_fetch_all_quotes_workflow_writes_bronze_and_silver(
                 "code": "AAA",
                 "exchange": "XETRA",
                 "name": "Example UCITS ETF",
-                "source_module": "metadata_filter",
+                "source_module": "metadata_builder",
             }
         ],
     )
     write_json(
-        paths.metadata_filter_manifest("latest-selection"),
+        paths.metadata_builder_manifest("latest-selection"),
         {
             "selection_id": "latest-selection",
             "created_at": "2026-01-02T00:00:00+00:00",
@@ -325,7 +325,7 @@ def test_fetch_all_quotes_workflow_accepts_explicit_metadata_selection(
     root = tmp_path / "lake"
     paths = LakePaths(root=root)
     write_rows(
-        paths.metadata_filter_isins("selected-selection"),
+        paths.metadata_builder_isins("selected-selection"),
         [
             {
                 "selection_id": "selected-selection",
@@ -333,12 +333,12 @@ def test_fetch_all_quotes_workflow_accepts_explicit_metadata_selection(
                 "code": "AAA",
                 "exchange": "XETRA",
                 "name": "Selected ETF",
-                "source_module": "metadata_filter",
+                "source_module": "metadata_builder",
             }
         ],
     )
     write_rows(
-        paths.metadata_filter_isins("latest-selection"),
+        paths.metadata_builder_isins("latest-selection"),
         [
             {
                 "selection_id": "latest-selection",
@@ -346,12 +346,12 @@ def test_fetch_all_quotes_workflow_accepts_explicit_metadata_selection(
                 "code": "BBB",
                 "exchange": "XETRA",
                 "name": "Latest ETF",
-                "source_module": "metadata_filter",
+                "source_module": "metadata_builder",
             }
         ],
     )
     write_json(
-        paths.metadata_filter_manifest("latest-selection"),
+        paths.metadata_builder_manifest("latest-selection"),
         {
             "selection_id": "latest-selection",
             "created_at": "2026-01-02T00:00:00+00:00",
@@ -409,7 +409,7 @@ def test_memory_safe_quote_retry_reuses_partial_bronze_writes(
     root = tmp_path / "lake"
     paths = LakePaths(root=root)
     write_rows(
-        paths.metadata_filter_isins("selection-1"),
+        paths.metadata_builder_isins("selection-1"),
         [
             {
                 "selection_id": "selection-1",
@@ -417,7 +417,7 @@ def test_memory_safe_quote_retry_reuses_partial_bronze_writes(
                 "code": "AAA",
                 "exchange": "XETRA",
                 "name": "Already fetched ETF",
-                "source_module": "metadata_filter",
+                "source_module": "metadata_builder",
             },
             {
                 "selection_id": "selection-1",
@@ -425,7 +425,7 @@ def test_memory_safe_quote_retry_reuses_partial_bronze_writes(
                 "code": "BBB",
                 "exchange": "XETRA",
                 "name": "Missing ETF",
-                "source_module": "metadata_filter",
+                "source_module": "metadata_builder",
             },
         ],
     )
@@ -527,7 +527,7 @@ def test_cli_runs_univariate_and_bivariate_statistics_modules(
         [_dividend("IE2", "AS", "BBB", "2026-02-15", 1.0)],
     )
     write_rows(
-        paths.metadata_filter_isins("selected-ie1"),
+        paths.metadata_builder_isins("selected-ie1"),
         [
             {
                 "selection_id": "selected-ie1",
@@ -535,12 +535,12 @@ def test_cli_runs_univariate_and_bivariate_statistics_modules(
                 "exchange": "XETRA",
                 "code": "AAA",
                 "name": "",
-                "source_module": "metadata_filter",
+                "source_module": "metadata_builder",
             }
         ],
     )
     write_rows(
-        paths.metadata_filter_isins("older-ie2"),
+        paths.metadata_builder_isins("older-ie2"),
         [
             {
                 "selection_id": "older-ie2",
@@ -548,19 +548,19 @@ def test_cli_runs_univariate_and_bivariate_statistics_modules(
                 "exchange": "AS",
                 "code": "BBB",
                 "name": "",
-                "source_module": "metadata_filter",
+                "source_module": "metadata_builder",
             }
         ],
     )
     write_json(
-        paths.metadata_filter_manifest("older-ie2"),
+        paths.metadata_builder_manifest("older-ie2"),
         {
             "selection_id": "older-ie2",
             "created_at": "2026-01-01T00:00:00+00:00",
         },
     )
     write_json(
-        paths.metadata_filter_manifest("selected-ie1"),
+        paths.metadata_builder_manifest("selected-ie1"),
         {
             "selection_id": "selected-ie1",
             "created_at": "2026-01-02T00:00:00+00:00",
@@ -589,7 +589,7 @@ def test_cli_runs_univariate_and_bivariate_statistics_modules(
 
 
 def test_cli_univariate_statistics_requires_metadata_selection(tmp_path: Path) -> None:
-    with pytest.raises(FileNotFoundError, match="run metadata-filter first"):
+    with pytest.raises(FileNotFoundError, match="run metadata-builder first"):
         main(["univariate-statistics", "--root", str(tmp_path / "lake")])
 
 
@@ -612,7 +612,7 @@ def test_cli_restricts_bivariate_statistics_to_selection(
             ],
         )
     write_rows(
-        paths.univariate_filter_isins("two-listings"),
+        paths.univariate_selection_isins("two-listings"),
         [
             {
                 "selection_id": "two-listings",
@@ -620,7 +620,7 @@ def test_cli_restricts_bivariate_statistics_to_selection(
                 "exchange": "XETRA",
                 "code": "AAA",
                 "name": "",
-                "source_module": "univariate_filter",
+                "source_module": "univariate_selection",
             },
             {
                 "selection_id": "two-listings",
@@ -628,12 +628,12 @@ def test_cli_restricts_bivariate_statistics_to_selection(
                 "exchange": "AS",
                 "code": "BBB",
                 "name": "",
-                "source_module": "univariate_filter",
+                "source_module": "univariate_selection",
             },
         ],
     )
     write_json(
-        paths.current_univariate_filter_selection(),
+        paths.current_univariate_selection(),
         {"selection_id": "two-listings"},
     )
 
@@ -647,7 +647,7 @@ def test_cli_restricts_bivariate_statistics_to_selection(
 
 
 def test_cli_bivariate_statistics_requires_univariate_selection(tmp_path: Path) -> None:
-    with pytest.raises(FileNotFoundError, match="run univariate-filter first"):
+    with pytest.raises(FileNotFoundError, match="run univariate-selection first"):
         main(["bivariate-statistics", "--root", str(tmp_path / "lake")])
 
 
@@ -668,7 +668,7 @@ def test_cli_bivariate_statistics_uses_latest_univariate_manifest_without_pointe
             ],
         )
     write_rows(
-        paths.univariate_filter_isins("latest-two"),
+        paths.univariate_selection_isins("latest-two"),
         [
             {
                 "selection_id": "latest-two",
@@ -676,7 +676,7 @@ def test_cli_bivariate_statistics_uses_latest_univariate_manifest_without_pointe
                 "exchange": "XETRA",
                 "code": "AAA",
                 "name": "",
-                "source_module": "univariate_filter",
+                "source_module": "univariate_selection",
             },
             {
                 "selection_id": "latest-two",
@@ -684,12 +684,12 @@ def test_cli_bivariate_statistics_uses_latest_univariate_manifest_without_pointe
                 "exchange": "AS",
                 "code": "BBB",
                 "name": "",
-                "source_module": "univariate_filter",
+                "source_module": "univariate_selection",
             },
         ],
     )
     write_json(
-        paths.univariate_filter_manifest("latest-two"),
+        paths.univariate_selection_manifest("latest-two"),
         {"selection_id": "latest-two", "created_at": "2026-01-02T00:00:00+00:00"},
     )
 
@@ -718,7 +718,7 @@ def test_cli_runs_multivariate_statistics_from_latest_univariate_selection(
             ],
         )
     write_rows(
-        paths.univariate_filter_isins("latest-two"),
+        paths.univariate_selection_isins("latest-two"),
         [
             {
                 "selection_id": "latest-two",
@@ -726,7 +726,7 @@ def test_cli_runs_multivariate_statistics_from_latest_univariate_selection(
                 "exchange": "XETRA",
                 "code": "AAA",
                 "name": "",
-                "source_module": "univariate_filter",
+                "source_module": "univariate_selection",
             },
             {
                 "selection_id": "latest-two",
@@ -734,12 +734,12 @@ def test_cli_runs_multivariate_statistics_from_latest_univariate_selection(
                 "exchange": "AS",
                 "code": "BBB",
                 "name": "",
-                "source_module": "univariate_filter",
+                "source_module": "univariate_selection",
             },
         ],
     )
     write_json(
-        paths.univariate_filter_manifest("latest-two"),
+        paths.univariate_selection_manifest("latest-two"),
         {"selection_id": "latest-two", "created_at": "2026-01-02T00:00:00+00:00"},
     )
 
@@ -794,7 +794,7 @@ def test_cli_bivariate_statistics_accepts_explicit_metadata_selection(
             ],
         )
     write_rows(
-        paths.metadata_filter_isins("metadata-two"),
+        paths.metadata_builder_isins("metadata-two"),
         [
             {
                 "selection_id": "metadata-two",
@@ -802,7 +802,7 @@ def test_cli_bivariate_statistics_accepts_explicit_metadata_selection(
                 "exchange": "XETRA",
                 "code": "AAA",
                 "name": "",
-                "source_module": "metadata_filter",
+                "source_module": "metadata_builder",
             },
             {
                 "selection_id": "metadata-two",
@@ -810,7 +810,7 @@ def test_cli_bivariate_statistics_accepts_explicit_metadata_selection(
                 "exchange": "AS",
                 "code": "BBB",
                 "name": "",
-                "source_module": "metadata_filter",
+                "source_module": "metadata_builder",
             },
         ],
     )
@@ -822,7 +822,7 @@ def test_cli_bivariate_statistics_accepts_explicit_metadata_selection(
     assert payload["bivariate_statistics_rows"] == 1
 
 
-def test_cli_runs_metadata_and_univariate_filter_modules(
+def test_cli_runs_metadata_and_univariate_selection_modules(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     root = tmp_path / "lake"
@@ -857,7 +857,7 @@ def test_cli_runs_metadata_and_univariate_filter_modules(
 
     main(
         [
-            "metadata-filter",
+            "metadata-builder",
             "--root",
             str(root),
             "--where",
@@ -871,9 +871,9 @@ def test_cli_runs_metadata_and_univariate_filter_modules(
     metadata_output = capsys.readouterr()
     metadata_payload = json.loads(metadata_output.out)
     assert metadata_payload["selected_rows"] == 1
-    assert len(read_rows(paths.metadata_filter_isins(metadata_payload["selection_id"]))) == 1
+    assert len(read_rows(paths.metadata_builder_isins(metadata_payload["selection_id"]))) == 1
     assert (
-        read_json(paths.current_metadata_filter_selection())["selection_id"]
+        read_json(paths.current_metadata_builder_selection())["selection_id"]
         == metadata_payload["selection_id"]
     )
 
@@ -892,7 +892,7 @@ def test_cli_runs_metadata_and_univariate_filter_modules(
 
     main(
         [
-            "univariate-filter",
+            "univariate-selection",
             "--root",
             str(root),
             "--where",
@@ -904,13 +904,13 @@ def test_cli_runs_metadata_and_univariate_filter_modules(
     univariate_output = capsys.readouterr()
     univariate_payload = json.loads(univariate_output.out)
     assert univariate_payload["selected_rows"] == 1
-    assert len(read_rows(paths.univariate_filter_isins(univariate_payload["selection_id"]))) == 1
+    assert len(read_rows(paths.univariate_selection_isins(univariate_payload["selection_id"]))) == 1
     assert (
-        read_json(paths.current_univariate_filter_selection())["selection_id"]
+        read_json(paths.current_univariate_selection())["selection_id"]
         == univariate_payload["selection_id"]
     )
 
 
-def test_cli_metadata_filter_requires_a_filter(tmp_path: Path) -> None:
+def test_cli_metadata_builder_requires_a_filter(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="--where or --name-contains"):
-        main(["metadata-filter", "--root", str(tmp_path / "lake")])
+        main(["metadata-builder", "--root", str(tmp_path / "lake")])

@@ -17,10 +17,10 @@ ModuleName = Literal[
     "bivariate-statistics",
     "fetch-all-metadata",
     "fetch-all-quotes",
-    "metadata-filter",
+    "metadata-builder",
     "multivariate-statistics",
     "search",
-    "univariate-filter",
+    "univariate-selection",
     "univariate-statistics",
 ]
 

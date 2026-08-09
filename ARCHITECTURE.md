@@ -1,6 +1,6 @@
 # Architecture
 
-Last reviewed: 2026-07-19
+Last reviewed: 2026-08-09
 
 ## Table Of Contents
 
@@ -9,6 +9,7 @@ Last reviewed: 2026-07-19
 - [System At A Glance](#system-at-a-glance)
 - [Repository Map](#repository-map)
 - [Execution Mode 1: Local CLI And Data Lake](#execution-mode-1-local-cli-and-data-lake)
+- [Workflow Module Boundaries](#workflow-module-boundaries)
 - [Local Research Funnel](#local-research-funnel)
 - [Local Lake Layout](#local-lake-layout)
 - [Analytical And Portfolio Stack](#analytical-and-portfolio-stack)
@@ -109,7 +110,7 @@ A new contributor should therefore avoid two common mistakes:
           UNIVARIATE STATISTICS                              |
                     |                                       v
                     v                              CONTENT-ADDRESSED ARTIFACTS
-          UNIVARIATE FILTER                                  |
+       UNIVARIATE SELECTION                                  |
                     |                                       v
                     v                               USER-OWNED ANALYSIS RUN
           BIVARIATE STATISTICS                               |
@@ -187,10 +188,10 @@ Current primary commands are:
 ```text
 portfell search
 portfell fetch-all-metadata
-portfell metadata-filter
+portfell metadata-builder
 portfell fetch-all-quotes
 portfell univariate-statistics
-portfell univariate-filter
+portfell univariate-selection
 portfell bivariate-statistics
 portfell multivariate-statistics
 ```
@@ -201,7 +202,7 @@ The intended research sequence is:
 fetch-all-metadata
       |
       v
-metadata-filter
+metadata-builder
       |
       v
 fetch-all-quotes
@@ -213,7 +214,7 @@ Bronze + Silver quote build
 univariate-statistics
       |
       v
-univariate-filter
+univariate-selection
       |
       v
 bivariate-statistics
@@ -239,20 +240,39 @@ checked-in CSV/JSON input                 EODHD exchange symbol lists
 search candidates and                     reference/all_isins
 canonical universe                                 |
                                                   v
-                                           metadata-filter
+                                           metadata-builder
 ```
 
 `portfell.search` remains useful for deterministic samples and compatibility. `portfell.fetch_all_metadata` is the live EODHD metadata reference path used by the newer five-stage ISIN workflow.
+
+## Workflow Module Boundaries
+
+The hosted browser workflow has three explicit modules. They are ordered by
+their persisted hand-off contracts, but they do not share browser-local state:
+
+| Module | Consumes | Persists for the next module | Does not own |
+| --- | --- | --- | --- |
+| Metadata Builder | EODHD credentials and metadata criteria | Project-scoped metadata selection | Quote ingestion or statistical calculation |
+| Univariate Statistics | Metadata selection and quote-run identifiers | Per-ISIN results and selected-ISIN set | Metadata discovery or pairwise calculation |
+| Bivariate Statistics | Univariate selected-ISIN set | Pairwise rows and matrices | Changing upstream selections or portfolio allocation |
+
+The React route registry records this ownership in `apps/web/src/routes.tsx`.
+Each module owns a typed browser API facade under `apps/web/src/api/`, while the
+shared client remains limited to transport and workspace context. The active
+FastAPI implementation has corresponding metadata, univariate, and bivariate
+service boundaries. A future module must add an explicit persisted input/output
+contract rather than couple to another module's browser state. The detailed UI
+contract is documented in `docs/ui/workflow-modules.md`.
 
 ## Local Research Funnel
 
 ### 1. Instrument reference
 
-`portfell.fetch_all_metadata` enumerates EODHD exchange symbol lists and stores ISIN-bearing listing metadata once under the reference area. This stage does not download full quote history and does not compute financial statistics.
+`portfell.fetch_all_metadata` enumerates missing EODHD exchange symbol lists in a bounded worker pool sized to the available runtime CPUs, then stores ISIN-bearing listing metadata once under the reference area. The shared EODHD client continues to pace request starts and retries provider failures. This stage does not download full quote history and does not compute financial statistics.
 
 ### 2. Metadata selection
 
-`portfell.metadata_filter` reads the all-ISIN reference and applies conjunctive predicates. It writes an immutable selection directory containing:
+`portfell.metadata_builder` reads the all-ISIN reference and applies conjunctive predicates. It writes an immutable selection directory containing:
 
 ```text
 isins.parquet
@@ -291,15 +311,15 @@ coverage + gap information
 
 `portfell.univariate_statistics` calculates reusable metrics for each selected listing from validated Silver history. `portfell.return_quality` is shared with Gold generation and prevents invalid prices from becoming fabricated zero returns.
 
-### 5. Univariate filtering
+### 5. Univariate selection
 
-`portfell.univariate_filter` applies metric predicates to already-computed statistics. It does not recalculate statistics. The output is another persisted selection with stable membership and provenance.
+`portfell.univariate_selection` applies metric predicates to already-computed statistics. It does not recalculate statistics. The output is another persisted selection with stable membership and provenance.
 
 ### 6. Bivariate statistics
 
 `portfell.bivariate_statistics` computes one record per unordered listing pair. It:
 
-- aligns both series on the exact common return dates;
+- aligns every pair to the same universe-wide intersection of return dates;
 - avoids duplicate symmetric work;
 - skips duplicate same-ISIN listings by default;
 - uses partitioned/bucketed storage for scale;
@@ -349,11 +369,11 @@ lake/
 |
 |-- silver/
 |   |-- quotes/<exchange>/<isin>.parquet
-|   |-- metadata_filter/
+|   |-- metadata_builder/
 |   |   |-- selection_id=<id>/isins.parquet
 |   |   |-- selection_id=<id>/manifest.json
 |   |   `-- current_selection.json
-|   |-- univariate_filter/
+|   |-- univariate_selection/
 |   |   |-- selection_id=<id>/isins.parquet
 |   |   |-- selection_id=<id>/manifest.json
 |   |   `-- current_selection.json
@@ -718,7 +738,7 @@ This section is the most important description of the actual hosted runtime.
 - credential entry and deletion;
 - download planning and submission;
 - visible coverage;
-- metadata filter controls;
+- metadata builder controls;
 - univariate, bivariate, and multivariate workflow controls;
 - portfolio analysis and weights;
 - report loading;
@@ -879,7 +899,7 @@ The catalogue below groups modules by responsibility. Public modules should depe
 | --- | --- |
 | `portfell.search` | Deterministic discovery over supplied candidate files and canonical-universe compatibility flow. |
 | `portfell.fetch_all_metadata` | Live full EODHD metadata reference refresh. |
-| `portfell.metadata_filter` | Metadata-only persisted selections. |
+| `portfell.metadata_builder` | Metadata-only persisted selections. |
 | `portfell.bronze` | Provider plans, raw quote/dividend/split writes, resumability, and coverage inputs. |
 | `portfell.silver` | Bronze-to-Silver normalized quote files. |
 | `portfell.fetch_all_quotes` | Standalone quote-refresh entry point. |
@@ -893,8 +913,8 @@ The catalogue below groups modules by responsibility. Public modules should depe
 | `portfell.return_quality` | Shared price/return validation and production-history labels. |
 | `portfell.gold` | Generic returns, covariance, correlation, edges, and feature inputs. |
 | `portfell.univariate_statistics` | Per-listing statistics. |
-| `portfell.univariate_filter` | Metric-based persisted selections. |
-| `portfell.bivariate_statistics` | Exact common-date pair statistics and bucketed cache. |
+| `portfell.univariate_selection` | Metric-based persisted selections. |
+| `portfell.bivariate_statistics` | Universe-aligned pair statistics and bucketed cache. |
 | `portfell.statistics_views` | Selection views over reusable statistic caches. |
 | `portfell.multivariate_statistics` | Selected portfolio-level orchestration, production adapter, recommendation, and handoff. |
 
@@ -931,7 +951,7 @@ The catalogue below groups modules by responsibility. Public modules should depe
 | `portfell.hosted_api_contracts` | Dependency-light hosted request contracts. | Active. |
 | `portfell.hosted_api_state` | Local principal, records, and typed in-memory repository container. | Active. |
 | `portfell.hosted_research_service` | Route-facing facade over concern-specific research services. | Active. |
-| `portfell.hosted_univariate_service` | Univariate run and filter-selection transitions. | Active. |
+| `portfell.hosted_univariate_service` | Univariate runs and persisted-selection transitions. | Active. |
 | `portfell.hosted_bivariate_service` | Bivariate run transitions and read-model coordination. | Active. |
 | `portfell.hosted_analysis_service` | Analysis idempotency and result retrieval. | Active. |
 | `portfell.hosted_research_ports` | Typed research data, persistence, and repository boundaries. | Active. |
@@ -1083,7 +1103,7 @@ Tests should prove behavior at the module that owns the contract. Broad integrat
 
 | Change | Primary files/modules | Also review |
 | --- | --- | --- |
-| Add or change instrument metadata fields | `fetch_all_metadata`, `metadata_filter`, `schemas`, `contracts` | `paths`, selection tests, `CONTRACTS.md` |
+| Add or change instrument metadata fields | `fetch_all_metadata`, `metadata_builder`, `schemas`, `contracts` | `paths`, selection tests, `CONTRACTS.md` |
 | Add an EODHD raw dataset | `bronze`, `http`, `workflows` | Silver normalization, coverage, redaction tests |
 | Change quote normalization | `silver`, `return_quality` | Gold/statistics regression tests |
 | Add a univariate metric | `univariate_statistics` or `gold` | schema, filter vocabulary, artifact version |

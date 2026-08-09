@@ -17,8 +17,9 @@ from portfell.hosted_api_state import (
     UserOwnedRow,
 )
 from portfell.hosted_research_workflow import (
-    FilterSelection,
     ResearchRun,
+    UnivariateSelection,
+    bivariate_source_id,
     create_full_univariate_selection,
 )
 from portfell.hosted_workspace_repository import persist_local_workspace
@@ -225,30 +226,28 @@ def _univariate_run(
     return state.univariate_runs_by_id[run_ids[0]] if run_ids else None
 
 
-def _filter_selection(
+def _univariate_selection(
     state: HostedApiState, run_id: str | None, user_id: str
-) -> FilterSelection | None:
-    current_id = state.current_filter_selection_by_user.get(user_id)
+) -> UnivariateSelection | None:
+    current_id = state.current_univariate_selection_by_user.get(user_id)
     if current_id is not None:
-        selection = state.filter_selections_by_id.get(current_id)
+        selection = state.univariate_selections_by_id.get(current_id)
         if selection is not None and selection.source_run_id == run_id:
             return selection
     ids = sorted(
         row.selection_id
-        for row in state.filter_selections_by_id.values()
+        for row in state.univariate_selections_by_id.values()
         if row.source_run_id == run_id and row.user_id == user_id
     )
-    return state.filter_selections_by_id[ids[0]] if ids else None
+    return state.univariate_selections_by_id[ids[0]] if ids else None
 
 
 def _bivariate_run(
-    state: HostedApiState, selection: FilterSelection | None, user_id: str
+    state: HostedApiState, selection: UnivariateSelection | None, user_id: str
 ) -> ResearchRun | None:
     if selection is None:
         return None
-    source_id = stable_hash(
-        {"selection_id": selection.selection_id, "members": list(selection.member_ids)}
-    )
+    source_id = bivariate_source_id(selection)
     runs = sorted(
         (
             run
@@ -292,28 +291,35 @@ def workflow_row(
             state.univariate_selection_settings_by_project.get(selection.project_id, {}),
         )
     )
-    filtered = _filter_selection(
+    univariate_selection = _univariate_selection(
         state, None if univariate_run is None else univariate_run.run_id, user_id
     )
     if univariate_run is not None and univariate_run.status == "complete":
         selected_for_bivariate = create_full_univariate_selection(
             user_id=user_id, run=univariate_run, rows=selected_univariate_rows
         )
-        if filtered is None or filtered.selection_id != selected_for_bivariate.selection_id:
-            state.filter_selections_by_id.setdefault(
+        if (
+            univariate_selection is None
+            or univariate_selection.selection_id != selected_for_bivariate.selection_id
+        ):
+            state.univariate_selections_by_id.setdefault(
                 selected_for_bivariate.selection_id, selected_for_bivariate
             )
-            state.current_filter_selection_by_user[user_id] = selected_for_bivariate.selection_id
+            state.current_univariate_selection_by_user[user_id] = (
+                selected_for_bivariate.selection_id
+            )
             persist_local_workspace(state)
-        filtered = selected_for_bivariate
-    bivariate_run = _bivariate_run(state, filtered, user_id)
+        univariate_selection = selected_for_bivariate
+    bivariate_run = _bivariate_run(state, univariate_selection, user_id)
     return {
         "stages": resolve_workflow(
             metadata_revision_id=metadata_revision_id,
             metadata_selection_id=selection.selection_id,
             quote_run_id=quote_run_id,
             univariate_run_id=None if univariate_run is None else univariate_run.run_id,
-            univariate_filter_selection_id=(None if filtered is None else filtered.selection_id),
+            univariate_selection_id=(
+                None if univariate_selection is None else univariate_selection.selection_id
+            ),
             bivariate_run_id=None if bivariate_run is None else bivariate_run.run_id,
         ),
         "process_overview": {
@@ -322,7 +328,7 @@ def workflow_row(
                 if metadata_downloaded_isins is None
                 else metadata_downloaded_isins
             ),
-            "metadata_filter_isins": _unique_member_isin_count(selection.member_ids),
+            "metadata_builder_isins": _unique_member_isin_count(selection.member_ids),
             "univariate_statistics_isins": (
                 None if univariate_run is None else _unique_isin_count(selected_univariate_rows)
             ),

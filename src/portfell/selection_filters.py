@@ -17,7 +17,7 @@ _PREDICATE_PATTERN = re.compile(r"^\s*([A-Za-z0-9_]+)\s*(>=|<=|!=|=|>|<|~)\s*(.*
 
 @dataclass(frozen=True)
 class Predicate:
-    """One field comparison used by metadata and univariate filters."""
+    """One field comparison used by metadata and univariate selections."""
 
     field: str
     operator: str

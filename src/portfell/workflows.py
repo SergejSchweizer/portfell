@@ -28,7 +28,7 @@ from portfell.config import EodhdConfig, load_eodhd_config
 from portfell.fetch_all_metadata import fetch_all_metadata, write_all_metadata
 from portfell.http import EodhdClient
 from portfell.logging import get_logger, log_event
-from portfell.metadata_filter import run_metadata_filter
+from portfell.metadata_builder import run_metadata_builder
 from portfell.multivariate_statistics import (
     MultivariateStatisticsConfig,
     write_multivariate_statistics,
@@ -49,7 +49,7 @@ from portfell.silver import (
     read_silver_quotes,
 )
 from portfell.table_io import read_json, read_rows, write_csv, write_rows
-from portfell.univariate_filter import run_univariate_filter, selection_rows
+from portfell.univariate_selection import run_univariate_selection, selection_rows
 from portfell.univariate_statistics import (
     DEFAULT_CONFIDENCE_LEVEL,
     build_quote_returns,
@@ -132,10 +132,11 @@ def run_fetch_all_metadata_workflow(
     root: Path,
     exchange_codes: Sequence[str] = (),
     include_delisted: bool = False,
+    concurrency: int | None = None,
     eodhd_config: EodhdConfig | None = None,
     on_progress: Callable[[int, int, int], None] | None = None,
 ) -> dict[str, Any]:
-    """Persist all listing metadata and fetch only missing automatic exchanges."""
+    """Persist all listing metadata and fetch only missing automatic exchanges in parallel."""
     paths = LakePaths(root=root)
     with module_run_lock(paths, "fetch-all-metadata"):
         existing_rows = read_rows(paths.all_isins())
@@ -146,6 +147,7 @@ def run_fetch_all_metadata_workflow(
             exchange_codes=exchange_codes,
             known_exchange_codes=() if exchange_codes else tuple(sorted(completed_exchanges)),
             include_delisted=include_delisted,
+            concurrency=max(1, concurrency or os.process_cpu_count() or 1),
             on_progress=(
                 (lambda completed, total, skipped: on_progress(completed, total + 1, skipped))
                 if on_progress is not None
@@ -220,7 +222,7 @@ def run_fetch_all_quotes_workflow(
     memory_safe: bool = False,
     on_progress: Callable[[int, int, int], None] | None = None,
 ) -> dict[str, Any]:
-    """Fetch Bronze quote inputs for the latest Metadata Filter selection."""
+    """Fetch Bronze quote inputs for the latest Metadata Builder selection."""
     paths = LakePaths(root=root)
     with module_run_lock(paths, "fetch-all-quotes"):
         resolved_end_date = end_date or date.today()
@@ -232,7 +234,7 @@ def run_fetch_all_quotes_workflow(
             if _valid_selection_isin(row.get("isin", ""))
         ]
         if not selection_rows:
-            raise ValueError("metadata-filter selection contains no valid ISINs")
+            raise ValueError("metadata-builder selection contains no valid ISINs")
         if isin is not None:
             normalized_isin = isin.casefold()
             selection_rows = [
@@ -241,7 +243,7 @@ def run_fetch_all_quotes_workflow(
                 if str(row.get("isin", "")).casefold() == normalized_isin
             ]
             if not selection_rows:
-                raise ValueError(f"metadata-filter selection does not contain ISIN: {isin}")
+                raise ValueError(f"metadata-builder selection does not contain ISIN: {isin}")
         if limit is not None:
             selection_rows = selection_rows[:limit]
         selected_listings = {(str(row["exchange"]), str(row["isin"])) for row in selection_rows}
@@ -497,22 +499,22 @@ def _write_memory_safe_quote_manifests(
     return coverage, quote_row_count
 
 
-def run_metadata_filter_workflow(
+def run_metadata_builder_workflow(
     *,
     root: Path,
     predicates: Sequence[str],
     name_contains: Sequence[str] = (),
     selection_name: str | None = None,
 ) -> dict[str, Any]:
-    """Run Metadata Filter over the reference all-ISIN dataset."""
+    """Run Metadata Builder over the reference all-ISIN dataset."""
     paths = LakePaths(root=root)
-    with module_run_lock(paths, "metadata-filter"):
+    with module_run_lock(paths, "metadata-builder"):
         resolved_predicates = tuple(predicates) + tuple(
             f"name~{search_text}" for search_text in name_contains
         )
         if not resolved_predicates:
-            raise ValueError("metadata-filter requires at least one --where or --name-contains")
-        return run_metadata_filter(
+            raise ValueError("metadata-builder requires at least one --where or --name-contains")
+        return run_metadata_builder(
             paths,
             parse_predicates(resolved_predicates),
             name=selection_name,
@@ -526,7 +528,7 @@ def run_univariate_statistics_workflow(
     confidence_level: float = DEFAULT_CONFIDENCE_LEVEL,
     concurrency: int | None = None,
 ) -> dict[str, Any]:
-    """Build reusable per-listing statistics for one Metadata Filter selection."""
+    """Build reusable per-listing statistics for one Metadata Builder selection."""
     paths = LakePaths(root=root)
     with module_run_lock(paths, "univariate-statistics"):
         resolved_selection_id = selection_id or _current_metadata_selection_id(paths)
@@ -565,16 +567,16 @@ def run_univariate_statistics_workflow(
         }
 
 
-def run_univariate_filter_workflow(
+def run_univariate_selection_workflow(
     *,
     root: Path,
     predicates: Sequence[str],
     selection_name: str | None = None,
 ) -> dict[str, Any]:
-    """Run Univariate Filter over persisted Gold univariate statistics."""
+    """Run Univariate Selection over persisted Gold univariate statistics."""
     paths = LakePaths(root=root)
-    with module_run_lock(paths, "univariate-filter"):
-        return run_univariate_filter(
+    with module_run_lock(paths, "univariate-selection"):
+        return run_univariate_selection(
             paths,
             parse_predicates(predicates),
             name=selection_name,
@@ -590,7 +592,7 @@ def run_bivariate_statistics_workflow(
     """Build reusable pairwise statistics from existing Silver quotes."""
     paths = LakePaths(root=root)
     with module_run_lock(paths, "bivariate-statistics"):
-        resolved_selection_id = selection_id or _current_univariate_filter_selection_id(paths)
+        resolved_selection_id = selection_id or _current_univariate_selection_id(paths)
         log_event(
             LOGGER,
             logging.INFO,
@@ -638,10 +640,10 @@ def run_multivariate_statistics_workflow(
     concurrency: int | None = None,
     use_selection_statistics_cache: bool = False,
 ) -> dict[str, Any]:
-    """Build multivariate portfolio statistics from a Univariate Filter selection."""
+    """Build multivariate portfolio statistics from a Univariate Statistics selection."""
     paths = LakePaths(root=root)
     with module_run_lock(paths, "multivariate-statistics"):
-        resolved_selection_id = selection_id or _current_univariate_filter_selection_id(paths)
+        resolved_selection_id = selection_id or _current_univariate_selection_id(paths)
         log_event(
             LOGGER,
             logging.INFO,
@@ -666,7 +668,7 @@ def run_multivariate_statistics_workflow(
                 constraints=PortfolioConstraints(min_weight=min_weight, max_weight=max_weight),
                 concurrency=concurrency,
                 selection_id=resolved_selection_id,
-                selection_source_module="univariate_filter",
+                selection_source_module="univariate_selection",
                 use_selection_statistics_cache=use_selection_statistics_cache,
             ),
         )
@@ -697,9 +699,9 @@ def _filter_quotes_to_selection(
 
 
 def _metadata_selection_rows(paths: LakePaths, selection_id: str) -> list[dict[str, Any]]:
-    selection_path = paths.metadata_filter_isins(selection_id)
+    selection_path = paths.metadata_builder_isins(selection_id)
     if not selection_path.exists():
-        raise FileNotFoundError(f"metadata-filter selection does not exist: {selection_id}")
+        raise FileNotFoundError(f"metadata-builder selection does not exist: {selection_id}")
     return read_rows(selection_path)
 
 
@@ -721,21 +723,21 @@ def _worker_count(concurrency: int | None) -> int:
 
 
 def _current_metadata_selection_id(paths: LakePaths) -> str:
-    pointer_path = paths.current_metadata_filter_selection()
+    pointer_path = paths.current_metadata_builder_selection()
     if pointer_path.exists():
         return str(read_json(pointer_path)["selection_id"])
     return _latest_metadata_selection_id(paths)
 
 
-def _current_univariate_filter_selection_id(paths: LakePaths) -> str:
-    pointer_path = paths.current_univariate_filter_selection()
+def _current_univariate_selection_id(paths: LakePaths) -> str:
+    pointer_path = paths.current_univariate_selection()
     if pointer_path.exists():
         return str(read_json(pointer_path)["selection_id"])
-    return _latest_univariate_filter_selection_id(paths)
+    return _latest_univariate_selection_id(paths)
 
 
 def _latest_metadata_selection_id(paths: LakePaths) -> str:
-    manifests = sorted((paths.silver / "metadata_filter").glob("selection_id=*/manifest.json"))
+    manifests = sorted((paths.silver / "metadata_builder").glob("selection_id=*/manifest.json"))
     latest: tuple[str, str] | None = None
     for manifest_path in manifests:
         manifest = read_json(manifest_path)
@@ -746,13 +748,13 @@ def _latest_metadata_selection_id(paths: LakePaths) -> str:
             latest = candidate
     if latest is None:
         raise FileNotFoundError(
-            "metadata-filter selection does not exist; run metadata-filter first"
+            "metadata-builder selection does not exist; run metadata-builder first"
         )
     return latest[1]
 
 
-def _latest_univariate_filter_selection_id(paths: LakePaths) -> str:
-    manifests = sorted((paths.silver / "univariate_filter").glob("selection_id=*/manifest.json"))
+def _latest_univariate_selection_id(paths: LakePaths) -> str:
+    manifests = sorted((paths.silver / "univariate_selection").glob("selection_id=*/manifest.json"))
     latest: tuple[str, str] | None = None
     for manifest_path in manifests:
         manifest = read_json(manifest_path)
@@ -763,7 +765,7 @@ def _latest_univariate_filter_selection_id(paths: LakePaths) -> str:
             latest = candidate
     if latest is None:
         raise FileNotFoundError(
-            "univariate-filter selection does not exist; run univariate-filter first"
+            "univariate selection does not exist; run univariate-selection first"
         )
     return latest[1]
 

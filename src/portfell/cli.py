@@ -15,10 +15,10 @@ from portfell.workflows import (
     run_bivariate_statistics_workflow,
     run_fetch_all_metadata_workflow,
     run_fetch_all_quotes_workflow,
-    run_metadata_filter_workflow,
+    run_metadata_builder_workflow,
     run_multivariate_statistics_workflow,
     run_search_workflow,
-    run_univariate_filter_workflow,
+    run_univariate_selection_workflow,
     run_univariate_statistics_workflow,
 )
 
@@ -87,7 +87,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     fetch_all_quotes = subparsers.add_parser(
         "fetch-all-quotes",
-        help="Fetch quote, dividend, and split data for the latest metadata-filter selection.",
+        help="Fetch quote, dividend, and split data for the latest metadata-builder selection.",
     )
     fetch_all_quotes.add_argument(
         "--debug",
@@ -119,7 +119,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     fetch_all_quotes.add_argument(
         "--isin",
-        help="Optional single ISIN from the latest metadata-filter selection to fetch.",
+        help="Optional single ISIN from the latest metadata-builder selection to fetch.",
     )
     fetch_all_quotes.add_argument(
         "--no-gap-aware",
@@ -137,34 +137,34 @@ def build_parser() -> argparse.ArgumentParser:
         default=2,
         help="Worker thread count for EODHD requests and Silver writes. Defaults to 2.",
     )
-    metadata_filter = subparsers.add_parser(
-        "metadata-filter",
+    metadata_builder = subparsers.add_parser(
+        "metadata-builder",
         help="Create a metadata-based ISIN selection.",
     )
-    metadata_filter.add_argument(
+    metadata_builder.add_argument(
         "--debug",
         action="store_true",
         default=argparse.SUPPRESS,
         help="Write verbose DEBUG logs.",
     )
-    metadata_filter.add_argument(
+    metadata_builder.add_argument(
         "--root",
         default=str(DEFAULT_ROOT),
         help="Lake root to read from.",
     )
-    metadata_filter.add_argument(
+    metadata_builder.add_argument(
         "--where",
         action="append",
         default=[],
         help="Conjunctive predicate such as country=DE, name~UCITS, or volume>=1000.",
     )
-    metadata_filter.add_argument(
+    metadata_builder.add_argument(
         "--name-contains",
         action="append",
         default=[],
         help="Case-insensitive text search in the instrument name. May be repeated.",
     )
-    metadata_filter.add_argument("--selection-name", help="Optional stable human-readable name.")
+    metadata_builder.add_argument("--selection-name", help="Optional stable human-readable name.")
     univariate = subparsers.add_parser(
         "univariate-statistics",
         help="Build reusable per-listing statistics from Silver quotes.",
@@ -178,7 +178,7 @@ def build_parser() -> argparse.ArgumentParser:
     univariate.add_argument("--root", default=str(DEFAULT_ROOT), help="Lake root to build from.")
     univariate.add_argument(
         "--selection-id",
-        help="Metadata-filter selection id. Defaults to the latest metadata-filter selection.",
+        help="Metadata Builder selection id. Defaults to its latest persisted selection.",
     )
     univariate.add_argument(
         "--confidence-level",
@@ -191,29 +191,31 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         help="Worker process count. Defaults to all CPU cores visible to the system.",
     )
-    univariate_filter = subparsers.add_parser(
-        "univariate-filter",
+    univariate_selection = subparsers.add_parser(
+        "univariate-selection",
         help="Create an ISIN selection from univariate statistics.",
     )
-    univariate_filter.add_argument(
+    univariate_selection.add_argument(
         "--debug",
         action="store_true",
         default=argparse.SUPPRESS,
         help="Write verbose DEBUG logs.",
     )
-    univariate_filter.add_argument(
+    univariate_selection.add_argument(
         "--root",
         default=str(DEFAULT_ROOT),
         help="Lake root to read from.",
     )
-    univariate_filter.add_argument(
+    univariate_selection.add_argument(
         "--where",
         action="append",
         default=[],
         required=True,
         help="Conjunctive predicate such as max_drawdown>=-0.2 or sharpe_ratio>0.5.",
     )
-    univariate_filter.add_argument("--selection-name", help="Optional stable human-readable name.")
+    univariate_selection.add_argument(
+        "--selection-name", help="Optional stable human-readable name."
+    )
     bivariate = subparsers.add_parser(
         "bivariate-statistics",
         help="Build reusable pairwise statistics from Silver quotes.",
@@ -228,8 +230,8 @@ def build_parser() -> argparse.ArgumentParser:
     bivariate.add_argument(
         "--selection-id",
         help=(
-            "Optional metadata-filter or univariate-filter selection id. "
-            "Defaults to the latest univariate-filter selection."
+            "Optional metadata-builder or univariate selection id. "
+            "Defaults to the latest univariate selection."
         ),
     )
     bivariate.add_argument(
@@ -239,7 +241,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     multivariate = subparsers.add_parser(
         "multivariate-statistics",
-        help="Build portfolio statistics from the latest univariate-filter selection.",
+        help="Build portfolio statistics from the latest univariate selection.",
     )
     multivariate.add_argument(
         "--debug",
@@ -250,7 +252,7 @@ def build_parser() -> argparse.ArgumentParser:
     multivariate.add_argument("--root", default=str(DEFAULT_ROOT), help="Lake root to build from.")
     multivariate.add_argument(
         "--selection-id",
-        help="Univariate-filter selection id. Defaults to the latest univariate-filter selection.",
+        help="Univariate Statistics selection id. Defaults to its latest persisted selection.",
     )
     multivariate.add_argument(
         "--use-selection-statistics-cache",
@@ -386,8 +388,8 @@ def main(argv: Sequence[str] | None = None) -> None:
             include_raw_datasets=not args.no_raw_datasets,
             concurrency=args.concurrency,
         )
-    elif args.command == "metadata-filter":
-        summary = run_metadata_filter_workflow(
+    elif args.command == "metadata-builder":
+        summary = run_metadata_builder_workflow(
             root=Path(args.root),
             predicates=tuple(args.where),
             name_contains=tuple(args.name_contains),
@@ -400,8 +402,8 @@ def main(argv: Sequence[str] | None = None) -> None:
             confidence_level=args.confidence_level,
             concurrency=args.concurrency,
         )
-    elif args.command == "univariate-filter":
-        summary = run_univariate_filter_workflow(
+    elif args.command == "univariate-selection":
+        summary = run_univariate_selection_workflow(
             root=Path(args.root),
             predicates=tuple(args.where),
             selection_name=args.selection_name,

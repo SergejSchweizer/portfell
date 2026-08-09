@@ -13,8 +13,8 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Header
 from portfell.hosted_api_contracts import (
     AnalysisCreateRequest,
     BivariateSelectionRequest,
-    UnivariateFilterRequest,
     UnivariateRunRequest,
+    UnivariateSelectionRequest,
 )
 from portfell.hosted_api_state import ApiUser
 from portfell.hosted_research_service import ResearchService
@@ -65,26 +65,26 @@ def research_router(
     ) -> JsonRow:
         return call(service.univariate_results, user.user_id, run_id, limit, offset)
 
-    @router.get("/univariate-filter/metrics")
-    def filter_metrics(user: ApiUser = Depends(current_user)) -> JsonRow:
+    @router.get("/univariate-selection/metrics")
+    def selection_metrics(user: ApiUser = Depends(current_user)) -> JsonRow:
         _ = user
-        return call(service.filter_metrics)
+        return call(service.selection_metrics)
 
-    @router.post("/univariate-filter")
-    def apply_filter(
-        payload: UnivariateFilterRequest, user: ApiUser = Depends(workspace_user)
+    @router.post("/univariate-selection")
+    def apply_selection(
+        payload: UnivariateSelectionRequest, user: ApiUser = Depends(workspace_user)
     ) -> JsonRow:
         predicates = [predicate.model_dump() for predicate in payload.predicates]
-        return call(service.apply_filter, user.user_id, payload.source_run_id, predicates)
+        return call(service.apply_selection, user.user_id, payload.source_run_id, predicates)
 
-    @router.get("/univariate-filter/{selection_id}/results")
-    def filter_results(
+    @router.get("/univariate-selection/{selection_id}/results")
+    def selection_results(
         selection_id: str,
         user: ApiUser = Depends(current_user),
         limit: int = 50,
         offset: int = 0,
     ) -> JsonRow:
-        return call(service.filter_results, user.user_id, selection_id, limit, offset)
+        return call(service.selection_results, user.user_id, selection_id, limit, offset)
 
     @router.post("/bivariate-statistics/plan")
     def bivariate_plan(
@@ -94,7 +94,7 @@ def research_router(
         return call(
             service.bivariate_plan,
             user.user_id,
-            payload.univariate_filter_selection_id,
+            payload.univariate_selection_id,
         )
 
     @router.post("/bivariate-statistics/runs")
@@ -106,13 +106,13 @@ def research_router(
         row = call(
             service.start_bivariate,
             user.user_id,
-            payload.univariate_filter_selection_id,
+            payload.univariate_selection_id,
         )
         if row["status"] == "running":
             background_tasks.add_task(
                 service.complete_bivariate,
                 user.user_id,
-                payload.univariate_filter_selection_id,
+                payload.univariate_selection_id,
             )
         return row
 

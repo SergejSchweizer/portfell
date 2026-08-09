@@ -64,8 +64,8 @@ export function ProjectSidebar({
       <nav className="project-sidebar__workflow" aria-label="Workflow">
         <p>Workflow</p>
         <ol>
-          {workflowPages.filter((page) => page.id !== "univariate_filter").map((page, index) => {
-            const status = workflow?.stages[page.id].status ?? (index === 0 ? "ready" : "locked");
+          {workflowPages.map((page, index) => {
+            const status = workflow?.stages[page.stageId].status ?? (index === 0 ? "ready" : "locked");
             const locked = status === "locked";
             const contents = <><span className="project-sidebar__step">{index + 1}</span><span className="project-sidebar__stage"><span>{page.title}</span><small>{workflowStatusLabel[status]}</small></span></>;
             return (

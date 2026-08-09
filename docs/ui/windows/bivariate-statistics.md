@@ -7,8 +7,14 @@
 ## Purpose
 
 Run and present server-computed pairwise statistics for the automatic all-results selection produced
-when univariate statistics complete. The legacy univariate-filter API and CLI remain available for
-explicit server-side selections.
+when univariate statistics complete. The server's automatic all-results selection is an internal
+persistence hand-off, not a separate browser filter module.
+
+## Module boundary
+
+Bivariate Statistics consumes the persisted selected-ISIN set from Univariate Statistics and owns
+pairwise rows and matrices. It must not modify the metadata or univariate selections, and portfolio
+construction remains a later module.
 
 ## Contract
 
@@ -17,7 +23,11 @@ The page preflights through `POST /api/bivariate-statistics/plan`, starts
 `GET /api/bivariate-statistics/runs/{run_id}/results`. Pair construction, limits, calculations,
 storage, and ranking remain backend responsibilities.
 
-The persistent project sidebar identifies the active project and four-stage
+Every pairwise metric and matrix in one run uses the same universe-wide date intersection. Summary
+and matrix contracts expose `date_start` and `date_end`; every facts table renders that aligned data
+period so values from different tabs and windows are directly comparable.
+
+The persistent project sidebar identifies the active project and three-module
 workflow hierarchy. A project switch clears the local pair plan, run, results,
 and status message before this page loads the replacement project workflow.
 

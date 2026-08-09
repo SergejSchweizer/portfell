@@ -7,12 +7,11 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 WEB_ROOT = REPOSITORY_ROOT / "apps" / "web"
 
 
-def test_web_has_exactly_four_research_pages() -> None:
+def test_web_has_exactly_three_research_modules() -> None:
     routes = (WEB_ROOT / "src" / "routes.tsx").read_text(encoding="utf-8")
     expected = (
-        "/metadata-filter",
+        "/metadata-builder",
         "/univariate-statistics",
-        "/univariate-filter",
         "/bivariate-statistics",
     )
     for route in expected:
@@ -21,21 +20,24 @@ def test_web_has_exactly_four_research_pages() -> None:
 
 
 def test_workflow_pages_place_ingestion_actions_before_their_stage_controls() -> None:
-    metadata_page = (WEB_ROOT / "src" / "pages" / "metadata-filter.tsx").read_text(encoding="utf-8")
+    metadata_page = (WEB_ROOT / "src" / "pages" / "metadata-builder.tsx").read_text(
+        encoding="utf-8"
+    )
     frame = (WEB_ROOT / "src" / "shell" / "frame.tsx").read_text(encoding="utf-8")
     univariate_page = (WEB_ROOT / "src" / "pages" / "univariate-statistics.tsx").read_text(
         encoding="utf-8"
     )
     assert "Fetch all metadata" in metadata_page
-    assert metadata_page.index("Download Metadata") < metadata_page.index("Metadata Filter")
+    assert metadata_page.index('<Panel title="Download Metadata">') < metadata_page.index(
+        '<Panel title="Metadata Builder">'
+    )
     assert "EODHD key" in frame
     assert "Fetch all metadata" not in frame
     assert '"/univariate-statistics"' not in metadata_page
     assert '"portfell:workflow-updated"' in metadata_page
     assert "Download Historical Data" not in metadata_page
     assert "Download Historical Data" in univariate_page
-    assert "postJson" in univariate_page
-    assert '"/api/quote-runs"' in univariate_page
+    assert "univariateStatisticsApi.startQuoteRun" in univariate_page
     assert univariate_page.index("Download Historical Data") < univariate_page.index(
         "Univariate Statistics"
     )
@@ -61,6 +63,11 @@ def test_workflow_pages_place_ingestion_actions_before_their_stage_controls() ->
     assert "univariate-equation" in univariate_page
     assert "univariate-notation" in univariate_page
     assert "dividendFrequency" in univariate_page
+    assert 'className="univariate-statistic__tabs"' in univariate_page
+    assert 'role="tablist"' in univariate_page
+    assert 'activeStatisticTab === "dividends"' in univariate_page
+    assert "portfell:univariate-statistic-order" not in univariate_page
+    assert "onDragStart" not in univariate_page
 
 
 def test_vite_build_is_the_canonical_web_runtime() -> None:
@@ -91,7 +98,7 @@ def test_old_web_surfaces_are_absent() -> None:
         assert token not in server
 
 
-def test_four_page_ui_uses_canonical_server_owned_workflow_contracts() -> None:
+def test_three_module_ui_uses_canonical_server_owned_workflow_contracts() -> None:
     source = "\n".join(
         path.read_text(encoding="utf-8") for path in (WEB_ROOT / "src").rglob("*") if path.is_file()
     )
@@ -102,18 +109,17 @@ def test_four_page_ui_uses_canonical_server_owned_workflow_contracts() -> None:
     for endpoint in (
         "/api/workflow",
         "/api/metadata/fetch-all",
-        "/api/metadata-filter",
+        "/api/metadata-builder",
         "/api/quote-runs",
         "/api/univariate-statistics/runs",
-        "/api/univariate-filter",
         "/api/bivariate-statistics/plan",
         "/api/bivariate-statistics/runs",
     ):
         assert endpoint in source
 
     for removed in (
-        "/metadata-filter/fetch-all-metadata",
-        "/metadata-filter/projects",
+        "/metadata-builder/fetch-all-metadata",
+        "/metadata-builder/projects",
         "/data/load-selected-isins",
         "/statistics/univariate/summary",
         "/statistics/{statistics_kind}/compute",
@@ -137,35 +143,34 @@ def test_project_context_client_contracts_precede_sidebar_rendering() -> None:
         "/api/project-context",
         "/api/project-context/current-project",
         "/api/projects/${encodeURIComponent(projectId)}/workflow",
-        "/api/projects/${encodeURIComponent(projectId)}/metadata-filter",
+        "/api/projects/${encodeURIComponent(projectId)}/metadata-builder",
     ):
         assert endpoint in client
-    for contract in ("ApiProjectSummary", "ApiProjectContext", "ApiProjectMetadataFilter"):
+    for contract in ("ApiProjectSummary", "ApiProjectContext", "ApiProjectMetadataBuilder"):
         assert f"export type {contract}" in contracts
     assert sidebar_specification.exists()
 
 
-def test_project_switch_resets_all_four_page_local_workflow_states() -> None:
+def test_project_switch_resets_all_three_module_local_workflow_states() -> None:
     for page_name in (
-        "metadata-filter.tsx",
+        "metadata-builder.tsx",
         "univariate-statistics.tsx",
-        "univariate-filter.tsx",
         "bivariate-statistics.tsx",
     ):
         page = (WEB_ROOT / "src" / "pages" / page_name).read_text(encoding="utf-8")
         assert 'window.addEventListener("portfell:project-updated"' in page
 
 
-def test_metadata_filter_restores_saved_project_filter_values() -> None:
-    page = (WEB_ROOT / "src" / "pages" / "metadata-filter.tsx").read_text(encoding="utf-8")
+def test_metadata_builder_restores_saved_project_criteria() -> None:
+    page = (WEB_ROOT / "src" / "pages" / "metadata-builder.tsx").read_text(encoding="utf-8")
 
     assert "loadProjectContext" in page
-    assert "loadProjectMetadataFilter" in page
-    assert "setExchange(filter.exchange)" in page
-    assert "setInstrumentType(filter.instrument_type)" in page
-    assert "setCountry(filter.country)" in page
-    assert "setCurrency(filter.currency)" in page
-    assert "setName(filter.name)" in page
+    assert "loadProjectCriteria" in page
+    assert "setExchange(criteria.exchange)" in page
+    assert "setInstrumentType(criteria.instrument_type)" in page
+    assert "setCountry(criteria.country)" in page
+    assert "setCurrency(criteria.currency)" in page
+    assert "setName(criteria.name)" in page
 
 
 def test_metadata_refresh_keeps_the_entered_eodhd_key_in_the_header() -> None:
@@ -207,7 +212,7 @@ def test_post_requests_support_browsers_without_crypto_random_uuid() -> None:
 
 def test_metadata_panel_uses_the_historical_data_progress_status_action_layout() -> None:
     frame = (WEB_ROOT / "src" / "shell" / "frame.tsx").read_text(encoding="utf-8")
-    page = (WEB_ROOT / "src" / "pages" / "metadata-filter.tsx").read_text(encoding="utf-8")
+    page = (WEB_ROOT / "src" / "pages" / "metadata-builder.tsx").read_text(encoding="utf-8")
     context = (WEB_ROOT / "src" / "shell" / "metadata-fetch-context.tsx").read_text(
         encoding="utf-8"
     )
@@ -227,8 +232,19 @@ def test_metadata_panel_uses_the_historical_data_progress_status_action_layout()
     assert ".metadata-fetch__progress { height: 4px;" in styles
 
 
-def test_metadata_filter_refreshes_the_sidebar_project_context_and_decodes_api_errors() -> None:
-    page = (WEB_ROOT / "src" / "pages" / "metadata-filter.tsx").read_text(encoding="utf-8")
+def test_bivariate_facts_show_the_universe_aligned_data_period() -> None:
+    page = (WEB_ROOT / "src" / "pages" / "bivariate-statistics.tsx").read_text(encoding="utf-8")
+    contracts = (WEB_ROOT / "src" / "contracts.ts").read_text(encoding="utf-8")
+
+    assert page.count("Aligned data period") == 3
+    assert "dateStart={summary?.date_start} dateEnd={summary?.date_end}" in page
+    assert "dataPeriod(matrix.date_start, matrix.date_end)" in page
+    assert contracts.count("date_start: string;") >= 4
+    assert contracts.count("date_end: string;") >= 4
+
+
+def test_metadata_builder_refreshes_the_sidebar_project_context_and_decodes_api_errors() -> None:
+    page = (WEB_ROOT / "src" / "pages" / "metadata-builder.tsx").read_text(encoding="utf-8")
     frame = (WEB_ROOT / "src" / "shell" / "frame.tsx").read_text(encoding="utf-8")
     client = (WEB_ROOT / "src" / "api" / "client.ts").read_text(encoding="utf-8")
 

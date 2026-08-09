@@ -272,10 +272,10 @@ def _local_cli_contract_present() -> bool:
         command in cli_source
         for command in (
             "fetch-all-metadata",
-            "metadata-filter",
+            "metadata-builder",
             "fetch-all-quotes",
             "univariate-statistics",
-            "univariate-filter",
+            "univariate-selection",
             "bivariate-statistics",
             "multivariate-statistics",
         )
