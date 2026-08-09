@@ -25,5 +25,11 @@
   {"method":"GET","path":"/api/bivariate-statistics/runs/{run_id}/summary","responseType":"ApiBivariateSummary"},
   {"method":"GET","path":"/api/bivariate-statistics/runs/{run_id}/covariance-matrix","responseType":"ApiCovarianceMatrix"},
   {"method":"GET","path":"/api/bivariate-statistics/runs/{run_id}/tail-risk-scatter","responseType":"ApiTailRiskScatter"},
-  {"method":"GET","path":"/api/bivariate-statistics/runs/{run_id}/correlation-matrix","query":["metric"],"responseType":"ApiPairMetricMatrix"}
+  {"method":"GET","path":"/api/bivariate-statistics/runs/{run_id}/correlation-matrix","query":["metric"],"responseType":"ApiPairMetricMatrix"},
+  {"method":"POST","path":"/api/multivariate-statistics/runs","requestSchema":"MultivariateRunRequest","requestFields":["project_id","bivariate_run_id","settings"],"responseType":"ApiMultivariateRun"},
+  {"method":"GET","path":"/api/multivariate-statistics/runs/{run_id}","responseType":"ApiMultivariateRun"},
+  {"method":"GET","path":"/api/multivariate-statistics/runs/{run_id}/summary","responseType":"ApiMultivariateSummary"},
+  {"method":"GET","path":"/api/multivariate-statistics/runs/{run_id}/structure","responseType":"ApiMultivariateStructure"},
+  {"method":"GET","path":"/api/multivariate-statistics/runs/{run_id}/candidates","responseType":"ApiMultivariateCandidates"},
+  {"method":"GET","path":"/api/multivariate-statistics/runs/{run_id}/validation","responseType":"ApiMultivariateValidation"}
 ]

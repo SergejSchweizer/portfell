@@ -118,6 +118,52 @@ export type ApiResearchRun = Readonly<{
   percent: number;
 }>;
 
+export type ApiMultivariateRun = Readonly<{
+  run_id: string;
+  project_id: string;
+  bivariate_run_id: string;
+  input_snapshot_id: string | null;
+  status: WorkflowStatus;
+  phase: string;
+  completed_units: number;
+  total_units: number;
+  estimated_remaining_seconds: number | null;
+  warnings: readonly string[];
+  failure_reason: string | null;
+}>;
+
+export type ApiMultivariateSummary = Readonly<{
+  input_snapshot_id?: string;
+  risk_model_id?: string;
+  candidate_etf_count?: number;
+  aligned_period?: Readonly<{ date_start: string; date_end: string; observation_count: number }>;
+  availability_reasons?: readonly string[];
+}>;
+
+export type ApiMultivariateStructure = Readonly<{
+  risk_cluster_count?: number;
+  dominant_component_share?: number | null;
+  effective_rank?: number;
+  effective_independent_drivers?: number;
+  period?: Readonly<{ date_start: string; date_end: string; observation_count: number }>;
+}>;
+
+export type ApiMultivariateCandidate = Readonly<{
+  candidate_id: string;
+  method: string;
+  baseline: boolean;
+  status: string;
+  reasons: readonly string[];
+  weights: readonly Readonly<{ isin: string; exchange: string; code: string; weight: number }>[];
+  variance: number | null;
+  volatility: number | null;
+  cvar: number | null;
+  gross_ttm_distribution_yield: number | null;
+}>;
+
+export type ApiMultivariateCandidates = Readonly<{ items: readonly ApiMultivariateCandidate[] }>;
+export type ApiMultivariateValidation = Readonly<{ items: readonly Readonly<Record<string, unknown>>[] }>;
+
 export type ApiPage<T> = Readonly<{
   items: readonly T[];
   total: number;

@@ -24,7 +24,7 @@ from portfell.hosted_research_workflow import (
 )
 from portfell.hosted_workspace_repository import persist_local_workspace
 from portfell.table_io import JsonRow
-from portfell.workflow_state import resolve_workflow
+from portfell.workflow_state import WorkflowStatus, resolve_workflow
 
 REMOVED_PROJECT_NAMES = frozenset({"Statistics Smoke"})
 
@@ -311,6 +311,10 @@ def workflow_row(
             persist_local_workspace(state)
         univariate_selection = selected_for_bivariate
     bivariate_run = _bivariate_run(state, univariate_selection, user_id)
+    multivariate_run_id = state.current_multivariate_run_by_project.get(selection.project_id)
+    multivariate_run = state.multivariate_runs_by_id.get(multivariate_run_id or "")
+    if multivariate_run is not None and multivariate_run.user_id != user_id:
+        multivariate_run = None
     return {
         "stages": resolve_workflow(
             metadata_revision_id=metadata_revision_id,
@@ -322,6 +326,10 @@ def workflow_row(
             ),
             bivariate_run_id=None if bivariate_run is None else bivariate_run.run_id,
             bivariate_status=None if bivariate_run is None else bivariate_run.status,
+            multivariate_run_id=None if multivariate_run is None else multivariate_run.run_id,
+            multivariate_status=(
+                None if multivariate_run is None else cast(WorkflowStatus, multivariate_run.status)
+            ),
         ),
         "process_overview": {
             "metadata_downloaded_isins": (

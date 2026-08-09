@@ -16,6 +16,7 @@ import {
 import { metadataBuilderApi } from "../../src/api/metadata-builder";
 import { univariateStatisticsApi } from "../../src/api/univariate-statistics";
 import { bivariateStatisticsApi } from "../../src/api/bivariate-statistics";
+import { multivariateStatisticsApi } from "../../src/api/multivariate-statistics";
 import type { ApiUnivariateSelectionSettings } from "../../src/contracts";
 
 function response(payload: unknown, ok = true, status = 200): Response {
@@ -90,6 +91,7 @@ describe("API client", () => {
     const univariateRequest = { metadata_selection_id: "selection/a", quote_run_id: "quote/a" };
     const settings: ApiUnivariateSelectionSettings = { dividend_frequencies: ["monthly"], statistic_labels: {}, statistic_ranges: {} };
     const bivariateRequest = { univariate_selection_id: "selection/a" };
+    const multivariateRequest = { project_id: "project/a", bivariate_run_id: "run/a", settings: { target: "monthly-income" } };
 
     await Promise.all([
       metadataBuilderApi.loadCredentialStatus(), metadataBuilderApi.loadCredentialValue(), metadataBuilderApi.loadFetchRun("run/a"),
@@ -100,6 +102,9 @@ describe("API client", () => {
       univariateStatisticsApi.saveSelectionSettings("project/a", settings),
       bivariateStatisticsApi.plan(bivariateRequest), bivariateStatisticsApi.startRun(bivariateRequest), bivariateStatisticsApi.loadRun("run/a"),
       bivariateStatisticsApi.loadRunData("run/a"),
+      multivariateStatisticsApi.startRun(multivariateRequest), multivariateStatisticsApi.loadRun("run/a"),
+      multivariateStatisticsApi.loadSummary("run/a"), multivariateStatisticsApi.loadStructure("run/a"),
+      multivariateStatisticsApi.loadCandidates("run/a"), multivariateStatisticsApi.loadValidation("run/a"),
     ]);
 
     expect(fetchMock.mock.calls.map(([path]) => path)).toEqual(expect.arrayContaining([
@@ -112,6 +117,12 @@ describe("API client", () => {
       "/api/bivariate-statistics/runs/run%2Fa/correlation-matrix?metric=rolling_stability",
       "/api/bivariate-statistics/runs/run%2Fa/correlation-matrix?metric=drawdown_overlap",
       "/api/bivariate-statistics/runs/run%2Fa/tail-risk-scatter",
+      "/api/multivariate-statistics/runs",
+      "/api/multivariate-statistics/runs/run%2Fa",
+      "/api/multivariate-statistics/runs/run%2Fa/summary",
+      "/api/multivariate-statistics/runs/run%2Fa/structure",
+      "/api/multivariate-statistics/runs/run%2Fa/candidates",
+      "/api/multivariate-statistics/runs/run%2Fa/validation",
     ]));
   });
 });

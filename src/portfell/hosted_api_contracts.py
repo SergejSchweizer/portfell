@@ -101,6 +101,14 @@ class BivariateSelectionRequest(BaseModel):
     univariate_selection_id: str
 
 
+class MultivariateRunRequest(BaseModel):
+    """Pinned Bivariate dependency and bounded project settings."""
+
+    project_id: str = Field(min_length=1, max_length=160)
+    bivariate_run_id: str = Field(min_length=1, max_length=160)
+    settings: JsonRow = Field(default_factory=dict)
+
+
 class LoadSelectedIsinsRequest(BaseModel):
     """Request to load quote data for one user-owned project selection."""
 
