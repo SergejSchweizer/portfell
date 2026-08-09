@@ -135,35 +135,6 @@ class MultivariateResearchService:
             "settings": dict(settings),
         }
 
-    def plan(
-        self, user_id: str, project_id: str, bivariate_run_id: str, settings: JsonRow
-    ) -> JsonRow:
-        """Return a read-only, project-authorized execution plan before starting work."""
-        require_user_row(self._state.projects_by_id, project_id, user_id)
-        bivariate = require_user_row(self._state.bivariate_runs_by_id, bivariate_run_id, user_id)
-        selection = self._selection_for_bivariate(user_id, bivariate_run_id)
-        metadata = self._metadata_selection_for_project(user_id, project_id)
-        reasons = [] if bivariate.status == "complete" else ["bivariate_run_not_complete"]
-        return {
-            "allowed": not reasons,
-            "reasons": reasons,
-            "project_id": project_id,
-            "bivariate_run_id": bivariate_run_id,
-            "metadata_selection_id": metadata.selection_id,
-            "univariate_selection_id": selection.selection_id,
-            "listing_count": len(selection.member_ids),
-            "total_units": 6,
-            "phases": [
-                "resolve_inputs",
-                "build_risk_model",
-                "build_structure",
-                "build_income_evidence",
-                "build_candidates",
-                "validate_candidates",
-            ],
-            "settings": dict(settings),
-        }
-
     def complete(self, user_id: str, run_id: str) -> None:
         run = require_user_row(self._state.multivariate_runs_by_id, run_id, user_id)
         if run.status != "running":
