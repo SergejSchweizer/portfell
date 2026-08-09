@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date, timedelta
+from pathlib import Path
 
 from portfell.hosted_api_state import HostedApiState, ProjectRecord
 from portfell.hosted_multivariate_service import MultivariateResearchService
@@ -11,6 +12,8 @@ from portfell.hosted_research_workflow import (
     UnivariateSelection,
     bivariate_source_id,
 )
+from portfell.hosted_workspace import LocalWorkspaceStore
+from portfell.hosted_workspace_repository import persist_local_workspace, restore_local_workspace
 from portfell.table_io import JsonRow
 
 
@@ -159,3 +162,28 @@ def test_multivariate_service_rejects_bivariate_run_owned_by_another_user() -> N
         assert "not_found" in str(error)
     else:
         raise AssertionError("cross-user bivariate runs must not be usable")
+
+
+def test_multivariate_artifacts_and_project_selection_survive_workspace_restart(
+    tmp_path: Path,
+) -> None:
+    state, data, project_id, bivariate_run_id = _fixtures()
+    store = LocalWorkspaceStore(tmp_path / "workspace.json")
+    state.workspace_store = store
+    service = MultivariateResearchService(state, data, _Persistence())
+    started = service.start("user-a", project_id, bivariate_run_id, {})
+    service.complete("user-a", str(started["run_id"]))
+    candidate_id = str(
+        service.candidates("user-a", str(started["run_id"]))["items"][0]["candidate_id"]
+    )
+    service.update_settings("user-a", str(started["run_id"]), (candidate_id,))
+    persist_local_workspace(state)
+
+    restored = HostedApiState()
+    restore_local_workspace(restored, store.load())
+    run = restored.multivariate_runs_by_id[str(started["run_id"])]
+
+    assert run.status == "complete"
+    assert run.artifacts["input_snapshot"]["snapshot_id"] == run.input_snapshot_id
+    assert run.settings["selected_candidate_ids"] == [candidate_id]
+    assert restored.current_multivariate_run_by_project[project_id] == started["run_id"]
