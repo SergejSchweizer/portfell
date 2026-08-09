@@ -124,6 +124,30 @@ services:
           cpus: "1.0"
           memory: 512M
 
+  shared-market-refresh:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    profiles: ["operations"]
+    restart: "no"
+    command: ["python", "-m", "portfell.shared_market_refresh"]
+    environment:
+      PORTFELL_SHARED_DATA_ROOT: /srv/portfell/shared-data
+      PORTFELL_EODHD_KEK_FILE: /run/secrets/eodhd_kek
+    secrets:
+      - eodhd_kek
+    volumes:
+      - portfell-shared-data:/srv/portfell/shared-data
+    networks:
+      - portfell-internal
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
 networks:
   portfell-internal:
     internal: true

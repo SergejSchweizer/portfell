@@ -2,17 +2,23 @@
 
 from __future__ import annotations
 
+import argparse
 import fcntl
 import json
 import os
-from collections.abc import Callable, Generator, Iterable, Mapping
+from collections.abc import Callable, Generator, Iterable, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import date, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
+from portfell.config import EodhdConfig
+from portfell.hosted_api import create_persistent_local_workspace_state
+from portfell.hosted_api_state import DEFAULT_LOCAL_WORKSPACE_USER_ID, HostedApiState
+from portfell.hosted_credentials import load_key_encryption_key
+from portfell.http import EodhdClient
 from portfell.shared_market_data import (
     SharedListingKey,
     SharedMarketDataStore,
@@ -107,7 +113,7 @@ def plan_refresh(
 def refresh_shared_market_data(
     *,
     store: SharedMarketDataStore,
-    state: object,
+    state: HostedApiState,
     fetch: ProviderFetch,
     end_date: date,
     concurrency: int = 4,
@@ -117,7 +123,7 @@ def refresh_shared_market_data(
 
     if concurrency < 1:
         raise SharedMarketRefreshError("invalid_refresh_concurrency")
-    listings = active_project_inventory(state)  # type: ignore[arg-type]
+    listings = active_project_inventory(state)
     requests = plan_refresh(store, listings, end_date=end_date)
     result_hash = inventory_hash(listings)
     if dry_run:
@@ -199,3 +205,89 @@ def _write_manifest(root: Path, result: RefreshResult) -> None:
     path = root / "refresh-runs" / f"{result.target_date}.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(result.row(), sort_keys=True) + "\n", encoding="utf-8")
+
+
+def build_parser() -> argparse.ArgumentParser:
+    """Build the non-interactive shared market refresh command parser."""
+
+    parser = argparse.ArgumentParser(description="Refresh canonical Portfell shared market data.")
+    parser.add_argument("--end-date", type=date.fromisoformat, default=date.today())
+    parser.add_argument("--concurrency", type=int, default=4)
+    parser.add_argument("--dry-run", action="store_true")
+    return parser
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """Run the refresh using the encrypted local-workspace credential only in-process."""
+
+    args = build_parser().parse_args(argv)
+    root = os.environ.get("PORTFELL_SHARED_DATA_ROOT")
+    key_file = os.environ.get("PORTFELL_EODHD_KEK_FILE")
+    if not root or not key_file:
+        return 4
+    try:
+        state = create_persistent_local_workspace_state(
+            Path(root),
+            key_encryption_key=load_key_encryption_key(
+                Path(key_file), version=os.environ.get("PORTFELL_EODHD_KEK_VERSION", "local-v1")
+            ),
+        )
+        store = state.shared_market_data_store
+        if store is None:
+            return 6
+        if args.dry_run:
+            result = refresh_shared_market_data(
+                store=store,
+                state=state,
+                fetch=lambda _: (),
+                end_date=args.end_date,
+                concurrency=args.concurrency,
+                dry_run=True,
+            )
+        else:
+            key = state.credential_vault().unwrap_for_provider_call(
+                user_id=os.environ.get(
+                    "PORTFELL_LOCAL_WORKSPACE_USER_ID", DEFAULT_LOCAL_WORKSPACE_USER_ID
+                )
+            )
+            client = EodhdClient(EodhdConfig(api_token=key))
+            result = refresh_shared_market_data(
+                store=store,
+                state=state,
+                fetch=_eodhd_fetch(client),
+                end_date=args.end_date,
+                concurrency=args.concurrency,
+            )
+    except SharedMarketRefreshError as error:
+        return 2 if str(error) == "shared_market_refresh_locked" else 5
+    except Exception:
+        return 4
+    print(json.dumps(result.row(), sort_keys=True))
+    return 0
+
+
+def _eodhd_fetch(client: EodhdClient) -> ProviderFetch:
+    endpoints = {"quotes": "eod", "dividends": "div", "splits": "splits"}
+
+    def fetch(request: RefreshRequest) -> Iterable[Mapping[str, Any]]:
+        params: dict[str, str] = {"fmt": "json", "to": request.end_date}
+        if request.start_date:
+            params["from"] = request.start_date
+        payload = client.get_json(
+            f"/{endpoints[request.dataset_type]}/{request.listing.code}.{request.listing.exchange}",
+            params,
+        )
+        if not isinstance(payload, list):
+            raise SharedMarketRefreshError("provider_response_invalid")
+        payload_rows = cast(list[object], payload)
+        return [
+            {**request.listing.as_row(), **dict(cast(Mapping[str, Any], row))}
+            for row in payload_rows
+            if isinstance(row, Mapping)
+        ]
+
+    return fetch
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
