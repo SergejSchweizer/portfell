@@ -267,6 +267,16 @@ must add an explicit persisted input/output contract rather than couple to
 another module's browser state. The detailed UI contract is documented in
 `docs/ui/workflow-modules.md`.
 
+### Multivariate input provenance
+
+Before any portfolio computation, `portfell.multivariate_inputs` creates a
+versioned `MultivariateInputSnapshot` from the project's explicit Metadata,
+Univariate, and completed matching Bivariate dependencies. The snapshot hashes
+the full `(isin, exchange, code)` listing identity, artifact identities and
+common calendar; it never authorizes a `current_selection` pointer. Its initial
+monthly-distribution ETF policy and stable rejection reasons are documented in
+[`docs/multivariate-input-snapshot.md`](docs/multivariate-input-snapshot.md).
+
 ## Local Research Funnel
 
 ### 1. Instrument reference
