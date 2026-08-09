@@ -244,11 +244,13 @@ def test_bivariate_facts_show_the_universe_aligned_data_period() -> None:
     page = (WEB_ROOT / "src" / "pages" / "bivariate-statistics.tsx").read_text(encoding="utf-8")
     contracts = (WEB_ROOT / "src" / "contracts.ts").read_text(encoding="utf-8")
 
-    assert page.count("Aligned data period") == 4
+    assert page.count("Aligned data period") == 5
     assert "dateStart={summary?.date_start} dateEnd={summary?.date_end}" in page
     assert "dataPeriod(matrix.date_start, matrix.date_end)" in page
     assert "lower_tail_dependence" in page
     assert "tail_coexceedance_rate" in page
+    assert "TailRiskScatter" in page
+    assert "Tail-Risk Scatter" in page
     assert contracts.count("date_start: string;") >= 4
     assert contracts.count("date_end: string;") >= 4
 

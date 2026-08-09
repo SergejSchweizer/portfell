@@ -1278,13 +1278,15 @@ Priority: P1 pairwise tail-risk visibility.
 Depends on: PR141.
 
 Scope: Expose persisted lower-tail-dependence and tail-coexceedance pair results as colour-scaled,
-upper-triangular matrices. Add both views as tabs to the existing Bivariate Statistics dependence
-window, with the same aligned-period, hover, and label conventions as correlation matrices.
+upper-triangular matrices and a complete-pair tail-risk scatterplot. Add all views as tabs to the
+existing Bivariate Statistics dependence window, with the same aligned-period, hover, and label
+conventions as correlation matrices.
 
 Acceptance: A completed bivariate run provides typed Tail Dependence and Co-exceedance Rate matrix
 payloads; each matrix has the selected universe's shared date range and observation count; both tabs
-show matrix values, ISIN hover context, and tail-specific facts; and the two-project browser journey
-selects every new tab.
+show matrix values, ISIN hover context, and tail-specific facts; the scatterplot has one point per
+pair, Tail Dependence on X, Co-exceedance Rate on Y, and labelled best-diversifier/risk-concentration
+quadrants; and the two-project browser journey selects every new tab.
 
 Security: Matrix reads remain authenticated, project-scoped, and derived only from persisted bivariate
 run rows.

@@ -32,6 +32,11 @@ Dependence, and Co-exceedance Rate as tabs. Tail Dependence and Co-exceedance Ra
 upper-triangular, colour-scaled, hoverable matrix treatment as the correlation tabs. Their facts
 tables show the aligned period, pair count, shared observations, and distribution summary.
 
+The Tail-Risk Scatter tab renders one point per ISIN pair, with Tail Dependence on the horizontal
+axis and Co-exceedance Rate on the vertical axis. Its server-provided medians form four visually
+labelled quadrants: lower-left is the best-diversifier region and upper-right is the joint-tail-risk
+concentration region. It loads the complete persisted pair set rather than the bounded results page.
+
 The persistent project sidebar identifies the active project and three-module
 workflow hierarchy. A project switch clears the local pair plan, run, results,
 and status message before this page loads the replacement project workflow.

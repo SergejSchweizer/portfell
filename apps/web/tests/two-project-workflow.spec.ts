@@ -154,9 +154,10 @@ async function installTwoProjectApi(page: Page): Promise<WorkflowFixture> {
       return response(route, { run_id: project.bivariateRunId, status: "complete", total: 3, completed: 3, failed: 0, percent: 100 });
     }
     if (method === "GET" && /^\/api\/bivariate-statistics\/runs\/[^/]+$/.test(path)) return response(route, { run_id: path.split("/").at(-1), status: "complete", total: 3, completed: 3, failed: 0, percent: 100 });
-    if (method === "GET" && path.includes("/bivariate-statistics/runs/") && path.endsWith("/results")) return response(route, { items: [{ left_isin: labels[0].isin, left_exchange: "XETRA", left_code: "ALPHA", right_isin: labels[1].isin, right_exchange: "XETRA", right_code: "BETA", n_observations: 252, covariance: 0.12, pearson_correlation: 0.6, spearman_correlation: 0.5, downside_correlation: 0.7 }], total: 1, limit: 50, offset: 0 });
+    if (method === "GET" && path.includes("/bivariate-statistics/runs/") && path.endsWith("/results")) return response(route, { items: [{ left_isin: labels[0].isin, left_exchange: "XETRA", left_code: "ALPHA", right_isin: labels[1].isin, right_exchange: "XETRA", right_code: "BETA", n_observations: 252, covariance: 0.12, pearson_correlation: 0.6, spearman_correlation: 0.5, downside_correlation: 0.7, lower_tail_dependence: 0.12, tail_coexceedance_rate: 0.08 }], total: 1, limit: 50, offset: 0 });
     if (method === "GET" && path.endsWith("/covariance-matrix")) return response(route, { labels, values: matrix, observation_count: 252, diagnostics: { listing_count: 3, pair_count: 3, observation_count: 252, average_pairwise_covariance: 0.09, average_pairwise_correlation: 0.4, equal_weight_volatility: 0.12, minimum_variance_volatility: 0.1, diversification_ratio: 1.2, effective_number_of_bets: 2.4, largest_equal_weight_risk_contribution: 0.4 } });
     if (method === "GET" && path.endsWith("/summary")) return response(route, bivariateSummary());
+    if (method === "GET" && path.endsWith("/tail-risk-scatter")) return response(route, { points: [{ left_isin: labels[0].isin, left_exchange: "XETRA", left_code: "ALPHA", right_isin: labels[1].isin, right_exchange: "XETRA", right_code: "BETA", tail_dependence: 0.12, coexceedance_rate: 0.08 }], pair_count: 1, observation_count: 252, date_start: "2024-01-02", date_end: "2024-12-31", tail_dependence_median: 0.12, coexceedance_rate_median: 0.08 });
     if (method === "GET" && path.endsWith("/correlation-matrix")) return response(route, { labels, values: matrix, observation_count: 252 });
     throw new Error(`Unhandled UI request: ${method} ${path}`);
   });
@@ -240,7 +241,7 @@ test("two dummy projects created through the UI preserve every research control 
   await page.goto("/bivariate-statistics");
   await page.getByRole("button", { name: "Compute Bivariate Statistics" }).click();
   await expect(page.getByText("1 pair statistics computed.")).toBeVisible();
-  for (const tab of ["Covariance", "Pearson", "Spearman", "Downside", "Tail Dependence", "Co-exceedance Rate"]) {
+  for (const tab of ["Covariance", "Pearson", "Spearman", "Downside", "Tail Dependence", "Co-exceedance Rate", "Tail-Risk Scatter"]) {
     await page.getByRole("tab", { name: tab }).click();
     await expect(page.getByRole("tab", { name: tab })).toHaveAttribute("aria-selected", "true");
   }

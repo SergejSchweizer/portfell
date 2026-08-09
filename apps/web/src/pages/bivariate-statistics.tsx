@@ -1,14 +1,14 @@
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { loadWorkflow } from "../api/client";
 import { bivariateStatisticsApi, type BivariateRunData } from "../api/bivariate-statistics";
 import { Button } from "../components/button";
 import { LoadingState } from "../components/loading-state";
 import { Panel } from "../components/panel";
-import type { ApiBivariateMetricSummary, ApiBivariateRow, ApiBivariateSummary, ApiCovarianceMatrix, ApiPage, ApiPairMetricMatrix, ApiPairPlan, ApiResearchRun } from "../contracts";
+import type { ApiBivariateMetricSummary, ApiBivariateRow, ApiBivariateSummary, ApiCovarianceMatrix, ApiPage, ApiPairMetricMatrix, ApiPairPlan, ApiResearchRun, ApiTailRiskScatter } from "../contracts";
 import { useResource } from "../hooks/use-resource";
 
-type PairwiseMatrixMetric = "covariance" | "pearson" | "spearman" | "downside" | "lower_tail_dependence" | "tail_coexceedance_rate";
+type PairwiseMatrixMetric = "covariance" | "pearson" | "spearman" | "downside" | "lower_tail_dependence" | "tail_coexceedance_rate" | "tail_risk_scatter";
 
 const pairwiseMatrixTabs: readonly Readonly<{ metric: PairwiseMatrixMetric; label: string }>[] = [
   { metric: "covariance", label: "Covariance" },
@@ -17,6 +17,7 @@ const pairwiseMatrixTabs: readonly Readonly<{ metric: PairwiseMatrixMetric; labe
   { metric: "downside", label: "Downside" },
   { metric: "lower_tail_dependence", label: "Tail Dependence" },
   { metric: "tail_coexceedance_rate", label: "Co-exceedance Rate" },
+  { metric: "tail_risk_scatter", label: "Tail-Risk Scatter" },
 ];
 
 function metric(value: number | null | undefined): string {
@@ -102,6 +103,75 @@ function PairMatrix({
   </div>;
 }
 
+function TailRiskScatter({ scatter }: { scatter: ApiTailRiskScatter | null }) {
+  const canvas = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const element = canvas.current;
+    if (!element || !scatter) return;
+    const context = element.getContext("2d");
+    if (!context) return;
+    const width = element.width;
+    const height = element.height;
+    const padding = { left: 58, right: 20, top: 22, bottom: 46 };
+    const plotWidth = width - padding.left - padding.right;
+    const plotHeight = height - padding.top - padding.bottom;
+    const x = (value: number) => padding.left + Math.min(1, Math.max(0, value)) * plotWidth;
+    const y = (value: number) => padding.top + (1 - Math.min(1, Math.max(0, value))) * plotHeight;
+    const xMedian = scatter.tail_dependence_median ?? 0.5;
+    const yMedian = scatter.coexceedance_rate_median ?? 0.5;
+
+    context.clearRect(0, 0, width, height);
+    context.fillStyle = "#edf8f1";
+    context.fillRect(padding.left, y(yMedian), x(xMedian) - padding.left, y(0) - y(yMedian));
+    context.fillStyle = "#fff0ef";
+    context.fillRect(x(xMedian), padding.top, x(1) - x(xMedian), y(yMedian) - padding.top);
+    context.strokeStyle = "#c7cdd4";
+    context.lineWidth = 1;
+    context.beginPath();
+    context.moveTo(padding.left, padding.top);
+    context.lineTo(padding.left, y(0));
+    context.lineTo(x(1), y(0));
+    context.stroke();
+    context.setLineDash([4, 4]);
+    context.beginPath();
+    context.moveTo(x(xMedian), padding.top);
+    context.lineTo(x(xMedian), y(0));
+    context.moveTo(padding.left, y(yMedian));
+    context.lineTo(x(1), y(yMedian));
+    context.stroke();
+    context.setLineDash([]);
+    context.font = "12px system-ui";
+    context.fillStyle = "#137333";
+    context.fillText("Best diversifiers", padding.left + 8, y(0) - 10);
+    context.fillStyle = "#b3261e";
+    context.fillText("Tail-risk concentration", x(xMedian) + 8, padding.top + 16);
+    for (const point of scatter.points) {
+      const isBestDiversifier = point.tail_dependence <= xMedian && point.coexceedance_rate <= yMedian;
+      const isDangerous = point.tail_dependence > xMedian && point.coexceedance_rate > yMedian;
+      context.fillStyle = isDangerous ? "rgba(211, 47, 47, .74)" : isBestDiversifier ? "rgba(19, 115, 51, .74)" : "rgba(23, 105, 224, .58)";
+      context.beginPath();
+      context.arc(x(point.tail_dependence), y(point.coexceedance_rate), 3, 0, Math.PI * 2);
+      context.fill();
+    }
+    context.fillStyle = "#5f6368";
+    context.fillText("0%", padding.left - 8, y(0) + 18);
+    context.fillText("100%", x(1) - 25, y(0) + 18);
+    context.save();
+    context.translate(15, padding.top + plotHeight / 2);
+    context.rotate(-Math.PI / 2);
+    context.fillText("Co-exceedance Rate", 0, 0);
+    context.restore();
+    context.fillText("Tail Dependence", padding.left + plotWidth / 2 - 44, height - 8);
+  }, [scatter]);
+
+  if (!scatter) return <div className="bivariate-statistic__results"><p className="status-line">Compute bivariate statistics to populate the tail-risk scatterplot.</p></div>;
+  return <div className="bivariate-statistic__results">
+    <p className="bivariate-statistic__matrix-caption">One point per ISIN pair · {dataPeriod(scatter.date_start, scatter.date_end)} · {scatter.observation_count.toLocaleString()} shared observations</p>
+    <canvas ref={canvas} className="tail-risk-scatter" width={720} height={360} role="img" aria-label={`Tail dependence against co-exceedance rate for ${scatter.pair_count.toLocaleString()} ISIN pairs`} />
+    <p className="tail-risk-scatter__legend"><span className="tail-risk-scatter__legend-good" /> Best diversifiers <span className="tail-risk-scatter__legend-neutral" /> Mixed tail profile <span className="tail-risk-scatter__legend-bad" /> Tail-risk concentration</p>
+  </div>;
+}
+
 export function BivariateStatisticsPage() {
   const [workflowRevision, setWorkflowRevision] = useState(0);
   const workflow = useResource(loadWorkflow, [workflowRevision]);
@@ -113,6 +183,7 @@ export function BivariateStatisticsPage() {
   const [downsideMatrix, setDownsideMatrix] = useState<ApiPairMetricMatrix | null>(null);
   const [lowerTailDependenceMatrix, setLowerTailDependenceMatrix] = useState<ApiPairMetricMatrix | null>(null);
   const [tailCoexceedanceRateMatrix, setTailCoexceedanceRateMatrix] = useState<ApiPairMetricMatrix | null>(null);
+  const [tailRiskScatter, setTailRiskScatter] = useState<ApiTailRiskScatter | null>(null);
   const [summary, setSummary] = useState<ApiBivariateSummary | null>(null);
   const [hoveredMatrixCell, setHoveredMatrixCell] = useState<{ row: number; column: number } | null>(null);
   const [activePairwiseMetric, setActivePairwiseMetric] = useState<PairwiseMatrixMetric>("covariance");
@@ -130,6 +201,7 @@ export function BivariateStatisticsPage() {
     setDownsideMatrix(data.downside);
     setLowerTailDependenceMatrix(data.lowerTailDependence);
     setTailCoexceedanceRateMatrix(data.tailCoexceedanceRate);
+    setTailRiskScatter(data.tailRiskScatter);
   }
 
   useEffect(() => {
@@ -142,6 +214,7 @@ export function BivariateStatisticsPage() {
       setDownsideMatrix(null);
       setLowerTailDependenceMatrix(null);
       setTailCoexceedanceRateMatrix(null);
+      setTailRiskScatter(null);
       setSummary(null);
       setMessage("");
       setWorkflowRevision((value) => value + 1);
@@ -287,7 +360,20 @@ export function BivariateStatisticsPage() {
         </div>
         <div className="bivariate-statistic__facts">
           <h3 id="pairwise-dependence-title">{activePairwiseMetric === "covariance" ? "Covariance" : activePairwiseMetric === "pearson" ? "Pearson Correlation" : activePairwiseMetric === "spearman" ? "Spearman Correlation" : activePairwiseMetric === "downside" ? "Downside Correlation" : activeMatrixTitle}</h3>
-          {activePairwiseMetric === "lower_tail_dependence" || activePairwiseMetric === "tail_coexceedance_rate" ? <>
+          {activePairwiseMetric === "tail_risk_scatter" ? <>
+            <p>Each point compares one ISIN pair's lower-tail dependence with its simultaneous lower-tail event rate. The lower-left quadrant identifies the strongest tail-risk diversifiers; the upper-right quadrant identifies the most concentrated joint-tail exposure.</p>
+            <p className="univariate-equation">(λᴸᵢⱼ, Cᵢⱼ)</p>
+            <p className="univariate-notation">λᴸ: lower-tail dependence · C: co-exceedance rate · i, j: ISIN pair</p>
+            <dl>
+              <div><dt>Aligned data period</dt><dd>{dataPeriod(tailRiskScatter?.date_start, tailRiskScatter?.date_end)}</dd></div>
+              <div><dt>ISIN pairs plotted</dt><dd>{tailRiskScatter?.pair_count.toLocaleString() ?? "—"}</dd></div>
+              <div><dt>Shared observations</dt><dd>{tailRiskScatter?.observation_count.toLocaleString() ?? "—"}</dd></div>
+              <div><dt>Tail-dependence median</dt><dd>{percent(tailRiskScatter?.tail_dependence_median)}</dd></div>
+              <div><dt>Co-exceedance median</dt><dd>{percent(tailRiskScatter?.coexceedance_rate_median)}</dd></div>
+              <div><dt>Best-diversifier region</dt><dd>Lower left</dd></div>
+              <div><dt>Highest joint-tail risk</dt><dd>Upper right</dd></div>
+            </dl>
+          </> : activePairwiseMetric === "lower_tail_dependence" || activePairwiseMetric === "tail_coexceedance_rate" ? <>
             <p>{activePairwiseMetric === "lower_tail_dependence" ? "Conditional likelihood that one ISIN is in its worst 5% daily-return tail when the paired ISIN is also in its worst 5% tail." : "Share of shared observations where both ISINs are simultaneously in their respective worst 5% daily-return tails."}</p>
             <p className="univariate-equation">{activePairwiseMetric === "lower_tail_dependence" ? "λᴸᵢⱼ = P(Rⱼ ≤ q₀.₀₅ⱼ | Rᵢ ≤ q₀.₀₅ᵢ)" : "Cᵢⱼ = (1 / T) Σ 𝟙(Rᵢ ≤ q₀.₀₅ᵢ, Rⱼ ≤ q₀.₀₅ⱼ)"}</p>
             <p className="univariate-notation">{activePairwiseMetric === "lower_tail_dependence" ? "R: daily log return · q₀.₀₅: 5th-percentile return · λᴸ: lower-tail dependence" : "R: daily log return · q₀.₀₅: 5th-percentile return · T: shared observations · 𝟙: indicator"}</p>
@@ -304,7 +390,7 @@ export function BivariateStatisticsPage() {
           {activePairwiseMetric === "covariance" ? <><p>Joint variation of return series for every pair in the filtered ISIN universe.</p><p className="univariate-equation">Cov(Rᵢ, Rⱼ) = 𝔼[(Rᵢ − μᵢ)(Rⱼ − μⱼ)]</p><p className="univariate-notation">Rᵢ, Rⱼ: paired returns · μ: mean return · 𝔼: expected value</p><dl><div><dt>Aligned data period</dt><dd>{dataPeriod(covarianceMatrix?.date_start, covarianceMatrix?.date_end)}</dd></div><div><dt>ISINs analysed</dt><dd>{diagnostics?.listing_count.toLocaleString() ?? "—"}</dd></div><div><dt>Unique pairs</dt><dd>{diagnostics?.pair_count.toLocaleString() ?? "—"}</dd></div><div><dt>Shared observations</dt><dd>{diagnostics?.observation_count.toLocaleString() ?? "—"}</dd></div><div><dt>Average covariance</dt><dd>{metric(diagnostics?.average_pairwise_covariance)}</dd></div><div><dt>Average correlation</dt><dd>{metric(diagnostics?.average_pairwise_correlation)}</dd></div><div><dt>Equal-weight volatility</dt><dd>{metric(diagnostics?.equal_weight_volatility)}</dd></div><div><dt>Minimum-variance volatility</dt><dd>{metric(diagnostics?.minimum_variance_volatility)}</dd></div><div><dt>Diversification ratio</dt><dd>{metric(diagnostics?.diversification_ratio)}</dd></div><div><dt>Effective number of bets</dt><dd>{metric(diagnostics?.effective_number_of_bets)}</dd></div><div><dt>Largest risk contribution</dt><dd>{diagnostics?.largest_equal_weight_risk_contribution == null ? "—" : `${(diagnostics.largest_equal_weight_risk_contribution * 100).toFixed(1)}%`}</dd></div></dl></> : <><p>{activePairwiseMetric === "pearson" ? "Linear co-movement of daily log returns for every filtered ISIN pair." : activePairwiseMetric === "spearman" ? "Rank-based co-movement of daily log returns for every filtered ISIN pair." : "Co-movement on days when both ISINs have negative daily log returns."}</p><p className="univariate-equation">{activePairwiseMetric === "pearson" ? "ρᵢⱼ = Cov(Rᵢ, Rⱼ) / (σᵢσⱼ)" : activePairwiseMetric === "spearman" ? "ρˢᵢⱼ = Corr(rank(Rᵢ), rank(Rⱼ))" : "ρ⁻ᵢⱼ = Corr(Rᵢ, Rⱼ | Rᵢ < 0, Rⱼ < 0)"}</p><p className="univariate-notation">{activePairwiseMetric === "pearson" ? "R: daily log return · σ: return standard deviation · ρ: Pearson correlation" : activePairwiseMetric === "spearman" ? "R: daily log return · rank: ordinal return rank · ρˢ: Spearman correlation" : "R: daily log return · ρ⁻: conditional downside correlation"}</p><dl><div><dt>Aligned data period</dt><dd>{dataPeriod(summary?.date_start, summary?.date_end)}</dd></div><div><dt>Pairs analysed</dt><dd>{summary?.pair_count.toLocaleString() ?? "—"}</dd></div><div><dt>Shared observations</dt><dd>{summary?.observation_count.toLocaleString() ?? "—"}</dd></div><div><dt>Average correlation</dt><dd>{percent(activeCorrelation?.mean)}</dd></div><div><dt>Median correlation</dt><dd>{percent(activeCorrelation?.median)}</dd></div><div><dt>Minimum correlation</dt><dd>{percent(activeCorrelation?.minimum)}</dd></div><div><dt>Maximum correlation</dt><dd>{percent(activeCorrelation?.maximum)}</dd></div>{activePairwiseMetric === "pearson" && <><div><dt>Pairs ≥ 0.70</dt><dd>{summary ? `${summary.pearson_diagnostics.high_70_pairs.toLocaleString()} (${(summary.pearson_diagnostics.high_70_pairs / Math.max(1, summary.pair_count) * 100).toFixed(1)}%)` : "—"}</dd></div><div><dt>Pairs ≥ 0.90</dt><dd>{summary ? `${summary.pearson_diagnostics.high_90_pairs.toLocaleString()} (${(summary.pearson_diagnostics.high_90_pairs / Math.max(1, summary.pair_count) * 100).toFixed(1)}%)` : "—"}</dd></div><div><dt>Pairs ≤ 0.30</dt><dd>{summary ? `${summary.pearson_diagnostics.low_30_pairs.toLocaleString()} (${(summary.pearson_diagnostics.low_30_pairs / Math.max(1, summary.pair_count) * 100).toFixed(1)}%)` : "—"}</dd></div><div><dt>Negative pairs</dt><dd>{summary ? `${summary.pearson_diagnostics.negative_pairs.toLocaleString()} (${(summary.pearson_diagnostics.negative_pairs / Math.max(1, summary.pair_count) * 100).toFixed(1)}%)` : "—"}</dd></div><div><dt>10th / 90th percentile</dt><dd>{summary ? `${percent(summary.pearson_diagnostics.percentile_10)} / ${percent(summary.pearson_diagnostics.percentile_90)}` : "—"}</dd></div><div><dt>Most correlated ISIN</dt><dd title={summary?.pearson_diagnostics.most_correlated_listing ?? undefined}>{summary?.pearson_diagnostics.most_correlated_listing ? `${summary.pearson_diagnostics.most_correlated_listing} (${percent(summary.pearson_diagnostics.most_correlated_average)})` : "—"}</dd></div><div><dt>Best diversifier</dt><dd title={summary?.pearson_diagnostics.best_diversifier_listing ?? undefined}>{summary?.pearson_diagnostics.best_diversifier_listing ? `${summary.pearson_diagnostics.best_diversifier_listing} (${percent(summary.pearson_diagnostics.best_diversifier_average)})` : "—"}</dd></div></>}{activePairwiseMetric === "spearman" && <><div><dt>Pairs ≥ 0.70</dt><dd>{summary ? `${summary.spearman_diagnostics.high_70_pairs.toLocaleString()} (${(summary.spearman_diagnostics.high_70_pairs / Math.max(1, summary.pair_count) * 100).toFixed(1)}%)` : "—"}</dd></div><div><dt>Pairs ≥ 0.90</dt><dd>{summary ? `${summary.spearman_diagnostics.high_90_pairs.toLocaleString()} (${(summary.spearman_diagnostics.high_90_pairs / Math.max(1, summary.pair_count) * 100).toFixed(1)}%)` : "—"}</dd></div><div><dt>Pairs ≤ 0.30 / negative</dt><dd>{summary ? `${summary.spearman_diagnostics.low_30_pairs.toLocaleString()} / ${summary.spearman_diagnostics.negative_pairs.toLocaleString()}` : "—"}</dd></div><div><dt>10th / 90th percentile</dt><dd>{summary ? `${percent(summary.spearman_diagnostics.percentile_10)} / ${percent(summary.spearman_diagnostics.percentile_90)}` : "—"}</dd></div><div><dt>Average Pearson gap</dt><dd>{percent(summary?.spearman_diagnostics.average_pearson_gap)}</dd></div><div><dt>Large Pearson gaps (≥ 15 pp)</dt><dd>{summary?.spearman_diagnostics.large_pearson_gap_pairs?.toLocaleString() ?? "—"}</dd></div><div><dt>Most rank-linked ISIN</dt><dd title={summary?.spearman_diagnostics.most_correlated_listing ?? undefined}>{summary?.spearman_diagnostics.most_correlated_listing ? `${summary.spearman_diagnostics.most_correlated_listing} (${percent(summary.spearman_diagnostics.most_correlated_average)})` : "—"}</dd></div><div><dt>Best rank diversifier</dt><dd title={summary?.spearman_diagnostics.best_diversifier_listing ?? undefined}>{summary?.spearman_diagnostics.best_diversifier_listing ? `${summary.spearman_diagnostics.best_diversifier_listing} (${percent(summary.spearman_diagnostics.best_diversifier_average)})` : "—"}</dd></div><div><dt>Rolling rank stability</dt><dd>{percent(summary?.spearman_diagnostics.average_rolling_stability)}</dd></div><div><dt>Rank-correlation clusters</dt><dd>{summary ? `${summary.spearman_diagnostics.cluster_count ?? 0} clusters · largest ${summary.spearman_diagnostics.largest_cluster_size ?? 0} ISINs` : "—"}</dd></div></>}{activePairwiseMetric === "downside" && <><div><dt>Pairs ≥ 0.70 / ≥ 0.90</dt><dd>{summary ? `${summary.downside_diagnostics.high_70_pairs.toLocaleString()} / ${summary.downside_diagnostics.high_90_pairs.toLocaleString()}` : "—"}</dd></div><div><dt>Pairs ≤ 0.30 / negative</dt><dd>{summary ? `${summary.downside_diagnostics.low_30_pairs.toLocaleString()} / ${summary.downside_diagnostics.negative_pairs.toLocaleString()}` : "—"}</dd></div><div><dt>10th / 90th percentile</dt><dd>{summary ? `${percent(summary.downside_diagnostics.percentile_10)} / ${percent(summary.downside_diagnostics.percentile_90)}` : "—"}</dd></div><div><dt>Worst joint-loss pair</dt><dd title={summary?.downside_diagnostics.worst_pair ?? undefined}>{summary?.downside_diagnostics.worst_pair ? `${summary.downside_diagnostics.worst_pair} (${percent(summary.downside_diagnostics.worst_pair_correlation)})` : "—"}</dd></div><div><dt>Best downside diversifier</dt><dd title={summary?.downside_diagnostics.best_diversifier_listing ?? undefined}>{summary?.downside_diagnostics.best_diversifier_listing ? `${summary.downside_diagnostics.best_diversifier_listing} (${percent(summary.downside_diagnostics.best_diversifier_average)})` : "—"}</dd></div><div><dt>Average Pearson gap</dt><dd>{percent(summary?.downside_diagnostics.average_pearson_gap)}</dd></div><div><dt>Large Pearson gaps (≥ 15 pp)</dt><dd>{summary?.downside_diagnostics.large_pearson_gap_pairs?.toLocaleString() ?? "—"}</dd></div><div><dt>Joint-negative days (median / min)</dt><dd>{summary ? `${summary.downside_diagnostics.median_joint_negative_days ?? "—"} / ${summary.downside_diagnostics.minimum_joint_negative_days ?? "—"}` : "—"}</dd></div><div><dt>Rolling downside stability</dt><dd>{percent(summary?.downside_diagnostics.average_rolling_stability)}</dd></div><div><dt>Downside clusters</dt><dd>{summary ? `${summary.downside_diagnostics.cluster_count ?? 0} clusters · largest ${summary.downside_diagnostics.largest_cluster_size ?? 0} ISINs` : "—"}</dd></div></>}</dl></>}
           </>}
         </div>
-        <PairMatrix matrix={activeMatrix} title={activeMatrixTitle} hoveredCell={hoveredMatrixCell} setHoveredCell={setHoveredMatrixCell} />
+        {activePairwiseMetric === "tail_risk_scatter" ? <TailRiskScatter scatter={tailRiskScatter} /> : <PairMatrix matrix={activeMatrix} title={activeMatrixTitle} hoveredCell={hoveredMatrixCell} setHoveredCell={setHoveredMatrixCell} />}
       </section>
       <BivariateMetricWindow
         title="Rolling-correlation Stability"

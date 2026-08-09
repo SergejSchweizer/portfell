@@ -269,6 +269,25 @@ export type ApiPairMetricMatrix = Readonly<{
   date_end: string;
 }>;
 
+export type ApiTailRiskScatter = Readonly<{
+  points: readonly Readonly<{
+    left_isin: string;
+    left_exchange: string;
+    left_code: string;
+    right_isin: string;
+    right_exchange: string;
+    right_code: string;
+    tail_dependence: number;
+    coexceedance_rate: number;
+  }>[];
+  pair_count: number;
+  observation_count: number;
+  date_start: string;
+  date_end: string;
+  tail_dependence_median: number | null;
+  coexceedance_rate_median: number | null;
+}>;
+
 export type ApiCovarianceMatrix = Readonly<{
   labels: readonly Readonly<{ isin: string; exchange: string; code: string; label: string }>[];
   values: readonly (readonly (number | null)[])[];

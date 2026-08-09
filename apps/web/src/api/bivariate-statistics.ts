@@ -9,6 +9,7 @@ import type {
   ApiPairMetricMatrix,
   ApiPairPlan,
   ApiResearchRun,
+  ApiTailRiskScatter,
 } from "../contracts";
 
 export type BivariateSelectionRequest = Readonly<{
@@ -24,6 +25,7 @@ export type BivariateRunData = Readonly<{
   downside: ApiPairMetricMatrix;
   lowerTailDependence: ApiPairMetricMatrix;
   tailCoexceedanceRate: ApiPairMetricMatrix;
+  tailRiskScatter: ApiTailRiskScatter;
 }>;
 
 export type PairMetricMatrixKind = "pearson" | "spearman" | "downside" | "lower_tail_dependence" | "tail_coexceedance_rate";
@@ -57,8 +59,11 @@ export const bivariateStatisticsApi = {
   ): Promise<ApiPairMetricMatrix> => requestJson<ApiPairMetricMatrix>(
     `/api/bivariate-statistics/runs/${encodeURIComponent(runId)}/correlation-matrix?metric=${metric}`,
   ),
+  loadTailRiskScatter: (runId: string): Promise<ApiTailRiskScatter> => requestJson<ApiTailRiskScatter>(
+    `/api/bivariate-statistics/runs/${encodeURIComponent(runId)}/tail-risk-scatter`,
+  ),
   loadRunData: async (runId: string): Promise<BivariateRunData> => {
-    const [results, covariance, summary, pearson, spearman, downside, lowerTailDependence, tailCoexceedanceRate] = await Promise.all([
+    const [results, covariance, summary, pearson, spearman, downside, lowerTailDependence, tailCoexceedanceRate, tailRiskScatter] = await Promise.all([
       bivariateStatisticsApi.loadResults(runId),
       bivariateStatisticsApi.loadCovariance(runId),
       bivariateStatisticsApi.loadSummary(runId),
@@ -67,7 +72,8 @@ export const bivariateStatisticsApi = {
       bivariateStatisticsApi.loadCorrelation(runId, "downside"),
       bivariateStatisticsApi.loadCorrelation(runId, "lower_tail_dependence"),
       bivariateStatisticsApi.loadCorrelation(runId, "tail_coexceedance_rate"),
+      bivariateStatisticsApi.loadTailRiskScatter(runId),
     ]);
-    return { results, covariance, summary, pearson, spearman, downside, lowerTailDependence, tailCoexceedanceRate };
+    return { results, covariance, summary, pearson, spearman, downside, lowerTailDependence, tailCoexceedanceRate, tailRiskScatter };
   },
 };

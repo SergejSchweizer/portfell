@@ -1004,6 +1004,12 @@ def test_scoped_research_runs_filter_and_build_unique_pairs() -> None:
             headers=_headers(csrf=False),
         )
     )
+    tail_scatter = _json(
+        client.get(
+            f"/bivariate-statistics/runs/{bivariate['run_id']}/tail-risk-scatter",
+            headers=_headers(csrf=False),
+        )
+    )
 
     assert repeated["run_id"] == univariate["run_id"]
     assert univariate_status["status"] == "complete"
@@ -1024,6 +1030,9 @@ def test_scoped_research_runs_filter_and_build_unique_pairs() -> None:
     assert isinstance(downside_matrix["values"][0][1], float)
     assert isinstance(tail_dependence_matrix["values"][0][1], float)
     assert isinstance(coexceedance_matrix["values"][0][1], float)
+    assert tail_scatter["pair_count"] == 3
+    assert tail_scatter["points"][0]["tail_dependence"] >= 0.0
+    assert tail_scatter["points"][0]["coexceedance_rate"] >= 0.0
     assert set(summary["metrics"]) >= {
         "pearson_correlation",
         "downside_correlation",

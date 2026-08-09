@@ -84,6 +84,40 @@ def build_correlation_matrix(rows: tuple[JsonRow, ...], metric: str) -> JsonRow:
     }
 
 
+def build_tail_risk_scatter(rows: tuple[JsonRow, ...]) -> JsonRow:
+    """Expose all persisted tail-risk pair values for a portfolio-selection scatterplot."""
+
+    date_start, date_end = _shared_date_range(rows)
+    points = [
+        {
+            "left_isin": row["left_isin"],
+            "left_exchange": row["left_exchange"],
+            "left_code": row["left_code"],
+            "right_isin": row["right_isin"],
+            "right_exchange": row["right_exchange"],
+            "right_code": row["right_code"],
+            "tail_dependence": float(row["lower_tail_dependence"]),
+            "coexceedance_rate": float(row["tail_coexceedance_rate"]),
+        }
+        for row in rows
+        if row.get("lower_tail_dependence") is not None
+        and row.get("tail_coexceedance_rate") is not None
+    ]
+    tail_summary = bivariate_metric_summary([float(point["tail_dependence"]) for point in points])
+    coexceedance_summary = bivariate_metric_summary(
+        [float(point["coexceedance_rate"]) for point in points]
+    )
+    return {
+        "points": points,
+        "pair_count": len(points),
+        "observation_count": _average_observations(rows),
+        "date_start": date_start,
+        "date_end": date_end,
+        "tail_dependence_median": tail_summary["median"],
+        "coexceedance_rate_median": coexceedance_summary["median"],
+    }
+
+
 def build_covariance_matrix(
     quote_rows: Sequence[Mapping[str, Any]], member_ids: tuple[str, ...]
 ) -> JsonRow:

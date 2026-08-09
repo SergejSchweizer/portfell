@@ -192,6 +192,12 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 .covariance-matrix__legend-negative { background: hsl(8 74% 70%); }
 .covariance-matrix__legend-neutral { background: #f1f5f9; border: 1px solid var(--border); }
 .covariance-matrix__legend-positive { background: hsl(152 58% 62%); }
+.tail-risk-scatter { display: block; width: min(100%, 720px); height: auto; margin: 0 auto; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); }
+.tail-risk-scatter__legend { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-2); margin: var(--space-2) 0 0; color: var(--text-muted); font-size: 11px; }
+.tail-risk-scatter__legend span { width: 10px; height: 10px; margin: 2px 0 0; border-radius: 50%; }
+.tail-risk-scatter__legend-good { background: #137333; }
+.tail-risk-scatter__legend-neutral { background: var(--accent); }
+.tail-risk-scatter__legend-bad { background: var(--danger); }
 .univariate-statistic { display: grid; gap: var(--space-6); padding: var(--space-4); border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--canvas); }
 .univariate-statistic .dividend-statistic, .univariate-statistic .univariate-group-card { margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; }
 .dividend-statistic {

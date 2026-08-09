@@ -151,6 +151,10 @@ def research_router(
     def bivariate_covariance_matrix(run_id: str, user: ApiUser = Depends(current_user)) -> JsonRow:
         return call(service.bivariate_covariance_matrix, user.user_id, run_id)
 
+    @router.get("/bivariate-statistics/runs/{run_id}/tail-risk-scatter")
+    def bivariate_tail_risk_scatter(run_id: str, user: ApiUser = Depends(current_user)) -> JsonRow:
+        return call(service.bivariate_tail_risk_scatter, user.user_id, run_id)
+
     @router.post("/analyses")
     def create_analysis(
         payload: AnalysisCreateRequest,
