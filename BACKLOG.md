@@ -1271,7 +1271,7 @@ Series Completion Gate: Follow the current pre-merge and post-merge gates in [GA
 
 Branch: `fix/aligned-statistics-time-ranges`.
 
-Git status: in progress. PR: TBD.
+Git status: pushed. Draft PR: https://github.com/SergejSchweizer/portfell/pull/249.
 
 Priority: P0 statistical comparability and provenance.
 
