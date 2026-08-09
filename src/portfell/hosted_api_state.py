@@ -95,6 +95,29 @@ class AnalysisRecord:
     report: JsonRow
 
 
+@dataclass(frozen=True)
+class MultivariateRunRecord:
+    """Project-owned persisted Multivariate run and API-ready result sections."""
+
+    run_id: str
+    user_id: str
+    project_id: str
+    bivariate_run_id: str
+    input_snapshot_id: str
+    logical_hash: str
+    status: str
+    phase: str
+    completed_units: int
+    total_units: int
+    settings: JsonRow
+    summary: JsonRow
+    structure: JsonRow
+    candidates: tuple[JsonRow, ...]
+    validation: tuple[JsonRow, ...]
+    warnings: tuple[str, ...] = ()
+    failure_reason: str | None = None
+
+
 @dataclass
 class HostedApiState:
     """In-memory hosted API repository set for deterministic tests and local dev."""
@@ -139,6 +162,12 @@ class HostedApiState:
     )
     bivariate_runs_by_id: dict[str, ResearchRun] = field(
         default_factory=lambda: dict[str, ResearchRun]()
+    )
+    multivariate_runs_by_id: dict[str, MultivariateRunRecord] = field(
+        default_factory=lambda: dict[str, MultivariateRunRecord]()
+    )
+    current_multivariate_run_by_project: dict[str, str] = field(
+        default_factory=lambda: dict[str, str]()
     )
     quote_run_by_univariate_run_id: dict[str, str] = field(default_factory=lambda: dict[str, str]())
     current_metadata_selection_by_user: dict[str, str] = field(

@@ -18,6 +18,7 @@ from portfell.hosted_api_contracts import (
     DownloadRequest,
     LoadSelectedIsinsRequest,
     MetadataBuilderProjectRequest,
+    MultivariateRunRequest,
     ProjectCreateRequest,
     SelectionCreateRequest,
     UnivariateRunRequest,
@@ -44,6 +45,7 @@ from portfell.hosted_credentials import (
     load_key_encryption_key,
 )
 from portfell.hosted_metadata_project_service import MetadataProjectService
+from portfell.hosted_multivariate_service import MultivariateResearchService
 from portfell.hosted_quote_run_service import QuoteRunService
 from portfell.hosted_research_persistence import LocalResearchPersistence
 from portfell.hosted_research_ports import ResearchDataPort
@@ -75,6 +77,7 @@ __all__ = [
     "LoadSelectedIsinsRequest",
     "LocalWorkspaceUserProvider",
     "MetadataBuilderProjectRequest",
+    "MultivariateRunRequest",
     "ProjectCreateRequest",
     "ProjectRecord",
     "SelectionCreateRequest",
@@ -120,6 +123,7 @@ def _research_service(state: HostedApiState, data: ResearchDataPort) -> Research
     return ResearchService(
         UnivariateResearchService(repository, data, persistence),
         BivariateResearchService(repository, data, persistence),
+        MultivariateResearchService(state, data, persistence),
         HostedAnalysisService(repository, persistence),
     )
 

@@ -1,0 +1,270 @@
+"""Project-scoped Multivariate application service.
+
+This service resolves an explicit completed Bivariate run and its dependency
+closure. It deliberately does not call the generic analysis placeholder.
+"""
+
+from __future__ import annotations
+
+from dataclasses import replace
+
+from portfell.gold import build_returns
+from portfell.hosted_api_errors import HostedApplicationError
+from portfell.hosted_api_service_support import opaque_id, require_user_row, stable_hash
+from portfell.hosted_api_state import HostedApiState, MultivariateRunRecord
+from portfell.hosted_research_ports import ResearchDataPort, ResearchPersistencePort
+from portfell.hosted_research_workflow import UnivariateSelection, bivariate_source_id
+from portfell.income import build_income_evidence, normalize_distribution_events
+from portfell.multivariate_candidates import build_candidate_set
+from portfell.multivariate_inputs import (
+    MultivariateInputDependencies,
+    MultivariateListingKey,
+    build_multivariate_input_snapshot,
+)
+from portfell.multivariate_risk_model import build_multivariate_risk_model
+from portfell.multivariate_structure import build_multivariate_structure
+from portfell.multivariate_validation import validate_candidates
+from portfell.table_io import JsonRow
+
+
+class MultivariateResearchService:
+    """Run, persist, and expose Multivariate artifacts for one owned project."""
+
+    def __init__(
+        self,
+        state: HostedApiState,
+        data: ResearchDataPort,
+        persistence: ResearchPersistencePort,
+    ) -> None:
+        self._state = state
+        self._data = data
+        self._persistence = persistence
+
+    def start(
+        self, user_id: str, project_id: str, bivariate_run_id: str, settings: JsonRow
+    ) -> JsonRow:
+        require_user_row(self._state.projects_by_id, project_id, user_id)
+        bivariate = require_user_row(self._state.bivariate_runs_by_id, bivariate_run_id, user_id)
+        if bivariate.status != "complete":
+            raise HostedApplicationError(422, "bivariate_run_not_complete")
+        selection = self._selection_for_bivariate(user_id, bivariate_run_id)
+        logical_hash = stable_hash(
+            {
+                "project_id": project_id,
+                "bivariate_run_id": bivariate_run_id,
+                "selection_id": selection.selection_id,
+                "settings": settings,
+            }
+        )
+        run_id = opaque_id("multivariate-run", f"{user_id}:{logical_hash}")
+        existing = self._state.multivariate_runs_by_id.get(run_id)
+        if existing is not None:
+            return _run_row(existing)
+        run = MultivariateRunRecord(
+            run_id=run_id,
+            user_id=user_id,
+            project_id=project_id,
+            bivariate_run_id=bivariate_run_id,
+            input_snapshot_id="",
+            logical_hash=logical_hash,
+            status="running",
+            phase="resolve_inputs",
+            completed_units=0,
+            total_units=6,
+            settings=dict(settings),
+            summary={},
+            structure={},
+            candidates=(),
+            validation=(),
+        )
+        self._state.multivariate_runs_by_id[run_id] = run
+        self._state.current_multivariate_run_by_project[project_id] = run_id
+        self._persistence.persist()
+        return _run_row(run)
+
+    def complete(self, user_id: str, run_id: str) -> None:
+        run = require_user_row(self._state.multivariate_runs_by_id, run_id, user_id)
+        if run.status != "running":
+            return
+        try:
+            completed = self._compute(run)
+        except (HostedApplicationError, ValueError) as error:
+            completed = replace(run, status="failed", phase="failed", failure_reason=str(error))
+        self._state.multivariate_runs_by_id[run_id] = completed
+        self._persistence.persist()
+
+    def status(self, user_id: str, run_id: str) -> JsonRow:
+        return _run_row(require_user_row(self._state.multivariate_runs_by_id, run_id, user_id))
+
+    def summary(self, user_id: str, run_id: str) -> JsonRow:
+        return dict(require_user_row(self._state.multivariate_runs_by_id, run_id, user_id).summary)
+
+    def structure(self, user_id: str, run_id: str) -> JsonRow:
+        return dict(
+            require_user_row(self._state.multivariate_runs_by_id, run_id, user_id).structure
+        )
+
+    def candidates(self, user_id: str, run_id: str) -> JsonRow:
+        run = require_user_row(self._state.multivariate_runs_by_id, run_id, user_id)
+        return {"items": list(run.candidates)}
+
+    def validation(self, user_id: str, run_id: str) -> JsonRow:
+        run = require_user_row(self._state.multivariate_runs_by_id, run_id, user_id)
+        return {"items": list(run.validation)}
+
+    def _selection_for_bivariate(self, user_id: str, run_id: str) -> UnivariateSelection:
+        bivariate = require_user_row(self._state.bivariate_runs_by_id, run_id, user_id)
+        matches = [
+            selection
+            for selection in self._state.univariate_selections_by_id.values()
+            if selection.user_id == user_id
+            and bivariate_source_id(selection) == bivariate.source_id
+        ]
+        if len(matches) != 1:
+            raise HostedApplicationError(422, "bivariate_dependency_mismatch")
+        return matches[0]
+
+    def _compute(self, run: MultivariateRunRecord) -> MultivariateRunRecord:
+        selection = self._selection_for_bivariate(run.user_id, run.bivariate_run_id)
+        source_run = require_user_row(
+            self._state.univariate_runs_by_id, selection.source_run_id, run.user_id
+        )
+        quote_run_id = self._state.quote_run_by_univariate_run_id.get(source_run.run_id, "")
+        quotes = self._state.quote_rows_by_run_id.get(quote_run_id) or self._data.selected_rows(
+            selection.member_ids, dataset="quotes"
+        )
+        dividends = self._data.selected_rows(selection.member_ids, dataset="dividends")
+        metadata = {
+            (str(row.get("isin", "")), str(row.get("exchange", "")), str(row.get("code", ""))): row
+            for row in self._state.all_isins_rows
+        }
+        selected: list[JsonRow] = []
+        for row in selection.rows:
+            key = (str(row.get("isin", "")), str(row.get("exchange", "")), str(row.get("code", "")))
+            selected.append({**metadata.get(key, {}), **row})
+        returns = build_returns(quotes)
+        keys = tuple(sorted(MultivariateListingKey.from_row(row) for row in selected))
+        common_dates = _common_dates(returns, keys)
+        calendar_id = stable_hash(
+            {"listing_keys": [key.as_tuple() for key in keys], "dates": common_dates}
+        )
+        dependencies = MultivariateInputDependencies(
+            project_id=run.project_id,
+            project_snapshot_id=run.logical_hash,
+            metadata_selection_id="project-scoped",
+            univariate_run_id=source_run.run_id,
+            univariate_selection_id=selection.selection_id,
+            bivariate_run_id=run.bivariate_run_id,
+            bivariate_status="complete",
+            bivariate_listing_keys=keys,
+            aligned_calendar_id=calendar_id,
+            bivariate_aligned_calendar_id=calendar_id,
+            date_start=common_dates[0] if common_dates else None,
+            date_end=common_dates[-1] if common_dates else None,
+            observation_count=len(common_dates),
+            quote_artifact_ids={
+                key: f"quote:{quote_run_id}:{key.isin}:{key.exchange}:{key.code}" for key in keys
+            },
+            dividend_artifact_ids={
+                key: f"dividend:{key.isin}:{key.exchange}:{key.code}" for key in keys
+            },
+        )
+        snapshot = build_multivariate_input_snapshot(
+            dependencies=dependencies, univariate_rows=selected
+        )
+        risk = build_multivariate_risk_model(snapshot=snapshot, return_rows=returns)
+        structure = build_multivariate_structure(risk)
+        income = {
+            key: build_income_evidence(
+                listing=key,
+                events=normalize_distribution_events(dividends, listing=key),
+                period_end=snapshot.date_end or "1970-01-01",
+                denominator_price=_last_price(quotes, key),
+            )
+            for key in keys
+        }
+        candidates = build_candidate_set(
+            snapshot=snapshot, risk_model=risk, return_rows=returns, income=income
+        )
+        validation = validate_candidates(candidates=candidates, return_rows=returns)
+        candidate_rows = tuple(
+            {
+                "candidate_id": item.candidate_id,
+                "method": item.method,
+                "baseline": item.baseline,
+                "status": item.status,
+                "reasons": list(item.reasons),
+                "weights": [
+                    {"isin": key.isin, "exchange": key.exchange, "code": key.code, "weight": weight}
+                    for key, weight in item.weights
+                ],
+                "variance": item.variance,
+                "volatility": item.volatility,
+                "cvar": item.cvar,
+                "gross_ttm_distribution_yield": item.gross_ttm_distribution_yield,
+            }
+            for item in candidates
+        )
+        validation_rows = tuple(item.__dict__ for item in validation)
+        summary = {
+            "input_snapshot_id": snapshot.snapshot_id,
+            "risk_model_id": risk.risk_model_id,
+            "candidate_etf_count": len(snapshot.listing_keys),
+            "aligned_period": {
+                "date_start": snapshot.date_start,
+                "date_end": snapshot.date_end,
+                "observation_count": snapshot.observation_count,
+            },
+            "availability_reasons": list(snapshot.availability_reasons),
+        }
+        return replace(
+            run,
+            input_snapshot_id=snapshot.snapshot_id,
+            status="complete",
+            phase="complete",
+            completed_units=6,
+            summary=summary,
+            structure=structure.summary(),
+            candidates=candidate_rows,
+            validation=validation_rows,
+            warnings=tuple(snapshot.availability_reasons),
+        )
+
+
+def _run_row(run: MultivariateRunRecord) -> JsonRow:
+    return {
+        "run_id": run.run_id,
+        "project_id": run.project_id,
+        "bivariate_run_id": run.bivariate_run_id,
+        "input_snapshot_id": run.input_snapshot_id or None,
+        "status": run.status,
+        "phase": run.phase,
+        "completed_units": run.completed_units,
+        "total_units": run.total_units,
+        "estimated_remaining_seconds": None,
+        "warnings": list(run.warnings),
+        "failure_reason": run.failure_reason,
+    }
+
+
+def _common_dates(
+    rows: tuple[JsonRow, ...] | list[JsonRow], keys: tuple[MultivariateListingKey, ...]
+) -> tuple[str, ...]:
+    by_key: dict[tuple[str, str, str], set[str]] = {}
+    for row in rows:
+        key = (str(row.get("isin", "")), str(row.get("exchange", "")), str(row.get("code", "")))
+        by_key.setdefault(key, set()).add(str(row.get("date", "")))
+    dates: set[str] = set(by_key.get(keys[0].as_tuple(), set())) if keys else set()
+    for key in keys[1:]:
+        dates &= by_key.get(key.as_tuple(), set())
+    return tuple(sorted(date for date in dates if date))
+
+
+def _last_price(
+    rows: tuple[JsonRow, ...] | list[JsonRow], key: MultivariateListingKey
+) -> float | None:
+    matching = [row for row in rows if MultivariateListingKey.from_row(row) == key]
+    if not matching:
+        return None
+    value = sorted(matching, key=lambda row: str(row.get("date", "")))[-1].get("adjusted_close")
+    return float(value) if isinstance(value, int | float) and value > 0 else None

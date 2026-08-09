@@ -18,7 +18,7 @@
     "quote_run_incomplete",
     "scoped_quote_rows_unavailable"
   ],
-  "normalized_sha256": "269c7968840167c7ac0a00aea914f2a3547fcb7e35a5206acbd3038a1f1e697c",
+  "normalized_sha256": "1873cc679943db8c88ff1bbb1314491bb726e7e0101f6a70b77c5da2a7ec86c8",
   "operations": [
     "DELETE /account 200",
     "POST /analyses 200/422",
@@ -48,6 +48,12 @@
     "GET /metadata-builder/options 200",
     "POST /metadata/fetch-all 200",
     "GET /metadata/fetch-all/{metadata_run_id} 200/422",
+    "POST /multivariate-statistics/runs 200/422",
+    "GET /multivariate-statistics/runs/{run_id} 200/422",
+    "GET /multivariate-statistics/runs/{run_id}/candidates 200/422",
+    "GET /multivariate-statistics/runs/{run_id}/structure 200/422",
+    "GET /multivariate-statistics/runs/{run_id}/summary 200/422",
+    "GET /multivariate-statistics/runs/{run_id}/validation 200/422",
     "GET /project-context 200",
     "PUT /project-context/current-project 200/422",
     "GET /projects 200/422",

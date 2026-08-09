@@ -5,6 +5,7 @@ from __future__ import annotations
 from portfell.hosted_analysis_service import HostedAnalysisService
 from portfell.hosted_api_state import AnalysisRecord
 from portfell.hosted_bivariate_service import BivariateResearchService
+from portfell.hosted_multivariate_service import MultivariateResearchService
 from portfell.hosted_univariate_service import UnivariateResearchService
 from portfell.table_io import JsonRow
 
@@ -16,10 +17,12 @@ class ResearchService:
         self,
         univariate: UnivariateResearchService,
         bivariate: BivariateResearchService,
+        multivariate: MultivariateResearchService,
         analysis: HostedAnalysisService,
     ) -> None:
         self._univariate = univariate
         self._bivariate = bivariate
+        self._multivariate = multivariate
         self._analysis = analysis
 
     def start_univariate(self, user_id: str, selection_id: str, quote_run_id: str) -> JsonRow:
@@ -73,6 +76,29 @@ class ResearchService:
 
     def bivariate_tail_risk_scatter(self, user_id: str, run_id: str) -> JsonRow:
         return self._bivariate.tail_risk_scatter(user_id, run_id)
+
+    def start_multivariate(
+        self, user_id: str, project_id: str, bivariate_run_id: str, settings: JsonRow
+    ) -> JsonRow:
+        return self._multivariate.start(user_id, project_id, bivariate_run_id, settings)
+
+    def complete_multivariate(self, user_id: str, run_id: str) -> None:
+        self._multivariate.complete(user_id, run_id)
+
+    def multivariate_status(self, user_id: str, run_id: str) -> JsonRow:
+        return self._multivariate.status(user_id, run_id)
+
+    def multivariate_summary(self, user_id: str, run_id: str) -> JsonRow:
+        return self._multivariate.summary(user_id, run_id)
+
+    def multivariate_structure(self, user_id: str, run_id: str) -> JsonRow:
+        return self._multivariate.structure(user_id, run_id)
+
+    def multivariate_candidates(self, user_id: str, run_id: str) -> JsonRow:
+        return self._multivariate.candidates(user_id, run_id)
+
+    def multivariate_validation(self, user_id: str, run_id: str) -> JsonRow:
+        return self._multivariate.validation(user_id, run_id)
 
     def create_analysis(
         self,

@@ -7,7 +7,12 @@ from dataclasses import replace
 from typing import cast
 
 from portfell.entitlements import ProviderDownloadRun, RunStatus
-from portfell.hosted_api_state import HostedApiState, ProjectRecord, SelectionRecord
+from portfell.hosted_api_state import (
+    HostedApiState,
+    MultivariateRunRecord,
+    ProjectRecord,
+    SelectionRecord,
+)
 from portfell.hosted_research_workflow import ResearchRun
 from portfell.hosted_research_workflow import RunStatus as ResearchRunStatus
 
@@ -83,6 +88,29 @@ def persist_local_workspace(state: HostedApiState) -> None:
                 for run in state.bivariate_runs_by_id.values()
                 if run.status == "complete"
             ],
+            "multivariate_runs": [
+                {
+                    "run_id": run.run_id,
+                    "user_id": run.user_id,
+                    "project_id": run.project_id,
+                    "bivariate_run_id": run.bivariate_run_id,
+                    "input_snapshot_id": run.input_snapshot_id,
+                    "logical_hash": run.logical_hash,
+                    "status": run.status,
+                    "phase": run.phase,
+                    "completed_units": run.completed_units,
+                    "total_units": run.total_units,
+                    "settings": run.settings,
+                    "summary": run.summary,
+                    "structure": run.structure,
+                    "candidates": list(run.candidates),
+                    "validation": list(run.validation),
+                    "warnings": list(run.warnings),
+                    "failure_reason": run.failure_reason,
+                }
+                for run in state.multivariate_runs_by_id.values()
+            ],
+            "current_multivariate_run_by_project": state.current_multivariate_run_by_project,
             "idempotency_refs": [
                 {
                     "user_id": user_id,
@@ -148,6 +176,7 @@ def restore_local_workspace(state: HostedApiState, payload: Mapping[str, object]
     _restore_quote_runs(state, payload)
     _restore_univariate_runs(state, payload)
     _restore_bivariate_runs(state, payload)
+    _restore_multivariate_runs(state, payload)
 
 
 def _restore_quote_runs(state: HostedApiState, payload: Mapping[str, object]) -> None:
@@ -264,9 +293,65 @@ def _restore_bivariate_runs(state: HostedApiState, payload: Mapping[str, object]
         state.bivariate_runs_by_id[run.run_id] = run
 
 
+def _restore_multivariate_runs(state: HostedApiState, payload: Mapping[str, object]) -> None:
+    """Restore immutable completed/failed Multivariate results for project reactivation."""
+
+    for item in _object_list(payload.get("multivariate_runs", []), "multivariate runs"):
+        row = _mapping(item, "multivariate run")
+        status = _text(row, "status")
+        if status not in {"running", "complete", "failed", "stale"}:
+            raise ValueError("local workspace multivariate run status is invalid")
+        candidates = tuple(
+            dict(_mapping(value, "multivariate candidate"))
+            for value in _object_list(row.get("candidates", []), "multivariate candidates")
+        )
+        validation = tuple(
+            dict(_mapping(value, "multivariate validation"))
+            for value in _object_list(row.get("validation", []), "multivariate validation")
+        )
+        warnings = tuple(_string_list(row.get("warnings", []), "multivariate warnings"))
+        state.multivariate_runs_by_id[_text(row, "run_id")] = MultivariateRunRecord(
+            run_id=_text(row, "run_id"),
+            user_id=_text(row, "user_id"),
+            project_id=_text(row, "project_id"),
+            bivariate_run_id=_text(row, "bivariate_run_id"),
+            input_snapshot_id=_text_or_empty(row, "input_snapshot_id"),
+            logical_hash=_text(row, "logical_hash"),
+            status="failed" if status == "running" else status,
+            phase=_text(row, "phase"),
+            completed_units=_integer(row, "completed_units"),
+            total_units=_integer(row, "total_units"),
+            settings=dict(_mapping(row.get("settings", {}), "multivariate settings")),
+            summary=dict(_mapping(row.get("summary", {}), "multivariate summary")),
+            structure=dict(_mapping(row.get("structure", {}), "multivariate structure")),
+            candidates=candidates,
+            validation=validation,
+            warnings=warnings,
+            failure_reason="interrupted_by_restart"
+            if status == "running"
+            else _optional_text(row, "failure_reason"),
+        )
+    raw_current = payload.get("current_multivariate_run_by_project", {})
+    state.current_multivariate_run_by_project = _string_map(raw_current)
+
+
 def _text(row: Mapping[str, object], key: str) -> str:
     value = row.get(key)
     if not isinstance(value, str) or not value:
+        raise ValueError(f"local workspace {key} is invalid")
+    return value
+
+
+def _text_or_empty(row: Mapping[str, object], key: str) -> str:
+    value = row.get(key, "")
+    if not isinstance(value, str):
+        raise ValueError(f"local workspace {key} is invalid")
+    return value
+
+
+def _optional_text(row: Mapping[str, object], key: str) -> str | None:
+    value = row.get(key)
+    if value is not None and not isinstance(value, str):
         raise ValueError(f"local workspace {key} is invalid")
     return value
 

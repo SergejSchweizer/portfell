@@ -13,6 +13,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Header
 from portfell.hosted_api_contracts import (
     AnalysisCreateRequest,
     BivariateSelectionRequest,
+    MultivariateRunRequest,
     UnivariateRunRequest,
     UnivariateSelectionRequest,
 )
@@ -156,6 +157,43 @@ def research_router(
     @router.get("/bivariate-statistics/runs/{run_id}/tail-risk-scatter")
     def bivariate_tail_risk_scatter(run_id: str, user: ApiUser = Depends(current_user)) -> JsonRow:
         return call(service.bivariate_tail_risk_scatter, user.user_id, run_id)
+
+    @router.post("/multivariate-statistics/runs")
+    def start_multivariate(
+        payload: MultivariateRunRequest,
+        background_tasks: BackgroundTasks,
+        user: ApiUser = Depends(workspace_user),
+    ) -> JsonRow:
+        row = call(
+            service.start_multivariate,
+            user.user_id,
+            payload.project_id,
+            payload.bivariate_run_id,
+            payload.settings,
+        )
+        if row["status"] == "running":
+            background_tasks.add_task(service.complete_multivariate, user.user_id, row["run_id"])
+        return row
+
+    @router.get("/multivariate-statistics/runs/{run_id}")
+    def multivariate_status(run_id: str, user: ApiUser = Depends(current_user)) -> JsonRow:
+        return call(service.multivariate_status, user.user_id, run_id)
+
+    @router.get("/multivariate-statistics/runs/{run_id}/summary")
+    def multivariate_summary(run_id: str, user: ApiUser = Depends(current_user)) -> JsonRow:
+        return call(service.multivariate_summary, user.user_id, run_id)
+
+    @router.get("/multivariate-statistics/runs/{run_id}/structure")
+    def multivariate_structure(run_id: str, user: ApiUser = Depends(current_user)) -> JsonRow:
+        return call(service.multivariate_structure, user.user_id, run_id)
+
+    @router.get("/multivariate-statistics/runs/{run_id}/candidates")
+    def multivariate_candidates(run_id: str, user: ApiUser = Depends(current_user)) -> JsonRow:
+        return call(service.multivariate_candidates, user.user_id, run_id)
+
+    @router.get("/multivariate-statistics/runs/{run_id}/validation")
+    def multivariate_validation(run_id: str, user: ApiUser = Depends(current_user)) -> JsonRow:
+        return call(service.multivariate_validation, user.user_id, run_id)
 
     @router.post("/analyses")
     def create_analysis(
