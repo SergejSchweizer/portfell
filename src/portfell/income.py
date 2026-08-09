@@ -274,6 +274,63 @@ def build_income_evidence(
     )
 
 
+def build_income_artifacts(
+    *,
+    evidence_by_listing: Mapping[MultivariateListingKey, IncomeEvidence],
+    dividend_rows: Sequence[Mapping[str, Any]],
+    income_metrics: Sequence[Mapping[str, Any]],
+) -> dict[str, list[dict[str, Any]]]:
+    """Serialize immutable, source-addressable income evidence partitions."""
+    return {
+        "income_distribution_events": [
+            {
+                "income_id": evidence.income_id,
+                "isin": key.isin,
+                "exchange": key.exchange,
+                "code": key.code,
+                "event_date": event.event_date,
+                "amount": event.amount,
+                "currency": event.currency,
+                "source_id": event.source_id,
+                "source_revision": event.source_revision,
+                "split_adjustment_factor": event.split_adjustment_factor,
+                "policy_version": INCOME_CONTRACT.qualified_name,
+            }
+            for key, evidence in sorted(evidence_by_listing.items())
+            for event in normalize_distribution_events(dividend_rows, listing=key)
+        ],
+        "income_monthly_distributions": [
+            {
+                "income_id": evidence.income_id,
+                "isin": key.isin,
+                "exchange": key.exchange,
+                "code": key.code,
+                "month": bucket.month,
+                "amount": bucket.amount,
+                "currency": bucket.currency,
+                "event_count": bucket.event_count,
+                "source_event_ids": list(bucket.source_event_ids),
+                "policy_version": INCOME_CONTRACT.qualified_name,
+            }
+            for key, evidence in sorted(evidence_by_listing.items())
+            for bucket in evidence.monthly_distributions
+        ],
+        "income_metrics": [dict(row) for row in income_metrics],
+        "income_warnings": [
+            {
+                "income_id": evidence.income_id,
+                "isin": key.isin,
+                "exchange": key.exchange,
+                "code": key.code,
+                "warning": warning,
+                "policy_version": INCOME_CONTRACT.qualified_name,
+            }
+            for key, evidence in sorted(evidence_by_listing.items())
+            for warning in (*evidence.availability_reasons, *evidence.warnings)
+        ],
+    }
+
+
 def _revision_key(row: Mapping[str, Any], source_id: str) -> str:
     return str(row.get("revision", row.get("version", row.get("corrected_at", source_id))))
 

@@ -17,7 +17,11 @@ from portfell.hosted_api_service_support import opaque_id, require_user_row, sta
 from portfell.hosted_api_state import HostedApiState, MultivariateRunRecord, SelectionRecord
 from portfell.hosted_research_ports import ResearchDataPort, ResearchPersistencePort
 from portfell.hosted_research_workflow import UnivariateSelection, bivariate_source_id
-from portfell.income import INCOME_CONTRACT, build_income_evidence, normalize_distribution_events
+from portfell.income import (
+    build_income_artifacts,
+    build_income_evidence,
+    normalize_distribution_events,
+)
 from portfell.multivariate_candidates import PortfolioCandidate, build_candidate_set
 from portfell.multivariate_inputs import (
     MultivariateInputDependencies,
@@ -449,52 +453,11 @@ class MultivariateResearchService:
                     for key, cluster in structure.cluster_by_listing
                 ],
             },
-            "income_distribution_events": [
-                {
-                    "income_id": evidence.income_id,
-                    "isin": key.isin,
-                    "exchange": key.exchange,
-                    "code": key.code,
-                    "event_date": event.event_date,
-                    "amount": event.amount,
-                    "currency": event.currency,
-                    "source_id": event.source_id,
-                    "source_revision": event.source_revision,
-                    "split_adjustment_factor": event.split_adjustment_factor,
-                    "policy_version": INCOME_CONTRACT.qualified_name,
-                }
-                for key, evidence in sorted(income.items())
-                for event in normalize_distribution_events(dividends, listing=key)
-            ],
-            "income_monthly_distributions": [
-                {
-                    "income_id": evidence.income_id,
-                    "isin": key.isin,
-                    "exchange": key.exchange,
-                    "code": key.code,
-                    "month": bucket.month,
-                    "amount": bucket.amount,
-                    "currency": bucket.currency,
-                    "event_count": bucket.event_count,
-                    "source_event_ids": list(bucket.source_event_ids),
-                    "policy_version": INCOME_CONTRACT.qualified_name,
-                }
-                for key, evidence in sorted(income.items())
-                for bucket in evidence.monthly_distributions
-            ],
-            "income_metrics": list(income_rows),
-            "income_warnings": [
-                {
-                    "income_id": evidence.income_id,
-                    "isin": key.isin,
-                    "exchange": key.exchange,
-                    "code": key.code,
-                    "warning": warning,
-                    "policy_version": INCOME_CONTRACT.qualified_name,
-                }
-                for key, evidence in sorted(income.items())
-                for warning in (*evidence.availability_reasons, *evidence.warnings)
-            ],
+            **build_income_artifacts(
+                evidence_by_listing=income,
+                dividend_rows=dividends,
+                income_metrics=income_rows,
+            ),
         }
         return replace(
             run,
