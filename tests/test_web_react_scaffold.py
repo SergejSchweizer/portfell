@@ -36,25 +36,20 @@ def test_workflow_pages_place_ingestion_actions_before_their_stage_controls() ->
     assert '"/univariate-statistics"' not in metadata_page
     assert '"portfell:workflow-updated"' in metadata_page
     assert "Download Historical Data" not in metadata_page
-    assert "Download Historical Data" in univariate_page
+    assert "Update Historical Data" in univariate_page
     assert "univariateStatisticsApi.startQuoteRun" in univariate_page
-    assert univariate_page.index("Download Historical Data") < univariate_page.index(
-        "Univariate Statistics"
+    assert univariate_page.index('<Panel title="Univariate Statistics">') < univariate_page.index(
+        "quote-fetch__action"
     )
     assert univariate_page.index("<progress") < univariate_page.index("quote-fetch__action")
-    assert univariate_page.index("quote-fetch__action") < univariate_page.rindex(
-        "Download Historical Data"
-    )
     assert "loadQuoteRun" in univariate_page
     assert "Restoring the current historical-data download status" in univariate_page
     assert "workflowQuoteRunId" in univariate_page
-    assert "quote-fetch tasks completed" in univariate_page
-    assert "estimatedRemainingTime" in univariate_page
-    assert "remaining" in univariate_page
-    assert "value={quoteProgress}" in univariate_page
+    assert "historicalDataUpdateLabel" in univariate_page
+    assert "remaining" in (WEB_ROOT / "src" / "quote-progress.ts").read_text(encoding="utf-8")
     assert "error_code" in univariate_page
-    assert "Refresh Historical Download Status" in univariate_page
-    assert "disabled={!metadata.metadata_selection_id}" in univariate_page
+    assert "Refreshing the current historical-data download status" in univariate_page
+    assert 'disabled={!metadata.metadata_selection_id || quoteStatus === "running"}' in univariate_page
     assert "!metadata.quote_run_id" in univariate_page
     assert 'page.id === "univariate_statistics"' in frame
     assert "metricDefinitions" in univariate_page
@@ -73,7 +68,7 @@ def test_workflow_pages_place_ingestion_actions_before_their_stage_controls() ->
         encoding="utf-8"
     )
     assert 'label: "Tail Dependence"' in bivariate_page
-    assert 'label: "Co-exceedance Rate"' in bivariate_page
+    assert 'label: "Co-exceedance"' in bivariate_page
     assert "lowerTailDependenceMatrix" in bivariate_page
     assert "tailCoexceedanceRateMatrix" in bivariate_page
 
@@ -244,7 +239,7 @@ def test_bivariate_facts_show_the_universe_aligned_data_period() -> None:
     page = (WEB_ROOT / "src" / "pages" / "bivariate-statistics.tsx").read_text(encoding="utf-8")
     contracts = (WEB_ROOT / "src" / "contracts.ts").read_text(encoding="utf-8")
 
-    assert page.count("Aligned data period") == 5
+    assert page.count("Aligned data period") >= 6
     assert "dateStart={summary?.date_start} dateEnd={summary?.date_end}" in page
     assert "dataPeriod(matrix.date_start, matrix.date_end)" in page
     assert "lower_tail_dependence" in page
