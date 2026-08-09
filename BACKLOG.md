@@ -1132,7 +1132,7 @@ Idempotency: Each Playwright worker constructs fresh in-memory fixture state. Re
 
 Branch: `fix/univariate-dividends-result-visibility`.
 
-Git status: in progress. PR: TBD.
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/244.
 
 Priority: P1 univariate statistics clarity.
 
