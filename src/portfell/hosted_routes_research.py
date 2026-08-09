@@ -170,7 +170,7 @@ def research_router(
             user.user_id,
             payload.project_id,
             payload.bivariate_run_id,
-            payload.settings,
+            payload.settings.model_dump(),
         )
         if row["status"] == "running":
             background_tasks.add_task(service.complete_multivariate, user.user_id, row["run_id"])

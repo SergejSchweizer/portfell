@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from portfell.table_io import JsonRow
 
@@ -101,16 +101,26 @@ class BivariateSelectionRequest(BaseModel):
     univariate_selection_id: str
 
 
+class MultivariateRunSettings(BaseModel):
+    """Bounded calculation settings; policy changes are not browser-controlled yet."""
+
+    model_config = ConfigDict(extra="forbid")
+
+
 class MultivariateRunRequest(BaseModel):
     """Pinned Bivariate dependency and bounded project settings."""
 
     project_id: str = Field(min_length=1, max_length=160)
     bivariate_run_id: str = Field(min_length=1, max_length=160)
-    settings: JsonRow = Field(default_factory=dict)
+    model_config = ConfigDict(extra="forbid")
+
+    settings: MultivariateRunSettings = Field(default_factory=MultivariateRunSettings)
 
 
 class MultivariateSettingsRequest(BaseModel):
     """User presentation choices over already-computed owned candidates only."""
+
+    model_config = ConfigDict(extra="forbid")
 
     selected_candidate_ids: list[str] = Field(default_factory=list, max_length=6)
 
