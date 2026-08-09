@@ -8,6 +8,13 @@
 
 Download historical data, then run and present server-computed univariate statistics for the active project.
 
+## Module boundary
+
+Univariate Statistics consumes the persisted metadata selection and quote-run IDs from Metadata
+Builder. It owns per-ISIN results, per-project statistic selections, and the optional filtered
+selection consumed by Bivariate Statistics. It must not create metadata selections or calculate
+pairwise relationships.
+
 ## Contract
 
 The first white panel owns quote fetch progress and starts `POST /api/quote-runs` with the persisted metadata selection id. Each project download computes independent deltas for Quotes, Dividends, and Splits; all three datasets are merged into the server-owned Bronze lake only for the selected project's listings. It polls `GET /api/quote-runs/{id}` and renders the server-provided `total`, `completed`, `failed`, and `percent` values before its action.

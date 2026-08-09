@@ -1,10 +1,11 @@
 
 import { useEffect, useState } from "react";
-import { loadProjectContext, loadQuoteRun, loadWorkflow, postJson, requestJson } from "../api/client";
+import { loadProjectContext, loadQuoteRun, loadWorkflow } from "../api/client";
+import { univariateStatisticsApi } from "../api/univariate-statistics";
 import { Button } from "../components/button";
 import { LoadingState } from "../components/loading-state";
 import { Panel } from "../components/panel";
-import type { ApiDividendFrequency, ApiPage, ApiQuoteFetch, ApiResearchRun, ApiUnivariateRow, ApiUnivariateSelectionSettings } from "../contracts";
+import type { ApiDividendFrequency, ApiQuoteFetch, ApiResearchRun, ApiUnivariateRow, ApiUnivariateSelectionSettings } from "../contracts";
 import { useResource } from "../hooks/use-resource";
 
 type MetricDefinition = Readonly<{ group: string; metric: string; label: string; description: string; equation: string; notation: string; unit?: string }>;
@@ -53,12 +54,10 @@ function dividendFrequency(value: ApiUnivariateRow): DividendFrequency {
 }
 
 async function loadUnivariateResults(runId: string): Promise<readonly ApiUnivariateRow[]> {
-  const firstPage = await requestJson<ApiPage<ApiUnivariateRow>>(
-    `/api/univariate-statistics/runs/${runId}/results?limit=200&offset=0`,
-  );
+  const firstPage = await univariateStatisticsApi.loadResults(runId, 200, 0);
   const pages = await Promise.all(
-    Array.from({ length: Math.ceil(firstPage.total / 200) - 1 }, (_, index) => requestJson<ApiPage<ApiUnivariateRow>>(
-      `/api/univariate-statistics/runs/${runId}/results?limit=200&offset=${(index + 1) * 200}`,
+    Array.from({ length: Math.ceil(firstPage.total / 200) - 1 }, (_, index) => (
+      univariateStatisticsApi.loadResults(runId, 200, (index + 1) * 200)
     )),
   );
   return [...firstPage.items, ...pages.flatMap((page) => page.items)];
@@ -180,7 +179,7 @@ export function UnivariateStatisticsPage() {
     async function restoreUnivariateResults() {
       try {
         const [restoredRun, restoredResults] = await Promise.all([
-          requestJson<ApiResearchRun>(`/api/univariate-statistics/runs/${restoredRunId}`),
+          univariateStatisticsApi.loadRun(restoredRunId),
           loadUnivariateResults(restoredRunId),
         ]);
         if (cancelled) return;
@@ -203,9 +202,7 @@ export function UnivariateStatisticsPage() {
       const projectId = context.current_project_id;
       if (!projectId || cancelled) return;
       try {
-        const saved = await requestJson<UnivariateSelectionSettings>(
-          `/api/projects/${encodeURIComponent(projectId)}/univariate-selection-settings`,
-        );
+        const saved = await univariateStatisticsApi.loadSelectionSettings(projectId);
         if (cancelled) return;
         setPortfolioDividendFrequencies(saved.dividend_frequencies.filter((value) => dividendFrequencyOptions.some((option) => option.value === value)));
         setPortfolioStatisticSelections(saved.statistic_labels);
@@ -228,7 +225,7 @@ export function UnivariateStatisticsPage() {
     let timeoutId: number | undefined;
     async function pollUnivariateRun() {
       try {
-        const current = await requestJson<ApiResearchRun>(`/api/univariate-statistics/runs/${activeRunId}`);
+        const current = await univariateStatisticsApi.loadRun(activeRunId);
         if (cancelled) return;
         setRun(current);
         if (current.status === "running") {
@@ -297,17 +294,11 @@ export function UnivariateStatisticsPage() {
   ) {
     const context = await loadProjectContext();
     if (!context.current_project_id) return;
-    await requestJson<UnivariateSelectionSettings>(
-      `/api/projects/${encodeURIComponent(context.current_project_id)}/univariate-selection-settings`,
-      {
-        method: "PUT",
-        body: JSON.stringify({
-          dividend_frequencies: dividendFrequencies,
-          statistic_labels: statisticLabels,
-          statistic_ranges: statisticRanges,
-        }),
-      },
-    );
+    await univariateStatisticsApi.saveSelectionSettings(context.current_project_id, {
+      dividend_frequencies: dividendFrequencies,
+      statistic_labels: statisticLabels,
+      statistic_ranges: statisticRanges,
+    });
     window.dispatchEvent(new Event("portfell:workflow-updated"));
   }
 
@@ -325,7 +316,7 @@ export function UnivariateStatisticsPage() {
     if (!metadata.metadata_selection_id || !metadata.quote_run_id) return;
     setMessage("Computing univariate statistics…");
     try {
-      const nextRun = await postJson<ApiResearchRun>("/api/univariate-statistics/runs", {
+      const nextRun = await univariateStatisticsApi.startRun({
         metadata_selection_id: metadata.metadata_selection_id,
         quote_run_id: metadata.quote_run_id,
       });
@@ -345,7 +336,7 @@ export function UnivariateStatisticsPage() {
       quoteRunId ? "Refreshing the current historical-data download status…" : "Fetching quotes and building the Silver dataset…",
     );
     try {
-      const result = await postJson<ApiQuoteFetch>("/api/quote-runs", {
+      const result = await univariateStatisticsApi.startQuoteRun({
         metadata_selection_id: metadata.metadata_selection_id,
       });
       setQuoteRunId(result.download_run_id);

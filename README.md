@@ -1,6 +1,6 @@
 # Portfell
 
-Last reviewed: 2026-07-13
+Last reviewed: 2026-08-09
 
 ## Table Of Contents
 
@@ -11,7 +11,7 @@ Last reviewed: 2026-07-13
 - [Portfolio Objective](#portfolio-objective)
 - [Portfolio Analysis And Evaluation Plan](#portfolio-analysis-and-evaluation-plan)
 - [Documentation Map](#documentation-map)
-- [Five ISIN Module Architecture](#five-isin-module-architecture)
+- [Research Module Architecture](#research-module-architecture)
 - [Scheduled Portfell Cron](#scheduled-portfell-cron)
 - [EODHD Request Safety](#eodhd-request-safety)
 - [Logging And Debugging](#logging-and-debugging)
@@ -169,9 +169,14 @@ The current refactor target keeps portfolio optimization downstream from the ISI
 - [BACKLOG.md](BACKLOG.md) tracks PR-sized work and implementation status.
 - [AGENTS.md](AGENTS.md) defines agent workflow rules and generated project-history risks.
 
-## Five ISIN Module Architecture
+## Research Module Architecture
 
-Portfell's ISIN architecture target is organized around five deterministic modules:
+The active browser workflow currently has three modules: Metadata Builder,
+Univariate Statistics, and Bivariate Statistics. Their persisted input/output
+boundaries and extension rules are documented in
+[`docs/ui/workflow-modules.md`](docs/ui/workflow-modules.md).
+
+The local ISIN pipeline remains organized around these five deterministic stages:
 
 ```text
 fetch_all_metadata

@@ -1,13 +1,18 @@
 # Portfell UI documentation
 
-Portfell has four sequential production pages:
+Portfell currently has three sequential research modules:
 
 1. [`metadata_filter`](windows/metadata-filter.md) at `/metadata-filter`
 2. [`univariate_statistics`](windows/univariate-statistics.md) at `/univariate-statistics`
 3. [`bivariate_statistics`](windows/bivariate-statistics.md) at `/bivariate-statistics`
 
-`univariate_filter` remains a supported API and CLI capability, but is intentionally not shown in
-the UI sidebar. Bivariate Statistics becomes available when Univariate Statistics completes.
+`univariate_filter` is a Univariate Statistics sub-flow. It remains a supported API and CLI
+capability, but is intentionally not shown in the UI sidebar. Bivariate Statistics becomes
+available when Univariate Statistics completes.
+
+See [Workflow modules](workflow-modules.md) for the module input/output contracts and the
+rules for adding later modules. `workflowModules` in `apps/web/src/routes.tsx` owns the
+top-level module registry; `workflowPages` owns the concrete routes within those modules.
 
 The canonical implementation registry is `apps/web/src/routes.tsx`. Each registered page must have exactly one matching specification in `docs/ui/windows/`. Shared header and footer behavior belongs in `docs/ui/layout/header.md` and `docs/ui/layout/footer.md`, not in individual page specifications.
 

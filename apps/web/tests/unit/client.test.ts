@@ -13,6 +13,10 @@ import {
   requestJson,
   selectCurrentProject,
 } from "../../src/api/client";
+import { metadataBuilderApi } from "../../src/api/metadata-builder";
+import { univariateStatisticsApi } from "../../src/api/univariate-statistics";
+import { bivariateStatisticsApi } from "../../src/api/bivariate-statistics";
+import type { ApiUnivariateSelectionSettings } from "../../src/contracts";
 
 function response(payload: unknown, ok = true, status = 200): Response {
   return { ok, status, json: vi.fn().mockResolvedValue(payload) } as unknown as Response;
@@ -77,5 +81,35 @@ describe("API client", () => {
     expect(fetchMock.mock.calls.map(([path]) => path)).toEqual([
       "/api/workflow", "/api/credentials/eodhd", "/api/credentials/eodhd/value", "/api/metadata/fetch-all/run%2Fa", "/api/project-context", "/api/projects/project%2Fa/metadata-filter", "/api/project-context/current-project", "/api/projects/project%2Fa/workflow", "/api/quote-runs/quote%2Fa",
     ]);
+  });
+
+  it("keeps every workflow module facade within its published API contract", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(response({}));
+    vi.stubGlobal("fetch", fetchMock);
+    const metadataRequest = { exchange: "XETRA", name: "fund", instrument_type: "ETF", country: "DE", currency: "EUR" };
+    const univariateRequest = { metadata_selection_id: "selection/a", quote_run_id: "quote/a" };
+    const filterRequest = { source_run_id: "run/a", predicates: [{ metric: "var", operator: "less_than", value: 2 }] };
+    const settings: ApiUnivariateSelectionSettings = { dividend_frequencies: ["monthly"], statistic_labels: {}, statistic_ranges: {} };
+    const bivariateRequest = { univariate_filter_selection_id: "selection/a" };
+
+    await Promise.all([
+      metadataBuilderApi.loadCredentialStatus(), metadataBuilderApi.loadCredentialValue(), metadataBuilderApi.loadFetchRun("run/a"),
+      metadataBuilderApi.loadProjectFilter("project/a"), metadataBuilderApi.loadFieldOptions(), metadataBuilderApi.saveCredential("key"),
+      metadataBuilderApi.fetchAll(), metadataBuilderApi.createProject(metadataRequest),
+      univariateStatisticsApi.startRun(univariateRequest), univariateStatisticsApi.loadRun("run/a"), univariateStatisticsApi.loadResults("run/a", 10, 5),
+      univariateStatisticsApi.startQuoteRun({ metadata_selection_id: "selection/a" }), univariateStatisticsApi.loadSelectionSettings("project/a"),
+      univariateStatisticsApi.saveSelectionSettings("project/a", settings), univariateStatisticsApi.loadFilterMetrics(),
+      univariateStatisticsApi.applyFilter(filterRequest), univariateStatisticsApi.loadFilterResults("selection/a", 10, 5),
+      bivariateStatisticsApi.plan(bivariateRequest), bivariateStatisticsApi.startRun(bivariateRequest), bivariateStatisticsApi.loadRun("run/a"),
+      bivariateStatisticsApi.loadRunData("run/a"),
+    ]);
+
+    expect(fetchMock.mock.calls.map(([path]) => path)).toEqual(expect.arrayContaining([
+      "/api/metadata-filter/options", "/api/metadata-filter", "/api/univariate-statistics/runs",
+      "/api/univariate-statistics/runs/run%2Fa/results?limit=10&offset=5", "/api/univariate-filter/metrics",
+      "/api/univariate-filter/selection%2Fa/results?limit=10&offset=5", "/api/bivariate-statistics/plan",
+      "/api/bivariate-statistics/runs/run%2Fa/covariance-matrix",
+      "/api/bivariate-statistics/runs/run%2Fa/correlation-matrix?metric=downside",
+    ]));
   });
 });

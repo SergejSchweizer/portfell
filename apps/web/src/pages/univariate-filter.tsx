@@ -1,22 +1,19 @@
 
 import { useEffect, useState } from "react";
-import { loadWorkflow, postJson, requestJson } from "../api/client";
+import { loadWorkflow } from "../api/client";
+import { univariateStatisticsApi } from "../api/univariate-statistics";
 import { Button } from "../components/button";
 import { LoadingState } from "../components/loading-state";
 import { Panel } from "../components/panel";
-import type { ApiFilterSelection, ApiMetric, ApiPage, ApiUnivariateRow } from "../contracts";
+import type { ApiFilterSelection, ApiPage, ApiUnivariateRow } from "../contracts";
 import { useResource } from "../hooks/use-resource";
 
 type PredicateDraft = { metric: string; operator: string; value: string };
 
-async function loadMetrics(): Promise<{ items: readonly ApiMetric[] }> {
-  return requestJson("/api/univariate-filter/metrics");
-}
-
 export function UnivariateFilterPage() {
   const [workflowRevision, setWorkflowRevision] = useState(0);
   const workflow = useResource(loadWorkflow, [workflowRevision]);
-  const metrics = useResource(loadMetrics);
+  const metrics = useResource(univariateStatisticsApi.loadFilterMetrics);
   const [predicates, setPredicates] = useState<PredicateDraft[]>([
     { metric: "annualized_volatility", operator: "<=", value: "0.25" },
   ]);
@@ -52,16 +49,16 @@ export function UnivariateFilterPage() {
   }
 
   async function apply() {
+    const univariateRunId = sourceRunId;
+    if (!univariateRunId) return;
     setMessage("Applying predicates…");
     try {
-      const nextSelection = await postJson<ApiFilterSelection>("/api/univariate-filter", {
-        source_run_id: sourceRunId,
+      const nextSelection = await univariateStatisticsApi.applyFilter({
+        source_run_id: univariateRunId,
         predicates: predicates.map((predicate) => ({ ...predicate, value: Number(predicate.value) })),
       });
       setSelection(nextSelection);
-      const page = await requestJson<ApiPage<ApiUnivariateRow>>(
-        `/api/univariate-filter/${nextSelection.selection_id}/results?limit=50&offset=0`,
-      );
+      const page = await univariateStatisticsApi.loadFilterResults(nextSelection.selection_id, 50, 0);
       setResults(page);
       setMessage(`${nextSelection.selected_count} selected; ${nextSelection.excluded_count} excluded.`);
       window.dispatchEvent(new Event("portfell:workflow-updated"));

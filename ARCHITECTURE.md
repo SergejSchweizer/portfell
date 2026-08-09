@@ -1,6 +1,6 @@
 # Architecture
 
-Last reviewed: 2026-07-19
+Last reviewed: 2026-08-09
 
 ## Table Of Contents
 
@@ -9,6 +9,7 @@ Last reviewed: 2026-07-19
 - [System At A Glance](#system-at-a-glance)
 - [Repository Map](#repository-map)
 - [Execution Mode 1: Local CLI And Data Lake](#execution-mode-1-local-cli-and-data-lake)
+- [Workflow Module Boundaries](#workflow-module-boundaries)
 - [Local Research Funnel](#local-research-funnel)
 - [Local Lake Layout](#local-lake-layout)
 - [Analytical And Portfolio Stack](#analytical-and-portfolio-stack)
@@ -243,6 +244,25 @@ canonical universe                                 |
 ```
 
 `portfell.search` remains useful for deterministic samples and compatibility. `portfell.fetch_all_metadata` is the live EODHD metadata reference path used by the newer five-stage ISIN workflow.
+
+## Workflow Module Boundaries
+
+The hosted browser workflow has three explicit modules. They are ordered by
+their persisted hand-off contracts, but they do not share browser-local state:
+
+| Module | Consumes | Persists for the next module | Does not own |
+| --- | --- | --- | --- |
+| Metadata Builder | EODHD credentials and metadata criteria | Project-scoped metadata selection | Quote ingestion or statistical calculation |
+| Univariate Statistics | Metadata selection and quote-run identifiers | Per-ISIN results and selected-ISIN set | Metadata discovery or pairwise calculation |
+| Bivariate Statistics | Univariate selected-ISIN set | Pairwise rows and matrices | Changing upstream selections or portfolio allocation |
+
+The React route registry records this ownership in `apps/web/src/routes.tsx`.
+Each module owns a typed browser API facade under `apps/web/src/api/`, while the
+shared client remains limited to transport and workspace context. The active
+FastAPI implementation has corresponding metadata, univariate, and bivariate
+service boundaries. A future module must add an explicit persisted input/output
+contract rather than couple to another module's browser state. The detailed UI
+contract is documented in `docs/ui/workflow-modules.md`.
 
 ## Local Research Funnel
 

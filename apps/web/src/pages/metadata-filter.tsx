@@ -1,26 +1,18 @@
 
 import { useEffect, useState, type FormEvent } from "react";
-import {
-  loadProjectContext,
-  loadProjectMetadataFilter,
-  postJson,
-  requestJson,
-} from "../api/client";
+import { loadProjectContext } from "../api/client";
+import { metadataBuilderApi } from "../api/metadata-builder";
 import { Button } from "../components/button";
 import { EmptyState } from "../components/empty-state";
 import { LoadingState } from "../components/loading-state";
 import { Panel } from "../components/panel";
-import type { ApiFieldOptions, ApiMetadataProject, ApiProjectSummary } from "../contracts";
+import type { ApiProjectSummary } from "../contracts";
 import { useResource } from "../hooks/use-resource";
 import { useMetadataFetch } from "../shell/metadata-fetch-context";
 
-async function loadFieldOptions(): Promise<ApiFieldOptions> {
-  return requestJson<ApiFieldOptions>("/api/metadata-filter/options");
-}
-
 export function MetadataFilterPage() {
   const [metadataRevision, setMetadataRevision] = useState(0);
-  const options = useResource(loadFieldOptions, [metadataRevision]);
+  const options = useResource(metadataBuilderApi.loadFieldOptions, [metadataRevision]);
   const { fetchMetadata, fetching, hasSavedCredential, metadataProgress, metadataStatus, providerKey } = useMetadataFetch();
   const [exchange, setExchange] = useState("");
   const [instrumentType, setInstrumentType] = useState("");
@@ -49,7 +41,7 @@ export function MetadataFilterPage() {
       }
       setSelectionStatus("Loading saved metadata filter…");
       try {
-        const filter = await loadProjectMetadataFilter(project.project_id);
+        const filter = await metadataBuilderApi.loadProjectFilter(project.project_id);
         if (cancelled) return;
         setExchange(filter.exchange);
         setInstrumentType(filter.instrument_type);
@@ -84,7 +76,7 @@ export function MetadataFilterPage() {
     event.preventDefault();
     setSelectionStatus("Applying metadata filter…");
     try {
-      const result = await postJson<ApiMetadataProject>("/api/metadata-filter", {
+      const result = await metadataBuilderApi.createProject({
         exchange,
         name,
         instrument_type: instrumentType,
@@ -125,7 +117,7 @@ export function MetadataFilterPage() {
           </div>
         </div>
       </Panel>
-      <Panel title="Metadata Filter">
+      <Panel title="Metadata Builder">
         <form className="metadata-filter-form" onSubmit={applyFilter}>
           <label>
             Exchange

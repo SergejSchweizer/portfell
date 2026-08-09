@@ -1,6 +1,7 @@
 
 import { useEffect, useState } from "react";
-import { loadWorkflow, postJson, requestJson } from "../api/client";
+import { loadWorkflow } from "../api/client";
+import { bivariateStatisticsApi, type BivariateRunData } from "../api/bivariate-statistics";
 import { Button } from "../components/button";
 import { LoadingState } from "../components/loading-state";
 import { Panel } from "../components/panel";
@@ -100,6 +101,15 @@ export function BivariateStatisticsPage() {
     ? workflow.data.stages.bivariate_statistics.bivariate_run_id
     : undefined;
 
+  function applyRunData(data: BivariateRunData) {
+    setResults(data.results);
+    setCovarianceMatrix(data.covariance);
+    setSummary(data.summary);
+    setPearsonMatrix(data.pearson);
+    setSpearmanMatrix(data.spearman);
+    setDownsideMatrix(data.downside);
+  }
+
   useEffect(() => {
     const resetProjectState = () => {
       setRun(null);
@@ -123,7 +133,7 @@ export function BivariateStatisticsPage() {
     let timeoutId: number | undefined;
     async function pollBivariateRun() {
       try {
-        const current = await requestJson<ApiResearchRun>(`/api/bivariate-statistics/runs/${activeRunId}`);
+        const current = await bivariateStatisticsApi.loadRun(activeRunId);
         if (cancelled) return;
         setRun(current);
         if (current.status === "running") {
@@ -135,22 +145,10 @@ export function BivariateStatisticsPage() {
           setMessage("Bivariate computation failed. Please try again.");
           return;
         }
-        const [page, matrix, nextSummary, nextPearsonMatrix, nextSpearmanMatrix, nextDownsideMatrix] = await Promise.all([
-          requestJson<ApiPage<ApiBivariateRow>>(`/api/bivariate-statistics/runs/${current.run_id}/results?limit=50&offset=0`),
-          requestJson<ApiCovarianceMatrix>(`/api/bivariate-statistics/runs/${current.run_id}/covariance-matrix`),
-          requestJson<ApiBivariateSummary>(`/api/bivariate-statistics/runs/${current.run_id}/summary`),
-          requestJson<ApiPairMetricMatrix>(`/api/bivariate-statistics/runs/${current.run_id}/correlation-matrix?metric=pearson`),
-          requestJson<ApiPairMetricMatrix>(`/api/bivariate-statistics/runs/${current.run_id}/correlation-matrix?metric=spearman`),
-          requestJson<ApiPairMetricMatrix>(`/api/bivariate-statistics/runs/${current.run_id}/correlation-matrix?metric=downside`),
-        ]);
+        const data = await bivariateStatisticsApi.loadRunData(current.run_id);
         if (cancelled) return;
-        setResults(page);
-        setCovarianceMatrix(matrix);
-        setSummary(nextSummary);
-        setPearsonMatrix(nextPearsonMatrix);
-        setSpearmanMatrix(nextSpearmanMatrix);
-        setDownsideMatrix(nextDownsideMatrix);
-        setMessage(`${page.total.toLocaleString()} pair statistics computed.`);
+        applyRunData(data);
+        setMessage(`${data.results.total.toLocaleString()} pair statistics computed.`);
         window.dispatchEvent(new Event("portfell:workflow-updated"));
       } catch (error) {
         if (!cancelled) setMessage(error instanceof Error ? error.message : "Could not retrieve bivariate computation status.");
@@ -167,27 +165,18 @@ export function BivariateStatisticsPage() {
 
   useEffect(() => {
     if (!persistedRunId || run?.run_id === persistedRunId) return;
+    const restoredRunId = persistedRunId;
     let cancelled = false;
     async function restoreBivariateRun() {
       try {
-        const [savedRun, page, matrix, nextSummary, nextPearsonMatrix, nextSpearmanMatrix, nextDownsideMatrix] = await Promise.all([
-          requestJson<ApiResearchRun>(`/api/bivariate-statistics/runs/${persistedRunId}`),
-          requestJson<ApiPage<ApiBivariateRow>>(`/api/bivariate-statistics/runs/${persistedRunId}/results?limit=50&offset=0`),
-          requestJson<ApiCovarianceMatrix>(`/api/bivariate-statistics/runs/${persistedRunId}/covariance-matrix`),
-          requestJson<ApiBivariateSummary>(`/api/bivariate-statistics/runs/${persistedRunId}/summary`),
-          requestJson<ApiPairMetricMatrix>(`/api/bivariate-statistics/runs/${persistedRunId}/correlation-matrix?metric=pearson`),
-          requestJson<ApiPairMetricMatrix>(`/api/bivariate-statistics/runs/${persistedRunId}/correlation-matrix?metric=spearman`),
-          requestJson<ApiPairMetricMatrix>(`/api/bivariate-statistics/runs/${persistedRunId}/correlation-matrix?metric=downside`),
+        const [savedRun, data] = await Promise.all([
+          bivariateStatisticsApi.loadRun(restoredRunId),
+          bivariateStatisticsApi.loadRunData(restoredRunId),
         ]);
         if (cancelled) return;
         setRun(savedRun);
-        setResults(page);
-        setCovarianceMatrix(matrix);
-        setSummary(nextSummary);
-        setPearsonMatrix(nextPearsonMatrix);
-        setSpearmanMatrix(nextSpearmanMatrix);
-        setDownsideMatrix(nextDownsideMatrix);
-        setMessage(`${page.total.toLocaleString()} saved pair statistics restored.`);
+        applyRunData(data);
+        setMessage(`${data.results.total.toLocaleString()} saved pair statistics restored.`);
       } catch (error) {
         if (!cancelled) setMessage(error instanceof Error ? error.message : "Could not restore saved bivariate statistics.");
       }
@@ -204,32 +193,22 @@ export function BivariateStatisticsPage() {
   }
 
   async function compute() {
+    const univariateFilterSelectionId = selectionId;
+    if (!univariateFilterSelectionId) return;
     setMessage("Planning bivariate statistics…");
     try {
-      const nextPlan = await postJson<ApiPairPlan>("/api/bivariate-statistics/plan", { univariate_filter_selection_id: selectionId });
+      const nextPlan = await bivariateStatisticsApi.plan({ univariate_filter_selection_id: univariateFilterSelectionId });
       if (!nextPlan.allowed) {
         setMessage(`Pair count exceeds the ${nextPlan.pair_limit} limit or has fewer than two selected ISINs.`);
         return;
       }
       setMessage("Computing bivariate statistics…");
-      const nextRun = await postJson<ApiResearchRun>("/api/bivariate-statistics/runs", { univariate_filter_selection_id: selectionId });
+      const nextRun = await bivariateStatisticsApi.startRun({ univariate_filter_selection_id: univariateFilterSelectionId });
       setRun(nextRun);
       if (nextRun.status === "complete") {
-        const [page, matrix, nextSummary, nextPearsonMatrix, nextSpearmanMatrix, nextDownsideMatrix] = await Promise.all([
-          requestJson<ApiPage<ApiBivariateRow>>(`/api/bivariate-statistics/runs/${nextRun.run_id}/results?limit=50&offset=0`),
-          requestJson<ApiCovarianceMatrix>(`/api/bivariate-statistics/runs/${nextRun.run_id}/covariance-matrix`),
-          requestJson<ApiBivariateSummary>(`/api/bivariate-statistics/runs/${nextRun.run_id}/summary`),
-          requestJson<ApiPairMetricMatrix>(`/api/bivariate-statistics/runs/${nextRun.run_id}/correlation-matrix?metric=pearson`),
-          requestJson<ApiPairMetricMatrix>(`/api/bivariate-statistics/runs/${nextRun.run_id}/correlation-matrix?metric=spearman`),
-          requestJson<ApiPairMetricMatrix>(`/api/bivariate-statistics/runs/${nextRun.run_id}/correlation-matrix?metric=downside`),
-        ]);
-        setResults(page);
-        setCovarianceMatrix(matrix);
-        setSummary(nextSummary);
-        setPearsonMatrix(nextPearsonMatrix);
-        setSpearmanMatrix(nextSpearmanMatrix);
-        setDownsideMatrix(nextDownsideMatrix);
-        setMessage(`${page.total.toLocaleString()} pair statistics computed.`);
+        const data = await bivariateStatisticsApi.loadRunData(nextRun.run_id);
+        applyRunData(data);
+        setMessage(`${data.results.total.toLocaleString()} pair statistics computed.`);
       }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Bivariate computation failed.");

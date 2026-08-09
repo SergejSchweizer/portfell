@@ -1148,6 +1148,37 @@ Determinism: Visibility is determined solely by the loaded server-result state (
 
 Idempotency: Repeated compute and restore paths render the same result-driven Dividends window without creating client-owned state.
 
+### PR137. Workflow Module Boundaries
+
+Branch: `refactor/workflow-module-boundaries`.
+
+Git status: in progress. PR: TBD.
+
+Priority: P0 research-workflow architecture.
+
+Depends on: PR136.
+
+Scope: Establish Metadata Builder, Univariate Statistics, and Bivariate Statistics as explicit
+browser workflow modules. Give each module a typed API facade, register route ownership, keep shared
+transport and workspace context separate, and document the persisted input/output hand-offs and rules
+for later modules.
+
+Acceptance: Every active browser page has exactly one registered module owner. Module-specific API
+routes live only in the owning facade, while the shared client contains only transport and workspace
+contracts. Unit coverage exercises all facades at or above the enforced 95% thresholds, and the
+frontend API inventory continues to validate every consumed route against the FastAPI contract.
+
+Security: The refactor introduces no new endpoints or credential flow; metadata credentials remain
+within the existing server-owned credential contract.
+
+Determinism: Module communication occurs only via the existing persisted selection and run IDs, never
+via browser-local state.
+
+Idempotency: Re-loading a project and invoking a module facade leaves the existing server-owned run
+and selection semantics unchanged.
+
+Series Completion Gate: Follow the current pre-merge and post-merge gates in [GATES.md](GATES.md).
+
 ### PR130. Typed Quote Ingestion Stage Pipeline And Progress Contract
 
 Branch: `refactor/quote-ingestion-pipeline`.

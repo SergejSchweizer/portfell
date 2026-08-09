@@ -10,6 +10,12 @@ Run and present server-computed pairwise statistics for the automatic all-result
 when univariate statistics complete. The legacy univariate-filter API and CLI remain available for
 explicit server-side selections.
 
+## Module boundary
+
+Bivariate Statistics consumes the persisted selected-ISIN set from Univariate Statistics and owns
+pairwise rows and matrices. It must not modify the metadata or univariate selections, and portfolio
+construction remains a later module.
+
 ## Contract
 
 The page preflights through `POST /api/bivariate-statistics/plan`, starts

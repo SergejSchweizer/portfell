@@ -20,7 +20,7 @@ export default defineConfig({
       provider: "v8",
       reporter: ["text", "json-summary"],
       include: [
-        "src/api/client.ts",
+        "src/api/**/*.ts",
         "src/components/**/*.{ts,tsx}",
         "src/env.ts",
         "src/hooks/use-resource.ts",
