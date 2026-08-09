@@ -108,6 +108,36 @@ class MultivariateResearchService:
         run = require_user_row(self._state.multivariate_runs_by_id, run_id, user_id)
         return {"items": list(run.candidates)}
 
+    def candidate_detail(self, user_id: str, run_id: str, candidate_id: str) -> JsonRow:
+        run = require_user_row(self._state.multivariate_runs_by_id, run_id, user_id)
+        candidate = next(
+            (item for item in run.candidates if item.get("candidate_id") == candidate_id), None
+        )
+        if candidate is None:
+            raise HostedApplicationError(404, "not_found")
+        return dict(candidate)
+
+    def risk_contributions(self, user_id: str, run_id: str, candidate_id: str | None) -> JsonRow:
+        run = require_user_row(self._state.multivariate_runs_by_id, run_id, user_id)
+        items = run.risk_contributions
+        if candidate_id is not None:
+            items = tuple(item for item in items if item.get("candidate_id") == candidate_id)
+        return {"items": list(items)}
+
+    def income_evidence(self, user_id: str, run_id: str) -> JsonRow:
+        run = require_user_row(self._state.multivariate_runs_by_id, run_id, user_id)
+        return {"items": list(run.income_evidence)}
+
+    def components(self, user_id: str, run_id: str, limit: int, offset: int) -> JsonRow:
+        run = require_user_row(self._state.multivariate_runs_by_id, run_id, user_id)
+        safe_limit, safe_offset = max(1, min(limit, 100)), max(0, offset)
+        return {
+            "items": list(run.components[safe_offset : safe_offset + safe_limit]),
+            "total": len(run.components),
+            "limit": safe_limit,
+            "offset": safe_offset,
+        }
+
     def validation(self, user_id: str, run_id: str) -> JsonRow:
         run = require_user_row(self._state.multivariate_runs_by_id, run_id, user_id)
         return {"items": list(run.validation)}
@@ -202,8 +232,68 @@ class MultivariateResearchService:
                 "volatility": item.volatility,
                 "cvar": item.cvar,
                 "gross_ttm_distribution_yield": item.gross_ttm_distribution_yield,
+                "gross_monthly_distribution": item.gross_monthly_distribution,
+                "total_return": item.total_return,
+                "max_drawdown": item.max_drawdown,
+                "diversification_ratio": item.diversification_ratio,
             }
             for item in candidates
+        )
+        risk_contributions = tuple(
+            {
+                "candidate_id": candidate.candidate_id,
+                "method": candidate.method,
+                "isin": contribution.listing.isin,
+                "exchange": contribution.listing.exchange,
+                "code": contribution.listing.code,
+                "weight": contribution.weight,
+                "marginal_risk_contribution": contribution.marginal_risk_contribution,
+                "absolute_risk_contribution": contribution.absolute_risk_contribution,
+                "percent_risk_contribution": contribution.percent_risk_contribution,
+            }
+            for candidate in candidates
+            for contribution in candidate.risk_contributions
+        )
+        income_rows = tuple(
+            {
+                "isin": key.isin,
+                "exchange": key.exchange,
+                "code": key.code,
+                "currency": evidence.currency,
+                "event_count": evidence.event_count,
+                "observed_month_count": evidence.observed_month_count,
+                "gross_ttm_distribution_amount": evidence.gross_ttm_distribution_amount,
+                "gross_ttm_distribution_yield": evidence.gross_ttm_distribution_yield,
+                "mean_observed_monthly_distribution": evidence.mean_observed_monthly_distribution,
+                "median_observed_monthly_distribution": (
+                    evidence.median_observed_monthly_distribution
+                ),
+                "lower_percentile_monthly_distribution": (
+                    evidence.lower_percentile_monthly_distribution
+                ),
+                "coefficient_of_variation": evidence.coefficient_of_variation,
+                "cut_count": evidence.cut_count,
+                "largest_cut": evidence.largest_cut,
+                "longest_falling_sequence": evidence.longest_falling_sequence,
+                "nav_erosion": evidence.nav_erosion,
+                "availability_reasons": list(evidence.availability_reasons),
+                "warnings": list(evidence.warnings),
+            }
+            for key, evidence in sorted(income.items())
+        )
+        components = tuple(
+            {
+                "component_id": loading.component_id,
+                "isin": loading.listing.isin,
+                "exchange": loading.listing.exchange,
+                "code": loading.listing.code,
+                "loading": loading.loading,
+                "explained_variance": structure.explained_variance[
+                    int(loading.component_id.rsplit(" ", 1)[-1]) - 1
+                ],
+                "cluster": dict(structure.cluster_by_listing).get(loading.listing),
+            }
+            for loading in structure.loadings
         )
         validation_rows = tuple(item.__dict__ for item in validation)
         summary = {
@@ -227,6 +317,9 @@ class MultivariateResearchService:
             structure=structure.summary(),
             candidates=candidate_rows,
             validation=validation_rows,
+            components=components,
+            risk_contributions=risk_contributions,
+            income_evidence=income_rows,
             warnings=tuple(snapshot.availability_reasons),
         )
 

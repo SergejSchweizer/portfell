@@ -104,6 +104,22 @@ def test_candidate_set_has_six_stable_methods_and_no_silent_fallbacks() -> None:
         if candidate.status == "feasible":
             assert abs(sum(weight for _, weight in candidate.weights) - 1) < 1e-9
             assert all(0 <= weight <= 0.2 for _, weight in candidate.weights)
+            assert candidate.total_return is not None
+            assert candidate.max_drawdown is not None
+            assert candidate.diversification_ratio is not None
+            assert len(candidate.risk_contributions) == len(candidate.weights)
+            assert (
+                abs(
+                    sum(item.percent_risk_contribution for item in candidate.risk_contributions) - 1
+                )
+                < 1e-9
+            )
+            assert all(
+                item.listing == listing and item.weight == weight
+                for item, (listing, weight) in zip(
+                    candidate.risk_contributions, candidate.weights, strict=True
+                )
+            )
 
 
 def test_infeasible_bounds_remain_explicit_for_every_candidate() -> None:

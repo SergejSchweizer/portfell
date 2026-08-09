@@ -121,7 +121,18 @@ def test_multivariate_service_resolves_pinned_project_dependencies_and_persists_
     assert status["status"] == "complete"
     assert status["input_snapshot_id"]
     assert service.summary("user-a", str(started["run_id"]))["candidate_etf_count"] == 5
-    assert len(service.candidates("user-a", str(started["run_id"]))["items"]) == 6
+    candidates = service.candidates("user-a", str(started["run_id"]))["items"]
+    assert len(candidates) == 6
+    candidate_id = str(candidates[0]["candidate_id"])
+    detail = service.candidate_detail("user-a", str(started["run_id"]), candidate_id)
+    assert detail["candidate_id"] == candidate_id
+    assert "total_return" in detail
+    assert "max_drawdown" in detail
+    assert service.risk_contributions("user-a", str(started["run_id"]), candidate_id)["items"]
+    assert service.income_evidence("user-a", str(started["run_id"]))["items"]
+    components = service.components("user-a", str(started["run_id"]), limit=3, offset=0)
+    assert components["total"] == 25
+    assert len(components["items"]) == 3
     assert state.current_multivariate_run_by_project[project_id] == started["run_id"]
     assert persistence.persisted >= 2
 

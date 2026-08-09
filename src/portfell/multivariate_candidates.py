@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from math import sqrt
+from math import exp, sqrt
 from typing import Any
 
 from portfell.contract_versioning import ContractVersion, stable_contract_id
@@ -89,6 +89,38 @@ class PortfolioCandidate:
     effective_holding_count: float | None
     gross_ttm_distribution_yield: float | None
     gross_monthly_distribution: float | None
+    total_return: float | None = None
+    max_drawdown: float | None = None
+    diversification_ratio: float | None = None
+    risk_contributions: tuple[RiskContribution, ...] = ()
+
+
+@dataclass(frozen=True)
+class RiskContribution:
+    """One listing's capital and covariance-derived contribution to portfolio risk."""
+
+    listing: MultivariateListingKey
+    weight: float
+    marginal_risk_contribution: float
+    absolute_risk_contribution: float
+    percent_risk_contribution: float
+
+
+@dataclass(frozen=True)
+class CandidateMetrics:
+    variance: float
+    volatility: float
+    var: float
+    cvar: float
+    maximum_weight: float
+    herfindahl_index: float
+    effective_holding_count: float
+    gross_ttm_distribution_yield: float | None
+    gross_monthly_distribution: float | None
+    total_return: float | None
+    max_drawdown: float | None
+    diversification_ratio: float | None
+    risk_contributions: tuple[RiskContribution, ...]
 
 
 def build_candidate_set(
@@ -163,7 +195,19 @@ def _candidate(
         "feasible",
         (),
         tuple(zip(listings, weights, strict=True)),
-        **metrics,
+        variance=metrics.variance,
+        volatility=metrics.volatility,
+        var=metrics.var,
+        cvar=metrics.cvar,
+        maximum_weight=metrics.maximum_weight,
+        herfindahl_index=metrics.herfindahl_index,
+        effective_holding_count=metrics.effective_holding_count,
+        gross_ttm_distribution_yield=metrics.gross_ttm_distribution_yield,
+        gross_monthly_distribution=metrics.gross_monthly_distribution,
+        total_return=metrics.total_return,
+        max_drawdown=metrics.max_drawdown,
+        diversification_ratio=metrics.diversification_ratio,
+        risk_contributions=metrics.risk_contributions,
     )
 
 
@@ -241,13 +285,14 @@ def _metrics(
     rows: Sequence[Mapping[str, Any]],
     income: Mapping[MultivariateListingKey, IncomeEvidence],
     policy: MonthlyDistributionEtfPortfolioPolicy,
-) -> dict[str, float | None]:
+) -> CandidateMetrics:
     keys = tuple(item.as_tuple() for item in listings)
     variance = portfolio_variance(keys, weights, covariances)
     matrix = _aligned_matrix(keys, rows)
-    losses = [
-        -sum(weight * value for weight, value in zip(weights, row, strict=True)) for row in matrix
+    portfolio_log_returns = [
+        sum(weight * value for weight, value in zip(weights, row, strict=True)) for row in matrix
     ]
+    losses = [-value for value in portfolio_log_returns]
     var, cvar, _ = historical_var_and_cvar(losses, policy.cvar_confidence_level)
     yields = [
         evidence.gross_ttm_distribution_yield if (evidence := income.get(listing)) else None
@@ -259,17 +304,23 @@ def _metrics(
     ]
     gross_yield = _weighted_optional(weights, yields)
     gross_monthly = _weighted_optional(weights, monthly)
-    return {
-        "variance": variance,
-        "volatility": sqrt(max(variance, 0)),
-        "var": var,
-        "cvar": cvar,
-        "maximum_weight": max(weights),
-        "herfindahl_index": sum(weight * weight for weight in weights),
-        "effective_holding_count": 1 / sum(weight * weight for weight in weights),
-        "gross_ttm_distribution_yield": gross_yield,
-        "gross_monthly_distribution": gross_monthly,
-    }
+    portfolio_total_return, max_drawdown = _return_and_drawdown(portfolio_log_returns)
+    diversification_ratio = _diversification_ratio(keys, weights, covariances, variance)
+    return CandidateMetrics(
+        variance=variance,
+        volatility=sqrt(max(variance, 0)),
+        var=var,
+        cvar=cvar,
+        maximum_weight=max(weights),
+        herfindahl_index=sum(weight * weight for weight in weights),
+        effective_holding_count=1 / sum(weight * weight for weight in weights),
+        gross_ttm_distribution_yield=gross_yield,
+        gross_monthly_distribution=gross_monthly,
+        total_return=portfolio_total_return,
+        max_drawdown=max_drawdown,
+        diversification_ratio=diversification_ratio,
+        risk_contributions=_risk_contributions(listings, weights, covariances, variance),
+    )
 
 
 def _unavailable(
@@ -342,3 +393,52 @@ def _aligned_matrix(
     if len(dates) < 2:
         raise ValueError("insufficient_aligned_return_history")
     return [[indexed[key][date] for key in keys] for date in dates]
+
+
+def _risk_contributions(
+    listings: tuple[MultivariateListingKey, ...],
+    weights: tuple[float, ...],
+    covariances: Mapping[tuple[tuple[str, str, str], tuple[str, str, str]], float],
+    variance: float,
+) -> tuple[RiskContribution, ...]:
+    """Return contributions that reconcile exactly to the canonical covariance variance."""
+
+    keys = tuple(item.as_tuple() for item in listings)
+    rows: list[RiskContribution] = []
+    for index, (listing, weight) in enumerate(zip(listings, weights, strict=True)):
+        marginal = sum(
+            covariances[(keys[index], other)] * other_weight
+            for other, other_weight in zip(keys, weights, strict=True)
+        )
+        absolute = weight * marginal
+        percent = absolute / variance if variance > 0 else 0.0
+        rows.append(RiskContribution(listing, weight, marginal, absolute, percent))
+    return tuple(rows)
+
+
+def _diversification_ratio(
+    keys: tuple[tuple[str, str, str], ...],
+    weights: tuple[float, ...],
+    covariances: Mapping[tuple[tuple[str, str, str], tuple[str, str, str]], float],
+    variance: float,
+) -> float | None:
+    if variance <= 0:
+        return None
+    weighted_volatility = sum(
+        weight * sqrt(max(covariances[(key, key)], 0.0))
+        for key, weight in zip(keys, weights, strict=True)
+    )
+    return weighted_volatility / sqrt(variance)
+
+
+def _return_and_drawdown(log_returns: Sequence[float]) -> tuple[float | None, float | None]:
+    if not log_returns:
+        return None, None
+    wealth = 1.0
+    peak = 1.0
+    maximum_drawdown = 0.0
+    for value in log_returns:
+        wealth *= exp(value)
+        peak = max(peak, wealth)
+        maximum_drawdown = min(maximum_drawdown, wealth / peak - 1.0)
+    return wealth - 1.0, maximum_drawdown
