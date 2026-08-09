@@ -656,17 +656,26 @@ The mathematical core receives rows and deterministic hashes. It does not receiv
 
 ## Shared Storage And Artifact Reuse
 
-### Shared market observations
+### Canonical shared market data
 
-`portfell.shared_observations` normalizes provider rows and derives stable content identities. Identical normalized observations can be stored once. Corrections create new revisions rather than overwriting the historical identity.
+`portfell.shared_market_data.SharedMarketDataStore` is the only productive
+shared market-data persistence model.  It publishes one canonical Parquet file
+per `(dataset_type, provider, exchange, isin, code)` beneath
+`$PORTFELL_SHARED_DATA_ROOT/market-data`; the path is described in
+`CONTRACTS.md`.  Its deterministic business-key upsert absorbs duplicate
+provider observations and replaces corrections without creating project copies
+or immutable overlap segments.
 
-Shared payloads must not contain:
+The matching coverage catalog is derived metadata.  A corrupt or missing
+catalog is rebuilt from Parquet, and readers always validate listing identity.
+The trusted runtime derives a stable active-listing inventory from all
+non-deleted projects' selected full member keys.  It contains neither owner
+context nor authorization state and is not exposed as an unrestricted browser
+endpoint.
 
-- user ids;
-- session tokens;
-- credential ids;
-- credential fingerprints;
-- plaintext provider keys.
+Shared physical rows must not contain user/project, credential, session, run,
+or authorization fields.  Project ownership remains in the workspace and
+catalogue layers; provider provenance and schema version remain with data.
 
 ### Shared analytical artifacts
 
