@@ -49,7 +49,9 @@ def test_workflow_pages_place_ingestion_actions_before_their_stage_controls() ->
     assert "remaining" in (WEB_ROOT / "src" / "quote-progress.ts").read_text(encoding="utf-8")
     assert "error_code" in univariate_page
     assert "Refreshing the current historical-data download status" in univariate_page
-    assert 'disabled={!metadata.metadata_selection_id || quoteStatus === "running"}' in univariate_page
+    assert (
+        'disabled={!metadata.metadata_selection_id || quoteStatus === "running"}' in univariate_page
+    )
     assert "!metadata.quote_run_id" in univariate_page
     assert 'page.id === "univariate_statistics"' in frame
     assert "metricDefinitions" in univariate_page
