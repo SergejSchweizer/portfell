@@ -82,6 +82,11 @@ class ResearchService:
     ) -> JsonRow:
         return self._multivariate.start(user_id, project_id, bivariate_run_id, settings)
 
+    def plan_multivariate(
+        self, user_id: str, project_id: str, bivariate_run_id: str, settings: JsonRow
+    ) -> JsonRow:
+        return self._multivariate.plan(user_id, project_id, bivariate_run_id, settings)
+
     def complete_multivariate(self, user_id: str, run_id: str) -> None:
         self._multivariate.complete(user_id, run_id)
 

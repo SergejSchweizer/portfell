@@ -159,6 +159,18 @@ def research_router(
     def bivariate_tail_risk_scatter(run_id: str, user: ApiUser = Depends(current_user)) -> JsonRow:
         return call(service.bivariate_tail_risk_scatter, user.user_id, run_id)
 
+    @router.post("/multivariate-statistics/plan")
+    def plan_multivariate(
+        payload: MultivariateRunRequest, user: ApiUser = Depends(workspace_user)
+    ) -> JsonRow:
+        return call(
+            service.plan_multivariate,
+            user.user_id,
+            payload.project_id,
+            payload.bivariate_run_id,
+            payload.settings.model_dump(),
+        )
+
     @router.post("/multivariate-statistics/runs")
     def start_multivariate(
         payload: MultivariateRunRequest,

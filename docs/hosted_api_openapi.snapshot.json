@@ -18,7 +18,7 @@
     "quote_run_incomplete",
     "scoped_quote_rows_unavailable"
   ],
-  "normalized_sha256": "d110ed9f003a4f800c70c9f883d9d8a02a99bd49317bf9a0d9842a040771eb4d",
+  "normalized_sha256": "24448df557f81d1fc53d36cfdb0b8263908527dd04274fff7a1fcd56bf2e3bbf",
   "operations": [
     "DELETE /account 200",
     "POST /analyses 200/422",
@@ -48,6 +48,7 @@
     "GET /metadata-builder/options 200",
     "POST /metadata/fetch-all 200",
     "GET /metadata/fetch-all/{metadata_run_id} 200/422",
+    "POST /multivariate-statistics/plan 200/422",
     "POST /multivariate-statistics/runs 200/422",
     "GET /multivariate-statistics/runs/{run_id} 200/422",
     "GET /multivariate-statistics/runs/{run_id}/artifacts 200/422",
