@@ -17,7 +17,11 @@ from portfell.hosted_api_service_support import opaque_id, require_user_row, sta
 from portfell.hosted_api_state import HostedApiState, MultivariateRunRecord, SelectionRecord
 from portfell.hosted_research_ports import ResearchDataPort, ResearchPersistencePort
 from portfell.hosted_research_workflow import UnivariateSelection, bivariate_source_id
-from portfell.income import build_income_evidence, normalize_distribution_events
+from portfell.income import (
+    build_income_artifacts,
+    build_income_evidence,
+    normalize_distribution_events,
+)
 from portfell.multivariate_candidates import PortfolioCandidate, build_candidate_set
 from portfell.multivariate_inputs import (
     MultivariateInputDependencies,
@@ -281,6 +285,8 @@ class MultivariateResearchService:
                 events=normalize_distribution_events(dividends, listing=key),
                 period_end=snapshot.date_end or "1970-01-01",
                 denominator_price=_last_price(quotes, key),
+                period_start=snapshot.date_start,
+                start_price=_first_price(quotes, key),
             )
             for key in keys
         }
@@ -355,6 +361,7 @@ class MultivariateResearchService:
                 "currency": evidence.currency,
                 "event_count": evidence.event_count,
                 "observed_month_count": evidence.observed_month_count,
+                "observed_payment_coverage": evidence.observed_payment_coverage,
                 "gross_ttm_distribution_amount": evidence.gross_ttm_distribution_amount,
                 "gross_ttm_distribution_yield": evidence.gross_ttm_distribution_yield,
                 "mean_observed_monthly_distribution": evidence.mean_observed_monthly_distribution,
@@ -368,6 +375,10 @@ class MultivariateResearchService:
                 "cut_count": evidence.cut_count,
                 "largest_cut": evidence.largest_cut,
                 "longest_falling_sequence": evidence.longest_falling_sequence,
+                "distribution_trend": evidence.distribution_trend,
+                "price_return": evidence.price_return,
+                "total_return": evidence.total_return,
+                "distribution_to_total_return_gap": evidence.distribution_to_total_return_gap,
                 "nav_erosion": evidence.nav_erosion,
                 "availability_reasons": list(evidence.availability_reasons),
                 "warnings": list(evidence.warnings),
@@ -442,6 +453,11 @@ class MultivariateResearchService:
                     for key, cluster in structure.cluster_by_listing
                 ],
             },
+            **build_income_artifacts(
+                evidence_by_listing=income,
+                dividend_rows=dividends,
+                income_metrics=income_rows,
+            ),
         }
         return replace(
             run,
@@ -504,4 +520,14 @@ def _last_price(
     if not matching:
         return None
     value = sorted(matching, key=lambda row: str(row.get("date", "")))[-1].get("adjusted_close")
+    return float(value) if isinstance(value, int | float) and value > 0 else None
+
+
+def _first_price(
+    rows: tuple[JsonRow, ...] | list[JsonRow], key: MultivariateListingKey
+) -> float | None:
+    matching = [row for row in rows if MultivariateListingKey.from_row(row) == key]
+    if not matching:
+        return None
+    value = sorted(matching, key=lambda row: str(row.get("date", "")))[0].get("adjusted_close")
     return float(value) if isinstance(value, int | float) and value > 0 else None
