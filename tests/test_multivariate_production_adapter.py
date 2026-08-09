@@ -83,6 +83,9 @@ def test_write_production_multivariate_statistics_succeeds_with_valid_data(
 
     assert summary["production_eligible"] is True
     assert summary["selected_listing_count"] == 5
+    assert summary["date_start"] == "2020-01-02"
+    assert summary["date_end"] == "2020-10-08"
+    assert summary["observation_count"] == _OBSERVATION_COUNT - 1
     assert summary["risk_model_production_eligible"] is True
     assert set(summary["profile_candidate_ids"]) == {"defensive", "balanced", "income", "growth"}
     assert summary["weight_rows"] > 0

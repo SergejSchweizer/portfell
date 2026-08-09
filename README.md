@@ -441,9 +441,9 @@ uv run portfell bivariate-statistics
 
 Use `--selection-id <selection_id>` only when intentionally rebuilding a specific `univariate_selection` or `metadata_builder` selection.
 
-Bivariate Statistics parallelizes pair work across all CPU cores visible to the system by default. Use `--concurrency <workers>` to cap worker processes.
+Bivariate Statistics aligns every selected listing to one shared return-date intersection before pair work begins, so every covariance, correlation, tail, rolling, and drawdown statistic in a run represents the same period. API summaries and matrices report that period as `date_start` and `date_end`. Pair work then runs across all CPU cores visible to the system by default; use `--concurrency <workers>` to cap worker processes.
 
-`multivariate_statistics` computes portfolio-level analytics for the latest persisted `univariate_selection` selection by default. It filters Silver quotes to the selected listings, builds selected Gold risk inputs, writes an aligned return matrix and asset metrics, and runs Equal Weight, Minimum Variance, Maximum Sharpe, Risk Parity, HRP, Maximum Diversification, efficient-frontier, walk-forward, rebalance, and tail-risk outputs:
+`multivariate_statistics` computes portfolio-level analytics for the latest persisted `univariate_selection` selection by default. It filters Silver quotes to the selected listings, builds one universe-wide aligned return matrix, and uses only that shared calendar for asset, risk-model, optimization, frontier, walk-forward, rebalance, and tail-risk outputs. Both research and production summaries expose `date_start`, `date_end`, and `observation_count` for the matrix used:
 
 ```bash
 uv run portfell multivariate-statistics

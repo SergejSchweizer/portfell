@@ -319,7 +319,7 @@ coverage + gap information
 
 `portfell.bivariate_statistics` computes one record per unordered listing pair. It:
 
-- aligns both series on the exact common return dates;
+- aligns every pair to the same universe-wide intersection of return dates;
 - avoids duplicate symmetric work;
 - skips duplicate same-ISIN listings by default;
 - uses partitioned/bucketed storage for scale;
@@ -914,7 +914,7 @@ The catalogue below groups modules by responsibility. Public modules should depe
 | `portfell.gold` | Generic returns, covariance, correlation, edges, and feature inputs. |
 | `portfell.univariate_statistics` | Per-listing statistics. |
 | `portfell.univariate_selection` | Metric-based persisted selections. |
-| `portfell.bivariate_statistics` | Exact common-date pair statistics and bucketed cache. |
+| `portfell.bivariate_statistics` | Universe-aligned pair statistics and bucketed cache. |
 | `portfell.statistics_views` | Selection views over reusable statistic caches. |
 | `portfell.multivariate_statistics` | Selected portfolio-level orchestration, production adapter, recommendation, and handoff. |
 

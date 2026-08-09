@@ -9,7 +9,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from portfell.bivariate_statistics import build_bivariate_statistics
+from portfell.bivariate_statistics import BIVARIATE_STATISTICS_VERSION, build_bivariate_statistics
 from portfell.gold import build_returns
 from portfell.gold_pair_stats import DEFAULT_MAX_PAIR_COUNT
 from portfell.selection_filters import Predicate, filter_rows
@@ -191,6 +191,17 @@ def pair_plan(
     }
 
 
+def bivariate_source_id(selection: UnivariateSelection) -> str:
+    """Hash selection membership together with the active bivariate algorithm."""
+    return _stable_hash(
+        {
+            "selection_id": selection.selection_id,
+            "members": list(selection.member_ids),
+            "algorithm_version": BIVARIATE_STATISTICS_VERSION,
+        }
+    )
+
+
 def create_bivariate_run(
     *,
     user_id: str,
@@ -206,14 +217,19 @@ def create_bivariate_run(
         raise HostedResearchError("pair_plan_not_runnable")
     members = set(selection.member_ids)
     scoped_quotes = tuple(row for row in quote_rows if _listing_id(row) in members)
+    return_rows = build_returns(scoped_quotes)
+    if {_listing_id(row) for row in return_rows} != members:
+        raise HostedResearchError("bivariate_return_history_incomplete")
     rows = tuple(
         build_bivariate_statistics(
-            build_returns(scoped_quotes),
+            return_rows,
             concurrency=None,
             max_pair_count=max_pair_count,
             on_progress=on_progress,
         )
     )
+    if not rows:
+        raise HostedResearchError("bivariate_common_history_unavailable")
     ordered = tuple(
         sorted(
             rows,
@@ -224,9 +240,7 @@ def create_bivariate_run(
             ),
         )
     )
-    source = _stable_hash(
-        {"selection_id": selection.selection_id, "members": list(selection.member_ids)}
-    )
+    source = bivariate_source_id(selection)
     return ResearchRun(
         run_id=_opaque_id("bivariate-run", f"{user_id}:{source}"),
         user_id=user_id,

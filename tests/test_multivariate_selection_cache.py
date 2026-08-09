@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from portfell.multivariate_statistics import (
     MultivariateStatisticsConfig,
     write_multivariate_statistics,
@@ -94,7 +96,12 @@ def test_multivariate_statistics_reuses_unchanged_selection_portfolio_run(
     )
 
     assert first["cache_status"] == "prepared"
+    assert first["date_start"] == "2026-01-02"
+    assert first["date_end"] == "2026-01-06"
+    assert first["observation_count"] == 5
     assert second["cache_status"] == "portfolio_reused"
+    assert second["date_start"] == first["date_start"]
+    assert second["date_end"] == first["date_end"]
     assert second["portfolio_run_id"]
     assert {row["isin"] for row in read_rows(paths.gold_return_matrix("eval-cache"))} == {
         "IE1",
@@ -121,6 +128,9 @@ def test_multivariate_statistics_expanded_selection_adds_only_selected_inputs(
     )
 
     assert expanded["selected_listing_count"] == 3
+    assert expanded["date_start"] == "2026-01-02"
+    assert expanded["date_end"] == "2026-01-06"
+    assert expanded["observation_count"] == 5
     assert expanded["selection_statistics_pair_count"] == 3
     assert {row["isin"] for row in read_rows(paths.gold_return_matrix("eval-three"))} == {
         "IE1",
@@ -130,3 +140,19 @@ def test_multivariate_statistics_expanded_selection_adds_only_selected_inputs(
     assert read_rows(paths.gold_returns("XETRA", "IE1"))
     assert read_rows(paths.gold_returns("AS", "IE2"))
     assert read_rows(paths.gold_returns("PA", "IE3"))
+
+
+def test_multivariate_statistics_rejects_a_partial_selected_universe(tmp_path: Path) -> None:
+    paths = LakePaths(root=tmp_path / "lake")
+    _write_quotes(paths)
+    selected_rows = _selection(
+        "sel-missing",
+        (("IE1", "XETRA", "AAA"), ("IE4", "LSE", "DDD")),
+    )
+
+    with pytest.raises(ValueError, match="omits selected listings"):
+        write_multivariate_statistics(
+            paths,
+            selected_rows,
+            config=MultivariateStatisticsConfig(concurrency=1),
+        )

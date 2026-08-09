@@ -227,6 +227,17 @@ def test_metadata_panel_uses_the_historical_data_progress_status_action_layout()
     assert ".metadata-fetch__progress { height: 4px;" in styles
 
 
+def test_bivariate_facts_show_the_universe_aligned_data_period() -> None:
+    page = (WEB_ROOT / "src" / "pages" / "bivariate-statistics.tsx").read_text(encoding="utf-8")
+    contracts = (WEB_ROOT / "src" / "contracts.ts").read_text(encoding="utf-8")
+
+    assert page.count("Aligned data period") == 3
+    assert "dateStart={summary?.date_start} dateEnd={summary?.date_end}" in page
+    assert "dataPeriod(matrix.date_start, matrix.date_end)" in page
+    assert contracts.count("date_start: string;") >= 4
+    assert contracts.count("date_end: string;") >= 4
+
+
 def test_metadata_builder_refreshes_the_sidebar_project_context_and_decodes_api_errors() -> None:
     page = (WEB_ROOT / "src" / "pages" / "metadata-builder.tsx").read_text(encoding="utf-8")
     frame = (WEB_ROOT / "src" / "shell" / "frame.tsx").read_text(encoding="utf-8")

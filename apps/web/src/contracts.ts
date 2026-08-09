@@ -177,6 +177,8 @@ export type ApiBivariateRow = Readonly<{
   right_isin: string;
   right_exchange: string;
   right_code: string;
+  date_start: string;
+  date_end: string;
   n_observations: number;
   pearson_correlation?: number | null;
   spearman_correlation?: number | null;
@@ -201,6 +203,8 @@ export type ApiBivariateMetricSummary = Readonly<{
 export type ApiBivariateSummary = Readonly<{
   pair_count: number;
   observation_count: number;
+  date_start: string;
+  date_end: string;
   metrics: Readonly<Record<string, ApiBivariateMetricSummary>>;
   pearson_diagnostics: Readonly<{
     high_70_pairs: number;
@@ -261,12 +265,16 @@ export type ApiPairMetricMatrix = Readonly<{
   labels: readonly Readonly<{ isin: string; exchange: string; code: string; label: string }>[];
   values: readonly (readonly (number | null)[])[];
   observation_count: number;
+  date_start: string;
+  date_end: string;
 }>;
 
 export type ApiCovarianceMatrix = Readonly<{
   labels: readonly Readonly<{ isin: string; exchange: string; code: string; label: string }>[];
   values: readonly (readonly (number | null)[])[];
   observation_count: number;
+  date_start: string;
+  date_end: string;
   diagnostics: Readonly<{
     listing_count: number;
     pair_count: number;

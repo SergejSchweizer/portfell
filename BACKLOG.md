@@ -1267,6 +1267,38 @@ persisted artifacts without creating duplicate runs or selections.
 
 Series Completion Gate: Follow the current pre-merge and post-merge gates in [GATES.md](GATES.md).
 
+### PR141. Aligned Statistics Time Ranges
+
+Branch: `fix/aligned-statistics-time-ranges`.
+
+Git status: in progress. PR: TBD.
+
+Priority: P0 statistical comparability and provenance.
+
+Depends on: PR140.
+
+Scope: Align every Bivariate Statistics pair, matrix, correlation edge, and Gold covariance input to
+one universe-wide intersection of return dates. Preserve the existing universe-wide Multivariate
+Statistics return matrix and add its calculation period to research and production summaries. Add
+the aligned start/end dates to bivariate summary and matrix contracts and every bivariate facts table.
+
+Acceptance: All pair rows in a bivariate run have identical `date_start`, `date_end`, and
+`n_observations`; no pair statistics are produced when the selected universe has no common return
+date; multivariate matrices reject incomplete calendars; bivariate facts tables display the aligned
+data period; multivariate summaries expose `date_start`, `date_end`, and `observation_count`; and all
+quality, frontend, contract, and Docker checks pass.
+
+Security: Alignment operates only on the already project-scoped selected rows and never broadens
+selection membership or reads unrestricted data.
+
+Determinism: The aligned calendar is the sorted set intersection across every selected listing, and
+the `v5` bivariate cache version invalidates rows computed under pair-specific calendars.
+
+Idempotency: Repeating calculations for unchanged membership and return dates produces the same
+calendar, statistics, summaries, and persisted cache identities.
+
+Series Completion Gate: Follow the current pre-merge and post-merge gates in [GATES.md](GATES.md).
+
 ### PR130. Typed Quote Ingestion Stage Pipeline And Progress Contract
 
 Branch: `refactor/quote-ingestion-pipeline`.

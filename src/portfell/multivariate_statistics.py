@@ -133,6 +133,7 @@ def write_multivariate_statistics(
     )
     write_rows(paths.gold_return_matrix(resolved_config.evaluation_id), matrix)
     write_rows(paths.gold_asset_metrics(resolved_config.evaluation_id), asset_metrics)
+    date_start, date_end, observation_count = _matrix_period(matrix, selected_rows)
 
     if not matrix:
         summary = {
@@ -140,6 +141,9 @@ def write_multivariate_statistics(
             "backtest_rows": 0,
             "backtest_weight_rows": 0,
             "evaluation_id": resolved_config.evaluation_id,
+            "date_start": date_start,
+            "date_end": date_end,
+            "observation_count": observation_count,
             "frontier_points": 0,
             "frontier_weight_rows": 0,
             "hrp_cluster_rows": 0,
@@ -268,6 +272,9 @@ def write_multivariate_statistics(
         "backtest_rows": len(backtests),
         "backtest_weight_rows": len(backtest_weights),
         "evaluation_id": resolved_config.evaluation_id,
+        "date_start": date_start,
+        "date_end": date_end,
+        "observation_count": observation_count,
         "frontier_points": len(frontier_points),
         "frontier_weight_rows": len(frontier_weights),
         "hrp_cluster_rows": len(hrp_clusters),
@@ -288,6 +295,25 @@ def write_multivariate_statistics(
     if portfolio_run_id:
         _write_portfolio_cache_manifest(paths, portfolio_run_id, summary, resolved_config)
     return summary
+
+
+def _matrix_period(
+    matrix: Sequence[Mapping[str, Any]], selected_rows: Sequence[Mapping[str, Any]]
+) -> tuple[str, str, int]:
+    dates = sorted({str(row["date"]) for row in matrix})
+    if not dates:
+        return "", "", 0
+    matrix_listings = {(str(row["isin"]), str(row["exchange"]), str(row["code"])) for row in matrix}
+    selected_listings = {
+        (str(row["isin"]), str(row["exchange"]), str(row["code"])) for row in selected_rows
+    }
+    if matrix_listings != selected_listings:
+        raise ValueError("multivariate return matrix omits selected listings")
+    listing_count = len(matrix_listings)
+    expected_rows = len(dates) * listing_count
+    if len(matrix) != expected_rows:
+        raise ValueError("multivariate return matrix is not aligned to one shared calendar")
+    return dates[0], dates[-1], len(dates)
 
 
 def _prepare_selection_cached_inputs(
@@ -635,6 +661,7 @@ def write_production_multivariate_statistics(
     if not matrix:
         raise ValueError("insufficient_history: no aligned return matrix rows for the selection")
     write_rows(paths.gold_return_matrix(resolved_config.evaluation_id), matrix)
+    date_start, date_end, observation_count = _matrix_period(matrix, selected_rows)
 
     listings = listing_rows(matrix)
     ordered = listing_keys(listings)
@@ -687,6 +714,9 @@ def write_production_multivariate_statistics(
     return {
         "production_adapter_id": production_adapter_id,
         "evaluation_id": resolved_config.evaluation_id,
+        "date_start": date_start,
+        "date_end": date_end,
+        "observation_count": observation_count,
         "selected_listing_count": len(ordered),
         "matrix_rows": len(matrix),
         "risk_model_estimator": risk_model.diagnostics.estimator,

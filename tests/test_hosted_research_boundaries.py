@@ -295,7 +295,11 @@ def test_bivariate_read_models_cover_empty_and_constant_inputs() -> None:
     assert downside_diagnostics(())["high_70_pairs"] == 0
     assert covariance_diagnostics((), [], 0)["listing_count"] == 0
     assert build_bivariate_summary(())["observation_count"] == 0
+    assert build_bivariate_summary(())["date_start"] == ""
+    assert build_bivariate_summary(())["date_end"] == ""
     assert build_covariance_matrix((), ())["observation_count"] == 0
+    assert build_covariance_matrix((), ())["date_start"] == ""
+    assert build_covariance_matrix((), ())["date_end"] == ""
 
 
 def test_diagnostics_ignore_missing_pair_metrics() -> None:

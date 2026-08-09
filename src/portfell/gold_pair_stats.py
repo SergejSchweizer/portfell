@@ -141,6 +141,17 @@ def index_returns(return_rows: Sequence[Mapping[str, Any]]) -> ReturnsByListing:
     return indexed
 
 
+def common_return_dates(returns_by_listing: ReturnsByListing) -> tuple[str, ...]:
+    """Return the ordered calendar shared by every listing in one universe."""
+    listings = tuple(sorted(returns_by_listing))
+    if not listings:
+        return ()
+    dates = set(returns_by_listing[listings[0]])
+    for listing in listings[1:]:
+        dates.intersection_update(returns_by_listing[listing])
+    return tuple(sorted(dates))
+
+
 def iter_pair_observations(
     returns_by_listing: ReturnsByListing,
     *,
@@ -148,6 +159,9 @@ def iter_pair_observations(
     skip_same_isin: bool = False,
 ) -> Iterator[PairObservation]:
     listings = tuple(sorted(returns_by_listing))
+    dates = common_return_dates(returns_by_listing)
+    if not dates:
+        return
     for left_id, left in enumerate(listings):
         right_start = left_id if include_self else left_id + 1
         for right_id, right in enumerate(listings[right_start:], start=right_start):
@@ -155,7 +169,6 @@ def iter_pair_observations(
                 continue
             left_rows = returns_by_listing[left]
             right_rows = returns_by_listing[right]
-            dates = tuple(sorted(set(left_rows) & set(right_rows)))
             yield PairObservation(
                 left=left,
                 right=right,

@@ -19,6 +19,7 @@ from portfell.hosted_api_state import (
 from portfell.hosted_research_workflow import (
     ResearchRun,
     UnivariateSelection,
+    bivariate_source_id,
     create_full_univariate_selection,
 )
 from portfell.hosted_workspace_repository import persist_local_workspace
@@ -246,9 +247,7 @@ def _bivariate_run(
 ) -> ResearchRun | None:
     if selection is None:
         return None
-    source_id = stable_hash(
-        {"selection_id": selection.selection_id, "members": list(selection.member_ids)}
-    )
+    source_id = bivariate_source_id(selection)
     runs = sorted(
         (
             run
