@@ -142,6 +142,7 @@ def research_router(
             "downside",
             "lower_tail_dependence",
             "tail_coexceedance_rate",
+            "drawdown_overlap",
         ] = "pearson",
         user: ApiUser = Depends(current_user),
     ) -> JsonRow:

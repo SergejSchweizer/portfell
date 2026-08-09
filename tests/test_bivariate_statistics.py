@@ -7,7 +7,11 @@ from portfell.bivariate_statistics import (
     resolve_worker_count,
     write_bivariate_statistics,
 )
-from portfell.bivariate_views import build_bivariate_summary, build_tail_risk_scatter
+from portfell.bivariate_views import (
+    build_bivariate_summary,
+    build_correlation_matrix,
+    build_tail_risk_scatter,
+)
 from portfell.paths import LakePaths
 from portfell.run_state import read_job_manifest
 from portfell.table_io import read_rows, write_rows
@@ -76,13 +80,18 @@ def test_bivariate_statistics_use_common_dates_and_pairwise_metrics(tmp_path: Pa
     assert tail_diagnostics["worst_pair"] is not None
     assert tail_diagnostics["best_diversifier_pair"] is not None
     assert tail_diagnostics["median_joint_tail_events"] is not None
-    coexceedance_diagnostics = build_bivariate_summary(tuple(statistics))["coexceedance_diagnostics"]
+    coexceedance_diagnostics = build_bivariate_summary(tuple(statistics))[
+        "coexceedance_diagnostics"
+    ]
     assert coexceedance_diagnostics["independence_baseline"] == pytest.approx(0.0025)
     assert coexceedance_diagnostics["high_1_pairs"] >= 0
     assert coexceedance_diagnostics["worst_pair"] is not None
     scatter_diagnostics = build_tail_risk_scatter(tuple(statistics))["diagnostics"]
     assert scatter_diagnostics["pareto_best_pair_count"] >= 1
     assert scatter_diagnostics["tail_independence_baseline"] == pytest.approx(0.05)
+    drawdown_matrix = build_correlation_matrix(tuple(statistics), "drawdown_overlap")
+    assert drawdown_matrix["labels"]
+    assert drawdown_matrix["values"][0][1] == statistics[0]["drawdown_overlap_rate"]
 
 
 def test_bivariate_statistics_require_a_universe_wide_common_calendar() -> None:

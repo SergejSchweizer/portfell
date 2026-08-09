@@ -302,7 +302,28 @@ export type ApiBivariateSummary = Readonly<{
     largest_cluster_size?: number;
   }>;
   rolling_correlation_diagnostics: Readonly<{ percentile_90?: number | null; high_threshold_pairs: number; worst_pair?: string | null; worst_value?: number | null; best_pair?: string | null; best_value?: number | null; most_exposed_listing?: string | null; most_exposed_average?: number | null; cluster_count: number; largest_cluster_size: number }>;
-  drawdown_overlap_diagnostics: Readonly<{ percentile_90?: number | null; high_threshold_pairs: number; worst_pair?: string | null; worst_value?: number | null; best_pair?: string | null; best_value?: number | null; most_exposed_listing?: string | null; most_exposed_average?: number | null; cluster_count: number; largest_cluster_size: number }>;
+  drawdown_overlap_diagnostics: Readonly<{
+    percentile_90?: number | null;
+    high_threshold_pairs: number;
+    high_25_pairs: number;
+    high_50_pairs: number;
+    worst_pair?: string | null;
+    worst_value?: number | null;
+    best_pair?: string | null;
+    best_value?: number | null;
+    most_exposed_listing?: string | null;
+    most_exposed_average?: number | null;
+    median_joint_drawdown_days?: number | null;
+    minimum_joint_drawdown_days?: number | null;
+    average_joint_drawdown_severity?: number | null;
+    average_rolling_stability?: number | null;
+    average_pearson_correlation?: number | null;
+    average_downside_correlation?: number | null;
+    high_overlap_low_pearson_pairs: number;
+    high_overlap_low_downside_pairs: number;
+    cluster_count: number;
+    largest_cluster_size: number;
+  }>;
 }>;
 
 export type ApiPairMetricMatrix = Readonly<{

@@ -221,13 +221,60 @@ def rolling_correlation_diagnostics(rows: tuple[JsonRow, ...]) -> JsonRow:
 
 
 def drawdown_overlap_diagnostics(rows: tuple[JsonRow, ...]) -> JsonRow:
-    return _pair_metric_diagnostics(rows, "drawdown_overlap_rate", 0.10)
+    """Portfolio facts for how often and how severely pairs draw down together."""
+    values = _metric_values(rows, "drawdown_overlap_rate")
+    if not values:
+        return _empty_drawdown_overlap_diagnostics()
+    base = _pair_metric_diagnostics(rows, "drawdown_overlap_rate", 0.10)
+    counts = _integer_values(rows, "drawdown_overlap_count")
+    severities = _metric_values(rows, "drawdown_joint_severity")
+    stabilities = _metric_values(rows, "rolling_drawdown_overlap_stability")
+    pearson = _metric_values(rows, "pearson_correlation")
+    downside = _metric_values(rows, "downside_correlation")
+    hidden_pearson_risk = sum(
+        float(row["drawdown_overlap_rate"]) >= 0.25
+        and float(row.get("pearson_correlation", 1.0)) <= 0.30
+        for row in rows
+        if row.get("drawdown_overlap_rate") is not None
+    )
+    hidden_downside_risk = sum(
+        float(row["drawdown_overlap_rate"]) >= 0.25
+        and float(row.get("downside_correlation", 1.0)) <= 0.30
+        for row in rows
+        if row.get("drawdown_overlap_rate") is not None
+    )
+    return {
+        **base,
+        "high_25_pairs": sum(value >= 0.25 for value in values),
+        "high_50_pairs": sum(value >= 0.50 for value in values),
+        "median_joint_drawdown_days": median(counts) if counts else None,
+        "minimum_joint_drawdown_days": min(counts) if counts else None,
+        "average_joint_drawdown_severity": (
+            sum(severities) / len(severities) if severities else None
+        ),
+        "average_rolling_stability": sum(stabilities) / len(stabilities) if stabilities else None,
+        "average_pearson_correlation": sum(pearson) / len(pearson) if pearson else None,
+        "average_downside_correlation": sum(downside) / len(downside) if downside else None,
+        "high_overlap_low_pearson_pairs": hidden_pearson_risk,
+        "high_overlap_low_downside_pairs": hidden_downside_risk,
+    }
 
 
 def _pair_metric_diagnostics(rows: tuple[JsonRow, ...], metric: str, threshold: float) -> JsonRow:
     values = _metric_values(rows, metric)
     if not values:
-        return {"percentile_90": None, "high_threshold_pairs": 0, "worst_pair": None, "worst_value": None, "best_pair": None, "best_value": None, "most_exposed_listing": None, "most_exposed_average": None, "cluster_count": 0, "largest_cluster_size": 0}
+        return {
+            "percentile_90": None,
+            "high_threshold_pairs": 0,
+            "worst_pair": None,
+            "worst_value": None,
+            "best_pair": None,
+            "best_value": None,
+            "most_exposed_listing": None,
+            "most_exposed_average": None,
+            "cluster_count": 0,
+            "largest_cluster_size": 0,
+        }
     by_listing: dict[str, list[float]] = {}
     edges: list[tuple[str, str]] = []
     for row in rows:
@@ -242,12 +289,28 @@ def _pair_metric_diagnostics(rows: tuple[JsonRow, ...], metric: str, threshold: 
     averages = _listing_averages(by_listing)
     worst = _worst_pair(rows, metric)
     best = min(
-        [(_listing_label(row, "left"), _listing_label(row, "right"), float(row[metric])) for row in rows if row.get(metric) is not None],
-        key=lambda item: item[2], default=None,
+        [
+            (_listing_label(row, "left"), _listing_label(row, "right"), float(row[metric]))
+            for row in rows
+            if row.get(metric) is not None
+        ],
+        key=lambda item: item[2],
+        default=None,
     )
     clusters = _correlation_clusters(tuple(by_listing), edges)
     most_exposed = _extreme_listing(averages, highest=True)
-    return {"percentile_90": _percentile(sorted(values), 0.90), "high_threshold_pairs": sum(value >= threshold for value in values), "worst_pair": None if worst is None else f"{worst[0]} ↔ {worst[1]}", "worst_value": None if worst is None else worst[2], "best_pair": None if best is None else f"{best[0]} ↔ {best[1]}", "best_value": None if best is None else best[2], "most_exposed_listing": most_exposed, "most_exposed_average": averages.get(most_exposed) if most_exposed else None, "cluster_count": len(clusters), "largest_cluster_size": max((len(cluster) for cluster in clusters), default=0)}
+    return {
+        "percentile_90": _percentile(sorted(values), 0.90),
+        "high_threshold_pairs": sum(value >= threshold for value in values),
+        "worst_pair": None if worst is None else f"{worst[0]} ↔ {worst[1]}",
+        "worst_value": None if worst is None else worst[2],
+        "best_pair": None if best is None else f"{best[0]} ↔ {best[1]}",
+        "best_value": None if best is None else best[2],
+        "most_exposed_listing": most_exposed,
+        "most_exposed_average": averages.get(most_exposed) if most_exposed else None,
+        "cluster_count": len(clusters),
+        "largest_cluster_size": max((len(cluster) for cluster in clusters), default=0),
+    }
 
 
 def covariance_diagnostics(
@@ -372,6 +435,31 @@ def _empty_coexceedance_diagnostics() -> JsonRow:
     }
 
 
+def _empty_drawdown_overlap_diagnostics() -> JsonRow:
+    return {
+        "percentile_90": None,
+        "high_threshold_pairs": 0,
+        "high_25_pairs": 0,
+        "high_50_pairs": 0,
+        "worst_pair": None,
+        "worst_value": None,
+        "best_pair": None,
+        "best_value": None,
+        "most_exposed_listing": None,
+        "most_exposed_average": None,
+        "median_joint_drawdown_days": None,
+        "minimum_joint_drawdown_days": None,
+        "average_joint_drawdown_severity": None,
+        "average_rolling_stability": None,
+        "average_pearson_correlation": None,
+        "average_downside_correlation": None,
+        "high_overlap_low_pearson_pairs": 0,
+        "high_overlap_low_downside_pairs": 0,
+        "cluster_count": 0,
+        "largest_cluster_size": 0,
+    }
+
+
 def _correlation_distribution(values: list[float]) -> JsonRow:
     ordered = sorted(values)
     return {
@@ -408,7 +496,9 @@ def _correlation_listing_data(
     return by_listing, edges, gaps
 
 
-def _tail_listing_data(rows: tuple[JsonRow, ...]) -> tuple[dict[str, list[float]], list[tuple[str, str]]]:
+def _tail_listing_data(
+    rows: tuple[JsonRow, ...],
+) -> tuple[dict[str, list[float]], list[tuple[str, str]]]:
     by_listing: dict[str, list[float]] = {}
     edges: list[tuple[str, str]] = []
     for row in rows:
@@ -425,7 +515,9 @@ def _tail_listing_data(rows: tuple[JsonRow, ...]) -> tuple[dict[str, list[float]
     return by_listing, edges
 
 
-def _coexceedance_listing_data(rows: tuple[JsonRow, ...]) -> tuple[dict[str, list[float]], list[tuple[str, str]]]:
+def _coexceedance_listing_data(
+    rows: tuple[JsonRow, ...],
+) -> tuple[dict[str, list[float]], list[tuple[str, str]]]:
     by_listing: dict[str, list[float]] = {}
     edges: list[tuple[str, str]] = []
     for row in rows:
@@ -481,7 +573,9 @@ def _best_tail_diversifier_pair(rows: tuple[JsonRow, ...]) -> tuple[str, str, fl
     return min(candidates, key=lambda item: (item[2], item[3]), default=None)
 
 
-def _best_coexceedance_diversifier_pair(rows: tuple[JsonRow, ...]) -> tuple[str, str, float, float] | None:
+def _best_coexceedance_diversifier_pair(
+    rows: tuple[JsonRow, ...],
+) -> tuple[str, str, float, float] | None:
     candidates = [
         (
             _listing_label(row, "left"),

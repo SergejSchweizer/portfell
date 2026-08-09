@@ -7,6 +7,7 @@ import { LoadingState } from "../components/loading-state";
 import { Panel } from "../components/panel";
 import type { ApiDividendFrequency, ApiQuoteFetch, ApiResearchRun, ApiUnivariateRow, ApiUnivariateSelectionSettings } from "../contracts";
 import { useResource } from "../hooks/use-resource";
+import { historicalDataUpdateLabel } from "../quote-progress";
 
 type MetricDefinition = Readonly<{ group: string; metric: string; label: string; description: string; equation: string; notation: string; unit?: string }>;
 type UnivariateStatisticTab = "dividends" | MetricDefinition["metric"];
@@ -102,6 +103,7 @@ export function UnivariateStatisticsPage() {
   const [quoteProgress, setQuoteProgress] = useState(0);
   const [quoteMessage, setQuoteMessage] = useState("Fetch historical quotes for this selection.");
   const [quoteRunId, setQuoteRunId] = useState<string | null>(null);
+  const [quoteRun, setQuoteRun] = useState<ApiQuoteFetch | null>(null);
   const [quoteUpdatedCount, setQuoteUpdatedCount] = useState<number | null>(null);
   const workflowQuoteRunId = workflow.status === "ready"
     ? workflow.data.stages.metadata_builder.quote_run_id ?? null
@@ -120,6 +122,7 @@ export function UnivariateStatisticsPage() {
       setQuoteProgress(0);
       setQuoteMessage("Fetch historical quotes for this selection.");
       setQuoteRunId(null);
+      setQuoteRun(null);
       setQuoteUpdatedCount(null);
       setWorkflowRevision((value) => value + 1);
     };
@@ -140,6 +143,7 @@ export function UnivariateStatisticsPage() {
         const completed = result.completed ?? 0;
         const total = result.total ?? 0;
         const failed = result.failed ?? 0;
+        setQuoteRun(result);
         setQuoteProgress(result.percent ?? 0);
         if (result.status === "running") {
           setQuoteMessage(`${completed.toLocaleString()} of ${total.toLocaleString()} quote-fetch tasks completed${estimatedRemainingTime(result.started_at, completed, total)}.`);
@@ -348,6 +352,7 @@ export function UnivariateStatisticsPage() {
         metadata_selection_id: metadata.metadata_selection_id,
       });
       setQuoteRunId(result.download_run_id);
+      setQuoteRun(result);
       setQuoteProgress(result.percent ?? 0);
       if (result.status === "running") {
         const completed = result.completed ?? 0;
@@ -362,7 +367,7 @@ export function UnivariateStatisticsPage() {
   }
 
   const updateHistoricalDataLabel = quoteStatus === "running"
-    ? `Updating historical data · ${quoteProgress}%`
+    ? historicalDataUpdateLabel(quoteRun)
     : quoteUpdatedCount !== null
       ? `Update Historical Data · ${quoteUpdatedCount.toLocaleString()} ISINs updated`
       : "Update Historical Data";

@@ -323,6 +323,9 @@ SCHEMAS: dict[str, tuple[str, ...]] = {
         "rolling_spearman_stability",
         "rolling_downside_stability",
         "drawdown_overlap_rate",
+        "drawdown_overlap_count",
+        "drawdown_joint_severity",
+        "rolling_drawdown_overlap_stability",
         "bucket",
     ),
     "gold_runs": (

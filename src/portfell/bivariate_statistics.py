@@ -27,7 +27,7 @@ from portfell.run_state import build_job_manifest, write_job_manifest
 from portfell.schemas import validate_rows
 from portfell.table_io import JsonRow, read_rows, write_rows
 
-BIVARIATE_STATISTICS_VERSION = "v7"
+BIVARIATE_STATISTICS_VERSION = "v8"
 
 
 def build_bivariate_statistics(
@@ -297,6 +297,11 @@ def _build_bivariate_pair_statistics(pair: PairObservation) -> JsonRow:
             pair.left_values, pair.right_values
         ),
         "drawdown_overlap_rate": _drawdown_overlap_rate(pair.left_values, pair.right_values),
+        "drawdown_overlap_count": _drawdown_overlap_count(pair.left_values, pair.right_values),
+        "drawdown_joint_severity": _drawdown_joint_severity(pair.left_values, pair.right_values),
+        "rolling_drawdown_overlap_stability": _rolling_drawdown_overlap_stability(
+            pair.left_values, pair.right_values
+        ),
     }
 
 
@@ -447,6 +452,44 @@ def _drawdown_overlap_rate(left: Sequence[float], right: Sequence[float]) -> flo
         a <= -0.05 and b <= -0.05 for a, b in zip(left_drawdowns, right_drawdowns, strict=True)
     )
     return overlap / len(left_drawdowns)
+
+
+def _drawdown_overlap_count(left: Sequence[float], right: Sequence[float]) -> int:
+    """Count shared 5%-or-worse drawdown observations for one ISIN pair."""
+    left_drawdowns = _drawdowns(left)
+    right_drawdowns = _drawdowns(right)
+    return sum(
+        a <= -0.05 and b <= -0.05 for a, b in zip(left_drawdowns, right_drawdowns, strict=True)
+    )
+
+
+def _drawdown_joint_severity(left: Sequence[float], right: Sequence[float]) -> float:
+    """Mean magnitude of overlapping drawdowns, expressed as a positive loss rate."""
+    shared = [
+        (a, b)
+        for a, b in zip(_drawdowns(left), _drawdowns(right), strict=True)
+        if a <= -0.05 and b <= -0.05
+    ]
+    return -sum((a + b) / 2 for a, b in shared) / len(shared) if shared else 0.0
+
+
+def _rolling_drawdown_overlap_stability(left: Sequence[float], right: Sequence[float]) -> float:
+    """Standard deviation of sampled rolling shared-drawdown overlap rates."""
+    if len(left) != len(right) or len(left) < 20:
+        return 0.0
+    window = min(60, len(left))
+    step = max(1, window // 3)
+    starts = list(range(0, len(left) - window + 1, step))
+    if starts[-1] != len(left) - window:
+        starts.append(len(left) - window)
+    overlaps = [
+        _drawdown_overlap_rate(left[start : start + window], right[start : start + window])
+        for start in starts
+    ]
+    if len(overlaps) < 2:
+        return 0.0
+    average = sum(overlaps) / len(overlaps)
+    return sqrt(sum((value - average) ** 2 for value in overlaps) / (len(overlaps) - 1))
 
 
 def _drawdowns(values: Sequence[float]) -> tuple[float, ...]:
