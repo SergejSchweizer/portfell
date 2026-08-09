@@ -1239,7 +1239,7 @@ Series Completion Gate: Follow the current pre-merge and post-merge gates in [GA
 
 Branch: `refactor/module-contract-names`.
 
-Git status: in progress. PR: TBD.
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/248.
 
 Priority: P0 module-boundary integrity.
 
