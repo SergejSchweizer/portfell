@@ -520,7 +520,7 @@ Idempotency: Re-rendering or repeatedly activating disabled/loading controls per
 
 Branch: `refactor/platform-simple-ui-shell`.
 
-Git status: in progress. PR: TBD.
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/246.
 
 Priority: P1 shell clarity.
 
