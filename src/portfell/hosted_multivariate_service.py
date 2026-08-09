@@ -28,7 +28,9 @@ from portfell.multivariate_inputs import (
     MultivariateListingKey,
     build_multivariate_input_snapshot,
 )
+from portfell.multivariate_quote_views import common_dates, first_price, last_price
 from portfell.multivariate_risk_model import build_multivariate_risk_model
+from portfell.multivariate_run_view import multivariate_run_row
 from portfell.multivariate_structure import build_multivariate_structure
 from portfell.multivariate_validation import (
     build_candidate_scorecards,
@@ -71,7 +73,7 @@ class MultivariateResearchService:
         run_id = opaque_id("multivariate-run", f"{user_id}:{logical_hash}")
         existing = self._state.multivariate_runs_by_id.get(run_id)
         if existing is not None:
-            return _run_row(existing)
+            return multivariate_run_row(existing)
         previous_id = self._state.current_multivariate_run_by_project.get(project_id)
         previous = self._state.multivariate_runs_by_id.get(previous_id or "")
         if previous is not None and previous.status in {"ready", "running", "complete"}:
@@ -102,7 +104,7 @@ class MultivariateResearchService:
         self._state.multivariate_runs_by_id[run_id] = run
         self._state.current_multivariate_run_by_project[project_id] = run_id
         self._persistence.persist()
-        return _run_row(run)
+        return multivariate_run_row(run)
 
     def plan(
         self, user_id: str, project_id: str, bivariate_run_id: str, settings: JsonRow
@@ -145,7 +147,9 @@ class MultivariateResearchService:
         self._persistence.persist()
 
     def status(self, user_id: str, run_id: str) -> JsonRow:
-        return _run_row(require_user_row(self._state.multivariate_runs_by_id, run_id, user_id))
+        return multivariate_run_row(
+            require_user_row(self._state.multivariate_runs_by_id, run_id, user_id)
+        )
 
     def summary(self, user_id: str, run_id: str) -> JsonRow:
         return dict(require_user_row(self._state.multivariate_runs_by_id, run_id, user_id).summary)
@@ -214,7 +218,7 @@ class MultivariateResearchService:
         )
         self._state.multivariate_runs_by_id[run_id] = updated
         self._persistence.persist()
-        return _run_row(updated)
+        return multivariate_run_row(updated)
 
     def _selection_for_bivariate(self, user_id: str, run_id: str) -> UnivariateSelection:
         bivariate = require_user_row(self._state.bivariate_runs_by_id, run_id, user_id)
@@ -284,9 +288,9 @@ class MultivariateResearchService:
             selected.append({**metadata.get(key, {}), **row})
         returns = build_returns(quotes)
         keys = tuple(sorted(MultivariateListingKey.from_row(row) for row in selected))
-        common_dates = _common_dates(returns, keys)
+        calendar_dates = common_dates(returns, keys)
         calendar_id = stable_hash(
-            {"listing_keys": [key.as_tuple() for key in keys], "dates": common_dates}
+            {"listing_keys": [key.as_tuple() for key in keys], "dates": calendar_dates}
         )
         dependencies = MultivariateInputDependencies(
             project_id=run.project_id,
@@ -299,9 +303,9 @@ class MultivariateResearchService:
             bivariate_listing_keys=keys,
             aligned_calendar_id=calendar_id,
             bivariate_aligned_calendar_id=calendar_id,
-            date_start=common_dates[0] if common_dates else None,
-            date_end=common_dates[-1] if common_dates else None,
-            observation_count=len(common_dates),
+            date_start=calendar_dates[0] if calendar_dates else None,
+            date_end=calendar_dates[-1] if calendar_dates else None,
+            observation_count=len(calendar_dates),
             quote_artifact_ids={
                 key: f"quote:{quote_run_id}:{key.isin}:{key.exchange}:{key.code}" for key in keys
             },
@@ -322,9 +326,9 @@ class MultivariateResearchService:
                 listing=key,
                 events=normalize_distribution_events(dividends, listing=key),
                 period_end=snapshot.date_end or "1970-01-01",
-                denominator_price=_last_price(quotes, key),
+                denominator_price=last_price(quotes, key),
                 period_start=snapshot.date_start,
-                start_price=_first_price(quotes, key),
+                start_price=first_price(quotes, key),
             )
             for key in keys
         }
@@ -514,59 +518,3 @@ class MultivariateResearchService:
             income_evidence=income_rows,
             warnings=tuple(snapshot.availability_reasons),
         )
-
-
-def _run_row(run: MultivariateRunRecord) -> JsonRow:
-    elapsed = max(0, int(time() - run.started_at_epoch)) if run.started_at_epoch else 0
-    remaining_units = max(0, run.total_units - run.completed_units)
-    per_unit = elapsed / run.completed_units if run.completed_units else 5.0
-    return {
-        "run_id": run.run_id,
-        "project_id": run.project_id,
-        "bivariate_run_id": run.bivariate_run_id,
-        "input_snapshot_id": run.input_snapshot_id or None,
-        "status": run.status,
-        "phase": run.phase,
-        "completed_units": run.completed_units,
-        "total_units": run.total_units,
-        "elapsed_seconds": elapsed,
-        "estimated_remaining_seconds": 0
-        if run.status == "complete"
-        else max(1, int(remaining_units * per_unit)),
-        "settings": dict(run.settings),
-        "warnings": list(run.warnings),
-        "failure_reason": run.failure_reason,
-    }
-
-
-def _common_dates(
-    rows: tuple[JsonRow, ...] | list[JsonRow], keys: tuple[MultivariateListingKey, ...]
-) -> tuple[str, ...]:
-    by_key: dict[tuple[str, str, str], set[str]] = {}
-    for row in rows:
-        key = (str(row.get("isin", "")), str(row.get("exchange", "")), str(row.get("code", "")))
-        by_key.setdefault(key, set()).add(str(row.get("date", "")))
-    dates: set[str] = set(by_key.get(keys[0].as_tuple(), set())) if keys else set()
-    for key in keys[1:]:
-        dates &= by_key.get(key.as_tuple(), set())
-    return tuple(sorted(date for date in dates if date))
-
-
-def _last_price(
-    rows: tuple[JsonRow, ...] | list[JsonRow], key: MultivariateListingKey
-) -> float | None:
-    matching = [row for row in rows if MultivariateListingKey.from_row(row) == key]
-    if not matching:
-        return None
-    value = sorted(matching, key=lambda row: str(row.get("date", "")))[-1].get("adjusted_close")
-    return float(value) if isinstance(value, int | float) and value > 0 else None
-
-
-def _first_price(
-    rows: tuple[JsonRow, ...] | list[JsonRow], key: MultivariateListingKey
-) -> float | None:
-    matching = [row for row in rows if MultivariateListingKey.from_row(row) == key]
-    if not matching:
-        return None
-    value = sorted(matching, key=lambda row: str(row.get("date", "")))[0].get("adjusted_close")
-    return float(value) if isinstance(value, int | float) and value > 0 else None
