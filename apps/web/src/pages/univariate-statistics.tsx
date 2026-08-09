@@ -7,6 +7,7 @@ import { LoadingState } from "../components/loading-state";
 import { Panel } from "../components/panel";
 import type { ApiDividendFrequency, ApiQuoteFetch, ApiResearchRun, ApiUnivariateRow, ApiUnivariateSelectionSettings } from "../contracts";
 import { useResource } from "../hooks/use-resource";
+import { historicalDataUpdateLabel } from "../quote-progress";
 
 type MetricDefinition = Readonly<{ group: string; metric: string; label: string; description: string; equation: string; notation: string; unit?: string }>;
 type UnivariateStatisticTab = "dividends" | MetricDefinition["metric"];
@@ -24,6 +25,7 @@ const dividendFrequencyOptions: readonly Readonly<{ value: DividendFrequency; la
 ];
 
 const metricDefinitions: readonly MetricDefinition[] = [
+  { group: "Data coverage", metric: "quote_observation_count", label: "Duration", description: "Available daily quote observations per ISIN in the persisted historical-data store.", equation: "N₍quotes₎ = Σₜ 𝟙{Pₜ observed}", notation: "N₍quotes₎: available quote observations · Pₜ: adjusted close at time t · 𝟙: indicator", unit: "trading days" },
   { group: "Return", metric: "annualized_geometric_return", label: "Annual Return", description: "Compound annual return derived from daily log returns.", equation: "Rₐₙₙ = e^(252 · 𝔼[rₜ]) − 1", notation: "Rₐₙₙ: annual return · rₜ: daily log return · 𝔼: expected value · 252: trading days", unit: "%" },
   { group: "Risk", metric: "var", label: "Value at Risk", description: "Historical loss quantile at the configured confidence level.", equation: "VaRα = −Q₁₋α(rₜ)", notation: "α: confidence level · Q: return quantile · rₜ: log return at time t", unit: "%" },
   { group: "Risk", metric: "sortino_ratio", label: "Sortino ratio", description: "Annualized return per unit of downside deviation.", equation: "Sortino = (Rₐₙₙ − rƒ) / σd", notation: "Rₐₙₙ: annualized return · rƒ: risk-free rate · σd: downside deviation", unit: "ratio" },
@@ -34,16 +36,27 @@ const metricDefinitions: readonly MetricDefinition[] = [
   { group: "Trend", metric: "trend_r_squared", label: "Trend R-squared", description: "Fit quality of the log-price trend.", equation: "R² = 1 − SSE / SST,  ln(Pₜ) = β₀ + β₁t + εₜ", notation: "SSE: residual error · SST: total error · β₀/β₁: trend coefficients · εₜ: residual", unit: "ratio" },
 ];
 
+const quoteDurationThresholds: readonly Readonly<{ label: string; minimum: number }>[] = [
+  { label: "> 1 month", minimum: 21 },
+  { label: "> 2 months", minimum: 42 },
+  { label: "> 3 months", minimum: 63 },
+  { label: "> 6 months", minimum: 126 },
+  { label: "> 12 months", minimum: 252 },
+  { label: "> 3 years", minimum: 756 },
+  { label: "> 5 years", minimum: 1_260 },
+  { label: "> 10 years", minimum: 2_520 },
+];
+
 
 function formatStatistic(value: number, unit?: string): string {
   if (unit === "%") return `${(value * 100).toFixed(2)}%`;
-  if (unit === "observations") return `${Math.round(value)} observations`;
+  if (unit === "observations" || unit === "trading days") return `${Math.round(value)} ${unit}`;
   return `${value.toFixed(2)}${unit ? ` ${unit}` : ""}`;
 }
 
 function formatHistogramValue(value: number, unit?: string): string {
   if (unit === "%") return (value * 100).toFixed(2);
-  if (unit === "observations") return String(Math.round(value));
+  if (unit === "observations" || unit === "trading days") return String(Math.round(value));
   return value.toFixed(2);
 }
 
@@ -90,6 +103,8 @@ export function UnivariateStatisticsPage() {
   const [quoteProgress, setQuoteProgress] = useState(0);
   const [quoteMessage, setQuoteMessage] = useState("Fetch historical quotes for this selection.");
   const [quoteRunId, setQuoteRunId] = useState<string | null>(null);
+  const [quoteRun, setQuoteRun] = useState<ApiQuoteFetch | null>(null);
+  const [quoteUpdatedCount, setQuoteUpdatedCount] = useState<number | null>(null);
   const workflowQuoteRunId = workflow.status === "ready"
     ? workflow.data.stages.metadata_builder.quote_run_id ?? null
     : null;
@@ -107,6 +122,8 @@ export function UnivariateStatisticsPage() {
       setQuoteProgress(0);
       setQuoteMessage("Fetch historical quotes for this selection.");
       setQuoteRunId(null);
+      setQuoteRun(null);
+      setQuoteUpdatedCount(null);
       setWorkflowRevision((value) => value + 1);
     };
     window.addEventListener("portfell:project-updated", resetProjectState);
@@ -126,6 +143,7 @@ export function UnivariateStatisticsPage() {
         const completed = result.completed ?? 0;
         const total = result.total ?? 0;
         const failed = result.failed ?? 0;
+        setQuoteRun(result);
         setQuoteProgress(result.percent ?? 0);
         if (result.status === "running") {
           setQuoteMessage(`${completed.toLocaleString()} of ${total.toLocaleString()} quote-fetch tasks completed${estimatedRemainingTime(result.started_at, completed, total)}.`);
@@ -139,7 +157,9 @@ export function UnivariateStatisticsPage() {
         }
         setQuoteStatus("complete");
         setQuoteProgress(100);
-        setQuoteMessage(`${(result.quote_successes ?? result.selected_listing_count ?? 0).toLocaleString()} listings fetched; ${failed.toLocaleString()} provider tasks failed.`);
+        const updatedCount = result.quote_successes ?? result.selected_listing_count ?? 0;
+        setQuoteUpdatedCount(updatedCount);
+        setQuoteMessage(`${updatedCount.toLocaleString()} listings fetched; ${failed.toLocaleString()} provider tasks failed.`);
         window.dispatchEvent(new Event("portfell:workflow-updated"));
         setWorkflowRevision((value) => value + 1);
       } catch (error) {
@@ -332,6 +352,7 @@ export function UnivariateStatisticsPage() {
         metadata_selection_id: metadata.metadata_selection_id,
       });
       setQuoteRunId(result.download_run_id);
+      setQuoteRun(result);
       setQuoteProgress(result.percent ?? 0);
       if (result.status === "running") {
         const completed = result.completed ?? 0;
@@ -345,27 +366,24 @@ export function UnivariateStatisticsPage() {
     }
   }
 
+  const updateHistoricalDataLabel = quoteStatus === "running"
+    ? historicalDataUpdateLabel(quoteRun)
+    : quoteUpdatedCount !== null
+      ? `Update Historical Data · ${quoteUpdatedCount.toLocaleString()} ISINs updated`
+      : "Update Historical Data";
+
   return (
     <section className="univariate-statistics-page" data-route="univariate-statistics-page">
-      <Panel title="Historical Data">
-        <div className="quote-fetch quote-fetch--panel historical-data">
-          <label htmlFor="quote-progress">Quote fetch progress</label>
-          <progress id="quote-progress" max={100} value={quoteProgress} />
-          <p className="status-line" aria-live="polite">{quoteMessage}</p>
-          <div className="quote-fetch__action">
-            <Button type="button" variant="primary" disabled={!metadata.metadata_selection_id} onClick={() => void fetchQuotes()}>
-              {quoteStatus === "running" ? "Refresh Historical Download Status" : "Download Historical Data"}
-            </Button>
-          </div>
-        </div>
-      </Panel>
       <Panel title="Univariate Statistics">
-        {stage.status === "locked" ? <p>Download historical data above to unlock univariate statistics.</p> : <>
+        {stage.status === "locked" ? <p>Update historical data to unlock univariate statistics.</p> : <>
           <div className="quote-fetch quote-fetch--panel univariate-compute">
             <label htmlFor="univariate-progress">Univariate statistics progress</label>
             <progress id="univariate-progress" max={100} value={run?.percent ?? 0} />
             <p className="status-line" aria-live="polite">{message || "Compute statistics for the downloaded historical data."}</p>
-            <div className="quote-fetch__action">
+            <div className="quote-fetch__action quote-fetch__action--dual">
+              <Button type="button" variant="secondary" disabled={!metadata.metadata_selection_id || quoteStatus === "running"} onClick={() => void fetchQuotes()} title={quoteMessage}>
+                {updateHistoricalDataLabel}
+              </Button>
               <Button type="button" variant="primary" disabled={!metadata.metadata_selection_id || !metadata.quote_run_id || run?.status === "running"} onClick={() => void compute()}>
                 {run?.status === "running" ? "Computing…" : "Compute univariate statistics"}
               </Button>
@@ -430,11 +448,25 @@ export function UnivariateStatisticsPage() {
                   const values = metricValues.map(({ value }) => value);
                   const minimum = values.length > 0 ? Math.min(...values) : 0;
                   const maximumValue = values.length > 0 ? Math.max(...values) : 0;
-                  const buckets = values.length === 0 ? [] : Array.from({ length: 12 }, (_, index) => {
+                  const isQuoteDuration = statistic.metric === "quote_observation_count";
+                  const buckets = values.length === 0 ? [] : isQuoteDuration ? quoteDurationThresholds.map(({ label, minimum: threshold }) => {
+                    const entries = metricValues.filter(({ value }) => value > threshold);
+                    return {
+                      label,
+                      lower: threshold,
+                      upper: Number.MAX_SAFE_INTEGER,
+                      count: entries.length,
+                      frequencies: dividendFrequencyOptions.map((option) => ({
+                        ...option,
+                        count: entries.filter(({ frequency }) => frequency === option.value).length,
+                      })),
+                    };
+                  }) : Array.from({ length: 12 }, (_, index) => {
                     const lower = minimum + ((maximumValue - minimum) / 12) * index;
                     const upper = minimum + ((maximumValue - minimum) / 12) * (index + 1);
                     const entries = metricValues.filter(({ value }) => minimum === maximumValue || (index === 11 ? value >= lower && value <= upper : value >= lower && value < upper));
                     return {
+                      label: undefined,
                       lower,
                       upper,
                       count: entries.length,
@@ -453,10 +485,13 @@ export function UnivariateStatisticsPage() {
                       average: frequencyValues.length === 0 ? null : frequencyValues.reduce((sum, value) => sum + value, 0) / frequencyValues.length,
                     };
                   });
-                  const histogramSelectionOptions = Array.from(new Set(buckets.map(({ lower, upper }) => minimum === maximumValue
+                  const histogramSelectionOptions = isQuoteDuration
+                    ? buckets.map(({ label }) => label!)
+                    : Array.from(new Set(buckets.map(({ lower, upper }) => minimum === maximumValue
                     ? formatHistogramValue(minimum, statistic.unit)
                     : `${formatHistogramValue(lower, statistic.unit)} – ${formatHistogramValue(upper, statistic.unit)}`)));
-                  const histogramSelectionRanges = Object.fromEntries(buckets.map(({ lower, upper }) => [
+                  const histogramSelectionRanges = Object.fromEntries(buckets.map(({ label, lower, upper }) => [
+                    isQuoteDuration ? label! :
                     minimum === maximumValue
                       ? formatHistogramValue(minimum, statistic.unit)
                       : `${formatHistogramValue(lower, statistic.unit)} – ${formatHistogramValue(upper, statistic.unit)}`,
@@ -497,8 +532,8 @@ export function UnivariateStatisticsPage() {
                       <div className="univariate-group-card__chart" role="img" aria-label={`${statistic.label} distribution across ${values.length} ISINs`}>
                       <span className="univariate-group-card__axis univariate-group-card__axis--y">ISIN count</span>
                       <div className="univariate-group-card__plot">
-                        {buckets.length === 0 ? <span className="status-line">No values available.</span> : buckets.map(({ lower, upper, count, frequencies }, bucket) => {
-                          const range = minimum === maximumValue ? formatHistogramValue(minimum, statistic.unit) : `${formatHistogramValue(lower, statistic.unit)} – ${formatHistogramValue(upper, statistic.unit)}`;
+                        {buckets.length === 0 ? <span className="status-line">No values available.</span> : buckets.map(({ label, lower, upper, count, frequencies }, bucket) => {
+                          const range = isQuoteDuration ? label! : minimum === maximumValue ? formatHistogramValue(minimum, statistic.unit) : `${formatHistogramValue(lower, statistic.unit)} – ${formatHistogramValue(upper, statistic.unit)}`;
                           const breakdown = frequencies.filter((frequency) => frequency.count > 0).map((frequency) => `${frequency.label}: ${frequency.count}`).join(", ");
                           return <div className="univariate-group-card__bar" key={bucket} tabIndex={0} aria-label={`${range}: ${count} ISINs${breakdown ? `; ${breakdown}` : ""}`}>
                             <span className="univariate-group-card__column" style={{ height: `${count === 0 ? 2 : (count / maximum) * 100}%` }}>
@@ -506,20 +541,23 @@ export function UnivariateStatisticsPage() {
                             </span>
                             <span className="univariate-group-card__label">{range}</span>
                             <span className="univariate-group-card__tooltip" role="tooltip">
-                              <strong>{range} {statistic.unit}</strong>
+                              <strong>{isQuoteDuration ? `${range} (${lower} trading days)` : `${range} ${statistic.unit}`}</strong>
                               <span>{count} ISINs</span>
                               {frequencies.filter((frequency) => frequency.count > 0).map((frequency) => <span className="histogram-tooltip__row" key={frequency.value}><i className="dividend-frequency-swatch" data-frequency={frequency.value} />{frequency.label}: {frequency.count}</span>)}
                             </span>
                           </div>;
                         })}
                       </div>
-                      <span className="univariate-group-card__axis univariate-group-card__axis--x">{statistic.label} ({statistic.unit ?? "value"})</span>
+                      <span className="univariate-group-card__axis univariate-group-card__axis--x">{isQuoteDuration ? "Minimum quote history" : `${statistic.label} (${statistic.unit ?? "value"})`}</span>
                       </div>
                     </div>
                   </section>;
                 })() : <p>No univariate rows matched the pinned selection.</p>}
           </section> : null}
         </>}
+        {stage.status === "locked" && <div className="quote-fetch__action quote-fetch__action--dual">
+          <Button type="button" variant="primary" disabled={!metadata.metadata_selection_id || quoteStatus === "running"} onClick={() => void fetchQuotes()} title={quoteMessage}>{updateHistoricalDataLabel}</Button>
+        </div>}
       </Panel>
     </section>
   );

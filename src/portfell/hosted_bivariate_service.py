@@ -8,6 +8,7 @@ from portfell.bivariate_views import (
     build_bivariate_summary,
     build_correlation_matrix,
     build_covariance_matrix,
+    build_tail_risk_scatter,
 )
 from portfell.hosted_api_errors import HostedApplicationError
 from portfell.hosted_api_serializers import research_run_row
@@ -138,6 +139,9 @@ class BivariateResearchService:
         if not quotes:
             quotes = self._data.selected_rows(selection.member_ids, dataset="quotes")
         return build_covariance_matrix(quotes, selection.member_ids)
+
+    def tail_risk_scatter(self, user_id: str, run_id: str) -> JsonRow:
+        return build_tail_risk_scatter(self._repository.bivariate_run(run_id, user_id).rows)
 
     def _fail(self, run: ResearchRun, user_id: str) -> None:
         self._repository.save_bivariate_run(replace(run, status="failed", failed=run.total))

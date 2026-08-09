@@ -107,6 +107,10 @@ describe("API client", () => {
       "/api/univariate-statistics/runs/run%2Fa/results?limit=10&offset=5", "/api/bivariate-statistics/plan",
       "/api/bivariate-statistics/runs/run%2Fa/covariance-matrix",
       "/api/bivariate-statistics/runs/run%2Fa/correlation-matrix?metric=downside",
+      "/api/bivariate-statistics/runs/run%2Fa/correlation-matrix?metric=lower_tail_dependence",
+      "/api/bivariate-statistics/runs/run%2Fa/correlation-matrix?metric=tail_coexceedance_rate",
+      "/api/bivariate-statistics/runs/run%2Fa/correlation-matrix?metric=drawdown_overlap",
+      "/api/bivariate-statistics/runs/run%2Fa/tail-risk-scatter",
     ]));
   });
 });

@@ -1267,6 +1267,36 @@ persisted artifacts without creating duplicate runs or selections.
 
 Series Completion Gate: Follow the current pre-merge and post-merge gates in [GATES.md](GATES.md).
 
+### PR142. Tail Dependence And Co-exceedance Matrices
+
+Branch: `feat/bivariate-tail-matrix-tabs`.
+
+Git status: pushed. Draft PR: https://github.com/SergejSchweizer/portfell/pull/251.
+
+Priority: P1 pairwise tail-risk visibility.
+
+Depends on: PR141.
+
+Scope: Expose persisted lower-tail-dependence and tail-coexceedance pair results as colour-scaled,
+upper-triangular matrices and a complete-pair tail-risk scatterplot. Add all views as tabs to the
+existing Bivariate Statistics dependence window, with the same aligned-period, hover, and label
+conventions as correlation matrices.
+
+Acceptance: A completed bivariate run provides typed Tail Dependence and Co-exceedance Rate matrix
+payloads; each matrix has the selected universe's shared date range and observation count; both tabs
+show matrix values, ISIN hover context, and tail-specific facts; the scatterplot has one point per
+pair, Tail Dependence on X, Co-exceedance Rate on Y, and labelled best-diversifier/risk-concentration
+quadrants; and the two-project browser journey selects every new tab.
+
+Security: Matrix reads remain authenticated, project-scoped, and derived only from persisted bivariate
+run rows.
+
+Determinism: Each matrix maps the immutable pair row values into the canonical sorted ISIN label order.
+
+Idempotency: Repeated reads of a completed run return identical matrix cells and facts.
+
+Series Completion Gate: Follow the current pre-merge and post-merge gates in [GATES.md](GATES.md).
+
 ### PR141. Aligned Statistics Time Ranges
 
 Branch: `fix/aligned-statistics-time-ranges`.

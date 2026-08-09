@@ -18,7 +18,7 @@
     "quote_run_incomplete",
     "scoped_quote_rows_unavailable"
   ],
-  "normalized_sha256": "56a5362f8ac12f63db2d6ea56bf740bcc7f8b20023b383e64e5780c33d8b0c14",
+  "normalized_sha256": "6b2a34444752ec659f5808bc060fa4143882f8857a3a234f2564364631713293",
   "operations": [
     "DELETE /account 200",
     "POST /analyses 200/422",
@@ -34,6 +34,7 @@
     "GET /bivariate-statistics/runs/{run_id}/covariance-matrix 200/422",
     "GET /bivariate-statistics/runs/{run_id}/results 200/422",
     "GET /bivariate-statistics/runs/{run_id}/summary 200/422",
+    "GET /bivariate-statistics/runs/{run_id}/tail-risk-scatter 200/422",
     "DELETE /credentials/eodhd 200",
     "GET /credentials/eodhd 200",
     "POST /credentials/eodhd 200/422",

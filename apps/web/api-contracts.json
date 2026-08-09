@@ -24,5 +24,6 @@
   {"method":"GET","path":"/api/bivariate-statistics/runs/{run_id}/results","query":["limit","offset"],"responseType":"ApiPage"},
   {"method":"GET","path":"/api/bivariate-statistics/runs/{run_id}/summary","responseType":"ApiBivariateSummary"},
   {"method":"GET","path":"/api/bivariate-statistics/runs/{run_id}/covariance-matrix","responseType":"ApiCovarianceMatrix"},
+  {"method":"GET","path":"/api/bivariate-statistics/runs/{run_id}/tail-risk-scatter","responseType":"ApiTailRiskScatter"},
   {"method":"GET","path":"/api/bivariate-statistics/runs/{run_id}/correlation-matrix","query":["metric"],"responseType":"ApiPairMetricMatrix"}
 ]

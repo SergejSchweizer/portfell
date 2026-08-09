@@ -38,6 +38,7 @@ and histogram derived from completed server-returned rows:
 
 | Statistic | Returned field | Unit |
 | --- | --- | --- |
+| Duration | `quote_observation_count` | trading days; fixed minimum-history thresholds |
 | Annual Return | `annualized_geometric_return` | % |
 | Value at Risk | `var` | % |
 | Sortino Ratio | `sortino_ratio` | ratio |
@@ -61,7 +62,7 @@ the browser workflow.
 
 ## Acceptance
 
-The quote panel is first in document order and its `Download Historical Data` action is disabled without a metadata selection or while a download is active. A failed download displays the server-provided safe error code. The statistics action is disabled when prerequisites are missing or a run is active. No statistics window is present before completed univariate results are loaded; afterwards, one accessible tab panel contains Dividends and every quantitative statistic, including when the returned result set is empty. Results use typed contracts, accessible tab semantics, stable loading feedback, bounded pagination, and a clear upstream-data requirement.
+Historical-data updates are represented by one `Update Historical Data` button beside `Compute univariate statistics`, rather than a dedicated panel. The button is disabled without a metadata selection or while an update is active; its label reports current percent progress during an update and the updated ISIN count after completion. A failed update remains safely described through its button tooltip. The statistics action is disabled when prerequisites are missing or a run is active. No statistics window is present before completed univariate results are loaded; afterwards, one accessible tab panel contains Dividends and every quantitative statistic, including when the returned result set is empty. Results use typed contracts, accessible tab semantics, stable loading feedback, bounded pagination, and a clear upstream-data requirement.
 
 The stateful two-project browser journey exercises historical-data and compute
 actions, every project-persisted portfolio-selection field, histogram hover

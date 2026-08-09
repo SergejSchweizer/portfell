@@ -992,6 +992,24 @@ def test_scoped_research_runs_filter_and_build_unique_pairs() -> None:
             headers=_headers(csrf=False),
         )
     )
+    tail_dependence_matrix = _json(
+        client.get(
+            f"/bivariate-statistics/runs/{bivariate['run_id']}/correlation-matrix?metric=lower_tail_dependence",
+            headers=_headers(csrf=False),
+        )
+    )
+    coexceedance_matrix = _json(
+        client.get(
+            f"/bivariate-statistics/runs/{bivariate['run_id']}/correlation-matrix?metric=tail_coexceedance_rate",
+            headers=_headers(csrf=False),
+        )
+    )
+    tail_scatter = _json(
+        client.get(
+            f"/bivariate-statistics/runs/{bivariate['run_id']}/tail-risk-scatter",
+            headers=_headers(csrf=False),
+        )
+    )
 
     assert repeated["run_id"] == univariate["run_id"]
     assert univariate_status["status"] == "complete"
@@ -1006,10 +1024,23 @@ def test_scoped_research_runs_filter_and_build_unique_pairs() -> None:
     assert "most_correlated_listing" in summary["pearson_diagnostics"]
     assert summary["spearman_diagnostics"]["cluster_count"] >= 0
     assert summary["downside_diagnostics"]["minimum_joint_negative_days"] >= 0
+    assert summary["tail_dependence_diagnostics"]["high_30_pairs"] >= 0
+    assert "worst_pair" in summary["tail_dependence_diagnostics"]
+    assert summary["coexceedance_diagnostics"]["independence_baseline"] == 0.0025
+    assert summary["coexceedance_diagnostics"]["high_1_pairs"] >= 0
+    assert summary["rolling_correlation_diagnostics"]["high_threshold_pairs"] >= 0
+    assert summary["drawdown_overlap_diagnostics"]["cluster_count"] >= 0
     assert pearson_matrix["values"][0][0] is None
     assert isinstance(pearson_matrix["values"][0][1], float)
     assert isinstance(spearman_matrix["values"][0][1], float)
     assert isinstance(downside_matrix["values"][0][1], float)
+    assert isinstance(tail_dependence_matrix["values"][0][1], float)
+    assert isinstance(coexceedance_matrix["values"][0][1], float)
+    assert tail_scatter["pair_count"] == 3
+    assert tail_scatter["points"][0]["tail_dependence"] >= 0.0
+    assert tail_scatter["points"][0]["coexceedance_rate"] >= 0.0
+    assert tail_scatter["diagnostics"]["pareto_best_pair_count"] >= 1
+    assert "tail_concentration" in tail_scatter["diagnostics"]
     assert set(summary["metrics"]) >= {
         "pearson_correlation",
         "downside_correlation",

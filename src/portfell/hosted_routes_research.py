@@ -136,7 +136,14 @@ def research_router(
     @router.get("/bivariate-statistics/runs/{run_id}/correlation-matrix")
     def bivariate_correlation_matrix(
         run_id: str,
-        metric: Literal["pearson", "spearman", "downside"] = "pearson",
+        metric: Literal[
+            "pearson",
+            "spearman",
+            "downside",
+            "lower_tail_dependence",
+            "tail_coexceedance_rate",
+            "drawdown_overlap",
+        ] = "pearson",
         user: ApiUser = Depends(current_user),
     ) -> JsonRow:
         return call(service.bivariate_correlation_matrix, user.user_id, run_id, metric)
@@ -144,6 +151,10 @@ def research_router(
     @router.get("/bivariate-statistics/runs/{run_id}/covariance-matrix")
     def bivariate_covariance_matrix(run_id: str, user: ApiUser = Depends(current_user)) -> JsonRow:
         return call(service.bivariate_covariance_matrix, user.user_id, run_id)
+
+    @router.get("/bivariate-statistics/runs/{run_id}/tail-risk-scatter")
+    def bivariate_tail_risk_scatter(run_id: str, user: ApiUser = Depends(current_user)) -> JsonRow:
+        return call(service.bivariate_tail_risk_scatter, user.user_id, run_id)
 
     @router.post("/analyses")
     def create_analysis(
