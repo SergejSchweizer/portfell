@@ -181,8 +181,8 @@ async function createProject(page: Page, filter: { exchange: string; instrumentT
 
 async function computeUnivariate(page: Page) {
   await expect(page.getByRole("heading", { name: "Dividends" })).not.toBeVisible();
-  await page.getByRole("button", { name: "Download Historical Data" }).click();
-  await expect(page.getByText("3 listings fetched; 0 provider tasks failed.")).toBeVisible();
+  await page.getByRole("button", { name: "Update Historical Data" }).click();
+  await expect(page.getByRole("button", { name: "Update Historical Data · 3 ISINs updated" })).toBeVisible();
   await page.getByRole("button", { name: "Compute univariate statistics" }).click();
   await expect(page.getByText("3 listings computed.")).toBeVisible();
   await expect(page.getByRole("img", { name: "Annual dividend yield distribution for 3 ISINs" })).toBeVisible();
@@ -211,7 +211,7 @@ test("two dummy projects created through the UI preserve every research control 
   const selections = page.locator(".univariate-statistics-page .portfolio-selection select");
   await expect(selections).toHaveCount(1);
   await selections.selectOption(["monthly", "annual"]);
-  for (const tab of ["Annual Return", "Value at Risk", "Sortino ratio", "Expected shortfall", "Tail observations", "Sharpe ratio", "Maximum drawdown", "Trend R-squared"]) {
+  for (const tab of ["Duration", "Annual Return", "Value at Risk", "Sortino ratio", "Expected shortfall", "Tail observations", "Sharpe ratio", "Maximum drawdown", "Trend R-squared"]) {
     await page.getByRole("tab", { name: tab }).click();
     await expect(selections).toHaveCount(1);
     await selections.selectOption({ index: 0 });
@@ -241,7 +241,7 @@ test("two dummy projects created through the UI preserve every research control 
   await page.goto("/bivariate-statistics");
   await page.getByRole("button", { name: "Compute Bivariate Statistics" }).click();
   await expect(page.getByText("1 pair statistics computed.")).toBeVisible();
-  for (const tab of ["Covariance", "Pearson", "Spearman", "Downside", "Tail Dependence", "Co-exceedance Rate", "Tail-Risk Scatter"]) {
+  for (const tab of ["Covariance", "Pearson", "Spearman", "Downside", "Tail Dependence", "Co-exceedance", "Rolling-Correlation", "Drawdown Overlap", "Tail-Risk Scatter"]) {
     await page.getByRole("tab", { name: tab }).click();
     await expect(page.getByRole("tab", { name: tab })).toHaveAttribute("aria-selected", "true");
   }

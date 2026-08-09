@@ -134,6 +134,122 @@ def downside_diagnostics(rows: tuple[JsonRow, ...]) -> JsonRow:
     }
 
 
+def tail_dependence_diagnostics(rows: tuple[JsonRow, ...]) -> JsonRow:
+    """Portfolio-construction facts for joint lower-tail risk across all ISIN pairs."""
+    values = _metric_values(rows, "lower_tail_dependence")
+    if not values:
+        return _empty_tail_dependence_diagnostics()
+    by_listing, edges = _tail_listing_data(rows)
+    averages = _listing_averages(by_listing)
+    tail_central = _extreme_listing(averages, highest=True)
+    clusters = _correlation_clusters(tuple(by_listing), edges)
+    worst_pair = _worst_pair(rows, "lower_tail_dependence")
+    best_pair = _best_tail_diversifier_pair(rows)
+    severity_values = _metric_values(rows, "tail_joint_loss_severity")
+    event_counts = _integer_values(rows, "tail_joint_event_count")
+    rolling_values = _metric_values(rows, "rolling_tail_dependence_stability")
+    ordered = sorted(values)
+    return {
+        "percentile_90": _percentile(ordered, 0.90),
+        "high_30_pairs": sum(value >= 0.30 for value in values),
+        "high_50_pairs": sum(value >= 0.50 for value in values),
+        "worst_pair": None if worst_pair is None else f"{worst_pair[0]} ↔ {worst_pair[1]}",
+        "worst_pair_tail_dependence": None if worst_pair is None else worst_pair[2],
+        "best_diversifier_pair": None if best_pair is None else f"{best_pair[0]} ↔ {best_pair[1]}",
+        "best_diversifier_tail_dependence": None if best_pair is None else best_pair[2],
+        "best_diversifier_coexceedance_rate": None if best_pair is None else best_pair[3],
+        "most_tail_exposed_listing": tail_central,
+        "most_tail_exposed_average": averages.get(tail_central) if tail_central else None,
+        "average_joint_loss_severity": (
+            sum(severity_values) / len(severity_values) if severity_values else None
+        ),
+        "median_joint_tail_events": median(event_counts) if event_counts else None,
+        "minimum_joint_tail_events": min(event_counts) if event_counts else None,
+        "average_rolling_stability": (
+            sum(rolling_values) / len(rolling_values) if rolling_values else None
+        ),
+        "cluster_threshold": 0.30,
+        "cluster_count": len(clusters),
+        "largest_cluster_size": max((len(cluster) for cluster in clusters), default=0),
+    }
+
+
+def coexceedance_diagnostics(rows: tuple[JsonRow, ...]) -> JsonRow:
+    """Portfolio-construction facts for unconditional simultaneous lower-tail events."""
+    values = _metric_values(rows, "tail_coexceedance_rate")
+    if not values:
+        return _empty_coexceedance_diagnostics()
+    by_listing, edges = _coexceedance_listing_data(rows)
+    averages = _listing_averages(by_listing)
+    most_exposed = _extreme_listing(averages, highest=True)
+    clusters = _correlation_clusters(tuple(by_listing), edges)
+    worst_pair = _worst_pair(rows, "tail_coexceedance_rate")
+    best_pair = _best_coexceedance_diversifier_pair(rows)
+    event_counts = _integer_values(rows, "tail_joint_event_count")
+    rolling_values = _metric_values(rows, "rolling_tail_coexceedance_stability")
+    ordered = sorted(values)
+    independence_baseline = 0.0025
+    return {
+        "percentile_90": _percentile(ordered, 0.90),
+        "independence_baseline": independence_baseline,
+        "average_independence_multiple": (sum(values) / len(values)) / independence_baseline,
+        "high_1_pairs": sum(value >= 0.01 for value in values),
+        "high_25_pairs": sum(value >= 0.025 for value in values),
+        "high_5_pairs": sum(value >= 0.05 for value in values),
+        "worst_pair": None if worst_pair is None else f"{worst_pair[0]} ↔ {worst_pair[1]}",
+        "worst_pair_rate": None if worst_pair is None else worst_pair[2],
+        "worst_pair_annual_events": None if worst_pair is None else worst_pair[2] * 252,
+        "worst_pair_tail_dependence": _pair_metric(rows, worst_pair, "lower_tail_dependence"),
+        "best_diversifier_pair": None if best_pair is None else f"{best_pair[0]} ↔ {best_pair[1]}",
+        "best_diversifier_rate": None if best_pair is None else best_pair[2],
+        "best_diversifier_tail_dependence": None if best_pair is None else best_pair[3],
+        "most_coexposed_listing": most_exposed,
+        "most_coexposed_average": averages.get(most_exposed) if most_exposed else None,
+        "median_joint_tail_events": median(event_counts) if event_counts else None,
+        "minimum_joint_tail_events": min(event_counts) if event_counts else None,
+        "average_rolling_stability": (
+            sum(rolling_values) / len(rolling_values) if rolling_values else None
+        ),
+        "cluster_threshold": 0.01,
+        "cluster_count": len(clusters),
+        "largest_cluster_size": max((len(cluster) for cluster in clusters), default=0),
+    }
+
+
+def rolling_correlation_diagnostics(rows: tuple[JsonRow, ...]) -> JsonRow:
+    return _pair_metric_diagnostics(rows, "rolling_correlation_stability", 0.10)
+
+
+def drawdown_overlap_diagnostics(rows: tuple[JsonRow, ...]) -> JsonRow:
+    return _pair_metric_diagnostics(rows, "drawdown_overlap_rate", 0.10)
+
+
+def _pair_metric_diagnostics(rows: tuple[JsonRow, ...], metric: str, threshold: float) -> JsonRow:
+    values = _metric_values(rows, metric)
+    if not values:
+        return {"percentile_90": None, "high_threshold_pairs": 0, "worst_pair": None, "worst_value": None, "best_pair": None, "best_value": None, "most_exposed_listing": None, "most_exposed_average": None, "cluster_count": 0, "largest_cluster_size": 0}
+    by_listing: dict[str, list[float]] = {}
+    edges: list[tuple[str, str]] = []
+    for row in rows:
+        if row.get(metric) is None:
+            continue
+        value = float(row[metric])
+        left, right = _listing_label(row, "left"), _listing_label(row, "right")
+        by_listing.setdefault(left, []).append(value)
+        by_listing.setdefault(right, []).append(value)
+        if value >= threshold:
+            edges.append((left, right))
+    averages = _listing_averages(by_listing)
+    worst = _worst_pair(rows, metric)
+    best = min(
+        [(_listing_label(row, "left"), _listing_label(row, "right"), float(row[metric])) for row in rows if row.get(metric) is not None],
+        key=lambda item: item[2], default=None,
+    )
+    clusters = _correlation_clusters(tuple(by_listing), edges)
+    most_exposed = _extreme_listing(averages, highest=True)
+    return {"percentile_90": _percentile(sorted(values), 0.90), "high_threshold_pairs": sum(value >= threshold for value in values), "worst_pair": None if worst is None else f"{worst[0]} ↔ {worst[1]}", "worst_value": None if worst is None else worst[2], "best_pair": None if best is None else f"{best[0]} ↔ {best[1]}", "best_value": None if best is None else best[2], "most_exposed_listing": most_exposed, "most_exposed_average": averages.get(most_exposed) if most_exposed else None, "cluster_count": len(clusters), "largest_cluster_size": max((len(cluster) for cluster in clusters), default=0)}
+
+
 def covariance_diagnostics(
     listings: tuple[tuple[str, str, str], ...],
     covariance: list[list[float]],
@@ -208,6 +324,54 @@ def _empty_correlation_diagnostics() -> JsonRow:
     return {"high_70_pairs": 0, "high_90_pairs": 0, "low_30_pairs": 0, "negative_pairs": 0}
 
 
+def _empty_tail_dependence_diagnostics() -> JsonRow:
+    return {
+        "percentile_90": None,
+        "high_30_pairs": 0,
+        "high_50_pairs": 0,
+        "worst_pair": None,
+        "worst_pair_tail_dependence": None,
+        "best_diversifier_pair": None,
+        "best_diversifier_tail_dependence": None,
+        "best_diversifier_coexceedance_rate": None,
+        "most_tail_exposed_listing": None,
+        "most_tail_exposed_average": None,
+        "average_joint_loss_severity": None,
+        "median_joint_tail_events": None,
+        "minimum_joint_tail_events": None,
+        "average_rolling_stability": None,
+        "cluster_threshold": 0.30,
+        "cluster_count": 0,
+        "largest_cluster_size": 0,
+    }
+
+
+def _empty_coexceedance_diagnostics() -> JsonRow:
+    return {
+        "percentile_90": None,
+        "independence_baseline": 0.0025,
+        "average_independence_multiple": None,
+        "high_1_pairs": 0,
+        "high_25_pairs": 0,
+        "high_5_pairs": 0,
+        "worst_pair": None,
+        "worst_pair_rate": None,
+        "worst_pair_annual_events": None,
+        "worst_pair_tail_dependence": None,
+        "best_diversifier_pair": None,
+        "best_diversifier_rate": None,
+        "best_diversifier_tail_dependence": None,
+        "most_coexposed_listing": None,
+        "most_coexposed_average": None,
+        "median_joint_tail_events": None,
+        "minimum_joint_tail_events": None,
+        "average_rolling_stability": None,
+        "cluster_threshold": 0.01,
+        "cluster_count": 0,
+        "largest_cluster_size": 0,
+    }
+
+
 def _correlation_distribution(values: list[float]) -> JsonRow:
     ordered = sorted(values)
     return {
@@ -244,6 +408,40 @@ def _correlation_listing_data(
     return by_listing, edges, gaps
 
 
+def _tail_listing_data(rows: tuple[JsonRow, ...]) -> tuple[dict[str, list[float]], list[tuple[str, str]]]:
+    by_listing: dict[str, list[float]] = {}
+    edges: list[tuple[str, str]] = []
+    for row in rows:
+        value = row.get("lower_tail_dependence")
+        if value is None:
+            continue
+        left_label = _listing_label(row, "left")
+        right_label = _listing_label(row, "right")
+        tail_dependence = float(value)
+        by_listing.setdefault(left_label, []).append(tail_dependence)
+        by_listing.setdefault(right_label, []).append(tail_dependence)
+        if tail_dependence >= 0.30:
+            edges.append((left_label, right_label))
+    return by_listing, edges
+
+
+def _coexceedance_listing_data(rows: tuple[JsonRow, ...]) -> tuple[dict[str, list[float]], list[tuple[str, str]]]:
+    by_listing: dict[str, list[float]] = {}
+    edges: list[tuple[str, str]] = []
+    for row in rows:
+        value = row.get("tail_coexceedance_rate")
+        if value is None:
+            continue
+        left_label = _listing_label(row, "left")
+        right_label = _listing_label(row, "right")
+        coexceedance = float(value)
+        by_listing.setdefault(left_label, []).append(coexceedance)
+        by_listing.setdefault(right_label, []).append(coexceedance)
+        if coexceedance >= 0.01:
+            edges.append((left_label, right_label))
+    return by_listing, edges
+
+
 def _listing_label(row: JsonRow, side: str) -> str:
     return f"{row[side + '_code']}.{row[side + '_exchange']} · {row[side + '_isin']}"
 
@@ -266,6 +464,48 @@ def _worst_pair(rows: tuple[JsonRow, ...], metric: str) -> tuple[str, str, float
         if row.get(metric) is not None
     ]
     return max(candidates, key=lambda item: item[2], default=None)
+
+
+def _best_tail_diversifier_pair(rows: tuple[JsonRow, ...]) -> tuple[str, str, float, float] | None:
+    candidates = [
+        (
+            _listing_label(row, "left"),
+            _listing_label(row, "right"),
+            float(row["lower_tail_dependence"]),
+            float(row["tail_coexceedance_rate"]),
+        )
+        for row in rows
+        if row.get("lower_tail_dependence") is not None
+        and row.get("tail_coexceedance_rate") is not None
+    ]
+    return min(candidates, key=lambda item: (item[2], item[3]), default=None)
+
+
+def _best_coexceedance_diversifier_pair(rows: tuple[JsonRow, ...]) -> tuple[str, str, float, float] | None:
+    candidates = [
+        (
+            _listing_label(row, "left"),
+            _listing_label(row, "right"),
+            float(row["tail_coexceedance_rate"]),
+            float(row["lower_tail_dependence"]),
+        )
+        for row in rows
+        if row.get("tail_coexceedance_rate") is not None
+        and row.get("lower_tail_dependence") is not None
+    ]
+    return min(candidates, key=lambda item: (item[2], item[3]), default=None)
+
+
+def _pair_metric(
+    rows: tuple[JsonRow, ...], pair: tuple[str, str, float] | None, metric: str
+) -> float | None:
+    if pair is None:
+        return None
+    for row in rows:
+        if _listing_label(row, "left") == pair[0] and _listing_label(row, "right") == pair[1]:
+            value = row.get(metric)
+            return float(value) if value is not None else None
+    return None
 
 
 def _correlation_clusters(

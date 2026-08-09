@@ -259,6 +259,50 @@ export type ApiBivariateSummary = Readonly<{
     cluster_count?: number;
     largest_cluster_size?: number;
   }>;
+  tail_dependence_diagnostics: Readonly<{
+    percentile_90?: number | null;
+    high_30_pairs: number;
+    high_50_pairs: number;
+    worst_pair?: string | null;
+    worst_pair_tail_dependence?: number | null;
+    best_diversifier_pair?: string | null;
+    best_diversifier_tail_dependence?: number | null;
+    best_diversifier_coexceedance_rate?: number | null;
+    most_tail_exposed_listing?: string | null;
+    most_tail_exposed_average?: number | null;
+    average_joint_loss_severity?: number | null;
+    median_joint_tail_events?: number | null;
+    minimum_joint_tail_events?: number | null;
+    average_rolling_stability?: number | null;
+    cluster_threshold?: number;
+    cluster_count?: number;
+    largest_cluster_size?: number;
+  }>;
+  coexceedance_diagnostics: Readonly<{
+    percentile_90?: number | null;
+    independence_baseline: number;
+    average_independence_multiple?: number | null;
+    high_1_pairs: number;
+    high_25_pairs: number;
+    high_5_pairs: number;
+    worst_pair?: string | null;
+    worst_pair_rate?: number | null;
+    worst_pair_annual_events?: number | null;
+    worst_pair_tail_dependence?: number | null;
+    best_diversifier_pair?: string | null;
+    best_diversifier_rate?: number | null;
+    best_diversifier_tail_dependence?: number | null;
+    most_coexposed_listing?: string | null;
+    most_coexposed_average?: number | null;
+    median_joint_tail_events?: number | null;
+    minimum_joint_tail_events?: number | null;
+    average_rolling_stability?: number | null;
+    cluster_threshold?: number;
+    cluster_count?: number;
+    largest_cluster_size?: number;
+  }>;
+  rolling_correlation_diagnostics: Readonly<{ percentile_90?: number | null; high_threshold_pairs: number; worst_pair?: string | null; worst_value?: number | null; best_pair?: string | null; best_value?: number | null; most_exposed_listing?: string | null; most_exposed_average?: number | null; cluster_count: number; largest_cluster_size: number }>;
+  drawdown_overlap_diagnostics: Readonly<{ percentile_90?: number | null; high_threshold_pairs: number; worst_pair?: string | null; worst_value?: number | null; best_pair?: string | null; best_value?: number | null; most_exposed_listing?: string | null; most_exposed_average?: number | null; cluster_count: number; largest_cluster_size: number }>;
 }>;
 
 export type ApiPairMetricMatrix = Readonly<{
@@ -286,6 +330,28 @@ export type ApiTailRiskScatter = Readonly<{
   date_end: string;
   tail_dependence_median: number | null;
   coexceedance_rate_median: number | null;
+  diagnostics: Readonly<{
+    best_diversifiers: number;
+    tail_concentration: number;
+    high_tail_only: number;
+    high_coexceedance_only: number;
+    pareto_best_pair_count: number;
+    best_pareto_pair?: string | null;
+    worst_tail_risk_pair?: string | null;
+    worst_tail_risk_score?: number | null;
+    tail_independence_baseline: number;
+    coexceedance_independence_baseline: number;
+    average_tail_independence_multiple?: number | null;
+    average_coexceedance_independence_multiple?: number | null;
+    most_concentrated_isin?: string | null;
+    upper_right_links: number;
+    upper_right_cluster_count: number;
+    largest_upper_right_cluster_size: number;
+    average_tail_stability?: number | null;
+    average_coexceedance_stability?: number | null;
+    median_joint_tail_events?: number | null;
+    minimum_joint_tail_events?: number | null;
+  }>;
 }>;
 
 export type ApiCovarianceMatrix = Readonly<{

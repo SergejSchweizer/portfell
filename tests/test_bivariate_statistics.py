@@ -7,6 +7,7 @@ from portfell.bivariate_statistics import (
     resolve_worker_count,
     write_bivariate_statistics,
 )
+from portfell.bivariate_views import build_bivariate_summary, build_tail_risk_scatter
 from portfell.paths import LakePaths
 from portfell.run_state import read_job_manifest
 from portfell.table_io import read_rows, write_rows
@@ -55,6 +56,8 @@ def test_bivariate_statistics_use_common_dates_and_pairwise_metrics(tmp_path: Pa
     assert row["left_beta_to_right"] == pytest.approx(-1.0)
     assert row["right_beta_to_left"] == pytest.approx(-1.0)
     assert "spearman_correlation" in row
+    assert "tail_joint_loss_severity" in row
+    assert "rolling_tail_dependence_stability" in row
     assert {k: v for k, v in written[0].items() if k not in {"version", "bucket"}} == statistics[0]
     written_row = next(item for item in written if item["pair_key"] == row["pair_key"])
     assert written_row["version"] == "v1"
@@ -68,6 +71,18 @@ def test_bivariate_statistics_use_common_dates_and_pairwise_metrics(tmp_path: Pa
     assert {
         (item["date_start"], item["date_end"], item["n_observations"]) for item in statistics
     } == {("2026-01-02", "2026-01-03", 2)}
+    tail_diagnostics = build_bivariate_summary(tuple(statistics))["tail_dependence_diagnostics"]
+    assert tail_diagnostics["high_30_pairs"] >= 0
+    assert tail_diagnostics["worst_pair"] is not None
+    assert tail_diagnostics["best_diversifier_pair"] is not None
+    assert tail_diagnostics["median_joint_tail_events"] is not None
+    coexceedance_diagnostics = build_bivariate_summary(tuple(statistics))["coexceedance_diagnostics"]
+    assert coexceedance_diagnostics["independence_baseline"] == pytest.approx(0.0025)
+    assert coexceedance_diagnostics["high_1_pairs"] >= 0
+    assert coexceedance_diagnostics["worst_pair"] is not None
+    scatter_diagnostics = build_tail_risk_scatter(tuple(statistics))["diagnostics"]
+    assert scatter_diagnostics["pareto_best_pair_count"] >= 1
+    assert scatter_diagnostics["tail_independence_baseline"] == pytest.approx(0.05)
 
 
 def test_bivariate_statistics_require_a_universe_wide_common_calendar() -> None:

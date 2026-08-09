@@ -1024,6 +1024,12 @@ def test_scoped_research_runs_filter_and_build_unique_pairs() -> None:
     assert "most_correlated_listing" in summary["pearson_diagnostics"]
     assert summary["spearman_diagnostics"]["cluster_count"] >= 0
     assert summary["downside_diagnostics"]["minimum_joint_negative_days"] >= 0
+    assert summary["tail_dependence_diagnostics"]["high_30_pairs"] >= 0
+    assert "worst_pair" in summary["tail_dependence_diagnostics"]
+    assert summary["coexceedance_diagnostics"]["independence_baseline"] == 0.0025
+    assert summary["coexceedance_diagnostics"]["high_1_pairs"] >= 0
+    assert summary["rolling_correlation_diagnostics"]["high_threshold_pairs"] >= 0
+    assert summary["drawdown_overlap_diagnostics"]["cluster_count"] >= 0
     assert pearson_matrix["values"][0][0] is None
     assert isinstance(pearson_matrix["values"][0][1], float)
     assert isinstance(spearman_matrix["values"][0][1], float)
@@ -1033,6 +1039,8 @@ def test_scoped_research_runs_filter_and_build_unique_pairs() -> None:
     assert tail_scatter["pair_count"] == 3
     assert tail_scatter["points"][0]["tail_dependence"] >= 0.0
     assert tail_scatter["points"][0]["coexceedance_rate"] >= 0.0
+    assert tail_scatter["diagnostics"]["pareto_best_pair_count"] >= 1
+    assert "tail_concentration" in tail_scatter["diagnostics"]
     assert set(summary["metrics"]) >= {
         "pearson_correlation",
         "downside_correlation",
