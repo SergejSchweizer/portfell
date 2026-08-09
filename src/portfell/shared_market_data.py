@@ -10,6 +10,7 @@ import hashlib
 import json
 import os
 import re
+import threading
 import uuid
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
@@ -96,6 +97,7 @@ class SharedMarketDataStore:
     def __init__(self, root: Path, *, before_replace: Callable[[Path], None] | None = None) -> None:
         self.root = root / "market-data"
         self._before_replace = before_replace
+        self._catalog_lock = threading.RLock()
 
     def listing_path(self, dataset_type: str, listing: SharedListingKey) -> Path:
         self._validate_dataset(dataset_type)
@@ -128,15 +130,16 @@ class SharedMarketDataStore:
             canonical,
             published_at_epoch=0,
         )
-        catalog = {
-            key: value
-            for key, value in self._read_catalog().items()
-            if key != _coverage_key(record)
-        }
-        catalog[_coverage_key(record)] = record.row()
-        _atomic_write_json(
-            self.root / "coverage.json", {"records": [catalog[key] for key in sorted(catalog)]}
-        )
+        with self._catalog_lock:
+            catalog = {
+                key: value
+                for key, value in self._read_catalog().items()
+                if key != _coverage_key(record)
+            }
+            catalog[_coverage_key(record)] = record.row()
+            _atomic_write_json(
+                self.root / "coverage.json", {"records": [catalog[key] for key in sorted(catalog)]}
+            )
         return record
 
     def read(self, dataset_type: str, listing: SharedListingKey) -> list[JsonRow]:
