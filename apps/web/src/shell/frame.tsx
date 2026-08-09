@@ -145,7 +145,7 @@ function ShellFrameContent({ currentPage, children }: ShellFrameProps) {
             </div>
             <span className="process-overview__arrow" aria-hidden="true">→</span>
             <div className="process-overview__step" data-complete={workflow.status === "ready" && workflow.data.process_overview?.metadata_filter_isins !== undefined ? "true" : "false"}>
-              <small>2 · Metadata filter</small>
+              <small>2 · Metadata Builder</small>
               <strong>{workflow.status === "ready" && workflow.data.process_overview?.metadata_filter_isins !== undefined ? workflow.data.process_overview.metadata_filter_isins.toLocaleString() : "—"} ISINs</strong>
             </div>
             <span className="process-overview__arrow" aria-hidden="true">→</span>

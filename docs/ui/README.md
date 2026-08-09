@@ -2,7 +2,7 @@
 
 Portfell currently has three sequential research modules:
 
-1. [`metadata_builder`](windows/metadata-filter.md) at `/metadata-filter`
+1. [`metadata_builder`](windows/metadata-filter.md) at `/metadata-builder`
 2. [`univariate_statistics`](windows/univariate-statistics.md) at `/univariate-statistics`
 3. [`bivariate_statistics`](windows/bivariate-statistics.md) at `/bivariate-statistics`
 

@@ -1,6 +1,6 @@
 # Metadata Builder page
 
-- Route: `/metadata-filter`
+- Route: `/metadata-builder`
 - Page ID: `metadata_builder`
 - Component: `apps/web/src/pages/metadata-filter.tsx`
 

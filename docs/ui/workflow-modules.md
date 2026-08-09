@@ -8,7 +8,7 @@ state.
 
 | Module | Browser entry points | Input contract | Output contract | Boundary |
 | --- | --- | --- | --- | --- |
-| Metadata Builder | `/metadata-filter` | EODHD credential and metadata criteria | Project and metadata selection ID | Builds the project-scoped instrument universe; it does not calculate statistics. |
+| Metadata Builder | `/metadata-builder` | EODHD credential and metadata criteria | Project and metadata selection ID | Builds the project-scoped instrument universe; it does not calculate statistics. |
 | Univariate Statistics | `/univariate-statistics` | Metadata selection and quote-run IDs | Per-ISIN statistics, selection settings, and the automatic selected-ISIN set | Calculates single-instrument statistics; it does not build metadata or pairwise matrices. |
 | Bivariate Statistics | `/bivariate-statistics` | Univariate filtered-selection ID | Pairwise results, covariance matrix, and correlation matrices | Calculates pairwise relationships; it does not alter the upstream selection or construct a portfolio. |
 

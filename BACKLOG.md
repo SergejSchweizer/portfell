@@ -1152,7 +1152,7 @@ Idempotency: Repeated compute and restore paths render the same result-driven Di
 
 Branch: `refactor/workflow-module-boundaries`.
 
-Git status: in progress. PR: TBD.
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/245.
 
 Priority: P0 research-workflow architecture.
 
@@ -1184,7 +1184,7 @@ Series Completion Gate: Follow the current pre-merge and post-merge gates in [GA
 
 Branch: `feat/metadata-parallel-downloads`.
 
-Git status: in progress. PR: TBD.
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/246.
 
 Priority: P1 ingestion performance.
 
@@ -1207,6 +1207,32 @@ Provider failures retain the existing explicit-versus-automatic exchange semanti
 
 Idempotency: Existing completed exchange coverage still prevents automatic re-downloads; concurrent
 workers only retrieve missing exchange payloads before the existing atomic reference publication.
+
+Series Completion Gate: Follow the current pre-merge and post-merge gates in [GATES.md](GATES.md).
+
+### PR139. Browser Module Route Names
+
+Branch: `fix/module-route-names`.
+
+Git status: in progress. PR: TBD.
+
+Priority: P1 browser workflow clarity.
+
+Depends on: PR138.
+
+Scope: Rename the browser-facing Metadata Builder route and all visible workflow labels from
+filter-oriented names to the three module names. Preserve legacy URLs only as redirects, and leave
+server API and persistence identifiers internal.
+
+Acceptance: The Metadata Builder page is served at `/metadata-builder`; browser navigation, page
+title, and process overview use the module name; legacy `/metadata-filter` and `/univariate-filter`
+URLs redirect to module routes; and no filter-named browser route remains registered.
+
+Security: Route renaming does not change API authorization, credential handling, or persisted data.
+
+Determinism: Legacy paths resolve to one fixed module route without changing browser state.
+
+Idempotency: Repeating a redirect or module navigation has no server-side effect.
 
 Series Completion Gate: Follow the current pre-merge and post-merge gates in [GATES.md](GATES.md).
 

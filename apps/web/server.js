@@ -11,9 +11,8 @@ const port = Number.parseInt(process.env.PORT || "3000", 10);
 const apiBaseUrl = process.env.PORTFELL_API_BASE_URL || "http://api:8000";
 const distRoot = path.resolve(__dirname, "dist");
 const spaRoutes = new Set([
-  "/metadata-filter",
+  "/metadata-builder",
   "/univariate-statistics",
-  "/univariate-filter",
   "/bivariate-statistics",
 ]);
 
@@ -81,7 +80,17 @@ const server = http.createServer((request, response) => {
     return;
   }
   if (requestUrl.pathname === "/") {
-    response.writeHead(303, { location: "/metadata-filter" });
+    response.writeHead(303, { location: "/metadata-builder" });
+    response.end();
+    return;
+  }
+  if (requestUrl.pathname === "/metadata-filter") {
+    response.writeHead(303, { location: "/metadata-builder" });
+    response.end();
+    return;
+  }
+  if (requestUrl.pathname === "/univariate-filter") {
+    response.writeHead(303, { location: "/univariate-statistics" });
     response.end();
     return;
   }

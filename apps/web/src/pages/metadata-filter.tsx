@@ -19,7 +19,7 @@ export function MetadataFilterPage() {
   const [country, setCountry] = useState("");
   const [currency, setCurrency] = useState("");
   const [name, setName] = useState("");
-  const [selectionStatus, setSelectionStatus] = useState("Choose at least one metadata filter.");
+  const [selectionStatus, setSelectionStatus] = useState("Choose at least one Metadata Builder criterion.");
 
   useEffect(() => {
     const refresh = () => setMetadataRevision((value) => value + 1);
@@ -31,7 +31,7 @@ export function MetadataFilterPage() {
     let cancelled = false;
 
     const resetProjectState = () => {
-      setSelectionStatus("Choose at least one metadata filter.");
+      setSelectionStatus("Choose at least one Metadata Builder criterion.");
     };
 
     const loadProjectFilter = async (project: ApiProjectSummary | null) => {
@@ -39,7 +39,7 @@ export function MetadataFilterPage() {
         resetProjectState();
         return;
       }
-      setSelectionStatus("Loading saved metadata filter…");
+      setSelectionStatus("Loading saved Metadata Builder criteria…");
       try {
         const filter = await metadataBuilderApi.loadProjectFilter(project.project_id);
         if (cancelled) return;
@@ -52,7 +52,7 @@ export function MetadataFilterPage() {
       } catch (error) {
         if (cancelled) return;
         resetProjectState();
-        setSelectionStatus(error instanceof Error ? error.message : "Saved metadata filter could not be loaded.");
+        setSelectionStatus(error instanceof Error ? error.message : "Saved Metadata Builder criteria could not be loaded.");
       }
     };
 
@@ -74,7 +74,7 @@ export function MetadataFilterPage() {
 
   async function applyFilter(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setSelectionStatus("Applying metadata filter…");
+    setSelectionStatus("Building the project selection…");
     try {
       const result = await metadataBuilderApi.createProject({
         exchange,
@@ -86,7 +86,7 @@ export function MetadataFilterPage() {
       setSelectionStatus(`${result.selected_count.toLocaleString()} unique ISINs selected.`);
       window.dispatchEvent(new Event("portfell:workflow-updated"));
     } catch (error) {
-      setSelectionStatus(error instanceof Error ? error.message : "Metadata filter failed.");
+      setSelectionStatus(error instanceof Error ? error.message : "Metadata Builder could not create the project.");
     }
   }
 

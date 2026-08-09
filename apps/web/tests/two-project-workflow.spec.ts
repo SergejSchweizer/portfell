@@ -198,6 +198,8 @@ async function switchProject(page: Page, projectId: string) {
 test("two dummy projects created through the UI preserve every research control and project setting", async ({ page }) => {
   const fixture = await installTwoProjectApi(page);
   await page.goto("/metadata-filter");
+  await expect(page).toHaveURL(/\/metadata-builder$/);
+  await expect(page.getByText("2 · Metadata Builder")).toBeVisible();
 
   await page.getByLabel("EODHD key").fill("dummy-eodhd-key");
   await page.getByRole("button", { name: "Fetch all metadata" }).click();
@@ -215,7 +217,7 @@ test("two dummy projects created through the UI preserve every research control 
   await page.getByRole("img", { name: "Annual dividend yield distribution for 3 ISINs" }).locator("[tabindex=\"0\"]").first().hover();
   await expect(page.getByRole("tooltip").first()).toBeVisible();
 
-  await page.goto("/metadata-filter");
+  await page.goto("/metadata-builder");
   await createProject(page, { exchange: "LSE", instrumentType: "FUND", country: "LU", currency: "USD", name: "Beta growth" });
   await page.goto("/univariate-statistics");
   await computeUnivariate(page);
@@ -223,7 +225,7 @@ test("two dummy projects created through the UI preserve every research control 
   await switchProject(page, "project-1");
   await expect(page).toHaveURL(/\/univariate-statistics$/);
   await expect(selections.nth(0)).toHaveValues(["monthly", "annual"]);
-  await page.goto("/metadata-filter");
+  await page.goto("/metadata-builder");
   await expect(page.getByLabel("Exchange")).toHaveValue("XETRA");
   await expect(page.getByLabel("Instrument type")).toHaveValue("ETF");
   await expect(page.getByLabel("Country")).toHaveValue("IE");

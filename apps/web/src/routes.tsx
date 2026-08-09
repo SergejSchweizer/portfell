@@ -51,7 +51,7 @@ export const workflowPages: readonly WorkflowPage[] = [
     moduleId: "metadata_builder",
     stageId: "metadata_filter",
     title: "Metadata Builder",
-    path: "/metadata-filter",
+    path: "/metadata-builder",
     component: MetadataFilterPage,
   },
   {
