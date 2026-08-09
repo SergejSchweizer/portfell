@@ -109,6 +109,7 @@ class MultivariateRunRecord:
     phase: str
     completed_units: int
     total_units: int
+    started_at_epoch: float
     settings: JsonRow
     summary: JsonRow
     structure: JsonRow

@@ -6,8 +6,9 @@ closure. It deliberately does not call the generic analysis placeholder.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import replace
+from time import time
 from typing import Any
 
 from portfell.gold import build_returns
@@ -78,6 +79,7 @@ class MultivariateResearchService:
             phase="resolve_inputs",
             completed_units=0,
             total_units=6,
+            started_at_epoch=time(),
             settings=dict(settings),
             summary={},
             structure={},
@@ -94,7 +96,7 @@ class MultivariateResearchService:
         if run.status != "running":
             return
         try:
-            completed = self._compute(run)
+            completed = self._compute(run, on_phase=self._advance)
         except (HostedApplicationError, ValueError) as error:
             completed = replace(run, status="failed", phase="failed", failure_reason=str(error))
         self._state.multivariate_runs_by_id[run_id] = completed
@@ -194,7 +196,27 @@ class MultivariateResearchService:
             raise HostedApplicationError(422, "project_metadata_dependency_mismatch")
         return selections[0]
 
-    def _compute(self, run: MultivariateRunRecord) -> MultivariateRunRecord:
+    def _advance(self, run_id: str, phase: str, completed_units: int) -> None:
+        """Persist strictly monotonic phase progress for concurrent status polling."""
+
+        current = self._state.multivariate_runs_by_id.get(run_id)
+        if current is None or current.status != "running":
+            return
+        next_completed = max(current.completed_units, min(completed_units, current.total_units))
+        advanced = replace(
+            current,
+            phase=phase if next_completed > current.completed_units else current.phase,
+            completed_units=next_completed,
+        )
+        self._state.multivariate_runs_by_id[run_id] = advanced
+        self._persistence.persist()
+
+    def _compute(
+        self,
+        run: MultivariateRunRecord,
+        *,
+        on_phase: Callable[[str, str, int], None],
+    ) -> MultivariateRunRecord:
         selection = self._selection_for_bivariate(run.user_id, run.bivariate_run_id)
         source_run = require_user_row(
             self._state.univariate_runs_by_id, selection.source_run_id, run.user_id
@@ -248,8 +270,11 @@ class MultivariateResearchService:
         snapshot = build_multivariate_input_snapshot(
             dependencies=dependencies, univariate_rows=selected
         )
+        on_phase(run.run_id, "build_risk_model", 1)
         risk = build_multivariate_risk_model(snapshot=snapshot, return_rows=returns)
+        on_phase(run.run_id, "build_structure", 2)
         structure = build_multivariate_structure(risk)
+        on_phase(run.run_id, "build_income_evidence", 3)
         income = {
             key: build_income_evidence(
                 listing=key,
@@ -259,9 +284,11 @@ class MultivariateResearchService:
             )
             for key in keys
         }
+        on_phase(run.run_id, "build_candidates", 4)
         candidates = build_candidate_set(
             snapshot=snapshot, risk_model=risk, return_rows=returns, income=income
         )
+        on_phase(run.run_id, "validate_candidates", 5)
 
         def refit_candidates(
             training_rows: Sequence[Mapping[str, Any]],
@@ -435,6 +462,9 @@ class MultivariateResearchService:
 
 
 def _run_row(run: MultivariateRunRecord) -> JsonRow:
+    elapsed = max(0, int(time() - run.started_at_epoch)) if run.started_at_epoch else 0
+    remaining_units = max(0, run.total_units - run.completed_units)
+    per_unit = elapsed / run.completed_units if run.completed_units else 5.0
     return {
         "run_id": run.run_id,
         "project_id": run.project_id,
@@ -444,7 +474,10 @@ def _run_row(run: MultivariateRunRecord) -> JsonRow:
         "phase": run.phase,
         "completed_units": run.completed_units,
         "total_units": run.total_units,
-        "estimated_remaining_seconds": None,
+        "elapsed_seconds": elapsed,
+        "estimated_remaining_seconds": 0
+        if run.status == "complete"
+        else max(1, int(remaining_units * per_unit)),
         "settings": dict(run.settings),
         "warnings": list(run.warnings),
         "failure_reason": run.failure_reason,

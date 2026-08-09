@@ -134,10 +134,18 @@ def test_multivariate_service_resolves_pinned_project_dependencies_and_persists_
     service = MultivariateResearchService(state, data, persistence)
 
     started = service.start("user-a", project_id, bivariate_run_id, {})
+    assert started["status"] == "running"
+    assert started["estimated_remaining_seconds"] is not None
+    service._advance(str(started["run_id"]), "build_risk_model", 2)  # pyright: ignore[reportPrivateUsage]
+    service._advance(str(started["run_id"]), "resolve_inputs", 1)  # pyright: ignore[reportPrivateUsage]
+    running = service.status("user-a", str(started["run_id"]))
+    assert running["phase"] == "build_risk_model"
+    assert running["completed_units"] == 2
     service.complete("user-a", str(started["run_id"]))
     status = service.status("user-a", str(started["run_id"]))
 
     assert status["status"] == "complete"
+    assert status["estimated_remaining_seconds"] == 0
     assert status["input_snapshot_id"]
     assert service.summary("user-a", str(started["run_id"]))["candidate_etf_count"] == 5
     candidates = service.candidates("user-a", str(started["run_id"]))["items"]

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import replace
+from math import isfinite
 from typing import cast
 
 from portfell.entitlements import ProviderDownloadRun, RunStatus
@@ -100,6 +101,7 @@ def persist_local_workspace(state: HostedApiState) -> None:
                     "phase": run.phase,
                     "completed_units": run.completed_units,
                     "total_units": run.total_units,
+                    "started_at_epoch": run.started_at_epoch,
                     "settings": run.settings,
                     "summary": run.summary,
                     "structure": run.structure,
@@ -342,6 +344,7 @@ def _restore_multivariate_runs(state: HostedApiState, payload: Mapping[str, obje
             phase=_text(row, "phase"),
             completed_units=_integer(row, "completed_units"),
             total_units=_integer(row, "total_units"),
+            started_at_epoch=_number(row.get("started_at_epoch", 0.0), "started_at_epoch"),
             settings=dict(_mapping(row.get("settings", {}), "multivariate settings")),
             summary=dict(_mapping(row.get("summary", {}), "multivariate summary")),
             structure=dict(_mapping(row.get("structure", {}), "multivariate structure")),
@@ -420,3 +423,9 @@ def _integer(row: Mapping[str, object], key: str) -> int:
     if not isinstance(value, int) or value < 0:
         raise ValueError(f"local workspace {key} is invalid")
     return value
+
+
+def _number(value: object, label: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, int | float) or not isfinite(float(value)):
+        raise ValueError(f"local workspace {label} is invalid")
+    return float(value)
