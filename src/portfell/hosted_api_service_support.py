@@ -6,6 +6,7 @@ import hashlib
 import json
 import uuid
 from collections.abc import Mapping
+from dataclasses import replace
 from typing import cast
 
 from portfell.hosted_api_errors import HostedApplicationError
@@ -315,6 +316,22 @@ def workflow_row(
     multivariate_run = state.multivariate_runs_by_id.get(multivariate_run_id or "")
     if multivariate_run is not None and multivariate_run.user_id != user_id:
         multivariate_run = None
+    if (
+        multivariate_run is not None
+        and (
+            bivariate_run is None
+            or bivariate_run.run_id != multivariate_run.bivariate_run_id
+            or bivariate_run.status != "complete"
+        )
+        and multivariate_run.status in {"ready", "running", "complete"}
+    ):
+        multivariate_run = replace(
+            multivariate_run,
+            status="stale",
+            phase="stale",
+            failure_reason="stale_upstream_dependency",
+        )
+        state.multivariate_runs_by_id[multivariate_run.run_id] = multivariate_run
     return {
         "stages": resolve_workflow(
             metadata_revision_id=metadata_revision_id,

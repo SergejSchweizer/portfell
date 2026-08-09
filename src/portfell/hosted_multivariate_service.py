@@ -72,6 +72,15 @@ class MultivariateResearchService:
         existing = self._state.multivariate_runs_by_id.get(run_id)
         if existing is not None:
             return _run_row(existing)
+        previous_id = self._state.current_multivariate_run_by_project.get(project_id)
+        previous = self._state.multivariate_runs_by_id.get(previous_id or "")
+        if previous is not None and previous.status in {"ready", "running", "complete"}:
+            self._state.multivariate_runs_by_id[previous.run_id] = replace(
+                previous,
+                status="stale",
+                phase="stale",
+                failure_reason="stale_upstream_dependency",
+            )
         run = MultivariateRunRecord(
             run_id=run_id,
             user_id=user_id,
