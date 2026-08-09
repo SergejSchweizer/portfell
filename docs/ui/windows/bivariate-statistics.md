@@ -7,8 +7,8 @@
 ## Purpose
 
 Run and present server-computed pairwise statistics for the automatic all-results selection produced
-when univariate statistics complete. The legacy univariate-filter API and CLI remain available for
-explicit server-side selections.
+when univariate statistics complete. The server's automatic all-results selection is an internal
+persistence hand-off, not a separate browser filter module.
 
 ## Module boundary
 

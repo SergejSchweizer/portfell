@@ -1,14 +1,13 @@
 
 import type { ComponentType } from "react";
+import type { WorkflowStageId } from "./contracts";
 import { BivariateStatisticsPage } from "./pages/bivariate-statistics";
 import { MetadataFilterPage } from "./pages/metadata-filter";
-import { UnivariateFilterPage } from "./pages/univariate-filter";
 import { UnivariateStatisticsPage } from "./pages/univariate-statistics";
 
 export type WorkflowPageId =
-  | "metadata_filter"
+  | "metadata_builder"
   | "univariate_statistics"
-  | "univariate_filter"
   | "bivariate_statistics";
 
 export type WorkflowModuleId = "metadata_builder" | "univariate_statistics" | "bivariate_statistics";
@@ -16,6 +15,7 @@ export type WorkflowModuleId = "metadata_builder" | "univariate_statistics" | "b
 export type WorkflowPage = Readonly<{
   id: WorkflowPageId;
   moduleId: WorkflowModuleId;
+  stageId: WorkflowStageId;
   title: string;
   path: string;
   component: ComponentType;
@@ -47,8 +47,9 @@ export const workflowModules: readonly WorkflowModule[] = [
 
 export const workflowPages: readonly WorkflowPage[] = [
   {
-    id: "metadata_filter",
+    id: "metadata_builder",
     moduleId: "metadata_builder",
+    stageId: "metadata_filter",
     title: "Metadata Builder",
     path: "/metadata-filter",
     component: MetadataFilterPage,
@@ -56,20 +57,15 @@ export const workflowPages: readonly WorkflowPage[] = [
   {
     id: "univariate_statistics",
     moduleId: "univariate_statistics",
+    stageId: "univariate_statistics",
     title: "Univariate Statistics",
     path: "/univariate-statistics",
     component: UnivariateStatisticsPage,
   },
   {
-    id: "univariate_filter",
-    moduleId: "univariate_statistics",
-    title: "Univariate Filter",
-    path: "/univariate-filter",
-    component: UnivariateFilterPage,
-  },
-  {
     id: "bivariate_statistics",
     moduleId: "bivariate_statistics",
+    stageId: "bivariate_statistics",
     title: "Bivariate Statistics",
     path: "/bivariate-statistics",
     component: BivariateStatisticsPage,

@@ -88,7 +88,6 @@ describe("API client", () => {
     vi.stubGlobal("fetch", fetchMock);
     const metadataRequest = { exchange: "XETRA", name: "fund", instrument_type: "ETF", country: "DE", currency: "EUR" };
     const univariateRequest = { metadata_selection_id: "selection/a", quote_run_id: "quote/a" };
-    const filterRequest = { source_run_id: "run/a", predicates: [{ metric: "var", operator: "less_than", value: 2 }] };
     const settings: ApiUnivariateSelectionSettings = { dividend_frequencies: ["monthly"], statistic_labels: {}, statistic_ranges: {} };
     const bivariateRequest = { univariate_filter_selection_id: "selection/a" };
 
@@ -98,16 +97,14 @@ describe("API client", () => {
       metadataBuilderApi.fetchAll(), metadataBuilderApi.createProject(metadataRequest),
       univariateStatisticsApi.startRun(univariateRequest), univariateStatisticsApi.loadRun("run/a"), univariateStatisticsApi.loadResults("run/a", 10, 5),
       univariateStatisticsApi.startQuoteRun({ metadata_selection_id: "selection/a" }), univariateStatisticsApi.loadSelectionSettings("project/a"),
-      univariateStatisticsApi.saveSelectionSettings("project/a", settings), univariateStatisticsApi.loadFilterMetrics(),
-      univariateStatisticsApi.applyFilter(filterRequest), univariateStatisticsApi.loadFilterResults("selection/a", 10, 5),
+      univariateStatisticsApi.saveSelectionSettings("project/a", settings),
       bivariateStatisticsApi.plan(bivariateRequest), bivariateStatisticsApi.startRun(bivariateRequest), bivariateStatisticsApi.loadRun("run/a"),
       bivariateStatisticsApi.loadRunData("run/a"),
     ]);
 
     expect(fetchMock.mock.calls.map(([path]) => path)).toEqual(expect.arrayContaining([
       "/api/metadata-filter/options", "/api/metadata-filter", "/api/univariate-statistics/runs",
-      "/api/univariate-statistics/runs/run%2Fa/results?limit=10&offset=5", "/api/univariate-filter/metrics",
-      "/api/univariate-filter/selection%2Fa/results?limit=10&offset=5", "/api/bivariate-statistics/plan",
+      "/api/univariate-statistics/runs/run%2Fa/results?limit=10&offset=5", "/api/bivariate-statistics/plan",
       "/api/bivariate-statistics/runs/run%2Fa/covariance-matrix",
       "/api/bivariate-statistics/runs/run%2Fa/correlation-matrix?metric=downside",
     ]));

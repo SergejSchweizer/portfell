@@ -2,8 +2,6 @@
 
 import { postJson, requestJson } from "./client";
 import type {
-  ApiFilterSelection,
-  ApiMetricList,
   ApiPage,
   ApiQuoteFetch,
   ApiResearchRun,
@@ -18,11 +16,6 @@ export type UnivariateRunRequest = Readonly<{
 
 export type QuoteRunRequest = Readonly<{
   metadata_selection_id: string;
-}>;
-
-export type UnivariateFilterRequest = Readonly<{
-  source_run_id: string;
-  predicates: readonly Readonly<{ metric: string; operator: string; value: number }>[];
 }>;
 
 export const univariateStatisticsApi = {
@@ -51,14 +44,5 @@ export const univariateStatisticsApi = {
   ): Promise<ApiUnivariateSelectionSettings> => requestJson<ApiUnivariateSelectionSettings>(
     `/api/projects/${encodeURIComponent(projectId)}/univariate-selection-settings`,
     { method: "PUT", body: JSON.stringify(settings) },
-  ),
-  loadFilterMetrics: (): Promise<ApiMetricList> => requestJson<ApiMetricList>("/api/univariate-filter/metrics"),
-  applyFilter: (request: UnivariateFilterRequest): Promise<ApiFilterSelection> => (
-    postJson<ApiFilterSelection>("/api/univariate-filter", request)
-  ),
-  loadFilterResults: (selectionId: string, limit: number, offset: number): Promise<ApiPage<ApiUnivariateRow>> => (
-    requestJson<ApiPage<ApiUnivariateRow>>(
-      `/api/univariate-filter/${encodeURIComponent(selectionId)}/results?limit=${limit}&offset=${offset}`,
-    )
   ),
 };

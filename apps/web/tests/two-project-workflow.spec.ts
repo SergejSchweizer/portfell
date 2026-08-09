@@ -149,9 +149,6 @@ async function installTwoProjectApi(page: Page): Promise<WorkflowFixture> {
     }
     if (method === "GET" && /^\/api\/univariate-statistics\/runs\/[^/]+$/.test(path)) return response(route, { run_id: path.split("/").at(-1), status: "complete", total: 3, completed: 3, failed: 0, percent: 100 });
     if (method === "GET" && path.includes("/univariate-statistics/runs/") && path.endsWith("/results")) return response(route, { items: univariateRows, total: univariateRows.length, limit: 200, offset: 0 });
-    if (method === "GET" && path === "/api/univariate-filter/metrics") return response(route, { items: [{ metric: "annualized_volatility", label: "Annualized volatility", unit: "%", operators: ["<=", ">="] }, { metric: "annualized_geometric_return", label: "Annual return", unit: "%", operators: ["<=", ">="] }] });
-    if (method === "POST" && path === "/api/univariate-filter") return response(route, { selection_id: `filter-${currentProjectId}`, source_run_id: current()!.univariateRunId, input_count: 3, selected_count: 2, excluded_count: 1, predicates: body.predicates });
-    if (method === "GET" && /^\/api\/univariate-filter\/[^/]+\/results$/.test(path)) return response(route, { items: univariateRows.slice(0, 2), total: 2, limit: 50, offset: 0 });
     if (method === "POST" && path === "/api/bivariate-statistics/plan") return response(route, { selected_listing_count: 3, theoretical_pair_count: 3, pair_limit: 100, allowed: true });
     if (method === "POST" && path === "/api/bivariate-statistics/runs") {
       const project = current()!;
@@ -218,18 +215,6 @@ test("two dummy projects created through the UI preserve every research control 
   await page.getByRole("img", { name: "Annual dividend yield distribution for 3 ISINs" }).locator("[tabindex=\"0\"]").first().hover();
   await expect(page.getByRole("tooltip").first()).toBeVisible();
 
-  await page.goto("/univariate-filter");
-  await page.getByLabel("Metric").selectOption("annualized_geometric_return");
-  await page.getByLabel("Operator").selectOption(">=");
-  await page.getByLabel("Value").fill("0.05");
-  await page.getByRole("button", { name: "Add predicate" }).click();
-  await page.getByLabel("Metric").last().selectOption("annualized_volatility");
-  await page.getByLabel("Operator").last().selectOption("<=");
-  await page.getByLabel("Value").last().fill("0.2");
-  await page.getByRole("button", { name: "Remove" }).last().click();
-  await page.getByRole("button", { name: "Apply filter" }).click();
-  await expect(page.getByText("2 selected; 1 excluded.")).toBeVisible();
-
   await page.goto("/metadata-filter");
   await createProject(page, { exchange: "LSE", instrumentType: "FUND", country: "LU", currency: "USD", name: "Beta growth" });
   await page.goto("/univariate-statistics");
@@ -261,7 +246,6 @@ test("two dummy projects created through the UI preserve every research control 
     "POST /api/metadata-filter",
     "POST /api/quote-runs",
     "POST /api/univariate-statistics/runs",
-    "POST /api/univariate-filter",
     "POST /api/bivariate-statistics/plan",
     "POST /api/bivariate-statistics/runs",
     "PUT /api/project-context/current-project",

@@ -54,8 +54,9 @@ status. A project with a persisted metadata selection activates this page so
 its quote-fetch action is available; a completed quote run remains required
 before statistics can be computed. After a project switch, local run,
 result-table, and status-message state are cleared before the project-scoped
-workflow is reloaded. Once the univariate run completes, the server creates an all-results
-selection and unlocks Bivariate Statistics directly; Univariate Filter is not shown in the sidebar.
+workflow is reloaded. Once the univariate run completes, the server creates the automatic all-results
+selection and unlocks Bivariate Statistics directly. There is no standalone filter module or route in
+the browser workflow.
 
 ## Acceptance
 

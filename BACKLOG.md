@@ -1158,10 +1158,11 @@ Priority: P0 research-workflow architecture.
 
 Depends on: PR136.
 
-Scope: Establish Metadata Builder, Univariate Statistics, and Bivariate Statistics as explicit
-browser workflow modules. Give each module a typed API facade, register route ownership, keep shared
-transport and workspace context separate, and document the persisted input/output hand-offs and rules
-for later modules.
+Scope: Establish Metadata Builder, Univariate Statistics, and Bivariate Statistics as the only
+explicit browser workflow modules. Give each module a typed API facade, register route ownership,
+keep shared transport and workspace context separate, and document persisted input/output hand-offs
+and rules for later modules. Metadata and univariate filtering remain internal persistence/CLI steps,
+not standalone browser modules.
 
 Acceptance: Every active browser page has exactly one registered module owner. Module-specific API
 routes live only in the owning facade, while the shared client contains only transport and workspace

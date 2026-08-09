@@ -1,7 +1,7 @@
 # Metadata Builder page
 
 - Route: `/metadata-filter`
-- Page ID: `metadata_filter`
+- Page ID: `metadata_builder`
 - Component: `apps/web/src/pages/metadata-filter.tsx`
 
 ## Purpose
@@ -12,7 +12,7 @@ Univariate Statistics.
 
 ## Inputs and actions
 
-The persistent header owns the EODHD key and saved-key state. The first white panel uses the same progress, status, and action layout as Download Historical Data, and owns `Fetch all metadata`, its determinate exchange progress, and all metadata-fetch status messages. Metadata rows and completed-exchange coverage persist in the server-owned lake; later automatic refreshes query the exchange registry and download only exchange listings not yet covered. The Metadata Filter panel follows it and exposes exchange, instrument type, country, currency, and name filters.
+The persistent header owns the EODHD key and saved-key state. The first white panel uses the same progress, status, and action layout as Download Historical Data, and owns `Fetch all metadata`, its determinate exchange progress, and all metadata-fetch status messages. Metadata rows and completed-exchange coverage persist in the server-owned lake; later automatic refreshes query the exchange registry and download only exchange listings not yet covered. The Metadata Builder panel follows it and exposes exchange, instrument type, country, currency, and name filters.
 
 After a successful `Create new project` response, the browser dispatches the server-owned workflow refresh and navigates to `/univariate-statistics`. Quote fetching and all statistical calculations belong to later modules.
 
