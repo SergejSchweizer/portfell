@@ -25,11 +25,12 @@ export type BivariateRunData = Readonly<{
   downside: ApiPairMetricMatrix;
   lowerTailDependence: ApiPairMetricMatrix;
   tailCoexceedanceRate: ApiPairMetricMatrix;
+  rollingStability: ApiPairMetricMatrix;
   drawdownOverlap: ApiPairMetricMatrix;
   tailRiskScatter: ApiTailRiskScatter;
 }>;
 
-export type PairMetricMatrixKind = "pearson" | "spearman" | "downside" | "lower_tail_dependence" | "tail_coexceedance_rate" | "drawdown_overlap";
+export type PairMetricMatrixKind = "pearson" | "spearman" | "downside" | "lower_tail_dependence" | "tail_coexceedance_rate" | "rolling_stability" | "drawdown_overlap";
 
 export const bivariateStatisticsApi = {
   plan: (request: BivariateSelectionRequest): Promise<ApiPairPlan> => (
@@ -64,7 +65,7 @@ export const bivariateStatisticsApi = {
     `/api/bivariate-statistics/runs/${encodeURIComponent(runId)}/tail-risk-scatter`,
   ),
   loadRunData: async (runId: string): Promise<BivariateRunData> => {
-    const [results, covariance, summary, pearson, spearman, downside, lowerTailDependence, tailCoexceedanceRate, drawdownOverlap, tailRiskScatter] = await Promise.all([
+    const [results, covariance, summary, pearson, spearman, downside, lowerTailDependence, tailCoexceedanceRate, rollingStability, drawdownOverlap, tailRiskScatter] = await Promise.all([
       bivariateStatisticsApi.loadResults(runId),
       bivariateStatisticsApi.loadCovariance(runId),
       bivariateStatisticsApi.loadSummary(runId),
@@ -73,9 +74,10 @@ export const bivariateStatisticsApi = {
       bivariateStatisticsApi.loadCorrelation(runId, "downside"),
       bivariateStatisticsApi.loadCorrelation(runId, "lower_tail_dependence"),
       bivariateStatisticsApi.loadCorrelation(runId, "tail_coexceedance_rate"),
+      bivariateStatisticsApi.loadCorrelation(runId, "rolling_stability"),
       bivariateStatisticsApi.loadCorrelation(runId, "drawdown_overlap"),
       bivariateStatisticsApi.loadTailRiskScatter(runId),
     ]);
-    return { results, covariance, summary, pearson, spearman, downside, lowerTailDependence, tailCoexceedanceRate, drawdownOverlap, tailRiskScatter };
+    return { results, covariance, summary, pearson, spearman, downside, lowerTailDependence, tailCoexceedanceRate, rollingStability, drawdownOverlap, tailRiskScatter };
   },
 };

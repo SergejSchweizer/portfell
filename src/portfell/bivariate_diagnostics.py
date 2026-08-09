@@ -217,7 +217,52 @@ def coexceedance_diagnostics(rows: tuple[JsonRow, ...]) -> JsonRow:
 
 
 def rolling_correlation_diagnostics(rows: tuple[JsonRow, ...]) -> JsonRow:
-    return _pair_metric_diagnostics(rows, "rolling_correlation_stability", 0.10)
+    """Portfolio facts for the stability and stress behaviour of pair correlations."""
+    values = _metric_values(rows, "rolling_correlation_stability")
+    if not values:
+        return _empty_rolling_correlation_diagnostics()
+    base = _pair_metric_diagnostics(rows, "rolling_correlation_stability", 0.10)
+    observations = _integer_values(rows, "n_observations")
+    rolling_means = _metric_values(rows, "rolling_correlation_mean")
+    worst_windows = _metric_values(rows, "rolling_correlation_maximum")
+    trends = _metric_values(rows, "rolling_correlation_trend")
+    switches = _integer_values(rows, "rolling_correlation_regime_switches")
+    pearson_gaps = [
+        abs(float(row["rolling_correlation_mean"]) - float(row["pearson_correlation"]))
+        for row in rows
+        if row.get("rolling_correlation_mean") is not None
+        and row.get("pearson_correlation") is not None
+    ]
+    stress_correlations = _metric_values(rows, "downside_correlation")
+    worst_window_pair = _worst_pair(rows, "rolling_correlation_maximum")
+    return {
+        **base,
+        "high_20_pairs": sum(value >= 0.20 for value in values),
+        "high_30_pairs": sum(value >= 0.30 for value in values),
+        "window_length": 60,
+        "median_shared_observations": median(observations) if observations else None,
+        "minimum_shared_observations": min(observations) if observations else None,
+        "median_window_count": _median_rolling_window_count(observations),
+        "average_rolling_correlation": (
+            sum(rolling_means) / len(rolling_means) if rolling_means else None
+        ),
+        "average_correlation_trend": sum(trends) / len(trends) if trends else None,
+        "regime_switch_pairs": sum(value > 0 for value in switches),
+        "average_regime_switches": sum(switches) / len(switches) if switches else None,
+        "average_stress_correlation": (
+            sum(stress_correlations) / len(stress_correlations) if stress_correlations else None
+        ),
+        "average_pearson_gap": sum(pearson_gaps) / len(pearson_gaps) if pearson_gaps else None,
+        "average_worst_window_correlation": (
+            sum(worst_windows) / len(worst_windows) if worst_windows else None
+        ),
+        "worst_window_pair": (
+            None
+            if worst_window_pair is None
+            else f"{worst_window_pair[0]} ↔ {worst_window_pair[1]}"
+        ),
+        "worst_window_correlation": (None if worst_window_pair is None else worst_window_pair[2]),
+    }
 
 
 def drawdown_overlap_diagnostics(rows: tuple[JsonRow, ...]) -> JsonRow:
@@ -458,6 +503,44 @@ def _empty_drawdown_overlap_diagnostics() -> JsonRow:
         "cluster_count": 0,
         "largest_cluster_size": 0,
     }
+
+
+def _empty_rolling_correlation_diagnostics() -> JsonRow:
+    return {
+        "percentile_90": None,
+        "high_threshold_pairs": 0,
+        "high_20_pairs": 0,
+        "high_30_pairs": 0,
+        "worst_pair": None,
+        "worst_value": None,
+        "best_pair": None,
+        "best_value": None,
+        "most_exposed_listing": None,
+        "most_exposed_average": None,
+        "window_length": 60,
+        "median_shared_observations": None,
+        "minimum_shared_observations": None,
+        "median_window_count": None,
+        "average_rolling_correlation": None,
+        "average_correlation_trend": None,
+        "regime_switch_pairs": 0,
+        "average_regime_switches": None,
+        "average_stress_correlation": None,
+        "average_pearson_gap": None,
+        "average_worst_window_correlation": None,
+        "worst_window_pair": None,
+        "worst_window_correlation": None,
+        "cluster_count": 0,
+        "largest_cluster_size": 0,
+    }
+
+
+def _median_rolling_window_count(observations: list[int]) -> float | None:
+    counts = [
+        0 if observation < 20 else 1 + max(0, (observation - min(60, observation)) // 20)
+        for observation in observations
+    ]
+    return median(counts) if counts else None
 
 
 def _correlation_distribution(values: list[float]) -> JsonRow:
