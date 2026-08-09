@@ -107,6 +107,7 @@ export function MultivariateStatisticsPage() {
         <p className="status-line" aria-live="polite">{run ? `${run.phase} · ${run.completed_units} of ${run.total_units} phases complete · ${run.elapsed_seconds}s elapsed${run.estimated_remaining_seconds == null ? "" : ` · about ${run.estimated_remaining_seconds}s remaining`}` : "Ready to compute."}</p></div>
         <Button onClick={() => void compute()} disabled={!projectId || !bivariateRunId || run?.status === "running"}>Compute multivariate statistics</Button></div>
       <progress value={progress} max={100} aria-label="Multivariate statistics progress" />
+      {stage?.status === "stale" && <p role="status">The prior multivariate result is stale because its bivariate input changed. Compute a new run to refresh it.</p>}
       {message && <p role="alert">{message}</p>}{run?.failure_reason && <p role="alert">{run.failure_reason}</p>}
     </Panel>
     {run?.status === "complete" && <Panel title="Multivariate results">
