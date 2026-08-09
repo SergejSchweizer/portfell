@@ -5,7 +5,8 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from pathlib import Path
 
-from portfell.hosted_api_state import HostedApiState, ProjectRecord
+from portfell.hosted_api_service_support import stable_hash
+from portfell.hosted_api_state import HostedApiState, ProjectRecord, SelectionRecord
 from portfell.hosted_multivariate_service import MultivariateResearchService
 from portfell.hosted_research_workflow import (
     ResearchRun,
@@ -68,13 +69,28 @@ def _fixtures() -> tuple[HostedApiState, _Data, str, str]:
     )
     state = HostedApiState(
         projects_by_id={project_id: ProjectRecord(project_id, user_id, "A")},
+        selections_by_id={
+            "metadata-selection-a": SelectionRecord(
+                "metadata-selection-a",
+                user_id,
+                project_id,
+                "A",
+                selection.member_ids,
+            )
+        },
         all_isins_rows=tuple(
             {"isin": isin, "exchange": exchange, "code": code, "instrument_type": "ETF"}
             for isin, exchange, code in keys
         ),
         univariate_runs_by_id={
             univariate_run_id: ResearchRun(
-                univariate_run_id, user_id, "source", "complete", rows, 5, 5
+                univariate_run_id,
+                user_id,
+                stable_hash({"selection_id": "metadata-selection-a", "quote_run_id": "quote-a"}),
+                "complete",
+                rows,
+                5,
+                5,
             )
         },
         univariate_selections_by_id={selection.selection_id: selection},
@@ -134,7 +150,10 @@ def test_multivariate_service_resolves_pinned_project_dependencies_and_persists_
     assert service.risk_contributions("user-a", str(started["run_id"]), candidate_id)["items"]
     assert service.income_evidence("user-a", str(started["run_id"]))["items"]
     artifacts = service.artifacts("user-a", str(started["run_id"]))
+    assert artifacts["input_snapshot"]["metadata_selection_id"] == "metadata-selection-a"
     assert artifacts["input_snapshot"]["univariate_selection_id"] == "univariate-selection-a"
+    assert len(artifacts["input_snapshot"]["quote_artifact_ids"]) == 5
+    assert len(artifacts["input_snapshot"]["dividend_artifact_ids"]) == 5
     assert artifacts["risk_model"]["estimator"] == "ledoit_wolf"
     assert artifacts["structure"]["risk_model_id"] == artifacts["risk_model"]["risk_model_id"]
     components = service.components("user-a", str(started["run_id"]), limit=3, offset=0)

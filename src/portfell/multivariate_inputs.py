@@ -159,6 +159,12 @@ class MultivariateInputSnapshot:
             "univariate_selection_id": self.univariate_selection_id,
             "bivariate_run_id": self.bivariate_run_id,
             "listing_keys": [key.as_tuple() for key in self.listing_keys],
+            "quote_artifact_ids": [
+                (key.as_tuple(), artifact_id) for key, artifact_id in self.quote_artifact_ids
+            ],
+            "dividend_artifact_ids": [
+                (key.as_tuple(), artifact_id) for key, artifact_id in self.dividend_artifact_ids
+            ],
             "aligned_calendar_id": self.aligned_calendar_id,
             "date_start": self.date_start,
             "date_end": self.date_end,

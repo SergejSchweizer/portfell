@@ -13,7 +13,7 @@ from typing import Any
 from portfell.gold import build_returns
 from portfell.hosted_api_errors import HostedApplicationError
 from portfell.hosted_api_service_support import opaque_id, require_user_row, stable_hash
-from portfell.hosted_api_state import HostedApiState, MultivariateRunRecord
+from portfell.hosted_api_state import HostedApiState, MultivariateRunRecord, SelectionRecord
 from portfell.hosted_research_ports import ResearchDataPort, ResearchPersistencePort
 from portfell.hosted_research_workflow import UnivariateSelection, bivariate_source_id
 from portfell.income import build_income_evidence, normalize_distribution_events
@@ -53,6 +53,7 @@ class MultivariateResearchService:
         bivariate = require_user_row(self._state.bivariate_runs_by_id, bivariate_run_id, user_id)
         if bivariate.status != "complete":
             raise HostedApplicationError(422, "bivariate_run_not_complete")
+        self._metadata_selection_for_project(user_id, project_id)
         selection = self._selection_for_bivariate(user_id, bivariate_run_id)
         logical_hash = stable_hash(
             {
@@ -183,12 +184,28 @@ class MultivariateResearchService:
             raise HostedApplicationError(422, "bivariate_dependency_mismatch")
         return matches[0]
 
+    def _metadata_selection_for_project(self, user_id: str, project_id: str) -> SelectionRecord:
+        selections = [
+            selection
+            for selection in self._state.selections_by_id.values()
+            if selection.user_id == user_id and selection.project_id == project_id
+        ]
+        if len(selections) != 1:
+            raise HostedApplicationError(422, "project_metadata_dependency_mismatch")
+        return selections[0]
+
     def _compute(self, run: MultivariateRunRecord) -> MultivariateRunRecord:
         selection = self._selection_for_bivariate(run.user_id, run.bivariate_run_id)
         source_run = require_user_row(
             self._state.univariate_runs_by_id, selection.source_run_id, run.user_id
         )
+        metadata_selection = self._metadata_selection_for_project(run.user_id, run.project_id)
         quote_run_id = self._state.quote_run_by_univariate_run_id.get(source_run.run_id, "")
+        expected_source_id = stable_hash(
+            {"selection_id": metadata_selection.selection_id, "quote_run_id": quote_run_id}
+        )
+        if source_run.source_id != expected_source_id:
+            raise HostedApplicationError(422, "project_univariate_dependency_mismatch")
         quotes = self._state.quote_rows_by_run_id.get(quote_run_id) or self._data.selected_rows(
             selection.member_ids, dataset="quotes"
         )
@@ -210,7 +227,7 @@ class MultivariateResearchService:
         dependencies = MultivariateInputDependencies(
             project_id=run.project_id,
             project_snapshot_id=run.logical_hash,
-            metadata_selection_id="project-scoped",
+            metadata_selection_id=metadata_selection.selection_id,
             univariate_run_id=source_run.run_id,
             univariate_selection_id=selection.selection_id,
             bivariate_run_id=run.bivariate_run_id,
