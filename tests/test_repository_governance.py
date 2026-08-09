@@ -174,7 +174,8 @@ def test_quality_gates_are_documented_centrally() -> None:
     gates = (REPOSITORY_ROOT / "GATES.md").read_text(encoding="utf-8")
 
     for backlog_text in (
-        "PR143 through PR150 are the only active backlog series",
+        "PR143 through PR150 are the first active series",
+        "PR151 through PR155 then implement",
         "four modules only after",
         "[GATES.md](GATES.md)",
     ):
