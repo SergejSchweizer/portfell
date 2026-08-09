@@ -1138,9 +1138,9 @@ Priority: P1 univariate statistics clarity.
 
 Depends on: PR135.
 
-Scope: Hide the Dividends univariate-statistics window until a completed univariate run has loaded its result payload. Align Playwright discovery with the browser-spec files so Vitest unit tests are not accidentally executed by Playwright.
+Scope: Hide the Dividends univariate-statistics window until a completed univariate run has loaded its result payload. Align Playwright discovery with the browser-spec files so Vitest unit tests are not accidentally executed by Playwright. Align the declared `@playwright/test` version with the lockfile-resolved browser runtime used by the workflow tests.
 
-Acceptance: Before completed results load, the page shows only historical-data and univariate-compute controls; no Dividends card, selection field, or histogram is rendered. Once results load, the Dividends card and histogram appear, including the empty-result state. The three-viewport workflow test asserts this transition, while Vitest and Playwright remain separate commands.
+Acceptance: Before completed results load, the page shows only historical-data and univariate-compute controls; no Dividends card, selection field, or histogram is rendered. Once results load, the Dividends card and histogram appear, including the empty-result state. The three-viewport workflow test asserts this transition, while Vitest and Playwright remain separate commands using matching Playwright package and browser versions.
 
 Security: The change introduces no new API call, client-side business rule, or sensitive data handling.
 
