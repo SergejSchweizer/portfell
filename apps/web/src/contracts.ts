@@ -301,7 +301,33 @@ export type ApiBivariateSummary = Readonly<{
     cluster_count?: number;
     largest_cluster_size?: number;
   }>;
-  rolling_correlation_diagnostics: Readonly<{ percentile_90?: number | null; high_threshold_pairs: number; worst_pair?: string | null; worst_value?: number | null; best_pair?: string | null; best_value?: number | null; most_exposed_listing?: string | null; most_exposed_average?: number | null; cluster_count: number; largest_cluster_size: number }>;
+  rolling_correlation_diagnostics: Readonly<{
+    percentile_90?: number | null;
+    high_threshold_pairs: number;
+    high_20_pairs: number;
+    high_30_pairs: number;
+    worst_pair?: string | null;
+    worst_value?: number | null;
+    best_pair?: string | null;
+    best_value?: number | null;
+    most_exposed_listing?: string | null;
+    most_exposed_average?: number | null;
+    window_length: number;
+    median_shared_observations?: number | null;
+    minimum_shared_observations?: number | null;
+    median_window_count?: number | null;
+    average_rolling_correlation?: number | null;
+    average_correlation_trend?: number | null;
+    regime_switch_pairs: number;
+    average_regime_switches?: number | null;
+    average_stress_correlation?: number | null;
+    average_pearson_gap?: number | null;
+    average_worst_window_correlation?: number | null;
+    worst_window_pair?: string | null;
+    worst_window_correlation?: number | null;
+    cluster_count: number;
+    largest_cluster_size: number;
+  }>;
   drawdown_overlap_diagnostics: Readonly<{
     percentile_90?: number | null;
     high_threshold_pairs: number;

@@ -27,7 +27,7 @@ from portfell.run_state import build_job_manifest, write_job_manifest
 from portfell.schemas import validate_rows
 from portfell.table_io import JsonRow, read_rows, write_rows
 
-BIVARIATE_STATISTICS_VERSION = "v8"
+BIVARIATE_STATISTICS_VERSION = "v9"
 
 
 def build_bivariate_statistics(
@@ -290,6 +290,16 @@ def _build_bivariate_pair_statistics(pair: PairObservation) -> JsonRow:
         "rolling_correlation_stability": _rolling_correlation_stability(
             pair.left_values, pair.right_values
         ),
+        "rolling_correlation_mean": _rolling_correlation_mean(pair.left_values, pair.right_values),
+        "rolling_correlation_maximum": _rolling_correlation_maximum(
+            pair.left_values, pair.right_values
+        ),
+        "rolling_correlation_trend": _rolling_correlation_trend(
+            pair.left_values, pair.right_values
+        ),
+        "rolling_correlation_regime_switches": _rolling_correlation_regime_switches(
+            pair.left_values, pair.right_values
+        ),
         "rolling_spearman_stability": _rolling_correlation_stability(
             pair.left_values, pair.right_values, metric="spearman"
         ),
@@ -407,21 +417,47 @@ def _rolling_correlation_stability(
     left: Sequence[float], right: Sequence[float], *, metric: str = "pearson"
 ) -> float:
     """Standard deviation of sampled 60-observation rolling correlations."""
-    if len(left) != len(right) or len(left) < 20:
+    correlations = _rolling_correlations(left, right, metric=metric)
+    if len(correlations) < 2:
         return 0.0
+    mean = sum(correlations) / len(correlations)
+    return sqrt(sum((value - mean) ** 2 for value in correlations) / (len(correlations) - 1))
+
+
+def _rolling_correlation_mean(left: Sequence[float], right: Sequence[float]) -> float:
+    correlations = _rolling_correlations(left, right)
+    return sum(correlations) / len(correlations) if correlations else 0.0
+
+
+def _rolling_correlation_maximum(left: Sequence[float], right: Sequence[float]) -> float:
+    return max(_rolling_correlations(left, right), default=0.0)
+
+
+def _rolling_correlation_trend(left: Sequence[float], right: Sequence[float]) -> float:
+    correlations = _rolling_correlations(left, right)
+    return correlations[-1] - correlations[0] if len(correlations) >= 2 else 0.0
+
+
+def _rolling_correlation_regime_switches(left: Sequence[float], right: Sequence[float]) -> int:
+    correlations = _rolling_correlations(left, right)
+    regimes = [value >= 0.70 for value in correlations]
+    return sum(previous != current for previous, current in zip(regimes, regimes[1:], strict=False))
+
+
+def _rolling_correlations(
+    left: Sequence[float], right: Sequence[float], *, metric: str = "pearson"
+) -> list[float]:
+    if len(left) != len(right) or len(left) < 20:
+        return []
     window = min(60, len(left))
     step = max(1, window // 3)
     starts = list(range(0, len(left) - window + 1, step))
     if starts[-1] != len(left) - window:
         starts.append(len(left) - window)
-    correlations = [
+    return [
         correlation_value(left[start : start + window], right[start : start + window], metric)
         for start in starts
     ]
-    if len(correlations) < 2:
-        return 0.0
-    mean = sum(correlations) / len(correlations)
-    return sqrt(sum((value - mean) ** 2 for value in correlations) / (len(correlations) - 1))
 
 
 def _rolling_downside_correlation_stability(left: Sequence[float], right: Sequence[float]) -> float:

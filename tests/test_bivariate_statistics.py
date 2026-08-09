@@ -92,6 +92,8 @@ def test_bivariate_statistics_use_common_dates_and_pairwise_metrics(tmp_path: Pa
     drawdown_matrix = build_correlation_matrix(tuple(statistics), "drawdown_overlap")
     assert drawdown_matrix["labels"]
     assert drawdown_matrix["values"][0][1] == statistics[0]["drawdown_overlap_rate"]
+    rolling_matrix = build_correlation_matrix(tuple(statistics), "rolling_stability")
+    assert rolling_matrix["values"][0][1] == statistics[0]["rolling_correlation_stability"]
 
 
 def test_bivariate_statistics_require_a_universe_wide_common_calendar() -> None:

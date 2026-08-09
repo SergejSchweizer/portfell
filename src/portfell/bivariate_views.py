@@ -67,6 +67,7 @@ def build_correlation_matrix(rows: tuple[JsonRow, ...], metric: str) -> JsonRow:
         "lower_tail_dependence": "lower_tail_dependence",
         "tail_coexceedance_rate": "tail_coexceedance_rate",
         "drawdown_overlap": "drawdown_overlap_rate",
+        "rolling_stability": "rolling_correlation_stability",
     }[metric]
     listings = _pair_listings(rows)
     index = {listing: position for position, listing in enumerate(listings)}
