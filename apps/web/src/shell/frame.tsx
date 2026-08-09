@@ -22,6 +22,7 @@ const emptyWorkflow: ApiWorkflow = {
     metadata_builder: { status: "ready" },
     univariate_statistics: { status: "locked" },
     bivariate_statistics: { status: "locked" },
+    multivariate_statistics: { status: "locked" },
   },
 };
 

@@ -3,14 +3,20 @@ import type { ComponentType } from "react";
 import type { WorkflowStageId } from "./contracts";
 import { BivariateStatisticsPage } from "./pages/bivariate-statistics";
 import { MetadataBuilderPage } from "./pages/metadata-builder";
+import { MultivariateStatisticsPage } from "./pages/multivariate-statistics";
 import { UnivariateStatisticsPage } from "./pages/univariate-statistics";
 
 export type WorkflowPageId =
   | "metadata_builder"
   | "univariate_statistics"
-  | "bivariate_statistics";
+  | "bivariate_statistics"
+  | "multivariate_statistics";
 
-export type WorkflowModuleId = "metadata_builder" | "univariate_statistics" | "bivariate_statistics";
+export type WorkflowModuleId =
+  | "metadata_builder"
+  | "univariate_statistics"
+  | "bivariate_statistics"
+  | "multivariate_statistics";
 
 export type WorkflowPage = Readonly<{
   id: WorkflowPageId;
@@ -43,6 +49,11 @@ export const workflowModules: readonly WorkflowModule[] = [
     title: "Bivariate Statistics",
     boundary: "Calculates pairwise statistics from the univariate module's selected ISIN set.",
   },
+  {
+    id: "multivariate_statistics",
+    title: "Multivariate Statistics",
+    boundary: "Consumes the completed bivariate ISIN universe for portfolio-level analysis.",
+  },
 ];
 
 export const workflowPages: readonly WorkflowPage[] = [
@@ -69,6 +80,14 @@ export const workflowPages: readonly WorkflowPage[] = [
     title: "Bivariate Statistics",
     path: "/bivariate-statistics",
     component: BivariateStatisticsPage,
+  },
+  {
+    id: "multivariate_statistics",
+    moduleId: "multivariate_statistics",
+    stageId: "multivariate_statistics",
+    title: "Multivariate Statistics",
+    path: "/multivariate-statistics",
+    component: MultivariateStatisticsPage,
   },
 ];
 

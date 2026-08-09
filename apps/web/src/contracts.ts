@@ -9,7 +9,8 @@ export type ApiFieldOptions = Readonly<{
 export type WorkflowStageId =
   | "metadata_builder"
   | "univariate_statistics"
-  | "bivariate_statistics";
+  | "bivariate_statistics"
+  | "multivariate_statistics";
 
 export type WorkflowStatus = "locked" | "ready" | "running" | "complete" | "failed" | "stale";
 
@@ -22,6 +23,7 @@ export type ApiWorkflow = Readonly<{
     univariate_run_id?: string;
     univariate_selection_id?: string;
     bivariate_run_id?: string;
+    multivariate_run_id?: string;
   }>>>;
   process_overview?: Readonly<{
     metadata_downloaded_isins: number;

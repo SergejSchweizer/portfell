@@ -7,12 +7,13 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 WEB_ROOT = REPOSITORY_ROOT / "apps" / "web"
 
 
-def test_web_has_exactly_three_research_modules() -> None:
+def test_web_has_exactly_four_research_modules() -> None:
     routes = (WEB_ROOT / "src" / "routes.tsx").read_text(encoding="utf-8")
     expected = (
         "/metadata-builder",
         "/univariate-statistics",
         "/bivariate-statistics",
+        "/multivariate-statistics",
     )
     for route in expected:
         assert f'path: "{route}"' in routes

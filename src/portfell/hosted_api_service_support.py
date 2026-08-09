@@ -321,6 +321,7 @@ def workflow_row(
                 None if univariate_selection is None else univariate_selection.selection_id
             ),
             bivariate_run_id=None if bivariate_run is None else bivariate_run.run_id,
+            bivariate_status=None if bivariate_run is None else bivariate_run.status,
         ),
         "process_overview": {
             "metadata_downloaded_isins": (

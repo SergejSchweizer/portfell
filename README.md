@@ -171,8 +171,8 @@ The current refactor target keeps portfolio optimization downstream from the ISI
 
 ## Research Module Architecture
 
-The active browser workflow currently has three modules: Metadata Builder,
-Univariate Statistics, and Bivariate Statistics. Their persisted input/output
+The active browser workflow currently has four modules: Metadata Builder,
+Univariate Statistics, Bivariate Statistics, and Multivariate Statistics. Their persisted input/output
 boundaries and extension rules are documented in
 [`docs/ui/workflow-modules.md`](docs/ui/workflow-modules.md).
 
@@ -559,7 +559,7 @@ docker compose --env-file .env.local up --build -d web
 
 The hosted API is exposed by `portfell.hosted_api` and mounted in the API container. It provides user-scoped session, credential, download, dataset, project, metadata-builder project creation, selection, analysis, metrics, returns, weights, report, and account-deletion routes for the Web UI. The API container mounts `./lake` at `/srv/portfell/lake` so `GET /metadata-builder/options` can populate project-definition dropdowns from `lake/reference/all_isins/all_isins.parquet`, metadata-builder projects can persist their selected ISIN list, and `Load selected ISINs` can run `fetch-all-quotes` to write Bronze and Silver quote data. If the host lake is group-restricted, set `PORTFELL_LAKE_GROUP_ID` in `.env.local` to the host group id that can read and write the lake; the default is `10`.
 
-The Web container serves the three-module local research workspace from `apps/web/server.js`: Metadata Builder, Univariate Statistics, and Bivariate Statistics. Desktop layouts expose the server-owned project selector and workflow hierarchy in a persistent sidebar; at `900px` and below, the same hierarchy is available through the accessible project-navigation drawer. Workflow routes come only from `apps/web/src/routes.tsx`, so a future route registration automatically participates in both navigation forms. Workflow state, credentials, selections, and calculations remain server-owned. The runtime resolves every request to one local workspace and has no login route, session cookie, callback, or end-user authentication provider. It is therefore intended only for trusted local networks; public hosting remains disabled until a replacement identity and authorization model is approved.
+The Web container serves the four-module local research workspace from `apps/web/server.js`: Metadata Builder, Univariate Statistics, Bivariate Statistics, and Multivariate Statistics. Desktop layouts expose the server-owned project selector and workflow hierarchy in a persistent sidebar; at `900px` and below, the same hierarchy is available through the accessible project-navigation drawer. Workflow routes come only from `apps/web/src/routes.tsx`, so a future route registration automatically participates in both navigation forms. Workflow state, credentials, selections, and calculations remain server-owned. The runtime resolves every request to one local workspace and has no login route, session cookie, callback, or end-user authentication provider. It is therefore intended only for trusted local networks; public hosting remains disabled until a replacement identity and authorization model is approved.
 
 Browser state is derived from API responses. The Web surface must not store EODHD keys, ciphertext, fingerprints, or sensitive API responses in `localStorage`, `sessionStorage`, URLs, analytics, logs, or rendered error output.
 

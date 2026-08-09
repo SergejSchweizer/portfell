@@ -1,13 +1,15 @@
 # Portfell UI documentation
 
-Portfell currently has three sequential research modules:
+Portfell currently has four sequential research modules:
 
 1. [`metadata_builder`](windows/metadata-builder.md) at `/metadata-builder`
 2. [`univariate_statistics`](windows/univariate-statistics.md) at `/univariate-statistics`
 3. [`bivariate_statistics`](windows/bivariate-statistics.md) at `/bivariate-statistics`
+4. [`multivariate_statistics`](windows/multivariate-statistics.md) at `/multivariate-statistics`
 
 Server-side selection stages may remain for persistence and CLI compatibility, but they are not
-browser modules or routes. Bivariate Statistics becomes available when Univariate Statistics completes.
+browser modules or routes. Bivariate Statistics becomes available when Univariate Statistics completes;
+Multivariate Statistics becomes available when Bivariate Statistics completes.
 
 See [Workflow modules](workflow-modules.md) for the module input/output contracts and the
 rules for adding later modules. `workflowModules` in `apps/web/src/routes.tsx` owns the
