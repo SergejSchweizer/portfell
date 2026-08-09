@@ -127,6 +127,7 @@ export type ApiMultivariateRun = Readonly<{
   phase: string;
   completed_units: number;
   total_units: number;
+  elapsed_seconds: number;
   estimated_remaining_seconds: number | null;
   settings: Readonly<{ selected_candidate_ids?: readonly string[] }>;
   warnings: readonly string[];
