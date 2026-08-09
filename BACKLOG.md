@@ -1271,7 +1271,7 @@ Series Completion Gate: Follow the current pre-merge and post-merge gates in [GA
 
 Branch: `feat/bivariate-tail-matrix-tabs`.
 
-Git status: in progress. PR: TBD.
+Git status: pushed. Draft PR: https://github.com/SergejSchweizer/portfell/pull/251.
 
 Priority: P1 pairwise tail-risk visibility.
 
