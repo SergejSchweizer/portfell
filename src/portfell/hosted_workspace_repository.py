@@ -105,6 +105,9 @@ def persist_local_workspace(state: HostedApiState) -> None:
                     "structure": run.structure,
                     "candidates": list(run.candidates),
                     "validation": list(run.validation),
+                    "components": list(run.components),
+                    "risk_contributions": list(run.risk_contributions),
+                    "income_evidence": list(run.income_evidence),
                     "warnings": list(run.warnings),
                     "failure_reason": run.failure_reason,
                 }
@@ -309,6 +312,22 @@ def _restore_multivariate_runs(state: HostedApiState, payload: Mapping[str, obje
             dict(_mapping(value, "multivariate validation"))
             for value in _object_list(row.get("validation", []), "multivariate validation")
         )
+        components = tuple(
+            dict(_mapping(value, "multivariate component"))
+            for value in _object_list(row.get("components", []), "multivariate components")
+        )
+        risk_contributions = tuple(
+            dict(_mapping(value, "multivariate risk contribution"))
+            for value in _object_list(
+                row.get("risk_contributions", []), "multivariate risk contributions"
+            )
+        )
+        income_evidence = tuple(
+            dict(_mapping(value, "multivariate income evidence"))
+            for value in _object_list(
+                row.get("income_evidence", []), "multivariate income evidence"
+            )
+        )
         warnings = tuple(_string_list(row.get("warnings", []), "multivariate warnings"))
         state.multivariate_runs_by_id[_text(row, "run_id")] = MultivariateRunRecord(
             run_id=_text(row, "run_id"),
@@ -326,6 +345,9 @@ def _restore_multivariate_runs(state: HostedApiState, payload: Mapping[str, obje
             structure=dict(_mapping(row.get("structure", {}), "multivariate structure")),
             candidates=candidates,
             validation=validation,
+            components=components,
+            risk_contributions=risk_contributions,
+            income_evidence=income_evidence,
             warnings=warnings,
             failure_reason="interrupted_by_restart"
             if status == "running"

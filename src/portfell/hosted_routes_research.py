@@ -191,6 +191,33 @@ def research_router(
     def multivariate_candidates(run_id: str, user: ApiUser = Depends(current_user)) -> JsonRow:
         return call(service.multivariate_candidates, user.user_id, run_id)
 
+    @router.get("/multivariate-statistics/runs/{run_id}/candidates/{candidate_id}")
+    def multivariate_candidate_detail(
+        run_id: str, candidate_id: str, user: ApiUser = Depends(current_user)
+    ) -> JsonRow:
+        return call(service.multivariate_candidate_detail, user.user_id, run_id, candidate_id)
+
+    @router.get("/multivariate-statistics/runs/{run_id}/risk-contributions")
+    def multivariate_risk_contributions(
+        run_id: str,
+        candidate_id: str | None = None,
+        user: ApiUser = Depends(current_user),
+    ) -> JsonRow:
+        return call(service.multivariate_risk_contributions, user.user_id, run_id, candidate_id)
+
+    @router.get("/multivariate-statistics/runs/{run_id}/income-evidence")
+    def multivariate_income_evidence(run_id: str, user: ApiUser = Depends(current_user)) -> JsonRow:
+        return call(service.multivariate_income_evidence, user.user_id, run_id)
+
+    @router.get("/multivariate-statistics/runs/{run_id}/components")
+    def multivariate_components(
+        run_id: str,
+        limit: int = 25,
+        offset: int = 0,
+        user: ApiUser = Depends(current_user),
+    ) -> JsonRow:
+        return call(service.multivariate_components, user.user_id, run_id, limit, offset)
+
     @router.get("/multivariate-statistics/runs/{run_id}/validation")
     def multivariate_validation(run_id: str, user: ApiUser = Depends(current_user)) -> JsonRow:
         return call(service.multivariate_validation, user.user_id, run_id)

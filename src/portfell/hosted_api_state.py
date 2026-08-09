@@ -114,6 +114,9 @@ class MultivariateRunRecord:
     structure: JsonRow
     candidates: tuple[JsonRow, ...]
     validation: tuple[JsonRow, ...]
+    components: tuple[JsonRow, ...] = ()
+    risk_contributions: tuple[JsonRow, ...] = ()
+    income_evidence: tuple[JsonRow, ...] = ()
     warnings: tuple[str, ...] = ()
     failure_reason: str | None = None
 

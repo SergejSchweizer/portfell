@@ -97,6 +97,24 @@ class ResearchService:
     def multivariate_candidates(self, user_id: str, run_id: str) -> JsonRow:
         return self._multivariate.candidates(user_id, run_id)
 
+    def multivariate_candidate_detail(
+        self, user_id: str, run_id: str, candidate_id: str
+    ) -> JsonRow:
+        return self._multivariate.candidate_detail(user_id, run_id, candidate_id)
+
+    def multivariate_risk_contributions(
+        self, user_id: str, run_id: str, candidate_id: str | None
+    ) -> JsonRow:
+        return self._multivariate.risk_contributions(user_id, run_id, candidate_id)
+
+    def multivariate_income_evidence(self, user_id: str, run_id: str) -> JsonRow:
+        return self._multivariate.income_evidence(user_id, run_id)
+
+    def multivariate_components(
+        self, user_id: str, run_id: str, limit: int, offset: int
+    ) -> JsonRow:
+        return self._multivariate.components(user_id, run_id, limit, offset)
+
     def multivariate_validation(self, user_id: str, run_id: str) -> JsonRow:
         return self._multivariate.validation(user_id, run_id)
 
