@@ -44,6 +44,10 @@ def test_walk_forward_uses_only_dates_before_each_test_window() -> None:
     )
     assert all(split.train_end < split.test_start for split in splits)
     assert all(split.post_cost_return < split.pre_cost_return for split in splits)
+    assert splits[0].pre_cost_return > 0.02  # canonical log returns compound into simple wealth
+    assert splits[0].weights
+    assert splits[0].conditional_value_at_risk is not None
+    assert splits[0].test_observation_count == 2
 
 
 def test_walk_forward_reports_insufficient_history_explicitly() -> None:
