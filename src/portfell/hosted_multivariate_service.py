@@ -313,6 +313,7 @@ class MultivariateResearchService:
             candidates=candidates,
             return_rows=returns,
             candidate_factory=refit_candidates,
+            risk_model_id=risk.risk_model_id,
         )
         scenarios = validate_candidate_stress(candidates=candidates, return_rows=returns)
         scorecards = build_candidate_scorecards(splits=validation, scenarios=scenarios)

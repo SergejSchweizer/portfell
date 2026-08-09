@@ -12,7 +12,7 @@ from portfell.contract_versioning import ContractVersion, stable_contract_id
 from portfell.multivariate_candidates import PortfolioCandidate
 from portfell.multivariate_inputs import MultivariateListingKey
 
-VALIDATION_CONTRACT = ContractVersion("multivariate.validation", 1)
+VALIDATION_CONTRACT = ContractVersion("multivariate.validation", 2)
 CandidateFactory = Callable[[Sequence[Mapping[str, Any]]], Sequence[PortfolioCandidate]]
 
 
@@ -64,6 +64,16 @@ class ValidationSplit:
     reason: str | None
     candidate_id: str = ""
     turnover: float = 0.0
+    weights: tuple[tuple[MultivariateListingKey, float], ...] = ()
+    requested_method: str = ""
+    risk_model_id: str | None = None
+    sharpe_ratio: float | None = None
+    sortino_ratio: float | None = None
+    conditional_value_at_risk: float | None = None
+    max_drawdown: float | None = None
+    herfindahl_index: float | None = None
+    income_available: bool = False
+    test_observation_count: int = 0
 
 
 @dataclass(frozen=True)
@@ -102,6 +112,7 @@ def validate_candidates(
     return_rows: Sequence[Mapping[str, Any]],
     policy: WalkForwardPolicy = DEFAULT_WALK_FORWARD_POLICY,
     candidate_factory: CandidateFactory | None = None,
+    risk_model_id: str | None = None,
 ) -> tuple[ValidationSplit, ...]:
     """Validate candidates on common out-of-sample slices.
 
@@ -170,6 +181,16 @@ def validate_candidates(
                     reason=None,
                     candidate_id=candidate.candidate_id,
                     turnover=turnover,
+                    weights=candidate.weights,
+                    requested_method=requested.method,
+                    risk_model_id=risk_model_id,
+                    sharpe_ratio=_sharpe(test),
+                    sortino_ratio=_sortino(test),
+                    conditional_value_at_risk=_value_at_risk([-value for value in test])[1],
+                    max_drawdown=_compound_and_drawdown(test)[1],
+                    herfindahl_index=candidate.herfindahl_index,
+                    income_available=candidate.gross_ttm_distribution_yield is not None,
+                    test_observation_count=len(test),
                 )
             )
     return tuple(results)
@@ -226,7 +247,10 @@ def build_candidate_scorecards(
                 | {item.reason for item in candidate_scenarios if item.reason}
             )
         )
-        method = next((item.method for item in candidate_splits), candidate_scenarios[0].method)
+        method = next(
+            (item.method for item in candidate_splits),
+            next((item.method for item in candidate_scenarios), "unavailable"),
+        )
         scorecards.append(
             CandidateScorecard(
                 candidate_id=candidate_id,
@@ -314,7 +338,7 @@ def _scenario_values(
         return tuple((name, (), "insufficient_return_history") for name in _SCENARIO_NAMES)
     rng = Random(policy.bootstrap_seed)
     count = min(policy.bootstrap_observations, len(values))
-    bootstrap = tuple(values[rng.randrange(len(values))] for _ in range(count))
+    bootstrap = _seeded_block_bootstrap(values, count, rng)
     mean = sum(values) / len(values)
     covariance_perturbed = tuple(mean + 1.25 * (value - mean) for value in values)
     convergence = tuple(0.75 * value + 0.25 * mean for value in values)
@@ -325,6 +349,18 @@ def _scenario_values(
         ("correlation_convergence", convergence, None),
         ("distribution_cut", tuple(values), "cash_flow_evidence_only"),
     )
+
+
+def _seeded_block_bootstrap(values: Sequence[float], count: int, rng: Random) -> tuple[float, ...]:
+    """Sample deterministic contiguous five-observation blocks, not IID points."""
+    if not values or count <= 0:
+        return ()
+    block_size = min(5, len(values))
+    sampled: list[float] = []
+    while len(sampled) < count:
+        start = rng.randrange(len(values))
+        sampled.extend(values[(start + offset) % len(values)] for offset in range(block_size))
+    return tuple(sampled[:count])
 
 
 def _scenario(
@@ -423,10 +459,8 @@ def _unavailable(candidate: PortfolioCandidate, reason: str) -> ValidationSplit:
 
 
 def _compound(values: Sequence[float]) -> float:
-    wealth = 1.0
-    for value in values:
-        wealth *= 1 + value
-    return wealth - 1
+    """Compound the canonical log-return series into simple-return wealth."""
+    return exp(sum(values)) - 1.0
 
 
 def _volatility(values: Sequence[float]) -> float | None:
@@ -434,3 +468,16 @@ def _volatility(values: Sequence[float]) -> float | None:
         return None
     average = sum(values) / len(values)
     return sqrt(sum((value - average) ** 2 for value in values) / (len(values) - 1))
+
+
+def _sharpe(values: Sequence[float]) -> float | None:
+    volatility = _volatility(values)
+    return (sum(values) / len(values)) / volatility * sqrt(252) if values and volatility else None
+
+
+def _sortino(values: Sequence[float]) -> float | None:
+    if not values:
+        return None
+    downside = [min(0.0, value) for value in values]
+    deviation = sqrt(sum(value * value for value in downside) / len(downside))
+    return (sum(values) / len(values)) / deviation * sqrt(252) if deviation else None
