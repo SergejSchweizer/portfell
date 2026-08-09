@@ -133,7 +133,10 @@ def test_monthly_distribution_multivariate_stack_is_the_only_active_series() -> 
     for pr_number in range(143, 151):
         section = _pr_section(backlog, pr_number)
         positions.append(backlog.index(f"### PR{pr_number}."))
-        assert "Git status: not started. PR: TBD." in section
+        assert (
+            "Git status: complete. Delivered by the stacked Multivariate implementation "
+            "PRs #255–#265." in section
+        )
         for required_field in (
             "Branch:",
             "Priority:",

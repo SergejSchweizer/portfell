@@ -54,7 +54,7 @@ as sustainable or net income, or expose a portfolio as investment advice.
 
 Branch: `feat/multivariate-input-snapshot-contract`.
 
-Git status: not started. PR: TBD.
+Git status: complete. Delivered by the stacked Multivariate implementation PRs #255–#265.
 
 Priority: P0 multivariate correctness foundation.
 
@@ -125,7 +125,7 @@ never duplicate catalog references.
 
 Branch: `fix/multivariate-canonical-risk-model`.
 
-Git status: not started. PR: TBD.
+Git status: complete. Delivered by the stacked Multivariate implementation PRs #255–#265.
 
 Priority: P0 numerical correctness.
 
@@ -188,7 +188,7 @@ artifact and does not append duplicate covariance, diagnostics, weights, or risk
 
 Branch: `feat/multivariate-portfolio-structure`.
 
-Git status: not started. PR: TBD.
+Git status: complete. Delivered by the stacked Multivariate implementation PRs #255–#265.
 
 Priority: P1 explainable joint-system analysis.
 
@@ -245,7 +245,7 @@ loading, cluster, or summary rows.
 
 Branch: `feat/monthly-etf-income-quality`.
 
-Git status: not started. PR: TBD.
+Git status: complete. Delivered by the stacked Multivariate implementation PRs #255–#265.
 
 Priority: P1 monthly-distribution ETF evidence.
 
@@ -309,7 +309,7 @@ duplicate payments or contaminating earlier immutable revisions.
 
 Branch: `feat/monthly-etf-portfolio-candidates`.
 
-Git status: not started. PR: TBD.
+Git status: complete. Delivered by the stacked Multivariate implementation PRs #255–#265.
 
 Priority: P1 portfolio construction.
 
@@ -373,7 +373,7 @@ rows are appended.
 
 Branch: `feat/multivariate-candidate-validation`.
 
-Git status: not started. PR: TBD.
+Git status: complete. Delivered by the stacked Multivariate implementation PRs #255–#265.
 
 Priority: P1 out-of-sample validation.
 
@@ -437,7 +437,7 @@ completed scorecard.
 
 Branch: `feat/multivariate-project-api`.
 
-Git status: not started. PR: TBD.
+Git status: complete. Delivered by the stacked Multivariate implementation PRs #255–#265.
 
 Priority: P1 module integration.
 
@@ -504,7 +504,7 @@ settings, project pointers, or artifacts.
 
 Branch: `feat/multivariate-statistics-ui`.
 
-Git status: not started. PR: TBD.
+Git status: complete. Delivered by the stacked Multivariate implementation PRs #255–#265.
 
 Priority: P1 user-facing multivariate workflow.
 
