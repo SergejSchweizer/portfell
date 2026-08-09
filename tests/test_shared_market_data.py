@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import pytest
 
+from portfell.entitlements import ProviderDownloadRun
 from portfell.hosted_api_state import HostedApiState, ProjectRecord, SelectionRecord
+from portfell.hosted_research_repository import HostedResearchRepository
 from portfell.shared_market_data import (
     SharedListingKey,
     SharedMarketDataError,
@@ -111,3 +113,12 @@ def test_same_isin_on_different_listings_never_shares_a_file(tmp_path) -> None: 
     assert store.listing_path("quotes", primary) != store.listing_path("quotes", secondary)
     assert store.read("quotes", primary)[0]["adjusted_close"] == 10.0
     assert store.read("quotes", secondary)[0]["adjusted_close"] == 20.0
+
+
+def test_research_repository_reads_project_run_rows_from_canonical_store(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    state = HostedApiState(shared_market_data_store=SharedMarketDataStore(tmp_path))
+    state.shared_market_data_store.upsert("quotes", _listing(), [_row("2025-01-01", 10.0)])
+    state.downloads_by_id["run"] = ProviderDownloadRun(
+        "run", "user", "credential", "eodhd", "succeeded", ("IE0000000001:XETRA:ABC",), "hash"
+    )
+    assert HostedResearchRepository(state).quote_rows("run") == (_row("2025-01-01", 10.0),)

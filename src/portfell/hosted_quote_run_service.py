@@ -23,6 +23,7 @@ from portfell.hosted_api_service_support import (
 from portfell.hosted_api_state import HostedApiState
 from portfell.hosted_credentials import CredentialVaultError
 from portfell.hosted_workspace_repository import persist_local_workspace
+from portfell.shared_market_data import SharedListingKey
 from portfell.table_io import JsonRow
 
 LOGGER = logging.getLogger(__name__)
@@ -151,11 +152,20 @@ class QuoteRunService:
             audit(self.state, run.user_id, "fetch_all_quotes.failed")
             return
         scoped_rows = tuple(dict(row) for row in summary.pop("scoped_quote_rows", ()))
+        if self.state.shared_market_data_store is not None:
+            rows_by_listing: dict[SharedListingKey, list[JsonRow]] = {}
+            for row in scoped_rows:
+                listing = SharedListingKey.from_row(row)
+                rows_by_listing.setdefault(listing, []).append(row)
+            for listing, rows in rows_by_listing.items():
+                self.state.shared_market_data_store.upsert("quotes", listing, rows)
         progress = self.state.download_summaries_by_id[run.download_run_id]
         failed = int(progress["failed"])
         completed_run = replace(run, status="partial" if failed else "succeeded")
         self.state.downloads_by_id[run.download_run_id] = completed_run
-        self.state.quote_rows_by_run_id[run.download_run_id] = scoped_rows
+        # Compatibility cache only: persistent consumers read the canonical store.
+        if self.state.shared_market_data_store is None:
+            self.state.quote_rows_by_run_id[run.download_run_id] = scoped_rows
         self.state.download_summaries_by_id[run.download_run_id] = {
             **summary,
             "completed": int(progress["completed"]),
