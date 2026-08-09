@@ -10,15 +10,15 @@ state.
 | --- | --- | --- | --- | --- |
 | Metadata Builder | `/metadata-builder` | EODHD credential and metadata criteria | Project and metadata selection ID | Builds the project-scoped instrument universe; it does not calculate statistics. |
 | Univariate Statistics | `/univariate-statistics` | Metadata selection and quote-run IDs | Per-ISIN statistics, selection settings, and the automatic selected-ISIN set | Calculates single-instrument statistics; it does not build metadata or pairwise matrices. |
-| Bivariate Statistics | `/bivariate-statistics` | Univariate filtered-selection ID | Pairwise results, covariance matrix, and correlation matrices | Calculates pairwise relationships; it does not alter the upstream selection or construct a portfolio. |
+| Bivariate Statistics | `/bivariate-statistics` | Univariate Statistics selection ID | Pairwise results, covariance matrix, and correlation matrices | Calculates pairwise relationships; it does not alter the upstream selection or construct a portfolio. |
 
 The route registry in `apps/web/src/routes.tsx` records the owning module for
 every browser page. Each module's browser-to-API contract lives in
 `apps/web/src/api/`: `metadata-builder.ts`, `univariate-statistics.ts`, and
 `bivariate-statistics.ts`. Shared transport, project context, and workflow
-navigation remain in `client.ts`. Names such as `metadata_filter` and
-`univariate_filter` may remain as server-side persistence or CLI stage identifiers; they are not
-separate browser modules.
+navigation remain in `client.ts`. The workflow contract exposes exactly the
+three module stages above. `univariate_selection` is an output artifact owned by
+Univariate Statistics, never a separate module or browser stage.
 
 ## Adding a module
 

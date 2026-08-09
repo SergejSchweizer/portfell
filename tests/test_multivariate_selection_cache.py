@@ -58,7 +58,7 @@ def _selection(
             "exchange": exchange,
             "code": code,
             "name": "",
-            "source_module": "univariate_filter",
+            "source_module": "univariate_selection",
         }
         for isin, exchange, code in listings
     ]

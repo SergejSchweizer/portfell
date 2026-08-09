@@ -33,7 +33,7 @@ from portfell.hosted_api_state import (
 )
 from portfell.hosted_credential_project_service import CredentialProjectService
 from portfell.hosted_quote_run_service import QuoteRunService
-from portfell.hosted_research_workflow import FilterSelection, ResearchRun
+from portfell.hosted_research_workflow import ResearchRun, UnivariateSelection
 from portfell.hosted_workspace import LocalWorkspaceStore
 from portfell.hosted_workspace_repository import persist_local_workspace, restore_local_workspace
 from portfell.paths import LakePaths
@@ -187,18 +187,18 @@ def test_local_runtime_validates_metadata_manifests(
         metadata_workflow=_empty_workflow,
         cpu_count=lambda: 1,
     )
-    manifest = LakePaths(root=tmp_path).metadata_filter_manifest("selection-1")
+    manifest = LakePaths(root=tmp_path).metadata_builder_manifest("selection-1")
 
-    assert runtime.metadata_filter_predicates("selection-1") == ()
+    assert runtime.metadata_builder_predicates("selection-1") == ()
     manifest.parent.mkdir(parents=True, exist_ok=True)
     manifest.write_text('{"predicates": {}}', encoding="utf-8")
     with pytest.raises(ValueError, match="manifest is invalid"):
-        runtime.metadata_filter_predicates("selection-1")
+        runtime.metadata_builder_predicates("selection-1")
     manifest.write_text('{"predicates": [1]}', encoding="utf-8")
     with pytest.raises(ValueError, match="manifest is invalid"):
-        runtime.metadata_filter_predicates("selection-1")
+        runtime.metadata_builder_predicates("selection-1")
     manifest.write_text('{"predicates": ["country=DE"]}', encoding="utf-8")
-    assert runtime.metadata_filter_predicates("selection-1") == (Predicate("country", "=", "DE"),)
+    assert runtime.metadata_builder_predicates("selection-1") == (Predicate("country", "=", "DE"),)
 
     monkeypatch.setattr(local_runtime_module, "read_rows", _one_isin_row)
     assert runtime.all_isins_rows() == ({"isin": "IE1"},)
@@ -212,7 +212,11 @@ def test_local_runtime_reports_metadata_lake_permission_errors() -> None:
     )
 
     with pytest.raises(HostedRuntimeError, match="lake_write_permission_denied"):
-        runtime.run_metadata(provider_key="secret", on_progress=_discard_progress)
+        runtime.run_metadata(
+            provider_key="secret",
+            concurrency=1,
+            on_progress=_discard_progress,
+        )
 
 
 def test_quote_fetch_compatibility_hook_delegates(
@@ -386,8 +390,8 @@ def test_workflow_row_resolves_completed_research_chain() -> None:
     univariate = ResearchRun("univariate-1", "user-a", "quote-1", "complete", (), 0, 0)
     state.univariate_runs_by_id[univariate.run_id] = univariate
     state.quote_run_by_univariate_run_id[univariate.run_id] = "quote-1"
-    filtered = FilterSelection(
-        "filter-1",
+    univariate_selection = UnivariateSelection(
+        "univariate-selection-1",
         "user-a",
         univariate.run_id,
         ("IE1",),
@@ -395,15 +399,15 @@ def test_workflow_row_resolves_completed_research_chain() -> None:
         (),
         1,
     )
-    state.filter_selections_by_id[filtered.selection_id] = filtered
-    state.current_filter_selection_by_user["user-a"] = filtered.selection_id
+    state.univariate_selections_by_id[univariate_selection.selection_id] = univariate_selection
+    state.current_univariate_selection_by_user["user-a"] = univariate_selection.selection_id
 
     stages = workflow_row(state, "user-a", "project-1")["stages"]
 
-    assert stages["metadata_filter"]["status"] == "complete"
+    assert stages["metadata_builder"]["status"] == "complete"
     assert stages["univariate_statistics"]["status"] == "complete"
-    assert stages["univariate_filter"]["status"] == "complete"
-    assert workflow_row(state, "user-a", None)["stages"]["metadata_filter"]["status"] == "ready"
+    assert stages["univariate_statistics"]["univariate_selection_id"]
+    assert workflow_row(state, "user-a", None)["stages"]["metadata_builder"]["status"] == "ready"
 
 
 def test_workflow_row_exposes_an_active_quote_run_for_the_current_selection() -> None:
@@ -424,5 +428,5 @@ def test_workflow_row_exposes_an_active_quote_run_for_the_current_selection() ->
 
     stages = workflow_row(state, "user-a", selection.project_id)["stages"]
 
-    assert stages["metadata_filter"]["quote_run_id"] == run_id
+    assert stages["metadata_builder"]["quote_run_id"] == run_id
     assert stages["univariate_statistics"]["status"] == "ready"

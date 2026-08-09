@@ -89,7 +89,7 @@ class MultivariateStatisticsConfig:
     frontier_target_returns: tuple[float, ...] = (-0.01, 0.0, 0.01)
     concurrency: int | None = None
     selection_id: str | None = None
-    selection_source_module: str = "univariate_filter"
+    selection_source_module: str = "univariate_selection"
     use_selection_statistics_cache: bool = False
     bivariate_version: str = DEFAULT_BIVARIATE_VERSION
     bivariate_bucket_count: int = DEFAULT_BUCKET_COUNT
@@ -103,7 +103,7 @@ def write_multivariate_statistics(
 ) -> dict[str, Any]:
     """Write portfolio analytics for the selected listings.
 
-    The selected rows are expected to come from Univariate Filter membership.
+    The selected rows are expected to come from Univariate Selection membership.
     This function intentionally filters Silver quotes first, then builds all
     downstream Gold, Evaluation, and Portfolio artifacts from that pinned set.
     """

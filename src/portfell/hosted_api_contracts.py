@@ -31,8 +31,8 @@ class CurrentProjectRequest(BaseModel):
     project_id: str = Field(min_length=1, max_length=160)
 
 
-class MetadataFilterProjectRequest(BaseModel):
-    """Request to create one project from metadata-filter criteria."""
+class MetadataBuilderProjectRequest(BaseModel):
+    """Request to create one project from metadata-builder criteria."""
 
     exchange: str = Field(default="", max_length=80)
     name: str = Field(default="", max_length=240)
@@ -87,7 +87,7 @@ class NumericalPredicateRequest(BaseModel):
     value: float
 
 
-class UnivariateFilterRequest(BaseModel):
+class UnivariateSelectionRequest(BaseModel):
     """Predicates applied to one user-owned univariate run."""
 
     source_run_id: str
@@ -98,7 +98,7 @@ class UnivariateFilterRequest(BaseModel):
 class BivariateSelectionRequest(BaseModel):
     """Source selection for pair planning and execution."""
 
-    univariate_filter_selection_id: str
+    univariate_selection_id: str
 
 
 class LoadSelectedIsinsRequest(BaseModel):

@@ -84,16 +84,6 @@ const server = http.createServer((request, response) => {
     response.end();
     return;
   }
-  if (requestUrl.pathname === "/metadata-filter") {
-    response.writeHead(303, { location: "/metadata-builder" });
-    response.end();
-    return;
-  }
-  if (requestUrl.pathname === "/univariate-filter") {
-    response.writeHead(303, { location: "/univariate-statistics" });
-    response.end();
-    return;
-  }
   if (requestUrl.pathname.startsWith("/assets/")) {
     const resolvedPath = path.resolve(distRoot, requestUrl.pathname.slice(1));
     if (!resolvedPath.startsWith(`${distRoot}${path.sep}`)) {

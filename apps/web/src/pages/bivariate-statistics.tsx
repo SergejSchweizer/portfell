@@ -187,23 +187,23 @@ export function BivariateStatisticsPage() {
 
   if (workflow.status === "loading" || workflow.status === "idle") return <LoadingState label="Loading bivariate statistics" />;
   if (workflow.status === "error") return <p>Workflow state is unavailable.</p>;
-  const selectionId = workflow.data.stages.univariate_filter.univariate_filter_selection_id;
+  const selectionId = workflow.data.stages.univariate_statistics.univariate_selection_id;
   if (!selectionId) {
     return <Panel title="Bivariate Statistics"><p>Complete univariate statistics and select at least two ISINs first.</p></Panel>;
   }
 
   async function compute() {
-    const univariateFilterSelectionId = selectionId;
-    if (!univariateFilterSelectionId) return;
+    const univariateSelectionId = selectionId;
+    if (!univariateSelectionId) return;
     setMessage("Planning bivariate statistics…");
     try {
-      const nextPlan = await bivariateStatisticsApi.plan({ univariate_filter_selection_id: univariateFilterSelectionId });
+      const nextPlan = await bivariateStatisticsApi.plan({ univariate_selection_id: univariateSelectionId });
       if (!nextPlan.allowed) {
         setMessage(`Pair count exceeds the ${nextPlan.pair_limit} limit or has fewer than two selected ISINs.`);
         return;
       }
       setMessage("Computing bivariate statistics…");
-      const nextRun = await bivariateStatisticsApi.startRun({ univariate_filter_selection_id: univariateFilterSelectionId });
+      const nextRun = await bivariateStatisticsApi.startRun({ univariate_selection_id: univariateSelectionId });
       setRun(nextRun);
       if (nextRun.status === "complete") {
         const data = await bivariateStatisticsApi.loadRunData(nextRun.run_id);

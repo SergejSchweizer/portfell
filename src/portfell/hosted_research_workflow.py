@@ -1,4 +1,4 @@
-"""User-scoped execution services for the four-page hosted research workflow."""
+"""User-scoped execution services for the three-module hosted research workflow."""
 
 from __future__ import annotations
 
@@ -39,7 +39,7 @@ class ResearchRun:
 
 
 @dataclass(frozen=True)
-class FilterSelection:
+class UnivariateSelection:
     """One deterministic selection produced from a univariate run."""
 
     selection_id: str
@@ -124,9 +124,9 @@ def normalize_predicates(rows: Sequence[Mapping[str, Any]]) -> tuple[Predicate, 
     return tuple(sorted(predicates, key=lambda item: (item.field, item.operator, item.expected)))
 
 
-def create_filter_selection(
+def create_univariate_selection(
     *, user_id: str, run: ResearchRun, predicate_rows: Sequence[Mapping[str, Any]]
-) -> FilterSelection:
+) -> UnivariateSelection:
     """Apply predicates only to rows pinned to the source run."""
 
     predicates = normalize_predicates(predicate_rows)
@@ -141,8 +141,8 @@ def create_filter_selection(
             "predicates": [predicate.as_text() for predicate in predicates],
         }
     )
-    return FilterSelection(
-        selection_id=_opaque_id("univariate-filter", f"{user_id}:{identity}"),
+    return UnivariateSelection(
+        selection_id=_opaque_id("univariate-selection", f"{user_id}:{identity}"),
         user_id=user_id,
         source_run_id=run.run_id,
         member_ids=member_ids,
@@ -154,7 +154,7 @@ def create_filter_selection(
 
 def create_full_univariate_selection(
     *, user_id: str, run: ResearchRun, rows: Sequence[Mapping[str, Any]] | None = None
-) -> FilterSelection:
+) -> UnivariateSelection:
     """Create the bivariate input selection from completed univariate rows."""
 
     selected_rows = tuple(dict(row) for row in (run.rows if rows is None else rows))
@@ -165,8 +165,8 @@ def create_full_univariate_selection(
             "selection": "all" if rows is None else list(member_ids),
         }
     )
-    return FilterSelection(
-        selection_id=_opaque_id("univariate-filter", f"{user_id}:{identity}"),
+    return UnivariateSelection(
+        selection_id=_opaque_id("univariate-selection", f"{user_id}:{identity}"),
         user_id=user_id,
         source_run_id=run.run_id,
         member_ids=member_ids,
@@ -177,7 +177,7 @@ def create_full_univariate_selection(
 
 
 def pair_plan(
-    selection: FilterSelection, *, max_pair_count: int = DEFAULT_MAX_PAIR_COUNT
+    selection: UnivariateSelection, *, max_pair_count: int = DEFAULT_MAX_PAIR_COUNT
 ) -> JsonRow:
     """Return a fail-fast dense pair plan without materializing pairs."""
 
@@ -194,7 +194,7 @@ def pair_plan(
 def create_bivariate_run(
     *,
     user_id: str,
-    selection: FilterSelection,
+    selection: UnivariateSelection,
     quote_rows: Sequence[Mapping[str, Any]],
     max_pair_count: int = DEFAULT_MAX_PAIR_COUNT,
     on_progress: Callable[[int, int], None] | None = None,

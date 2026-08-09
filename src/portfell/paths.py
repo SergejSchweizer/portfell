@@ -40,29 +40,29 @@ class LakePaths:
     def all_isins_manifest(self) -> Path:
         return self.root / "reference" / "all_isins" / "manifest.json"
 
-    def metadata_filter_run(self, selection_id: str) -> Path:
-        return self.silver / "metadata_filter" / f"selection_id={selection_id}"
+    def metadata_builder_run(self, selection_id: str) -> Path:
+        return self.silver / "metadata_builder" / f"selection_id={selection_id}"
 
-    def metadata_filter_isins(self, selection_id: str) -> Path:
-        return self.metadata_filter_run(selection_id) / "isins.parquet"
+    def metadata_builder_isins(self, selection_id: str) -> Path:
+        return self.metadata_builder_run(selection_id) / "isins.parquet"
 
-    def metadata_filter_manifest(self, selection_id: str) -> Path:
-        return self.metadata_filter_run(selection_id) / "manifest.json"
+    def metadata_builder_manifest(self, selection_id: str) -> Path:
+        return self.metadata_builder_run(selection_id) / "manifest.json"
 
-    def current_metadata_filter_selection(self) -> Path:
-        return self.silver / "metadata_filter" / "current_selection.json"
+    def current_metadata_builder_selection(self) -> Path:
+        return self.silver / "metadata_builder" / "current_selection.json"
 
-    def univariate_filter_run(self, selection_id: str) -> Path:
-        return self.silver / "univariate_filter" / f"selection_id={selection_id}"
+    def univariate_selection_run(self, selection_id: str) -> Path:
+        return self.silver / "univariate_selection" / f"selection_id={selection_id}"
 
-    def univariate_filter_isins(self, selection_id: str) -> Path:
-        return self.univariate_filter_run(selection_id) / "isins.parquet"
+    def univariate_selection_isins(self, selection_id: str) -> Path:
+        return self.univariate_selection_run(selection_id) / "isins.parquet"
 
-    def univariate_filter_manifest(self, selection_id: str) -> Path:
-        return self.univariate_filter_run(selection_id) / "manifest.json"
+    def univariate_selection_manifest(self, selection_id: str) -> Path:
+        return self.univariate_selection_run(selection_id) / "manifest.json"
 
-    def current_univariate_filter_selection(self) -> Path:
-        return self.silver / "univariate_filter" / "current_selection.json"
+    def current_univariate_selection(self) -> Path:
+        return self.silver / "univariate_selection" / "current_selection.json"
 
     def selection_statistics_view(self, source_module: str, selection_id: str) -> Path:
         return self.silver / source_module / f"selection_id={selection_id}" / "statistics_view.json"

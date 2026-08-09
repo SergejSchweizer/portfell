@@ -12,7 +12,7 @@ import type {
 } from "../contracts";
 
 export type BivariateSelectionRequest = Readonly<{
-  univariate_filter_selection_id: string;
+  univariate_selection_id: string;
 }>;
 
 export type BivariateRunData = Readonly<{

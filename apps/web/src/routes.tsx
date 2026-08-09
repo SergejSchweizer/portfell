@@ -2,7 +2,7 @@
 import type { ComponentType } from "react";
 import type { WorkflowStageId } from "./contracts";
 import { BivariateStatisticsPage } from "./pages/bivariate-statistics";
-import { MetadataFilterPage } from "./pages/metadata-filter";
+import { MetadataBuilderPage } from "./pages/metadata-builder";
 import { UnivariateStatisticsPage } from "./pages/univariate-statistics";
 
 export type WorkflowPageId =
@@ -49,10 +49,10 @@ export const workflowPages: readonly WorkflowPage[] = [
   {
     id: "metadata_builder",
     moduleId: "metadata_builder",
-    stageId: "metadata_filter",
+    stageId: "metadata_builder",
     title: "Metadata Builder",
     path: "/metadata-builder",
-    component: MetadataFilterPage,
+    component: MetadataBuilderPage,
   },
   {
     id: "univariate_statistics",

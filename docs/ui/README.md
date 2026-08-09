@@ -2,7 +2,7 @@
 
 Portfell currently has three sequential research modules:
 
-1. [`metadata_builder`](windows/metadata-filter.md) at `/metadata-builder`
+1. [`metadata_builder`](windows/metadata-builder.md) at `/metadata-builder`
 2. [`univariate_statistics`](windows/univariate-statistics.md) at `/univariate-statistics`
 3. [`bivariate_statistics`](windows/bivariate-statistics.md) at `/bivariate-statistics`
 
@@ -17,4 +17,4 @@ The canonical implementation registry is `apps/web/src/routes.tsx`. Each registe
 
 Use [UI page development](page-development.md) when creating a page or changing an existing page. A page implementation and its specification must be changed in the same pull request.
 
-The browser owns presentation and interaction state only. Portfolio calculations, metadata filtering, quote ingestion, authentication decisions, and authorization remain server-owned.
+The browser owns presentation and interaction state only. Portfolio calculations, Metadata Builder selection, quote ingestion, authentication decisions, and authorization remain server-owned.

@@ -1,4 +1,4 @@
-/** Univariate Statistics' browser-to-API contract, including its filter sub-flow. */
+/** Univariate Statistics' complete browser-to-API contract. */
 
 import { postJson, requestJson } from "./client";
 import type {

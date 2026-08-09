@@ -18,9 +18,9 @@ from portfell.hosted_research_ports import (
     ResearchRunRepository,
 )
 from portfell.hosted_research_workflow import (
-    FilterSelection,
     HostedResearchError,
     ResearchRun,
+    UnivariateSelection,
     create_bivariate_run,
     page_rows,
     pair_plan,
@@ -42,10 +42,10 @@ class BivariateResearchService:
         self._persistence = persistence
 
     def plan(self, user_id: str, selection_id: str) -> JsonRow:
-        return pair_plan(self._repository.filter_selection(selection_id, user_id))
+        return pair_plan(self._repository.univariate_selection(selection_id, user_id))
 
     def start(self, user_id: str, selection_id: str) -> JsonRow:
-        selection = self._repository.filter_selection(selection_id, user_id)
+        selection = self._repository.univariate_selection(selection_id, user_id)
         plan = pair_plan(selection)
         if not plan["allowed"]:
             raise HostedApplicationError(422, "pair_plan_not_runnable")
@@ -70,7 +70,7 @@ class BivariateResearchService:
     def complete(self, user_id: str, selection_id: str) -> None:
         """Compute every bivariate statistic in the background using all CPU cores."""
 
-        selection = self._repository.filter_selection(selection_id, user_id)
+        selection = self._repository.univariate_selection(selection_id, user_id)
         run_id = opaque_id("bivariate-run", f"{user_id}:{_selection_source(selection)}")
         run = self._repository.bivariate_run(run_id, user_id)
         if run.status != "running":
@@ -126,7 +126,7 @@ class BivariateResearchService:
         selection = next(
             (
                 item
-                for item in self._repository.filter_selections(user_id)
+                for item in self._repository.univariate_selections(user_id)
                 if _selection_source(item) == run.source_id
             ),
             None,
@@ -145,7 +145,7 @@ class BivariateResearchService:
         self._persistence.persist()
 
 
-def _selection_source(selection: FilterSelection) -> str:
+def _selection_source(selection: UnivariateSelection) -> str:
     return stable_hash(
         {"selection_id": selection.selection_id, "members": list(selection.member_ids)}
     )

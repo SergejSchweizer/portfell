@@ -17,11 +17,11 @@ from portfell.hosted_api_contracts import (
     CurrentProjectRequest,
     DownloadRequest,
     LoadSelectedIsinsRequest,
-    MetadataFilterProjectRequest,
+    MetadataBuilderProjectRequest,
     ProjectCreateRequest,
     SelectionCreateRequest,
-    UnivariateFilterRequest,
     UnivariateRunRequest,
+    UnivariateSelectionRequest,
 )
 from portfell.hosted_api_local_runtime import LocalHostedRuntime
 from portfell.hosted_api_service_support import opaque_id, stable_hash
@@ -74,12 +74,12 @@ __all__ = [
     "HostedApiState",
     "LoadSelectedIsinsRequest",
     "LocalWorkspaceUserProvider",
-    "MetadataFilterProjectRequest",
+    "MetadataBuilderProjectRequest",
     "ProjectCreateRequest",
     "ProjectRecord",
     "SelectionCreateRequest",
     "SelectionRecord",
-    "UnivariateFilterRequest",
+    "UnivariateSelectionRequest",
     "UnivariateRunRequest",
     "UserOwnedRow",
     "app",

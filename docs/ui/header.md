@@ -1,7 +1,7 @@
 
 # Header
 
-The desktop header is a `64px` bar containing the Portfell brand, the four-stage workspace label,
+The desktop header is a `64px` bar containing the Portfell brand, the three-module workspace label,
 a write-only EODHD key input, saved masked-key status, and the `Fetch all metadata` button. Submission
 stores a newly entered key through the credential vault and calls
 `POST /api/metadata/fetch-all`. The plaintext key remains only in the controlled

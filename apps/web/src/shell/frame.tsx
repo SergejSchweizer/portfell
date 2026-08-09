@@ -19,9 +19,8 @@ export type ShellFrameProps = Readonly<{
 
 const emptyWorkflow: ApiWorkflow = {
   stages: {
-    metadata_filter: { status: "ready" },
+    metadata_builder: { status: "ready" },
     univariate_statistics: { status: "locked" },
-    univariate_filter: { status: "locked" },
     bivariate_statistics: { status: "locked" },
   },
 };
@@ -144,9 +143,9 @@ function ShellFrameContent({ currentPage, children }: ShellFrameProps) {
               <strong>{workflow.status === "ready" ? workflow.data.process_overview?.metadata_downloaded_isins.toLocaleString() ?? "—" : "—"} ISINs</strong>
             </div>
             <span className="process-overview__arrow" aria-hidden="true">→</span>
-            <div className="process-overview__step" data-complete={workflow.status === "ready" && workflow.data.process_overview?.metadata_filter_isins !== undefined ? "true" : "false"}>
+            <div className="process-overview__step" data-complete={workflow.status === "ready" && workflow.data.process_overview?.metadata_builder_isins !== undefined ? "true" : "false"}>
               <small>2 · Metadata Builder</small>
-              <strong>{workflow.status === "ready" && workflow.data.process_overview?.metadata_filter_isins !== undefined ? workflow.data.process_overview.metadata_filter_isins.toLocaleString() : "—"} ISINs</strong>
+              <strong>{workflow.status === "ready" && workflow.data.process_overview?.metadata_builder_isins !== undefined ? workflow.data.process_overview.metadata_builder_isins.toLocaleString() : "—"} ISINs</strong>
             </div>
             <span className="process-overview__arrow" aria-hidden="true">→</span>
             <div className="process-overview__step" data-complete={workflow.status === "ready" && workflow.data.process_overview?.univariate_statistics_isins != null ? "true" : "false"}>

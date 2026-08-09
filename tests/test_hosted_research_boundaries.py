@@ -23,9 +23,9 @@ from portfell.hosted_bivariate_service import BivariateResearchService
 from portfell.hosted_research_ports import ResearchDataset, UnivariateProgress
 from portfell.hosted_research_repository import HostedResearchRepository
 from portfell.hosted_research_workflow import (
-    FilterSelection,
     HostedResearchError,
     ResearchRun,
+    UnivariateSelection,
 )
 from portfell.hosted_univariate_service import UnivariateResearchService
 from portfell.paths import LakePaths
@@ -94,7 +94,7 @@ def test_univariate_service_uses_injected_data_and_persistence_ports() -> None:
     completed = state.univariate_runs_by_id[str(started["run_id"])]
     assert completed.status == "complete"
     assert completed.rows == data.univariate_rows
-    assert state.current_filter_selection_by_user["user-a"] in state.filter_selections_by_id
+    assert state.current_univariate_selection_by_user["user-a"] in state.univariate_selections_by_id
     assert data.selected_calls == []
     assert persistence.calls == 1
 
@@ -145,9 +145,9 @@ def test_univariate_service_covers_reuse_failure_and_in_memory_paths() -> None:
     assert data.selected_calls[-1] == (selection.member_ids, "dividends")
     assert service.results("user-a", run_id, 10, 0)["total"] == 1
     with pytest.raises(HostedApplicationError, match="predicates_required"):
-        service.apply_filter("user-a", run_id, [])
-    current_id = state.current_filter_selection_by_user["user-a"]
-    assert service.filter_results("user-a", current_id, 10, 0)["total"] == 1
+        service.apply_selection("user-a", run_id, [])
+    current_id = state.current_univariate_selection_by_user["user-a"]
+    assert service.selection_results("user-a", current_id, 10, 0)["total"] == 1
 
 
 def test_univariate_service_rejects_incomplete_quote_run() -> None:
@@ -170,8 +170,8 @@ def test_univariate_service_rejects_incomplete_quote_run() -> None:
 def test_bivariate_service_covers_plan_reuse_and_failure_transitions(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    one = FilterSelection("one", "user-a", "uni", ("IE1:XETRA:AAA",), (), (), 1)
-    two = FilterSelection(
+    one = UnivariateSelection("one", "user-a", "uni", ("IE1:XETRA:AAA",), (), (), 1)
+    two = UnivariateSelection(
         "two",
         "user-a",
         "uni",
@@ -183,7 +183,7 @@ def test_bivariate_service_covers_plan_reuse_and_failure_transitions(
     univariate = ResearchRun("uni", "user-a", "source", "complete", (), 2, 2)
     state = HostedApiState(
         univariate_runs_by_id={univariate.run_id: univariate},
-        filter_selections_by_id={one.selection_id: one, two.selection_id: two},
+        univariate_selections_by_id={one.selection_id: one, two.selection_id: two},
         quote_run_by_univariate_run_id={univariate.run_id: "quote-1"},
     )
     data = FakeResearchData((), [])

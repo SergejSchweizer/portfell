@@ -90,7 +90,7 @@ export function UnivariateStatisticsPage() {
   const [quoteMessage, setQuoteMessage] = useState("Fetch historical quotes for this selection.");
   const [quoteRunId, setQuoteRunId] = useState<string | null>(null);
   const workflowQuoteRunId = workflow.status === "ready"
-    ? workflow.data.stages.metadata_filter.quote_run_id ?? null
+    ? workflow.data.stages.metadata_builder.quote_run_id ?? null
     : null;
   const workflowUnivariateRunId = workflow.status === "ready"
     ? workflow.data.stages.univariate_statistics.univariate_run_id ?? null
@@ -260,7 +260,7 @@ export function UnivariateStatisticsPage() {
   }
   if (workflow.status === "error") return <p>Workflow state is unavailable.</p>;
   const stage = workflow.data.stages.univariate_statistics;
-  const metadata = workflow.data.stages.metadata_filter;
+  const metadata = workflow.data.stages.metadata_builder;
   const dividendFrequencyCounts = dividendFrequencyOptions.map((option) => ({
     ...option,
     count: results?.filter((row) => dividendFrequency(row) === option.value).length ?? 0,

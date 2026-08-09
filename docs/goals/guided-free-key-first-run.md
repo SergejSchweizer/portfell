@@ -10,11 +10,11 @@ The product should not open with a generic dashboard or a preselected model port
 
 ```text
 fetch all available ISIN and listing metadata
-  -> apply metadata filters
+  -> apply metadata builders
   -> select a small free-key-compatible research universe
   -> fetch historical quotes for that universe
   -> calculate univariate statistics
-  -> apply univariate filters
+  -> apply univariate selections
   -> calculate bivariate statistics
   -> calculate multivariate statistics
   -> construct and compare portfolio candidates
@@ -78,7 +78,7 @@ The funnel is:
 5. Select the free-key research set
 6. Prepare market history
 7. Calculate univariate statistics
-8. Apply univariate filters
+8. Apply univariate selections
 9. Calculate bivariate statistics
 10. Calculate multivariate statistics
 11. Build portfolio candidates
@@ -149,7 +149,7 @@ The discovery output must be stored as an immutable snapshot with:
 
 ## 4. Metadata Eligibility Filter
 
-The metadata filter removes instruments that cannot satisfy the user's basic objective before historical prices are fetched.
+The metadata builder removes instruments that cannot satisfy the user's basic objective before historical prices are fetched.
 
 Initial filter dimensions may include:
 
@@ -179,7 +179,7 @@ Every excluded instrument should retain a structured exclusion reason.
 
 ## 5. Free-Key Research Set
 
-The metadata-filtered universe may still be too large for the free key because univariate analysis requires historical quotes for each instrument.
+The metadata-buildered universe may still be too large for the free key because univariate analysis requires historical quotes for each instrument.
 
 Portfell therefore needs an explicit free-key research-set step.
 
@@ -265,9 +265,9 @@ The summary should lead with outcomes:
 9 remain for relationship analysis
 ```
 
-## 8. Univariate Filter
+## 8. Univariate Selection
 
-The univariate filter removes instruments that are individually unsuitable before pairwise computation begins.
+The univariate selection removes instruments that are individually unsuitable before pairwise computation begins.
 
 Portfell should provide an objective-specific recommended preset with an advanced customization option.
 

@@ -68,7 +68,7 @@ After a successful project switch, the shell refreshes the selected project's
 workflow and sends one typed update to the four route pages. Pages clear their
 transient selections, results, progress, and errors before loading replacement
 server-owned data. Metadata Builder additionally loads saved field values through
-`GET /api/projects/{project_id}/metadata-filter`. A failed switch keeps the prior
+`GET /api/projects/{project_id}/metadata-builder`. A failed switch keeps the prior
 project and route intact.
 
 ## Boundaries

@@ -2,7 +2,7 @@
 
 - Route: `/metadata-builder`
 - Page ID: `metadata_builder`
-- Component: `apps/web/src/pages/metadata-filter.tsx`
+- Component: `apps/web/src/pages/metadata-builder.tsx`
 
 ## Purpose
 
@@ -28,5 +28,5 @@ opening this page after a switch, loads the saved server-owned filter values and
 The metadata action panel precedes the filter dropdowns in document order. Its progress, status, and action use the same order and controls as Download Historical Data. Metadata refresh remains disabled without an entered or saved header key. All fields have visible labels, status changes use `aria-live`, and no filtering or ingestion business logic is implemented in the browser.
 
 The stateful two-project browser journey creates two selections through this
-form and verifies that their saved metadata filters are restored after a
+form and verifies that their saved metadata builders are restored after a
 project switch.

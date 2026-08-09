@@ -7,9 +7,8 @@ export type ApiFieldOptions = Readonly<{
 }>;
 
 export type WorkflowStageId =
-  | "metadata_filter"
+  | "metadata_builder"
   | "univariate_statistics"
-  | "univariate_filter"
   | "bivariate_statistics";
 
 export type WorkflowStatus = "locked" | "ready" | "running" | "complete" | "failed" | "stale";
@@ -21,12 +20,12 @@ export type ApiWorkflow = Readonly<{
     metadata_selection_id?: string;
     quote_run_id?: string;
     univariate_run_id?: string;
-    univariate_filter_selection_id?: string;
+    univariate_selection_id?: string;
     bivariate_run_id?: string;
   }>>>;
   process_overview?: Readonly<{
     metadata_downloaded_isins: number;
-    metadata_filter_isins?: number;
+    metadata_builder_isins?: number;
     univariate_statistics_isins?: number | null;
   }>;
 }>;
@@ -97,7 +96,7 @@ export type ApiProjectContext = Readonly<{
   projects: readonly ApiProjectSummary[];
 }>;
 
-export type ApiProjectMetadataFilter = Readonly<{
+export type ApiProjectMetadataBuilder = Readonly<{
   project_id: string;
   selection_id: string;
   selected_count: number;
@@ -155,7 +154,7 @@ export type ApiUnivariateSelectionSettings = Readonly<{
   statistic_ranges: Record<string, Readonly<{ minimum: number; maximum: number }>[]>;
 }>;
 
-export type ApiFilterSelection = Readonly<{
+export type ApiUnivariateSelection = Readonly<{
   selection_id: string;
   source_run_id: string;
   input_count: number;

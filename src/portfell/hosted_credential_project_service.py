@@ -188,7 +188,7 @@ class CredentialProjectService:
         audit(self.state, user_id, "project.current.select")
         return project_context_row(self.state, user_id)
 
-    def project_metadata_filter(
+    def project_metadata_builder(
         self, user_id: str, project_id: str
     ) -> tuple[ProjectRecord, SelectionRecord]:
         project = require_user_row(self.state.projects_by_id, project_id, user_id)

@@ -23,7 +23,7 @@ FORBIDDEN_ROUTE_IMPORTS = frozenset(
         "portfell.hosted_api_local_runtime",
         "portfell.hosted_credentials",
         "portfell.hosted_workspace",
-        "portfell.metadata_filter",
+        "portfell.metadata_builder",
         "portfell.paths",
         "portfell.silver",
         "portfell.table_io",
@@ -42,7 +42,7 @@ FORBIDDEN_SERVICE_IMPORTS = frozenset(
         "portfell.hosted_routes_research",
         "portfell.hosted_research_persistence",
         "portfell.hosted_research_repository",
-        "portfell.metadata_filter",
+        "portfell.metadata_builder",
         "portfell.paths",
         "portfell.workflows",
     }

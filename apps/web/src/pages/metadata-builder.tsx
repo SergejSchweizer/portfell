@@ -10,7 +10,7 @@ import type { ApiProjectSummary } from "../contracts";
 import { useResource } from "../hooks/use-resource";
 import { useMetadataFetch } from "../shell/metadata-fetch-context";
 
-export function MetadataFilterPage() {
+export function MetadataBuilderPage() {
   const [metadataRevision, setMetadataRevision] = useState(0);
   const options = useResource(metadataBuilderApi.loadFieldOptions, [metadataRevision]);
   const { fetchMetadata, fetching, hasSavedCredential, metadataProgress, metadataStatus, providerKey } = useMetadataFetch();
@@ -34,21 +34,21 @@ export function MetadataFilterPage() {
       setSelectionStatus("Choose at least one Metadata Builder criterion.");
     };
 
-    const loadProjectFilter = async (project: ApiProjectSummary | null) => {
+    const loadProjectCriteria = async (project: ApiProjectSummary | null) => {
       if (!project?.selection_id) {
         resetProjectState();
         return;
       }
       setSelectionStatus("Loading saved Metadata Builder criteria…");
       try {
-        const filter = await metadataBuilderApi.loadProjectFilter(project.project_id);
+        const criteria = await metadataBuilderApi.loadProjectCriteria(project.project_id);
         if (cancelled) return;
-        setExchange(filter.exchange);
-        setInstrumentType(filter.instrument_type);
-        setCountry(filter.country);
-        setCurrency(filter.currency);
-        setName(filter.name);
-        setSelectionStatus(`${filter.selected_count.toLocaleString()} unique ISINs selected.`);
+        setExchange(criteria.exchange);
+        setInstrumentType(criteria.instrument_type);
+        setCountry(criteria.country);
+        setCurrency(criteria.currency);
+        setName(criteria.name);
+        setSelectionStatus(`${criteria.selected_count.toLocaleString()} unique ISINs selected.`);
       } catch (error) {
         if (cancelled) return;
         resetProjectState();
@@ -57,11 +57,11 @@ export function MetadataFilterPage() {
     };
 
     const restoreCurrentProject = () => {
-      void loadProjectContext().then((context) => loadProjectFilter(context.current_project));
+      void loadProjectContext().then((context) => loadProjectCriteria(context.current_project));
     };
     const handleProjectUpdate = (event: Event) => {
       const context = (event as CustomEvent<{ current_project: ApiProjectSummary | null }>).detail;
-      void loadProjectFilter(context.current_project);
+      void loadProjectCriteria(context.current_project);
     };
 
     restoreCurrentProject();
@@ -72,7 +72,7 @@ export function MetadataFilterPage() {
     };
   }, []);
 
-  async function applyFilter(event: FormEvent<HTMLFormElement>) {
+  async function createProject(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSelectionStatus("Building the project selection…");
     try {
@@ -104,7 +104,7 @@ export function MetadataFilterPage() {
   }
 
   return (
-    <section className="metadata-filter-page" data-route="metadata-filter-page">
+    <section className="metadata-builder-page" data-route="metadata-builder-page">
       <Panel title="Download Metadata">
         <div className="quote-fetch quote-fetch--panel metadata-download">
           <label htmlFor="metadata-progress">Metadata download progress</label>
@@ -118,7 +118,7 @@ export function MetadataFilterPage() {
         </div>
       </Panel>
       <Panel title="Metadata Builder">
-        <form className="metadata-filter-form" onSubmit={applyFilter}>
+        <form className="metadata-builder-form" onSubmit={createProject}>
           <label>
             Exchange
             <select value={exchange} onChange={(event) => setExchange(event.target.value)}>
@@ -147,11 +147,11 @@ export function MetadataFilterPage() {
               {options.data.currency.map((value) => <option key={value}>{value}</option>)}
             </select>
           </label>
-          <label className="metadata-filter-form__name">
+          <label className="metadata-builder-form__name">
             Name contains
             <input value={name} onChange={(event) => setName(event.target.value)} placeholder="UCITS ETF" />
           </label>
-          <div className="metadata-filter-form__apply">
+          <div className="metadata-builder-form__apply">
             <Button type="submit" variant="primary">Create new project</Button>
           </div>
         </form>

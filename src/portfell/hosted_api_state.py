@@ -12,7 +12,7 @@ from portfell.hosted_credentials import (
     InMemoryCredentialStore,
     KeyEncryptionKey,
 )
-from portfell.hosted_research_workflow import FilterSelection, ResearchRun
+from portfell.hosted_research_workflow import ResearchRun, UnivariateSelection
 from portfell.hosted_workspace import LocalWorkspaceStore
 from portfell.table_io import JsonRow
 
@@ -134,8 +134,8 @@ class HostedApiState:
     univariate_runs_by_id: dict[str, ResearchRun] = field(
         default_factory=lambda: dict[str, ResearchRun]()
     )
-    filter_selections_by_id: dict[str, FilterSelection] = field(
-        default_factory=lambda: dict[str, FilterSelection]()
+    univariate_selections_by_id: dict[str, UnivariateSelection] = field(
+        default_factory=lambda: dict[str, UnivariateSelection]()
     )
     bivariate_runs_by_id: dict[str, ResearchRun] = field(
         default_factory=lambda: dict[str, ResearchRun]()
@@ -144,7 +144,7 @@ class HostedApiState:
     current_metadata_selection_by_user: dict[str, str] = field(
         default_factory=lambda: dict[str, str]()
     )
-    current_filter_selection_by_user: dict[str, str] = field(
+    current_univariate_selection_by_user: dict[str, str] = field(
         default_factory=lambda: dict[str, str]()
     )
     univariate_selection_settings_by_project: dict[str, JsonRow] = field(
