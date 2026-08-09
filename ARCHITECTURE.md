@@ -255,17 +255,17 @@ their persisted hand-off contracts, but they do not share browser-local state:
 | Metadata Builder | EODHD credentials and metadata criteria | Project-scoped metadata selection | Quote ingestion or statistical calculation |
 | Univariate Statistics | Metadata selection and quote-run identifiers | Per-ISIN results and selected-ISIN set | Metadata discovery or pairwise calculation |
 | Bivariate Statistics | Univariate selected-ISIN set | Pairwise rows and matrices | Changing upstream selections or portfolio allocation |
-| Multivariate Statistics | Completed Bivariate run and selected-ISIN set | Project-scoped multivariate result when configured | Changing upstream selections or simulating portfolio output |
+| Multivariate Statistics | Completed Bivariate run and selected-ISIN set | Immutable input snapshot, canonical risk model, structure, income evidence, comparable candidates, risk contributions, and validation evidence | Changing upstream selections, selecting a universal winner, or trading |
 
 The React route registry records this ownership in `apps/web/src/routes.tsx`.
 Each module owns a typed browser API facade under `apps/web/src/api/`, while the
 shared client remains limited to transport and workspace context. The active
-FastAPI implementation has corresponding metadata, univariate, and bivariate
-service boundaries; the initial Multivariate page consumes the same persisted
-workflow hand-off until its dedicated calculation service is added. A module
-must add an explicit persisted input/output contract rather than couple to
-another module's browser state. The detailed UI contract is documented in
-`docs/ui/workflow-modules.md`.
+FastAPI implementation has corresponding metadata, univariate, bivariate, and
+dedicated Multivariate service boundaries. The Multivariate service persists
+the calculation artifact closure and exposes bounded API detail views; React
+only renders those values. A module must add an explicit persisted input/output
+contract rather than couple to another module's browser state. The detailed UI
+contract is documented in `docs/ui/workflow-modules.md`.
 
 ### Multivariate input provenance
 
@@ -282,6 +282,14 @@ canonical common-calendar covariance artifact used by portfolio solvers. It
 does not fall back to pairwise Bivariate covariance; its solver adapter fails
 closed when model diagnostics make the artifact unavailable. See
 [`docs/multivariate-risk-model.md`](docs/multivariate-risk-model.md).
+
+The Multivariate service persists that dependency closure alongside empirical
+PCA/cluster structure, jurisdiction-neutral gross historical distribution
+evidence, six comparable long-only candidate methods, covariance-derived risk
+contributions, and deterministic walk-forward/stress/scorecard evidence. A
+candidate checkbox is a project-owned comparison preference only; it never
+changes weights, starts an upstream computation, selects a winner, or produces
+a trading instruction.
 
 ## Local Research Funnel
 

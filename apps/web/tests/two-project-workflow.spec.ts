@@ -7,6 +7,8 @@ type Project = {
   quoteRunId?: string;
   univariateRunId?: string;
   bivariateRunId?: string;
+  multivariateRunId?: string;
+  selectedCandidateIds?: string[];
   settings: { dividend_frequencies: string[]; statistic_labels: Record<string, string[]>; statistic_ranges: Record<string, { minimum: number; maximum: number }[]> };
 };
 
@@ -52,7 +54,12 @@ function workflow(project: Project | undefined) {
       metadata_builder: { status: "complete", metadata_selection_id: `selection-${project.id}`, quote_run_id: project.quoteRunId },
       univariate_statistics: { status: univariateReady ? "complete" : quoteReady ? "ready" : "ready", univariate_run_id: project.univariateRunId, univariate_selection_id: univariateReady ? `univariate-selection-${project.id}` : undefined },
       bivariate_statistics: univariateReady ? { status: project.bivariateRunId ? "complete" : "ready", bivariate_run_id: project.bivariateRunId } : { status: "locked" },
-      multivariate_statistics: project.bivariateRunId ? { status: "ready", bivariate_run_id: project.bivariateRunId, univariate_selection_id: `univariate-selection-${project.id}` } : { status: "locked" },
+      multivariate_statistics: project.bivariateRunId ? {
+        status: project.multivariateRunId ? "complete" : "ready",
+        bivariate_run_id: project.bivariateRunId,
+        univariate_selection_id: `univariate-selection-${project.id}`,
+        multivariate_run_id: project.multivariateRunId,
+      } : { status: "locked" },
     },
     process_overview: { metadata_downloaded_isins: 4, metadata_builder_isins: 3, univariate_statistics_isins: univariateReady ? 3 : null },
   };
@@ -70,6 +77,17 @@ function bivariateSummary() {
     downside_diagnostics: { ...diagnostics, average_pearson_gap: 0.03, large_pearson_gap_pairs: 1, worst_pair: "ALPHA / BETA", worst_pair_correlation: 0.7, median_joint_negative_days: 28, minimum_joint_negative_days: 21, average_rolling_stability: 0.05, cluster_count: 1, largest_cluster_size: 3 },
   };
 }
+
+function multivariateRun(project: Project, status: "running" | "complete") {
+  return { run_id: project.multivariateRunId, project_id: project.id, bivariate_run_id: project.bivariateRunId, input_snapshot_id: status === "complete" ? `snapshot-${project.id}` : null, status, phase: status === "complete" ? "complete" : "resolve_inputs", completed_units: status === "complete" ? 6 : 0, total_units: 6, estimated_remaining_seconds: status === "complete" ? null : 10, settings: { selected_candidate_ids: project.selectedCandidateIds ?? [] }, warnings: [], failure_reason: null };
+}
+
+function multivariateSummary() { return { input_snapshot_id: "snapshot", risk_model_id: "risk", candidate_etf_count: 3, aligned_period: { date_start: "2024-01-01", date_end: "2025-01-01", observation_count: 252 }, availability_reasons: [] }; }
+function multivariateStructure() { return { risk_cluster_count: 2, dominant_component_share: 0.6, effective_rank: 1.8, effective_independent_drivers: 1.8, period: { date_start: "2024-01-01", date_end: "2025-01-01", observation_count: 252 } }; }
+function multivariateCandidates() { return { items: [{ candidate_id: "candidate-equal", method: "equal_weight", baseline: true, status: "feasible", reasons: [], weights: [{ isin: "IE00ALPHA01", exchange: "XETRA", code: "ALPHA", weight: 1 / 3 }, { isin: "IE00ALPHA02", exchange: "XETRA", code: "BETA", weight: 1 / 3 }, { isin: "IE00ALPHA03", exchange: "XETRA", code: "GAMMA", weight: 1 / 3 }], variance: 0.02, volatility: 0.14, cvar: 0.04, gross_ttm_distribution_yield: 0.03, gross_monthly_distribution: 0.2, total_return: 0.1, max_drawdown: -0.12, diversification_ratio: 1.2 }] }; }
+function multivariateComponents() { return { items: [{ component_id: "Component 1", isin: "IE00ALPHA01", exchange: "XETRA", code: "ALPHA", loading: 0.7, explained_variance: 0.6, cluster: "Cluster 1" }], total: 1, limit: 25, offset: 0 }; }
+function multivariateContributions() { return { items: [{ candidate_id: "candidate-equal", method: "equal_weight", isin: "IE00ALPHA01", exchange: "XETRA", code: "ALPHA", weight: 1 / 3, marginal_risk_contribution: 0.02, absolute_risk_contribution: 0.006, percent_risk_contribution: 0.34 }] }; }
+function multivariateIncome() { return { items: [{ isin: "IE00ALPHA01", exchange: "XETRA", code: "ALPHA", currency: "EUR", event_count: 12, observed_month_count: 12, gross_ttm_distribution_amount: 2.4, gross_ttm_distribution_yield: 0.03, mean_observed_monthly_distribution: 0.2, median_observed_monthly_distribution: 0.2, lower_percentile_monthly_distribution: 0.18, coefficient_of_variation: 0.1, cut_count: 0, largest_cut: null, longest_falling_sequence: 0, availability_reasons: [], warnings: [] }] }; }
 
 async function installTwoProjectApi(page: Page): Promise<WorkflowFixture> {
   const projects = new Map<string, Project>();
@@ -158,9 +176,28 @@ async function installTwoProjectApi(page: Page): Promise<WorkflowFixture> {
     if (method === "GET" && /^\/api\/bivariate-statistics\/runs\/[^/]+$/.test(path)) return response(route, { run_id: path.split("/").at(-1), status: "complete", total: 3, completed: 3, failed: 0, percent: 100 });
     if (method === "GET" && path.includes("/bivariate-statistics/runs/") && path.endsWith("/results")) return response(route, { items: [{ left_isin: labels[0].isin, left_exchange: "XETRA", left_code: "ALPHA", right_isin: labels[1].isin, right_exchange: "XETRA", right_code: "BETA", n_observations: 252, covariance: 0.12, pearson_correlation: 0.6, spearman_correlation: 0.5, downside_correlation: 0.7, lower_tail_dependence: 0.12, tail_coexceedance_rate: 0.08 }], total: 1, limit: 50, offset: 0 });
     if (method === "GET" && path.endsWith("/covariance-matrix")) return response(route, { labels, values: matrix, observation_count: 252, diagnostics: { listing_count: 3, pair_count: 3, observation_count: 252, average_pairwise_covariance: 0.09, average_pairwise_correlation: 0.4, equal_weight_volatility: 0.12, minimum_variance_volatility: 0.1, diversification_ratio: 1.2, effective_number_of_bets: 2.4, largest_equal_weight_risk_contribution: 0.4 } });
-    if (method === "GET" && path.endsWith("/summary")) return response(route, bivariateSummary());
+    if (method === "GET" && path.includes("/bivariate-statistics/") && path.endsWith("/summary")) return response(route, bivariateSummary());
     if (method === "GET" && path.endsWith("/tail-risk-scatter")) return response(route, { points: [{ left_isin: labels[0].isin, left_exchange: "XETRA", left_code: "ALPHA", right_isin: labels[1].isin, right_exchange: "XETRA", right_code: "BETA", tail_dependence: 0.12, coexceedance_rate: 0.08 }], pair_count: 1, observation_count: 252, date_start: "2024-01-02", date_end: "2024-12-31", tail_dependence_median: 0.12, coexceedance_rate_median: 0.08 });
     if (method === "GET" && path.endsWith("/correlation-matrix")) return response(route, { labels, values: matrix, observation_count: 252 });
+    if (method === "POST" && path === "/api/multivariate-statistics/runs") {
+      const project = current()!;
+      project.multivariateRunId = `multivariate-${project.id}`;
+      return response(route, multivariateRun(project, "running"));
+    }
+    if (method === "GET" && /^\/api\/multivariate-statistics\/runs\/[^/]+$/.test(path)) return response(route, multivariateRun(current()!, "complete"));
+    if (method === "GET" && path.endsWith("/summary")) return response(route, multivariateSummary());
+    if (method === "GET" && path.endsWith("/structure")) return response(route, multivariateStructure());
+    if (method === "GET" && path.endsWith("/candidates")) return response(route, multivariateCandidates());
+    if (method === "GET" && path.endsWith("/components")) return response(route, multivariateComponents());
+    if (method === "GET" && path.endsWith("/risk-contributions")) return response(route, multivariateContributions());
+    if (method === "GET" && path.endsWith("/income-evidence")) return response(route, multivariateIncome());
+    if (method === "GET" && path.endsWith("/validation")) return response(route, { items: [{ kind: "scorecard", method: "equal_weight", status: "available", reason: null }] });
+    if (method === "GET" && path.endsWith("/artifacts")) return response(route, { risk_model: { estimator: "ledoit_wolf", shrinkage_intensity: 0.2 } });
+    if (method === "PATCH" && path.endsWith("/settings")) {
+      const project = current()!;
+      project.selectedCandidateIds = body.selected_candidate_ids as string[];
+      return response(route, multivariateRun(project, "complete"));
+    }
     throw new Error(`Unhandled UI request: ${method} ${path}`);
   });
 
@@ -247,10 +284,19 @@ test("two dummy projects created through the UI preserve every research control 
     await page.getByRole("tab", { name: tab }).click();
     await expect(page.getByRole("tab", { name: tab })).toHaveAttribute("aria-selected", "true");
   }
-  await page.getByRole("link", { name: /Multivariate Statistics Ready/ }).click();
+  await page.reload();
+  await page.getByRole("link", { name: /Multivariate Statistics/ }).click();
   await expect(page).toHaveURL(/\/multivariate-statistics$/);
   await expect(page.getByRole("heading", { name: "Multivariate Statistics" })).toBeVisible();
-  await expect(page.getByText("Portfolio-level analysis is ready for the ISIN universe used by the completed bivariate run.")).toBeVisible();
+  await page.getByRole("button", { name: "Compute multivariate statistics" }).click();
+  await expect(page.getByText("Candidate ETFs")).toBeVisible();
+  for (const tab of ["Overview", "Risk Structure", "Portfolio Candidates", "Risk Contributions", "Income Evidence", "Validation"]) {
+    await page.getByRole("tab", { name: tab }).click();
+    await expect(page.getByRole("tab", { name: tab })).toHaveAttribute("aria-selected", "true");
+  }
+  await page.getByRole("tab", { name: "Portfolio Candidates" }).click();
+  await page.getByLabel("Portfolio selection").click();
+  await expect.poll(() => fixture.projects.get("project-2")?.selectedCandidateIds).toEqual(["candidate-equal"]);
 
   expect([...fixture.projects.values()].map((project) => project.name)).toEqual(["Alpha income", "Beta growth"]);
   expect(fixture.calls).toEqual(expect.arrayContaining([
@@ -261,6 +307,8 @@ test("two dummy projects created through the UI preserve every research control 
     "POST /api/univariate-statistics/runs",
     "POST /api/bivariate-statistics/plan",
     "POST /api/bivariate-statistics/runs",
+    "POST /api/multivariate-statistics/runs",
+    "PATCH /api/multivariate-statistics/runs/multivariate-project-2/settings",
     "PUT /api/project-context/current-project",
   ]));
 });

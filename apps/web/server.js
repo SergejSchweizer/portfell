@@ -14,6 +14,7 @@ const spaRoutes = new Set([
   "/metadata-builder",
   "/univariate-statistics",
   "/bivariate-statistics",
+  "/multivariate-statistics",
 ]);
 
 function proxyRequestToTarget(clientRequest, clientResponse, target) {
