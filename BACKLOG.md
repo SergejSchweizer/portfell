@@ -6,6 +6,7 @@ Last reviewed: 2026-08-09
 
 - [Backlog Policy](#backlog-policy)
 - [Active Monthly-Distribution ETF Multivariate PR Stack](#active-monthly-distribution-etf-multivariate-pr-stack)
+- [Active Shared Market Data And Nightly Refresh PR Stack](#active-shared-market-data-and-nightly-refresh-pr-stack)
 - [Current Architectural Decision](#current-architectural-decision)
 - [Series Completion Gate](#series-completion-gate)
 - [Update Rules](#update-rules)
@@ -532,8 +533,8 @@ Scope:
   unavailable net/sustainable figures, distribution cuts, and warnings. Validation renders common
   walk-forward, cost, stress, and evidence-quality results.
 - Restore the latest unchanged completed project run automatically on project selection. Show stale,
-  unavailable, failed, and partially resumable states explicitly. Reuse the existing historical-data
-  update behavior without embedding ingestion in this module.
+  unavailable, failed, and partially resumable states explicitly. Consume the existing data-readiness
+  state without embedding ingestion or a provider-download action in this module.
 - Update `README.md`, `ARCHITECTURE.md`, `docs/ui/workflow-modules.md`, route/page documentation,
   API contracts, unit tests, and Playwright journeys. Rebuild and validate the Web Docker image after
   the UI change as required by `AGENTS.md`.
@@ -601,6 +602,332 @@ requires all of the following evidence in one clean-main validation:
 - synchronized `README.md`, `ARCHITECTURE.md`, module/page documentation, schemas, API contracts,
   backlog status, and operational runbooks.
 
+## Active Shared Market Data And Nightly Refresh PR Stack
+
+This series replaces project-triggered historical-data downloads with one nightly refresh for the
+union of listings currently used by all persisted projects in the trusted local Portfell deployment.
+All projects then read quotes, dividends, and splits from one shared physical store. Project state
+contains selections, immutable input references, and analysis results, but no copied market rows.
+
+Physical deduplication uses the full listing identity `(provider, exchange, code, isin)` because two
+exchange listings of the same ISIN can have different currencies, trading calendars, and prices.
+The same full listing used by any number of projects is planned, requested, and stored once. The
+initial scheduled mode supports the existing single local principal and its encrypted EODHD
+credential. It must fail closed rather than silently broadening this model if multiple credential
+owners are introduced later.
+
+PR151 through PR155 are sequential. PR151 starts after PR150 to avoid changing shared workflow and
+UI contracts underneath the active Multivariate stack. PR155 may be deployed only after PR154's
+one-time initial refresh and operational verification succeed in the target environment.
+
+### PR151. Canonical Shared Market Store And Active Project Inventory
+
+Branch: `feat/shared-market-store-contract`.
+
+Git status: not started. PR: TBD.
+
+Priority: P0 shared-data correctness foundation.
+
+Depends on: PR150.
+
+Scope:
+
+- Define `PORTFELL_SHARED_DATA_ROOT/market-data` as the only hosted/local-app physical source for
+  shared quotes, dividends, and splits. Keep local standalone CLI behavior behind an explicit
+  adapter so it cannot be mistaken for the hosted project store.
+- Replace the overlapping immutable-segment prototype with one canonical Parquet file per
+  `(dataset_type, exchange, isin, code)`, for example
+  `market-data/quotes/XETRA/IE00...__SYMBOL.parquet`. Do not retain two production shared-store
+  models.
+- Define a unique business key per dataset. Merge existing and incoming rows by the complete key,
+  let a later provider correction replace the previous value for that key, sort canonically, and
+  publish with a same-directory temporary file, fsync, and atomic replace.
+- Reject `user_id`, `project_id`, credential data, session data, run ids, and authorization claims
+  in physical market rows. Store project-independent provider provenance and schema version only.
+- Add a rebuildable coverage catalog per listing and dataset containing first/last business date,
+  row count, content hash, schema version, and publication timestamp. Parquet rows remain the source
+  of truth if the catalog must be rebuilt.
+- Read one consistent persistent-workspace snapshot and resolve the current metadata selection for
+  every non-deleted project. Validate member ids and create a sorted set union of full listing keys.
+  Duplicate members and project overlap must not duplicate inventory entries.
+- Document path, key, correction, atomicity, locking, retention, and listing-identity contracts in
+  `CONTRACTS.md`, `ARCHITECTURE.md`, and the path/catalog APIs.
+
+Acceptance:
+
+- Three projects where two share a listing and one adds another listing produce exactly two
+  inventory entries. Reordering projects, selections, or members does not change the inventory hash.
+- Repeatedly writing the same observation leaves exactly one row. A corrected observation replaces
+  exactly that row. Different exchange/code listings of the same ISIN remain separate and cannot be
+  joined accidentally as one price series.
+- An injected failure before atomic replace leaves the previously published Parquet file and
+  coverage record readable and mutually consistent; no reader can observe a partial file.
+- Tests cover an empty workspace, deleted projects, a project without a selection, malformed member
+  ids, duplicate members, duplicate projects, forbidden scoped fields, corrupt Parquet, and catalog
+  rebuild from the physical files.
+- A repository search and architecture test prove that only one productive shared market-data
+  implementation remains and that its storage growth follows unique listing/business keys rather
+  than project count.
+
+Security: Shared files contain no credential, owner, entitlement, internal request, or session
+metadata. Inventory is built inside the trusted runtime from persisted project state and is never
+exposed as an unrestricted cross-project browser endpoint. Introduction of multiple credential
+owners fails an explicit single-principal guard until a separately reviewed entitlement design
+exists.
+
+Determinism: Inventory order, row order, business keys, path encoding, correction precedence,
+schema serialization, and content hashes are versioned and independent of filesystem order, project
+order, worker completion order, locale, and wall-clock time.
+
+Idempotency: Rebuilding inventory or upserting identical observations returns the same logical
+catalog state and content hashes without adding files or rows. A retry after interruption safely
+repeats the incomplete listing only.
+
+### PR152. Idempotent Shared Market Refresh Command And Initial Backfill
+
+Branch: `feat/shared-market-refresh-command`.
+
+Git status: not started. PR: TBD.
+
+Priority: P0 unattended ingestion path.
+
+Depends on: PR151.
+
+Scope:
+
+- Add `portfell refresh-shared-market-data` as a non-interactive entry point. At startup it loads one
+  PR151 workspace snapshot, computes the unique active-listing inventory, and refreshes quotes,
+  dividends, and splits exactly once per listing.
+- Reuse the EODHD client, request pacing, bounded concurrency, `Retry-After`, retries, response
+  validation, and redacted logging. Resolve the configured local principal's encrypted credential
+  inside the process; never place the key in arguments, environment dumps, manifests, or logs.
+- Fully backfill a missing listing. For an existing listing, request only the gap through `end_date`
+  plus a documented bounded overlap window for provider corrections, then use PR151's canonical
+  upsert. Retain unused listings for later reuse; nightly refresh must not perform destructive GC.
+- Acquire one non-blocking global refresh lock under the shared root. Persist a compact run manifest
+  with inventory hash, target date, start/end time, requested/updated/unchanged/failed counts,
+  per-dataset coverage, and stable redacted error codes.
+- Define exit codes for success/empty inventory, lock contention, missing credential, invalid
+  workspace, provider partial failure, and storage failure. Partial success keeps atomically
+  completed listings but cannot report a successful run.
+- Add `--dry-run` for workspace, inventory, delta-plan, credential, lock, and write preflight;
+  `--end-date` for deterministic execution; and bounded `--concurrency` with a safe default.
+
+Acceptance:
+
+- Against a deterministic fake provider, the first run backfills every unique active listing and all
+  three datasets once. A second run for the same target date creates no duplicate row, file, or full-
+  history request.
+- Project overlap changes neither provider request count nor stored row count. A correction returned
+  inside the overlap window replaces its prior row while preserving the unique-key invariant.
+- A project added or deleted while a run is active affects only the next run because the active run
+  uses its immutable startup inventory.
+- Two concurrent starts cannot write concurrently. The second returns the documented contention
+  code, and retry after a simulated crash resumes without corrupting or duplicating completed data.
+- Missing/invalid credentials, malformed provider payloads, HTTP partial failure, a read-only shared
+  root, and disk-write failure produce stable non-zero outcomes without leaking secret material.
+- A scale test with at least 1,000 heavily overlapping projects proves planning memory, request
+  count, and storage work scale with unique listings, not `projects * listings`.
+
+Security: Only the ingestion process unwraps the provider credential and only for provider calls.
+Run manifests, exceptions, process listings, tests, and logs contain no key or decrypted credential.
+The command rejects an unexpected multi-principal workspace rather than selecting a credential
+implicitly.
+
+Determinism: A fixed workspace snapshot, provider fixture, schema version, overlap policy, and end
+date produce the same plan, canonical files, content hashes, and summary independent of concurrency.
+
+Idempotency: Repeating a complete or partial run with the same target state converges on one row per
+business key and one current coverage record per listing/dataset. Stable run identity prevents
+duplicate success publication.
+
+### PR153. Project Analysis Cutover To Shared Market Snapshots
+
+Branch: `refactor/project-shared-market-consumers`.
+
+Git status: not started. PR: TBD.
+
+Priority: P0 remove project data duplication.
+
+Depends on: PR152.
+
+Scope:
+
+- Route hosted/local-app quote, dividend, and split reads in Univariate, Bivariate, and Multivariate
+  input construction through one read-only PR151 store adapter filtered by the requesting project's
+  exact selection. No project workflow may copy shared market rows into project or run state.
+- Construct an immutable analysis input snapshot from project id, selection id, sorted listing keys,
+  per-listing shared content hashes, schema/policy versions, and one common `as_of`. Persist this
+  snapshot identity in every derived run and artifact.
+- Derive `project_data_loaded` and workflow readiness from complete shared coverage for all selected
+  listings rather than a successful project quote run. Expose stable readiness details including
+  `ready`, `pending_nightly_refresh`, missing listings, last successful refresh, and common `as_of`.
+- Reject compute with `shared_market_data_pending` when required coverage is absent. A project made
+  after the nightly run remains readable and becomes computable after the next successful refresh
+  without a manual download.
+- Stop persisting `quote_rows_by_run_id` and equivalent copies. Restore legacy workspace payloads,
+  preserve selections and analyses, but omit copied quote rows on the next atomic save.
+- Ensure project deletion removes project-owned pointers and analysis state only; it never removes
+  shared market files or coverage used by another or future project.
+
+Acceptance:
+
+- Two projects with overlapping selections reference identical content hashes for shared listings,
+  read only their own members, and produce isolated project analysis results without copied market
+  rows.
+- An analysis concurrent with atomic publication resolves all inputs from either snapshot N or N+1,
+  never a mixed set. Repeating unchanged analysis resolves the same snapshot id after API/Web
+  restart.
+- A newly created uncovered project reports `pending_nightly_refresh`; compute fails with the stable
+  pending code; a PR152 run changes it to ready without any project download request.
+- Migrating and re-saving an existing workspace removes persisted quote-row payloads while projects,
+  selections, settings, completed analyses, and restart behavior remain intact.
+- Deleting one of two overlapping projects does not alter shared files, coverage, hashes, or the
+  remaining project's results.
+- Unit, API, architecture, and two-project integration tests prove all hosted analytical reads are
+  selection-scoped shared reads and no unrestricted global scan is available to browser requests.
+
+Security: The shared reader receives an already authorized project selection and returns no rows
+outside it. File paths, inventory membership, hashes for unauthorized listings, and other-project
+state do not appear in API responses or errors.
+
+Determinism: Snapshot identity includes exact sorted listing keys, content hashes, common `as_of`,
+and contract versions. Current pointers, refresh timing, process order, and unrelated project changes
+cannot alter an already resolved analysis snapshot.
+
+Idempotency: Reopening a project, restoring a workspace, or repeating analysis against unchanged
+shared content reuses the same snapshot and artifacts without copying rows or starting ingestion.
+
+### PR154. Docker Compose Nightly Cron Installer And Operations Gate
+
+Branch: `feat/nightly-market-refresh-cron`.
+
+Git status: not started. PR: TBD.
+
+Priority: P0 operational prerequisite for removing manual refresh.
+
+Depends on: PR153.
+
+Scope:
+
+- Add a short-lived Compose service `market-data-refresh` using the API image, runtime user,
+  encrypted-credential secret, workspace volume, shared market-data volume, and environment contract,
+  but no Web port, API server, or unnecessary network exposure. Its only command is PR152.
+- Add a versioned idempotent host installer with `install`, `status`, `run-once`, and `uninstall`.
+  Validate absolute project, Docker, Compose, lock, and log paths; `docker compose config`; mounted
+  secrets; volume write access; and a successful `--dry-run` before changing crontab.
+- Manage one delimited Portfell block in the service user's crontab while preserving every unrelated
+  byte/entry. Set `SHELL=/bin/bash`, `CRON_TZ=Europe/Amsterdam`, and schedule daily execution at
+  `02:15` with absolute paths and `/usr/bin/flock -n`.
+- Run `docker compose run --rm --no-deps market-data-refresh`, append stdout/stderr to a dedicated
+  rotation-compatible log, propagate the refresh exit code, and include no secret in crontab or the
+  host command line.
+- Document the exact rollout: build images; start the persistent stack; run installer preflight;
+  execute one initial full refresh; verify coverage and duplicate invariants; install cron; inspect
+  `crontab -l` and `status`; execute `run-once`; verify the run manifest; only then deploy PR155.
+- Document timezone/DST behavior, service user, permissions, log rotation, monitoring threshold,
+  host reboot behavior, lock contention, partial-failure retry, disk-full recovery, uninstall, and
+  rollback.
+
+Acceptance:
+
+- `docker compose config` is valid and inspection proves the job sees the same required workspace,
+  credential, and shared-data mounts as API while exposing no port and starting no API process.
+- Installer tests cover empty and populated crontabs. Installing twice leaves exactly one managed
+  entry; uninstall removes only that entry and preserves unrelated entries exactly.
+- `status` reports installed state, schedule/timezone, last run status, and age of the latest
+  successful manifest. Missing, failed, or stale refresh state returns an alertable non-zero status.
+- A staging proof with two overlapping projects passes initial backfill, API restart, analysis in
+  both projects, a second idempotent `run-once`, and assertions for no duplicate business keys and no
+  project-scoped market rows.
+- The installed job runs non-interactively as the documented service user. Lock contention, provider
+  partial failure, invalid credential, and full/read-only storage return documented exit codes and
+  leave the last valid shared snapshot readable.
+- The runbook contains literal inspectable commands for install, `crontab -l`, dry run, one-time run,
+  status, logs, recovery, uninstall, and rollback; no step depends on undocumented shell state.
+
+Security: The cron line and process arguments contain no EODHD key or KEK. Only the refresh container
+mounts the credential secret and shared volume. The installer never prints secret values and refuses
+world-writable secret or configuration files.
+
+Determinism: The managed cron block, timezone, schedule, command, absolute paths, Compose service,
+preflight sequence, and status thresholds are versioned. Installer output does not depend on current
+directory or interactive shell configuration.
+
+Idempotency: Repeated install, status, dry-run, run-once, and uninstall operations do not duplicate
+cron entries, containers, manifests, rows, or locks. Failed installation leaves the original crontab
+unchanged.
+
+### PR155. Remove Manual Historical-Data Actions And Legacy Quote Runs
+
+Branch: `refactor/remove-manual-historical-data-update`.
+
+Git status: not started. PR: TBD.
+
+Priority: P1 final user-facing shared-data cutover.
+
+Depends on: PR154 and a successful target-environment initial refresh.
+
+Scope:
+
+- Remove every `Update Historical Data` button from Univariate Statistics, Bivariate Statistics,
+  Multivariate Statistics, and any other Portfell view, including click handlers, project quote-run
+  progress state, success labels, helper functions, styles, and obsolete fixtures.
+- Replace manual ingestion controls with a read-only shared-data status showing the last successful
+  nightly refresh, common `as_of`, covered/missing listing counts, and
+  `pending_nightly_refresh` when applicable. Compute buttons remain analysis-only and never trigger a
+  provider request.
+- Remove project quote-run mutation routes and services, or close unavoidable compatibility routes
+  with a stable Gone/deprecated response that cannot invoke EODHD or write market data. Retain only
+  read-only central refresh history needed by status and operations.
+- Update typed Web/API contracts, OpenAPI snapshots, workflow state, copy, README, architecture/UI
+  docs, and E2E fixtures so no current instruction tells a user to download historical data manually.
+- Remove dead quote-progress code and legacy workspace serialization after compatibility coverage
+  proves PR153 migration is complete.
+
+Acceptance:
+
+- `apps/web/src` contains no visible `Update Historical Data` label, corresponding button, event
+  handler, or project download API call. Uni-, Bi-, and Multivariate pages show only analysis actions
+  plus the read-only shared-data status.
+- Playwright creates two projects with overlapping ISINs, observes a simulated successful nightly
+  refresh, computes the available stages for both, switches projects, reloads, and proves no POST to
+  the legacy quote-run endpoint occurs.
+- Before first coverage, the UI explains `pending_nightly_refresh` without offering a manual
+  workaround. After refresh, reload exposes the new readiness and preserves exact project scope.
+- Direct legacy mutation requests cannot make an EODHD call, create a run, copy rows, or alter shared
+  data. OpenAPI and API contract tests encode the removed/Gone behavior.
+- A final source/documentation search finds no active manual historical-update instruction. Ruff,
+  formatting, strict Pyright, architecture/schema tests, Python and TypeScript tests, production Web
+  build, Playwright, Docker image build, and the current coverage gate all pass.
+
+Security: Removing browser-triggered ingestion eliminates user-controlled provider-download side
+effects. Shared status reveals only readiness and freshness for the authorized project's selected
+listings, never global inventory, credentials, paths, or other-project membership.
+
+Determinism: Shared-status labels, readiness mapping, dates, counts, API errors, and page state derive
+only from versioned server contracts and the selected project snapshot, not browser timing or locale.
+
+Idempotency: Reloading, switching projects, polling shared status, or repeatedly pressing Compute
+cannot start ingestion or duplicate analysis. Compatibility-route retries remain side-effect free.
+
+### Shared Market Data And Nightly Refresh Series Completion Gate
+
+This series is complete only after PR151 through PR155 merge in dependency order, all current gates
+in [GATES.md](GATES.md) pass, and one target-environment evidence bundle proves:
+
+- one canonical physical market store with unique business keys and atomic correction handling;
+- a deduplicated union of all active project listings and request/storage work proportional to unique
+  listings rather than project count;
+- successful initial backfill, restart, nightly one-shot execution, idempotent repeat, monitored cron
+  installation, lock handling, and documented recovery;
+- immutable project analysis snapshots, exact selection filtering, no project market-row copies, and
+  no cross-project data exposure;
+- all project analyses source quotes, dividends, and splits from shared storage;
+- no browser manual historical-data action and no legacy mutation capable of provider ingestion;
+- synchronized contracts, OpenAPI snapshot, architecture, README, UI docs, runbooks, backlog status,
+  and full Python/TypeScript/Playwright/Docker validation.
+
 ## Current Architectural Decision
 
 Portfell remains a public open-source repository, while the hosted deployment is a private runtime environment.
@@ -611,7 +938,9 @@ The target system has these non-negotiable properties:
 - PostgreSQL is the primary application database for users, identities, encrypted provider credentials, projects, download provenance, entitlements, selections, analysis runs, and artifact catalogs.
 - EODHD keys are encrypted at rest with envelope encryption. The key-encryption key is never stored in Git, PostgreSQL, container images, build artifacts, logs, or GitHub Actions.
 - Runtime secrets live outside the repository checkout and are mounted only into services that require them.
-- EODHD market observations are stored once in a shared, content-addressed, immutable physical store.
+- EODHD market observations are stored once in a canonical shared physical store with unique
+  dataset/listing/business keys, atomic publication, deterministic hashes, and explicit correction
+  semantics.
 - A user can see only observations that were returned by an EODHD request executed with that user's own stored key.
 - Existing shared observations may prevent a duplicate physical write, but may never create a user entitlement without a successful user-key-backed provider request.
 - New observations downloaded by one user do not become visible to another user until that other user performs a successful refresh with their own key.
@@ -623,15 +952,16 @@ The target system has these non-negotiable properties:
 
 ## Series Completion Gate
 
-PR143 through PR150 are the only active backlog series. Until PR150 lands, the production browser
-continues to expose exactly the current three modules. PR150 may change that invariant to exactly
+PR143 through PR150 are the first active series. Until PR150 lands, the production browser continues
+to expose exactly the current three modules. PR150 may change that invariant to exactly
 four modules only after every dormant contract, calculation, artifact, persistence, API, and test
-dependency in the preceding PRs is complete.
+dependency in the preceding PRs is complete. PR151 through PR155 then implement
+the shared-data and nightly-refresh cutover without changing the four-module order.
 
-The authoritative completion criteria are the Monthly-Distribution ETF Multivariate Series
-Completion Gate above and the current pre-merge and post-merge requirements in
-[GATES.md](GATES.md). Hosted deployment remains independently subject to the existing security,
-licensing, privacy, backup, credential, and readiness gates.
+The authoritative completion criteria are both active Series Completion Gates above and the current
+pre-merge and post-merge requirements in [GATES.md](GATES.md). Hosted deployment remains
+independently subject to the existing security, licensing, privacy, backup, credential, and
+readiness gates.
 
 ## Update Rules
 
