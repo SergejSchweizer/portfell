@@ -186,7 +186,7 @@ fetch_all_metadata
   -> bivariate_statistics
 ```
 
-`fetch_all_metadata` is the only source of the full EODHD ISIN universe. It refreshes an irregularly updated all-ISIN dataset and writes it once for every later module:
+`fetch_all_metadata` is the only source of the full EODHD ISIN universe. It refreshes missing exchange datasets in parallel using the available runtime CPUs, with provider request pacing, and writes the shared result once for every later module:
 
 ```bash
 uv run portfell fetch-all-metadata

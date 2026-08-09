@@ -132,10 +132,11 @@ def run_fetch_all_metadata_workflow(
     root: Path,
     exchange_codes: Sequence[str] = (),
     include_delisted: bool = False,
+    concurrency: int | None = None,
     eodhd_config: EodhdConfig | None = None,
     on_progress: Callable[[int, int, int], None] | None = None,
 ) -> dict[str, Any]:
-    """Persist all listing metadata and fetch only missing automatic exchanges."""
+    """Persist all listing metadata and fetch only missing automatic exchanges in parallel."""
     paths = LakePaths(root=root)
     with module_run_lock(paths, "fetch-all-metadata"):
         existing_rows = read_rows(paths.all_isins())
@@ -146,6 +147,7 @@ def run_fetch_all_metadata_workflow(
             exchange_codes=exchange_codes,
             known_exchange_codes=() if exchange_codes else tuple(sorted(completed_exchanges)),
             include_delisted=include_delisted,
+            concurrency=max(1, concurrency or os.process_cpu_count() or 1),
             on_progress=(
                 (lambda completed, total, skipped: on_progress(completed, total + 1, skipped))
                 if on_progress is not None

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Protocol, cast
@@ -32,15 +33,23 @@ class AllMetadataFetchResult:
     skipped_exchanges: tuple[str, ...]
 
 
+@dataclass(frozen=True)
+class _ExchangeFetchResult:
+    exchange: str
+    rows: tuple[JsonRow, ...]
+    skipped: bool
+
+
 def fetch_all_metadata(
     client: EodhdJsonClient,
     *,
     exchange_codes: Sequence[str] = (),
     known_exchange_codes: Sequence[str] = (),
     include_delisted: bool = False,
+    concurrency: int | None = None,
     on_progress: Callable[[int, int, int], None] | None = None,
 ) -> AllMetadataFetchResult:
-    """Fetch and normalize missing EODHD listing metadata with ISINs."""
+    """Fetch and normalize missing EODHD listing metadata with ISINs in parallel."""
     explicit_exchanges = bool(exchange_codes)
     available_exchanges = tuple(exchange_codes) or _fetch_exchange_codes(client)
     known_exchanges = set(known_exchange_codes)
@@ -50,36 +59,64 @@ def fetch_all_metadata(
         else tuple(exchange for exchange in available_exchanges if exchange not in known_exchanges)
     )
     fetched_at = datetime.now(UTC).replace(microsecond=0).isoformat()
+    workers = max(1, concurrency or 1)
     rows: list[JsonRow] = []
-    skipped_exchanges: list[str] = []
+    skipped_exchanges: set[str] = set()
     if on_progress is not None:
         on_progress(0, len(resolved_exchanges), 0)
-    for completed, exchange in enumerate(resolved_exchanges, start=1):
-        try:
-            payload = client.get_json(
-                f"/exchange-symbol-list/{exchange}",
-                {"fmt": "json", "delisted": 1 if include_delisted else 0},
-            )
-        except EodhdHttpError as error:
-            if explicit_exchanges or error.status_code not in {403, 404}:
-                raise
-            skipped_exchanges.append(exchange)
+    with ThreadPoolExecutor(max_workers=min(workers, len(resolved_exchanges) or 1)) as executor:
+        futures = {
+            executor.submit(
+                _fetch_exchange,
+                client,
+                exchange,
+                include_delisted=include_delisted,
+                explicit_exchanges=explicit_exchanges,
+                fetched_at=fetched_at,
+            ): exchange
+            for exchange in resolved_exchanges
+        }
+        for completed, future in enumerate(as_completed(futures), start=1):
+            result = future.result()
+            rows.extend(result.rows)
+            if result.skipped:
+                skipped_exchanges.add(result.exchange)
             if on_progress is not None:
                 on_progress(completed, len(resolved_exchanges), len(skipped_exchanges))
-            continue
-        rows.extend(
-            _normalize_listing(row, source_exchange=exchange, fetched_at=fetched_at)
-            for row in _payload_rows(payload)
-            if _valid_isin(row.get("Isin", row.get("isin", "")))
-        )
-        if on_progress is not None:
-            on_progress(completed, len(resolved_exchanges), len(skipped_exchanges))
     return AllMetadataFetchResult(
         rows=tuple(
             sorted(rows, key=lambda row: (str(row["isin"]), str(row["exchange"]), str(row["code"])))
         ),
         requested_exchanges=resolved_exchanges,
-        skipped_exchanges=tuple(skipped_exchanges),
+        skipped_exchanges=tuple(sorted(skipped_exchanges)),
+    )
+
+
+def _fetch_exchange(
+    client: EodhdJsonClient,
+    exchange: str,
+    *,
+    include_delisted: bool,
+    explicit_exchanges: bool,
+    fetched_at: str,
+) -> _ExchangeFetchResult:
+    try:
+        payload = client.get_json(
+            f"/exchange-symbol-list/{exchange}",
+            {"fmt": "json", "delisted": 1 if include_delisted else 0},
+        )
+    except EodhdHttpError as error:
+        if explicit_exchanges or error.status_code not in {403, 404}:
+            raise
+        return _ExchangeFetchResult(exchange=exchange, rows=(), skipped=True)
+    return _ExchangeFetchResult(
+        exchange=exchange,
+        rows=tuple(
+            _normalize_listing(row, source_exchange=exchange, fetched_at=fetched_at)
+            for row in _payload_rows(payload)
+            if _valid_isin(row.get("Isin", row.get("isin", "")))
+        ),
+        skipped=False,
     )
 
 

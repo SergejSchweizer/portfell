@@ -268,7 +268,7 @@ contract is documented in `docs/ui/workflow-modules.md`.
 
 ### 1. Instrument reference
 
-`portfell.fetch_all_metadata` enumerates EODHD exchange symbol lists and stores ISIN-bearing listing metadata once under the reference area. This stage does not download full quote history and does not compute financial statistics.
+`portfell.fetch_all_metadata` enumerates missing EODHD exchange symbol lists in a bounded worker pool sized to the available runtime CPUs, then stores ISIN-bearing listing metadata once under the reference area. The shared EODHD client continues to pace request starts and retries provider failures. This stage does not download full quote history and does not compute financial statistics.
 
 ### 2. Metadata selection
 

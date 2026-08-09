@@ -95,11 +95,14 @@ class LocalHostedRuntime:
             on_progress=on_progress,
         )
 
-    def run_metadata(self, *, provider_key: str, on_progress: ProgressCallback) -> dict[str, Any]:
+    def run_metadata(
+        self, *, provider_key: str, concurrency: int, on_progress: ProgressCallback
+    ) -> dict[str, Any]:
         try:
             return self._metadata_workflow(
                 root=self._paths().root,
                 eodhd_config=EodhdConfig(api_token=provider_key),
+                concurrency=concurrency,
                 on_progress=on_progress,
             )
         except EodhdHttpError as error:

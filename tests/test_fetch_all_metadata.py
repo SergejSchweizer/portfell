@@ -1,5 +1,6 @@
 from collections.abc import Mapping
 from pathlib import Path
+from threading import Barrier
 
 import pytest
 
@@ -78,6 +79,28 @@ def test_fetch_all_metadata_discards_null_like_isin_values() -> None:
     result = fetch_all_metadata(NullIsinClient(), exchange_codes=("XETRA",))
 
     assert [(row["isin"], row["code"]) for row in result.rows] == [("IE1", "CCC")]
+
+
+def test_fetch_all_metadata_downloads_exchange_payloads_in_parallel() -> None:
+    barrier = Barrier(2)
+
+    class ParallelClient:
+        def get_json(
+            self,
+            path: str,
+            params: Mapping[str, str | int | float] | None = None,
+        ) -> object:
+            del params
+            barrier.wait(timeout=1)
+            exchange = path.rsplit("/", maxsplit=1)[-1]
+            return [{"Code": exchange, "Exchange": exchange, "Isin": f"IE{exchange}"}]
+
+    result = fetch_all_metadata(ParallelClient(), exchange_codes=("XETRA", "LSE"), concurrency=2)
+
+    assert [(row["exchange"], row["isin"]) for row in result.rows] == [
+        ("LSE", "IELSE"),
+        ("XETRA", "IEXETRA"),
+    ]
 
 
 class ForbiddenExchangeClient(FakeClient):

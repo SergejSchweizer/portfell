@@ -1180,6 +1180,36 @@ and selection semantics unchanged.
 
 Series Completion Gate: Follow the current pre-merge and post-merge gates in [GATES.md](GATES.md).
 
+### PR138. Parallel Metadata Downloads
+
+Branch: `feat/metadata-parallel-downloads`.
+
+Git status: in progress. PR: TBD.
+
+Priority: P1 ingestion performance.
+
+Depends on: PR137.
+
+Scope: Fetch and normalize independent EODHD exchange-symbol metadata payloads in a bounded worker
+pool sized to the available runtime CPUs. Preserve global provider request pacing, safe automatic
+403/404 skipping, deterministic rows and skipped-exchange ordering, and progress reporting.
+
+Acceptance: The hosted API forwards its available CPU count to metadata ingestion. At least two
+exchange payloads can be in flight concurrently; completed progress remains monotonic; returned rows
+and skipped exchanges remain deterministically ordered; and a one-worker invocation preserves the
+same output and failure semantics.
+
+Security: EODHD credentials remain confined to the existing HTTP client. Parallel work does not
+expose provider URLs, tokens, or raw response payloads in browser responses or logs.
+
+Determinism: Results are sorted by canonical ISIN, exchange, and code after concurrent completion.
+Provider failures retain the existing explicit-versus-automatic exchange semantics.
+
+Idempotency: Existing completed exchange coverage still prevents automatic re-downloads; concurrent
+workers only retrieve missing exchange payloads before the existing atomic reference publication.
+
+Series Completion Gate: Follow the current pre-merge and post-merge gates in [GATES.md](GATES.md).
+
 ### PR130. Typed Quote Ingestion Stage Pipeline And Progress Contract
 
 Branch: `refactor/quote-ingestion-pipeline`.

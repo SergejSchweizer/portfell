@@ -85,7 +85,9 @@ class MetadataProjectService:
 
         try:
             summary = self.runtime.run_metadata(
-                provider_key=provider_key, on_progress=update_progress
+                provider_key=provider_key,
+                concurrency=self.runtime.process_cpu_count(),
+                on_progress=update_progress,
             )
         except HostedRuntimeError as error:
             self._fail_metadata_fetch(user_id, run_id, error.code)
