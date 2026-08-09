@@ -478,7 +478,7 @@ The series begins only after the project-sidebar stack is complete. Each PR is i
 
 Branch: `refactor/platform-simple-ui-foundations`.
 
-Git status: in progress. PR: TBD.
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/245.
 
 Priority: P1 visual foundation.
 
