@@ -45,11 +45,13 @@ services:
       PORTFELL_ENV: development
       PORTFELL_HOSTED_AUTHORITY: local
       PORTFELL_DATABASE_URL: postgresql://portfell_app@postgres:5432/portfell
+      PORTFELL_DATABASE_PASSWORD_FILE: /run/secrets/postgres_password
       PORTFELL_SHARED_DATA_ROOT: /srv/portfell/shared-data
       PORTFELL_LAKE_ROOT: /srv/portfell/lake
       PORTFELL_EODHD_KEK_FILE: /run/secrets/eodhd_kek
     secrets:
       - eodhd_kek
+      - postgres_password
     volumes:
       - portfell-shared-data:/srv/portfell/shared-data
       - ./lake:/srv/portfell/lake

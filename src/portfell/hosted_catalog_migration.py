@@ -10,6 +10,7 @@ from collections.abc import Callable, Sequence
 from typing import Protocol, cast
 
 from portfell.hosted_catalog import apply_hosted_catalog_migrations, migration_plan
+from portfell.hosted_database_connection import connect as connect_database
 
 
 class HostedCatalogMigrationError(RuntimeError):
@@ -30,9 +31,7 @@ MigrationConnector = Callable[[str], MigrationConnection]
 
 
 def _connect(database_url: str) -> MigrationConnection:
-    import psycopg
-
-    return cast(MigrationConnection, psycopg.connect(database_url, autocommit=True))
+    return cast(MigrationConnection, connect_database(database_url, autocommit=True))
 
 
 def apply_runtime_migrations(
