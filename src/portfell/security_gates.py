@@ -11,8 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
-from portfell.hosted_readiness import failed_results as failed_readiness_results
-from portfell.hosted_readiness import validate_readiness
+from portfell.hosted_readiness import local_only_mode_allowed
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 SECURITY_POLICY_PATH = REPOSITORY_ROOT / "docs" / "security" / "hosted_security_policy.json"
@@ -181,15 +180,17 @@ def validate_repository_security() -> list[SecurityGateResult]:
     """Run all public-repository security hardening checks."""
 
     policy = load_security_policy()
-    readiness_failures = failed_readiness_results(validate_readiness())
     return [
         *validate_security_policy(policy),
         *validate_workflow_security(),
         *validate_gitignore(),
         SecurityGateResult(
             name="readiness.local_gate",
-            passed=not readiness_failures,
-            message="hosted readiness records must be complete while public mode remains disabled",
+            passed=local_only_mode_allowed(),
+            message=(
+                "local-only mode requires complete readiness records; only the pending D017 "
+                "provider-license approval may block public hosting"
+            ),
         ),
     ]
 

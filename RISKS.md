@@ -117,10 +117,11 @@ Status: Active
 Signal: D017 proposes storing one canonical EODHD market corpus and reusing it and derived artifacts
 across customers, including refresh through a dedicated operations credential.
 
-Mitigation: PR156 must obtain explicit, recorded approval for shared storage, cross-customer reuse,
-derived display, retention, and service-credential refresh. The machine-readable hosted readiness
-gate fails closed when evidence is missing, incomplete, or expired. Do not implement policy through
-technical assumptions or rely on a personal subscription for hosted redistribution.
+Mitigation: PR156 records the `shared-data-provider-license` decision and checks explicit approval
+for shared storage, derived reuse, post-deletion retention, and service-credential ingestion. The
+machine-readable hosted readiness gate fails closed when evidence is missing, incomplete, or expired.
+Do not implement policy through technical assumptions or rely on a personal subscription for hosted
+redistribution.
 
 ## R012. PostgreSQL And Shared Storage Can Diverge
 
