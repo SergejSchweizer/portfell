@@ -3,6 +3,8 @@ from __future__ import annotations
 from portfell.shared_univariate_artifacts import (
     InMemorySharedUnivariateArtifacts,
     SharedUnivariateArtifact,
+    SharedUnivariateArtifactError,
+    verify_payload,
 )
 
 
@@ -32,3 +34,16 @@ def test_project_run_reference_cannot_be_rebound_to_another_artifact() -> None:
         assert str(error) == "univariate_artifact_reference_conflict"
     else:
         raise AssertionError("expected immutable project run reference")
+
+
+def test_payload_verification_fails_closed_when_checksum_differs() -> None:
+    payload = b'{"listing":"IE1:XETRA:AAA","status":"unavailable"}'
+    artifact = SharedUnivariateArtifact.from_payload("artifact-1", "return-1", payload)
+
+    assert verify_payload(artifact, payload) == payload
+    try:
+        verify_payload(artifact, b"corrupt")
+    except SharedUnivariateArtifactError as error:
+        assert str(error) == "univariate_artifact_checksum_mismatch"
+    else:
+        raise AssertionError("expected checksum mismatch")
