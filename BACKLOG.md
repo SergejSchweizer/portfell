@@ -648,7 +648,7 @@ Branch: `refactor/hosted-runtime-cutover`.
 
 Git status: in progress.
 
-PR: https://github.com/SergejSchweizer/portfell/pull/285.
+PR: https://github.com/SergejSchweizer/portfell/pull/297.
 
 Priority: P0 activate the proven architecture.
 
