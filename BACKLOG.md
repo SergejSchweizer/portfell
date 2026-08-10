@@ -646,9 +646,9 @@ repeatable and stop before documented commit points on mismatch.
 
 Branch: `refactor/hosted-research-selection-repository`.
 
-Git status: in progress; research metadata selection resolution is moving behind explicit repository ports. Production authority remains blocked by the required production-like import, parity, backup/restore, and rollback rehearsal.
+Git status: pushed; research metadata selection resolution is moving behind explicit repository ports. Production authority remains blocked by the required production-like import, parity, backup/restore, and rollback rehearsal.
 
-PR: TBD.
+PR: https://github.com/SergejSchweizer/portfell/pull/320.
 
 Depends on implementation branch: `refactor/hosted-multivariate-selection-repository` (PR #319).
 
