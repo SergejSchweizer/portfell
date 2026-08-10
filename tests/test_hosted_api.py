@@ -3,12 +3,14 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, cast
 
+import pytest
 from fastapi.testclient import TestClient
 
 import portfell.hosted_api as hosted_api
 from portfell.entitlements import ProviderDownloadRun
 from portfell.hosted_api import (
     ApiUser,
+    HostedApiError,
     HostedApiState,
     LocalWorkspaceUserProvider,
     ProjectRecord,
@@ -56,6 +58,15 @@ def test_local_workspace_user_provider_is_stable_and_server_owned() -> None:
 
     assert first == ApiUser(user_id="workspace-a")
     assert second == first
+
+
+def test_postgres_runtime_request_never_falls_back_to_local_workspace(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PORTFELL_HOSTED_AUTHORITY", "postgres")
+
+    with pytest.raises(HostedApiError, match="postgres_hosted_runtime_not_configured"):
+        hosted_api.create_runtime_app()
 
 
 def test_api_uses_injected_current_user_provider() -> None:

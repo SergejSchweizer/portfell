@@ -195,6 +195,11 @@ def create_app(
 def create_runtime_app() -> FastAPI:
     """Create the persistent container application when secrets are configured."""
 
+    authority = os.environ.get("PORTFELL_HOSTED_AUTHORITY", "local")
+    if authority == "postgres":
+        raise HostedApiError("postgres_hosted_runtime_not_configured")
+    if authority != "local":
+        raise HostedApiError("hosted_authority_invalid")
     shared_data_root = os.environ.get("PORTFELL_SHARED_DATA_ROOT")
     key_path = os.environ.get("PORTFELL_EODHD_KEK_FILE")
     if not shared_data_root or not key_path:
