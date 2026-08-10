@@ -3,7 +3,9 @@ from __future__ import annotations
 import pytest
 
 from portfell.hosted_repository_importer import (
+    InMemoryProjectRepository,
     InMemoryTenantRepository,
+    PostgresProjectRepository,
     PostgresTenantProjectionRepository,
     TenantImportError,
     TenantProject,
@@ -110,3 +112,31 @@ def test_project_parity_redacts_project_values() -> None:
     assert mismatch[0].field == "projects"
     assert mismatch[0].expected_count == 1
     assert mismatch[0].actual_count == 0
+
+
+def test_project_repository_is_idempotent_and_owner_scoped() -> None:
+    repository = InMemoryProjectRepository()
+    project = TenantProject("project-1", "user-a", "Income")
+
+    assert repository.create_project(project) == project
+    assert repository.create_project(project) == project
+    assert repository.list_projects("user-b") == ()
+    repository.set_current_project(user_id="user-a", project_id="project-1")
+    repository.delete_project(user_id="user-a", project_id="project-1")
+
+    assert repository.list_projects("user-a") == ()
+    with pytest.raises(TenantImportError, match="project_not_found"):
+        repository.delete_project(user_id="user-b", project_id="project-1")
+
+
+def test_postgres_project_repository_parameterizes_owned_commands() -> None:
+    connection = _Connection()
+    repository = PostgresProjectRepository(connection)
+    project = TenantProject("project-1", "user-a", "Income")
+
+    repository.create_project(project)
+    repository.set_current_project(user_id="user-a", project_id="project-1")
+
+    assert connection.calls[0][1] == ("portfell.current_user_id", "user-a")
+    assert connection.calls[1][1] == ("project-1", "user-a", "Income")
+    assert connection.calls[3][1] == ("user-a", "project-1")

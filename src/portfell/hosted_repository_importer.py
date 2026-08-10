@@ -130,6 +130,116 @@ def compare_project_parity(
     return (ParityMismatch("projects", len(expected), len(actual)),)
 
 
+class ProjectRepository(Protocol):
+    """User-scoped project and current-project preference persistence port."""
+
+    def create_project(self, project: TenantProject) -> TenantProject:
+        """Create or return the project identified by its stable command id."""
+
+        ...
+
+    def list_projects(self, user_id: str) -> tuple[TenantProject, ...]:
+        """List active projects in deterministic order."""
+
+        ...
+
+    def delete_project(self, *, user_id: str, project_id: str) -> None:
+        """Soft-delete one owned project."""
+
+        ...
+
+    def set_current_project(self, *, user_id: str, project_id: str) -> None:
+        """Set one owned active project as the user preference."""
+
+        ...
+
+
+class InMemoryProjectRepository:
+    """Contract test double for user-scoped project commands."""
+
+    def __init__(self) -> None:
+        self._projects: dict[str, TenantProject] = {}
+        self._deleted_ids: set[str] = set()
+        self._current_project_ids: dict[str, str] = {}
+
+    def create_project(self, project: TenantProject) -> TenantProject:
+        existing = self._projects.get(project.project_id)
+        if existing is not None and existing != project:
+            raise TenantImportError("project_command_conflict")
+        self._projects[project.project_id] = project
+        self._deleted_ids.discard(project.project_id)
+        return project
+
+    def list_projects(self, user_id: str) -> tuple[TenantProject, ...]:
+        return tuple(
+            project
+            for project in sorted(self._projects.values())
+            if project.user_id == user_id and project.project_id not in self._deleted_ids
+        )
+
+    def delete_project(self, *, user_id: str, project_id: str) -> None:
+        project = self._projects.get(project_id)
+        if project is None or project.user_id != user_id:
+            raise TenantImportError("project_not_found")
+        self._deleted_ids.add(project_id)
+        self._current_project_ids.pop(user_id, None)
+
+    def set_current_project(self, *, user_id: str, project_id: str) -> None:
+        if not any(project.project_id == project_id for project in self.list_projects(user_id)):
+            raise TenantImportError("project_not_found")
+        self._current_project_ids[user_id] = project_id
+
+
+class PostgresProjectRepository:
+    """Parameterized project adapter; callers provide the command transaction."""
+
+    def __init__(self, connection: TenantConnection) -> None:
+        self._connection = connection
+
+    def create_project(self, project: TenantProject) -> TenantProject:
+        self._bind_user(project.user_id)
+        self._connection.execute(
+            """
+insert into portfell_app.projects (project_id, user_id, name)
+values (%s::uuid, %s::uuid, %s)
+on conflict (project_id) do nothing
+""",
+            (project.project_id, project.user_id, project.name),
+        )
+        return project
+
+    def list_projects(self, user_id: str) -> tuple[TenantProject, ...]:
+        return PostgresTenantProjectionRepository(self._connection).projects_for_user(user_id)
+
+    def delete_project(self, *, user_id: str, project_id: str) -> None:
+        self._bind_user(user_id)
+        cursor = self._connection.execute(
+            """
+update portfell_app.projects
+set status = 'deleted', deleted_at = now()
+where project_id = %s::uuid and status = 'active'
+returning project_id
+""",
+            (project_id,),
+        )
+        if not cursor.fetchall():
+            raise TenantImportError("project_not_found")
+
+    def set_current_project(self, *, user_id: str, project_id: str) -> None:
+        self._bind_user(user_id)
+        self._connection.execute(
+            """
+insert into portfell_app.current_project_preferences (user_id, project_id)
+values (%s::uuid, %s::uuid)
+on conflict (user_id) do update set project_id = excluded.project_id
+""",
+            (user_id, project_id),
+        )
+
+    def _bind_user(self, user_id: str) -> None:
+        self._connection.execute(*set_authenticated_user_sql(user_id))
+
+
 class InMemoryTenantRepository:
     """Deterministic test double for importer and repository contract tests."""
 
