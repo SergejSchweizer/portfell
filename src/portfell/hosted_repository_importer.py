@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import hashlib
 import json
-import uuid
 from collections.abc import Mapping
 from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from typing import Any, Protocol, cast
+from uuid import UUID
 
 from portfell.hosted_catalog import set_authenticated_user_sql
 
@@ -133,16 +133,9 @@ def compare_project_parity(
 
 
 def expected_postgres_projects(payload: Mapping[str, object]) -> tuple[TenantProject, ...]:
-    """Project projection expected after deterministic legacy-ID normalization."""
+    """Project projection expected after importing UUID control-plane identifiers."""
 
-    return tuple(
-        TenantProject(
-            project_id=_legacy_uuid(project.project_id),
-            user_id=_legacy_uuid(project.user_id),
-            name=project.name,
-        )
-        for project in _projects(payload.get("projects", ()))
-    )
+    return _projects(payload.get("projects", ()))
 
 
 class ProjectRepository(Protocol):
@@ -306,7 +299,7 @@ class TenantImportConnection(Protocol):
 
 
 class PostgresTenantRepository:
-    """Persist imported project control metadata with deterministic legacy UUID mapping."""
+    """Persist imported UUID control metadata."""
 
     def __init__(self, connection: TenantImportConnection) -> None:
         self._connection = connection
@@ -337,21 +330,19 @@ on conflict (checksum) do nothing returning checksum
             if cursor.fetchone() is None:
                 return
             for project in projects:
-                user_id = _legacy_uuid(project.user_id)
-                project_id = _legacy_uuid(project.project_id)
                 self._connection.execute(
                     """
 insert into portfell_app.users (user_id, status) values (%s, 'active')
 on conflict (user_id) do nothing
 """,
-                    (user_id,),
+                    (project.user_id,),
                 )
                 self._connection.execute(
                     """
 insert into portfell_app.projects (project_id, user_id, name) values (%s, %s, %s)
 on conflict (project_id) do nothing
 """,
-                    (project_id, user_id, project.name),
+                    (project.project_id, project.user_id, project.name),
                 )
             for selection in selections:
                 self._insert_selection(selection)
@@ -362,23 +353,26 @@ insert into portfell_app.current_project_preferences (user_id, project_id)
 values (%s, %s)
 on conflict (user_id) do update set project_id = excluded.project_id, updated_at = now()
 """,
-                    (_legacy_uuid(user_id), _legacy_uuid(project_id)),
+                    (user_id, project_id),
                 )
 
     def _insert_selection(self, selection: TenantSelection) -> None:
-        user_id = _legacy_uuid(selection.user_id)
-        project_id = _legacy_uuid(selection.project_id)
-        selection_id = _legacy_uuid(selection.selection_id)
         membership_hash = hashlib.sha256("\n".join(selection.member_ids).encode()).hexdigest()
         self._connection.execute(
             """
 insert into portfell_app.project_selection_versions (
     selection_version_id, project_id, user_id, name, membership_hash,
     canonical_listing_policy_version
-) values (%s, %s, %s, %s, %s, 'legacy-import-v1')
+) values (%s, %s, %s, %s, %s, 'api-contract-v1')
 on conflict (project_id) do nothing
 """,
-            (selection_id, project_id, user_id, selection.name, membership_hash),
+            (
+                selection.selection_id,
+                selection.project_id,
+                selection.user_id,
+                selection.name,
+                membership_hash,
+            ),
         )
         for member_id in selection.member_ids:
             isin, exchange, code = member_id.split(":")
@@ -389,7 +383,15 @@ insert into portfell_app.project_selection_members (
 ) values (%s, %s, %s, %s, 'eodhd', %s, %s, %s)
 on conflict (selection_version_id, isin) do nothing
 """,
-                (selection_id, project_id, user_id, isin, exchange, code, member_id),
+                (
+                    selection.selection_id,
+                    selection.project_id,
+                    selection.user_id,
+                    isin,
+                    exchange,
+                    code,
+                    member_id,
+                ),
             )
         self._connection.execute(
             """
@@ -397,7 +399,7 @@ update portfell_app.project_selection_versions
 set membership_sealed_at = now()
 where selection_version_id = %s and membership_sealed_at is null
 """,
-            (selection_id,),
+            (selection.selection_id,),
         )
 
 
@@ -474,8 +476,8 @@ def _projects(value: object) -> tuple[TenantProject, ...]:
         sorted(
             (
                 TenantProject(
-                    project_id=_text(row, "project_id"),
-                    user_id=_text(row, "user_id"),
+                    project_id=_uuid_text(row, "project_id"),
+                    user_id=_uuid_text(row, "user_id"),
                     name=_text(row, "name"),
                 )
                 for row in rows
@@ -492,8 +494,8 @@ def _selections(value: object, projects: tuple[TenantProject, ...]) -> tuple[Ten
     known_projects = {(project.project_id, project.user_id) for project in projects}
     selections: list[TenantSelection] = []
     for row in _rows(value, "selections"):
-        project_id = _text(row, "project_id")
-        user_id = _text(row, "user_id")
+        project_id = _uuid_text(row, "project_id")
+        user_id = _uuid_text(row, "user_id")
         if (project_id, user_id) not in known_projects:
             raise TenantImportError("local_workspace_selection_owner_mismatch")
         raw_member_values = row.get("member_ids")
@@ -508,7 +510,7 @@ def _selections(value: object, projects: tuple[TenantProject, ...]) -> tuple[Ten
             raise TenantImportError("local_workspace_duplicate_selection_isin")
         selections.append(
             TenantSelection(
-                _text(row, "selection_id"), project_id, user_id, _text(row, "name"), members
+                _uuid_text(row, "selection_id"), project_id, user_id, _text(row, "name"), members
             )
         )
     if len({selection.selection_id for selection in selections}) != len(selections):
@@ -527,6 +529,8 @@ def _current_projects(value: object, projects: tuple[TenantProject, ...]) -> dic
     for user_id, project_id in values.items():
         if not isinstance(user_id, str) or not isinstance(project_id, str):
             raise TenantImportError("local_workspace_current_project_invalid")
+        _uuid_value(user_id, "current_project")
+        _uuid_value(project_id, "current_project")
         if (user_id, project_id) not in known_projects:
             raise TenantImportError("local_workspace_current_project_owner_mismatch")
         current_projects[user_id] = project_id
@@ -547,6 +551,18 @@ def _text(row: Mapping[str, object], key: str) -> str:
     if not isinstance(value, str) or not value:
         raise TenantImportError(f"local_workspace_{key}_invalid")
     return value
+
+
+def _uuid_text(row: Mapping[str, object], key: str) -> str:
+    value = _text(row, key)
+    return _uuid_value(value, key)
+
+
+def _uuid_value(value: str, key: str) -> str:
+    try:
+        return str(UUID(value))
+    except ValueError as error:
+        raise TenantImportError(f"local_workspace_{key}_invalid") from error
 
 
 def _row_text(row: tuple[object, ...], index: int) -> str:
@@ -576,7 +592,3 @@ def _checksum(
     return hashlib.sha256(
         json.dumps(payload, default=list, sort_keys=True, separators=(",", ":")).encode()
     ).hexdigest()
-
-
-def _legacy_uuid(value: str) -> str:
-    return str(uuid.uuid5(uuid.NAMESPACE_URL, f"portfell-legacy:{value}"))

@@ -123,8 +123,8 @@ def test_workspace_repository_round_trips_durable_state(tmp_path: Path) -> None:
     assert json.loads((tmp_path / "workspace.json").read_text(encoding="utf-8"))["projects"]
 
 
-def test_local_workspace_principal_rejects_blank_user_id() -> None:
-    with pytest.raises(ValueError, match="user id is required"):
+def test_local_workspace_principal_rejects_non_uuid_user_id() -> None:
+    with pytest.raises(ValueError, match="user id must be a UUID"):
         LocalWorkspaceUserProvider(" ")
 
 

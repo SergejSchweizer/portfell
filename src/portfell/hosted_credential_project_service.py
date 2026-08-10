@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import uuid
+
 from portfell.entitlements import (
     ProviderDownloadRun,
     delete_user_entitlements,
@@ -164,7 +166,7 @@ class CredentialProjectService:
         )
         if cached is not None:
             return project_row(self.state.projects_by_id[cached])
-        project_id = opaque_id("project", f"{user_id}:{name}")
+        project_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"portfell:project:{user_id}:{name}"))
         self.state.projects_by_id.setdefault(
             project_id, ProjectRecord(project_id=project_id, user_id=user_id, name=name)
         )
@@ -236,7 +238,12 @@ class CredentialProjectService:
     ) -> JsonRow:
         require_user_row(self.state.projects_by_id, project_id, user_id)
         members = tuple(sorted(set(member_ids)))
-        selection_id = opaque_id("selection", f"{user_id}:{project_id}:{name}:{members}")
+        selection_id = str(
+            uuid.uuid5(
+                uuid.NAMESPACE_URL,
+                f"portfell:selection:{user_id}:{project_id}:{name}:{members}",
+            )
+        )
         self.state.selections_by_id.setdefault(
             selection_id,
             SelectionRecord(selection_id, user_id, project_id, name, members),

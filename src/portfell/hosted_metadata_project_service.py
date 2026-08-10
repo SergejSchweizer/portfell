@@ -168,11 +168,18 @@ class MetadataProjectService:
             selection = selection_for_project(self.state, project.project_id, user_id)
             set_current_project(self.state, user_id, project.project_id)
             return self._project_selection_row(project, selection)
-        project_id = opaque_id("project", f"{user_id}:{project_name}")
+        project_id = str(
+            uuid.uuid5(uuid.NAMESPACE_URL, f"portfell:project:{user_id}:{project_name}")
+        )
         project = ProjectRecord(project_id, user_id, project_name)
         self.state.projects_by_id.setdefault(project_id, project)
         members = tuple(f"{row['isin']}:{row['exchange']}:{row['code']}" for row in selected_rows)
-        selection_id = opaque_id("selection", f"{user_id}:{project_id}:{project_name}:{members}")
+        selection_id = str(
+            uuid.uuid5(
+                uuid.NAMESPACE_URL,
+                f"portfell:selection:{user_id}:{project_id}:{project_name}:{members}",
+            )
+        )
         selection = SelectionRecord(selection_id, user_id, project_id, project_name, members)
         self.state.selections_by_id.setdefault(selection_id, selection)
         self.state.current_metadata_selection_by_user[user_id] = selection_id

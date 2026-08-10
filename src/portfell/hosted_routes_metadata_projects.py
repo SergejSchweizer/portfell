@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Header
 
@@ -42,8 +43,8 @@ def metadata_project_router(
         return call(projects.workflow, user.user_id)
 
     @router.get("/projects/{project_id}/workflow")
-    def project_workflow(project_id: str, user: ApiUser = Depends(current_user)) -> JsonRow:
-        return call(projects.workflow, user.user_id, project_id)
+    def project_workflow(project_id: UUID, user: ApiUser = Depends(current_user)) -> JsonRow:
+        return call(projects.workflow, user.user_id, str(project_id))
 
     @router.post("/projects")
     def create_project(
@@ -67,35 +68,37 @@ def metadata_project_router(
     def select_current_project(
         payload: CurrentProjectRequest, user: ApiUser = Depends(workspace_user)
     ) -> JsonRow:
-        return call(projects.select_current_project, user.user_id, payload.project_id)
+        return call(projects.select_current_project, user.user_id, str(payload.project_id))
 
     @router.get("/projects/{project_id}/metadata-builder")
-    def project_metadata_builder(project_id: str, user: ApiUser = Depends(current_user)) -> JsonRow:
-        project, selection = call(projects.project_metadata_builder, user.user_id, project_id)
+    def project_metadata_builder(
+        project_id: UUID, user: ApiUser = Depends(current_user)
+    ) -> JsonRow:
+        project, selection = call(projects.project_metadata_builder, user.user_id, str(project_id))
         return call(metadata.project_criteria_row, project, selection)
 
     @router.get("/projects/{project_id}/univariate-selection-settings")
     def univariate_selection_settings(
-        project_id: str, user: ApiUser = Depends(current_user)
+        project_id: UUID, user: ApiUser = Depends(current_user)
     ) -> JsonRow:
-        return call(projects.univariate_selection_settings, user.user_id, project_id)
+        return call(projects.univariate_selection_settings, user.user_id, str(project_id))
 
     @router.put("/projects/{project_id}/univariate-selection-settings")
     def save_univariate_selection_settings(
-        project_id: str,
+        project_id: UUID,
         payload: UnivariateSelectionSettingsRequest,
         user: ApiUser = Depends(workspace_user),
     ) -> JsonRow:
         return call(
             projects.save_univariate_selection_settings,
             user.user_id,
-            project_id,
+            str(project_id),
             payload.model_dump(mode="json"),
         )
 
     @router.delete("/projects/{project_id}")
-    def delete_project(project_id: str, user: ApiUser = Depends(workspace_user)) -> JsonRow:
-        return call(projects.delete_project, user.user_id, project_id)
+    def delete_project(project_id: UUID, user: ApiUser = Depends(workspace_user)) -> JsonRow:
+        return call(projects.delete_project, user.user_id, str(project_id))
 
     @router.get("/metadata-builder/options")
     def metadata_builder_options(user: ApiUser = Depends(current_user)) -> JsonRow:
@@ -141,7 +144,7 @@ def metadata_project_router(
         return call(
             projects.create_selection,
             user.user_id,
-            payload.project_id,
+            str(payload.project_id),
             payload.name,
             payload.member_ids,
         )

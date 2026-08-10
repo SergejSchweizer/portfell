@@ -12,6 +12,9 @@ from portfell.hosted_import_rehearsal import (
     rehearse_import,
 )
 
+USER_ID = "00000000-0000-5000-8000-000000000001"
+PROJECT_ID = "00000000-0000-5000-8000-000000000101"
+
 
 class _Cursor:
     def __init__(self, rows: list[tuple[object, ...]] | None = None) -> None:
@@ -46,8 +49,8 @@ class _Connection:
             return _Cursor(
                 [
                     (
-                        "4ab6ea58-4c7e-5ca5-8236-fb0ed0cde6d8",
-                        "51f92c4f-5544-536b-b81d-8014f9ef4178",
+                        "00000000-0000-5000-8000-000000000102",
+                        USER_ID,
                         "Income",
                     )
                 ]
@@ -62,7 +65,7 @@ def _workspace(path: Path) -> None:
     path.write_text(
         json.dumps(
             {
-                "projects": [{"project_id": "project-1", "user_id": "user-a", "name": "Income"}],
+                "projects": [{"project_id": PROJECT_ID, "user_id": USER_ID, "name": "Income"}],
                 "selections": [],
                 "current_project_id_by_user": {},
             }
