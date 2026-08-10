@@ -17,13 +17,18 @@ from portfell.hosted_api_service_support import (
     idempotent_response,
     opaque_id,
     remember_idempotency,
-    selection_for_project,
     stable_hash,
 )
 from portfell.hosted_api_state import HostedApiState, ProjectRecord, SelectionRecord
 from portfell.hosted_credentials import CredentialVaultError
 from portfell.hosted_local_project_repository import LocalProjectRepository
-from portfell.hosted_repository_importer import ProjectRepository, TenantProject
+from portfell.hosted_local_selection_repository import LocalSelectionRepository
+from portfell.hosted_repository_importer import (
+    ProjectRepository,
+    TenantProject,
+    TenantSelection,
+)
+from portfell.hosted_selection_repository import SelectionRepository
 from portfell.selection_filters import Predicate, filter_rows
 from portfell.table_io import JsonRow
 
@@ -36,10 +41,12 @@ class MetadataProjectService:
         state: HostedApiState,
         runtime: HostedRuntimePort,
         project_repository: ProjectRepository | None = None,
+        selection_repository: SelectionRepository | None = None,
     ) -> None:
         self.state = state
         self.runtime = runtime
         self._projects = project_repository or LocalProjectRepository(state)
+        self._selections = selection_repository or LocalSelectionRepository(state)
 
     def _all_isins_rows(self) -> tuple[JsonRow, ...]:
         return self.state.all_isins_rows or self.runtime.all_isins_rows()
@@ -172,7 +179,7 @@ class MetadataProjectService:
         )
         if cached is not None:
             project = self._project(user_id, cached)
-            selection = selection_for_project(self.state, project.project_id, user_id)
+            selection = self._selection_for_project(user_id, project.project_id)
             self._projects.set_current_project(user_id=user_id, project_id=project.project_id)
             return self._project_selection_row(project, selection)
         project_id = str(
@@ -188,8 +195,11 @@ class MetadataProjectService:
                 f"portfell:selection:{user_id}:{project_id}:{project_name}:{members}",
             )
         )
-        selection = SelectionRecord(selection_id, user_id, project_id, project_name, members)
-        self.state.selections_by_id.setdefault(selection_id, selection)
+        selection = self._selection_record(
+            self._selections.create(
+                TenantSelection(selection_id, project_id, user_id, project_name, members)
+            )
+        )
         self.state.current_metadata_selection_by_user[user_id] = selection_id
         self.state.current_univariate_selection_by_user.pop(user_id, None)
         self._projects.set_current_project(user_id=user_id, project_id=project_id)
@@ -239,6 +249,22 @@ class MetadataProjectService:
             if project.project_id == project_id:
                 return self._record(project)
         raise HostedApplicationError(404, "not_found")
+
+    @staticmethod
+    def _selection_record(selection: TenantSelection) -> SelectionRecord:
+        return SelectionRecord(
+            selection.selection_id,
+            selection.user_id,
+            selection.project_id,
+            selection.name,
+            selection.member_ids,
+        )
+
+    def _selection_for_project(self, user_id: str, project_id: str) -> SelectionRecord:
+        selection = self._selections.for_project(project_id=project_id, user_id=user_id)
+        if selection is None:
+            raise HostedApplicationError(404, "not_found")
+        return self._selection_record(selection)
 
 
 def _unique_listings(rows: list[JsonRow]) -> list[JsonRow]:
