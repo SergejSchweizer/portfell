@@ -518,9 +518,9 @@ Idempotency: Equal runs and retries join one logical job and publish one manifes
 
 Branch: `feat/shared-multivariate-artifacts`.
 
-Git status: not started.
+Git status: merged.
 
-PR: TBD.
+PR: https://github.com/SergejSchweizer/portfell/pull/282.
 
 Priority: P0 complete analytical payload migration.
 
@@ -560,9 +560,9 @@ Idempotency: Repeated starts/status calls, redelivery, and restart reuse one run
 
 Branch: `fix/cron-only-market-updates`.
 
-Git status: not started.
+Git status: merged.
 
-PR: TBD.
+PR: https://github.com/SergejSchweizer/portfell/pull/283.
 
 Priority: P0 enforce market lifecycle ownership.
 
@@ -604,7 +604,7 @@ Branch: `chore/hosted-cutover-rehearsal`.
 
 Git status: in progress.
 
-PR: https://github.com/SergejSchweizer/portfell/pull/284.
+PR: https://github.com/SergejSchweizer/portfell/pull/296.
 
 Priority: P0 prove production readiness before switching authority.
 
