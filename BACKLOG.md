@@ -304,9 +304,9 @@ retries, outbox redelivery, worker redelivery, and completion retries converge o
 
 Branch: `feat/shared-market-revision-delta`.
 
-Git status: not started.
+Git status: in progress.
 
-PR: TBD.
+PR: https://github.com/SergejSchweizer/portfell/pull/278.
 
 Priority: P0 shared market-data correctness.
 
