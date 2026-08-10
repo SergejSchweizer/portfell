@@ -199,9 +199,9 @@ runs, and artifact references have uniqueness rules that make retries converge w
 
 Branch: `refactor/postgres-hosted-repositories`.
 
-Git status: not started.
+Git status: in progress.
 
-PR: TBD.
+PR: https://github.com/SergejSchweizer/portfell/pull/286.
 
 Priority: P0 remove JSON/in-memory hosted authority.
 
