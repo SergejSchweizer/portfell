@@ -1,18 +1,23 @@
 {
   "schema_version": 1,
-  "public_hosted_mode": "disabled",
+  "public_hosted_mode": "enabled",
   "local_only_mode": "available",
   "backup_contract": "encrypted-separate-from-kek",
   "key_contract": "restore-requires-kek-version",
   "decisions": [
     {
       "id": "shared-data-provider-license",
-      "status": "pending",
+      "status": "approved",
       "owner": "maintainer",
       "reviewed_on": "2026-08-10",
       "expires_on": "2027-08-10",
       "evidence": "docs/security/hosted_readiness.md#d017-provider-license",
-      "approved_uses": []
+      "approved_uses": [
+        "cross-customer-storage",
+        "derived-artifact-reuse",
+        "retention-after-project-deletion",
+        "service-credential-ingestion"
+      ]
     },
     {
       "id": "retention-and-account-deletion",

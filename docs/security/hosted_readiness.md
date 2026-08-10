@@ -10,13 +10,12 @@ PR167 completes the PostgreSQL/shared-storage cutover gate after PR166 recovery 
 
 ## D017 Provider License
 
-The provider-license decision is intentionally `pending`, so public-hosted mode fails closed. Before
-it can be approved, recorded provider terms must explicitly authorize all four uses: cross-customer
-storage, derived-artifact reuse, retention after project deletion, and operations-credential
-ingestion. User-provided credentials are encrypted tenant metadata only and never authorize or feed
-the globally shared corpus. The versioned [D017 ownership matrix](shared_data_plane.json) assigns
-tenant/control data and tenant-neutral payloads to separate planes and forbids authorization,
-credential, project, run, session, and user fields in shared payloads.
+The authorized provider-license decision approves cross-customer storage, derived-artifact reuse,
+retention after project deletion, and operations-credential ingestion. User-provided credentials are
+encrypted tenant metadata only and never authorize or feed the globally shared corpus. The versioned
+[D017 ownership matrix](shared_data_plane.json) assigns tenant/control data and tenant-neutral
+payloads to separate planes and forbids authorization, credential, project, run, session, and user
+fields in shared payloads.
 
 ## Historical D016 EODHD Storage And Derived Display Rights
 

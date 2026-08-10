@@ -646,7 +646,7 @@ repeatable and stop before documented commit points on mismatch.
 
 Branch: `refactor/hosted-runtime-cutover`.
 
-Git status: blocked by shared-data provider licensing approval and required-use evidence.
+Git status: blocked by the required production-like import, parity, backup/restore, and rollback rehearsal.
 
 PR: https://github.com/SergejSchweizer/portfell/pull/300.
 
