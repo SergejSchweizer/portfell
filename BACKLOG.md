@@ -365,9 +365,9 @@ reconcile operations converge on one immutable revision per content identity.
 
 Branch: `feat/project-selection-bootstrap`.
 
-Git status: not started.
+Git status: in progress.
 
-PR: TBD.
+PR: https://github.com/SergejSchweizer/portfell/pull/291.
 
 Priority: P0 project onboarding behavior.
 
