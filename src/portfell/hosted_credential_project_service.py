@@ -29,6 +29,7 @@ from portfell.hosted_api_service_support import (
     workflow_row,
 )
 from portfell.hosted_api_state import HostedApiState, ProjectRecord, SelectionRecord
+from portfell.hosted_credentials import EodhdCredentialVault
 from portfell.hosted_local_project_repository import LocalProjectRepository
 from portfell.hosted_local_selection_repository import LocalSelectionRepository
 from portfell.hosted_repository_importer import (
@@ -51,11 +52,13 @@ class CredentialProjectService:
         runtime: HostedRuntimePort | None = None,
         project_repository: ProjectRepository | None = None,
         selection_repository: SelectionRepository | None = None,
+        credential_vault: EodhdCredentialVault | None = None,
     ) -> None:
         self.state = state
         self.runtime = runtime
         self._projects = project_repository or LocalProjectRepository(state)
         self._selections = selection_repository or LocalSelectionRepository(state)
+        self._credentials = credential_vault or state.credential_vault()
 
     def workflow(self, user_id: str, project_id: str | None = None) -> JsonRow:
         if project_id is None:
@@ -82,13 +85,13 @@ class CredentialProjectService:
 
     def credential_status(self, user_id: str) -> JsonRow:
         try:
-            return credential_status_row(self.state.credential_vault().status(user_id=user_id))
+            return credential_status_row(self._credentials.status(user_id=user_id))
         except Exception as error:
             raise HostedApplicationError(404, "credential_not_found") from error
 
     def credential_value(self, user_id: str) -> JsonRow:
         try:
-            value = self.state.credential_vault().unwrap_for_provider_call(user_id=user_id)
+            value = self._credentials.unwrap_for_provider_call(user_id=user_id)
         except Exception as error:
             raise HostedApplicationError(404, "credential_not_found") from error
         return {"provider_key": value}
@@ -104,9 +107,7 @@ class CredentialProjectService:
         )
         if cached is not None:
             return self.credential_status(user_id)
-        value = self.state.credential_vault().set_credential(
-            user_id=user_id, provider_key=provider_key
-        )
+        value = self._credentials.set_credential(user_id=user_id, provider_key=provider_key)
         remember_idempotency(
             self.state, user_id, "set-credential", idempotency_key, value.credential_id
         )
@@ -115,7 +116,7 @@ class CredentialProjectService:
 
     def delete_credential(self, user_id: str) -> JsonRow:
         try:
-            value = self.state.credential_vault().delete(user_id=user_id)
+            value = self._credentials.delete(user_id=user_id)
         except Exception as error:
             raise HostedApplicationError(404, "credential_not_found") from error
         audit(self.state, user_id, "credential.delete")
