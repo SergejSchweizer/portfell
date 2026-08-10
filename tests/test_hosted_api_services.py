@@ -12,6 +12,7 @@ from portfell.entitlements import ProviderDownloadRun
 from portfell.hosted_api_errors import HostedApplicationError, HostedRuntimeError
 from portfell.hosted_api_local_runtime import LocalHostedRuntime
 from portfell.hosted_api_service_support import (
+    _apply_univariate_selection_settings,
     current_project,
     idempotent_response,
     opaque_id,
@@ -364,3 +365,26 @@ def test_workflow_row_exposes_an_active_quote_run_for_the_current_selection() ->
 
     assert stages["metadata_builder"]["quote_run_id"] == run_id
     assert stages["univariate_statistics"]["status"] == "ready"
+
+
+def test_univariate_selection_settings_filter_frequency_and_numeric_ranges() -> None:
+    rows: tuple[JsonRow, ...] = (
+        {"distribution_frequency": "monthly", "mean": 1.0},
+        {"distribution_frequency": "annual", "mean": 1.0},
+        {"distribution_frequency": "monthly", "mean": 3.0},
+        {"distribution_frequency": "unknown", "mean": 1.0},
+        {"distribution_frequency": "monthly", "mean": "invalid"},
+    )
+
+    filtered = _apply_univariate_selection_settings(
+        rows,
+        {
+            "dividend_frequencies": ["monthly", 3],
+            "statistic_ranges": {
+                "mean": [{"minimum": 0.0, "maximum": 2.0}],
+                "ignored": "not-a-range",
+            },
+        },
+    )
+
+    assert filtered == (rows[0],)
