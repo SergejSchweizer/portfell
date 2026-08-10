@@ -117,6 +117,13 @@ Release cutover can require the stricter public-hosted readiness mode:
 uv run python -m portfell.hosted_readiness --require-public-hosted
 ```
 
+Before a hosted cutover rehearsal, require both the approved policy and configured deployment
+secrets without printing their values:
+
+```bash
+uv run python -m portfell.hosted_readiness --require-public-hosted --require-runtime
+```
+
 The deterministic hosted cutover proof composes multi-user auth, credentials, entitlements, scoped analytics, artifact
 reuse, Web storage safety, local CLI compatibility, and readiness checks:
 

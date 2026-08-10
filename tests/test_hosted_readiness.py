@@ -4,11 +4,14 @@ import copy
 from datetime import date
 from pathlib import Path
 
+import pytest
+
 from portfell.hosted_readiness import (
     MANDATORY_DECISIONS,
     failed_results,
     load_readiness,
     local_only_mode_allowed,
+    main,
     public_hosted_mode_allowed,
     validate_readiness,
     validate_runtime_readiness,
@@ -129,3 +132,30 @@ def test_runtime_readiness_accepts_postgres_authority_when_hosting_is_approved(
     )
 
     assert not failures
+
+
+def test_runtime_readiness_cli_requires_nonempty_secret_files(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    monkeypatch.setenv("PORTFELL_EODHD_KEK_FILE", str(tmp_path / "missing-kek"))
+    monkeypatch.setenv("PORTFELL_OPERATIONS_EODHD_TOKEN_FILE", str(tmp_path / "missing-token"))
+
+    assert main(("--require-runtime",)) == 1
+
+    assert "runtime.external_kek_available" in capsys.readouterr().err
+
+
+def test_runtime_readiness_cli_accepts_configured_postgres_authority(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    kek = tmp_path / "kek"
+    token = tmp_path / "operations-token"
+    kek.write_text("kek-material", encoding="utf-8")
+    token.write_text("operations-token", encoding="utf-8")
+    monkeypatch.setenv("PORTFELL_EODHD_KEK_FILE", str(kek))
+    monkeypatch.setenv("PORTFELL_OPERATIONS_EODHD_TOKEN_FILE", str(token))
+    monkeypatch.setenv("PORTFELL_HOSTED_AUTHORITY", "postgres")
+
+    assert main(("--require-runtime",)) == 0
+
+    assert capsys.readouterr().err == ""

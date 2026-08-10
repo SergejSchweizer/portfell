@@ -290,6 +290,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Fail unless public-hosted mode is fully approved.",
     )
+    parser.add_argument(
+        "--require-runtime",
+        action="store_true",
+        help="Fail unless deployment secret files and runtime authority are ready.",
+    )
     return parser
 
 
@@ -298,12 +303,22 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     args = build_parser().parse_args(argv)
     results = validate_readiness()
-    failures = failed_results(results)
-    if args.require_public_hosted and failures:
+    readiness_failures = failed_results(results)
+    runtime_failures = failed_results(validate_runtime_readiness()) if args.require_runtime else []
+    failures = (
+        [*readiness_failures, *runtime_failures]
+        if args.require_public_hosted and args.require_runtime
+        else readiness_failures
+        if args.require_public_hosted
+        else runtime_failures
+        if args.require_runtime
+        else []
+    )
+    if failures:
         for failure in failures:
             print(f"{failure.name}: {failure.message}", file=sys.stderr)
         return 1
-    if failures:
+    if readiness_failures:
         print("public-hosted mode is blocked; local-only mode remains available")
     return 0
 
