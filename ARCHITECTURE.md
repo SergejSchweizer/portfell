@@ -874,8 +874,9 @@ schema contract:
 - tables for users, external identities, sessions, credentials, projects, download runs, market objects, dataset snapshots, user grants, selections, analysis runs, artifacts, artifact inputs, and audit events.
 
 The current FastAPI runtime does **not** yet use PostgreSQL repositories for `HostedApiState`.
-PR157 through PR167 replace this contract and runtime authority with D017's tenant schema,
-repositories, importer, and final cutover.
+PR157 adds a forward-only D017 tenant-control migration with forced RLS, a non-owning worker role,
+immutable sealed project memberships, and tenant artifact references. PR158 through PR167 then add
+repositories, importer, durable work, shared revisions/artifacts, and final runtime authority.
 
 ### Google OIDC: implemented contract, not active request wiring
 

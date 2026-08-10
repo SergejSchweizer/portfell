@@ -75,6 +75,13 @@ This contract does not approve deployment: `shared-data-provider-license` must e
 cross-customer storage, derived-artifact reuse, post-deletion retention, and operations-credential
 ingestion before public-hosted mode can be enabled.
 
+PR157 adds the forward-only PostgreSQL tenant-control migration. A project has one immutable
+selection version and one canonical member per ISIN. Membership rows are populated only before their
+selection version receives its one-way seal timestamp; after sealing, inserts, updates, and deletes
+fail with `project_membership_immutable`. Composite foreign keys bind every version/member to the
+same project owner, and forced RLS uses the transaction-local authenticated user id. Durable jobs,
+global catalogs, repositories, and hosted runtime wiring remain later boundaries.
+
 ## Layers
 
 - Bronze stores raw or near-raw EODHD search, quote, dividends, and splits payloads.

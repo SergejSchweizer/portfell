@@ -27,6 +27,7 @@ def test_hosted_catalog_contracts_validate_security_invariants() -> None:
         "portfell_owner",
         "portfell_migrator",
         "portfell_app",
+        "portfell_worker",
         "portfell_readonly",
     }
     assert not roles_by_name["portfell_app"].owns_tables
@@ -47,6 +48,9 @@ def test_hosted_catalog_contracts_validate_security_invariants() -> None:
         "portfell_app.artifacts",
         "portfell_app.artifact_inputs",
         "portfell_app.audit_events",
+        "portfell_app.project_selection_versions",
+        "portfell_app.project_selection_members",
+        "portfell_app.project_artifact_refs",
     ):
         assert required_table in table_names
 
@@ -55,7 +59,7 @@ def test_hosted_migration_sql_defines_rls_and_immutable_catalog_shape() -> None:
     migrations = migration_plan()
     sql = "\n".join(migration.sql.lower() for migration in migrations)
 
-    assert [migration.version for migration in migrations] == [1, 2, 3, 4, 5]
+    assert [migration.version for migration in migrations] == [1, 2, 3, 4, 5, 6]
     assert len({migration.checksum for migration in migrations}) == len(migrations)
     assert "create table if not exists portfell_app.provider_credentials" in sql
     assert "ciphertext bytea not null" in sql
@@ -72,6 +76,18 @@ def test_hosted_migration_sql_defines_rls_and_immutable_catalog_shape() -> None:
     assert "drop table if exists portfell_app.sessions" in sql
     assert "drop table if exists portfell_app.external_identities" in sql
     assert "create table if not exists portfell_app.current_project_preferences" in sql
+    assert "add column if not exists status text not null default 'active'" in sql
+    assert "add column if not exists purpose text not null default 'user_metadata'" in sql
+    assert "provider_credentials_one_active_user_provider_purpose_idx" in sql
+    assert "create table if not exists portfell_app.project_selection_versions" in sql
+    assert "create table if not exists portfell_app.project_selection_members" in sql
+    assert "create table if not exists portfell_app.project_artifact_refs" in sql
+    assert "references portfell_app.projects(project_id, user_id)" in sql
+    assert "membership_sealed_at timestamptz" in sql
+    assert "before insert or update or delete on portfell_app.project_selection_members" in sql
+    assert "project_membership_immutable" in sql
+    assert "force row level security" in sql
+    assert "portfell_worker" in sql
 
 
 def test_apply_hosted_catalog_migrations_is_deterministic_and_idempotent() -> None:

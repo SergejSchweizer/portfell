@@ -140,7 +140,7 @@ result without writing runtime state.
 
 Branch: `feat/postgres-tenant-control-schema`.
 
-Git status: not started.
+Git status: in progress.
 
 PR: TBD.
 
