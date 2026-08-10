@@ -166,7 +166,7 @@ def research_router(
         return call(
             service.plan_multivariate,
             user.user_id,
-            payload.project_id,
+            str(payload.project_id),
             payload.bivariate_run_id,
             payload.settings.model_dump(),
         )
@@ -180,7 +180,7 @@ def research_router(
         row = call(
             service.start_multivariate,
             user.user_id,
-            payload.project_id,
+            str(payload.project_id),
             payload.bivariate_run_id,
             payload.settings.model_dump(),
         )
@@ -261,7 +261,7 @@ def research_router(
         return call(
             service.create_analysis,
             user.user_id,
-            payload.project_id,
+            str(payload.project_id),
             payload.selection_id,
             payload.settings,
             idempotency_key,

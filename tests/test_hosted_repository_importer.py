@@ -16,6 +16,11 @@ from portfell.hosted_repository_importer import (
     import_local_workspace,
 )
 
+USER_A = "00000000-0000-5000-8000-000000000001"
+USER_B = "00000000-0000-5000-8000-000000000002"
+PROJECT_1 = "00000000-0000-5000-8000-000000000101"
+SELECTION_1 = "00000000-0000-5000-8000-000000000201"
+
 
 class _Cursor:
     def __init__(
@@ -46,26 +51,26 @@ class _Connection:
         if "legacy_imports" in sql and parameters:
             return _Cursor(row=(parameters[0],))
         if "current_project_preferences" in sql:
-            return _Cursor(rows=[("project-1",)])
-        return _Cursor(rows=[("project-1", "user-a", "Income")])
+            return _Cursor(rows=[(PROJECT_1,)])
+        return _Cursor(rows=[(PROJECT_1, USER_A, "Income")])
 
 
 def test_local_workspace_import_dry_run_does_not_mutate_and_is_deterministic() -> None:
     repository = InMemoryTenantRepository()
     payload = {
         "projects": [
-            {"project_id": "project-1", "user_id": "user-a", "name": "Income"},
+            {"project_id": PROJECT_1, "user_id": USER_A, "name": "Income"},
         ],
         "selections": [
             {
-                "selection_id": "selection-1",
-                "project_id": "project-1",
-                "user_id": "user-a",
+                "selection_id": SELECTION_1,
+                "project_id": PROJECT_1,
+                "user_id": USER_A,
                 "name": "UCITS",
                 "member_ids": ["IE1:XETRA:AAA"],
             }
         ],
-        "current_project_id_by_user": {"user-a": "project-1"},
+        "current_project_id_by_user": {USER_A: PROJECT_1},
     }
 
     report = import_local_workspace(repository, payload, dry_run=True)
@@ -80,12 +85,12 @@ def test_local_workspace_import_dry_run_does_not_mutate_and_is_deterministic() -
 def test_local_workspace_import_rejects_duplicate_isin_memberships() -> None:
     repository = InMemoryTenantRepository()
     payload = {
-        "projects": [{"project_id": "project-1", "user_id": "user-a", "name": "Income"}],
+        "projects": [{"project_id": PROJECT_1, "user_id": USER_A, "name": "Income"}],
         "selections": [
             {
-                "selection_id": "selection-1",
-                "project_id": "project-1",
-                "user_id": "user-a",
+                "selection_id": SELECTION_1,
+                "project_id": PROJECT_1,
+                "user_id": USER_A,
                 "name": "UCITS",
                 "member_ids": ["IE1:XETRA:AAA", "IE1:XNAS:BBB"],
             }
@@ -98,10 +103,23 @@ def test_local_workspace_import_rejects_duplicate_isin_memberships() -> None:
     assert repository.projects == ()
 
 
+def test_local_workspace_import_rejects_legacy_control_plane_ids() -> None:
+    repository = InMemoryTenantRepository()
+    payload = {
+        "projects": [{"project_id": "project-1", "user_id": USER_A, "name": "Income"}],
+        "selections": [],
+    }
+
+    with pytest.raises(TenantImportError, match="local_workspace_project_id_invalid"):
+        import_local_workspace(repository, payload, dry_run=False)
+
+    assert repository.projects == ()
+
+
 def test_local_workspace_import_is_idempotent_by_completion_checksum() -> None:
     repository = InMemoryTenantRepository()
     payload = {
-        "projects": [{"project_id": "project-1", "user_id": "user-a", "name": "Income"}],
+        "projects": [{"project_id": PROJECT_1, "user_id": USER_A, "name": "Income"}],
         "selections": [],
     }
 
@@ -115,18 +133,18 @@ def test_local_workspace_import_is_idempotent_by_completion_checksum() -> None:
 def test_postgres_projection_binds_transaction_local_user_before_query() -> None:
     connection = _Connection()
 
-    projects = PostgresTenantProjectionRepository(connection).projects_for_user("user-a")
+    projects = PostgresTenantProjectionRepository(connection).projects_for_user(USER_A)
 
-    assert projects == (TenantProject("project-1", "user-a", "Income"),)
+    assert projects == (TenantProject(PROJECT_1, USER_A, "Income"),)
     assert connection.calls[0] == (
         "select set_config(%s, %s, true)",
-        ("portfell.current_user_id", "user-a"),
+        ("portfell.current_user_id", USER_A),
     )
     assert "where status = 'active'" in connection.calls[1][0]
 
 
 def test_project_parity_redacts_project_values() -> None:
-    mismatch = compare_project_parity((TenantProject("p1", "user-a", "Income"),), ())
+    mismatch = compare_project_parity((TenantProject(PROJECT_1, USER_A, "Income"),), ())
 
     assert mismatch[0].field == "projects"
     assert mismatch[0].expected_count == 1
@@ -135,51 +153,51 @@ def test_project_parity_redacts_project_values() -> None:
 
 def test_project_repository_is_idempotent_and_owner_scoped() -> None:
     repository = InMemoryProjectRepository()
-    project = TenantProject("project-1", "user-a", "Income")
+    project = TenantProject(PROJECT_1, USER_A, "Income")
 
     assert repository.create_project(project) == project
     assert repository.create_project(project) == project
-    assert repository.list_projects("user-b") == ()
-    repository.set_current_project(user_id="user-a", project_id="project-1")
-    assert repository.current_project_id("user-a") == "project-1"
-    repository.delete_project(user_id="user-a", project_id="project-1")
+    assert repository.list_projects(USER_B) == ()
+    repository.set_current_project(user_id=USER_A, project_id=PROJECT_1)
+    assert repository.current_project_id(USER_A) == PROJECT_1
+    repository.delete_project(user_id=USER_A, project_id=PROJECT_1)
 
-    assert repository.list_projects("user-a") == ()
+    assert repository.list_projects(USER_A) == ()
     with pytest.raises(TenantImportError, match="project_not_found"):
-        repository.delete_project(user_id="user-b", project_id="project-1")
+        repository.delete_project(user_id=USER_B, project_id=PROJECT_1)
 
 
 def test_postgres_project_repository_parameterizes_owned_commands() -> None:
     connection = _Connection()
     repository = PostgresProjectRepository(connection)
-    project = TenantProject("project-1", "user-a", "Income")
+    project = TenantProject(PROJECT_1, USER_A, "Income")
 
     repository.create_project(project)
-    repository.set_current_project(user_id="user-a", project_id="project-1")
-    assert repository.current_project_id("user-a") == "project-1"
+    repository.set_current_project(user_id=USER_A, project_id=PROJECT_1)
+    assert repository.current_project_id(USER_A) == PROJECT_1
 
-    assert connection.calls[0][1] == ("portfell.current_user_id", "user-a")
-    assert connection.calls[1][1] == ("project-1", "user-a", "Income")
-    assert connection.calls[3][1] == ("user-a", "project-1")
-    assert connection.calls[4][1] == ("portfell.current_user_id", "user-a")
-    assert connection.calls[5][1] == ("user-a",)
+    assert connection.calls[0][1] == ("portfell.current_user_id", USER_A)
+    assert connection.calls[1][1] == (PROJECT_1, USER_A, "Income")
+    assert connection.calls[3][1] == (USER_A, PROJECT_1)
+    assert connection.calls[4][1] == ("portfell.current_user_id", USER_A)
+    assert connection.calls[5][1] == (USER_A,)
 
 
-def test_postgres_importer_maps_legacy_ids_and_seals_membership() -> None:
+def test_postgres_importer_persists_uuid_ids_and_seals_membership() -> None:
     connection = _Connection()
     repository = PostgresTenantRepository(connection)
     payload = {
-        "projects": [{"project_id": "project-1", "user_id": "user-a", "name": "Income"}],
+        "projects": [{"project_id": PROJECT_1, "user_id": USER_A, "name": "Income"}],
         "selections": [
             {
-                "selection_id": "selection-1",
-                "project_id": "project-1",
-                "user_id": "user-a",
+                "selection_id": SELECTION_1,
+                "project_id": PROJECT_1,
+                "user_id": USER_A,
                 "name": "UCITS",
                 "member_ids": ["IE1:XETRA:AAA"],
             }
         ],
-        "current_project_id_by_user": {"user-a": "project-1"},
+        "current_project_id_by_user": {USER_A: PROJECT_1},
     }
 
     report = import_local_workspace(repository, payload, dry_run=False)
@@ -194,4 +212,4 @@ def test_postgres_importer_maps_legacy_ids_and_seals_membership() -> None:
         for statement, parameters in connection.executed
         if "insert into portfell_app.projects" in statement
     )
-    assert str(project_parameters[0]).count("-") == 4
+    assert project_parameters[0] == PROJECT_1

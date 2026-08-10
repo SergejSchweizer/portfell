@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, cast
+from uuid import UUID
 
 import pytest
 from fastapi.testclient import TestClient
@@ -9,6 +10,7 @@ from fastapi.testclient import TestClient
 import portfell.hosted_api as hosted_api
 from portfell.entitlements import ProviderDownloadRun
 from portfell.hosted_api import (
+    DEFAULT_LOCAL_WORKSPACE_USER_ID,
     ApiUser,
     HostedApiError,
     HostedApiState,
@@ -29,7 +31,10 @@ def _client(state: HostedApiState | None = None) -> TestClient:
 
 
 def _headers(
-    user_id: str = "user-a", *, csrf: bool = False, idempotency: str | None = None
+    user_id: str = DEFAULT_LOCAL_WORKSPACE_USER_ID,
+    *,
+    csrf: bool = False,
+    idempotency: str | None = None,
 ) -> dict[str, str]:
     headers: dict[str, str] = {}
     if idempotency is not None:
@@ -52,11 +57,11 @@ def test_local_workspace_requires_no_authentication_or_csrf() -> None:
 
 
 def test_local_workspace_user_provider_is_stable_and_server_owned() -> None:
-    provider = LocalWorkspaceUserProvider(user_id="workspace-a")
+    provider = LocalWorkspaceUserProvider(user_id="00000000-0000-5000-8000-000000000002")
     first = provider.current_user()
     second = provider.current_user()
 
-    assert first == ApiUser(user_id="workspace-a")
+    assert first == ApiUser(user_id="00000000-0000-5000-8000-000000000002")
     assert second == first
 
 
@@ -89,7 +94,7 @@ def test_database_runtime_allows_explicit_local_authority(
 
 
 def test_api_uses_injected_current_user_provider() -> None:
-    provider = LocalWorkspaceUserProvider(user_id="workspace-a")
+    provider = LocalWorkspaceUserProvider(user_id="00000000-0000-5000-8000-000000000002")
     client = TestClient(create_app(current_user_provider=provider))
 
     client.post("/credentials/eodhd", json={"provider_key": "secret-provider-token"})
@@ -109,7 +114,7 @@ def test_api_uses_injected_credential_vault_dependencies() -> None:
     client.post("/credentials/eodhd", json={"provider_key": "secret-provider-token"})
 
     assert (
-        state.credential_vault().unwrap_for_provider_call(user_id="user-a")
+        state.credential_vault().unwrap_for_provider_call(user_id=DEFAULT_LOCAL_WORKSPACE_USER_ID)
         == "secret-provider-token"
     )
 
@@ -330,18 +335,22 @@ def test_quote_run_requires_an_existing_selection() -> None:
 
 
 def test_quote_run_downloads_only_the_metadata_builder_selection(monkeypatch: Any) -> None:
-    project = ProjectRecord(project_id="project-selected", user_id="user-a", name="Selected")
+    project = ProjectRecord(
+        project_id="00000000-0000-5000-8000-000000000011",
+        user_id=DEFAULT_LOCAL_WORKSPACE_USER_ID,
+        name="Selected",
+    )
     selection = SelectionRecord(
         selection_id="selection-selected",
-        user_id="user-a",
+        user_id=DEFAULT_LOCAL_WORKSPACE_USER_ID,
         project_id=project.project_id,
         name="Selected",
         member_ids=("IE1:XETRA:AAA", "IE2:XETRA:BBB"),
     )
     unrelated = SelectionRecord(
         selection_id="selection-unrelated",
-        user_id="user-a",
-        project_id="project-unrelated",
+        user_id=DEFAULT_LOCAL_WORKSPACE_USER_ID,
+        project_id="00000000-0000-5000-8000-000000000012",
         name="Unrelated",
         member_ids=("IE3:LSE:CCC",),
     )
@@ -371,7 +380,7 @@ def test_quote_run_downloads_only_the_metadata_builder_selection(monkeypatch: An
             project.project_id: project,
             unrelated.project_id: ProjectRecord(
                 project_id=unrelated.project_id,
-                user_id="user-a",
+                user_id=DEFAULT_LOCAL_WORKSPACE_USER_ID,
                 name="Unrelated",
             ),
         },
@@ -503,8 +512,10 @@ def test_quote_run_mutation_reuses_a_running_run(
         }
     )
     run = ProviderDownloadRun(
-        download_run_id=hosted_api._opaque_id("fetch-all-quotes", f"user-a:{request_hash}"),
-        user_id="user-a",
+        download_run_id=hosted_api._opaque_id(
+            "fetch-all-quotes", f"{DEFAULT_LOCAL_WORKSPACE_USER_ID}:{request_hash}"
+        ),
+        user_id=DEFAULT_LOCAL_WORKSPACE_USER_ID,
         credential_id="project-selection",
         provider="eodhd",
         status="running",
@@ -719,6 +730,8 @@ def test_projects_selections_and_analyses_use_the_local_workspace() -> None:
     projects_page = _json(client.get("/projects?limit=1&offset=0", headers=_headers(csrf=False)))
 
     assert repeated_project == project
+    assert str(UUID(project["project_id"])) == project["project_id"]
+    assert str(UUID(selection["selection_id"])) == selection["selection_id"]
     assert selection["member_ids"] == ["IE1", "IE2"]
     assert analysis["status"] == "succeeded"
     assert analysis["cache_hit"] is False
@@ -771,8 +784,16 @@ def test_projects_selections_and_analyses_use_the_local_workspace() -> None:
 
 
 def test_project_context_defaults_selects_and_clears_current_project() -> None:
-    alpha = ProjectRecord(project_id="project-alpha", user_id="user-a", name="alpha")
-    core = ProjectRecord(project_id="project-core", user_id="user-a", name="Core")
+    alpha = ProjectRecord(
+        project_id="00000000-0000-5000-8000-000000000021",
+        user_id=DEFAULT_LOCAL_WORKSPACE_USER_ID,
+        name="alpha",
+    )
+    core = ProjectRecord(
+        project_id="00000000-0000-5000-8000-000000000022",
+        user_id=DEFAULT_LOCAL_WORKSPACE_USER_ID,
+        name="Core",
+    )
     state = HostedApiState(projects_by_id={core.project_id: core, alpha.project_id: alpha})
     client = _client(state)
 
@@ -797,8 +818,13 @@ def test_project_context_defaults_selects_and_clears_current_project() -> None:
     }
     assert deleted == {"project_id": core.project_id, "status": "deleted"}
     assert fallback_context["current_project_id"] == alpha.project_id
-    missing = client.put("/project-context/current-project", json={"project_id": "missing"})
+    missing = client.put(
+        "/project-context/current-project",
+        json={"project_id": "00000000-0000-5000-8000-000000000023"},
+    )
     assert missing.status_code == 404
+    legacy = client.put("/project-context/current-project", json={"project_id": "project_core"})
+    assert legacy.status_code == 422
 
 
 def test_project_metadata_builder_restores_saved_field_values(
@@ -897,17 +923,21 @@ def test_univariate_selection_metrics_expose_numerical_contract() -> None:
 
 
 def test_scoped_research_runs_filter_and_build_unique_pairs() -> None:
-    project = ProjectRecord(project_id="project-a", user_id="user-a", name="Research")
+    project = ProjectRecord(
+        project_id="00000000-0000-5000-8000-000000000031",
+        user_id=DEFAULT_LOCAL_WORKSPACE_USER_ID,
+        name="Research",
+    )
     selection = SelectionRecord(
         selection_id="metadata-selection-a",
-        user_id="user-a",
+        user_id=DEFAULT_LOCAL_WORKSPACE_USER_ID,
         project_id=project.project_id,
         name="Research",
         member_ids=("IE1:XETRA:AAA", "IE2:XETRA:BBB", "IE3:XETRA:CCC"),
     )
     quote_run = ProviderDownloadRun(
         download_run_id="quote-run-a",
-        user_id="user-a",
+        user_id=DEFAULT_LOCAL_WORKSPACE_USER_ID,
         credential_id="credential-a",
         provider="eodhd",
         status="succeeded",
@@ -1060,17 +1090,21 @@ def test_bivariate_statistics_restore_quotes_from_the_persistent_lake(
     """Bivariate runs must not depend on transient quote rows after a restart."""
 
     monkeypatch.setenv("PORTFELL_LAKE_ROOT", str(tmp_path))
-    project = ProjectRecord(project_id="project-a", user_id="user-a", name="Research")
+    project = ProjectRecord(
+        project_id="00000000-0000-5000-8000-000000000041",
+        user_id=DEFAULT_LOCAL_WORKSPACE_USER_ID,
+        name="Research",
+    )
     selection = SelectionRecord(
         selection_id="metadata-selection-a",
-        user_id="user-a",
+        user_id=DEFAULT_LOCAL_WORKSPACE_USER_ID,
         project_id=project.project_id,
         name="Research",
         member_ids=("IE1:XETRA:AAA", "IE2:XETRA:BBB"),
     )
     quote_run = ProviderDownloadRun(
         download_run_id="quote-run-a",
-        user_id="user-a",
+        user_id=DEFAULT_LOCAL_WORKSPACE_USER_ID,
         credential_id="credential-a",
         provider="eodhd",
         status="succeeded",
@@ -1082,11 +1116,17 @@ def test_bivariate_statistics_restore_quotes_from_the_persistent_lake(
         for isin, code in (("IE1", "AAA"), ("IE2", "BBB"))
     )
     univariate = ResearchRun(
-        "univariate-run-a", "user-a", "source-a", "complete", statistic_rows, 2, 2
+        "univariate-run-a",
+        DEFAULT_LOCAL_WORKSPACE_USER_ID,
+        "source-a",
+        "complete",
+        statistic_rows,
+        2,
+        2,
     )
     filtered = UnivariateSelection(
         "univariate-selection-a",
-        "user-a",
+        DEFAULT_LOCAL_WORKSPACE_USER_ID,
         univariate.run_id,
         selection.member_ids,
         (),
@@ -1126,7 +1166,7 @@ def test_bivariate_statistics_restore_quotes_from_the_persistent_lake(
         )
     )
     hosted_api._research_service(state, hosted_api._runtime()).complete_bivariate(
-        "user-a", filtered.selection_id
+        DEFAULT_LOCAL_WORKSPACE_USER_ID, filtered.selection_id
     )
     completed = _json(
         client.get(f"/bivariate-statistics/runs/{run['run_id']}", headers=_headers(csrf=False))

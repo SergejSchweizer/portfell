@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from uuid import UUID
+
 from pydantic import BaseModel, ConfigDict, Field
 
 from portfell.table_io import JsonRow
@@ -28,7 +30,7 @@ class ProjectCreateRequest(BaseModel):
 class CurrentProjectRequest(BaseModel):
     """Request to select the current local-workspace project."""
 
-    project_id: str = Field(min_length=1, max_length=160)
+    project_id: UUID
 
 
 class MetadataBuilderProjectRequest(BaseModel):
@@ -44,7 +46,7 @@ class MetadataBuilderProjectRequest(BaseModel):
 class SelectionCreateRequest(BaseModel):
     """Request to persist one user-owned selection."""
 
-    project_id: str
+    project_id: UUID
     name: str = Field(min_length=1, max_length=120)
     member_ids: list[str] = Field(default_factory=list, min_length=1, max_length=1000)
 
@@ -52,7 +54,7 @@ class SelectionCreateRequest(BaseModel):
 class AnalysisCreateRequest(BaseModel):
     """Request to submit one analysis over an authorized selection."""
 
-    project_id: str
+    project_id: UUID
     selection_id: str
     settings: JsonRow = Field(default_factory=dict)
 
@@ -110,7 +112,7 @@ class MultivariateRunSettings(BaseModel):
 class MultivariateRunRequest(BaseModel):
     """Pinned Bivariate dependency and bounded project settings."""
 
-    project_id: str = Field(min_length=1, max_length=160)
+    project_id: UUID
     bivariate_run_id: str = Field(min_length=1, max_length=160)
     model_config = ConfigDict(extra="forbid")
 
@@ -128,5 +130,5 @@ class MultivariateSettingsRequest(BaseModel):
 class LoadSelectedIsinsRequest(BaseModel):
     """Request to load quote data for one user-owned project selection."""
 
-    project_id: str | None = None
+    project_id: UUID | None = None
     metadata_selection_id: str | None = None

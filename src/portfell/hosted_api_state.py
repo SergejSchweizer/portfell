@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Protocol
+from uuid import UUID
 
 from portfell.entitlements import InMemoryEntitlementStore, ProviderDownloadRun
 from portfell.hosted_credentials import (
@@ -19,7 +20,7 @@ from portfell.table_io import JsonRow
 if TYPE_CHECKING:
     from portfell.shared_market_data import SharedMarketDataStore
 
-DEFAULT_LOCAL_WORKSPACE_USER_ID = "user-a"
+DEFAULT_LOCAL_WORKSPACE_USER_ID = "00000000-0000-5000-8000-000000000001"
 
 
 class UserOwnedRow(Protocol):
@@ -53,8 +54,10 @@ class LocalWorkspaceUserProvider:
     user_id: str = DEFAULT_LOCAL_WORKSPACE_USER_ID
 
     def __post_init__(self) -> None:
-        if not self.user_id.strip():
-            raise ValueError("local workspace user id is required")
+        try:
+            UUID(self.user_id)
+        except ValueError as error:
+            raise ValueError("local workspace user id must be a UUID") from error
 
     def current_user(self) -> ApiUser:
         """Return the configured server-side local principal."""

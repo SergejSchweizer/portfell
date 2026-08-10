@@ -35,7 +35,7 @@ def quote_run_router(
         row, task = call(
             service.start,
             user.user_id,
-            project_id=payload.project_id,
+            project_id=None if payload.project_id is None else str(payload.project_id),
             selection_id=payload.metadata_selection_id,
             idempotency_key=idempotency_key,
         )
