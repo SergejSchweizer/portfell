@@ -8,6 +8,7 @@ from pathlib import Path
 from portfell.hosted_api_service_support import stable_hash
 from portfell.hosted_api_state import HostedApiState, ProjectRecord, SelectionRecord
 from portfell.hosted_multivariate_service import MultivariateResearchService
+from portfell.hosted_repository_importer import InMemoryProjectRepository, TenantProject
 from portfell.hosted_research_workflow import (
     ResearchRun,
     UnivariateSelection,
@@ -198,6 +199,21 @@ def test_multivariate_service_rejects_bivariate_run_owned_by_another_user() -> N
         assert "not_found" in str(error)
     else:
         raise AssertionError("cross-user bivariate runs must not be usable")
+
+
+def test_multivariate_plan_authorizes_an_injected_project_repository() -> None:
+    state, data, project_id, bivariate_run_id = _fixtures()
+    state.projects_by_id = {}
+    repository = InMemoryProjectRepository()
+    repository.create_project(TenantProject(project_id, "user-a", "A"))
+    service = MultivariateResearchService(
+        state,
+        data,
+        _Persistence(),
+        project_repository=repository,
+    )
+
+    assert service.plan("user-a", project_id, bivariate_run_id, {})["allowed"] is True
 
 
 def test_multivariate_artifacts_and_project_selection_survive_workspace_restart(

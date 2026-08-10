@@ -15,6 +15,8 @@ from portfell.gold import build_returns
 from portfell.hosted_api_errors import HostedApplicationError
 from portfell.hosted_api_service_support import opaque_id, require_user_row, stable_hash
 from portfell.hosted_api_state import HostedApiState, MultivariateRunRecord, SelectionRecord
+from portfell.hosted_local_project_repository import LocalProjectRepository
+from portfell.hosted_repository_importer import ProjectRepository
 from portfell.hosted_research_ports import ResearchDataPort, ResearchPersistencePort
 from portfell.hosted_research_workflow import UnivariateSelection, bivariate_source_id
 from portfell.income import (
@@ -48,15 +50,17 @@ class MultivariateResearchService:
         state: HostedApiState,
         data: ResearchDataPort,
         persistence: ResearchPersistencePort,
+        project_repository: ProjectRepository | None = None,
     ) -> None:
         self._state = state
         self._data = data
         self._persistence = persistence
+        self._projects = project_repository or LocalProjectRepository(state)
 
     def start(
         self, user_id: str, project_id: str, bivariate_run_id: str, settings: JsonRow
     ) -> JsonRow:
-        require_user_row(self._state.projects_by_id, project_id, user_id)
+        self._require_project(user_id, project_id)
         bivariate = require_user_row(self._state.bivariate_runs_by_id, bivariate_run_id, user_id)
         if bivariate.status != "complete":
             raise HostedApplicationError(422, "bivariate_run_not_complete")
@@ -110,7 +114,7 @@ class MultivariateResearchService:
         self, user_id: str, project_id: str, bivariate_run_id: str, settings: JsonRow
     ) -> JsonRow:
         """Return a read-only, project-authorized execution plan before starting work."""
-        require_user_row(self._state.projects_by_id, project_id, user_id)
+        self._require_project(user_id, project_id)
         bivariate = require_user_row(self._state.bivariate_runs_by_id, bivariate_run_id, user_id)
         selection = self._selection_for_bivariate(user_id, bivariate_run_id)
         metadata = self._metadata_selection_for_project(user_id, project_id)
@@ -153,6 +157,11 @@ class MultivariateResearchService:
 
     def summary(self, user_id: str, run_id: str) -> JsonRow:
         return dict(require_user_row(self._state.multivariate_runs_by_id, run_id, user_id).summary)
+
+    def _require_project(self, user_id: str, project_id: str) -> None:
+        project_ids = {project.project_id for project in self._projects.list_projects(user_id)}
+        if project_id not in project_ids:
+            raise HostedApplicationError(404, "not_found")
 
     def structure(self, user_id: str, run_id: str) -> JsonRow:
         return dict(
