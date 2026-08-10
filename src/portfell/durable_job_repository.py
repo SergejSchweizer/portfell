@@ -152,6 +152,83 @@ where job_id = %s::uuid and lease_token = %s::uuid
                 )
         return tuple(_claimed_job(row, lease_token) for row in rows)
 
+    def complete(
+        self,
+        *,
+        job_id: str,
+        lease_token: str,
+        status: str,
+        terminal_code: str | None = None,
+    ) -> None:
+        """Complete a leased job only when its current owner still holds the lease."""
+
+        if status not in {"succeeded", "partial", "failed", "cancelled"}:
+            raise DurableJobError("job_terminal_status_invalid")
+        with self._connection.transaction():
+            completed = self._connection.execute(
+                """
+update portfell_app.jobs
+set status = %s, terminal_code = %s, lease_owner = null, lease_token = null,
+    lease_expires_at = null, heartbeat_at = now(), updated_at = now()
+where job_id = %s::uuid and status = 'running' and lease_token = %s::uuid
+returning job_id
+""",
+                (status, terminal_code, job_id, lease_token),
+            ).fetchone()
+            if completed is None:
+                raise DurableJobError("job_lease_lost")
+            self._connection.execute(
+                """
+update portfell_app.job_attempts
+set finished_at = now(), terminal_code = %s
+where job_id = %s::uuid and attempt_number = (
+    select attempt_count from portfell_app.jobs where job_id = %s::uuid
+)
+""",
+                (terminal_code, job_id, job_id),
+            )
+
+    def heartbeat(self, *, job_id: str, lease_token: str) -> None:
+        """Extend only the currently owned running-job lease."""
+
+        with self._connection.transaction():
+            updated = self._connection.execute(
+                """
+update portfell_app.jobs
+set heartbeat_at = now(), lease_expires_at = now() + interval '5 minutes', updated_at = now()
+where job_id = %s::uuid and status = 'running' and lease_token = %s::uuid
+returning job_id
+""",
+                (job_id, lease_token),
+            ).fetchone()
+            if updated is None:
+                raise DurableJobError("job_lease_lost")
+
+    def recover_expired_leases(self) -> tuple[str, ...]:
+        """Return expired running jobs to the queue and close their attempts."""
+
+        with self._connection.transaction():
+            rows = self._connection.execute(
+                """
+update portfell_app.jobs
+set status = 'queued', lease_owner = null, lease_token = null, lease_expires_at = null,
+    available_at = now(), updated_at = now()
+where status = 'running' and lease_expires_at <= now()
+returning job_id::text
+"""
+            ).fetchall()
+            job_ids = tuple(_job_id(row) for row in rows)
+            for job_id in job_ids:
+                self._connection.execute(
+                    """
+update portfell_app.job_attempts
+set finished_at = now(), terminal_code = 'lease_expired'
+where job_id = %s::uuid and finished_at is null
+""",
+                    (job_id,),
+                )
+        return job_ids
+
 
 def _claimed_job(row: tuple[object, ...], lease_token: str) -> ClaimedJob:
     if len(row) != 7 or any(not isinstance(value, str) for value in row[:6]):
@@ -171,3 +248,9 @@ def _claimed_job(row: tuple[object, ...], lease_token: str) -> ClaimedJob:
         row[6],
         lease_token,
     )
+
+
+def _job_id(row: tuple[object, ...]) -> str:
+    if len(row) != 1 or not isinstance(row[0], str) or not row[0]:
+        raise DurableJobError("job_recovery_projection_invalid")
+    return row[0]

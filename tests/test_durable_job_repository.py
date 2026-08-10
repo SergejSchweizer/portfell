@@ -38,15 +38,23 @@ class _Connection:
         self.calls: list[tuple[str, tuple[object, ...]]] = []
         self._inserted = inserted
         self._rows = rows or []
+        self.completion_succeeds = True
+        self.heartbeat_succeeds = True
 
     def transaction(self):
         return nullcontext()
 
     def execute(self, sql: str, parameters: tuple[object, ...] = ()) -> _Cursor:
         self.calls.append((sql, parameters))
-        if "returning job_id" in sql:
+        if "insert into portfell_app.jobs" in sql and "returning job_id" in sql:
             return _Cursor(("job-1",) if self._inserted else None)
         if "for update skip locked" in sql:
+            return _Cursor(rows=self._rows)
+        if "where job_id = %s::uuid and status = 'running'" in sql:
+            if "set heartbeat_at" in sql:
+                return _Cursor(("job-1",) if self.heartbeat_succeeds else None)
+            return _Cursor(("job-1",) if self.completion_succeeds else None)
+        if "where status = 'running' and lease_expires_at <= now()" in sql:
             return _Cursor(rows=self._rows)
         return _Cursor()
 
@@ -98,3 +106,43 @@ def test_claim_rejects_invalid_worker_or_batch(worker_id: str, batch_size: int) 
         PostgresDurableJobRepository(_Connection()).claim(
             worker_id=worker_id, batch_size=batch_size
         )
+
+
+def test_complete_uses_lease_compare_and_set_and_finishes_attempt() -> None:
+    connection = _Connection()
+
+    PostgresDurableJobRepository(connection).complete(
+        job_id="job-1", lease_token="lease-1", status="succeeded"
+    )
+
+    statements = "\n".join(statement for statement, _ in connection.calls)
+    assert "status = 'running' and lease_token = %s::uuid" in statements
+    assert "update portfell_app.job_attempts" in statements
+
+
+def test_complete_rejects_stale_worker_lease() -> None:
+    connection = _Connection()
+    connection.completion_succeeds = False
+
+    with pytest.raises(DurableJobError, match="job_lease_lost"):
+        PostgresDurableJobRepository(connection).complete(
+            job_id="job-1", lease_token="stale-lease", status="succeeded"
+        )
+
+
+def test_heartbeat_extends_only_the_current_worker_lease() -> None:
+    connection = _Connection()
+
+    PostgresDurableJobRepository(connection).heartbeat(job_id="job-1", lease_token="lease-1")
+
+    assert "lease_expires_at = now() + interval '5 minutes'" in connection.calls[0][0]
+
+
+def test_expired_leases_return_jobs_to_queue_and_finish_attempts() -> None:
+    connection = _Connection(rows=[("job-1",)])
+
+    assert PostgresDurableJobRepository(connection).recover_expired_leases() == ("job-1",)
+
+    statements = "\n".join(statement for statement, _ in connection.calls)
+    assert "set status = 'queued'" in statements
+    assert "terminal_code = 'lease_expired'" in statements
