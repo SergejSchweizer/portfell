@@ -1,6 +1,12 @@
 from __future__ import annotations
 
-from portfell.hosted_user_repository import HostedUser, PostgresHostedUserRepository
+import pytest
+
+from portfell.hosted_user_repository import (
+    HostedUser,
+    HostedUserError,
+    PostgresHostedUserRepository,
+)
 
 
 class _Cursor:
@@ -48,3 +54,30 @@ def test_postgres_user_repository_soft_deletes_with_parameterized_owned_command(
     statement, parameters = connection.calls[1]
     assert "set status = 'deleted'" in statement
     assert parameters == (user_id,)
+
+
+def test_postgres_user_repository_rejects_missing_or_invalid_user_projections() -> None:
+    class _MissingConnection(_Connection):
+        def execute(self, sql: str, parameters: tuple[object, ...] = ()) -> _Cursor:
+            self.calls.append((sql, parameters))
+            return _Cursor()
+
+    user_id = "00000000-0000-0000-0000-000000000001"
+    with pytest.raises(HostedUserError, match="hosted_user_not_found"):
+        PostgresHostedUserRepository(_MissingConnection()).create(user_id)
+
+    class _InvalidConnection(_Connection):
+        def execute(self, sql: str, parameters: tuple[object, ...] = ()) -> _Cursor:
+            self.calls.append((sql, parameters))
+            return _Cursor((user_id, "unexpected"))
+
+    with pytest.raises(HostedUserError, match="hosted_user_projection_invalid"):
+        PostgresHostedUserRepository(_InvalidConnection()).get(user_id)
+
+    class _MalformedConnection(_Connection):
+        def execute(self, sql: str, parameters: tuple[object, ...] = ()) -> _Cursor:
+            self.calls.append((sql, parameters))
+            return _Cursor((user_id,))
+
+    with pytest.raises(HostedUserError, match="hosted_user_projection_invalid"):
+        PostgresHostedUserRepository(_MalformedConnection()).get(user_id)

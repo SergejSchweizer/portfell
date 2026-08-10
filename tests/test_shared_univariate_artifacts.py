@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from portfell.shared_univariate_artifacts import (
     InMemorySharedUnivariateArtifacts,
     SharedUnivariateArtifact,
@@ -47,3 +49,27 @@ def test_payload_verification_fails_closed_when_checksum_differs() -> None:
         assert str(error) == "univariate_artifact_checksum_mismatch"
     else:
         raise AssertionError("expected checksum mismatch")
+
+
+def test_univariate_shared_artifact_rejects_invalid_publication_and_references() -> None:
+    with pytest.raises(
+        SharedUnivariateArtifactError, match="univariate_artifact_identity_required"
+    ):
+        SharedUnivariateArtifact("", "returns-1", "hash")
+    with pytest.raises(SharedUnivariateArtifactError, match="univariate_artifact_payload_required"):
+        SharedUnivariateArtifact.from_payload("artifact-1", "returns-1", b"")
+    store = InMemorySharedUnivariateArtifacts()
+    assert store.resolve(project_id="project-1", run_id="missing") is None
+    first = SharedUnivariateArtifact.from_payload("artifact-1", "returns-1", b"payload")
+    second = SharedUnivariateArtifact.from_payload("artifact-2", "returns-2", b"other")
+    store.publish(first)
+    store.publish(second)
+    with pytest.raises(SharedUnivariateArtifactError, match="univariate_artifact_id_conflict"):
+        store.publish(SharedUnivariateArtifact.from_payload("artifact-1", "returns-1", b"changed"))
+    with pytest.raises(SharedUnivariateArtifactError, match="univariate_artifact_not_found"):
+        store.attach(project_id="project-1", run_id="run-1", artifact_id="missing")
+    store.attach(project_id="project-1", run_id="run-1", artifact_id="artifact-1")
+    with pytest.raises(
+        SharedUnivariateArtifactError, match="univariate_artifact_reference_conflict"
+    ):
+        store.attach(project_id="project-1", run_id="run-1", artifact_id="artifact-2")

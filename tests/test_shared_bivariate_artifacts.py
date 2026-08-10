@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 
 from portfell.shared_bivariate_artifacts import (
@@ -77,6 +79,12 @@ def test_bivariate_manifest_preserves_typed_unavailable_pair_outcomes() -> None:
     )
 
 
+def test_unavailable_pair_canonicalizes_its_orientation() -> None:
+    assert UnavailablePair("uni-b", "uni-a", "missing").canonical() == UnavailablePair(
+        "uni-a", "uni-b", "missing"
+    )
+
+
 def test_shared_bivariate_catalog_publishes_one_immutable_manifest_per_identity() -> None:
     catalog = InMemorySharedBivariateCatalog()
     manifest = build_bivariate_manifest(
@@ -89,3 +97,59 @@ def test_shared_bivariate_catalog_publishes_one_immutable_manifest_per_identity(
     assert catalog.publish(manifest) == manifest
     assert catalog.publish(manifest) == manifest
     assert catalog.manifest_count == 1
+    with pytest.raises(SharedBivariateArtifactError, match="bivariate_manifest_id_conflict"):
+        catalog.publish(replace(manifest, pair_count=2))
+
+
+def test_bivariate_contract_rejects_invalid_versions_payloads_and_unavailable_pairs() -> None:
+    with pytest.raises(SharedBivariateArtifactError, match="bivariate_bucket_count_invalid"):
+        build_bivariate_manifest(
+            univariate_artifact_ids=("uni-a", "uni-b"),
+            bucket_count=0,
+            calendar_policy_version="calendar-v1",
+            algorithm_version="algorithm-v1",
+        )
+    with pytest.raises(SharedBivariateArtifactError, match="bivariate_universe_invalid"):
+        build_bivariate_manifest(
+            univariate_artifact_ids=("uni-a",),
+            bucket_count=1,
+            calendar_policy_version="calendar-v1",
+            algorithm_version="algorithm-v1",
+        )
+    with pytest.raises(SharedBivariateArtifactError, match="bivariate_version_required"):
+        build_bivariate_manifest(
+            univariate_artifact_ids=("uni-a", "uni-b"),
+            bucket_count=1,
+            calendar_policy_version="",
+            algorithm_version="algorithm-v1",
+        )
+    with pytest.raises(SharedBivariateArtifactError, match="bivariate_bucket_payload_invalid"):
+        build_bivariate_manifest(
+            univariate_artifact_ids=("uni-a", "uni-b"),
+            bucket_count=1,
+            calendar_policy_version="calendar-v1",
+            algorithm_version="algorithm-v1",
+            bucket_payloads={2: b"payload"},
+        )
+    with pytest.raises(SharedBivariateArtifactError, match="bivariate_unavailable_pair_invalid"):
+        UnavailablePair("uni-a", "uni-a", "missing").canonical()
+    with pytest.raises(SharedBivariateArtifactError, match="bivariate_bucket_not_cataloged"):
+        verify_bucket_payload(
+            build_bivariate_manifest(
+                univariate_artifact_ids=("uni-a", "uni-b"),
+                bucket_count=1,
+                calendar_policy_version="calendar-v1",
+                algorithm_version="algorithm-v1",
+            ),
+            bucket=0,
+            payload=b"payload",
+        )
+    unavailable = UnavailablePair("uni-a", "uni-b", "missing")
+    with pytest.raises(SharedBivariateArtifactError, match="bivariate_unavailable_pair_duplicate"):
+        build_bivariate_manifest(
+            univariate_artifact_ids=("uni-a", "uni-b"),
+            bucket_count=1,
+            calendar_policy_version="calendar-v1",
+            algorithm_version="algorithm-v1",
+            unavailable_pairs=(unavailable, unavailable),
+        )

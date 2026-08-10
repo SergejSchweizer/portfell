@@ -146,3 +146,24 @@ def test_expired_leases_return_jobs_to_queue_and_finish_attempts() -> None:
     statements = "\n".join(statement for statement, _ in connection.calls)
     assert "set status = 'queued'" in statements
     assert "terminal_code = 'lease_expired'" in statements
+
+
+def test_durable_job_repository_rejects_invalid_identity_status_and_lost_heartbeat() -> None:
+    repository = PostgresDurableJobRepository(_Connection())
+    with pytest.raises(DurableJobError, match="job_outbox_identity_invalid"):
+        repository.enqueue(job=_job(), event=OutboxEvent("event-1", "user-2", "queued", "job-1"))
+    with pytest.raises(DurableJobError, match="job_terminal_status_invalid"):
+        repository.complete(job_id="job-1", lease_token="lease-1", status="queued")
+    connection = _Connection()
+    connection.heartbeat_succeeds = False
+    with pytest.raises(DurableJobError, match="job_lease_lost"):
+        PostgresDurableJobRepository(connection).heartbeat(job_id="job-1", lease_token="lease-1")
+
+
+def test_durable_job_repository_rejects_invalid_claim_and_recovery_projections() -> None:
+    with pytest.raises(DurableJobError, match="job_claim_projection_invalid"):
+        PostgresDurableJobRepository(
+            _Connection(rows=[("job-1", "user-1", "project-1", "quote", "hash", "input", "high")])
+        ).claim(worker_id="worker-1", batch_size=1)
+    with pytest.raises(DurableJobError, match="job_recovery_projection_invalid"):
+        PostgresDurableJobRepository(_Connection(rows=[(None,)])).recover_expired_leases()
