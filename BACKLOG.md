@@ -434,7 +434,7 @@ Branch: `feat/shared-univariate-artifacts`.
 
 Git status: in progress.
 
-PR: https://github.com/SergejSchweizer/portfell/pull/293.
+PR: https://github.com/SergejSchweizer/portfell/pull/294.
 
 Priority: P0 first analytical payload migration.
 
