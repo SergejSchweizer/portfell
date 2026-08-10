@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from portfell.tenant_control_schema import (
+    D017_DURABLE_JOB_SCHEMA_SQL,
     D017_ROLE_SPECS,
     D017_TABLE_SPECS,
     D017_TENANT_CONTROL_SCHEMA_SQL,
@@ -486,6 +487,7 @@ MIGRATIONS: tuple[HostedMigration, ...] = (
     HostedMigration(4, "current_project_preference", _CURRENT_PROJECT_PREFERENCE_SQL),
     HostedMigration(5, "provider_credential_wrap_nonce", _CREDENTIAL_WRAP_NONCE_SQL),
     HostedMigration(6, "d017_tenant_control_schema", D017_TENANT_CONTROL_SCHEMA_SQL),
+    HostedMigration(7, "d017_durable_job_queue", D017_DURABLE_JOB_SCHEMA_SQL),
 )
 
 
@@ -511,12 +513,6 @@ end $$;
 
 
 def migration_plan() -> tuple[HostedMigration, ...]:
-    """Return hosted catalog migrations in deterministic execution order.
-
-    Returns:
-        Ordered immutable migration contracts.
-    """
-
     return MIGRATIONS
 
 

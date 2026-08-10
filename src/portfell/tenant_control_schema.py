@@ -4,6 +4,15 @@
 
 from __future__ import annotations
 
+from portfell.durable_job_schema import D017_DURABLE_JOB_SCHEMA_SQL
+
+__all__ = [
+    "D017_DURABLE_JOB_SCHEMA_SQL",
+    "D017_ROLE_SPECS",
+    "D017_TABLE_SPECS",
+    "D017_TENANT_CONTROL_SCHEMA_SQL",
+]
+
 D017_ROLE_SPECS: tuple[tuple[str, str, bool, bool], ...] = (
     (
         "portfell_worker",
