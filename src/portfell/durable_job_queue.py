@@ -34,6 +34,16 @@ class DurableJob:
     lease_expires_at: datetime | None = None
 
 
+@dataclass(frozen=True, order=True)
+class OutboxEvent:
+    """Payload-free durable lifecycle event identified by an immutable event id."""
+
+    event_id: str
+    user_id: str
+    event_type: str
+    aggregate_ref: str
+
+
 class InMemoryDurableJobRepository:
     """Deterministic queue test double with compare-and-set lease ownership."""
 
@@ -106,6 +116,41 @@ class InMemoryDurableJobRepository:
             and job.lease_expires_at is not None
             and job.lease_expires_at <= now
         )
+
+
+class InMemoryOutboxRepository:
+    """At-least-once delivery test double with event-id deduplication."""
+
+    def __init__(self) -> None:
+        self._events: dict[str, OutboxEvent] = {}
+        self._delivered_ids: set[str] = set()
+
+    def append(self, event: OutboxEvent) -> OutboxEvent:
+        """Persist or return an event with the same immutable id."""
+
+        existing = self._events.get(event.event_id)
+        if existing is not None:
+            if existing != event:
+                raise JobQueueError("outbox_event_conflict")
+            return existing
+        self._events[event.event_id] = event
+        return event
+
+    def pending(self) -> tuple[OutboxEvent, ...]:
+        """Return pending events in stable event-id order."""
+
+        return tuple(
+            event
+            for event_id, event in sorted(self._events.items())
+            if event_id not in self._delivered_ids
+        )
+
+    def mark_delivered(self, event_id: str) -> None:
+        """Acknowledge an existing event idempotently."""
+
+        if event_id not in self._events:
+            raise JobQueueError("outbox_event_not_found")
+        self._delivered_ids.add(event_id)
 
 
 def utc_now() -> datetime:

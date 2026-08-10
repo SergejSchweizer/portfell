@@ -4,7 +4,13 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from portfell.durable_job_queue import DurableJob, InMemoryDurableJobRepository, JobQueueError
+from portfell.durable_job_queue import (
+    DurableJob,
+    InMemoryDurableJobRepository,
+    InMemoryOutboxRepository,
+    JobQueueError,
+    OutboxEvent,
+)
 
 
 def test_job_claim_order_is_priority_then_creation_time() -> None:
@@ -35,6 +41,18 @@ def test_stale_worker_cannot_complete_claim() -> None:
         job_id="job-1", lease_token=second.lease_token, terminal_status="succeeded"
     )
     assert completed.status == "succeeded"
+
+
+def test_outbox_delivery_is_idempotent_by_event_id() -> None:
+    repository = InMemoryOutboxRepository()
+    event = OutboxEvent("event-1", "user-a", "job.queued", "job-1")
+
+    assert repository.append(event) == event
+    assert repository.append(event) == event
+    assert repository.pending() == (event,)
+    repository.mark_delivered("event-1")
+
+    assert repository.pending() == ()
 
 
 def _job(job_id: str, *, priority: int, created_at: datetime) -> DurableJob:
