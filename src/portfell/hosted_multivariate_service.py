@@ -16,9 +16,11 @@ from portfell.hosted_api_errors import HostedApplicationError
 from portfell.hosted_api_service_support import opaque_id, require_user_row, stable_hash
 from portfell.hosted_api_state import HostedApiState, MultivariateRunRecord, SelectionRecord
 from portfell.hosted_local_project_repository import LocalProjectRepository
+from portfell.hosted_local_selection_repository import LocalSelectionRepository
 from portfell.hosted_repository_importer import ProjectRepository
 from portfell.hosted_research_ports import ResearchDataPort, ResearchPersistencePort
 from portfell.hosted_research_workflow import UnivariateSelection, bivariate_source_id
+from portfell.hosted_selection_repository import SelectionRepository, selection_record
 from portfell.income import (
     build_income_artifacts,
     build_income_evidence,
@@ -51,11 +53,13 @@ class MultivariateResearchService:
         data: ResearchDataPort,
         persistence: ResearchPersistencePort,
         project_repository: ProjectRepository | None = None,
+        selection_repository: SelectionRepository | None = None,
     ) -> None:
         self._state = state
         self._data = data
         self._persistence = persistence
         self._projects = project_repository or LocalProjectRepository(state)
+        self._selections = selection_repository or LocalSelectionRepository(state)
 
     def start(
         self, user_id: str, project_id: str, bivariate_run_id: str, settings: JsonRow
@@ -242,14 +246,10 @@ class MultivariateResearchService:
         return matches[0]
 
     def _metadata_selection_for_project(self, user_id: str, project_id: str) -> SelectionRecord:
-        selections = [
-            selection
-            for selection in self._state.selections_by_id.values()
-            if selection.user_id == user_id and selection.project_id == project_id
-        ]
-        if len(selections) != 1:
+        selection = self._selections.for_project(project_id=project_id, user_id=user_id)
+        if selection is None:
             raise HostedApplicationError(422, "project_metadata_dependency_mismatch")
-        return selections[0]
+        return selection_record(selection)
 
     def _advance(self, run_id: str, phase: str, completed_units: int) -> None:
         """Persist strictly monotonic phase progress for concurrent status polling."""
