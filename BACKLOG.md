@@ -367,7 +367,7 @@ Branch: `feat/project-selection-bootstrap`.
 
 Git status: in progress.
 
-PR: https://github.com/SergejSchweizer/portfell/pull/291.
+PR: https://github.com/SergejSchweizer/portfell/pull/292.
 
 Priority: P0 project onboarding behavior.
 
