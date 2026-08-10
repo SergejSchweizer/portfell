@@ -47,3 +47,21 @@ def test_bootstrap_rejects_empty_or_cross_user_project_requests() -> None:
             selection_id="selection-1",
             member_ids=("IE1:XETRA:AAA",),
         )
+
+
+def test_bootstrap_lifecycle_preserves_frozen_members_and_terminal_state() -> None:
+    service = InMemoryBootstrapService()
+    bootstrap = service.start(
+        user_id="user-a",
+        project_id="project-1",
+        selection_id="selection-1",
+        member_ids=("IE1:XETRA:AAA",),
+    )
+
+    running = service.update_status(user_id="user-a", project_id="project-1", status="running")
+    ready = service.update_status(user_id="user-a", project_id="project-1", status="ready")
+
+    assert running.member_ids == bootstrap.member_ids
+    assert ready.status == "ready"
+    with pytest.raises(BootstrapError, match="bootstrap_terminal"):
+        service.update_status(user_id="user-a", project_id="project-1", status="running")
