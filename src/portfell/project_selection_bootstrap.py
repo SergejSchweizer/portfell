@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+
+BOOTSTRAP_STATUSES = frozenset({"not_started", "planning", "running", "ready", "partial", "failed"})
+TERMINAL_BOOTSTRAP_STATUSES = frozenset({"ready", "partial"})
 
 
 class BootstrapError(ValueError):
@@ -60,6 +63,20 @@ class InMemoryBootstrapService:
         )
         self._bootstraps_by_project[project_id] = bootstrap
         return bootstrap
+
+    def update_status(self, *, user_id: str, project_id: str, status: str) -> ProjectBootstrap:
+        """Record a worker lifecycle transition without changing frozen membership."""
+
+        bootstrap = self._bootstraps_by_project.get(project_id)
+        if bootstrap is None or bootstrap.user_id != user_id:
+            raise BootstrapError("bootstrap_project_not_owned")
+        if status not in BOOTSTRAP_STATUSES:
+            raise BootstrapError("bootstrap_status_invalid")
+        if bootstrap.status in TERMINAL_BOOTSTRAP_STATUSES and status != bootstrap.status:
+            raise BootstrapError("bootstrap_terminal")
+        updated = replace(bootstrap, status=status)
+        self._bootstraps_by_project[project_id] = updated
+        return updated
 
 
 def _bootstrap_id(project_id: str, selection_id: str, member_ids: tuple[str, ...]) -> str:
