@@ -140,9 +140,9 @@ result without writing runtime state.
 
 Branch: `feat/postgres-tenant-control-schema`.
 
-Git status: in progress.
+Git status: pushed.
 
-PR: TBD.
+PR: https://github.com/SergejSchweizer/portfell/pull/275.
 
 Priority: P0 durable user-metadata foundation.
 
