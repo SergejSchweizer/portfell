@@ -10,7 +10,22 @@ from portfell.durable_job_queue import (
     InMemoryOutboxRepository,
     JobQueueError,
     OutboxEvent,
+    PostgresDurableJobRepository,
 )
+
+
+class _Cursor:
+    def fetchall(self) -> list[tuple[object, ...]]:
+        return [("job-1",)]
+
+
+class _Connection:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, tuple[object, ...]]] = []
+
+    def execute(self, sql: str, parameters: tuple[object, ...] = ()) -> _Cursor:
+        self.calls.append((sql, parameters))
+        return _Cursor()
 
 
 def test_job_claim_order_is_priority_then_creation_time() -> None:
@@ -53,6 +68,21 @@ def test_outbox_delivery_is_idempotent_by_event_id() -> None:
     repository.mark_delivered("event-1")
 
     assert repository.pending() == ()
+
+
+def test_postgres_claim_uses_skip_locked_and_bounded_parameters() -> None:
+    connection = _Connection()
+    now = datetime(2026, 8, 10, tzinfo=UTC)
+
+    job_ids = PostgresDurableJobRepository(connection).claim_ids(
+        worker_id="worker-a", now=now, limit=2
+    )
+
+    assert job_ids == ("job-1",)
+    sql, parameters = connection.calls[0]
+    assert "for update skip locked" in sql.lower()
+    assert "limit %s" in sql.lower()
+    assert parameters[2] == 2
 
 
 def _job(job_id: str, *, priority: int, created_at: datetime) -> DurableJob:

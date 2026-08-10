@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
+from typing import Protocol
 from uuid import NAMESPACE_URL, uuid5
 
 TERMINAL_JOB_STATUSES = frozenset({"succeeded", "partial", "failed", "cancelled"})
@@ -42,6 +43,24 @@ class OutboxEvent:
     user_id: str
     event_type: str
     aggregate_ref: str
+
+
+class JobCursor(Protocol):
+    """Minimal result boundary for durable job repository commands."""
+
+    def fetchall(self) -> list[tuple[object, ...]]:
+        """Return all affected rows."""
+
+        ...
+
+
+class JobConnection(Protocol):
+    """Parameterized PostgreSQL command connection contract."""
+
+    def execute(self, sql: str, parameters: tuple[object, ...] = ()) -> JobCursor:
+        """Execute a parameterized durable job command."""
+
+        ...
 
 
 class InMemoryDurableJobRepository:
@@ -151,6 +170,52 @@ class InMemoryOutboxRepository:
         if event_id not in self._events:
             raise JobQueueError("outbox_event_not_found")
         self._delivered_ids.add(event_id)
+
+
+class PostgresDurableJobRepository:
+    """PostgreSQL worker claim adapter using one bounded lock-skipping command."""
+
+    def __init__(self, connection: JobConnection) -> None:
+        self._connection = connection
+
+    def claim_ids(self, *, worker_id: str, now: datetime, limit: int) -> tuple[str, ...]:
+        """Claim ready work atomically and return only opaque job identifiers."""
+
+        if limit < 1:
+            raise JobQueueError("job_claim_limit_invalid")
+        rows = self._connection.execute(
+            """
+with candidates as (
+    select job_id
+    from portfell_app.jobs
+    where (status = 'queued' and available_at <= %s)
+       or (status = 'running' and lease_expires_at <= %s)
+    order by priority desc, created_at, job_id
+    limit %s
+    for update skip locked
+)
+update portfell_app.jobs as jobs
+set status = 'running',
+    attempt_count = jobs.attempt_count + 1,
+    lease_owner = %s,
+    lease_token = gen_random_uuid(),
+    lease_expires_at = %s,
+    heartbeat_at = %s,
+    updated_at = %s
+from candidates
+where jobs.job_id = candidates.job_id
+returning jobs.job_id::text
+""",
+            (now, now, limit, worker_id, now + LEASE_DURATION, now, now),
+        ).fetchall()
+        return tuple(_job_id(row) for row in rows)
+
+
+def _job_id(row: tuple[object, ...]) -> str:
+    value = row[0]
+    if not isinstance(value, str) or not value:
+        raise JobQueueError("job_claim_result_invalid")
+    return value
 
 
 def utc_now() -> datetime:
