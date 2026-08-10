@@ -475,9 +475,9 @@ Idempotency: Equal requests and job retries reuse one artifact and at most one r
 
 Branch: `feat/shared-bivariate-artifacts`.
 
-Git status: not started.
+Git status: in progress.
 
-PR: TBD.
+PR: https://github.com/SergejSchweizer/portfell/pull/295.
 
 Priority: P0 scalable pairwise payload migration.
 
