@@ -28,6 +28,7 @@ class BivariateManifest:
     univariate_artifact_ids: tuple[str, ...]
     pair_count: int
     buckets: tuple[BivariateBucket, ...]
+    bucket_payload_hashes: tuple[tuple[int, str], ...]
 
 
 def build_bivariate_manifest(
@@ -37,6 +38,7 @@ def build_bivariate_manifest(
     calendar_policy_version: str,
     algorithm_version: str,
     maximum_pair_count: int = 100_000,
+    bucket_payloads: dict[int, bytes] | None = None,
 ) -> BivariateManifest:
     """Build an order-independent immutable Bivariate manifest without pair rows in a catalog."""
 
@@ -56,12 +58,22 @@ def build_bivariate_manifest(
     buckets = tuple(
         BivariateBucket(bucket, tuple(sorted(pairs))) for bucket, pairs in sorted(grouped.items())
     )
+    payloads = bucket_payloads or {}
+    expected_buckets = {bucket.bucket for bucket in buckets}
+    if set(payloads).difference(expected_buckets):
+        raise SharedBivariateArtifactError("bivariate_bucket_payload_invalid")
+    bucket_payload_hashes = tuple(
+        (bucket.bucket, _payload_hash(payloads[bucket.bucket]))
+        for bucket in buckets
+        if bucket.bucket in payloads
+    )
     payload = {
         "univariate_artifact_ids": universe,
         "bucket_count": bucket_count,
         "calendar_policy_version": calendar_policy_version,
         "algorithm_version": algorithm_version,
         "buckets": [(bucket.bucket, bucket.pairs) for bucket in buckets],
+        "bucket_payload_hashes": bucket_payload_hashes,
     }
     manifest_id = hashlib.sha256(
         json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
@@ -71,9 +83,25 @@ def build_bivariate_manifest(
         universe,
         pair_count,
         buckets,
+        bucket_payload_hashes,
     )
 
 
 def _bucket(pair: tuple[str, str], bucket_count: int) -> int:
     digest = hashlib.sha256(":".join(pair).encode()).hexdigest()
     return int(digest[:16], 16) % bucket_count
+
+
+def verify_bucket_payload(manifest: BivariateManifest, *, bucket: int, payload: bytes) -> bytes:
+    """Return a bucket only when its checksum is present and matches the manifest."""
+
+    expected_hash = dict(manifest.bucket_payload_hashes).get(bucket)
+    if expected_hash is None:
+        raise SharedBivariateArtifactError("bivariate_bucket_not_cataloged")
+    if _payload_hash(payload) != expected_hash:
+        raise SharedBivariateArtifactError("bivariate_bucket_checksum_mismatch")
+    return payload
+
+
+def _payload_hash(payload: bytes) -> str:
+    return hashlib.sha256(payload).hexdigest()
