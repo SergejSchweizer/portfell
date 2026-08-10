@@ -70,7 +70,7 @@ def test_operations_refresh_is_profiled_and_has_only_the_required_secret_mount()
     assert refresh["profiles"] == ["operations"]
     assert refresh["command"] == ["python", "-m", "portfell.shared_market_refresh"]
     assert refresh["volumes"] == ["portfell-shared-data:/srv/portfell/shared-data"]
-    assert refresh["secrets"] == ["eodhd_kek"]
+    assert refresh["secrets"] == ["eodhd_kek", "operations_eodhd_token"]
     assert "ports" not in refresh
 
 
@@ -97,6 +97,9 @@ def test_runtime_secrets_are_external_paths_and_not_build_arguments() -> None:
     )
     assert cast(ComposeMapping, secrets["eodhd_kek"])["file"].startswith(
         "${PORTFELL_EODHD_KEK_FILE:?"
+    )
+    assert cast(ComposeMapping, secrets["operations_eodhd_token"])["file"].startswith(
+        "${PORTFELL_OPERATIONS_EODHD_TOKEN_FILE:?"
     )
     assert "api_token" not in rendered.lower()
     assert "build:" in rendered

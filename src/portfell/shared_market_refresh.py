@@ -16,7 +16,7 @@ from typing import Any, cast
 
 from portfell.config import EodhdConfig
 from portfell.hosted_api import create_persistent_local_workspace_state
-from portfell.hosted_api_state import DEFAULT_LOCAL_WORKSPACE_USER_ID, HostedApiState
+from portfell.hosted_api_state import HostedApiState
 from portfell.hosted_credentials import load_key_encryption_key
 from portfell.http import EodhdClient
 from portfell.shared_market_data import (
@@ -223,7 +223,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     root = os.environ.get("PORTFELL_SHARED_DATA_ROOT")
     key_file = os.environ.get("PORTFELL_EODHD_KEK_FILE")
-    if not root or not key_file:
+    operations_token = _operations_token()
+    if not root or not key_file or (not args.dry_run and not operations_token):
         return 4
     try:
         state = create_persistent_local_workspace_state(
@@ -245,12 +246,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 dry_run=True,
             )
         else:
-            key = state.credential_vault().unwrap_for_provider_call(
-                user_id=os.environ.get(
-                    "PORTFELL_LOCAL_WORKSPACE_USER_ID", DEFAULT_LOCAL_WORKSPACE_USER_ID
-                )
-            )
-            client = EodhdClient(EodhdConfig(api_token=key))
+            client = EodhdClient(EodhdConfig(api_token=operations_token))
             result = refresh_shared_market_data(
                 store=store,
                 state=state,
@@ -264,6 +260,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 4
     print(json.dumps(result.row(), sort_keys=True))
     return 0
+
+
+def _operations_token() -> str:
+    path = os.environ.get("PORTFELL_OPERATIONS_EODHD_TOKEN_FILE")
+    if path:
+        try:
+            return Path(path).read_text(encoding="utf-8").strip()
+        except OSError:
+            return ""
+    return os.environ.get("PORTFELL_OPERATIONS_EODHD_TOKEN", "").strip()
 
 
 def _eodhd_fetch(client: EodhdClient) -> ProviderFetch:
