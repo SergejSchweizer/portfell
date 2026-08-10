@@ -8,12 +8,17 @@ from pathlib import Path
 from portfell.hosted_api_service_support import stable_hash
 from portfell.hosted_api_state import HostedApiState, ProjectRecord, SelectionRecord
 from portfell.hosted_multivariate_service import MultivariateResearchService
-from portfell.hosted_repository_importer import InMemoryProjectRepository, TenantProject
+from portfell.hosted_repository_importer import (
+    InMemoryProjectRepository,
+    TenantProject,
+    TenantSelection,
+)
 from portfell.hosted_research_workflow import (
     ResearchRun,
     UnivariateSelection,
     bivariate_source_id,
 )
+from portfell.hosted_selection_repository import InMemorySelectionRepository
 from portfell.hosted_workspace import LocalWorkspaceStore
 from portfell.hosted_workspace_repository import persist_local_workspace, restore_local_workspace
 from portfell.table_io import JsonRow
@@ -204,15 +209,28 @@ def test_multivariate_service_rejects_bivariate_run_owned_by_another_user() -> N
 def test_multivariate_plan_authorizes_an_injected_project_repository() -> None:
     state, data, project_id, bivariate_run_id = _fixtures()
     state.projects_by_id = {}
+    metadata_selection = state.selections_by_id.pop("metadata-selection-a")
     repository = InMemoryProjectRepository()
     repository.create_project(TenantProject(project_id, "user-a", "A"))
+    selections = InMemorySelectionRepository()
+    selections.create(
+        TenantSelection(
+            metadata_selection.selection_id,
+            metadata_selection.project_id,
+            metadata_selection.user_id,
+            metadata_selection.name,
+            metadata_selection.member_ids,
+        )
+    )
     service = MultivariateResearchService(
         state,
         data,
         _Persistence(),
         project_repository=repository,
+        selection_repository=selections,
     )
 
+    assert state.selections_by_id == {}
     assert service.plan("user-a", project_id, bivariate_run_id, {})["allowed"] is True
 
 

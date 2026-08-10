@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 from typing import Protocol
 
+from portfell.hosted_api_state import SelectionRecord
 from portfell.hosted_catalog import set_authenticated_user_sql
 from portfell.hosted_repository_importer import TenantImportError, TenantSelection
 
@@ -57,6 +58,18 @@ class InMemorySelectionRepository:
     def by_id(self, *, selection_id: str, user_id: str) -> TenantSelection | None:
         selection = self._selections.get(selection_id)
         return selection if selection is not None and selection.user_id == user_id else None
+
+
+def selection_record(selection: TenantSelection) -> SelectionRecord:
+    """Translate a persistence selection into the route-facing record."""
+
+    return SelectionRecord(
+        selection.selection_id,
+        selection.user_id,
+        selection.project_id,
+        selection.name,
+        selection.member_ids,
+    )
 
 
 class PostgresSelectionRepository:
