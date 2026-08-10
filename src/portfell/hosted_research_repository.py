@@ -12,8 +12,10 @@ from portfell.hosted_api_service_support import (
 )
 from portfell.hosted_api_state import AnalysisRecord, HostedApiState, ProjectRecord, SelectionRecord
 from portfell.hosted_local_project_repository import LocalProjectRepository
+from portfell.hosted_local_selection_repository import LocalSelectionRepository
 from portfell.hosted_repository_importer import ProjectRepository
 from portfell.hosted_research_workflow import ResearchRun, UnivariateSelection
+from portfell.hosted_selection_repository import SelectionRepository, selection_record
 from portfell.shared_market_data import SharedListingKey
 from portfell.table_io import JsonRow
 
@@ -22,13 +24,20 @@ class HostedResearchRepository:
     """Encapsulate mutable hosted state behind user-scoped repository operations."""
 
     def __init__(
-        self, state: HostedApiState, project_repository: ProjectRepository | None = None
+        self,
+        state: HostedApiState,
+        project_repository: ProjectRepository | None = None,
+        selection_repository: SelectionRepository | None = None,
     ) -> None:
         self._state = state
         self._projects = project_repository or LocalProjectRepository(state)
+        self._selections = selection_repository or LocalSelectionRepository(state)
 
     def metadata_selection(self, selection_id: str, user_id: str) -> SelectionRecord:
-        return require_user_row(self._state.selections_by_id, selection_id, user_id)
+        selection = self._selections.by_id(selection_id=selection_id, user_id=user_id)
+        if selection is None:
+            raise HostedApplicationError(404, "not_found")
+        return selection_record(selection)
 
     def quote_run(self, run_id: str, user_id: str) -> ProviderDownloadRun:
         return require_user_row(self._state.downloads_by_id, run_id, user_id)
