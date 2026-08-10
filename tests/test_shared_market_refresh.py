@@ -103,6 +103,7 @@ def test_refresh_lock_and_cli_exit_codes(tmp_path, monkeypatch, capsys) -> None:
     assert refresh.main(["--dry-run", "--end-date", "2026-01-01"]) == 0
     assert '"dry_run": true' in capsys.readouterr().out
 
+    monkeypatch.setenv("PORTFELL_OPERATIONS_EODHD_TOKEN", "operations-secret")
     state.shared_market_data_store = None
     assert refresh.main([]) == 6
     monkeypatch.setattr(
@@ -133,25 +134,39 @@ def test_eodhd_fetch_scopes_requests_and_rejects_invalid_payloads() -> None:
         list(refresh._eodhd_fetch(invalid)(request))
 
 
-def test_refresh_cli_uses_the_local_credential_for_a_non_dry_run(
+def test_refresh_cli_requires_operations_credential_before_planning(tmp_path, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.setenv("PORTFELL_SHARED_DATA_ROOT", str(tmp_path))
+    monkeypatch.setenv("PORTFELL_EODHD_KEK_FILE", str(tmp_path / "kek"))
+    monkeypatch.delenv("PORTFELL_OPERATIONS_EODHD_TOKEN", raising=False)
+    monkeypatch.setattr(
+        refresh,
+        "create_persistent_local_workspace_state",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("must not plan")),
+    )
+
+    assert refresh.main(["--end-date", "2026-01-01"]) == 4
+
+
+def test_refresh_cli_uses_operations_credential_for_a_non_dry_run(
     tmp_path, monkeypatch, capsys
 ) -> None:  # type: ignore[no-untyped-def]
     state = _state()
     state.shared_market_data_store = SharedMarketDataStore(tmp_path)
     monkeypatch.setenv("PORTFELL_SHARED_DATA_ROOT", str(tmp_path))
     monkeypatch.setenv("PORTFELL_EODHD_KEK_FILE", str(tmp_path / "kek"))
+    monkeypatch.setenv("PORTFELL_OPERATIONS_EODHD_TOKEN", "operations-secret")
     monkeypatch.setattr(
         refresh,
         "create_persistent_local_workspace_state",
         lambda *_args, **_kwargs: state,
     )
     monkeypatch.setattr(refresh, "load_key_encryption_key", lambda *_args, **_kwargs: object())
+    received_tokens: list[str] = []
     monkeypatch.setattr(
-        HostedApiState,
-        "credential_vault",
-        lambda _state: SimpleNamespace(unwrap_for_provider_call=lambda **_kwargs: "secret"),
+        refresh,
+        "EodhdClient",
+        lambda config: received_tokens.append(config.api_token) or object(),
     )
-    monkeypatch.setattr(refresh, "EodhdClient", lambda _config: object())
     monkeypatch.setattr(
         refresh,
         "refresh_shared_market_data",
@@ -159,4 +174,5 @@ def test_refresh_cli_uses_the_local_credential_for_a_non_dry_run(
     )
 
     assert refresh.main(["--end-date", "2026-01-01"]) == 0
+    assert received_tokens == ["operations-secret"]
     assert '"dry_run": false' in capsys.readouterr().out
