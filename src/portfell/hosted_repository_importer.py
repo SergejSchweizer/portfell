@@ -8,6 +8,8 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Protocol, cast
 
+from portfell.hosted_catalog import set_authenticated_user_sql
+
 
 class TenantImportError(ValueError):
     """Raised when legacy local-workspace state cannot be safely imported."""
@@ -61,6 +63,71 @@ class TenantRepository(Protocol):
         """Return deterministic completed-import identifiers."""
 
         ...
+
+
+class TenantCursor(Protocol):
+    """Minimal PostgreSQL result boundary for tenant repository projections."""
+
+    def fetchall(self) -> list[tuple[object, ...]]:
+        """Return all selected rows."""
+
+        ...
+
+
+class TenantConnection(Protocol):
+    """Parameterized connection contract; callers provide transaction ownership."""
+
+    def execute(self, sql: str, parameters: tuple[object, ...] = ()) -> TenantCursor:
+        """Execute parameterized SQL."""
+
+        ...
+
+
+class PostgresTenantProjectionRepository:
+    """Read-only tenant projection adapter with transaction-local user context."""
+
+    def __init__(self, connection: TenantConnection) -> None:
+        self._connection = connection
+
+    def projects_for_user(self, user_id: str) -> tuple[TenantProject, ...]:
+        """Read ordered project metadata after binding the RLS user setting locally."""
+
+        self._connection.execute(*set_authenticated_user_sql(user_id))
+        rows = self._connection.execute(
+            """
+select project_id::text, user_id::text, name
+from portfell_app.projects
+where status = 'active'
+order by project_id
+"""
+        ).fetchall()
+        return tuple(
+            TenantProject(
+                project_id=_row_text(row, 0),
+                user_id=_row_text(row, 1),
+                name=_row_text(row, 2),
+            )
+            for row in rows
+        )
+
+
+@dataclass(frozen=True)
+class ParityMismatch:
+    """Redacted mismatch diagnostic that never exposes another user's membership."""
+
+    field: str
+    expected_count: int
+    actual_count: int
+
+
+def compare_project_parity(
+    expected: tuple[TenantProject, ...], actual: tuple[TenantProject, ...]
+) -> tuple[ParityMismatch, ...]:
+    """Compare normalized metadata projections without returning tenant values."""
+
+    if expected == actual:
+        return ()
+    return (ParityMismatch("projects", len(expected), len(actual)),)
 
 
 class InMemoryTenantRepository:
@@ -208,6 +275,13 @@ def _text(row: Mapping[str, object], key: str) -> str:
     value = row.get(key)
     if not isinstance(value, str) or not value:
         raise TenantImportError(f"local_workspace_{key}_invalid")
+    return value
+
+
+def _row_text(row: tuple[object, ...], index: int) -> str:
+    value = row[index]
+    if not isinstance(value, str) or not value:
+        raise TenantImportError("postgres_tenant_projection_invalid")
     return value
 
 

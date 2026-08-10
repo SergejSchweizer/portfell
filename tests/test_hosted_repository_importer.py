@@ -4,9 +4,29 @@ import pytest
 
 from portfell.hosted_repository_importer import (
     InMemoryTenantRepository,
+    PostgresTenantProjectionRepository,
     TenantImportError,
+    TenantProject,
+    compare_project_parity,
     import_local_workspace,
 )
+
+
+class _Cursor:
+    def __init__(self, rows: list[tuple[object, ...]]) -> None:
+        self._rows = rows
+
+    def fetchall(self) -> list[tuple[object, ...]]:
+        return self._rows
+
+
+class _Connection:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, tuple[object, ...]]] = []
+
+    def execute(self, sql: str, parameters: tuple[object, ...] = ()) -> _Cursor:
+        self.calls.append((sql, parameters))
+        return _Cursor([("project-1", "user-a", "Income")])
 
 
 def test_local_workspace_import_dry_run_does_not_mutate_and_is_deterministic() -> None:
@@ -69,3 +89,24 @@ def test_local_workspace_import_is_idempotent_by_completion_checksum() -> None:
 
     assert second == first
     assert repository.import_checksums == (first.checksum,)
+
+
+def test_postgres_projection_binds_transaction_local_user_before_query() -> None:
+    connection = _Connection()
+
+    projects = PostgresTenantProjectionRepository(connection).projects_for_user("user-a")
+
+    assert projects == (TenantProject("project-1", "user-a", "Income"),)
+    assert connection.calls[0] == (
+        "select set_config(%s, %s, true)",
+        ("portfell.current_user_id", "user-a"),
+    )
+    assert "where status = 'active'" in connection.calls[1][0]
+
+
+def test_project_parity_redacts_project_values() -> None:
+    mismatch = compare_project_parity((TenantProject("p1", "user-a", "Income"),), ())
+
+    assert mismatch[0].field == "projects"
+    assert mismatch[0].expected_count == 1
+    assert mismatch[0].actual_count == 0
