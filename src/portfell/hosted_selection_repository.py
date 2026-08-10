@@ -21,6 +21,44 @@ class SelectionConnection(Protocol):
     def execute(self, sql: str, parameters: tuple[object, ...] = ()) -> SelectionCursor: ...
 
 
+class SelectionRepository(Protocol):
+    """User-scoped immutable project selection persistence port."""
+
+    def create(self, selection: TenantSelection) -> TenantSelection: ...
+
+    def for_project(self, *, project_id: str, user_id: str) -> TenantSelection | None: ...
+
+    def by_id(self, *, selection_id: str, user_id: str) -> TenantSelection | None: ...
+
+
+class InMemorySelectionRepository:
+    """Contract test double for immutable user-scoped selection membership."""
+
+    def __init__(self) -> None:
+        self._selections: dict[str, TenantSelection] = {}
+
+    def create(self, selection: TenantSelection) -> TenantSelection:
+        existing = self.for_project(project_id=selection.project_id, user_id=selection.user_id)
+        if existing is not None and existing != selection:
+            raise TenantImportError("project_membership_immutable")
+        self._selections.setdefault(selection.selection_id, selection)
+        return selection
+
+    def for_project(self, *, project_id: str, user_id: str) -> TenantSelection | None:
+        return next(
+            (
+                selection
+                for selection in self._selections.values()
+                if selection.project_id == project_id and selection.user_id == user_id
+            ),
+            None,
+        )
+
+    def by_id(self, *, selection_id: str, user_id: str) -> TenantSelection | None:
+        selection = self._selections.get(selection_id)
+        return selection if selection is not None and selection.user_id == user_id else None
+
+
 class PostgresSelectionRepository:
     """Persist and read one sealed canonical selection membership per project."""
 
@@ -48,7 +86,7 @@ on conflict (project_id) do nothing
                 membership_hash,
             ),
         )
-        existing = self.get(project_id=selection.project_id, user_id=selection.user_id)
+        existing = self.for_project(project_id=selection.project_id, user_id=selection.user_id)
         if existing is not None and existing != selection:
             raise TenantImportError("project_membership_immutable")
         if existing is not None:
@@ -81,7 +119,7 @@ where selection_version_id = %s::uuid and membership_sealed_at is null
         )
         return selection
 
-    def get(self, *, project_id: str, user_id: str) -> TenantSelection | None:
+    def for_project(self, *, project_id: str, user_id: str) -> TenantSelection | None:
         """Read an owned sealed selection with canonical member ordering."""
 
         self._bind_user(user_id)
@@ -112,5 +150,37 @@ order by member.isin, member.exchange, member.code
             members,
         )
 
+    def by_id(self, *, selection_id: str, user_id: str) -> TenantSelection | None:
+        self._bind_user(user_id)
+        rows = self._connection.execute(
+            """
+select version.selection_version_id::text, version.project_id::text, version.user_id::text,
+       version.name, member.isin, member.exchange, member.code
+from portfell_app.project_selection_versions as version
+join portfell_app.project_selection_members as member
+  on member.selection_version_id = version.selection_version_id
+where version.selection_version_id = %s::uuid and version.membership_sealed_at is not null
+order by member.isin, member.exchange, member.code
+""",
+            (selection_id,),
+        ).fetchall()
+        return _selection_from_rows(rows)
+
     def _bind_user(self, user_id: str) -> None:
         self._connection.execute(*set_authenticated_user_sql(user_id))
+
+
+def _selection_from_rows(rows: list[tuple[object, ...]]) -> TenantSelection | None:
+    if not rows:
+        return None
+    first = rows[0]
+    if len(first) != 7 or any(not isinstance(value, str) or not value for value in first):
+        raise TenantImportError("selection_projection_invalid")
+    selection_id, project_id, user_id, name, _, _, _ = first
+    return TenantSelection(
+        str(selection_id),
+        str(project_id),
+        str(user_id),
+        str(name),
+        tuple(f"{row[4]}:{row[5]}:{row[6]}" for row in rows),
+    )

@@ -25,13 +25,19 @@ from portfell.hosted_api_service_support import (
     project_with_selection_row,
     remember_idempotency,
     require_user_row,
-    selection_for_project,
     stable_hash,
     workflow_row,
 )
 from portfell.hosted_api_state import HostedApiState, ProjectRecord, SelectionRecord
 from portfell.hosted_local_project_repository import LocalProjectRepository
-from portfell.hosted_repository_importer import ProjectRepository, TenantImportError, TenantProject
+from portfell.hosted_local_selection_repository import LocalSelectionRepository
+from portfell.hosted_repository_importer import (
+    ProjectRepository,
+    TenantImportError,
+    TenantProject,
+    TenantSelection,
+)
+from portfell.hosted_selection_repository import SelectionRepository
 from portfell.hosted_workspace_repository import persist_local_workspace
 from portfell.table_io import JsonRow
 
@@ -44,10 +50,12 @@ class CredentialProjectService:
         state: HostedApiState,
         runtime: HostedRuntimePort | None = None,
         project_repository: ProjectRepository | None = None,
+        selection_repository: SelectionRepository | None = None,
     ) -> None:
         self.state = state
         self.runtime = runtime
         self._projects = project_repository or LocalProjectRepository(state)
+        self._selections = selection_repository or LocalSelectionRepository(state)
 
     def workflow(self, user_id: str, project_id: str | None = None) -> JsonRow:
         if project_id is None:
@@ -206,7 +214,7 @@ class CredentialProjectService:
         self, user_id: str, project_id: str
     ) -> tuple[ProjectRecord, SelectionRecord]:
         project = self._project(user_id, project_id)
-        return project, selection_for_project(self.state, project_id, user_id)
+        return project, self._selection_for_project(user_id, project_id)
 
     def univariate_selection_settings(self, user_id: str, project_id: str) -> JsonRow:
         self._project(user_id, project_id)
@@ -251,15 +259,17 @@ class CredentialProjectService:
                 f"portfell:selection:{user_id}:{project_id}:{name}:{members}",
             )
         )
-        self.state.selections_by_id.setdefault(
-            selection_id,
-            SelectionRecord(selection_id, user_id, project_id, name, members),
+        selection = self._selections.create(
+            TenantSelection(selection_id, project_id, user_id, name, members)
         )
         audit(self.state, user_id, "selection.create")
-        return selection_row(self.state.selections_by_id[selection_id])
+        return selection_row(self._selection_record(selection))
 
     def selection_detail(self, user_id: str, selection_id: str) -> JsonRow:
-        return selection_row(require_user_row(self.state.selections_by_id, selection_id, user_id))
+        selection = self._selections.by_id(selection_id=selection_id, user_id=user_id)
+        if selection is None:
+            raise HostedApplicationError(404, "not_found")
+        return selection_row(self._selection_record(selection))
 
     def delete_account(self, user_id: str) -> JsonRow:
         delete_user_entitlements(store=self.state.entitlements, user_id=user_id)
@@ -311,3 +321,19 @@ class CredentialProjectService:
             self._projects.delete_project(user_id=user_id, project_id=project_id)
         except TenantImportError as error:
             raise HostedApplicationError(404, "not_found") from error
+
+    @staticmethod
+    def _selection_record(selection: TenantSelection) -> SelectionRecord:
+        return SelectionRecord(
+            selection.selection_id,
+            selection.user_id,
+            selection.project_id,
+            selection.name,
+            selection.member_ids,
+        )
+
+    def _selection_for_project(self, user_id: str, project_id: str) -> SelectionRecord:
+        selection = self._selections.for_project(project_id=project_id, user_id=user_id)
+        if selection is None:
+            raise HostedApplicationError(404, "not_found")
+        return self._selection_record(selection)

@@ -40,6 +40,7 @@ from portfell.hosted_repository_importer import InMemoryProjectRepository, Tenan
 from portfell.hosted_research_persistence import LocalResearchPersistence
 from portfell.hosted_research_repository import HostedResearchRepository
 from portfell.hosted_research_workflow import ResearchRun, UnivariateSelection
+from portfell.hosted_selection_repository import InMemorySelectionRepository
 from portfell.hosted_workspace import LocalWorkspaceStore
 from portfell.hosted_workspace_repository import persist_local_workspace, restore_local_workspace
 from portfell.paths import LakePaths
@@ -265,6 +266,25 @@ def test_project_commands_can_use_an_injected_repository_without_state_authority
             "data_loaded": False,
         }
     ]
+
+
+def test_selection_commands_can_use_an_injected_repository_without_state_authority() -> None:
+    state = HostedApiState()
+    user_id = "00000000-0000-5000-8000-000000000001"
+    project_id = "00000000-0000-5000-8000-000000000002"
+    projects = InMemoryProjectRepository()
+    projects.create_project(TenantProject(project_id, user_id, "Income"))
+    selections = InMemorySelectionRepository()
+    service = CredentialProjectService(
+        state,
+        project_repository=projects,
+        selection_repository=selections,
+    )
+
+    created = service.create_selection(user_id, project_id, "Income", ["IE1"])
+
+    assert state.selections_by_id == {}
+    assert service.selection_detail(user_id, created["selection_id"]) == created
 
 
 def test_metadata_builder_project_can_use_an_injected_project_repository() -> None:
