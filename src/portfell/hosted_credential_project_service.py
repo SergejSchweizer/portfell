@@ -22,7 +22,7 @@ from portfell.hosted_api_service_support import (
     idempotent_response,
     opaque_id,
     page,
-    project_with_selection_row,
+    project_data_loaded,
     remember_idempotency,
     require_user_row,
     stable_hash,
@@ -186,23 +186,18 @@ class CredentialProjectService:
 
     def list_projects(self, user_id: str, limit: int, offset: int) -> JsonRow:
         items = [
-            project_with_selection_row(self.state, row, user_id)
-            for row in self._project_records(user_id)
+            self._project_with_selection_row(row, user_id) for row in self._project_records(user_id)
         ]
         return {"items": page(items, limit=limit, offset=offset)}
 
     def project_context(self, user_id: str) -> JsonRow:
         project = self._current_project(user_id)
         projects = self._project_records(user_id)
-        current = (
-            None if project is None else project_with_selection_row(self.state, project, user_id)
-        )
+        current = None if project is None else self._project_with_selection_row(project, user_id)
         return {
             "current_project_id": None if project is None else project.project_id,
             "current_project": current,
-            "projects": [
-                project_with_selection_row(self.state, item, user_id) for item in projects
-            ],
+            "projects": [self._project_with_selection_row(item, user_id) for item in projects],
         }
 
     def select_current_project(self, user_id: str, project_id: str) -> JsonRow:
@@ -337,3 +332,16 @@ class CredentialProjectService:
         if selection is None:
             raise HostedApplicationError(404, "not_found")
         return self._selection_record(selection)
+
+    def _project_with_selection_row(self, project: ProjectRecord, user_id: str) -> JsonRow:
+        selection = self._selections.for_project(project_id=project.project_id, user_id=user_id)
+        if selection is None:
+            return {**project_row(project), "selected_count": 0, "data_loaded": False}
+        return {
+            **project_row(project),
+            "selection_id": selection.selection_id,
+            "selected_count": len(
+                {member_id.split(":", 1)[0] for member_id in selection.member_ids}
+            ),
+            "data_loaded": project_data_loaded(self.state, project.project_id, user_id),
+        }

@@ -644,13 +644,13 @@ repeatable and stop before documented commit points on mismatch.
 
 ### PR167. Hosted Runtime Cutover And Legacy Authority Removal
 
-Branch: `refactor/hosted-research-selection-repository`.
+Branch: `refactor/hosted-project-selection-projection`.
 
-Git status: pushed; research metadata selection resolution is moving behind explicit repository ports. Production authority remains blocked by the required production-like import, parity, backup/restore, and rollback rehearsal.
+Git status: pushed; project selection projections are moving behind explicit repository ports. Production authority remains blocked by the required production-like import, parity, backup/restore, and rollback rehearsal.
 
-PR: https://github.com/SergejSchweizer/portfell/pull/320.
+PR: https://github.com/SergejSchweizer/portfell/pull/321.
 
-Depends on implementation branch: `refactor/hosted-multivariate-selection-repository` (PR #319).
+Depends on implementation branch: `refactor/hosted-research-selection-repository` (PR #320).
 
 Prior planning PR: https://github.com/SergejSchweizer/portfell/pull/300 (merged; remaining
 implementation continues through stacked branches).
