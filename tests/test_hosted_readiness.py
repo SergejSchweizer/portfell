@@ -94,6 +94,7 @@ def test_runtime_readiness_fails_closed_for_missing_worker_secret_files(tmp_path
     assert {failure.name for failure in failures} == {
         "runtime.external_kek_available",
         "runtime.operations_credential_available",
+        "runtime.database_url_configured",
     }
 
 
@@ -108,9 +109,29 @@ def test_runtime_readiness_accepts_nonempty_worker_secret_files(tmp_path: Path) 
             {
                 "PORTFELL_EODHD_KEK_FILE": str(kek),
                 "PORTFELL_OPERATIONS_EODHD_TOKEN_FILE": str(token),
+                "PORTFELL_DATABASE_URL": "postgresql://portfell_app@postgres:5432/portfell",
             }
         )
     )
+
+
+def test_runtime_readiness_rejects_a_non_postgres_database_url(tmp_path: Path) -> None:
+    kek = tmp_path / "kek"
+    token = tmp_path / "operations-token"
+    kek.write_text("kek-material", encoding="utf-8")
+    token.write_text("operations-token", encoding="utf-8")
+
+    failures = failed_results(
+        validate_runtime_readiness(
+            {
+                "PORTFELL_EODHD_KEK_FILE": str(kek),
+                "PORTFELL_OPERATIONS_EODHD_TOKEN_FILE": str(token),
+                "PORTFELL_DATABASE_URL": "sqlite:///portfell.db",
+            }
+        )
+    )
+
+    assert [failure.name for failure in failures] == ["runtime.database_url_configured"]
 
 
 def test_runtime_readiness_accepts_postgres_authority_when_hosting_is_approved(
@@ -126,6 +147,7 @@ def test_runtime_readiness_accepts_postgres_authority_when_hosting_is_approved(
             {
                 "PORTFELL_EODHD_KEK_FILE": str(kek),
                 "PORTFELL_OPERATIONS_EODHD_TOKEN_FILE": str(token),
+                "PORTFELL_DATABASE_URL": "postgresql://portfell_app@postgres:5432/portfell",
                 "PORTFELL_HOSTED_AUTHORITY": "postgres",
             }
         )
@@ -139,6 +161,7 @@ def test_runtime_readiness_cli_requires_nonempty_secret_files(
 ) -> None:
     monkeypatch.setenv("PORTFELL_EODHD_KEK_FILE", str(tmp_path / "missing-kek"))
     monkeypatch.setenv("PORTFELL_OPERATIONS_EODHD_TOKEN_FILE", str(tmp_path / "missing-token"))
+    monkeypatch.setenv("PORTFELL_DATABASE_URL", "postgresql://portfell_app@postgres:5432/portfell")
 
     assert main(("--require-runtime",)) == 1
 
@@ -154,6 +177,7 @@ def test_runtime_readiness_cli_accepts_configured_postgres_authority(
     token.write_text("operations-token", encoding="utf-8")
     monkeypatch.setenv("PORTFELL_EODHD_KEK_FILE", str(kek))
     monkeypatch.setenv("PORTFELL_OPERATIONS_EODHD_TOKEN_FILE", str(token))
+    monkeypatch.setenv("PORTFELL_DATABASE_URL", "postgresql://portfell_app@postgres:5432/portfell")
     monkeypatch.setenv("PORTFELL_HOSTED_AUTHORITY", "postgres")
 
     assert main(("--require-runtime",)) == 0
