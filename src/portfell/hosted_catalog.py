@@ -521,14 +521,15 @@ def apply_hosted_catalog_migrations(connection: CatalogConnection) -> int:
     Side Effects:
         Executes deterministic idempotent role creation and schema migration SQL.
 
-    Returns:
-        Number of catalog migrations newly applied during this invocation.
+    Returns: Number of newly applied catalog migrations.
     """
 
     for role in HOSTED_ROLES:
         connection.execute(create_role_sql(role))
     applied = 0
     for migration in migration_plan():
+        if migration.version == 1:
+            connection.execute(migration.sql)
         existing = connection.execute(
             """
 select checksum
@@ -541,7 +542,8 @@ where version = %s
             if existing[0] != migration.checksum:
                 raise ValueError(f"hosted_migration_checksum_mismatch:{migration.version}")
             continue
-        connection.execute(migration.sql)
+        if migration.version != 1:
+            connection.execute(migration.sql)
         connection.execute(
             """
 insert into portfell_private.schema_migrations (version, name, checksum)

@@ -137,6 +137,17 @@ def test_apply_hosted_catalog_migrations_is_deterministic_and_idempotent() -> No
     assert migration_inserts == [
         (migration.version, migration.name, migration.checksum) for migration in migration_plan()
     ]
+    base_migration_index = next(
+        index
+        for index, (statement, _) in enumerate(connection.executed)
+        if statement == migration_plan()[0].sql
+    )
+    first_ledger_lookup_index = next(
+        index
+        for index, (statement, _) in enumerate(connection.executed)
+        if "select checksum" in statement
+    )
+    assert base_migration_index < first_ledger_lookup_index
 
     statements_before_rerun = len(connection.executed)
     assert apply_hosted_catalog_migrations(connection) == 0
@@ -145,9 +156,12 @@ def test_apply_hosted_catalog_migrations_is_deterministic_and_idempotent() -> No
     assert not any(
         "insert into portfell_private.schema_migrations" in sql for sql, _ in rerun_statements
     )
-    assert not any(
-        migration.sql in (sql for sql, _ in rerun_statements) for migration in migration_plan()
-    )
+    rerun_migrations = [
+        migration.version
+        for migration in migration_plan()
+        if migration.sql in (sql for sql, _ in rerun_statements)
+    ]
+    assert rerun_migrations == [1]
 
 
 def test_authenticated_user_sql_uses_transaction_local_setting() -> None:
