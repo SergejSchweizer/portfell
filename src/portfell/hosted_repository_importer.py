@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import uuid
 from collections.abc import Mapping
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from typing import Any, Protocol, cast
 
@@ -239,6 +241,113 @@ on conflict (user_id) do update set project_id = excluded.project_id
     def _bind_user(self, user_id: str) -> None:
         self._connection.execute(*set_authenticated_user_sql(user_id))
 
+class TenantImportCursor(Protocol):
+    """Minimal result contract for durable import idempotency checks."""
+
+    def fetchone(self) -> tuple[object, ...] | None: ...
+
+
+class TenantImportConnection(Protocol):
+    """Transactional PostgreSQL boundary for the tenant control-plane importer."""
+
+    def transaction(self) -> AbstractContextManager[object]: ...
+
+    def execute(self, sql: str, parameters: tuple[object, ...] = ()) -> TenantImportCursor: ...
+
+
+class PostgresTenantRepository:
+    """Persist imported project control metadata with deterministic legacy UUID mapping."""
+
+    def __init__(self, connection: TenantImportConnection) -> None:
+        self._connection = connection
+
+    def imported_checksums(self) -> tuple[str, ...]:
+        cursor = self._connection.execute(
+            "select checksum from portfell_private.legacy_imports order by checksum"
+        )
+        rows = getattr(cursor, "fetchall", lambda: ())()
+        return tuple(str(row[0]) for row in rows)
+
+    def import_snapshot(
+        self,
+        *,
+        checksum: str,
+        projects: tuple[TenantProject, ...],
+        selections: tuple[TenantSelection, ...],
+        current_projects: Mapping[str, str],
+    ) -> None:
+        with self._connection.transaction():
+            cursor = self._connection.execute(
+                """
+insert into portfell_private.legacy_imports (checksum) values (%s)
+on conflict (checksum) do nothing returning checksum
+""",
+                (checksum,),
+            )
+            if cursor.fetchone() is None:
+                return
+            for project in projects:
+                user_id = _legacy_uuid(project.user_id)
+                project_id = _legacy_uuid(project.project_id)
+                self._connection.execute(
+                    """
+insert into portfell_app.users (user_id, status) values (%s, 'active')
+on conflict (user_id) do nothing
+""",
+                    (user_id,),
+                )
+                self._connection.execute(
+                    """
+insert into portfell_app.projects (project_id, user_id, name) values (%s, %s, %s)
+on conflict (project_id) do nothing
+""",
+                    (project_id, user_id, project.name),
+                )
+            for selection in selections:
+                self._insert_selection(selection)
+            for user_id, project_id in current_projects.items():
+                self._connection.execute(
+                    """
+insert into portfell_app.current_project_preferences (user_id, project_id)
+values (%s, %s)
+on conflict (user_id) do update set project_id = excluded.project_id, updated_at = now()
+""",
+                    (_legacy_uuid(user_id), _legacy_uuid(project_id)),
+                )
+
+    def _insert_selection(self, selection: TenantSelection) -> None:
+        user_id = _legacy_uuid(selection.user_id)
+        project_id = _legacy_uuid(selection.project_id)
+        selection_id = _legacy_uuid(selection.selection_id)
+        membership_hash = hashlib.sha256("\n".join(selection.member_ids).encode()).hexdigest()
+        self._connection.execute(
+            """
+insert into portfell_app.project_selection_versions (
+    selection_version_id, project_id, user_id, membership_hash, canonical_listing_policy_version
+) values (%s, %s, %s, %s, 'legacy-import-v1')
+on conflict (project_id) do nothing
+""",
+            (selection_id, project_id, user_id, membership_hash),
+        )
+        for member_id in selection.member_ids:
+            isin, exchange, code = member_id.split(":")
+            self._connection.execute(
+                """
+insert into portfell_app.project_selection_members (
+    selection_version_id, project_id, user_id, isin, provider, exchange, code, canonical_listing_id
+) values (%s, %s, %s, %s, 'eodhd', %s, %s, %s)
+on conflict (selection_version_id, isin) do nothing
+""",
+                (selection_id, project_id, user_id, isin, exchange, code, member_id),
+            )
+        self._connection.execute(
+            """
+update portfell_app.project_selection_versions
+set membership_sealed_at = now()
+where selection_version_id = %s and membership_sealed_at is null
+""",
+            (selection_id,),
+        )
 
 class InMemoryTenantRepository:
     """Deterministic test double for importer and repository contract tests."""
@@ -415,3 +524,7 @@ def _checksum(
     return hashlib.sha256(
         json.dumps(payload, default=list, sort_keys=True, separators=(",", ":")).encode()
     ).hexdigest()
+
+
+def _legacy_uuid(value: str) -> str:
+    return str(uuid.uuid5(uuid.NAMESPACE_URL, f"portfell-legacy:{value}"))

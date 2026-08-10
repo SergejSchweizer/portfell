@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from contextlib import nullcontext
+
 import pytest
 
 from portfell.hosted_repository_importer import (
@@ -7,6 +9,7 @@ from portfell.hosted_repository_importer import (
     InMemoryTenantRepository,
     PostgresProjectRepository,
     PostgresTenantProjectionRepository,
+    PostgresTenantRepository,
     TenantImportError,
     TenantProject,
     compare_project_parity,
@@ -15,20 +18,34 @@ from portfell.hosted_repository_importer import (
 
 
 class _Cursor:
-    def __init__(self, rows: list[tuple[object, ...]]) -> None:
+    def __init__(
+        self,
+        rows: list[tuple[object, ...]] | None = None,
+        row: tuple[object, ...] | None = None,
+    ) -> None:
         self._rows = rows
+        self._row = row
+
+    def fetchone(self) -> tuple[object, ...] | None:
+        return self._row
 
     def fetchall(self) -> list[tuple[object, ...]]:
-        return self._rows
+        return self._rows or []
 
 
 class _Connection:
     def __init__(self) -> None:
         self.calls: list[tuple[str, tuple[object, ...]]] = []
+        self.executed = self.calls
+
+    def transaction(self):  # type: ignore[no-untyped-def]
+        return nullcontext()
 
     def execute(self, sql: str, parameters: tuple[object, ...] = ()) -> _Cursor:
         self.calls.append((sql, parameters))
-        return _Cursor([("project-1", "user-a", "Income")])
+        if "legacy_imports" in sql and parameters:
+            return _Cursor(row=(parameters[0],))
+        return _Cursor(rows=[("project-1", "user-a", "Income")])
 
 
 def test_local_workspace_import_dry_run_does_not_mutate_and_is_deterministic() -> None:
@@ -140,3 +157,35 @@ def test_postgres_project_repository_parameterizes_owned_commands() -> None:
     assert connection.calls[0][1] == ("portfell.current_user_id", "user-a")
     assert connection.calls[1][1] == ("project-1", "user-a", "Income")
     assert connection.calls[3][1] == ("user-a", "project-1")
+
+
+def test_postgres_importer_maps_legacy_ids_and_seals_membership() -> None:
+    connection = _Connection()
+    repository = PostgresTenantRepository(connection)
+    payload = {
+        "projects": [{"project_id": "project-1", "user_id": "user-a", "name": "Income"}],
+        "selections": [
+            {
+                "selection_id": "selection-1",
+                "project_id": "project-1",
+                "user_id": "user-a",
+                "name": "UCITS",
+                "member_ids": ["IE1:XETRA:AAA"],
+            }
+        ],
+        "current_project_id_by_user": {"user-a": "project-1"},
+    }
+
+    report = import_local_workspace(repository, payload, dry_run=False)
+
+    statements = "\n".join(statement for statement, _ in connection.executed)
+    assert connection.executed[0][1] == (report.checksum,)
+    assert "insert into portfell_app.users" in statements
+    assert "project_selection_members" in statements
+    assert "set membership_sealed_at = now()" in statements
+    project_parameters = next(
+        parameters
+        for statement, parameters in connection.executed
+        if "insert into portfell_app.projects" in statement
+    )
+    assert str(project_parameters[0]).count("-") == 4

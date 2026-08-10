@@ -8,6 +8,7 @@ import hashlib
 from dataclasses import dataclass
 from typing import Protocol
 
+from portfell.legacy_import_schema import LEGACY_IMPORT_LEDGER_SQL
 from portfell.tenant_control_schema import (
     D017_DURABLE_JOB_SCHEMA_SQL,
     D017_ROLE_SPECS,
@@ -488,6 +489,7 @@ MIGRATIONS: tuple[HostedMigration, ...] = (
     HostedMigration(5, "provider_credential_wrap_nonce", _CREDENTIAL_WRAP_NONCE_SQL),
     HostedMigration(6, "d017_tenant_control_schema", D017_TENANT_CONTROL_SCHEMA_SQL),
     HostedMigration(7, "d017_durable_job_queue", D017_DURABLE_JOB_SCHEMA_SQL),
+    HostedMigration(8, "legacy_import_ledger", LEGACY_IMPORT_LEDGER_SQL),
 )
 
 
