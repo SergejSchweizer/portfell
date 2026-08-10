@@ -1,6 +1,6 @@
 # Decisions
 
-Last reviewed: 2026-07-19
+Last reviewed: 2026-08-10
 
 ## Table Of Contents
 
@@ -21,6 +21,7 @@ Last reviewed: 2026-07-19
 - [D014. Use Per-Layer Process Locks](#d014-use-per-layer-process-locks)
 - [D015. Use Dataset Contracts And Job Manifests For Refactor Boundaries](#d015-use-dataset-contracts-and-job-manifests-for-refactor-boundaries)
 - [D016. Use PostgreSQL-First User-Key-Backed Hosted Architecture](#d016-use-postgresql-first-user-key-backed-hosted-architecture)
+- [D017. Separate The PostgreSQL Tenant Plane From Globally Shared Data](#d017-separate-the-postgresql-tenant-plane-from-globally-shared-data)
 - [Update Rules](#update-rules)
 
 Record durable technical decisions here. Use short entries with context, decision, consequences, and update triggers.
@@ -217,6 +218,8 @@ Update trigger: Revisit if dataset schema versions need migrations, job manifest
 
 Date: 2026-07-19
 
+Status: Superseded by D017.
+
 Context: Portfell is moving from local portfolio analysis toward a possible hosted product. Hosted mode must support
 multiple users without leaking market data, provider credentials, selections, portfolio artifacts, or reports between
 accounts.
@@ -233,6 +236,43 @@ blocked until licensing, privacy, backup, credential, and security readiness gat
 
 Update trigger: Revisit if a second identity provider is added, PostgreSQL is replaced, EODHD licensing changes,
 provider credentials are no longer BYOK, or the hosted authorization model moves away from immutable user snapshots.
+
+## D017. Separate The PostgreSQL Tenant Plane From Globally Shared Data
+
+Date: 2026-08-10
+
+Context: Portfell needs durable multi-user project state without copying market or analytical data
+per customer. Quotes, dividends, splits, and exact-input analytical results are reusable facts, while
+credentials, project history, selected listings, workflow state, and authorization are user-owned.
+The earlier user-grant model would duplicate authorization state for every market observation and
+would prevent the intended global reuse.
+
+Decision: PostgreSQL is the authoritative tenant and control plane. It stores users, encrypted
+credentials, projects including soft deletion, immutable selection versions and relational listing
+membership, project lifecycle events, ingestion and analysis job state, and authorized references to
+shared artifacts. A tenant-neutral shared object store holds canonical quotes, dividends, splits,
+and content-addressed Univariate, Bivariate, and Multivariate artifacts. A project may initiate
+exactly one server-owned initial delta fill for only the de-duplicated full listing members frozen in
+that immutable Metadata Builder selection version. Metadata Builder persists exactly one canonical
+listing per unique ISIN; changing membership creates a new project. Both bootstrap and all later
+cron refreshes use one dedicated operations credential. User credentials remain encrypted tenant
+metadata but never feed the shared corpus. Bootstrap never expands to the metadata catalog, another
+project, or the active-project union.
+Shared physical data is readable by every project whose PostgreSQL selection references the required
+listings; per-user market-object grants are not part of the target model. APIs always authorize
+through owned project references and never expose unrestricted shared storage or global catalog
+scans.
+
+Consequences: Project overlap produces no duplicate market or analytical payloads. Project deletion
+removes or tombstones tenant references but cannot delete shared data. User credential revocation
+does not stop nightly refresh. Provider terms must explicitly permit this cross-customer reuse before
+hosted rollout; otherwise deployment fails closed or requires a different licensing boundary.
+PostgreSQL backups recover tenant metadata, while shared-store backup/versioning recovers data bytes;
+both catalogs must be reconciled by deterministic integrity tooling.
+
+Update trigger: Revisit if provider licensing forbids shared reuse, PostgreSQL or the shared object
+store is replaced, project creation no longer performs the initial fill, or analytical artifacts
+become customer-specific by contract.
 
 ## Update Rules
 

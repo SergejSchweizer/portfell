@@ -1,22 +1,26 @@
 # Hosted Readiness
 
-Last reviewed: 2026-07-19
+Last reviewed: 2026-08-10
 
 This document is evidence for `docs/security/hosted_readiness.json`. The JSON file is the machine-readable gate input; this file explains the decisions in operational language.
 
-## EODHD Storage And Derived Display Rights
+The entitlement model below records D016 evidence and is superseded as a production target by D017.
+Public hosting remains blocked until PR156 replaces the machine-readable licensing evidence and
+PR167 completes the PostgreSQL/shared-storage cutover gate after PR166 recovery rehearsal.
+
+## Historical D016 EODHD Storage And Derived Display Rights
 
 Public-hosted mode may store only data fetched through a user-provided EODHD credential and may expose derived views only to users whose immutable entitlement snapshot includes the source observations. Provider redistribution and display rights must be reviewed again before public-hosted mode is enabled for external users.
 
-## Personal License Boundary
+## Historical D016 Personal License Boundary
 
 Portfell does not pool one maintainer-owned provider key for all users. Each hosted user supplies their own provider credential, and provider calls resolve the credential only at request time through the encrypted vault.
 
-## Shared Physical Deduplication
+## Historical D016 Shared Physical Deduplication
 
 Shared observations and analytical artifacts may be physically deduplicated, but physical presence never grants visibility. User access is always resolved through user grants, immutable snapshots, and analysis-run ownership.
 
-## User Key Backed Grants
+## Historical D016 User Key Backed Grants
 
 No observation becomes visible to a user until a successful provider run using that user's active credential returns the observation and publishes a user grant.
 

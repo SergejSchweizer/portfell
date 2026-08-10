@@ -5,6 +5,7 @@ Last reviewed: 2026-08-10
 ## Table Of Contents
 
 - [Backlog Policy](#backlog-policy)
+- [Active PostgreSQL Tenant Plane And Shared Data PR Stack](#active-postgresql-tenant-plane-and-shared-data-pr-stack)
 - [Active Monthly-Distribution ETF Multivariate PR Stack](#active-monthly-distribution-etf-multivariate-pr-stack)
 - [Active Shared Market Data And Nightly Refresh PR Stack](#active-shared-market-data-and-nightly-refresh-pr-stack)
 - [Current Architectural Decision](#current-architectural-decision)
@@ -24,6 +25,692 @@ This file is ordered by execution relevance:
 Every active item must contain `Branch`, `Git status`, `PR`, `Priority`, `Depends on`, `Scope`, `Acceptance`, `Security`, `Determinism`, and `Idempotency`. A PR is atomic only when it can merge independently with all repository gates green. A PR is complete only when its acceptance criteria are machine-verifiable and no assigned scope is deferred silently.
 
 Completed entries are never deleted. Superseded plans are moved to the historical section and explicitly marked non-active. Backlog identifiers are never reused.
+
+## Active PostgreSQL Tenant Plane And Shared Data PR Stack
+
+This series implements D017. PostgreSQL becomes the only hosted source of truth for tenant and
+control-plane state. The shared store contains only tenant-neutral market and analytical payloads.
+The API authorizes every operation through an owned PostgreSQL project and selection; neither the
+browser nor analytical workers receive an unrestricted shared-store root.
+
+The target data flow is:
+
+```text
+user + encrypted key metadata + immutable project/selection + lifecycle history
+                              |
+                              v
+                    PostgreSQL tenant plane
+                              |
+              one user-requested, operations-owned selection delta fill
+                              v
+       shared quotes / dividends / splits + coverage catalog
+                              |
+                 content-addressed calculations
+                              v
+       shared uni / bi / multivariate artifact payloads
+                              |
+                              v
+          PostgreSQL project/run/artifact references
+
+all shared ingestion: dedicated operations credential
+after initial fill: nightly cron delta only
+```
+
+User EODHD credentials remain envelope-encrypted tenant metadata but never feed the globally shared
+corpus. Both the user-requested initial project fill and nightly refresh resolve one dedicated
+operations credential inside trusted workers. This removes credential races, billing ambiguity, and
+cross-user provenance from shared ingestion. It requires explicit provider-license approval for
+cross-customer storage, derived reuse, and service-credential ingestion; PR156 is a blocking
+fail-closed gate, not optional documentation.
+
+PR156 through PR167 are sequential. No PR may dual-write market/statistical payloads into
+PostgreSQL, put user/project fields into shared payloads, authorize from object existence, let a
+browser choose storage paths or credentials, or retain local-workspace JSON as a second hosted
+source of truth after cutover.
+
+### PR156. Shared Data Licensing Decision And Plane Contracts
+
+Branch: `docs/shared-data-plane-contracts`.
+
+Git status: not started.
+
+PR: TBD.
+
+Priority: P0 architecture and licensing gate.
+
+Depends on: current `main`.
+
+Scope:
+
+- Make D017 the canonical hosted target and mark the per-user market-grant portions of D016 as
+  superseded. Define `TenantControlPlane`, `SharedMarketStore`, `SharedArtifactStore`, and
+  `SharedCatalog` ports without changing active runtime wiring.
+- Classify every persisted field. PostgreSQL owns users, external identities/sessions where enabled,
+  encrypted credential envelopes and metadata, projects, soft-deletion state, immutable selection
+  versions, full listing membership, current-project preference, bootstrap/refresh/analysis jobs,
+  audit events, and project-to-artifact references. Shared storage owns quote, dividend, split, and
+  analytical payload bytes only.
+- Define full listing identity as `(provider, exchange, isin, code)`. Define market revision identity
+  per dataset from schema version, canonical business keys, and content hash. Define analytical
+  identity from exact input revisions, parameters, algorithm version, and schema version.
+- Define one ingestion credential role: only a separately provisioned operations credential may
+  fetch shared market data, for both project bootstrap and cron. User credentials remain encrypted
+  tenant metadata for separately licensed future capabilities and are never eligible for shared
+  ingestion. Credential identity never enters shared data identity or read authorization.
+- Define projects as immutable research scopes after creation. Metadata Builder resolves exactly one
+  canonical listing per unique ISIN and persists it as one immutable selection version; changing any
+  filter or member creates a new project rather than mutating membership in place.
+- Add a provider-license decision record and deployment gate covering shared cross-customer storage,
+  derived artifact reuse, retention after project/user deletion, and service-credential refresh.
+  Block hosted rollout unless every required permission is explicitly approved.
+- Specify deletion and retention: project deletion is a PostgreSQL tombstone plus audit event;
+  credential deletion destroys ciphertext/key references under policy; shared payloads survive
+  project deletion and are removed only by a separate operations retention/GC policy.
+- Synchronize `ARCHITECTURE.md`, `CONTRACTS.md`, `DECISIONS.md`, `RISKS.md`, security docs, and
+  architecture checks. Do not add migrations, repositories, endpoints, or UI.
+
+Acceptance:
+
+- A machine-readable ownership matrix assigns every current hosted field/table/file to exactly one
+  plane and rejects user/project/credential/session fields in shared payload schemas.
+- Contract tests distinguish project authorization from shared physical existence: an unknown or
+  unowned project cannot resolve a shared object even when its id is guessed.
+- Identity fixtures prove that equal full listing/input identities deduplicate globally, while a
+  changed exchange, code, business row, parameter, schema, or algorithm version changes identity.
+- A selection fixture with 1,753 unique ISINs produces exactly 1,753 canonical listing members. A
+  second listing for one ISIN is resolved by the versioned canonical-listing policy, not persisted as
+  a second member.
+- Contract tests prove user credentials cannot be selected by bootstrap or cron workers and that
+  missing/revoked operations credentials fail before planning or provider calls.
+- The licensing readiness check returns a stable blocking result when approval evidence is absent,
+  expired, or does not cover all four required uses; no environment defaults to approved.
+- Documentation contains one unambiguous owner for initial fill, nightly refresh, project deletion,
+  credential deletion, shared retention, backup, and authorization.
+
+Security: Shared-object existence is never an authorization claim. Credential plaintext, wrapped
+keys, tenant ids, project ids, and global inventory never enter payload contracts or browser APIs.
+
+Determinism: Ownership classification, identities, reason codes, and licensing-gate output are
+versioned and independent of runtime order, locale, wall-clock time, or object-store listing order.
+
+Idempotency: Re-evaluating identical contracts and evidence yields the same identities and readiness
+result without writing runtime state.
+
+### PR157. PostgreSQL Tenant Schema And Row-Level Security
+
+Branch: `feat/postgres-tenant-control-schema`.
+
+Git status: not started.
+
+PR: TBD.
+
+Priority: P0 durable user-metadata foundation.
+
+Depends on: PR156.
+
+Scope:
+
+- Add forward-only PostgreSQL migrations for `users`, encrypted `provider_credentials`, projects,
+  immutable `project_selection_versions`, `project_selection_members`,
+  `current_project_preferences`, `analysis_runs`, `project_artifact_refs`, and append-only
+  `audit_events`. Reconcile existing tables without destructive migration. Durable job/outbox tables
+  belong to PR159 and global catalogs belong to PR160/PR162-PR164.
+- Give projects `status`, `created_at`, and `deleted_at`. Project membership is immutable; a project
+  has exactly one selection version and one row per unique ISIN containing its canonical provider,
+  exchange, code, and listing id. Keep tombstoned project/membership rows under explicit retention.
+  Use `audit_events` for lifecycle history instead of a second `project_events` truth source.
+- Store credential ciphertext, nonce, wrap nonce, wrapped data key, KEK version, authenticated
+  associated data, fingerprint HMAC, masked label, lifecycle timestamps, and status. Never store or
+  return plaintext. Enforce at most one active credential per `(user, provider, purpose)`.
+- Add separate least-privilege roles for tenant API, ingestion/analysis workers, migration, and
+  read-only operations. Force RLS on all tenant tables; global catalogs are inaccessible to browser
+  SQL roles and reached only through trusted services.
+
+Acceptance:
+
+- Applying migrations twice to an empty database is a no-op on the second run; upgrading the current
+  schema preserves all rows; downgrade is intentionally unsupported and documented.
+- PostgreSQL integration tests prove two users can use equal project names and equal listing members
+  without seeing each other's project, selection, credential metadata, jobs, runs, or audit events.
+- A project create, soft delete, restore where policy permits, and permanent user deletion produce
+  exact relational rows and append-only audit events. Attempts to add/remove/replace membership on an
+  existing project fail with `project_membership_immutable`.
+- Membership has foreign/unique/check constraints that reject duplicate ISINs, blank ISIN,
+  missing provider/exchange/code, mutation, and membership owned by another user/project. One project
+  reports the same member count from PostgreSQL, API, workflow, and progress contracts.
+- Database inspection proves quote, dividend, split, and uni/bi/multivariate payload columns do not
+  exist in PostgreSQL tables. Credential plaintext cannot be selected, logged, or reconstructed
+  without the external KEK.
+- Tenant, worker, migrator, and readonly role tests prove the documented grants and deny cross-role
+  writes, RLS bypass, direct shared-catalog browsing, and tenant-table delete outside approved
+  procedures.
+
+Security: Every tenant transaction sets one transaction-local user id before any query. RLS is
+forced, table owners are not runtime roles, credentials use envelope encryption, and audit metadata
+is allow-listed and secret-free.
+
+Determinism: Migration order/checksums, normalized listing ids, selection hashes, constraints, and
+event types are stable and schema-versioned.
+
+Idempotency: Migrations, project create keys, immutable selection hashes, lifecycle events, analysis
+runs, and artifact references have uniqueness rules that make retries converge without duplicates.
+
+### PR158. PostgreSQL Repositories And Hosted State Importer
+
+Branch: `refactor/postgres-hosted-repositories`.
+
+Git status: not started.
+
+PR: TBD.
+
+Priority: P0 remove JSON/in-memory hosted authority.
+
+Depends on: PR157.
+
+Scope:
+
+- Implement repository ports and Psycopg adapters for credentials, projects, selection versions and
+  members, preferences, analyses, artifact references, and audit events. Keep application
+  services dependent on ports rather than SQL or `HostedApiState` dictionaries.
+- Define one transaction boundary per API command. Bind authenticated user context before repository
+  access; map constraint/serialization failures to stable non-secret domain errors.
+- Add a read-only importer for the current `local-workspace.json`. Validate the complete source,
+  canonicalize ids and listing membership, produce a dry-run report, then import all rows in one
+  transaction with an import checksum and completion marker. Never import persisted market rows.
+- Add parity readers that compare JSON and PostgreSQL projections during migration without serving
+  responses from PostgreSQL yet. A mismatch blocks cutover with field-level redacted diagnostics.
+- Ensure credentials are imported only through decrypt-and-re-encrypt migration with the current
+  external KEK. Refuse missing/legacy wrap metadata rather than copying unverifiable ciphertext.
+- Add repository contract suites reusable by in-memory test doubles and PostgreSQL adapters. Do not
+  add job/outbox or shared-catalog repositories, switch production dependency injection, or delete
+  the JSON adapter in this PR. PR159 extends import/repositories for durable jobs.
+
+Acceptance:
+
+- Repository contract tests produce identical normalized domain results for the test double and a
+  real PostgreSQL database across create/read/update/soft-delete/list/idempotency/concurrency cases.
+- Importing a two-project fixture preserves user, credential metadata, current project, project
+  history, exact full listing members, settings, analyses, and artifact references; job summaries,
+  quote rows, and analytical payloads are explicitly deferred/absent from imported PostgreSQL rows.
+- Dry-run changes no database row. Repeating a successful import with the same checksum changes no
+  row. A changed source after completion fails closed and requires an explicit operator procedure.
+- An invalid source, duplicate member, cross-project run reference, credential migration failure,
+  or injected transaction failure leaves the destination exactly unchanged.
+- Restart and connection-pool tests prove transaction-local user context cannot leak between users,
+  failed requests roll back, and serialization retries do not duplicate events or analyses.
+
+Security: SQL is parameterized, user context is transaction-local, errors redact values, importer
+reports contain no ciphertext/plaintext, and parity diagnostics reveal no other-user membership.
+
+Determinism: Canonical projection order, import checksum, id mapping, repository result order, and
+error codes are fixed by contract.
+
+Idempotency: Every write accepts or derives a stable command key; transaction retries and repeated
+imports return the existing logical result.
+
+### PR159. PostgreSQL Durable Jobs, Outbox, And Worker Claims
+
+Branch: `feat/postgres-durable-job-queue`.
+
+Git status: not started.
+
+PR: TBD.
+
+Priority: P0 reliable asynchronous execution foundation.
+
+Depends on: PR158.
+
+Scope:
+
+- Add PostgreSQL `jobs`, `job_attempts`, and `outbox_events` migrations and repositories. A job stores
+  kind, immutable input hash/reference, status, priority, progress units, attempt count, available
+  time, lease owner/expiry, heartbeat, timestamps, and redacted terminal code; it stores no payload.
+- Use PostgreSQL as the only initial queue. API transactions atomically persist domain state, one job,
+  and one outbox event. Workers claim bounded batches with `FOR UPDATE SKIP LOCKED`, commit the claim,
+  execute outside the transaction, checkpoint progress, and complete with compare-and-set ownership.
+- Define the exhaustive state machine `queued -> running -> succeeded|partial|failed|cancelled` plus
+  lease-expiry recovery. Terminal jobs cannot return to running; retry creates an attempt on the same
+  logical job, not a second job.
+- Define queue limits, per-kind concurrency, fairness order, backpressure (`429 queue_capacity`),
+  graceful shutdown, heartbeat cadence, lease duration, retry/backoff policy, and poison-job handling.
+- Add worker health/readiness metrics for queue depth/age, claims, retries, lease expiry, duration,
+  failures, and stalled jobs. Do not add provider, shared-storage, or analytical work in this PR.
+- Extend the PR158 importer for legacy job summaries with deterministic job ids and attempts. Import
+  no provider or analytical payload; invalid job lineage blocks the transaction.
+
+Acceptance:
+
+- One API command and its job/outbox row commit atomically; injected failures before/after each write
+  leave either all or none. Outbox delivery is at-least-once and consumers deduplicate by event id.
+- Two workers and two API replicas claim every queued job exactly once at a time. A killed worker's
+  lease expires, another worker resumes from persisted progress, and the stale owner cannot complete.
+- Queue capacity, ordering, per-kind concurrency, retry/backoff, cancellation, graceful shutdown,
+  heartbeat loss, poison jobs, and terminal transition rejection return stable tested outcomes.
+- Restarting PostgreSQL clients, API, or workers loses no committed job and creates no duplicate
+  logical job. Connection-pool tests prove no transaction/user context leaks between claims.
+- Architecture tests prove there is no Redis/Celery/in-process production queue and job rows contain
+  no provider payload, market row, analytical result, plaintext credential, or storage key.
+
+Security: API users can read only their project-scoped job projection; only worker roles claim/update
+jobs. Claims reveal opaque input refs, not credentials, storage locations, or other-user metadata.
+
+Determinism: Logical job id, priority order, state transitions, progress units, retry schedule, and
+lease rules are versioned and independent of process order except for documented claim timestamps.
+
+Idempotency: A unique `(job_kind, input_hash)` constraint and compare-and-set lease token make API
+retries, outbox redelivery, worker redelivery, and completion retries converge on one logical job.
+
+### PR160. Immutable Shared Market Revisions And Dataset Delta Planner
+
+Branch: `feat/shared-market-revision-delta`.
+
+Git status: not started.
+
+PR: TBD.
+
+Priority: P0 shared market-data correctness.
+
+Depends on: PR159.
+
+Scope:
+
+- Introduce a minimal `SharedObjectStore` port with the existing POSIX shared volume as the first
+  adapter and immutable object semantics compatible with later object storage. Keep keys opaque to
+  tenant services and persist trusted revision/catalog metadata in PostgreSQL.
+- Publish immutable quote, dividend, and split revision objects per canonical listing and dataset.
+  Stage, checksum, validate, fsync/promote, then transactionally mark the new revision current. Never
+  overwrite an object referenced by an analysis; readers pin one explicit revision id.
+- Build one delta planner that compares requested selection coverage with existing canonical
+  coverage independently for quotes, dividends, and splits. Plan missing history, internal gaps,
+  the tail, and a bounded provider-correction overlap; never plan full history when coverage proves
+  it is unnecessary.
+- Represent each fetch window as a PR159 logical job keyed by
+  `(provider,dataset,listing,target_date,policy_version,window)`. Concurrent planners join that job;
+  only its current worker lease may publish, and waiters consume its committed revision.
+- Make catalog reconciliation bidirectional: detect catalog rows without readable objects, orphan
+  staged/final objects, checksum mismatch, and stale leases. Repair only through explicit operations
+  commands with dry-run output.
+- Retain unused market objects. GC policy is out of scope until retention and provider terms define
+  a minimum age and prove no artifact dependency references the revision.
+
+Acceptance:
+
+- A selection with one fully covered, one partially covered, and one new listing produces exact
+  per-dataset windows: no request for covered immutable history, gap/overlap/tail only for partial
+  coverage, and one full backfill for the new listing.
+- Two users creating overlapping projects concurrently cause one provider request per unique
+  lease/window and receive the same published content revision; non-overlapping listings proceed in
+  parallel.
+- Replaying identical or overlapping provider rows yields one canonical business row in the next
+  immutable revision. A correction creates a new revision while the previous revision remains
+  readable for pinned analyses.
+- Tests inject worker death before upload, after upload, before catalog commit, and after commit;
+  retries converge, waiters unblock or retry, and readers see only the previous or next valid
+  revision.
+- Scale tests with at least 10,000 projects and 100,000 repeated memberships prove planning, job
+  count, provider work, and catalog rows scale with unique listing/dataset gaps, not project count.
+- Architecture tests prove shared payload schemas contain no tenant fields and tenant API code cannot
+  enumerate storage keys or bypass the catalog reader.
+
+Security: Storage credentials are worker-only, object keys are not browser-visible, staged objects
+are unreadable, and catalogs/logs contain no provider key or tenant membership.
+
+Determinism: Business keys, canonical sorting, coverage, overlap policy, delta windows, content
+hashes, leases, and publication identity are versioned and independent of worker order.
+
+Idempotency: Equal plans join one logical job; repeated download, validation, publication, and
+reconcile operations converge on one immutable revision per content identity.
+
+### PR161. Exact-Selection One-Time Project Data Bootstrap
+
+Branch: `feat/project-selection-bootstrap`.
+
+Git status: not started.
+
+PR: TBD.
+
+Priority: P0 project onboarding behavior.
+
+Depends on: PR160.
+
+Scope:
+
+- Add a bootstrap application service that accepts only an owned immutable project. It resolves the
+  operations credential inside the worker, calls PR160 planning, joins PR159 jobs, and records one
+  parent `project_initial_fill` job in PostgreSQL.
+- Freeze the exact de-duplicated full listing members produced by that project's Metadata Builder
+  selection. The initial fill must plan only those members: it must not use all metadata rows, a
+  name/filter query rerun, another project, or PR165's active-project union. For example, if
+  `xetrac_ucits_etf_etf_eur` persists 1,753 selected ISIN/listing members, the bootstrap input and
+  progress denominator are exactly those 1,753 members.
+- Define exactly one bootstrap job per project. The Metadata Builder action may enqueue it once and
+  thereafter only read/resume/retry that same job; it cannot create another generation or request
+  arbitrary listings, dates, datasets, concurrency, credentials, or storage paths.
+- Treat existing shared coverage as successful work. A fully covered new project completes without
+  a provider request; partial coverage downloads only the delta for quotes, dividends, and splits.
+- Persist exact child-job ids, planned windows, shared revision ids, counts, progress, timestamps,
+  and redacted failures as control metadata. Do not persist payloads or copied rows in job/project
+  state.
+- Separate project creation from asynchronous fill execution. A valid project and selection commit
+  atomically before enqueue; provider failure leaves a retryable failed bootstrap for that same
+  generation and never rolls back or duplicates the project.
+- Expose typed start/status contracts and workflow states `not_started`, `planning`, `running`,
+  `ready`, `partial`, and `failed`. ETA is derived from persisted progress. Preserve the current
+  `Download Historical Data` panel after Metadata Builder only.
+
+Acceptance:
+
+- Creating a project stores the project and exact relational members before any provider call. One
+  action starts one job; double-click, reload, API restart, and concurrent identical requests return
+  the same job and do not duplicate provider requests.
+- A fixture with 1,753 selected members, additional unselected metadata rows, and overlapping members
+  in another project plans exactly the 1,753 selected members. It makes no request for an unselected
+  row, does not expand to the active-project union, and reports `selected_listing_count=1753`.
+- A fully covered selection reaches `ready` with zero provider calls. A mixed selection requests only
+  PR159 deltas. Completion requires complete quote, dividend, and split coverage for every member at
+  the job target date/policy.
+- Missing/revoked operations credential, provider throttling, partial dataset failure, worker
+  restart, and lease contention produce stable states. Retrying resumes the same job and preserves
+  completed shared publications. User credential state has no effect.
+- A user cannot bootstrap another user's project, broaden membership, select a credential, create a
+  second bootstrap job, or infer which project supplied existing shared coverage.
+- Browser tests cover no project, ready-from-cache, running with ETA, partial/failure with retry,
+  completion, project switch, reload restoration, and exact panel placement after Metadata Builder.
+- Audit tests record requested, started, resumed, completed, and failed events without credential,
+  provider payload, storage key, or global inventory detail.
+
+Security: Only the worker role unwraps the operations credential. API authorization uses PostgreSQL
+project ownership and immutable selection membership; cache hits reveal only project readiness.
+
+Determinism: Bootstrap id, request hash, target date, plan, progress denominator, state mapping, and
+ETA inputs are persisted and policy-versioned.
+
+Idempotency: One `project_id` has one logical bootstrap job. Requests, outbox redelivery, worker
+retries, and restarts join or resume it.
+
+### PR162. Shared Univariate Artifact Cutover
+
+Branch: `feat/shared-univariate-artifacts`.
+
+Git status: not started.
+
+PR: TBD.
+
+Priority: P0 first analytical payload migration.
+
+Depends on: PR161.
+
+Scope:
+
+- Define one immutable tenant-neutral Univariate artifact identity per canonical listing, exact
+  market revision set, calendar, parameters, schema, and algorithm version. Store payloads and a
+  checksum manifest in shared storage; store global catalog/dependencies and tenant run references
+  in PostgreSQL.
+- Route hosted Univariate compute/read paths through an owned project, pinned input revisions, PR159
+  jobs, and atomic shared publication. Remove hosted project-specific Univariate payload writes only;
+  leave Bivariate and Multivariate behavior unchanged.
+- Preserve negative/unavailable outcomes as typed artifacts. New market revisions create new
+  identities; old runs retain exact dependencies. Browser contracts expose results, never keys.
+
+Acceptance:
+
+- Two projects sharing a listing and exact policy execute once, use one physical payload, and obtain
+  separate authorized references; changed input/policy creates a distinct artifact.
+- Worker failure at each stage leaves no readable partial. Missing/corrupt/checksum-mismatched
+  artifacts fail typed and never fall back to `latest` or another project.
+- PostgreSQL contains no Univariate values and shared payloads contain no tenant fields. Deleting one
+  project removes its reference without affecting another project or the shared payload.
+- Existing Univariate numerical, API, frontend, accessibility, restart, and two-user isolation tests
+  remain green; Bivariate and Multivariate regression fixtures are unchanged.
+
+Security: Authorization precedes catalog lookup; only owned run references resolve payloads, and
+responses do not reveal cache membership, dependencies, or storage locations.
+
+Determinism: Canonical inputs, ordering, policy versions, and dependency hashes fully determine the
+artifact id and byte ordering.
+
+Idempotency: Equal requests and job retries reuse one artifact and at most one reference per run.
+
+### PR163. Bucketed Shared Bivariate Artifact Cutover
+
+Branch: `feat/shared-bivariate-artifacts`.
+
+Git status: not started.
+
+PR: TBD.
+
+Priority: P0 scalable pairwise payload migration.
+
+Depends on: PR162.
+
+Scope:
+
+- Define a Bivariate run identity from sorted exact universe, pinned Univariate/input revisions,
+  common-calendar policy, parameters, schema, and algorithm version. Publish one top-level manifest
+  referencing deterministic bucketed Parquet objects; do not create one PostgreSQL row/object per
+  pair.
+- Define stable pair ordering, bucket partition/hash scheme, row schema, checksums, dependency
+  closure, partial/unavailable pair representation, and atomic manifest publication.
+- Route hosted Bivariate compute/read paths through owned run references and bounded PR159 jobs.
+  Enforce explicit maximum universe, pair count, memory, object size, and execution-time budgets.
+  Remove hosted project-specific Bivariate payload writes only.
+
+Acceptance:
+
+- Exact equal runs share one manifest and buckets; changed universe/calendar/input/policy produces a
+  new identity. Results are invariant to input order and every unordered pair occurs exactly once.
+- PostgreSQL catalog/reference growth is $O(runs)$, not $O(pairs)$; a maximum-size fixture meets
+  documented memory/time/object/count budgets and overload fails before enqueueing computation.
+- Bucket/worker failure, missing bucket, checksum mismatch, incomplete dependency closure, and
+  unavailable pairs return typed outcomes without publishing a partial top-level manifest.
+- Existing pairwise scale guards, covariance/statistical invariants, API/frontend, restart, and
+  cross-user isolation tests remain green; Multivariate behavior is unchanged.
+
+Security: Only an owned Bivariate run can resolve its manifest; bucket keys and global pair/cache
+membership never enter browser contracts or tenant authorization decisions.
+
+Determinism: Sorted universe, pair order, bucket function, dependencies, parameters, and versions
+fully determine manifest identity and payload bytes.
+
+Idempotency: Equal runs and retries join one logical job and publish one manifest/bucket set.
+
+### PR164. Shared Multivariate Artifact Cutover
+
+Branch: `feat/shared-multivariate-artifacts`.
+
+Git status: not started.
+
+PR: TBD.
+
+Priority: P0 complete analytical payload migration.
+
+Depends on: PR163.
+
+Scope:
+
+- Define one Multivariate identity from exact sorted universe, pinned Uni/Bi manifests, settings,
+  estimator, risk model, constraints, solver, schema, and algorithm versions. Publish an immutable
+  top-level manifest with bounded payload objects and complete dependency closure.
+- Route hosted Multivariate compute/read paths through owned run references and PR159 jobs. Reuse
+  only exact identities; never share outputs across changed universes, constraints, or settings.
+- Remove hosted project-specific Multivariate payload writes and unrestricted lake scans. Persist
+  only run state, settings, input snapshot, progress, diagnostics, and artifact references in
+  PostgreSQL. Update API/TypeScript/page restoration contracts without browser financial logic.
+
+Acceptance:
+
+- Exact equal requests across projects execute once and reuse one payload; every change to universe,
+  dependency, model, constraint, solver, parameter, schema, or algorithm produces a distinct id.
+- Old runs remain reproducible after market corrections. New runs pin one internally consistent
+  revision closure and cannot mix old and new Uni/Bi dependencies.
+- Minimum-CVaR, HRP, covariance, missing-data fail-closed, recommendation, trading-handoff, and
+  solver-boundary fixtures retain their numerical invariants and diagnostics.
+- After completion PostgreSQL contains no Uni/Bi/Multi values; shared analytical payloads contain no
+  tenant fields. Four-stage API/frontend/Playwright and multi-replica restart tests pass.
+
+Security: Authorization occurs before reference resolution; workers receive scoped content ids and
+no user credentials, tenant repositories, or browser-visible storage locations.
+
+Determinism: Exact dependency closure, canonical universe/settings, solver policy, and versions fully
+determine the artifact identity and ordered output.
+
+Idempotency: Repeated starts/status calls, redelivery, and restart reuse one run and exact artifact.
+
+### PR165. Cron-Only Ongoing Refresh And User Update Closure
+
+Branch: `fix/cron-only-market-updates`.
+
+Git status: not started.
+
+PR: TBD.
+
+Priority: P0 enforce market lifecycle ownership.
+
+Depends on: PR164.
+
+Scope:
+
+- Snapshot the PostgreSQL union of canonical members from non-deleted projects and enqueue PR160
+  quote/dividend/split deltas through PR159. Bootstrap and cron share job identities, leases, and the
+  same operations credential; cron is the sole creator of later refresh jobs.
+- Close every user update path after project bootstrap. Repeated Metadata Builder actions return the
+  existing bootstrap status; Uni/Bi/Multi pages cannot request market refresh.
+- Expose only project-scoped freshness and update cron scheduling, overlap rules, credential
+  rotation, runbooks, metrics, alerts, and recovery. Project changes during a run affect the next
+  inventory snapshot only.
+
+Acceptance:
+
+- Browser/API attempts after bootstrap make zero provider calls; only the cron role can create a
+  refresh job. Revoking all user credentials does not affect refresh; missing operations credential
+  fails before planning/provider access.
+- Overlapping projects and concurrent bootstrap/cron produce one job/request per unique gap. No-op,
+  tail, internal-gap, correction, partial failure, restart, and credential rotation are tested.
+- A 10,000-project fixture proves inventory, planning, requests, and writes scale with unique active
+  listings/gaps. Status cannot reveal global customer, project, listing, or cache counts.
+- Repository/UI/API searches prove there is one bootstrap action and no later user update action.
+
+Security: Operations credentials are worker-only; user roles cannot enqueue refresh, and status
+contains no credential, key, global inventory, or cross-project information.
+
+Determinism: Inventory snapshot, target date, policies, plans, job ids, and next-run calculation are
+persisted and versioned.
+
+Idempotency: Repeated cron starts join one job; retries converge on immutable canonical revisions.
+
+### PR166. Operations Readiness, Recovery, And Cutover Rehearsal
+
+Branch: `chore/hosted-cutover-rehearsal`.
+
+Git status: not started.
+
+PR: TBD.
+
+Priority: P0 prove production readiness before switching authority.
+
+Depends on: PR165.
+
+Scope:
+
+- Add fail-closed readiness checks for migration head, roles/RLS, external KEK, operations credential,
+  shared-store atomic capability, queue/workers, cron freshness, catalog reconciliation, and signed
+  PR156 licensing evidence.
+- Implement checksummed PostgreSQL/shared-storage backup manifests, restore/reconciliation tooling,
+  retention/crypto-shredding jobs, SLOs, dashboards, alerts, and disaster-recovery runbooks. Shared
+  payload GC remains disabled without reference/minimum-age proof.
+- Rehearse PR158 import, quiesce, parity, dependency switch, smoke checks, and rollback on a
+  production-like copy. Record literal commands, owners, timing budgets, commit points, and evidence.
+  Do not switch the active runtime or remove legacy paths in this PR.
+
+Acceptance:
+
+- A fixture with two users, active/deleted projects, overlapping selections, jobs, four-stage runs,
+  and shared artifacts imports with exact counts, hashes, histories, and authorized references.
+- PostgreSQL-only loss, shared-storage-only loss, worker loss, corrupt manifest, stale backup, and
+  mismatched publication boundary are detected and recovered/fail closed as documented.
+- Multi-replica/10,000-project load tests meet explicit API latency, queue age/depth, connection,
+  memory, lease, object-count, and recovery-time/recovery-point budgets.
+- Two successful rehearsal cycles prove forward switch and rollback are repeatable; evidence records
+  licensing, secret scan, RLS/adversarial tests, backup restore, reconciliation, and operator signoff.
+
+Security: Rehearsal uses sanitized production-like data, encrypted backups, least-privilege roles,
+audited secret access, and no browser/storage-key exposure.
+
+Determinism: Import/parity, backup, reconciliation, readiness, and rehearsal evidence are checksummed
+against exact code, schema, data boundary, and policy versions.
+
+Idempotency: Backup, restore, import, reconcile, readiness, retention, rehearsal, and rollback are
+repeatable and stop before documented commit points on mismatch.
+
+### PR167. Hosted Runtime Cutover And Legacy Authority Removal
+
+Branch: `refactor/hosted-runtime-cutover`.
+
+Git status: not started.
+
+PR: TBD.
+
+Priority: P0 activate the proven architecture.
+
+Depends on: PR166.
+
+Scope:
+
+- Execute the approved quiesce/final PR158 import/parity procedure, take the PR166 rollback
+  checkpoint, switch dependency injection to PostgreSQL repositories and shared-store adapters, then
+  run post-cutover smoke/reconciliation checks.
+- Remove hosted authority from `local-workspace.json`, `HostedApiState` dictionaries, per-user market
+  grants/snapshots, copied market rows, and project-specific analytical paths. Preserve explicit local
+  CLI adapters and prevent them from loading in hosted mode.
+- Update Compose/production config, OpenAPI/client manifests, architecture/security/privacy docs,
+  observability, and on-call instructions. Make rollback an explicit operator decision at the proven
+  checkpoint; introduce no new schema, queue, payload, or workflow feature.
+
+Acceptance:
+
+- After cutover and repeated restarts, control writes occur only in PostgreSQL and market/analytical
+  payload writes only in shared storage; hosted JSON/legacy tables/paths are never read or written.
+- Adversarial tests cover guessed ids, cross-user reads, deleted projects, stale sessions, worker
+  tokens, catalog ids, storage keys, timing-safe misses, and deletion. Local CLI tests remain green.
+- Final search and architecture tests prove one PostgreSQL tenant plane, one shared payload plane,
+  one bootstrap path, one cron path, one operations credential role, no per-user market grants, and
+  no project payload copies.
+- Ruff, format, strict Pyright, schema/security/architecture checks, migrations, at least 95%
+  coverage, TypeScript/Vitest/Playwright, Docker builds, reconciliation, rollback checkpoint, and
+  post-deploy smoke evidence pass before write traffic resumes.
+
+Security: Cutover requires PR156 licensing approval, PR166 evidence/signoff, least-privilege roles,
+RLS proof, encrypted rollback checkpoint, secret scan, and operations-credential readiness.
+
+Determinism: Final import, parity, publication boundary, dependency switch, smoke, and rollback
+checkpoint are tied to exact approved rehearsal artifacts and code/schema versions.
+
+Idempotency: Final import/reconcile/restart/smoke operations are repeatable; the authority switch has
+one documented commit point and retries cannot recreate legacy authority or duplicate payloads.
+
+### PostgreSQL Tenant Plane And Shared Data Series Completion Gate
+
+This series is complete only after PR156 through PR167 merge in order and the current gates in
+[GATES.md](GATES.md) pass. One production-like evidence bundle must prove:
+
+- all user metadata, encrypted credential envelopes, immutable projects with exactly one canonical
+  member per unique ISIN, jobs/outbox/attempts, runs, audit, and top-level artifact references are
+  durable in PostgreSQL and isolated by forced RLS;
+- immutable quote/dividend/split revisions and Uni/Bi/Multi manifests/payloads exist only in shared
+  storage, contain no tenant fields, and are reused only for exact identities; Bivariate payloads are
+  bucketed and PostgreSQL growth is not pair-proportional;
+- project creation permits one resumable exact-selection bootstrap through PostgreSQL jobs and the
+  operations credential, including zero-provider-call completion; users trigger no later refresh;
+- cron uses the same operations credential and applies gap/tail/correction deltas to the unique
+  active-listing union through the same durable single-flight jobs;
+- project deletion and user credential deletion preserve shared payloads and other projects, while
+  tenant history and crypto-shredding follow explicit retention policy;
+- old analysis runs remain reproducible from pinned immutable revisions after market corrections;
+- licensing approval, migration/parity, multi-replica load, adversarial isolation, backup/restore,
+  reconciliation, rollback, and two pre-cutover rehearsals are complete before PR167 switches
+  authority; post-cutover smoke and observability evidence then pass;
+- local CLI mode remains supported through explicit local adapters and cannot be confused with the
+  hosted PostgreSQL/shared-storage runtime.
 
 ## Active Monthly-Distribution ETF Multivariate PR Stack
 
@@ -935,20 +1622,31 @@ Portfell remains a public open-source repository, while the hosted deployment is
 The target system has these non-negotiable properties:
 
 - Google is the only end-user authentication provider.
-- PostgreSQL is the primary application database for users, identities, encrypted provider credentials, projects, download provenance, entitlements, selections, analysis runs, and artifact catalogs.
+- PostgreSQL is the primary application database for users, identities, encrypted provider
+  credentials, project create/delete history, immutable selection versions and listing membership,
+  ingestion/analysis jobs, audit events, and project-to-artifact authorization references.
 - EODHD keys are encrypted at rest with envelope encryption. The key-encryption key is never stored in Git, PostgreSQL, container images, build artifacts, logs, or GitHub Actions.
 - Runtime secrets live outside the repository checkout and are mounted only into services that require them.
 - EODHD market observations are stored once in a canonical shared physical store with unique
   dataset/listing/business keys, atomic publication, deterministic hashes, and explicit correction
   semantics.
-- A user can see only observations that were returned by an EODHD request executed with that user's own stored key.
-- Existing shared observations may prevent a duplicate physical write, but may never create a user entitlement without a successful user-key-backed provider request.
-- New observations downloaded by one user do not become visible to another user until that other user performs a successful refresh with their own key.
-- Every user analysis is pinned to an immutable User Data Snapshot containing the exact observations and revisions visible to that user.
-- Univariate, bivariate, multivariate, portfolio, backtest, and report artifacts are globally deduplicated by exact input hashes and algorithm versions, while visibility is granted only through user-owned analysis runs.
+- A project selection may read globally shared observations for exactly its full listing members.
+  Object existence alone grants nothing; API authorization always starts from an owned PostgreSQL
+  project and immutable selection version.
+- Project creation may request one server-owned initial delta fill for its immutable exact selection,
+  using the operations EODHD credential inside the worker. A fully covered selection makes no
+  provider request; user credentials never feed the globally shared corpus.
+- After initial fill, only the operations-owned nightly cron may refresh quotes, dividends, and
+  splits, using a dedicated service credential and the unique active-project listing union.
+- Every analysis is pinned to exact immutable shared market revisions and artifact dependencies.
+- Univariate, bivariate, multivariate, portfolio, backtest, and report payloads are globally
+  deduplicated by exact input hashes and algorithm versions, while visibility is granted only through
+  user-owned PostgreSQL project/run references.
 - Hosted analytical code must consume resolved scoped inputs and must never scan unrestricted global Silver or Gold data.
 - The local CLI and analytical core remain usable without Google authentication or PostgreSQL through explicit local adapters.
-- Public hosting remains blocked until provider licensing, privacy, backup, credential, and security readiness gates pass.
+- Public hosting remains blocked until provider licensing explicitly permits cross-customer shared
+  storage/derived reuse/service-credential refresh and privacy, backup, credential, migration,
+  reconciliation, and security readiness gates pass.
 
 ## Series Completion Gate
 

@@ -593,13 +593,19 @@ Host secret files / secret manager
         `--> Google client secret
 ```
 
-The key rule is:
+The current hosted-contract rule is:
 
 > Physical storage and cache hits can reduce duplicate writes and calculations, but they can never create user visibility.
 
+D017 supersedes that per-observation entitlement target. PR156 through PR167 will replace it with
+project authorization in PostgreSQL: an owned project's immutable selection authorizes access to
+tenant-neutral shared market and analytical payloads for exactly those listing/input identities.
+Physical existence alone still never authorizes an API read.
+
 ## Hosted Authorization Model
 
-The hosted data model follows an explicit chain.
+The implemented hosted contracts currently follow the earlier D016 chain below. They are not the
+final production target and must not be connected as a new public deployment while D017 is active.
 
 ```text
 Google subject
@@ -639,7 +645,36 @@ API response
 
 A User Data Snapshot freezes the exact observation ids and revisions a user was authorized to see at one point in time. It prevents later downloads by another user from changing an old analysis.
 
-A new user begins with no grants. An object already present in shared storage does not become visible until that user's own successful EODHD request returned it.
+A new user begins with no grants under the current D016 contracts. D017 intentionally removes this
+per-observation grant requirement from the target architecture.
+
+### D017 target authorization chain
+
+```text
+authenticated user
+     |
+     v
+owned PostgreSQL project + immutable selection members
+     |
+     v
+exact shared market revisions for those full listing identities
+     |
+     v
+content-addressed shared analytical artifacts
+     |
+     v
+owned PostgreSQL analysis run + artifact references
+     |
+     v
+API response filtered to the owned project
+```
+
+One project-initial-fill job uses the dedicated operations credential to fill missing shared
+coverage for exactly one immutable project selection. Later updates are cron-only and use the same
+credential role. User credentials remain encrypted PostgreSQL metadata but never feed the shared
+corpus. No credential identity grants reads or enters shared payload identity. PostgreSQL stores all
+tenant metadata and authorization references; shared storage contains no user, project, credential,
+session, or authorization fields.
 
 ### Scoped analytical inputs
 
@@ -680,9 +715,11 @@ catalogue layers; provider provenance and schema version remain with data.
 `portfell.shared_market_refresh` is the operations-owned provider-ingestion orchestration for this
 store. The `shared-market-refresh` Compose operations service runs it non-interactively, while
 `portfell-shared-market-cron` manages the one delimited host crontab block. A newly created project
-may request its initial selected-listing download through the Metadata Builder quote-run route; the
-server owns credential use, idempotency, progress, and the provider workflow. Browser routes cannot
-start a shared-market refresh.
+may request its initial selected-listing download through the Metadata Builder quote-run route. That
+run is frozen to exactly the de-duplicated full listing members persisted by that project's Metadata
+Builder selection; it cannot broaden to all metadata, another project, or the active-project union.
+The server owns credential use, idempotency, progress, and the provider workflow. Only the cron-owned
+shared refresh uses the de-duplicated union of active projects; browser routes cannot start it.
 
 ### Shared analytical artifacts
 
@@ -822,7 +859,8 @@ The local principal is not browser-controlled and is suitable only for the singl
 
 ### PostgreSQL: running infrastructure plus implemented schema contract
 
-The PostgreSQL container is active in Compose. `portfell.hosted_catalog` defines:
+The PostgreSQL container is active in Compose. `portfell.hosted_catalog` currently defines the D016
+schema contract:
 
 - deterministic migrations and checksums;
 - owner, migrator, application, and read-only roles;
@@ -831,6 +869,8 @@ The PostgreSQL container is active in Compose. `portfell.hosted_catalog` defines
 - tables for users, external identities, sessions, credentials, projects, download runs, market objects, dataset snapshots, user grants, selections, analysis runs, artifacts, artifact inputs, and audit events.
 
 The current FastAPI runtime does **not** yet use PostgreSQL repositories for `HostedApiState`.
+PR157 through PR167 replace this contract and runtime authority with D017's tenant schema,
+repositories, importer, and final cutover.
 
 ### Google OIDC: implemented contract, not active request wiring
 

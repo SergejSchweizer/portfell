@@ -54,6 +54,10 @@ Do not enable public deployment while this contract is active. A future hosted d
 
 ## Historical Hosted PR Evidence
 
+This table is implementation history, not the D017 production target. PR156 through PR167 supersede
+the user-grant and per-user snapshot authorization assumptions while retaining credential encryption,
+tenant isolation, and content-addressed physical reuse.
+
 | Requirement | PR |
 | --- | --- |
 | Architecture decision, threat model, and prohibited designs | PR84 |
