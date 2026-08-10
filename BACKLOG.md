@@ -252,9 +252,9 @@ imports return the existing logical result.
 
 Branch: `feat/postgres-durable-job-queue`.
 
-Git status: not started.
+Git status: in progress.
 
-PR: TBD.
+PR: https://github.com/SergejSchweizer/portfell/pull/288.
 
 Priority: P0 reliable asynchronous execution foundation.
 
