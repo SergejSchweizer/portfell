@@ -220,11 +220,14 @@ async function createProject(page: Page, filter: { exchange: string; instrumentT
 
 async function computeUnivariate(page: Page) {
   await expect(page.getByRole("heading", { name: "Dividends" })).not.toBeVisible();
-  await page.getByRole("button", { name: "Update Historical Data" }).click();
-  await expect(page.getByRole("button", { name: "Update Historical Data · 3 ISINs updated" })).toBeVisible();
   await page.getByRole("button", { name: "Compute univariate statistics" }).click();
   await expect(page.getByText("3 listings computed.")).toBeVisible();
   await expect(page.getByRole("img", { name: "Annual dividend yield distribution for 3 ISINs" })).toBeVisible();
+}
+
+async function downloadHistoricalData(page: Page) {
+  await page.getByRole("button", { name: "Download Historical Quotes" }).click();
+  await expect(page.getByText("Updating historical data · 3 / 3 ISINs · 100%")).toBeVisible();
 }
 
 async function switchProject(page: Page, projectId: string) {
@@ -244,6 +247,7 @@ test("two dummy projects created through the UI preserve every research control 
   await expect(page.getByText("4 metadata rows from 1 exchanges loaded.")).toBeVisible();
 
   await createProject(page, { exchange: "XETRA", instrumentType: "ETF", country: "IE", currency: "EUR", name: "Alpha income" });
+  await downloadHistoricalData(page);
   await page.goto("/univariate-statistics");
   await computeUnivariate(page);
 
@@ -262,6 +266,7 @@ test("two dummy projects created through the UI preserve every research control 
 
   await page.goto("/metadata-builder");
   await createProject(page, { exchange: "LSE", instrumentType: "FUND", country: "LU", currency: "USD", name: "Beta growth" });
+  await downloadHistoricalData(page);
   await page.goto("/univariate-statistics");
   await computeUnivariate(page);
 

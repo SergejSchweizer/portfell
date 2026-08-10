@@ -5,6 +5,7 @@ import {
   loadEodhdCredentialValue,
   loadMetadataFetchRun,
   loadProjectMetadataBuilder,
+  loadQuoteRun,
   postJson,
   requestJson,
 } from "./client";
@@ -15,6 +16,7 @@ import type {
   ApiMetadataFetch,
   ApiMetadataProject,
   ApiProjectMetadataBuilder,
+  ApiQuoteFetch,
 } from "../contracts";
 
 export type MetadataBuilderCriteriaRequest = Readonly<{
@@ -23,6 +25,10 @@ export type MetadataBuilderCriteriaRequest = Readonly<{
   instrument_type: string;
   country: string;
   currency: string;
+}>;
+
+export type QuoteRunRequest = Readonly<{
+  metadata_selection_id: string;
 }>;
 
 export const metadataBuilderApi = {
@@ -40,4 +46,8 @@ export const metadataBuilderApi = {
   createProject: (request: MetadataBuilderCriteriaRequest): Promise<ApiMetadataProject> => (
     postJson<ApiMetadataProject>("/api/metadata-builder", request)
   ),
+  startQuoteRun: (request: QuoteRunRequest): Promise<ApiQuoteFetch> => (
+    postJson<ApiQuoteFetch>("/api/quote-runs", request)
+  ),
+  loadQuoteRun: (runId: string): Promise<ApiQuoteFetch> => loadQuoteRun(runId),
 };

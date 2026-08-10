@@ -13,6 +13,8 @@
   {"method":"PUT","path":"/api/projects/{project_id}/univariate-selection-settings","requestSchema":"UnivariateSelectionSettingsRequest","requestFields":["dividend_frequencies","statistic_labels","statistic_ranges"],"responseType":"ApiUnivariateSelectionSettings"},
   {"method":"GET","path":"/api/metadata-builder/options","responseType":"ApiFieldOptions"},
   {"method":"POST","path":"/api/metadata-builder","requestSchema":"MetadataBuilderProjectRequest","requestFields":["exchange","name","instrument_type","country","currency"],"responseType":"ApiMetadataProject"},
+  {"method":"POST","path":"/api/quote-runs","requestSchema":"LoadSelectedIsinsRequest","requestFields":["metadata_selection_id"],"responseType":"ApiQuoteFetch"},
+  {"method":"GET","path":"/api/quote-runs/{quote_run_id}","responseType":"ApiQuoteFetch"},
   {"method":"POST","path":"/api/univariate-statistics/runs","requestSchema":"UnivariateRunRequest","requestFields":["metadata_selection_id","quote_run_id"],"responseType":"ApiResearchRun"},
   {"method":"GET","path":"/api/univariate-statistics/runs/{run_id}","responseType":"ApiResearchRun"},
   {"method":"GET","path":"/api/univariate-statistics/runs/{run_id}/results","query":["limit","offset"],"responseType":"ApiPage"},

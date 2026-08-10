@@ -7,6 +7,7 @@ import {
   loadProjectContext,
   loadProjectMetadataBuilder,
   loadProjectWorkflow,
+  loadQuoteRun,
   loadWorkflow,
   postJson,
   requestJson,
@@ -75,11 +76,11 @@ describe("API client", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await Promise.all([
-      loadWorkflow(), loadEodhdCredentialStatus(), loadEodhdCredentialValue(), loadMetadataFetchRun("run/a"), loadProjectContext(), loadProjectMetadataBuilder("project/a"), selectCurrentProject("project/a"), loadProjectWorkflow("project/a"),
+      loadWorkflow(), loadEodhdCredentialStatus(), loadEodhdCredentialValue(), loadMetadataFetchRun("run/a"), loadProjectContext(), loadProjectMetadataBuilder("project/a"), selectCurrentProject("project/a"), loadProjectWorkflow("project/a"), loadQuoteRun("quote/a"),
     ]);
 
     expect(fetchMock.mock.calls.map(([path]) => path)).toEqual([
-      "/api/workflow", "/api/credentials/eodhd", "/api/credentials/eodhd/value", "/api/metadata/fetch-all/run%2Fa", "/api/project-context", "/api/projects/project%2Fa/metadata-builder", "/api/project-context/current-project", "/api/projects/project%2Fa/workflow",
+      "/api/workflow", "/api/credentials/eodhd", "/api/credentials/eodhd/value", "/api/metadata/fetch-all/run%2Fa", "/api/project-context", "/api/projects/project%2Fa/metadata-builder", "/api/project-context/current-project", "/api/projects/project%2Fa/workflow", "/api/quote-runs/quote%2Fa",
     ]);
   });
 
@@ -95,7 +96,7 @@ describe("API client", () => {
     await Promise.all([
       metadataBuilderApi.loadCredentialStatus(), metadataBuilderApi.loadCredentialValue(), metadataBuilderApi.loadFetchRun("run/a"),
       metadataBuilderApi.loadProjectCriteria("project/a"), metadataBuilderApi.loadFieldOptions(), metadataBuilderApi.saveCredential("key"),
-      metadataBuilderApi.fetchAll(), metadataBuilderApi.createProject(metadataRequest),
+      metadataBuilderApi.fetchAll(), metadataBuilderApi.createProject(metadataRequest), metadataBuilderApi.startQuoteRun({ metadata_selection_id: "selection/a" }), metadataBuilderApi.loadQuoteRun("quote/a"),
       univariateStatisticsApi.startRun(univariateRequest), univariateStatisticsApi.loadRun("run/a"), univariateStatisticsApi.loadResults("run/a", 10, 5),
       univariateStatisticsApi.loadSelectionSettings("project/a"),
       univariateStatisticsApi.saveSelectionSettings("project/a", settings),
@@ -110,7 +111,7 @@ describe("API client", () => {
     ]);
 
     expect(fetchMock.mock.calls.map(([path]) => path)).toEqual(expect.arrayContaining([
-      "/api/metadata-builder/options", "/api/metadata-builder", "/api/univariate-statistics/runs",
+      "/api/metadata-builder/options", "/api/metadata-builder", "/api/quote-runs", "/api/quote-runs/quote%2Fa", "/api/univariate-statistics/runs",
       "/api/univariate-statistics/runs/run%2Fa/results?limit=10&offset=5", "/api/bivariate-statistics/plan",
       "/api/bivariate-statistics/runs/run%2Fa/covariance-matrix",
       "/api/bivariate-statistics/runs/run%2Fa/correlation-matrix?metric=downside",
