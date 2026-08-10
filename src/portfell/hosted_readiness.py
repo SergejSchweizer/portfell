@@ -122,6 +122,11 @@ def validate_runtime_readiness(
             "operations market-data credential file is required",
         ),
         ReadinessResult(
+            name="runtime.database_url_configured",
+            passed=_postgres_database_url(resolved.get("PORTFELL_DATABASE_URL")),
+            message="PostgreSQL database URL is required",
+        ),
+        ReadinessResult(
             name="runtime.authority_allowed",
             passed=(
                 authority == "local" or (authority == "postgres" and public_hosted_mode_allowed())
@@ -137,6 +142,10 @@ def _secret_file_result(name: str, value: str | None, message: str) -> Readiness
         path is not None and path.is_file() and path.read_text(encoding="utf-8").strip()
     )
     return ReadinessResult(name=name, passed=available, message=message)
+
+
+def _postgres_database_url(value: str | None) -> bool:
+    return isinstance(value, str) and value.startswith(("postgres://", "postgresql://"))
 
 
 def _decision_map(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
