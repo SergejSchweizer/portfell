@@ -432,9 +432,9 @@ retries, and restarts join or resume it.
 
 Branch: `feat/shared-univariate-artifacts`.
 
-Git status: not started.
+Git status: in progress.
 
-PR: TBD.
+PR: https://github.com/SergejSchweizer/portfell/pull/293.
 
 Priority: P0 first analytical payload migration.
 
