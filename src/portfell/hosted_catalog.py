@@ -8,6 +8,12 @@ import hashlib
 from dataclasses import dataclass
 from typing import Protocol
 
+from portfell.tenant_control_schema import (
+    D017_ROLE_SPECS,
+    D017_TABLE_SPECS,
+    D017_TENANT_CONTROL_SCHEMA_SQL,
+)
+
 
 class CatalogConnection(Protocol):
     """Minimal execution protocol used by migration tooling.
@@ -110,6 +116,7 @@ HOSTED_ROLES: tuple[HostedRole, ...] = (
         owns_tables=False,
         can_bypass_rls=False,
     ),
+    *(HostedRole(*spec) for spec in D017_ROLE_SPECS),
     HostedRole(
         name="portfell_readonly",
         purpose="Operational read-only role for safe inspection.",
@@ -143,6 +150,7 @@ HOSTED_TABLES: tuple[HostedTable, ...] = (
     ),
     HostedTable("portfell_app.selections", True, True, "Persisted user selection definitions."),
     HostedTable("portfell_app.analysis_runs", True, True, "User-owned analysis run references."),
+    *(HostedTable(*spec) for spec in D017_TABLE_SPECS),
     HostedTable(
         "portfell_app.artifacts", False, True, "Shared immutable derived artifact catalog."
     ),
@@ -477,6 +485,7 @@ MIGRATIONS: tuple[HostedMigration, ...] = (
     HostedMigration(3, "remove_google_authentication", _REMOVE_GOOGLE_AUTH_SQL),
     HostedMigration(4, "current_project_preference", _CURRENT_PROJECT_PREFERENCE_SQL),
     HostedMigration(5, "provider_credential_wrap_nonce", _CREDENTIAL_WRAP_NONCE_SQL),
+    HostedMigration(6, "d017_tenant_control_schema", D017_TENANT_CONTROL_SCHEMA_SQL),
 )
 
 
@@ -560,8 +569,9 @@ def validate_hosted_catalog_contracts() -> None:
 
     if any(role.can_bypass_rls for role in HOSTED_ROLES):
         raise ValueError("hosted roles must not bypass RLS")
-    if any(role.owns_tables for role in HOSTED_ROLES if role.name == "portfell_app"):
-        raise ValueError("application role must not own tables")
+    runtime_roles = {"portfell_app", "portfell_worker", "portfell_readonly"}
+    if any(role.owns_tables for role in HOSTED_ROLES if role.name in runtime_roles):
+        raise ValueError("runtime roles must not own tables")
     versions = [migration.version for migration in MIGRATIONS]
     if versions != sorted(set(versions)):
         raise ValueError("migration versions must be unique and ordered")
