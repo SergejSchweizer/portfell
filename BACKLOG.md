@@ -199,7 +199,7 @@ runs, and artifact references have uniqueness rules that make retries converge w
 
 Branch: `refactor/postgres-hosted-repositories`.
 
-Git status: in progress.
+Git status: merged.
 
 PR: https://github.com/SergejSchweizer/portfell/pull/287.
 
@@ -252,7 +252,7 @@ imports return the existing logical result.
 
 Branch: `feat/postgres-durable-job-queue`.
 
-Git status: in progress.
+Git status: merged.
 
 PR: https://github.com/SergejSchweizer/portfell/pull/288.
 
@@ -304,7 +304,7 @@ retries, outbox redelivery, worker redelivery, and completion retries converge o
 
 Branch: `feat/shared-market-revision-delta`.
 
-Git status: in progress.
+Git status: merged.
 
 PR: https://github.com/SergejSchweizer/portfell/pull/290.
 
@@ -365,7 +365,7 @@ reconcile operations converge on one immutable revision per content identity.
 
 Branch: `feat/project-selection-bootstrap`.
 
-Git status: in progress.
+Git status: merged.
 
 PR: https://github.com/SergejSchweizer/portfell/pull/292.
 
@@ -432,9 +432,9 @@ retries, and restarts join or resume it.
 
 Branch: `feat/shared-univariate-artifacts`.
 
-Git status: not started.
+Git status: in progress.
 
-PR: TBD.
+PR: https://github.com/SergejSchweizer/portfell/pull/294.
 
 Priority: P0 first analytical payload migration.
 
@@ -475,9 +475,9 @@ Idempotency: Equal requests and job retries reuse one artifact and at most one r
 
 Branch: `feat/shared-bivariate-artifacts`.
 
-Git status: not started.
+Git status: merged.
 
-PR: TBD.
+PR: https://github.com/SergejSchweizer/portfell/pull/295.
 
 Priority: P0 scalable pairwise payload migration.
 
@@ -518,9 +518,9 @@ Idempotency: Equal runs and retries join one logical job and publish one manifes
 
 Branch: `feat/shared-multivariate-artifacts`.
 
-Git status: not started.
+Git status: merged.
 
-PR: TBD.
+PR: https://github.com/SergejSchweizer/portfell/pull/282.
 
 Priority: P0 complete analytical payload migration.
 
@@ -560,9 +560,9 @@ Idempotency: Repeated starts/status calls, redelivery, and restart reuse one run
 
 Branch: `fix/cron-only-market-updates`.
 
-Git status: not started.
+Git status: merged.
 
-PR: TBD.
+PR: https://github.com/SergejSchweizer/portfell/pull/283.
 
 Priority: P0 enforce market lifecycle ownership.
 
@@ -602,9 +602,9 @@ Idempotency: Repeated cron starts join one job; retries converge on immutable ca
 
 Branch: `chore/hosted-cutover-rehearsal`.
 
-Git status: in progress.
+Git status: merged.
 
-PR: https://github.com/SergejSchweizer/portfell/pull/284.
+PR: https://github.com/SergejSchweizer/portfell/pull/296.
 
 Priority: P0 prove production readiness before switching authority.
 
@@ -648,7 +648,7 @@ Branch: `refactor/hosted-runtime-cutover`.
 
 Git status: in progress.
 
-PR: https://github.com/SergejSchweizer/portfell/pull/285.
+PR: https://github.com/SergejSchweizer/portfell/pull/300.
 
 Priority: P0 activate the proven architecture.
 

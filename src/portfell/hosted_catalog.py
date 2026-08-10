@@ -8,6 +8,7 @@ import hashlib
 from dataclasses import dataclass
 from typing import Protocol
 
+from portfell.hosted_download_run_schema import DOWNLOAD_RUN_PARTIAL_STATUS_SQL
 from portfell.legacy_import_schema import LEGACY_IMPORT_LEDGER_SQL
 from portfell.tenant_control_schema import (
     D017_DURABLE_JOB_SCHEMA_SQL,
@@ -90,12 +91,6 @@ class HostedMigration:
 
     @property
     def checksum(self) -> str:
-        """Return a stable checksum for migration drift detection.
-
-        Returns:
-            SHA-256 checksum over the migration SQL body.
-        """
-
         return hashlib.sha256(self.sql.encode("utf-8")).hexdigest()
 
 
@@ -490,6 +485,7 @@ MIGRATIONS: tuple[HostedMigration, ...] = (
     HostedMigration(6, "d017_tenant_control_schema", D017_TENANT_CONTROL_SCHEMA_SQL),
     HostedMigration(7, "d017_durable_job_queue", D017_DURABLE_JOB_SCHEMA_SQL),
     HostedMigration(8, "legacy_import_ledger", LEGACY_IMPORT_LEDGER_SQL),
+    HostedMigration(9, "download_run_partial_status", DOWNLOAD_RUN_PARTIAL_STATUS_SQL),
 )
 
 

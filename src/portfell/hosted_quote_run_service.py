@@ -87,6 +87,11 @@ class QuoteRunService:
             status="running",
             returned_observation_ids=selection.member_ids,
             request_hash=request_hash,
+            requested_scope={
+                "project_id": project_id,
+                "selection_id": selection.selection_id,
+                "member_ids": list(selection.member_ids),
+            },
         )
         self.state.downloads_by_id[run_id] = run
         self.state.download_summaries_by_id[run_id] = {

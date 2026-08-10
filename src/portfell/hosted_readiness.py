@@ -109,6 +109,7 @@ def validate_runtime_readiness(
     """Verify deployment-only worker secrets exist and are nonempty before cutover."""
 
     resolved = environment if environment is not None else os.environ
+    authority = resolved.get("PORTFELL_HOSTED_AUTHORITY", "local")
     return [
         _secret_file_result(
             "runtime.external_kek_available",
@@ -119,6 +120,13 @@ def validate_runtime_readiness(
             "runtime.operations_credential_available",
             resolved.get("PORTFELL_OPERATIONS_EODHD_TOKEN_FILE"),
             "operations market-data credential file is required",
+        ),
+        ReadinessResult(
+            name="runtime.authority_allowed",
+            passed=(
+                authority == "local" or (authority == "postgres" and public_hosted_mode_allowed())
+            ),
+            message="PostgreSQL authority requires approved public-hosted readiness",
         ),
     ]
 

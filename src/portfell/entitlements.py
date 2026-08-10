@@ -8,12 +8,18 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Literal
 
+from portfell.table_io import JsonRow
+
 
 class EntitlementError(RuntimeError):
     """Raised when hosted entitlement publication fails closed."""
 
 
 RunStatus = Literal["planned", "running", "succeeded", "failed", "partial"]
+
+
+def _empty_requested_scope() -> JsonRow:
+    return {}
 
 
 @dataclass(frozen=True)
@@ -27,6 +33,7 @@ class ProviderDownloadRun:
     status: RunStatus
     returned_observation_ids: tuple[str, ...]
     request_hash: str
+    requested_scope: JsonRow = field(default_factory=_empty_requested_scope)
 
 
 @dataclass(frozen=True)

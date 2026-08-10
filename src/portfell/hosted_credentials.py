@@ -17,6 +17,8 @@ from typing import Protocol, cast, runtime_checkable
 from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
+from portfell.hosted_catalog import set_authenticated_user_sql
+
 
 class CredentialVaultError(RuntimeError):
     """Raised when hosted credential handling fails closed."""
@@ -239,6 +241,7 @@ class PostgresCredentialStore:
     def upsert(self, record: EncryptedCredentialRecord) -> None:
         """Replace the active credential without retaining multiple active records."""
 
+        self._bind_user(record.user_id)
         self._connection.execute(
             """
 update portfell_app.provider_credentials
@@ -295,6 +298,7 @@ on conflict (credential_id) do update set
     def get(self, *, user_id: str, provider: str = "eodhd") -> EncryptedCredentialRecord | None:
         """Load the latest logical credential record for one user and provider."""
 
+        self._bind_user(user_id)
         cursor = self._connection.execute(
             """
 select credential_id, user_id, provider, status, ciphertext, nonce, wrapped_data_key,
@@ -308,6 +312,9 @@ limit 1
         )
         row = cursor.fetchone()
         return None if row is None else _record_from_postgres_row(row)
+
+    def _bind_user(self, user_id: str) -> None:
+        self._connection.execute(*set_authenticated_user_sql(user_id))
 
 
 def _record_from_postgres_row(row: tuple[object, ...]) -> EncryptedCredentialRecord:
