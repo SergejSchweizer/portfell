@@ -195,7 +195,10 @@ def create_app(
 def create_runtime_app() -> FastAPI:
     """Create the persistent container application when secrets are configured."""
 
-    authority = os.environ.get("PORTFELL_HOSTED_AUTHORITY", "local")
+    configured_authority = os.environ.get("PORTFELL_HOSTED_AUTHORITY")
+    if configured_authority is None and os.environ.get("PORTFELL_DATABASE_URL"):
+        raise HostedApiError("hosted_authority_must_be_explicit")
+    authority = configured_authority or "local"
     if authority == "postgres":
         raise HostedApiError("postgres_hosted_runtime_not_configured")
     if authority != "local":
