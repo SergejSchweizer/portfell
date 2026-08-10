@@ -60,7 +60,7 @@ def test_hosted_migration_sql_defines_rls_and_immutable_catalog_shape() -> None:
     migrations = migration_plan()
     sql = "\n".join(migration.sql.lower() for migration in migrations)
 
-    assert [migration.version for migration in migrations] == [1, 2, 3, 4, 5, 6, 7, 8]
+    assert [migration.version for migration in migrations] == [1, 2, 3, 4, 5, 6, 7, 8, 9]
     assert len({migration.checksum for migration in migrations}) == len(migrations)
     assert "create table if not exists portfell_app.provider_credentials" in sql
     assert "ciphertext bytea not null" in sql
@@ -90,6 +90,8 @@ def test_hosted_migration_sql_defines_rls_and_immutable_catalog_shape() -> None:
     assert "force row level security" in sql
     assert "portfell_worker" in sql
     assert "create table if not exists portfell_app.jobs" in sql
+    assert "download_runs_status_check" in sql
+    assert "'partial'" in sql
     assert "create table if not exists portfell_app.job_attempts" in sql
     assert "create table if not exists portfell_app.outbox_events" in sql
     assert "unique (job_kind, input_hash)" in sql

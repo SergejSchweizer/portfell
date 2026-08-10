@@ -133,6 +133,7 @@ class CredentialProjectService:
             status="succeeded",
             returned_observation_ids=observation_ids,
             request_hash=request_hash,
+            requested_scope={"symbols": sorted(set(symbols))},
         )
         self.state.downloads_by_id[run.download_run_id] = run
         publish_user_data_snapshot(store=self.state.entitlements, run=run)

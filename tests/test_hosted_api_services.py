@@ -99,6 +99,16 @@ def test_workspace_repository_round_trips_durable_state(tmp_path: Path) -> None:
     state.current_project_id_by_user["user-a"] = "project-1"
     state.current_metadata_selection_by_user["user-a"] = "selection-1"
     state.metadata_revisions_by_user["user-a"] = "revision-1"
+    state.downloads_by_id["run-1"] = ProviderDownloadRun(
+        "run-1",
+        "user-a",
+        "credential-1",
+        "eodhd",
+        "succeeded",
+        ("observation-1",),
+        "request-hash-1",
+        {"symbols": ["AAA"]},
+    )
 
     persist_local_workspace(state)
     restored = HostedApiState()
@@ -109,6 +119,7 @@ def test_workspace_repository_round_trips_durable_state(tmp_path: Path) -> None:
     assert restored.current_project_id_by_user == {"user-a": "project-1"}
     assert restored.current_metadata_selection_by_user == {"user-a": "selection-1"}
     assert restored.metadata_revisions_by_user == {"user-a": "revision-1"}
+    assert restored.downloads_by_id["run-1"].requested_scope == {"symbols": ["AAA"]}
     assert json.loads((tmp_path / "workspace.json").read_text(encoding="utf-8"))["projects"]
 
 
