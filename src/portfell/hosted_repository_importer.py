@@ -132,6 +132,19 @@ def compare_project_parity(
     return (ParityMismatch("projects", len(expected), len(actual)),)
 
 
+def expected_postgres_projects(payload: Mapping[str, object]) -> tuple[TenantProject, ...]:
+    """Project projection expected after deterministic legacy-ID normalization."""
+
+    return tuple(
+        TenantProject(
+            project_id=_legacy_uuid(project.project_id),
+            user_id=_legacy_uuid(project.user_id),
+            name=project.name,
+        )
+        for project in _projects(payload.get("projects", ()))
+    )
+
+
 class ProjectRepository(Protocol):
     """User-scoped project and current-project preference persistence port."""
 
@@ -280,6 +293,8 @@ class TenantImportCursor(Protocol):
     """Minimal result contract for durable import idempotency checks."""
 
     def fetchone(self) -> tuple[object, ...] | None: ...
+
+    def fetchall(self) -> list[tuple[object, ...]]: ...
 
 
 class TenantImportConnection(Protocol):

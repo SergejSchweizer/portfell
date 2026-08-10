@@ -131,6 +131,21 @@ migration-capable `PORTFELL_DATABASE_URL`; the command never prints that URL:
 uv run python -m portfell.hosted_catalog_migration
 ```
 
+Verify the migrated catalog is reachable before an import rehearsal:
+
+```bash
+uv run python -m portfell.hosted_readiness --require-database
+```
+
+Plan a local control-plane import from an operator-provided workspace file without mutating
+PostgreSQL. Add `--apply` only after reviewing the dry-run checksum and counts; the applied command
+returns count-only normalized project-parity evidence:
+
+```bash
+uv run python -m portfell.hosted_import_rehearsal --workspace /secure/local-workspace.json
+uv run python -m portfell.hosted_import_rehearsal --workspace /secure/local-workspace.json --apply
+```
+
 The deterministic hosted cutover proof composes multi-user auth, credentials, entitlements, scoped analytics, artifact
 reuse, Web storage safety, local CLI compatibility, and readiness checks:
 
