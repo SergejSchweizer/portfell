@@ -11,13 +11,32 @@ class FakeConnection:
     def __init__(self) -> None:
         self.executed: list[tuple[str, tuple[object, ...]]] = []
         self.closed = False
+        self.migration_checksums: dict[int, str] = {}
 
-    def execute(self, sql: str, parameters: tuple[object, ...] = ()) -> object:
+    def execute(self, sql: str, parameters: tuple[object, ...] = ()) -> FakeResult:
         self.executed.append((sql, parameters))
-        return None
+        if "select checksum" in sql:
+            version = parameters[0]
+            assert isinstance(version, int)
+            checksum = self.migration_checksums.get(version)
+            return FakeResult((checksum,) if checksum else None)
+        if "insert into portfell_private.schema_migrations" in sql:
+            version, _, checksum = parameters
+            assert isinstance(version, int)
+            assert isinstance(checksum, str)
+            self.migration_checksums[version] = checksum
+        return FakeResult(None)
 
     def close(self) -> None:
         self.closed = True
+
+
+class FakeResult:
+    def __init__(self, row: tuple[str] | None) -> None:
+        self.row = row
+
+    def fetchone(self) -> tuple[str] | None:
+        return self.row
 
 
 def test_runtime_migrations_require_an_explicit_database_url(
@@ -45,6 +64,11 @@ def test_runtime_migrations_apply_the_catalog_plan_and_close_connection() -> Non
     assert received_urls == ["postgresql://migration-user@database/portfell"]
     assert connection.closed
     assert connection.executed
+
+    assert (
+        apply_runtime_migrations("postgresql://migration-user@database/portfell", connect=connect)
+        == 0
+    )
 
 
 def test_runtime_migration_cli_redacts_connection_failures(

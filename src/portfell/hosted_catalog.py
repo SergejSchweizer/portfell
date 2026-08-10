@@ -19,26 +19,11 @@ from portfell.tenant_control_schema import (
 
 
 class CatalogConnection(Protocol):
-    """Minimal execution protocol used by migration tooling.
+    def execute(self, sql: str, parameters: tuple[object, ...] = ()) -> CatalogResult: ...
 
-    Args:
-        sql: SQL statement or transaction block to execute.
-        parameters: Positional statement parameters.
 
-    Side Effects:
-        Executes the provided SQL on the backing database connection.
-    """
-
-    def execute(self, sql: str, parameters: tuple[object, ...] = ()) -> object:
-        """Execute SQL against a database connection.
-
-        Args:
-            sql: SQL statement or transaction block.
-            parameters: Optional positional bind parameters.
-
-        Returns:
-            Driver-specific execution result.
-        """
+class CatalogResult(Protocol):
+    def fetchone(self) -> tuple[str] | None: ...
 
 
 @dataclass(frozen=True)
@@ -527,7 +512,7 @@ def set_authenticated_user_sql(user_id: str) -> tuple[str, tuple[object, ...]]:
     return "select set_config(%s, %s, true)", (AUTHENTICATED_USER_SETTING, user_id)
 
 
-def apply_hosted_catalog_migrations(connection: CatalogConnection) -> None:
+def apply_hosted_catalog_migrations(connection: CatalogConnection) -> int:
     """Apply the hosted catalog role and schema migrations.
 
     Args:
@@ -535,23 +520,37 @@ def apply_hosted_catalog_migrations(connection: CatalogConnection) -> None:
 
     Side Effects:
         Executes deterministic idempotent role creation and schema migration SQL.
+
+    Returns:
+        Number of catalog migrations newly applied during this invocation.
     """
 
     for role in HOSTED_ROLES:
         connection.execute(create_role_sql(role))
+    applied = 0
     for migration in migration_plan():
+        existing = connection.execute(
+            """
+select checksum
+from portfell_private.schema_migrations
+where version = %s
+""",
+            (migration.version,),
+        ).fetchone()
+        if existing is not None:
+            if existing[0] != migration.checksum:
+                raise ValueError(f"hosted_migration_checksum_mismatch:{migration.version}")
+            continue
         connection.execute(migration.sql)
         connection.execute(
             """
 insert into portfell_private.schema_migrations (version, name, checksum)
 values (%s, %s, %s)
-on conflict (version) do update
-set name = excluded.name,
-    checksum = excluded.checksum
-where portfell_private.schema_migrations.checksum = excluded.checksum
 """,
             (migration.version, migration.name, migration.checksum),
         )
+        applied += 1
+    return applied
 
 
 def validate_hosted_catalog_contracts() -> None:

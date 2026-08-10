@@ -9,7 +9,7 @@ import sys
 from collections.abc import Callable, Sequence
 from typing import Protocol, cast
 
-from portfell.hosted_catalog import apply_hosted_catalog_migrations, migration_plan
+from portfell.hosted_catalog import CatalogResult, apply_hosted_catalog_migrations
 from portfell.hosted_database_connection import connect as connect_database
 
 
@@ -20,11 +20,15 @@ class HostedCatalogMigrationError(RuntimeError):
 class MigrationConnection(Protocol):
     """Minimal owned connection boundary for catalog migration execution."""
 
-    def execute(self, sql: str, parameters: tuple[object, ...] = ()) -> object:
+    def execute(self, sql: str, parameters: tuple[object, ...] = ()) -> CatalogResult:
         """Execute one migration statement."""
+
+        ...
 
     def close(self) -> None:
         """Close the database connection."""
+
+        ...
 
 
 MigrationConnector = Callable[[str], MigrationConnection]
@@ -46,10 +50,9 @@ def apply_runtime_migrations(
         raise HostedCatalogMigrationError("database_url_required")
     connection = (connect or _connect)(resolved_url)
     try:
-        apply_hosted_catalog_migrations(connection)
+        return apply_hosted_catalog_migrations(connection)
     finally:
         connection.close()
-    return len(migration_plan())
 
 
 def build_parser() -> argparse.ArgumentParser:

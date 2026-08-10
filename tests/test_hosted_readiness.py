@@ -184,6 +184,18 @@ def test_database_readiness_redacts_connection_failure() -> None:
     ]
 
 
+def test_database_readiness_cli_does_not_load_policy_evidence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "portfell.hosted_readiness.validate_readiness",
+        lambda: (_ for _ in ()).throw(AssertionError("policy evidence was loaded")),
+    )
+    monkeypatch.setattr("portfell.hosted_readiness.validate_database_readiness", lambda: [])
+
+    assert main(("--require-database",)) == 0
+
+
 def test_runtime_readiness_accepts_postgres_authority_when_hosting_is_approved(
     tmp_path: Path,
 ) -> None:

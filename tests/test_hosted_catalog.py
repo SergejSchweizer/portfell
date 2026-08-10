@@ -14,10 +14,29 @@ from portfell.hosted_catalog import (
 class FakeConnection:
     def __init__(self) -> None:
         self.executed: list[tuple[str, tuple[object, ...]]] = []
+        self.migration_checksums: dict[int, str] = {}
 
-    def execute(self, sql: str, parameters: tuple[object, ...] = ()) -> object:
+    def execute(self, sql: str, parameters: tuple[object, ...] = ()) -> FakeResult:
         self.executed.append((sql, parameters))
-        return None
+        if "select checksum" in sql:
+            version = parameters[0]
+            assert isinstance(version, int)
+            checksum = self.migration_checksums.get(version)
+            return FakeResult((checksum,) if checksum else None)
+        if "insert into portfell_private.schema_migrations" in sql:
+            version, _, checksum = parameters
+            assert isinstance(version, int)
+            assert isinstance(checksum, str)
+            self.migration_checksums[version] = checksum
+        return FakeResult(None)
+
+
+class FakeResult:
+    def __init__(self, row: tuple[str] | None) -> None:
+        self.row = row
+
+    def fetchone(self) -> tuple[str] | None:
+        return self.row
 
 
 def test_hosted_catalog_contracts_validate_security_invariants() -> None:
@@ -103,7 +122,7 @@ def test_hosted_migration_sql_defines_rls_and_immutable_catalog_shape() -> None:
 def test_apply_hosted_catalog_migrations_is_deterministic_and_idempotent() -> None:
     connection = FakeConnection()
 
-    apply_hosted_catalog_migrations(connection)
+    assert apply_hosted_catalog_migrations(connection) == len(migration_plan())
 
     role_statements = [
         statement for statement, _ in connection.executed if "create role" in statement
@@ -118,6 +137,17 @@ def test_apply_hosted_catalog_migrations_is_deterministic_and_idempotent() -> No
     assert migration_inserts == [
         (migration.version, migration.name, migration.checksum) for migration in migration_plan()
     ]
+
+    statements_before_rerun = len(connection.executed)
+    assert apply_hosted_catalog_migrations(connection) == 0
+
+    rerun_statements = connection.executed[statements_before_rerun:]
+    assert not any(
+        "insert into portfell_private.schema_migrations" in sql for sql, _ in rerun_statements
+    )
+    assert not any(
+        migration.sql in (sql for sql, _ in rerun_statements) for migration in migration_plan()
+    )
 
 
 def test_authenticated_user_sql_uses_transaction_local_setting() -> None:

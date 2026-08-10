@@ -379,7 +379,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     """Run hosted readiness checks."""
 
     args = build_parser().parse_args(argv)
-    results = validate_readiness()
+    requires_policy = args.require_public_hosted or not (
+        args.require_runtime or args.require_database
+    )
+    results = validate_readiness() if requires_policy else []
     readiness_failures = failed_results(results)
     runtime_failures = failed_results(validate_runtime_readiness()) if args.require_runtime else []
     database_failures = (
