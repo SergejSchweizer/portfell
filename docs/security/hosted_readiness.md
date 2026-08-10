@@ -8,6 +8,16 @@ The entitlement model below records D016 evidence and is superseded as a product
 Public hosting remains blocked until PR156 replaces the machine-readable licensing evidence and
 PR167 completes the PostgreSQL/shared-storage cutover gate after PR166 recovery rehearsal.
 
+## D017 Provider License
+
+The provider-license decision is intentionally `pending`, so public-hosted mode fails closed. Before
+it can be approved, recorded provider terms must explicitly authorize all four uses: cross-customer
+storage, derived-artifact reuse, retention after project deletion, and operations-credential
+ingestion. User-provided credentials are encrypted tenant metadata only and never authorize or feed
+the globally shared corpus. The versioned [D017 ownership matrix](shared_data_plane.json) assigns
+tenant/control data and tenant-neutral payloads to separate planes and forbids authorization,
+credential, project, run, session, and user fields in shared payloads.
+
 ## Historical D016 EODHD Storage And Derived Display Rights
 
 Public-hosted mode may store only data fetched through a user-provided EODHD credential and may expose derived views only to users whose immutable entitlement snapshot includes the source observations. Provider redistribution and display rights must be reviewed again before public-hosted mode is enabled for external users.

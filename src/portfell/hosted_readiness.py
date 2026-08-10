@@ -11,14 +11,13 @@ from datetime import date
 from pathlib import Path
 from typing import Any, cast
 
+from portfell.hosted_data_planes import REQUIRED_SHARED_DATA_LICENSE_USES
+
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 READINESS_PATH = REPOSITORY_ROOT / "docs" / "security" / "hosted_readiness.json"
 
 MANDATORY_DECISIONS: tuple[str, ...] = (
-    "eodhd-storage-and-derived-display-rights",
-    "personal-license-boundary",
-    "shared-physical-deduplication",
-    "user-key-backed-grants",
+    "shared-data-provider-license",
     "retention-and-account-deletion",
     "gdpr-rights-and-country-coverage",
     "audit-retention-and-incident-response",
@@ -74,6 +73,27 @@ def public_hosted_mode_allowed(
     """Return whether public-hosted mode can be enabled."""
 
     return not failed_results(validate_readiness(payload, today=today))
+
+
+def local_only_mode_allowed(
+    payload: dict[str, Any] | None = None,
+    *,
+    today: date | None = None,
+) -> bool:
+    """Return whether local-only mode is safe while D017 licensing is pending."""
+
+    resolved = payload or load_readiness()
+    if resolved.get("public_hosted_mode") != "disabled":
+        return False
+    allowed_pending = {
+        "decision.shared-data-provider-license.approved",
+        "decision.shared-data-provider-license.approved_uses",
+    }
+    return not [
+        result
+        for result in failed_results(validate_readiness(resolved, today=today))
+        if result.name not in allowed_pending
+    ]
 
 
 def failed_results(results: Iterable[ReadinessResult]) -> list[ReadinessResult]:
@@ -144,6 +164,26 @@ def _validate_decision(
             message="mandatory decision must not be expired",
         ),
     ]
+    if decision_id == "shared-data-provider-license":
+        approved_uses = decision.get("approved_uses")
+        raw_approved_uses = (
+            cast(list[object], approved_uses) if isinstance(approved_uses, list) else []
+        )
+        approved_use_values = [value for value in raw_approved_uses if isinstance(value, str)]
+        results.append(
+            ReadinessResult(
+                name=f"decision.{decision_id}.approved_uses",
+                passed=(
+                    isinstance(approved_uses, list)
+                    and len(approved_use_values) == len(raw_approved_uses)
+                    and set(approved_use_values) == set(REQUIRED_SHARED_DATA_LICENSE_USES)
+                ),
+                message=(
+                    "provider license must approve cross-customer storage, derived reuse, "
+                    "retention, and service-credential ingestion"
+                ),
+            )
+        )
     return results
 
 

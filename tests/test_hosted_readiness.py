@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import copy
 from datetime import date
 
 from portfell.hosted_readiness import (
     MANDATORY_DECISIONS,
     failed_results,
     load_readiness,
+    local_only_mode_allowed,
     public_hosted_mode_allowed,
     validate_readiness,
 )
@@ -16,7 +18,14 @@ def test_hosted_readiness_records_cover_every_mandatory_decision() -> None:
     decisions = {row["id"] for row in payload["decisions"]}
 
     assert decisions == set(MANDATORY_DECISIONS)
-    assert not failed_results(validate_readiness(payload, today=date(2026, 7, 19)))
+    failures = failed_results(validate_readiness(payload, today=date(2026, 8, 10)))
+
+    assert {failure.name for failure in failures} == {
+        "decision.shared-data-provider-license.approved",
+        "decision.shared-data-provider-license.approved_uses",
+    }
+    assert local_only_mode_allowed(payload, today=date(2026, 8, 10))
+    assert not public_hosted_mode_allowed(payload, today=date(2026, 8, 10))
 
 
 def test_public_hosted_mode_fails_closed_when_a_decision_is_missing() -> None:
@@ -40,9 +49,33 @@ def test_public_hosted_mode_fails_closed_for_expired_review() -> None:
     assert not public_hosted_mode_allowed(payload, today=date(2026, 7, 19))
 
 
+def test_public_hosted_mode_requires_complete_shared_data_license_approval() -> None:
+    payload = copy.deepcopy(load_readiness())
+    payload["public_hosted_mode"] = "enabled"
+    payload["decisions"].append(
+        {
+            "id": "shared-data-provider-license",
+            "status": "approved",
+            "owner": "maintainer",
+            "reviewed_on": "2026-08-10",
+            "expires_on": "2027-08-10",
+            "evidence": "docs/security/hosted_readiness.md#d017-provider-license",
+            "approved_uses": ["cross-customer-storage"],
+        }
+    )
+
+    failures = failed_results(validate_readiness(payload, today=date(2026, 8, 10)))
+
+    assert any(
+        failure.name == "decision.shared-data-provider-license.approved_uses"
+        for failure in failures
+    )
+    assert not public_hosted_mode_allowed(payload, today=date(2026, 8, 10))
+
+
 def test_local_only_mode_can_remain_available_while_public_mode_is_disabled() -> None:
     payload = load_readiness()
     payload["public_hosted_mode"] = "disabled"
 
     assert payload["local_only_mode"] == "available"
-    assert not failed_results(validate_readiness(payload, today=date(2026, 7, 19)))
+    assert local_only_mode_allowed(payload, today=date(2026, 8, 10))

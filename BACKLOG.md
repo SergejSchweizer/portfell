@@ -72,7 +72,7 @@ source of truth after cutover.
 
 Branch: `docs/shared-data-plane-contracts`.
 
-Git status: not started.
+Git status: in progress.
 
 PR: TBD.
 

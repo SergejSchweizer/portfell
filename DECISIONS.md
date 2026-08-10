@@ -270,6 +270,11 @@ hosted rollout; otherwise deployment fails closed or requires a different licens
 PostgreSQL backups recover tenant metadata, while shared-store backup/versioning recovers data bytes;
 both catalogs must be reconciled by deterministic integrity tooling.
 
+The versioned ownership matrix in `docs/security/shared_data_plane.json` is the executable contract
+for these boundaries. The `shared-data-provider-license` readiness decision must explicitly approve
+cross-customer storage, derived reuse, retention, and operations-credential ingestion before public
+hosting is enabled.
+
 Update trigger: Revisit if provider licensing forbids shared reuse, PostgreSQL or the shared object
 store is replaced, project creation no longer performs the initial fill, or analytical artifacts
 become customer-specific by contract.

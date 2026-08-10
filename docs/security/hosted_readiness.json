@@ -6,36 +6,13 @@
   "key_contract": "restore-requires-kek-version",
   "decisions": [
     {
-      "id": "eodhd-storage-and-derived-display-rights",
-      "status": "approved",
+      "id": "shared-data-provider-license",
+      "status": "pending",
       "owner": "maintainer",
-      "reviewed_on": "2026-07-19",
-      "expires_on": "2027-07-19",
-      "evidence": "docs/security/hosted_readiness.md#eodhd-storage-and-derived-display-rights"
-    },
-    {
-      "id": "personal-license-boundary",
-      "status": "approved",
-      "owner": "maintainer",
-      "reviewed_on": "2026-07-19",
-      "expires_on": "2027-07-19",
-      "evidence": "docs/security/hosted_readiness.md#personal-license-boundary"
-    },
-    {
-      "id": "shared-physical-deduplication",
-      "status": "approved",
-      "owner": "maintainer",
-      "reviewed_on": "2026-07-19",
-      "expires_on": "2027-07-19",
-      "evidence": "docs/security/hosted_readiness.md#shared-physical-deduplication"
-    },
-    {
-      "id": "user-key-backed-grants",
-      "status": "approved",
-      "owner": "maintainer",
-      "reviewed_on": "2026-07-19",
-      "expires_on": "2027-07-19",
-      "evidence": "docs/security/hosted_readiness.md#user-key-backed-grants"
+      "reviewed_on": "2026-08-10",
+      "expires_on": "2027-08-10",
+      "evidence": "docs/security/hosted_readiness.md#d017-provider-license",
+      "approved_uses": []
     },
     {
       "id": "retention-and-account-deletion",

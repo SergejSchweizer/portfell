@@ -602,6 +602,11 @@ project authorization in PostgreSQL: an owned project's immutable selection auth
 tenant-neutral shared market and analytical payloads for exactly those listing/input identities.
 Physical existence alone still never authorizes an API read.
 
+The executable D017 boundary is [`docs/security/shared_data_plane.json`](docs/security/shared_data_plane.json).
+`portfell.hosted_data_planes` defines the future `TenantControlPlane`, `SharedMarketStore`,
+`SharedArtifactStore`, and `SharedCatalog` ports without changing current runtime wiring. Public
+hosting remains fail-closed until the same versioned contract records all required provider rights.
+
 ## Hosted Authorization Model
 
 The implemented hosted contracts currently follow the earlier D016 chain below. They are not the
@@ -894,7 +899,12 @@ The current API download route uses deterministic local observation identities f
 
 ### Entitlements, scoped inputs, and artifacts: implemented and proven, not fully API-wired
 
-`portfell.entitlements`, `portfell.scoped_inputs`, and `portfell.artifact_cache` are exercised by focused tests and by `portfell.hosted_cutover`. The cutover proof creates multiple users, overlapping observations, snapshots, scoped inputs, and artifacts; verifies cross-user denial and idempotent reuse; deletes one user's entitlements; and checks browser-storage and local-CLI invariants.
+`portfell.entitlements`, `portfell.scoped_inputs`, and `portfell.artifact_cache` are exercised by
+focused tests and by the historical D016 `portfell.hosted_cutover` proof. It creates multiple users,
+overlapping observations, snapshots, scoped inputs, and artifacts; verifies cross-user denial and
+idempotent reuse; deletes one user's entitlements; checks browser-storage/local-CLI invariants; and
+confirms the pending D017 provider-license gate keeps public hosting blocked. It is not D017 cutover
+evidence; PR166 supplies the future rehearsal proof.
 
 This is a deterministic local proof. It does not call Google, EODHD, a broker, a cloud service, or production secret storage.
 
@@ -1044,7 +1054,7 @@ The catalogue below groups modules by responsibility. Public modules should depe
 | `portfell.hosted_runtime` | Container health and Uvicorn startup. | Active. |
 | `portfell.security_gates` | Repository/CI security-policy validator. | Active in quality gates. |
 | `portfell.hosted_readiness` | Hosted release evidence validator. | Active validation. |
-| `portfell.hosted_cutover` | Deterministic multi-user integration proof. | Active proof command/tests. |
+| `portfell.hosted_cutover` | Historical D016 multi-user isolation proof. | Confirms D017 hosting remains blocked. |
 
 ### Delivery and governance
 

@@ -1,10 +1,11 @@
 # Lake Contracts
 
-Last reviewed: 2026-07-13
+Last reviewed: 2026-08-10
 
 ## Table Of Contents
 
 - [Layers](#layers)
+- [D017 Hosted Data Planes](#d017-hosted-data-planes)
 - [Core Tables](#core-tables)
 - [Portfolio Evaluation Outputs](#portfolio-evaluation-outputs)
 - [How This Fits The Onboarding Flow](#how-this-fits-the-onboarding-flow)
@@ -54,6 +55,25 @@ publication marker for each listing/dataset.  Reading physical Parquet files
 can recreate it.  Active refresh inventory is the sorted de-duplicated union
 of member ids in every non-deleted project's current metadata selection; it is
 constructed only inside the trusted runtime and is not a cross-project API.
+
+## D017 Hosted Data Planes
+
+[`docs/security/shared_data_plane.json`](docs/security/shared_data_plane.json) is the versioned,
+machine-readable D017 ownership matrix. PostgreSQL is the tenant/control plane for users, encrypted
+credential envelopes, immutable projects and memberships, project authorization references, and
+jobs/runs/audit. Shared storage contains only immutable market revisions and analytical payloads.
+
+Shared listing identity is exactly `(provider, exchange, isin, code)`. Market revisions are
+identified by dataset type, schema version, canonical business-key hash, and content hash;
+analytical artifacts are identified by exact input revision ids, parameter hash, algorithm version,
+and schema version. Shared payloads must never contain authorization, credential, project, run,
+session, or user fields. A payload can be resolved only through an owned project reference in the
+tenant plane; physical object existence grants no API visibility.
+
+Only a dedicated operations credential may ingest the shared corpus, for project bootstrap and cron.
+This contract does not approve deployment: `shared-data-provider-license` must explicitly approve
+cross-customer storage, derived-artifact reuse, post-deletion retention, and operations-credential
+ingestion before public-hosted mode can be enabled.
 
 ## Layers
 

@@ -1,4 +1,4 @@
-"""End-to-end hosted cutover proof for multi-user isolation."""
+"""Historical D016 multi-user isolation proof while D017 remains blocked."""
 
 from __future__ import annotations
 
@@ -56,7 +56,7 @@ class HostedCutoverReport:
     retry_created_duplicate_artifact: bool
     account_deletion_revoked_visibility: bool
     web_storage_safe: bool
-    public_hosted_gate_green: bool
+    public_hosted_gate_blocked: bool
     local_cli_compatibility_preserved: bool
 
     def as_dict(self) -> JsonRow:
@@ -73,7 +73,7 @@ class HostedCutoverReport:
             "retry_created_duplicate_artifact": self.retry_created_duplicate_artifact,
             "account_deletion_revoked_visibility": self.account_deletion_revoked_visibility,
             "web_storage_safe": self.web_storage_safe,
-            "public_hosted_gate_green": self.public_hosted_gate_green,
+            "public_hosted_gate_blocked": self.public_hosted_gate_blocked,
             "local_cli_compatibility_preserved": self.local_cli_compatibility_preserved,
         }
 
@@ -90,14 +90,14 @@ class HostedCutoverReport:
                 not self.retry_created_duplicate_artifact,
                 self.account_deletion_revoked_visibility,
                 self.web_storage_safe,
-                self.public_hosted_gate_green,
+                self.public_hosted_gate_blocked,
                 self.local_cli_compatibility_preserved,
             )
         )
 
 
 def run_hosted_cutover_proof() -> HostedCutoverReport:
-    """Run a deterministic multi-user hosted cutover proof."""
+    """Run deterministic historical D016 isolation evidence without enabling D017."""
 
     credential_store = InMemoryCredentialStore()
     vault = EodhdCredentialVault(
@@ -204,7 +204,7 @@ def run_hosted_cutover_proof() -> HostedCutoverReport:
         account_deletion_revoked_visibility=entitlement_store.visible_observation_ids("user-a")
         == (),
         web_storage_safe=_web_storage_safe(),
-        public_hosted_gate_green=public_hosted_mode_allowed(),
+        public_hosted_gate_blocked=not public_hosted_mode_allowed(),
         local_cli_compatibility_preserved=_local_cli_contract_present(),
     )
     if univariate_artifact.artifact_kind != "univariate":
@@ -285,17 +285,17 @@ def _local_cli_contract_present() -> bool:
 def build_parser() -> argparse.ArgumentParser:
     """Build hosted cutover proof CLI parser."""
 
-    return argparse.ArgumentParser(description="Run the hosted multi-user cutover proof.")
+    return argparse.ArgumentParser(description="Run the historical hosted isolation proof.")
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Run the hosted cutover proof CLI."""
+    """Run the historical hosted isolation proof CLI."""
 
     build_parser().parse_args(argv)
     report = run_hosted_cutover_proof()
     print(json.dumps(report.as_dict(), sort_keys=True))
     if not report.passed():
-        print("hosted cutover proof failed", file=sys.stderr)
+        print("hosted isolation proof failed", file=sys.stderr)
         return 1
     return 0
 
