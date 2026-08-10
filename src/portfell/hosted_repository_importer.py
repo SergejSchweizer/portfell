@@ -200,9 +200,11 @@ class InMemoryProjectRepository:
         project_id = self._current_project_ids.get(user_id)
         if project_id is None:
             return None
-        return project_id if any(
-            project.project_id == project_id for project in self.list_projects(user_id)
-        ) else None
+        return (
+            project_id
+            if any(project.project_id == project_id for project in self.list_projects(user_id))
+            else None
+        )
 
 
 class PostgresProjectRepository:

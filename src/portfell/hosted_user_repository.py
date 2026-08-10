@@ -29,9 +29,7 @@ class HostedUserCursor(Protocol):
 class HostedUserConnection(Protocol):
     """Parameterized connection boundary for hosted user lifecycle commands."""
 
-    def execute(
-        self, sql: str, parameters: tuple[object, ...] = ()
-    ) -> HostedUserCursor: ...
+    def execute(self, sql: str, parameters: tuple[object, ...] = ()) -> HostedUserCursor: ...
 
 
 class PostgresHostedUserRepository:
