@@ -40,6 +40,7 @@ from portfell.hosted_credentials import (
     InMemoryCredentialStore,
     KeyEncryptionKey,
 )
+from portfell.hosted_download_run_repository import DownloadRunRepository
 from portfell.hosted_metadata_project_service import MetadataProjectService
 from portfell.hosted_quote_run_service import QuoteRunService
 from portfell.hosted_repository_importer import (
@@ -274,6 +275,41 @@ def test_credential_commands_can_use_an_injected_vault_without_state_authority()
     assert service.credential_value(user_id) == {"provider_key": "test-key"}
     with pytest.raises(Exception, match="credential not found"):
         state.credential_vault().status(user_id=user_id)
+
+
+def test_download_commands_can_use_an_injected_repository_without_state_authority() -> None:
+    class DownloadRepository(DownloadRunRepository):
+        def __init__(self) -> None:
+            self.runs: dict[str, ProviderDownloadRun] = {}
+
+        def create(self, run: ProviderDownloadRun) -> ProviderDownloadRun:
+            self.runs[run.download_run_id] = run
+            return run
+
+        def get(self, *, user_id: str, download_run_id: str) -> ProviderDownloadRun | None:
+            run = self.runs.get(download_run_id)
+            return run if run is not None and run.user_id == user_id else None
+
+    state = HostedApiState()
+    vault = EodhdCredentialVault(
+        store=InMemoryCredentialStore(),
+        key_encryption_key=KeyEncryptionKey("test-v1", b"1" * 32),
+        fingerprint_secret=b"test-fingerprint-secret",
+    )
+    user_id = "00000000-0000-5000-8000-000000000001"
+    credential = vault.set_credential(user_id=user_id, provider_key="test-key")
+    repository = DownloadRepository()
+    service = CredentialProjectService(
+        state,
+        credential_vault=vault,
+        download_run_repository=repository,
+    )
+
+    created = service.run_download(user_id, ["AAA"], idempotency_key=None)
+
+    assert state.downloads_by_id == {}
+    assert repository.runs[created["download_run_id"]].credential_id == credential.credential_id
+    assert service.download_status(user_id, created["download_run_id"]) == created
 
 
 def test_project_commands_can_use_an_injected_audit_repository_without_state_authority() -> None:

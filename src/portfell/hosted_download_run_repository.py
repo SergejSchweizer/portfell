@@ -14,6 +14,20 @@ class DownloadRunRepositoryError(ValueError):
     """Raised when a stored download-run projection violates its contract."""
 
 
+class DownloadRunRepository(Protocol):
+    """Persist and read user-owned provider download runs."""
+
+    def create(self, run: ProviderDownloadRun) -> ProviderDownloadRun:
+        """Create or return one idempotent provider download run."""
+
+        ...
+
+    def get(self, *, user_id: str, download_run_id: str) -> ProviderDownloadRun | None:
+        """Read one owned provider download run."""
+
+        ...
+
+
 class DownloadRunCursor(Protocol):
     """Minimal PostgreSQL result boundary for download-run queries."""
 
