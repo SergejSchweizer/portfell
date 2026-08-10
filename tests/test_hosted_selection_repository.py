@@ -32,7 +32,7 @@ def test_selection_repository_reads_owned_sealed_membership_in_canonical_order()
         ]
     )
 
-    selection = PostgresSelectionRepository(connection).get(
+    selection = PostgresSelectionRepository(connection).for_project(
         project_id="project-1", user_id="user-a"
     )
 
@@ -65,17 +65,23 @@ def test_selection_repository_rejects_malformed_owned_projection() -> None:
     connection = _Connection([("selection-1", "project-1", "user-a")])
 
     with pytest.raises(TenantImportError, match="selection_projection_invalid"):
-        PostgresSelectionRepository(connection).get(project_id="project-1", user_id="user-a")
+        PostgresSelectionRepository(connection).for_project(
+            project_id="project-1", user_id="user-a"
+        )
 
     blank_member = _Connection(
         [("selection-1", "project-1", "user-a", "UCITS", "", "XETRA", "AAA")]
     )
     with pytest.raises(TenantImportError, match="selection_projection_invalid"):
-        PostgresSelectionRepository(blank_member).get(project_id="project-1", user_id="user-a")
+        PostgresSelectionRepository(blank_member).for_project(
+            project_id="project-1", user_id="user-a"
+        )
 
 
 def test_selection_repository_returns_none_without_a_sealed_owned_selection() -> None:
     assert (
-        PostgresSelectionRepository(_Connection()).get(project_id="project-1", user_id="user-a")
+        PostgresSelectionRepository(_Connection()).for_project(
+            project_id="project-1", user_id="user-a"
+        )
         is None
     )
