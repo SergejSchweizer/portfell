@@ -324,6 +324,59 @@ def test_metadata_builder_project_can_use_an_injected_project_repository() -> No
     assert repository.current_project_id(user_id) == created["project"]["project_id"]
 
 
+def test_metadata_builder_can_use_an_injected_selection_repository() -> None:
+    state = HostedApiState(
+        all_isins_rows=(
+            {
+                "isin": "IE1",
+                "exchange": "XETRA",
+                "code": "AAA",
+                "name": "Example UCITS ETF",
+                "instrument_type": "ETF",
+                "country": "IE",
+                "currency": "EUR",
+            },
+        )
+    )
+    user_id = "00000000-0000-5000-8000-000000000001"
+    runtime = LocalHostedRuntime(
+        quote_workflow=_empty_workflow,
+        metadata_workflow=_empty_workflow,
+        cpu_count=lambda: 1,
+    )
+    projects = InMemoryProjectRepository()
+    selections = InMemorySelectionRepository()
+    service = MetadataProjectService(
+        state,
+        runtime,
+        project_repository=projects,
+        selection_repository=selections,
+    )
+
+    created = service.create_project_from_criteria(
+        user_id,
+        exchange="XETRA",
+        name="UCITS ETF",
+        instrument_type="ETF",
+        country="IE",
+        currency="EUR",
+        idempotency_key="request-1",
+    )
+    repeated = service.create_project_from_criteria(
+        user_id,
+        exchange="XETRA",
+        name="UCITS ETF",
+        instrument_type="ETF",
+        country="IE",
+        currency="EUR",
+        idempotency_key="request-1",
+    )
+
+    assert state.projects_by_id == {}
+    assert state.selections_by_id == {}
+    assert repeated == created
+
+
 def test_quote_run_can_authorize_an_injected_project_repository() -> None:
     state = HostedApiState()
     user_id = "00000000-0000-5000-8000-000000000001"
