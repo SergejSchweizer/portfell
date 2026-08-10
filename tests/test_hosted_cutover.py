@@ -19,7 +19,7 @@ def test_hosted_cutover_proof_passes_all_required_invariants() -> None:
     assert not report.retry_created_duplicate_artifact
     assert report.account_deletion_revoked_visibility
     assert report.web_storage_safe
-    assert report.public_hosted_gate_blocked
+    assert report.public_hosted_readiness_approved
     assert report.local_cli_compatibility_preserved
 
 

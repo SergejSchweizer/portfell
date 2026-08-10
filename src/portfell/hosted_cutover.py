@@ -1,4 +1,4 @@
-"""Historical D016 multi-user isolation proof while D017 remains blocked."""
+"""Historical D016 multi-user isolation proof independent of D017 cutover."""
 
 from __future__ import annotations
 
@@ -56,7 +56,7 @@ class HostedCutoverReport:
     retry_created_duplicate_artifact: bool
     account_deletion_revoked_visibility: bool
     web_storage_safe: bool
-    public_hosted_gate_blocked: bool
+    public_hosted_readiness_approved: bool
     local_cli_compatibility_preserved: bool
 
     def as_dict(self) -> JsonRow:
@@ -73,7 +73,7 @@ class HostedCutoverReport:
             "retry_created_duplicate_artifact": self.retry_created_duplicate_artifact,
             "account_deletion_revoked_visibility": self.account_deletion_revoked_visibility,
             "web_storage_safe": self.web_storage_safe,
-            "public_hosted_gate_blocked": self.public_hosted_gate_blocked,
+            "public_hosted_readiness_approved": self.public_hosted_readiness_approved,
             "local_cli_compatibility_preserved": self.local_cli_compatibility_preserved,
         }
 
@@ -90,7 +90,7 @@ class HostedCutoverReport:
                 not self.retry_created_duplicate_artifact,
                 self.account_deletion_revoked_visibility,
                 self.web_storage_safe,
-                self.public_hosted_gate_blocked,
+                self.public_hosted_readiness_approved,
                 self.local_cli_compatibility_preserved,
             )
         )
@@ -204,7 +204,7 @@ def run_hosted_cutover_proof() -> HostedCutoverReport:
         account_deletion_revoked_visibility=entitlement_store.visible_observation_ids("user-a")
         == (),
         web_storage_safe=_web_storage_safe(),
-        public_hosted_gate_blocked=not public_hosted_mode_allowed(),
+        public_hosted_readiness_approved=public_hosted_mode_allowed(),
         local_cli_compatibility_preserved=_local_cli_contract_present(),
     )
     if univariate_artifact.artifact_kind != "univariate":

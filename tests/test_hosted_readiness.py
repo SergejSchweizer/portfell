@@ -22,12 +22,9 @@ def test_hosted_readiness_records_cover_every_mandatory_decision() -> None:
     assert decisions == set(MANDATORY_DECISIONS)
     failures = failed_results(validate_readiness(payload, today=date(2026, 8, 10)))
 
-    assert {failure.name for failure in failures} == {
-        "decision.shared-data-provider-license.approved",
-        "decision.shared-data-provider-license.approved_uses",
-    }
-    assert local_only_mode_allowed(payload, today=date(2026, 8, 10))
-    assert not public_hosted_mode_allowed(payload, today=date(2026, 8, 10))
+    assert not failures
+    assert not local_only_mode_allowed(payload, today=date(2026, 8, 10))
+    assert public_hosted_mode_allowed(payload, today=date(2026, 8, 10))
 
 
 def test_public_hosted_mode_fails_closed_when_a_decision_is_missing() -> None:
@@ -113,7 +110,7 @@ def test_runtime_readiness_accepts_nonempty_worker_secret_files(tmp_path: Path) 
     )
 
 
-def test_runtime_readiness_rejects_postgres_authority_while_hosting_is_blocked(
+def test_runtime_readiness_accepts_postgres_authority_when_hosting_is_approved(
     tmp_path: Path,
 ) -> None:
     kek = tmp_path / "kek"
@@ -131,4 +128,4 @@ def test_runtime_readiness_rejects_postgres_authority_while_hosting_is_blocked(
         )
     )
 
-    assert [failure.name for failure in failures] == ["runtime.authority_allowed"]
+    assert not failures
