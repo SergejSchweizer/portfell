@@ -421,12 +421,15 @@ def test_analysis_can_authorize_an_injected_project_repository() -> None:
     user_id = "00000000-0000-5000-8000-000000000001"
     project_id = "00000000-0000-5000-8000-000000000002"
     selection_id = "00000000-0000-5000-8000-000000000003"
-    state.selections_by_id[selection_id] = SelectionRecord(
-        selection_id, user_id, project_id, "Income", ("IE1",)
-    )
     projects = InMemoryProjectRepository()
     projects.create_project(TenantProject(project_id, user_id, "Income"))
-    repository = HostedResearchRepository(state, project_repository=projects)
+    selections = InMemorySelectionRepository()
+    selections.create(TenantSelection(selection_id, project_id, user_id, "Income", ("IE1",)))
+    repository = HostedResearchRepository(
+        state,
+        project_repository=projects,
+        selection_repository=selections,
+    )
     service = HostedAnalysisService(repository, LocalResearchPersistence(state))
 
     analysis = service.create(
@@ -438,6 +441,7 @@ def test_analysis_can_authorize_an_injected_project_repository() -> None:
     )
 
     assert state.projects_by_id == {}
+    assert state.selections_by_id == {}
     assert analysis["status"] == "succeeded"
 
 
