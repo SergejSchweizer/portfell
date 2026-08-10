@@ -72,9 +72,9 @@ source of truth after cutover.
 
 Branch: `docs/shared-data-plane-contracts`.
 
-Git status: in progress.
+Git status: pushed.
 
-PR: TBD.
+PR: https://github.com/SergejSchweizer/portfell/pull/274.
 
 Priority: P0 architecture and licensing gate.
 
