@@ -49,6 +49,28 @@ class BivariateManifest:
     unavailable_pairs: tuple[UnavailablePair, ...]
 
 
+class InMemorySharedBivariateCatalog:
+    """Test double for idempotent immutable top-level Bivariate manifest publication."""
+
+    def __init__(self) -> None:
+        self._manifests: dict[str, BivariateManifest] = {}
+
+    @property
+    def manifest_count(self) -> int:
+        return len(self._manifests)
+
+    def publish(self, manifest: BivariateManifest) -> BivariateManifest:
+        """Publish or return exactly matching immutable manifest content."""
+
+        existing = self._manifests.get(manifest.manifest_id)
+        if existing is not None:
+            if existing != manifest:
+                raise SharedBivariateArtifactError("bivariate_manifest_id_conflict")
+            return existing
+        self._manifests[manifest.manifest_id] = manifest
+        return manifest
+
+
 def build_bivariate_manifest(
     *,
     univariate_artifact_ids: tuple[str, ...],

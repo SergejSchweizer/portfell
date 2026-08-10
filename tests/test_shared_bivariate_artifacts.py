@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 
 from portfell.shared_bivariate_artifacts import (
+    InMemorySharedBivariateCatalog,
     SharedBivariateArtifactError,
     UnavailablePair,
     build_bivariate_manifest,
@@ -74,3 +75,17 @@ def test_bivariate_manifest_preserves_typed_unavailable_pair_outcomes() -> None:
     assert manifest.unavailable_pairs == (
         UnavailablePair("uni-a", "uni-c", "insufficient_observations"),
     )
+
+
+def test_shared_bivariate_catalog_publishes_one_immutable_manifest_per_identity() -> None:
+    catalog = InMemorySharedBivariateCatalog()
+    manifest = build_bivariate_manifest(
+        univariate_artifact_ids=("uni-a", "uni-b"),
+        bucket_count=1,
+        calendar_policy_version="calendar-v1",
+        algorithm_version="algorithm-v1",
+    )
+
+    assert catalog.publish(manifest) == manifest
+    assert catalog.publish(manifest) == manifest
+    assert catalog.manifest_count == 1
