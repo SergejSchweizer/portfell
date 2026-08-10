@@ -602,9 +602,9 @@ Idempotency: Repeated cron starts join one job; retries converge on immutable ca
 
 Branch: `chore/hosted-cutover-rehearsal`.
 
-Git status: not started.
+Git status: in progress.
 
-PR: TBD.
+PR: https://github.com/SergejSchweizer/portfell/pull/284.
 
 Priority: P0 prove production readiness before switching authority.
 
