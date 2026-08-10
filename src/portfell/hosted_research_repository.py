@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from portfell.entitlements import ProviderDownloadRun
+from portfell.hosted_api_errors import HostedApplicationError
 from portfell.hosted_api_service_support import (
     audit,
     idempotent_response,
@@ -10,6 +11,8 @@ from portfell.hosted_api_service_support import (
     require_user_row,
 )
 from portfell.hosted_api_state import AnalysisRecord, HostedApiState, ProjectRecord, SelectionRecord
+from portfell.hosted_local_project_repository import LocalProjectRepository
+from portfell.hosted_repository_importer import ProjectRepository
 from portfell.hosted_research_workflow import ResearchRun, UnivariateSelection
 from portfell.shared_market_data import SharedListingKey
 from portfell.table_io import JsonRow
@@ -18,8 +21,11 @@ from portfell.table_io import JsonRow
 class HostedResearchRepository:
     """Encapsulate mutable hosted state behind user-scoped repository operations."""
 
-    def __init__(self, state: HostedApiState) -> None:
+    def __init__(
+        self, state: HostedApiState, project_repository: ProjectRepository | None = None
+    ) -> None:
         self._state = state
+        self._projects = project_repository or LocalProjectRepository(state)
 
     def metadata_selection(self, selection_id: str, user_id: str) -> SelectionRecord:
         return require_user_row(self._state.selections_by_id, selection_id, user_id)
@@ -82,7 +88,10 @@ class HostedResearchRepository:
         self._state.bivariate_runs_by_id[run.run_id] = run
 
     def project(self, project_id: str, user_id: str) -> ProjectRecord:
-        return require_user_row(self._state.projects_by_id, project_id, user_id)
+        for project in self._projects.list_projects(user_id):
+            if project.project_id == project_id:
+                return ProjectRecord(project.project_id, project.user_id, project.name)
+        raise HostedApplicationError(404, "not_found")
 
     def analysis(self, run_id: str, user_id: str) -> AnalysisRecord:
         return require_user_row(self._state.analyses_by_id, run_id, user_id)
