@@ -64,9 +64,7 @@ class DurableJobConnection(Protocol):
 
     def transaction(self) -> AbstractContextManager[object]: ...
 
-    def execute(
-        self, sql: str, parameters: tuple[object, ...] = ()
-    ) -> DurableJobCursor: ...
+    def execute(self, sql: str, parameters: tuple[object, ...] = ()) -> DurableJobCursor: ...
 
 
 class PostgresDurableJobRepository:
@@ -235,9 +233,7 @@ def _claimed_job(row: tuple[object, ...], lease_token: str) -> ClaimedJob:
         raise DurableJobError("job_claim_projection_invalid")
     if not isinstance(row[6], int):
         raise DurableJobError("job_claim_projection_invalid")
-    job_id, user_id, project_id, job_kind, input_hash, input_ref = (
-        str(value) for value in row[:6]
-    )
+    job_id, user_id, project_id, job_kind, input_hash, input_ref = (str(value) for value in row[:6])
     return ClaimedJob(
         job_id,
         user_id,
