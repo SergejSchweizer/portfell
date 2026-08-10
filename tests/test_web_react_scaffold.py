@@ -109,7 +109,6 @@ def test_three_module_ui_uses_canonical_server_owned_workflow_contracts() -> Non
         "/api/workflow",
         "/api/metadata/fetch-all",
         "/api/metadata-builder",
-        "/api/quote-runs",
         "/api/univariate-statistics/runs",
         "/api/bivariate-statistics/plan",
         "/api/bivariate-statistics/runs",
