@@ -646,9 +646,9 @@ repeatable and stop before documented commit points on mismatch.
 
 Branch: `refactor/hosted-project-selection-projection`.
 
-Git status: in progress; project selection projections are moving behind explicit repository ports. Production authority remains blocked by the required production-like import, parity, backup/restore, and rollback rehearsal.
+Git status: pushed; project selection projections are moving behind explicit repository ports. Production authority remains blocked by the required production-like import, parity, backup/restore, and rollback rehearsal.
 
-PR: TBD.
+PR: https://github.com/SergejSchweizer/portfell/pull/321.
 
 Depends on implementation branch: `refactor/hosted-research-selection-repository` (PR #320).
 
