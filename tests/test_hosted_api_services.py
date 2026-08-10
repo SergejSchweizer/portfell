@@ -289,6 +289,15 @@ def test_selection_commands_can_use_an_injected_repository_without_state_authori
 
     assert state.selections_by_id == {}
     assert service.selection_detail(user_id, created["selection_id"]) == created
+    assert service.list_projects(user_id, limit=10, offset=0)["items"] == [
+        {
+            "project_id": project_id,
+            "name": "Income",
+            "selection_id": created["selection_id"],
+            "selected_count": 1,
+            "data_loaded": False,
+        }
+    ]
 
 
 def test_metadata_builder_project_can_use_an_injected_project_repository() -> None:
