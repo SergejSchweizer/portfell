@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 
 
@@ -20,6 +21,16 @@ class SharedUnivariateArtifact:
     def __post_init__(self) -> None:
         if not all((self.artifact_id, self.return_artifact_id, self.content_hash)):
             raise SharedUnivariateArtifactError("univariate_artifact_identity_required")
+
+    @classmethod
+    def from_payload(
+        cls, artifact_id: str, return_artifact_id: str, payload: bytes
+    ) -> SharedUnivariateArtifact:
+        """Build a catalog record for canonical shared payload bytes."""
+
+        if not payload:
+            raise SharedUnivariateArtifactError("univariate_artifact_payload_required")
+        return cls(artifact_id, return_artifact_id, _payload_hash(payload))
 
 
 class InMemorySharedUnivariateArtifacts:
@@ -60,3 +71,15 @@ class InMemorySharedUnivariateArtifacts:
 
         artifact_id = self._references.get((project_id, run_id))
         return self._artifacts.get(artifact_id) if artifact_id is not None else None
+
+
+def verify_payload(artifact: SharedUnivariateArtifact, payload: bytes) -> bytes:
+    """Return payload only when it matches the immutable catalog checksum."""
+
+    if _payload_hash(payload) != artifact.content_hash:
+        raise SharedUnivariateArtifactError("univariate_artifact_checksum_mismatch")
+    return payload
+
+
+def _payload_hash(payload: bytes) -> str:
+    return hashlib.sha256(payload).hexdigest()
