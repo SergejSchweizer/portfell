@@ -9,4 +9,7 @@ create table if not exists portfell_private.legacy_imports (
 );
 revoke all on portfell_private.legacy_imports from public, portfell_app, portfell_readonly;
 grant select, insert on portfell_private.legacy_imports to portfell_migrator;
+
+alter table portfell_app.project_selection_versions
+    add column if not exists name text not null default 'selection';
 """

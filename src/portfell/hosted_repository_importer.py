@@ -324,11 +324,12 @@ on conflict (user_id) do update set project_id = excluded.project_id, updated_at
         self._connection.execute(
             """
 insert into portfell_app.project_selection_versions (
-    selection_version_id, project_id, user_id, membership_hash, canonical_listing_policy_version
-) values (%s, %s, %s, %s, 'legacy-import-v1')
+    selection_version_id, project_id, user_id, name, membership_hash,
+    canonical_listing_policy_version
+) values (%s, %s, %s, %s, %s, 'legacy-import-v1')
 on conflict (project_id) do nothing
 """,
-            (selection_id, project_id, user_id, membership_hash),
+            (selection_id, project_id, user_id, selection.name, membership_hash),
         )
         for member_id in selection.member_ids:
             isin, exchange, code = member_id.split(":")
