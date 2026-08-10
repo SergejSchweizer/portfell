@@ -241,6 +241,7 @@ on conflict (user_id) do update set project_id = excluded.project_id
     def _bind_user(self, user_id: str) -> None:
         self._connection.execute(*set_authenticated_user_sql(user_id))
 
+
 class TenantImportCursor(Protocol):
     """Minimal result contract for durable import idempotency checks."""
 
@@ -348,6 +349,7 @@ where selection_version_id = %s and membership_sealed_at is null
 """,
             (selection_id,),
         )
+
 
 class InMemoryTenantRepository:
     """Deterministic test double for importer and repository contract tests."""
