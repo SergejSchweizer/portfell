@@ -20,6 +20,23 @@ class BivariateBucket:
     pairs: tuple[tuple[str, str], ...]
 
 
+@dataclass(frozen=True, order=True)
+class UnavailablePair:
+    """Typed non-payload result for one canonical pair that cannot be computed."""
+
+    left_artifact_id: str
+    right_artifact_id: str
+    code: str
+
+    def canonical(self) -> UnavailablePair:
+        """Return lexicographically oriented immutable pair metadata."""
+
+        left, right = sorted((self.left_artifact_id, self.right_artifact_id))
+        if not left or left == right or not self.code:
+            raise SharedBivariateArtifactError("bivariate_unavailable_pair_invalid")
+        return UnavailablePair(left, right, self.code)
+
+
 @dataclass(frozen=True)
 class BivariateManifest:
     """Tenant-neutral top-level manifest for a bounded bucketed Bivariate run."""
@@ -29,6 +46,7 @@ class BivariateManifest:
     pair_count: int
     buckets: tuple[BivariateBucket, ...]
     bucket_payload_hashes: tuple[tuple[int, str], ...]
+    unavailable_pairs: tuple[UnavailablePair, ...]
 
 
 def build_bivariate_manifest(
@@ -39,6 +57,7 @@ def build_bivariate_manifest(
     algorithm_version: str,
     maximum_pair_count: int = 100_000,
     bucket_payloads: dict[int, bytes] | None = None,
+    unavailable_pairs: tuple[UnavailablePair, ...] = (),
 ) -> BivariateManifest:
     """Build an order-independent immutable Bivariate manifest without pair rows in a catalog."""
 
@@ -67,6 +86,9 @@ def build_bivariate_manifest(
         for bucket in buckets
         if bucket.bucket in payloads
     )
+    canonical_unavailable = tuple(sorted(pair.canonical() for pair in unavailable_pairs))
+    if len(set(canonical_unavailable)) != len(canonical_unavailable):
+        raise SharedBivariateArtifactError("bivariate_unavailable_pair_duplicate")
     payload = {
         "univariate_artifact_ids": universe,
         "bucket_count": bucket_count,
@@ -74,6 +96,10 @@ def build_bivariate_manifest(
         "algorithm_version": algorithm_version,
         "buckets": [(bucket.bucket, bucket.pairs) for bucket in buckets],
         "bucket_payload_hashes": bucket_payload_hashes,
+        "unavailable_pairs": [
+            (pair.left_artifact_id, pair.right_artifact_id, pair.code)
+            for pair in canonical_unavailable
+        ],
     }
     manifest_id = hashlib.sha256(
         json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
@@ -84,6 +110,7 @@ def build_bivariate_manifest(
         pair_count,
         buckets,
         bucket_payload_hashes,
+        canonical_unavailable,
     )
 
 

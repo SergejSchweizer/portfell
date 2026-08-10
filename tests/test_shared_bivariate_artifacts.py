@@ -4,6 +4,7 @@ import pytest
 
 from portfell.shared_bivariate_artifacts import (
     SharedBivariateArtifactError,
+    UnavailablePair,
     build_bivariate_manifest,
     verify_bucket_payload,
 )
@@ -59,3 +60,17 @@ def test_bucket_payload_checksum_fails_closed_on_corruption() -> None:
     assert verify_bucket_payload(manifest, bucket=0, payload=payload) == payload
     with pytest.raises(SharedBivariateArtifactError, match="bivariate_bucket_checksum_mismatch"):
         verify_bucket_payload(manifest, bucket=0, payload=b"corrupt")
+
+
+def test_bivariate_manifest_preserves_typed_unavailable_pair_outcomes() -> None:
+    manifest = build_bivariate_manifest(
+        univariate_artifact_ids=("uni-a", "uni-b", "uni-c"),
+        bucket_count=2,
+        calendar_policy_version="calendar-v1",
+        algorithm_version="algorithm-v1",
+        unavailable_pairs=(UnavailablePair("uni-c", "uni-a", "insufficient_observations"),),
+    )
+
+    assert manifest.unavailable_pairs == (
+        UnavailablePair("uni-a", "uni-c", "insufficient_observations"),
+    )
