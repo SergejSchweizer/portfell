@@ -299,6 +299,75 @@ def test_quote_run_requires_an_existing_selection() -> None:
     assert _json(response) == {"detail": {"code": "not_found"}}
 
 
+def test_quote_run_downloads_only_the_metadata_builder_selection(monkeypatch: Any) -> None:
+    project = ProjectRecord(project_id="project-selected", user_id="user-a", name="Selected")
+    selection = SelectionRecord(
+        selection_id="selection-selected",
+        user_id="user-a",
+        project_id=project.project_id,
+        name="Selected",
+        member_ids=("IE1:XETRA:AAA", "IE2:XETRA:BBB"),
+    )
+    unrelated = SelectionRecord(
+        selection_id="selection-unrelated",
+        user_id="user-a",
+        project_id="project-unrelated",
+        name="Unrelated",
+        member_ids=("IE3:LSE:CCC",),
+    )
+    calls: list[dict[str, Any]] = []
+
+    def fake_fetch_all_quotes_workflow(**kwargs: Any) -> dict[str, Any]:
+        calls.append(kwargs)
+        kwargs["on_progress"](7, 7, 0)
+        return {
+            "coverage_rows": 2,
+            "raw_dataset_errors": 0,
+            "raw_dataset_successes": 6,
+            "quote_errors": 0,
+            "quote_successes": 2,
+            "run_id": kwargs["run_id"],
+            "selection_id": kwargs["selection_id"],
+            "selected_listing_count": 2,
+            "silver_quote_rows": 2,
+        }
+
+    monkeypatch.setattr(
+        "portfell.hosted_api.run_fetch_all_quotes_workflow",
+        fake_fetch_all_quotes_workflow,
+    )
+    state = HostedApiState(
+        projects_by_id={
+            project.project_id: project,
+            unrelated.project_id: ProjectRecord(
+                project_id=unrelated.project_id,
+                user_id="user-a",
+                name="Unrelated",
+            ),
+        },
+        selections_by_id={
+            selection.selection_id: selection,
+            unrelated.selection_id: unrelated,
+        },
+    )
+    client = _client(state)
+    client.post("/credentials/eodhd", json={"provider_key": "secret-provider-token"})
+
+    response = client.post(
+        "/quote-runs",
+        headers=_headers(idempotency="selected-members-only"),
+        json={"metadata_selection_id": selection.selection_id},
+    )
+
+    run_id = _json(response)["download_run_id"]
+    assert response.status_code == 200
+    assert len(calls) == 1
+    assert calls[0]["selection_id"] == selection.selection_id
+    assert state.downloads_by_id[run_id].returned_observation_ids == selection.member_ids
+    assert state.download_summaries_by_id[run_id]["selected_listing_count"] == 2
+    assert unrelated.member_ids[0] not in state.downloads_by_id[run_id].returned_observation_ids
+
+
 def test_quote_run_progress_is_visible_after_the_first_completed_task(
     monkeypatch: Any,
 ) -> None:

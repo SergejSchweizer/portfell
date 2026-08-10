@@ -7,11 +7,11 @@
     },
     "ARCHITECTURE.md": {
       "exists": true,
-      "review": "Last reviewed: 2026-07-19"
+      "review": "Last reviewed: 2026-08-10"
     },
     "BACKLOG.md": {
       "exists": true,
-      "review": "Last reviewed: 2026-07-19"
+      "review": "Last reviewed: 2026-08-10"
     },
     "CONTRACTS.md": {
       "exists": true,
@@ -19,19 +19,19 @@
     },
     "DECISIONS.md": {
       "exists": true,
-      "review": "Last reviewed: 2026-07-19"
+      "review": "Last reviewed: 2026-08-10"
     },
     "README.md": {
       "exists": true,
-      "review": "Last reviewed: 2026-07-13"
+      "review": "Last reviewed: 2026-08-10"
     },
     "RISKS.md": {
       "exists": true,
-      "review": "Last reviewed: 2026-07-19"
+      "review": "Last reviewed: 2026-08-10"
     },
     "docs/hosted_security_architecture.md": {
       "exists": true,
-      "review": "Last reviewed: 2026-07-19"
+      "review": "Last reviewed: 2026-08-04"
     }
   }
 }

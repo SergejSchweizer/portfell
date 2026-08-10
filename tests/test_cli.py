@@ -400,6 +400,10 @@ def test_fetch_all_quotes_workflow_accepts_explicit_metadata_selection(
     assert summary["selected_listing_count"] == 1
     assert "/eod/AAA.XETRA" in requested_paths
     assert "/eod/BBB.XETRA" not in requested_paths
+    assert "/div/AAA.XETRA" in requested_paths
+    assert "/div/BBB.XETRA" not in requested_paths
+    assert "/splits/AAA.XETRA" in requested_paths
+    assert "/splits/BBB.XETRA" not in requested_paths
     assert len(read_rows(paths.silver_quote_file("XETRA", "IE0000000001"))) == 1
 
 

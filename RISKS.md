@@ -1,6 +1,6 @@
 # Risks
 
-Last reviewed: 2026-07-19
+Last reviewed: 2026-08-10
 
 ## Table Of Contents
 
@@ -15,6 +15,8 @@ Last reviewed: 2026-07-19
 - [R008. Search And Bronze Contract Drift Can Corrupt The Lake](#r008-search-and-bronze-contract-drift-can-corrupt-the-lake)
 - [R009. Dense Correlation Storage Can Become Unqueryable At Large Universe Size](#r009-dense-correlation-storage-can-become-unqueryable-at-large-universe-size)
 - [R010. Hosted Multi-Tenant Access Can Leak Provider Data Or Credentials](#r010-hosted-multi-tenant-access-can-leak-provider-data-or-credentials)
+- [R011. Provider Terms May Forbid Cross-Customer Shared Data Reuse](#r011-provider-terms-may-forbid-cross-customer-shared-data-reuse)
+- [R012. PostgreSQL And Shared Storage Can Diverge](#r012-postgresql-and-shared-storage-can-diverge)
 - [Update Rules](#update-rules)
 
 This file tracks active operational, data correctness, and architecture risks. Keep it aligned with `AGENTS.md` and project history when commits introduce or retire meaningful risks.
@@ -102,11 +104,36 @@ Status: Active
 Signal: The hosted roadmap adds Google identities, persistent EODHD credentials, shared physical market data, shared
 statistics caches, API/Web surfaces, and public deployment hardening.
 
-Mitigation: Implement PR84-PR100 in order. Keep EODHD credentials envelope-encrypted with an external KEK, enforce
-PostgreSQL Row-Level Security on user-owned data, publish user grants only after successful user-key-backed provider
-requests, pin every analysis to immutable User Data Snapshots, require exact input-hash authorization before reusing
-shared artifacts, and keep public-hosted mode blocked until licensing, privacy, backup, credential, and security gates
-are green.
+Mitigation: Implement PR156-PR167 in order. Keep credentials envelope-encrypted with an external KEK,
+force PostgreSQL RLS on tenant metadata, authorize shared reads only through owned project/run
+references, exclude tenant fields from shared payloads, pin analyses to exact immutable revisions,
+and keep public-hosted mode blocked until licensing, privacy, backup, migration, reconciliation,
+credential, and adversarial security gates are green.
+
+## R011. Provider Terms May Forbid Cross-Customer Shared Data Reuse
+
+Status: Active
+
+Signal: D017 proposes storing one canonical EODHD market corpus and reusing it and derived artifacts
+across customers, including refresh through a dedicated operations credential.
+
+Mitigation: PR156 must obtain explicit, recorded approval for shared storage, cross-customer reuse,
+derived display, retention, and service-credential refresh. The machine-readable hosted readiness
+gate fails closed when evidence is missing, incomplete, or expired. Do not implement policy through
+technical assumptions or rely on a personal subscription for hosted redistribution.
+
+## R012. PostgreSQL And Shared Storage Can Diverge
+
+Status: Active
+
+Signal: D017 separates tenant/control metadata and authorization references in PostgreSQL from market
+and analytical payload bytes in shared storage, so backup, publication, deletion, and partial failure
+can leave one plane ahead of the other.
+
+Mitigation: Use staged checksummed publication, immutable content ids, catalog publication states,
+transactional reference writes, deterministic reconciliation, fail-closed readiness, and paired
+backup/restore manifests. PR166 must prove recovery from loss of either plane and one consistent
+publication boundary before production cutover.
 
 ## Update Rules
 
