@@ -646,9 +646,9 @@ repeatable and stop before documented commit points on mismatch.
 
 Branch: `refactor/hosted-selection-repository`.
 
-Git status: in progress; credential-project selection commands are moving behind explicit repository ports. Production authority remains blocked by the required production-like import, parity, backup/restore, and rollback rehearsal.
+Git status: pushed; credential-project selection commands are moving behind explicit repository ports. Production authority remains blocked by the required production-like import, parity, backup/restore, and rollback rehearsal.
 
-PR: TBD.
+PR: https://github.com/SergejSchweizer/portfell/pull/316.
 
 Depends on implementation branch: `refactor/hosted-analysis-project-repository` (PR #315).
 
