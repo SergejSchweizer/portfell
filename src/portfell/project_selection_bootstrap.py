@@ -64,9 +64,7 @@ class InMemoryBootstrapService:
         self._bootstraps_by_project[project_id] = bootstrap
         return bootstrap
 
-    def update_status(
-        self, *, user_id: str, project_id: str, status: str
-    ) -> ProjectBootstrap:
+    def update_status(self, *, user_id: str, project_id: str, status: str) -> ProjectBootstrap:
         """Record a worker lifecycle transition without changing frozen membership."""
 
         bootstrap = self._bootstraps_by_project.get(project_id)
