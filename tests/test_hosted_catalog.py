@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from portfell.durable_job_schema import D017_DURABLE_JOB_SCHEMA_SQL
 from portfell.hosted_catalog import (
     HOSTED_ROLES,
     HOSTED_TABLES,
@@ -59,7 +60,7 @@ def test_hosted_migration_sql_defines_rls_and_immutable_catalog_shape() -> None:
     migrations = migration_plan()
     sql = "\n".join(migration.sql.lower() for migration in migrations)
 
-    assert [migration.version for migration in migrations] == [1, 2, 3, 4, 5, 6]
+    assert [migration.version for migration in migrations] == [1, 2, 3, 4, 5, 6, 7]
     assert len({migration.checksum for migration in migrations}) == len(migrations)
     assert "create table if not exists portfell_app.provider_credentials" in sql
     assert "ciphertext bytea not null" in sql
@@ -88,6 +89,12 @@ def test_hosted_migration_sql_defines_rls_and_immutable_catalog_shape() -> None:
     assert "project_membership_immutable" in sql
     assert "force row level security" in sql
     assert "portfell_worker" in sql
+    assert "create table if not exists portfell_app.jobs" in sql
+    assert "create table if not exists portfell_app.job_attempts" in sql
+    assert "create table if not exists portfell_app.outbox_events" in sql
+    assert "unique (job_kind, input_hash)" in sql
+    assert "on portfell_app.jobs (status, available_at, priority desc, created_at)" in sql
+    assert "payload" not in D017_DURABLE_JOB_SCHEMA_SQL.lower()
 
 
 def test_apply_hosted_catalog_migrations_is_deterministic_and_idempotent() -> None:
