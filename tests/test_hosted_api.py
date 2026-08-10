@@ -288,15 +288,15 @@ def test_metadata_builder_options_and_project_creation_use_all_isins_reference()
     )
 
 
-def test_legacy_quote_run_mutation_is_gone() -> None:
+def test_quote_run_requires_an_existing_selection() -> None:
     response = _client(HostedApiState()).post(
         "/quote-runs",
         headers=_headers(idempotency="legacy-quote-run"),
         json={"metadata_selection_id": "selection-1"},
     )
 
-    assert response.status_code == 410
-    assert _json(response) == {"detail": "shared_market_refresh_required"}
+    assert response.status_code == 404
+    assert _json(response) == {"detail": {"code": "not_found"}}
 
 
 def test_quote_run_progress_is_visible_after_the_first_completed_task(
@@ -348,7 +348,7 @@ def test_quote_run_progress_is_visible_after_the_first_completed_task(
     )
 
 
-def test_legacy_quote_run_mutation_does_not_reuse_or_start_a_running_run(
+def test_quote_run_mutation_reuses_a_running_run(
     tmp_path: Path,
     monkeypatch: Any,
 ) -> None:
@@ -421,7 +421,9 @@ def test_legacy_quote_run_mutation_does_not_reuse_or_start_a_running_run(
         json={"project_id": created["project"]["project_id"]},
     )
 
-    assert response.status_code == 410
+    assert response.status_code == 200
+    assert _json(response)["download_run_id"] == run.download_run_id
+    assert _json(response)["status"] == "running"
     assert calls == []
 
 

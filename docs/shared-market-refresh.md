@@ -2,7 +2,8 @@
 
 The `shared-market-refresh` Compose operations service refreshes the canonical
 `PORTFELL_SHARED_DATA_ROOT/market-data` store for the de-duplicated active-project
-inventory. Browser pages never invoke provider ingestion.
+inventory. A newly created project's Metadata Builder may request its initial selected-listing
+download; that route is server-owned, idempotent, and separate from the scheduled shared refresh.
 
 ## One-Time Rollout
 

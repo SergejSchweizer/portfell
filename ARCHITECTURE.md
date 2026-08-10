@@ -677,11 +677,12 @@ Shared physical rows must not contain user/project, credential, session, run,
 or authorization fields.  Project ownership remains in the workspace and
 catalogue layers; provider provenance and schema version remain with data.
 
-`portfell.shared_market_refresh` is the only provider-ingestion orchestration for this store. The
-`shared-market-refresh` Compose operations service runs it non-interactively, while
-`portfell-shared-market-cron` manages the one delimited host crontab block. Browser routes cannot
-start a provider refresh; compatibility calls to the retired project quote-run mutation return
-`410 shared_market_refresh_required`.
+`portfell.shared_market_refresh` is the operations-owned provider-ingestion orchestration for this
+store. The `shared-market-refresh` Compose operations service runs it non-interactively, while
+`portfell-shared-market-cron` manages the one delimited host crontab block. A newly created project
+may request its initial selected-listing download through the Metadata Builder quote-run route; the
+server owns credential use, idempotency, progress, and the provider workflow. Browser routes cannot
+start a shared-market refresh.
 
 ### Shared analytical artifacts
 

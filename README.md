@@ -466,8 +466,10 @@ Statistic paths deliberately do not include a selection id. Later metadata or un
 ## Scheduled Portfell Cron
 
 The hosted/local-app runtime refreshes canonical shared market data through the
-`shared-market-refresh` Compose operations service. Browser pages never call EODHD. Install the
-idempotent managed cron block from the absolute repository root:
+`shared-market-refresh` Compose operations service. The Metadata Builder can request the initial
+historical download for a new project's selected listings; server-side workflow code calls EODHD
+and reuses an active run. Install the idempotent managed cron block from the absolute repository
+root:
 
 ```bash
 portfell-shared-market-cron run-once --project-root "$(pwd)"
