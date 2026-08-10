@@ -9,6 +9,7 @@ import pytest
 import portfell.hosted_api as hosted_api
 import portfell.hosted_api_local_runtime as local_runtime_module
 from portfell.entitlements import ProviderDownloadRun
+from portfell.hosted_analysis_service import HostedAnalysisService
 from portfell.hosted_api_errors import HostedApplicationError, HostedRuntimeError
 from portfell.hosted_api_local_runtime import LocalHostedRuntime
 from portfell.hosted_api_service_support import (
@@ -36,6 +37,8 @@ from portfell.hosted_credential_project_service import CredentialProjectService
 from portfell.hosted_metadata_project_service import MetadataProjectService
 from portfell.hosted_quote_run_service import QuoteRunService
 from portfell.hosted_repository_importer import InMemoryProjectRepository, TenantProject
+from portfell.hosted_research_persistence import LocalResearchPersistence
+from portfell.hosted_research_repository import HostedResearchRepository
 from portfell.hosted_research_workflow import ResearchRun, UnivariateSelection
 from portfell.hosted_workspace import LocalWorkspaceStore
 from portfell.hosted_workspace_repository import persist_local_workspace, restore_local_workspace
@@ -329,6 +332,31 @@ def test_quote_run_can_authorize_an_injected_project_repository() -> None:
     assert state.projects_by_id == {}
     assert run["status"] == "running"
     assert task is not None
+
+
+def test_analysis_can_authorize_an_injected_project_repository() -> None:
+    state = HostedApiState()
+    user_id = "00000000-0000-5000-8000-000000000001"
+    project_id = "00000000-0000-5000-8000-000000000002"
+    selection_id = "00000000-0000-5000-8000-000000000003"
+    state.selections_by_id[selection_id] = SelectionRecord(
+        selection_id, user_id, project_id, "Income", ("IE1",)
+    )
+    projects = InMemoryProjectRepository()
+    projects.create_project(TenantProject(project_id, user_id, "Income"))
+    repository = HostedResearchRepository(state, project_repository=projects)
+    service = HostedAnalysisService(repository, LocalResearchPersistence(state))
+
+    analysis = service.create(
+        user_id,
+        project_id,
+        selection_id,
+        {"objective": "minimum_variance"},
+        idempotency_key=None,
+    )
+
+    assert state.projects_by_id == {}
+    assert analysis["status"] == "succeeded"
 
 
 def test_quote_run_reuses_an_active_run_without_an_idempotency_key() -> None:
