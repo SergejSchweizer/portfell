@@ -226,7 +226,7 @@ async function computeUnivariate(page: Page) {
 }
 
 async function downloadHistoricalData(page: Page) {
-  await page.getByRole("button", { name: "Download Historical Quotes" }).click();
+  await page.getByRole("button", { name: "Download Historical Data" }).click();
   await expect(page.getByText("Updating historical data · 3 / 3 ISINs · 100%")).toBeVisible();
 }
 

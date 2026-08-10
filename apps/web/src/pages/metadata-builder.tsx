@@ -223,7 +223,7 @@ export function MetadataBuilderPage() {
         </form>
         <p className="status-line" aria-live="polite">{selectionStatus}</p>
       </Panel>
-      <Panel title="Download Historical Quotes">
+      <Panel title="Download Historical Data">
         <div className="quote-fetch quote-fetch--panel metadata-download">
           <label htmlFor="historical-data-progress">Historical download progress</label>
           <progress id="historical-data-progress" max={100} value={quoteRun?.percent ?? 0} />
@@ -235,7 +235,7 @@ export function MetadataBuilderPage() {
               disabled={!metadataSelectionId || quoteRun?.status === "running"}
               onClick={() => void downloadHistoricalData()}
             >
-              {quoteRun?.status === "running" ? historicalDataUpdateLabel(quoteRun) : "Download Historical Quotes"}
+              {quoteRun?.status === "running" ? historicalDataUpdateLabel(quoteRun) : "Download Historical Data"}
             </Button>
           </div>
         </div>
