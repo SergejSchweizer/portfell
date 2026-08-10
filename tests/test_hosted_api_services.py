@@ -34,6 +34,7 @@ from portfell.hosted_api_state import (
     ProjectRecord,
     SelectionRecord,
 )
+from portfell.hosted_audit_event_repository import HostedAuditEvent
 from portfell.hosted_credential_project_service import CredentialProjectService
 from portfell.hosted_credentials import (
     EodhdCredentialVault,
@@ -282,6 +283,28 @@ def test_credential_commands_can_use_an_injected_vault_without_state_authority()
     assert service.credential_value(user_id) == {"provider_key": "test-key"}
     with pytest.raises(Exception, match="credential not found"):
         state.credential_vault().status(user_id=user_id)
+
+
+def test_project_commands_can_use_an_injected_audit_repository_without_state_authority() -> None:
+    class AuditRepository:
+        def __init__(self) -> None:
+            self.events: list[HostedAuditEvent] = []
+
+        def append(self, event: HostedAuditEvent) -> HostedAuditEvent:
+            self.events.append(event)
+            return event
+
+    state = HostedApiState()
+    audit_repository = AuditRepository()
+    service = CredentialProjectService(state, audit_repository=audit_repository)
+    user_id = "00000000-0000-5000-8000-000000000001"
+
+    service.create_project(user_id, "Income", idempotency_key=None)
+
+    assert state.audit_events == []
+    assert [(event.event_type, event.subject_ref) for event in audit_repository.events] == [
+        ("project.create", f"user:{user_id}")
+    ]
 
 
 def test_project_commands_can_use_an_injected_repository_without_state_authority() -> None:

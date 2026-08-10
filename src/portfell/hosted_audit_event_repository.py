@@ -20,6 +20,15 @@ class HostedAuditEvent:
     metadata: dict[str, object]
 
 
+class AuditEventRepository(Protocol):
+    """Append immutable hosted audit events."""
+
+    def append(self, event: HostedAuditEvent) -> HostedAuditEvent:
+        """Persist one immutable user-scoped audit event."""
+
+        ...
+
+
 class AuditEventCursor(Protocol):
     """Minimal result boundary for append-only audit commands."""
 
