@@ -199,7 +199,7 @@ runs, and artifact references have uniqueness rules that make retries converge w
 
 Branch: `refactor/postgres-hosted-repositories`.
 
-Git status: in progress.
+Git status: merged.
 
 PR: https://github.com/SergejSchweizer/portfell/pull/287.
 
@@ -252,7 +252,7 @@ imports return the existing logical result.
 
 Branch: `feat/postgres-durable-job-queue`.
 
-Git status: in progress.
+Git status: merged.
 
 PR: https://github.com/SergejSchweizer/portfell/pull/288.
 
@@ -304,7 +304,7 @@ retries, outbox redelivery, worker redelivery, and completion retries converge o
 
 Branch: `feat/shared-market-revision-delta`.
 
-Git status: in progress.
+Git status: merged.
 
 PR: https://github.com/SergejSchweizer/portfell/pull/290.
 
@@ -365,7 +365,7 @@ reconcile operations converge on one immutable revision per content identity.
 
 Branch: `feat/project-selection-bootstrap`.
 
-Git status: in progress.
+Git status: merged.
 
 PR: https://github.com/SergejSchweizer/portfell/pull/292.
 
@@ -475,7 +475,7 @@ Idempotency: Equal requests and job retries reuse one artifact and at most one r
 
 Branch: `feat/shared-bivariate-artifacts`.
 
-Git status: in progress.
+Git status: merged.
 
 PR: https://github.com/SergejSchweizer/portfell/pull/295.
 
@@ -602,7 +602,7 @@ Idempotency: Repeated cron starts join one job; retries converge on immutable ca
 
 Branch: `chore/hosted-cutover-rehearsal`.
 
-Git status: in progress.
+Git status: merged.
 
 PR: https://github.com/SergejSchweizer/portfell/pull/296.
 
@@ -648,7 +648,7 @@ Branch: `refactor/hosted-runtime-cutover`.
 
 Git status: in progress.
 
-PR: https://github.com/SergejSchweizer/portfell/pull/299.
+PR: https://github.com/SergejSchweizer/portfell/pull/300.
 
 Priority: P0 activate the proven architecture.
 
