@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
@@ -100,6 +101,34 @@ def failed_results(results: Iterable[ReadinessResult]) -> list[ReadinessResult]:
     """Return failed readiness results in deterministic order."""
 
     return [result for result in results if not result.passed]
+
+
+def validate_runtime_readiness(
+    environment: Mapping[str, str] | None = None,
+) -> list[ReadinessResult]:
+    """Verify deployment-only worker secrets exist and are nonempty before cutover."""
+
+    resolved = environment if environment is not None else os.environ
+    return [
+        _secret_file_result(
+            "runtime.external_kek_available",
+            resolved.get("PORTFELL_EODHD_KEK_FILE"),
+            "external KEK secret file is required",
+        ),
+        _secret_file_result(
+            "runtime.operations_credential_available",
+            resolved.get("PORTFELL_OPERATIONS_EODHD_TOKEN_FILE"),
+            "operations market-data credential file is required",
+        ),
+    ]
+
+
+def _secret_file_result(name: str, value: str | None, message: str) -> ReadinessResult:
+    path = Path(value) if value else None
+    available = bool(
+        path is not None and path.is_file() and path.read_text(encoding="utf-8").strip()
+    )
+    return ReadinessResult(name=name, passed=available, message=message)
 
 
 def _decision_map(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
