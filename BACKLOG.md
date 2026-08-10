@@ -72,7 +72,7 @@ source of truth after cutover.
 
 Branch: `docs/shared-data-plane-contracts`.
 
-Git status: pushed.
+Git status: merged.
 
 PR: https://github.com/SergejSchweizer/portfell/pull/274.
 
@@ -140,7 +140,7 @@ result without writing runtime state.
 
 Branch: `feat/postgres-tenant-control-schema`.
 
-Git status: pushed.
+Git status: merged.
 
 PR: https://github.com/SergejSchweizer/portfell/pull/275.
 
@@ -432,7 +432,7 @@ retries, and restarts join or resume it.
 
 Branch: `feat/shared-univariate-artifacts`.
 
-Git status: in progress.
+Git status: merged.
 
 PR: https://github.com/SergejSchweizer/portfell/pull/294.
 
@@ -646,7 +646,7 @@ repeatable and stop before documented commit points on mismatch.
 
 Branch: `refactor/hosted-runtime-cutover`.
 
-Git status: in progress.
+Git status: blocked by shared-data provider licensing approval and required-use evidence.
 
 PR: https://github.com/SergejSchweizer/portfell/pull/300.
 
