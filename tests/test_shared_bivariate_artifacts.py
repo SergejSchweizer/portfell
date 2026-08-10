@@ -1,6 +1,11 @@
 from __future__ import annotations
 
-from portfell.shared_bivariate_artifacts import build_bivariate_manifest
+import pytest
+
+from portfell.shared_bivariate_artifacts import (
+    SharedBivariateArtifactError,
+    build_bivariate_manifest,
+)
 
 
 def test_bivariate_manifest_has_canonical_universe_pairs_and_buckets() -> None:
@@ -27,3 +32,14 @@ def test_bivariate_manifest_has_canonical_universe_pairs_and_buckets() -> None:
             algorithm_version="algorithm-v1",
         ).manifest_id
     )
+
+
+def test_bivariate_manifest_rejects_pair_count_over_budget_before_planning() -> None:
+    with pytest.raises(SharedBivariateArtifactError, match="bivariate_pair_budget_exceeded"):
+        build_bivariate_manifest(
+            univariate_artifact_ids=("uni-a", "uni-b", "uni-c"),
+            bucket_count=2,
+            calendar_policy_version="calendar-v1",
+            algorithm_version="algorithm-v1",
+            maximum_pair_count=2,
+        )

@@ -36,6 +36,7 @@ def build_bivariate_manifest(
     bucket_count: int,
     calendar_policy_version: str,
     algorithm_version: str,
+    maximum_pair_count: int = 100_000,
 ) -> BivariateManifest:
     """Build an order-independent immutable Bivariate manifest without pair rows in a catalog."""
 
@@ -44,6 +45,9 @@ def build_bivariate_manifest(
     universe = tuple(sorted(set(univariate_artifact_ids)))
     if len(universe) < 2 or not all(universe):
         raise SharedBivariateArtifactError("bivariate_universe_invalid")
+    pair_count = len(universe) * (len(universe) - 1) // 2
+    if maximum_pair_count < 1 or pair_count > maximum_pair_count:
+        raise SharedBivariateArtifactError("bivariate_pair_budget_exceeded")
     if not calendar_policy_version or not algorithm_version:
         raise SharedBivariateArtifactError("bivariate_version_required")
     grouped: dict[int, list[tuple[str, str]]] = {}
@@ -65,7 +69,7 @@ def build_bivariate_manifest(
     return BivariateManifest(
         manifest_id,
         universe,
-        sum(len(bucket.pairs) for bucket in buckets),
+        pair_count,
         buckets,
     )
 
