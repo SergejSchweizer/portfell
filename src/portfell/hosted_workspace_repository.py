@@ -54,6 +54,7 @@ def persist_local_workspace(state: HostedApiState) -> None:
                     "status": row.status,
                     "returned_observation_ids": list(row.returned_observation_ids),
                     "request_hash": row.request_hash,
+                    "requested_scope": row.requested_scope,
                 }
                 for row in state.downloads_by_id.values()
             ],
@@ -205,6 +206,7 @@ def _restore_quote_runs(state: HostedApiState, payload: Mapping[str, object]) ->
             status=cast(RunStatus, status),
             returned_observation_ids=tuple(observation_ids),
             request_hash=_text(row, "request_hash"),
+            requested_scope=dict(_mapping(row.get("requested_scope", {}), "quote run scope")),
         )
         # A background task cannot survive a container restart. Do not restore it as active.
         state.downloads_by_id[run.download_run_id] = (
