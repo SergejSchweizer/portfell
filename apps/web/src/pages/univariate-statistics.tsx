@@ -1,13 +1,12 @@
 
 import { useEffect, useState } from "react";
-import { loadProjectContext, loadQuoteRun, loadWorkflow } from "../api/client";
+import { loadProjectContext, loadWorkflow } from "../api/client";
 import { univariateStatisticsApi } from "../api/univariate-statistics";
 import { Button } from "../components/button";
 import { LoadingState } from "../components/loading-state";
 import { Panel } from "../components/panel";
-import type { ApiDividendFrequency, ApiQuoteFetch, ApiResearchRun, ApiUnivariateRow, ApiUnivariateSelectionSettings } from "../contracts";
+import type { ApiDividendFrequency, ApiResearchRun, ApiUnivariateRow, ApiUnivariateSelectionSettings } from "../contracts";
 import { useResource } from "../hooks/use-resource";
-import { historicalDataUpdateLabel } from "../quote-progress";
 
 type MetricDefinition = Readonly<{ group: string; metric: string; label: string; description: string; equation: string; notation: string; unit?: string }>;
 type UnivariateStatisticTab = "dividends" | MetricDefinition["metric"];
@@ -99,15 +98,6 @@ export function UnivariateStatisticsPage() {
   const [portfolioStatisticRanges, setPortfolioStatisticRanges] = useState<Record<string, SelectionRange[]>>({});
   const [activeStatisticTab, setActiveStatisticTab] = useState<UnivariateStatisticTab>("dividends");
   const [message, setMessage] = useState("");
-  const [quoteStatus, setQuoteStatus] = useState<"idle" | "running" | "complete" | "failed">("idle");
-  const [quoteProgress, setQuoteProgress] = useState(0);
-  const [quoteMessage, setQuoteMessage] = useState("Fetch historical quotes for this selection.");
-  const [quoteRunId, setQuoteRunId] = useState<string | null>(null);
-  const [quoteRun, setQuoteRun] = useState<ApiQuoteFetch | null>(null);
-  const [quoteUpdatedCount, setQuoteUpdatedCount] = useState<number | null>(null);
-  const workflowQuoteRunId = workflow.status === "ready"
-    ? workflow.data.stages.metadata_builder.quote_run_id ?? null
-    : null;
   const workflowUnivariateRunId = workflow.status === "ready"
     ? workflow.data.stages.univariate_statistics.univariate_run_id ?? null
     : null;
@@ -118,70 +108,11 @@ export function UnivariateStatisticsPage() {
       setUnivariateStartedAt(undefined);
       setResults(null);
       setMessage("");
-      setQuoteStatus("idle");
-      setQuoteProgress(0);
-      setQuoteMessage("Fetch historical quotes for this selection.");
-      setQuoteRunId(null);
-      setQuoteRun(null);
-      setQuoteUpdatedCount(null);
       setWorkflowRevision((value) => value + 1);
     };
     window.addEventListener("portfell:project-updated", resetProjectState);
     return () => window.removeEventListener("portfell:project-updated", resetProjectState);
   }, []);
-
-  useEffect(() => {
-    if (!quoteRunId || quoteStatus !== "running") return;
-    const activeRunId = quoteRunId;
-    let cancelled = false;
-    let timeoutId: number | undefined;
-
-    async function pollQuoteRun() {
-      try {
-        const result = await loadQuoteRun(activeRunId);
-        if (cancelled) return;
-        const completed = result.completed ?? 0;
-        const total = result.total ?? 0;
-        const failed = result.failed ?? 0;
-        setQuoteRun(result);
-        setQuoteProgress(result.percent ?? 0);
-        if (result.status === "running") {
-          setQuoteMessage(`${completed.toLocaleString()} of ${total.toLocaleString()} quote-fetch tasks completed${estimatedRemainingTime(result.started_at, completed, total)}.`);
-          timeoutId = window.setTimeout(() => void pollQuoteRun(), 750);
-          return;
-        }
-        if (result.status === "failed") {
-          setQuoteStatus("failed");
-          setQuoteMessage(result.error_code || "Historical data download failed.");
-          return;
-        }
-        setQuoteStatus("complete");
-        setQuoteProgress(100);
-        const updatedCount = result.quote_successes ?? result.selected_listing_count ?? 0;
-        setQuoteUpdatedCount(updatedCount);
-        setQuoteMessage(`${updatedCount.toLocaleString()} listings fetched; ${failed.toLocaleString()} provider tasks failed.`);
-        window.dispatchEvent(new Event("portfell:workflow-updated"));
-        setWorkflowRevision((value) => value + 1);
-      } catch (error) {
-        if (cancelled) return;
-        setQuoteStatus("failed");
-        setQuoteMessage(error instanceof Error ? error.message : "Quote fetch failed.");
-      }
-    }
-
-    void pollQuoteRun();
-    return () => {
-      cancelled = true;
-      if (timeoutId !== undefined) window.clearTimeout(timeoutId);
-    };
-  }, [quoteRunId, quoteStatus]);
-
-  useEffect(() => {
-    if (!workflowQuoteRunId || workflowQuoteRunId === quoteRunId) return;
-    setQuoteRunId(workflowQuoteRunId);
-    setQuoteStatus("running");
-    setQuoteMessage("Restoring the current historical-data download status…");
-  }, [quoteRunId, workflowQuoteRunId]);
 
   useEffect(() => {
     if (!workflowUnivariateRunId || results !== null) return;
@@ -340,37 +271,6 @@ export function UnivariateStatisticsPage() {
       setMessage(error instanceof Error ? error.message : "Univariate computation failed.");
     }
   }
-
-  async function fetchQuotes() {
-    if (!metadata.metadata_selection_id) return;
-    setQuoteStatus("running");
-    setQuoteMessage(
-      quoteRunId ? "Refreshing the current historical-data download status…" : "Fetching quotes and building the Silver dataset…",
-    );
-    try {
-      const result = await univariateStatisticsApi.startQuoteRun({
-        metadata_selection_id: metadata.metadata_selection_id,
-      });
-      setQuoteRunId(result.download_run_id);
-      setQuoteRun(result);
-      setQuoteProgress(result.percent ?? 0);
-      if (result.status === "running") {
-        const completed = result.completed ?? 0;
-        const total = result.total ?? 0;
-        setQuoteMessage(`${completed.toLocaleString()} of ${total.toLocaleString()} quote-fetch tasks completed${estimatedRemainingTime(result.started_at, completed, total)}.`);
-      }
-    } catch (error) {
-      setQuoteStatus("failed");
-      setQuoteProgress(0);
-      setQuoteMessage(error instanceof Error ? error.message : "Quote fetch failed.");
-    }
-  }
-
-  const updateHistoricalDataLabel = quoteStatus === "running"
-    ? historicalDataUpdateLabel(quoteRun)
-    : quoteUpdatedCount !== null
-      ? `Update Historical Data · ${quoteUpdatedCount.toLocaleString()} ISINs updated`
-      : "Update Historical Data";
 
   return (
     <section className="univariate-statistics-page" data-route="univariate-statistics-page">
@@ -552,9 +452,6 @@ export function UnivariateStatisticsPage() {
                 })() : <p>No univariate rows matched the pinned selection.</p>}
           </section> : null}
         </>}
-        {stage.status === "locked" && <div className="quote-fetch__action quote-fetch__action--dual">
-          <Button type="button" variant="primary" disabled={!metadata.metadata_selection_id || quoteStatus === "running"} onClick={() => void fetchQuotes()} title={quoteMessage}>{updateHistoricalDataLabel}</Button>
-        </div>}
       </Panel>
     </section>
   );

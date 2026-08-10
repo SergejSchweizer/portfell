@@ -23,9 +23,9 @@ The page preflights through `POST /api/bivariate-statistics/plan`, starts
 `GET /api/bivariate-statistics/runs/{run_id}/results`. Pair construction, limits, calculations,
 storage, and ranking remain backend responsibilities.
 
-`Update Historical Data` is placed before `Compute Bivariate Statistics`. It uses the active
-Metadata Builder selection, reports its percentage while running, and then displays the number of
-updated ISINs in the same button.
+Historical market data is refreshed centrally by the shared-market operations service. This page
+contains no provider-download action and renders pairwise computation only after the selected
+project's shared-market coverage is ready.
 
 Every pairwise metric and matrix in one run uses the same universe-wide date intersection. Summary
 and matrix contracts expose `date_start` and `date_end`; every facts table renders that aligned data

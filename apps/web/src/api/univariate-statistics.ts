@@ -3,7 +3,6 @@
 import { postJson, requestJson } from "./client";
 import type {
   ApiPage,
-  ApiQuoteFetch,
   ApiResearchRun,
   ApiUnivariateRow,
   ApiUnivariateSelectionSettings,
@@ -12,10 +11,6 @@ import type {
 export type UnivariateRunRequest = Readonly<{
   metadata_selection_id: string;
   quote_run_id: string;
-}>;
-
-export type QuoteRunRequest = Readonly<{
-  metadata_selection_id: string;
 }>;
 
 export const univariateStatisticsApi = {
@@ -29,9 +24,6 @@ export const univariateStatisticsApi = {
     requestJson<ApiPage<ApiUnivariateRow>>(
       `/api/univariate-statistics/runs/${encodeURIComponent(runId)}/results?limit=${limit}&offset=${offset}`,
     )
-  ),
-  startQuoteRun: (request: QuoteRunRequest): Promise<ApiQuoteFetch> => (
-    postJson<ApiQuoteFetch>("/api/quote-runs", request)
   ),
   loadSelectionSettings: (projectId: string): Promise<ApiUnivariateSelectionSettings> => (
     requestJson<ApiUnivariateSelectionSettings>(

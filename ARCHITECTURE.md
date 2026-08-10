@@ -1,6 +1,6 @@
 # Architecture
 
-Last reviewed: 2026-08-09
+Last reviewed: 2026-08-10
 
 ## Table Of Contents
 
@@ -676,6 +676,12 @@ endpoint.
 Shared physical rows must not contain user/project, credential, session, run,
 or authorization fields.  Project ownership remains in the workspace and
 catalogue layers; provider provenance and schema version remain with data.
+
+`portfell.shared_market_refresh` is the only provider-ingestion orchestration for this store. The
+`shared-market-refresh` Compose operations service runs it non-interactively, while
+`portfell-shared-market-cron` manages the one delimited host crontab block. Browser routes cannot
+start a provider refresh; compatibility calls to the retired project quote-run mutation return
+`410 shared_market_refresh_required`.
 
 ### Shared analytical artifacts
 
