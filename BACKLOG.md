@@ -306,7 +306,7 @@ Branch: `feat/shared-market-revision-delta`.
 
 Git status: in progress.
 
-PR: https://github.com/SergejSchweizer/portfell/pull/278.
+PR: https://github.com/SergejSchweizer/portfell/pull/289.
 
 Priority: P0 shared market-data correctness.
 
