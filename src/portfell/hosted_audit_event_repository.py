@@ -27,9 +27,7 @@ class AuditEventCursor(Protocol):
 class AuditEventConnection(Protocol):
     """Parameterized connection boundary for audit event commands."""
 
-    def execute(
-        self, sql: str, parameters: tuple[object, ...] = ()
-    ) -> AuditEventCursor: ...
+    def execute(self, sql: str, parameters: tuple[object, ...] = ()) -> AuditEventCursor: ...
 
 
 class PostgresAuditEventRepository:
