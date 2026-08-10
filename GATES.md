@@ -124,6 +124,13 @@ secrets without printing their values:
 uv run python -m portfell.hosted_readiness --require-public-hosted --require-runtime
 ```
 
+Apply the idempotent PostgreSQL catalog migrations only through an externally managed,
+migration-capable `PORTFELL_DATABASE_URL`; the command never prints that URL:
+
+```bash
+uv run python -m portfell.hosted_catalog_migration
+```
+
 The deterministic hosted cutover proof composes multi-user auth, credentials, entitlements, scoped analytics, artifact
 reuse, Web storage safety, local CLI compatibility, and readiness checks:
 
