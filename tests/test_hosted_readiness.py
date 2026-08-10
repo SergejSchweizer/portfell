@@ -111,3 +111,24 @@ def test_runtime_readiness_accepts_nonempty_worker_secret_files(tmp_path: Path) 
             }
         )
     )
+
+
+def test_runtime_readiness_rejects_postgres_authority_while_hosting_is_blocked(
+    tmp_path: Path,
+) -> None:
+    kek = tmp_path / "kek"
+    token = tmp_path / "operations-token"
+    kek.write_text("kek-material", encoding="utf-8")
+    token.write_text("operations-token", encoding="utf-8")
+
+    failures = failed_results(
+        validate_runtime_readiness(
+            {
+                "PORTFELL_EODHD_KEK_FILE": str(kek),
+                "PORTFELL_OPERATIONS_EODHD_TOKEN_FILE": str(token),
+                "PORTFELL_HOSTED_AUTHORITY": "postgres",
+            }
+        )
+    )
+
+    assert [failure.name for failure in failures] == ["runtime.authority_allowed"]
