@@ -155,6 +155,11 @@ class ProjectRepository(Protocol):
 
         ...
 
+    def current_project_id(self, user_id: str) -> str | None:
+        """Return the owned current-project preference when one exists."""
+
+        ...
+
 
 class InMemoryProjectRepository:
     """Contract test double for user-scoped project commands."""
@@ -190,6 +195,14 @@ class InMemoryProjectRepository:
         if not any(project.project_id == project_id for project in self.list_projects(user_id)):
             raise TenantImportError("project_not_found")
         self._current_project_ids[user_id] = project_id
+
+    def current_project_id(self, user_id: str) -> str | None:
+        project_id = self._current_project_ids.get(user_id)
+        if project_id is None:
+            return None
+        return project_id if any(
+            project.project_id == project_id for project in self.list_projects(user_id)
+        ) else None
 
 
 class PostgresProjectRepository:
@@ -237,6 +250,25 @@ on conflict (user_id) do update set project_id = excluded.project_id
 """,
             (user_id, project_id),
         )
+
+    def current_project_id(self, user_id: str) -> str | None:
+        self._bind_user(user_id)
+        rows = self._connection.execute(
+            """
+select preference.project_id::text
+from portfell_app.current_project_preferences as preference
+join portfell_app.projects as project
+  on project.project_id = preference.project_id
+where preference.user_id = %s::uuid and project.status = 'active'
+""",
+            (user_id,),
+        ).fetchall()
+        if not rows:
+            return None
+        project_id = rows[0][0]
+        if not isinstance(project_id, str) or not project_id:
+            raise TenantImportError("current_project_projection_invalid")
+        return project_id
 
     def _bind_user(self, user_id: str) -> None:
         self._connection.execute(*set_authenticated_user_sql(user_id))
