@@ -646,9 +646,9 @@ repeatable and stop before documented commit points on mismatch.
 
 Branch: `refactor/hosted-project-repository`.
 
-Git status: in progress; project control commands are moving behind explicit repository ports. Production authority remains blocked by the required production-like import, parity, backup/restore, and rollback rehearsal.
+Git status: pushed; project control commands are moving behind explicit repository ports. Production authority remains blocked by the required production-like import, parity, backup/restore, and rollback rehearsal.
 
-PR: TBD.
+PR: https://github.com/SergejSchweizer/portfell/pull/313.
 
 Prior planning PR: https://github.com/SergejSchweizer/portfell/pull/300 (merged; remaining
 implementation continues through stacked branches).
