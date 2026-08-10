@@ -43,6 +43,7 @@ services:
     restart: unless-stopped
     environment:
       PORTFELL_ENV: development
+      PORTFELL_HOSTED_AUTHORITY: local
       PORTFELL_DATABASE_URL: postgresql://portfell_app@postgres:5432/portfell
       PORTFELL_SHARED_DATA_ROOT: /srv/portfell/shared-data
       PORTFELL_LAKE_ROOT: /srv/portfell/lake

@@ -69,6 +69,25 @@ def test_postgres_runtime_request_never_falls_back_to_local_workspace(
         hosted_api.create_runtime_app()
 
 
+def test_database_runtime_requires_explicit_authority(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("PORTFELL_HOSTED_AUTHORITY", raising=False)
+    monkeypatch.setenv("PORTFELL_DATABASE_URL", "postgresql://portfell_app@postgres:5432/portfell")
+
+    with pytest.raises(HostedApiError, match="hosted_authority_must_be_explicit"):
+        hosted_api.create_runtime_app()
+
+
+def test_database_runtime_allows_explicit_local_authority(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PORTFELL_HOSTED_AUTHORITY", "local")
+    monkeypatch.setenv("PORTFELL_DATABASE_URL", "postgresql://portfell_app@postgres:5432/portfell")
+
+    assert hosted_api.create_runtime_app().state.portfell_state is not None
+
+
 def test_api_uses_injected_current_user_provider() -> None:
     provider = LocalWorkspaceUserProvider(user_id="workspace-a")
     client = TestClient(create_app(current_user_provider=provider))
