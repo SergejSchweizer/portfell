@@ -23,14 +23,15 @@ from portfell.hosted_api_service_support import (
     page,
     project_data_loaded,
     remember_idempotency,
-    require_user_row,
     stable_hash,
     workflow_row,
 )
 from portfell.hosted_api_state import HostedApiState, ProjectRecord, SelectionRecord
 from portfell.hosted_audit_event_repository import AuditEventRepository, HostedAuditEvent
 from portfell.hosted_credentials import EodhdCredentialVault
+from portfell.hosted_download_run_repository import DownloadRunRepository
 from portfell.hosted_local_audit_event_repository import LocalAuditEventRepository
+from portfell.hosted_local_download_run_repository import LocalDownloadRunRepository
 from portfell.hosted_local_project_repository import LocalProjectRepository
 from portfell.hosted_local_selection_repository import LocalSelectionRepository
 from portfell.hosted_project_settings_repository import (
@@ -60,6 +61,7 @@ class CredentialProjectService:
         project_settings_repository: ProjectSettingsRepository | None = None,
         credential_vault: EodhdCredentialVault | None = None,
         audit_repository: AuditEventRepository | None = None,
+        download_run_repository: DownloadRunRepository | None = None,
     ) -> None:
         self.state = state
         self.runtime = runtime
@@ -70,6 +72,7 @@ class CredentialProjectService:
         )
         self._credentials = credential_vault or state.credential_vault()
         self._audit_events = audit_repository or LocalAuditEventRepository(state)
+        self._download_runs = download_run_repository or LocalDownloadRunRepository(state)
 
     def workflow(self, user_id: str, project_id: str | None = None) -> JsonRow:
         if project_id is None:
@@ -147,7 +150,7 @@ class CredentialProjectService:
             idempotency_key=idempotency_key,
         )
         if cached is not None:
-            return download_row(self.state.downloads_by_id[cached])
+            return download_row(self._require_download_run(user_id, cached))
         observation_ids = tuple(opaque_id("observation", value) for value in sorted(set(symbols)))
         try:
             credential_id = self._credentials.status(user_id=user_id).credential_id
@@ -164,7 +167,7 @@ class CredentialProjectService:
             request_hash=request_hash,
             requested_scope={"symbols": sorted(set(symbols))},
         )
-        self.state.downloads_by_id[run.download_run_id] = run
+        run = self._download_runs.create(run)
         publish_user_data_snapshot(store=self.state.entitlements, run=run)
         remember_idempotency(
             self.state, user_id, "download-run", idempotency_key, run.download_run_id
@@ -173,7 +176,7 @@ class CredentialProjectService:
         return download_row(run)
 
     def download_status(self, user_id: str, run_id: str) -> JsonRow:
-        return download_row(require_user_row(self.state.downloads_by_id, run_id, user_id))
+        return download_row(self._require_download_run(user_id, run_id))
 
     def visible_datasets(self, user_id: str) -> JsonRow:
         return {
@@ -309,6 +312,18 @@ class CredentialProjectService:
                 metadata={},
             )
         )
+
+    def _credential_id(self, user_id: str) -> str:
+        try:
+            return self._credentials.status(user_id=user_id).credential_id
+        except Exception as error:
+            raise HostedApplicationError(422, "eodhd_credential_required") from error
+
+    def _require_download_run(self, user_id: str, run_id: str) -> ProviderDownloadRun:
+        run = self._download_runs.get(user_id=user_id, download_run_id=run_id)
+        if run is None:
+            raise HostedApplicationError(404, "not_found")
+        return run
 
     @staticmethod
     def _record(project: TenantProject) -> ProjectRecord:
