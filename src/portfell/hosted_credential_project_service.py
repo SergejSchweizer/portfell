@@ -18,7 +18,6 @@ from portfell.hosted_api_serializers import (
     selection_row,
 )
 from portfell.hosted_api_service_support import (
-    audit,
     idempotent_response,
     opaque_id,
     page,
@@ -29,7 +28,9 @@ from portfell.hosted_api_service_support import (
     workflow_row,
 )
 from portfell.hosted_api_state import HostedApiState, ProjectRecord, SelectionRecord
+from portfell.hosted_audit_event_repository import AuditEventRepository, HostedAuditEvent
 from portfell.hosted_credentials import EodhdCredentialVault
+from portfell.hosted_local_audit_event_repository import LocalAuditEventRepository
 from portfell.hosted_local_project_repository import LocalProjectRepository
 from portfell.hosted_local_selection_repository import LocalSelectionRepository
 from portfell.hosted_repository_importer import (
@@ -53,12 +54,14 @@ class CredentialProjectService:
         project_repository: ProjectRepository | None = None,
         selection_repository: SelectionRepository | None = None,
         credential_vault: EodhdCredentialVault | None = None,
+        audit_repository: AuditEventRepository | None = None,
     ) -> None:
         self.state = state
         self.runtime = runtime
         self._projects = project_repository or LocalProjectRepository(state)
         self._selections = selection_repository or LocalSelectionRepository(state)
         self._credentials = credential_vault or state.credential_vault()
+        self._audit_events = audit_repository or LocalAuditEventRepository(state)
 
     def workflow(self, user_id: str, project_id: str | None = None) -> JsonRow:
         if project_id is None:
@@ -111,7 +114,7 @@ class CredentialProjectService:
         remember_idempotency(
             self.state, user_id, "set-credential", idempotency_key, value.credential_id
         )
-        audit(self.state, user_id, "credential.set")
+        self._audit(user_id, "credential.set")
         return credential_status_row(value)
 
     def delete_credential(self, user_id: str) -> JsonRow:
@@ -119,7 +122,7 @@ class CredentialProjectService:
             value = self._credentials.delete(user_id=user_id)
         except Exception as error:
             raise HostedApplicationError(404, "credential_not_found") from error
-        audit(self.state, user_id, "credential.delete")
+        self._audit(user_id, "credential.delete")
         return credential_status_row(value)
 
     def plan_download(self, user_id: str, symbols: list[str]) -> JsonRow:
@@ -154,7 +157,7 @@ class CredentialProjectService:
         remember_idempotency(
             self.state, user_id, "download-run", idempotency_key, run.download_run_id
         )
-        audit(self.state, user_id, "download.run")
+        self._audit(user_id, "download.run")
         return download_row(run)
 
     def download_status(self, user_id: str, run_id: str) -> JsonRow:
@@ -182,7 +185,7 @@ class CredentialProjectService:
         project = self._projects.create_project(TenantProject(project_id, user_id, name))
         self._projects.set_current_project(user_id=user_id, project_id=project.project_id)
         remember_idempotency(self.state, user_id, operation, idempotency_key, project_id)
-        audit(self.state, user_id, "project.create")
+        self._audit(user_id, "project.create")
         return project_row(self._record(project))
 
     def list_projects(self, user_id: str, limit: int, offset: int) -> JsonRow:
@@ -203,7 +206,7 @@ class CredentialProjectService:
 
     def select_current_project(self, user_id: str, project_id: str) -> JsonRow:
         self._set_current_project(user_id, project_id)
-        audit(self.state, user_id, "project.current.select")
+        self._audit(user_id, "project.current.select")
         return self.project_context(user_id)
 
     def project_metadata_builder(
@@ -241,7 +244,7 @@ class CredentialProjectService:
             for row_id, row in self.state.analyses_by_id.items()
             if row.project_id != project_id or row.user_id != user_id
         }
-        audit(self.state, user_id, "project.delete")
+        self._audit(user_id, "project.delete")
         return {"status": "deleted", "project_id": project_id}
 
     def create_selection(
@@ -258,7 +261,7 @@ class CredentialProjectService:
         selection = self._selections.create(
             TenantSelection(selection_id, project_id, user_id, name, members)
         )
-        audit(self.state, user_id, "selection.create")
+        self._audit(user_id, "selection.create")
         return selection_row(self._selection_record(selection))
 
     def selection_detail(self, user_id: str, selection_id: str) -> JsonRow:
@@ -277,13 +280,24 @@ class CredentialProjectService:
         self.state.analyses_by_id = {
             key: row for key, row in self.state.analyses_by_id.items() if row.user_id != user_id
         }
-        audit(self.state, user_id, "account.delete")
+        self._audit(user_id, "account.delete")
         return {"status": "deleted"}
 
     def _project_records(self, user_id: str) -> list[ProjectRecord]:
         return sorted(
             (self._record(project) for project in self._projects.list_projects(user_id)),
             key=lambda project: (project.name.casefold(), project.project_id),
+        )
+
+    def _audit(self, user_id: str, event_type: str) -> None:
+        self._audit_events.append(
+            HostedAuditEvent(
+                audit_event_id=str(uuid.uuid4()),
+                user_id=user_id,
+                event_type=event_type,
+                subject_ref=f"user:{user_id}",
+                metadata={},
+            )
         )
 
     @staticmethod
