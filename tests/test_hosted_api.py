@@ -883,7 +883,7 @@ def test_project_context_is_empty_without_projects() -> None:
     }
 
 
-def test_projects_listing_removes_discontinued_statistics_smoke_project() -> None:
+def test_projects_listing_keeps_explicit_statistics_smoke_project() -> None:
     client = _client()
     project = _json(
         client.post(
@@ -904,13 +904,17 @@ def test_projects_listing_removes_discontinued_statistics_smoke_project() -> Non
         )
     )
 
-    assert _json(client.get("/projects", headers=_headers(csrf=False))) == {"items": []}
-    assert (
-        client.get(
-            f"/selections/{selection['selection_id']}", headers=_headers(csrf=False)
-        ).status_code
-        == 404
-    )
+    assert _json(client.get("/projects", headers=_headers(csrf=False))) == {
+        "items": [
+            {
+                "project_id": project["project_id"],
+                "name": "Statistics Smoke",
+                "selection_id": selection["selection_id"],
+                "selected_count": 2,
+                "data_loaded": False,
+            }
+        ]
+    }
 
 
 def test_univariate_selection_metrics_expose_numerical_contract() -> None:

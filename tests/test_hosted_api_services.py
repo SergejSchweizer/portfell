@@ -33,7 +33,9 @@ from portfell.hosted_api_state import (
     SelectionRecord,
 )
 from portfell.hosted_credential_project_service import CredentialProjectService
+from portfell.hosted_metadata_project_service import MetadataProjectService
 from portfell.hosted_quote_run_service import QuoteRunService
+from portfell.hosted_repository_importer import InMemoryProjectRepository, TenantProject
 from portfell.hosted_research_workflow import ResearchRun, UnivariateSelection
 from portfell.hosted_workspace import LocalWorkspaceStore
 from portfell.hosted_workspace_repository import persist_local_workspace, restore_local_workspace
@@ -240,6 +242,93 @@ def test_services_fail_closed_without_credentials_or_quote_selection() -> None:
         QuoteRunService(state, runtime).start(
             "user-a", project_id=None, selection_id=None, idempotency_key=None
         )
+
+
+def test_project_commands_can_use_an_injected_repository_without_state_authority() -> None:
+    state = HostedApiState()
+    repository = InMemoryProjectRepository()
+    service = CredentialProjectService(state, project_repository=repository)
+    user_id = "00000000-0000-5000-8000-000000000001"
+
+    created = service.create_project(user_id, "Income", idempotency_key=None)
+
+    assert state.projects_by_id == {}
+    assert repository.current_project_id(user_id) == created["project_id"]
+    assert service.list_projects(user_id, limit=10, offset=0)["items"] == [
+        {
+            "project_id": created["project_id"],
+            "name": "Income",
+            "selected_count": 0,
+            "data_loaded": False,
+        }
+    ]
+
+
+def test_metadata_builder_project_can_use_an_injected_project_repository() -> None:
+    state = HostedApiState(
+        all_isins_rows=(
+            {
+                "isin": "IE1",
+                "exchange": "XETRA",
+                "code": "AAA",
+                "name": "Example UCITS ETF",
+                "instrument_type": "ETF",
+                "country": "IE",
+                "currency": "EUR",
+            },
+        )
+    )
+    user_id = "00000000-0000-5000-8000-000000000001"
+    runtime = LocalHostedRuntime(
+        quote_workflow=_empty_workflow,
+        metadata_workflow=_empty_workflow,
+        cpu_count=lambda: 1,
+    )
+    repository = InMemoryProjectRepository()
+    service = MetadataProjectService(state, runtime, project_repository=repository)
+
+    created = service.create_project_from_criteria(
+        user_id,
+        exchange="XETRA",
+        name="UCITS ETF",
+        instrument_type="ETF",
+        country="IE",
+        currency="EUR",
+        idempotency_key=None,
+    )
+
+    assert state.projects_by_id == {}
+    assert repository.current_project_id(user_id) == created["project"]["project_id"]
+
+
+def test_quote_run_can_authorize_an_injected_project_repository() -> None:
+    state = HostedApiState()
+    user_id = "00000000-0000-5000-8000-000000000001"
+    project_id = "00000000-0000-5000-8000-000000000002"
+    selection_id = "00000000-0000-5000-8000-000000000003"
+    state.selections_by_id[selection_id] = SelectionRecord(
+        selection_id, user_id, project_id, "Income", ("IE1",)
+    )
+    state.credential_vault().set_credential(user_id=user_id, provider_key="test-key")
+    repository = InMemoryProjectRepository()
+    repository.create_project(TenantProject(project_id, user_id, "Income"))
+    runtime = LocalHostedRuntime(
+        quote_workflow=_empty_workflow,
+        metadata_workflow=_empty_workflow,
+        cpu_count=lambda: 1,
+    )
+    service = QuoteRunService(state, runtime, project_repository=repository)
+
+    run, task = service.start(
+        user_id,
+        project_id=project_id,
+        selection_id=selection_id,
+        idempotency_key=None,
+    )
+
+    assert state.projects_by_id == {}
+    assert run["status"] == "running"
+    assert task is not None
 
 
 def test_quote_run_reuses_an_active_run_without_an_idempotency_key() -> None:

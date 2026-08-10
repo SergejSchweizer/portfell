@@ -19,22 +19,19 @@ from portfell.hosted_api_serializers import (
 )
 from portfell.hosted_api_service_support import (
     audit,
-    current_project,
     idempotent_response,
     opaque_id,
     page,
-    project_context_row,
     project_with_selection_row,
-    projects_for_user,
     remember_idempotency,
-    remove_discontinued_projects,
     require_user_row,
     selection_for_project,
-    set_current_project,
     stable_hash,
     workflow_row,
 )
 from portfell.hosted_api_state import HostedApiState, ProjectRecord, SelectionRecord
+from portfell.hosted_local_project_repository import LocalProjectRepository
+from portfell.hosted_repository_importer import ProjectRepository, TenantImportError, TenantProject
 from portfell.hosted_workspace_repository import persist_local_workspace
 from portfell.table_io import JsonRow
 
@@ -42,16 +39,22 @@ from portfell.table_io import JsonRow
 class CredentialProjectService:
     """Own credential, basic download, project, and account state transitions."""
 
-    def __init__(self, state: HostedApiState, runtime: HostedRuntimePort | None = None) -> None:
+    def __init__(
+        self,
+        state: HostedApiState,
+        runtime: HostedRuntimePort | None = None,
+        project_repository: ProjectRepository | None = None,
+    ) -> None:
         self.state = state
         self.runtime = runtime
+        self._projects = project_repository or LocalProjectRepository(state)
 
     def workflow(self, user_id: str, project_id: str | None = None) -> JsonRow:
         if project_id is None:
-            project = current_project(self.state, user_id)
+            project = self._current_project(user_id)
             project_id = None if project is None else project.project_id
         else:
-            require_user_row(self.state.projects_by_id, project_id, user_id)
+            self._project(user_id, project_id)
         metadata_rows = self.state.all_isins_rows
         if project_id is not None and not metadata_rows and self.runtime is not None:
             metadata_rows = self.runtime.all_isins_rows()
@@ -165,40 +168,48 @@ class CredentialProjectService:
             idempotency_key=idempotency_key,
         )
         if cached is not None:
-            return project_row(self.state.projects_by_id[cached])
+            return project_row(self._project(user_id, cached))
         project_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"portfell:project:{user_id}:{name}"))
-        self.state.projects_by_id.setdefault(
-            project_id, ProjectRecord(project_id=project_id, user_id=user_id, name=name)
-        )
-        set_current_project(self.state, user_id, project_id)
+        project = self._projects.create_project(TenantProject(project_id, user_id, name))
+        self._projects.set_current_project(user_id=user_id, project_id=project.project_id)
         remember_idempotency(self.state, user_id, operation, idempotency_key, project_id)
         audit(self.state, user_id, "project.create")
-        return project_row(self.state.projects_by_id[project_id])
+        return project_row(self._record(project))
 
     def list_projects(self, user_id: str, limit: int, offset: int) -> JsonRow:
-        remove_discontinued_projects(self.state, user_id)
         items = [
             project_with_selection_row(self.state, row, user_id)
-            for row in projects_for_user(self.state, user_id)
+            for row in self._project_records(user_id)
         ]
         return {"items": page(items, limit=limit, offset=offset)}
 
     def project_context(self, user_id: str) -> JsonRow:
-        return project_context_row(self.state, user_id)
+        project = self._current_project(user_id)
+        projects = self._project_records(user_id)
+        current = (
+            None if project is None else project_with_selection_row(self.state, project, user_id)
+        )
+        return {
+            "current_project_id": None if project is None else project.project_id,
+            "current_project": current,
+            "projects": [
+                project_with_selection_row(self.state, item, user_id) for item in projects
+            ],
+        }
 
     def select_current_project(self, user_id: str, project_id: str) -> JsonRow:
-        set_current_project(self.state, user_id, project_id)
+        self._set_current_project(user_id, project_id)
         audit(self.state, user_id, "project.current.select")
-        return project_context_row(self.state, user_id)
+        return self.project_context(user_id)
 
     def project_metadata_builder(
         self, user_id: str, project_id: str
     ) -> tuple[ProjectRecord, SelectionRecord]:
-        project = require_user_row(self.state.projects_by_id, project_id, user_id)
+        project = self._project(user_id, project_id)
         return project, selection_for_project(self.state, project_id, user_id)
 
     def univariate_selection_settings(self, user_id: str, project_id: str) -> JsonRow:
-        require_user_row(self.state.projects_by_id, project_id, user_id)
+        self._project(user_id, project_id)
         return {
             "dividend_frequencies": [],
             "statistic_labels": {},
@@ -209,14 +220,13 @@ class CredentialProjectService:
     def save_univariate_selection_settings(
         self, user_id: str, project_id: str, settings: JsonRow
     ) -> JsonRow:
-        require_user_row(self.state.projects_by_id, project_id, user_id)
+        self._project(user_id, project_id)
         self.state.univariate_selection_settings_by_project[project_id] = dict(settings)
         persist_local_workspace(self.state)
         return self.univariate_selection_settings(user_id, project_id)
 
     def delete_project(self, user_id: str, project_id: str) -> JsonRow:
-        require_user_row(self.state.projects_by_id, project_id, user_id)
-        self.state.projects_by_id.pop(project_id, None)
+        self._delete_project(user_id, project_id)
         self.state.selections_by_id = {
             row_id: row
             for row_id, row in self.state.selections_by_id.items()
@@ -227,16 +237,13 @@ class CredentialProjectService:
             for row_id, row in self.state.analyses_by_id.items()
             if row.project_id != project_id or row.user_id != user_id
         }
-        if self.state.current_project_id_by_user.get(user_id) == project_id:
-            self.state.current_project_id_by_user.pop(user_id, None)
-            current_project(self.state, user_id)
         audit(self.state, user_id, "project.delete")
         return {"status": "deleted", "project_id": project_id}
 
     def create_selection(
         self, user_id: str, project_id: str, name: str, member_ids: list[str]
     ) -> JsonRow:
-        require_user_row(self.state.projects_by_id, project_id, user_id)
+        self._project(user_id, project_id)
         members = tuple(sorted(set(member_ids)))
         selection_id = str(
             uuid.uuid5(
@@ -256,9 +263,8 @@ class CredentialProjectService:
 
     def delete_account(self, user_id: str) -> JsonRow:
         delete_user_entitlements(store=self.state.entitlements, user_id=user_id)
-        self.state.projects_by_id = {
-            key: row for key, row in self.state.projects_by_id.items() if row.user_id != user_id
-        }
+        for project in self._projects.list_projects(user_id):
+            self._delete_project(user_id, project.project_id)
         self.state.selections_by_id = {
             key: row for key, row in self.state.selections_by_id.items() if row.user_id != user_id
         }
@@ -267,3 +273,41 @@ class CredentialProjectService:
         }
         audit(self.state, user_id, "account.delete")
         return {"status": "deleted"}
+
+    def _project_records(self, user_id: str) -> list[ProjectRecord]:
+        return sorted(
+            (self._record(project) for project in self._projects.list_projects(user_id)),
+            key=lambda project: (project.name.casefold(), project.project_id),
+        )
+
+    @staticmethod
+    def _record(project: TenantProject) -> ProjectRecord:
+        return ProjectRecord(project.project_id, project.user_id, project.name)
+
+    def _project(self, user_id: str, project_id: str) -> ProjectRecord:
+        for project in self._project_records(user_id):
+            if project.project_id == project_id:
+                return project
+        raise HostedApplicationError(404, "not_found")
+
+    def _current_project(self, user_id: str) -> ProjectRecord | None:
+        project_id = self._projects.current_project_id(user_id)
+        if project_id is not None:
+            return self._project(user_id, project_id)
+        projects = self._project_records(user_id)
+        if not projects:
+            return None
+        self._set_current_project(user_id, projects[0].project_id)
+        return projects[0]
+
+    def _set_current_project(self, user_id: str, project_id: str) -> None:
+        try:
+            self._projects.set_current_project(user_id=user_id, project_id=project_id)
+        except TenantImportError as error:
+            raise HostedApplicationError(404, "not_found") from error
+
+    def _delete_project(self, user_id: str, project_id: str) -> None:
+        try:
+            self._projects.delete_project(user_id=user_id, project_id=project_id)
+        except TenantImportError as error:
+            raise HostedApplicationError(404, "not_found") from error

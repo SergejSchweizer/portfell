@@ -644,11 +644,14 @@ repeatable and stop before documented commit points on mismatch.
 
 ### PR167. Hosted Runtime Cutover And Legacy Authority Removal
 
-Branch: `refactor/hosted-runtime-cutover`.
+Branch: `refactor/hosted-project-repository`.
 
-Git status: blocked by the required production-like import, parity, backup/restore, and rollback rehearsal.
+Git status: pushed; project control commands are moving behind explicit repository ports. Production authority remains blocked by the required production-like import, parity, backup/restore, and rollback rehearsal.
 
-PR: https://github.com/SergejSchweizer/portfell/pull/300.
+PR: https://github.com/SergejSchweizer/portfell/pull/313.
+
+Prior planning PR: https://github.com/SergejSchweizer/portfell/pull/300 (merged; remaining
+implementation continues through stacked branches).
 
 Priority: P0 activate the proven architecture.
 
