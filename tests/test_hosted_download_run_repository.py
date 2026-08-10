@@ -100,3 +100,34 @@ def test_postgres_download_run_repository_rejects_malformed_manifest_projection(
         PostgresDownloadRunRepository(_Connection(invalid)).get(
             user_id=run.user_id, download_run_id=run.download_run_id
         )
+
+
+def test_postgres_download_run_repository_rejects_invalid_download_projections() -> None:
+    run = _run()
+    invalid_status = (*_row(run)[:4], "unknown", *_row(run)[5:])
+    with pytest.raises(DownloadRunRepositoryError, match="download_run_projection_invalid"):
+        PostgresDownloadRunRepository(_Connection(invalid_status)).get(
+            user_id=run.user_id, download_run_id=run.download_run_id
+        )
+    invalid_scope = (*_row(run)[:7], {1: "invalid"})
+    with pytest.raises(DownloadRunRepositoryError, match="download_run_projection_invalid"):
+        PostgresDownloadRunRepository(_Connection(invalid_scope)).get(
+            user_id=run.user_id, download_run_id=run.download_run_id
+        )
+    invalid_observations = (*_row(run)[:5], {"returned_observation_ids": [""]}, *_row(run)[6:])
+    with pytest.raises(DownloadRunRepositoryError, match="download_run_projection_invalid"):
+        PostgresDownloadRunRepository(_Connection(invalid_observations)).get(
+            user_id=run.user_id, download_run_id=run.download_run_id
+        )
+    invalid_length: tuple[object, ...] = _row(run)[:-1]
+    with pytest.raises(DownloadRunRepositoryError, match="download_run_projection_invalid"):
+        PostgresDownloadRunRepository(_Connection(invalid_length)).get(
+            user_id=run.user_id, download_run_id=run.download_run_id
+        )
+
+
+def test_postgres_download_run_repository_rejects_missing_idempotency_projection() -> None:
+    run = _run()
+
+    with pytest.raises(DownloadRunRepositoryError, match="download_run_not_found"):
+        PostgresDownloadRunRepository(_Connection(None)).create(run)

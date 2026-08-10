@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from portfell.hosted_repository_importer import TenantSelection
+import pytest
+
+from portfell.hosted_repository_importer import TenantImportError, TenantSelection
 from portfell.hosted_selection_repository import PostgresSelectionRepository
 
 
@@ -57,3 +59,23 @@ def test_selection_repository_seals_exact_members_after_creation() -> None:
     statements = "\n".join(statement for statement, _ in connection.calls)
     assert "project_selection_members" in statements
     assert "set membership_sealed_at = now()" in statements
+
+
+def test_selection_repository_rejects_malformed_owned_projection() -> None:
+    connection = _Connection([("selection-1", "project-1", "user-a")])
+
+    with pytest.raises(TenantImportError, match="selection_projection_invalid"):
+        PostgresSelectionRepository(connection).get(project_id="project-1", user_id="user-a")
+
+    blank_member = _Connection(
+        [("selection-1", "project-1", "user-a", "UCITS", "", "XETRA", "AAA")]
+    )
+    with pytest.raises(TenantImportError, match="selection_projection_invalid"):
+        PostgresSelectionRepository(blank_member).get(project_id="project-1", user_id="user-a")
+
+
+def test_selection_repository_returns_none_without_a_sealed_owned_selection() -> None:
+    assert (
+        PostgresSelectionRepository(_Connection()).get(project_id="project-1", user_id="user-a")
+        is None
+    )
