@@ -36,7 +36,11 @@ from portfell.hosted_api_state import (
 from portfell.hosted_credential_project_service import CredentialProjectService
 from portfell.hosted_metadata_project_service import MetadataProjectService
 from portfell.hosted_quote_run_service import QuoteRunService
-from portfell.hosted_repository_importer import InMemoryProjectRepository, TenantProject
+from portfell.hosted_repository_importer import (
+    InMemoryProjectRepository,
+    TenantProject,
+    TenantSelection,
+)
 from portfell.hosted_research_persistence import LocalResearchPersistence
 from portfell.hosted_research_repository import HostedResearchRepository
 from portfell.hosted_research_workflow import ResearchRun, UnivariateSelection
@@ -382,18 +386,22 @@ def test_quote_run_can_authorize_an_injected_project_repository() -> None:
     user_id = "00000000-0000-5000-8000-000000000001"
     project_id = "00000000-0000-5000-8000-000000000002"
     selection_id = "00000000-0000-5000-8000-000000000003"
-    state.selections_by_id[selection_id] = SelectionRecord(
-        selection_id, user_id, project_id, "Income", ("IE1",)
-    )
     state.credential_vault().set_credential(user_id=user_id, provider_key="test-key")
     repository = InMemoryProjectRepository()
     repository.create_project(TenantProject(project_id, user_id, "Income"))
+    selections = InMemorySelectionRepository()
+    selections.create(TenantSelection(selection_id, project_id, user_id, "Income", ("IE1",)))
     runtime = LocalHostedRuntime(
         quote_workflow=_empty_workflow,
         metadata_workflow=_empty_workflow,
         cpu_count=lambda: 1,
     )
-    service = QuoteRunService(state, runtime, project_repository=repository)
+    service = QuoteRunService(
+        state,
+        runtime,
+        project_repository=repository,
+        selection_repository=selections,
+    )
 
     run, task = service.start(
         user_id,
@@ -403,6 +411,7 @@ def test_quote_run_can_authorize_an_injected_project_repository() -> None:
     )
 
     assert state.projects_by_id == {}
+    assert state.selections_by_id == {}
     assert run["status"] == "running"
     assert task is not None
 

@@ -17,13 +17,14 @@ from portfell.hosted_api_service_support import (
     opaque_id,
     remember_idempotency,
     require_user_row,
-    selection_for_project,
     stable_hash,
 )
-from portfell.hosted_api_state import HostedApiState
+from portfell.hosted_api_state import HostedApiState, SelectionRecord
 from portfell.hosted_credentials import CredentialVaultError
 from portfell.hosted_local_project_repository import LocalProjectRepository
-from portfell.hosted_repository_importer import ProjectRepository
+from portfell.hosted_local_selection_repository import LocalSelectionRepository
+from portfell.hosted_repository_importer import ProjectRepository, TenantSelection
+from portfell.hosted_selection_repository import SelectionRepository
 from portfell.hosted_workspace_repository import persist_local_workspace
 from portfell.shared_market_data import SharedListingKey
 from portfell.table_io import JsonRow
@@ -39,10 +40,12 @@ class QuoteRunService:
         state: HostedApiState,
         runtime: HostedRuntimePort,
         project_repository: ProjectRepository | None = None,
+        selection_repository: SelectionRepository | None = None,
     ) -> None:
         self.state = state
         self.runtime = runtime
         self._projects = project_repository or LocalProjectRepository(state)
+        self._selections = selection_repository or LocalSelectionRepository(state)
 
     def start(
         self,
@@ -53,10 +56,10 @@ class QuoteRunService:
         idempotency_key: str | None,
     ) -> tuple[JsonRow, Callable[[], None] | None]:
         if selection_id is not None:
-            selection = require_user_row(self.state.selections_by_id, selection_id, user_id)
+            selection = self._selection_by_id(user_id, selection_id)
             project_id = selection.project_id
         elif project_id is not None:
-            selection = selection_for_project(self.state, project_id, user_id)
+            selection = self._selection_for_project(user_id, project_id)
         else:
             raise HostedApplicationError(422, "metadata_selection_required")
         self._require_project(user_id, project_id)
@@ -197,3 +200,25 @@ class QuoteRunService:
             project.project_id == project_id for project in self._projects.list_projects(user_id)
         ):
             raise HostedApplicationError(404, "not_found")
+
+    def _selection_by_id(self, user_id: str, selection_id: str) -> SelectionRecord:
+        selection = self._selections.by_id(selection_id=selection_id, user_id=user_id)
+        if selection is None:
+            raise HostedApplicationError(404, "not_found")
+        return self._selection_record(selection)
+
+    def _selection_for_project(self, user_id: str, project_id: str) -> SelectionRecord:
+        selection = self._selections.for_project(project_id=project_id, user_id=user_id)
+        if selection is None:
+            raise HostedApplicationError(404, "not_found")
+        return self._selection_record(selection)
+
+    @staticmethod
+    def _selection_record(selection: TenantSelection) -> SelectionRecord:
+        return SelectionRecord(
+            selection.selection_id,
+            selection.user_id,
+            selection.project_id,
+            selection.name,
+            selection.member_ids,
+        )

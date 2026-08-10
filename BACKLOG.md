@@ -644,13 +644,13 @@ repeatable and stop before documented commit points on mismatch.
 
 ### PR167. Hosted Runtime Cutover And Legacy Authority Removal
 
-Branch: `refactor/hosted-metadata-selection-repository`.
+Branch: `refactor/hosted-quote-selection-repository`.
 
-Git status: pushed; metadata-builder selection commands are moving behind explicit repository ports. Production authority remains blocked by the required production-like import, parity, backup/restore, and rollback rehearsal.
+Git status: in progress; quote-run selection authorization is moving behind explicit repository ports. Production authority remains blocked by the required production-like import, parity, backup/restore, and rollback rehearsal.
 
-PR: https://github.com/SergejSchweizer/portfell/pull/317.
+PR: TBD.
 
-Depends on implementation branch: `refactor/hosted-selection-repository` (PR #316).
+Depends on implementation branch: `refactor/hosted-metadata-selection-repository` (PR #317).
 
 Prior planning PR: https://github.com/SergejSchweizer/portfell/pull/300 (merged; remaining
 implementation continues through stacked branches).
