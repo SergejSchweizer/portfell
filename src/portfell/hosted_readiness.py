@@ -14,6 +14,7 @@ from typing import Any, Protocol, cast
 
 from portfell.hosted_catalog import migration_plan
 from portfell.hosted_data_planes import REQUIRED_SHARED_DATA_LICENSE_USES
+from portfell.hosted_database_connection import connect as connect_database
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 READINESS_PATH = REPOSITORY_ROOT / "docs" / "security" / "hosted_readiness.json"
@@ -151,9 +152,7 @@ DatabaseConnector = Callable[[str], DatabaseConnection]
 
 
 def _connect_database(database_url: str) -> DatabaseConnection:
-    import psycopg
-
-    return cast(DatabaseConnection, psycopg.connect(database_url, autocommit=True))
+    return cast(DatabaseConnection, connect_database(database_url, autocommit=True))
 
 
 def validate_database_readiness(
