@@ -604,7 +604,7 @@ Branch: `chore/hosted-cutover-rehearsal`.
 
 Git status: in progress.
 
-PR: https://github.com/SergejSchweizer/portfell/pull/284.
+PR: https://github.com/SergejSchweizer/portfell/pull/296.
 
 Priority: P0 prove production readiness before switching authority.
 
