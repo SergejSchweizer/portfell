@@ -646,9 +646,9 @@ repeatable and stop before documented commit points on mismatch.
 
 Branch: `refactor/hosted-metadata-selection-repository`.
 
-Git status: in progress; metadata-builder selection commands are moving behind explicit repository ports. Production authority remains blocked by the required production-like import, parity, backup/restore, and rollback rehearsal.
+Git status: pushed; metadata-builder selection commands are moving behind explicit repository ports. Production authority remains blocked by the required production-like import, parity, backup/restore, and rollback rehearsal.
 
-PR: TBD.
+PR: https://github.com/SergejSchweizer/portfell/pull/317.
 
 Depends on implementation branch: `refactor/hosted-selection-repository` (PR #316).
 
