@@ -6,12 +6,13 @@ import argparse
 import json
 import os
 import sys
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Protocol, cast
 
+from portfell.hosted_catalog import migration_plan
 from portfell.hosted_data_planes import REQUIRED_SHARED_DATA_LICENSE_USES
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
@@ -132,6 +133,69 @@ def validate_runtime_readiness(
                 authority == "local" or (authority == "postgres" and public_hosted_mode_allowed())
             ),
             message="PostgreSQL authority requires approved public-hosted readiness",
+        ),
+    ]
+
+
+class DatabaseCursor(Protocol):
+    def fetchall(self) -> list[tuple[object, ...]]: ...
+
+
+class DatabaseConnection(Protocol):
+    def execute(self, sql: str) -> DatabaseCursor: ...
+
+    def close(self) -> None: ...
+
+
+DatabaseConnector = Callable[[str], DatabaseConnection]
+
+
+def _connect_database(database_url: str) -> DatabaseConnection:
+    import psycopg
+
+    return cast(DatabaseConnection, psycopg.connect(database_url, autocommit=True))
+
+
+def validate_database_readiness(
+    database_url: str | None = None,
+    *,
+    connect: DatabaseConnector | None = None,
+) -> list[ReadinessResult]:
+    """Probe an explicit database without exposing connection details."""
+
+    resolved_url = database_url or os.environ.get("PORTFELL_DATABASE_URL")
+    if not _postgres_database_url(resolved_url):
+        return _database_unavailable_results()
+    assert resolved_url is not None
+    try:
+        connection = (connect or _connect_database)(resolved_url)
+        try:
+            rows = connection.execute(
+                "select version from portfell_private.schema_migrations order by version"
+            ).fetchall()
+        finally:
+            connection.close()
+    except Exception:
+        return _database_unavailable_results()
+    versions = tuple(row[0] for row in rows)
+    expected_versions = tuple(migration.version for migration in migration_plan())
+    return [
+        ReadinessResult("database.connection_available", True, "PostgreSQL database is reachable"),
+        ReadinessResult(
+            "database.catalog_current",
+            versions == expected_versions,
+            "hosted catalog migrations are incomplete",
+        ),
+    ]
+
+
+def _database_unavailable_results() -> list[ReadinessResult]:
+    return [
+        ReadinessResult(
+            "database.connection_available", False, "PostgreSQL database is unavailable"
+        ),
+        ReadinessResult(
+            "database.catalog_current", False, "hosted catalog migrations are incomplete"
         ),
     ]
 
@@ -304,6 +368,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Fail unless deployment secret files and runtime authority are ready.",
     )
+    parser.add_argument(
+        "--require-database",
+        action="store_true",
+        help="Fail unless PostgreSQL is reachable and catalog migrations are current.",
+    )
     return parser
 
 
@@ -314,15 +383,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     results = validate_readiness()
     readiness_failures = failed_results(results)
     runtime_failures = failed_results(validate_runtime_readiness()) if args.require_runtime else []
-    failures = (
-        [*readiness_failures, *runtime_failures]
-        if args.require_public_hosted and args.require_runtime
-        else readiness_failures
-        if args.require_public_hosted
-        else runtime_failures
-        if args.require_runtime
-        else []
+    database_failures = (
+        failed_results(validate_database_readiness()) if args.require_database else []
     )
+    failures: list[ReadinessResult] = []
+    if args.require_public_hosted:
+        failures.extend(readiness_failures)
+    if args.require_runtime:
+        failures.extend(runtime_failures)
+    if args.require_database:
+        failures.extend(database_failures)
     if failures:
         for failure in failures:
             print(f"{failure.name}: {failure.message}", file=sys.stderr)

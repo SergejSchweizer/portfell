@@ -13,9 +13,30 @@ from portfell.hosted_readiness import (
     local_only_mode_allowed,
     main,
     public_hosted_mode_allowed,
+    validate_database_readiness,
     validate_readiness,
     validate_runtime_readiness,
 )
+
+
+class FakeDatabaseCursor:
+    def __init__(self, rows: list[tuple[object, ...]]) -> None:
+        self._rows = rows
+
+    def fetchall(self) -> list[tuple[object, ...]]:
+        return self._rows
+
+
+class FakeDatabaseConnection:
+    def __init__(self, rows: list[tuple[object, ...]]) -> None:
+        self.rows = rows
+        self.closed = False
+
+    def execute(self, _: str) -> FakeDatabaseCursor:
+        return FakeDatabaseCursor(self.rows)
+
+    def close(self) -> None:
+        self.closed = True
 
 
 def test_hosted_readiness_records_cover_every_mandatory_decision() -> None:
@@ -132,6 +153,35 @@ def test_runtime_readiness_rejects_a_non_postgres_database_url(tmp_path: Path) -
     )
 
     assert [failure.name for failure in failures] == ["runtime.database_url_configured"]
+
+
+def test_database_readiness_requires_current_catalog_migrations() -> None:
+    connection = FakeDatabaseConnection([(1,)])
+
+    failures = failed_results(
+        validate_database_readiness(
+            "postgresql://portfell_app@postgres:5432/portfell", connect=lambda _: connection
+        )
+    )
+
+    assert [failure.name for failure in failures] == ["database.catalog_current"]
+    assert connection.closed
+
+
+def test_database_readiness_redacts_connection_failure() -> None:
+    def fail_connect(_: str) -> FakeDatabaseConnection:
+        raise RuntimeError("database password must remain private")
+
+    failures = failed_results(
+        validate_database_readiness(
+            "postgresql://portfell_app@postgres:5432/portfell", connect=fail_connect
+        )
+    )
+
+    assert [failure.name for failure in failures] == [
+        "database.connection_available",
+        "database.catalog_current",
+    ]
 
 
 def test_runtime_readiness_accepts_postgres_authority_when_hosting_is_approved(
