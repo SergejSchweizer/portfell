@@ -32,6 +32,8 @@ def test_portfell_console_scripts_are_registered() -> None:
         "portfell-docs-refresh",
         "portfell-fetch-all-quotes",
         "portfell-quality",
+        "portfell-refresh-shared-market-data",
+        "portfell-shared-market-cron",
     }
 
 

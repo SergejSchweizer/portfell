@@ -19,7 +19,7 @@ from portfell.hosted_api import (
 from portfell.hosted_credentials import InMemoryCredentialStore, KeyEncryptionKey
 from portfell.hosted_research_workflow import ResearchRun, UnivariateSelection
 from portfell.paths import LakePaths
-from portfell.table_io import read_json, read_rows, write_rows
+from portfell.table_io import write_rows
 
 
 def _client(state: HostedApiState | None = None) -> TestClient:
@@ -288,117 +288,15 @@ def test_metadata_builder_options_and_project_creation_use_all_isins_reference()
     )
 
 
-def test_load_selected_isins_runs_fetch_all_quotes_for_metadata_selection(
-    tmp_path: Path,
-    monkeypatch: Any,
-) -> None:
-    lake_root = tmp_path / "lake"
-    monkeypatch.setenv("PORTFELL_LAKE_ROOT", str(lake_root))
-    calls: list[dict[str, Any]] = []
-    state = HostedApiState(
-        all_isins_rows=(
-            {
-                "isin": "IE1",
-                "exchange": "XETRA",
-                "code": "AAA",
-                "name": "Example UCITS ETF",
-                "instrument_type": "ETF",
-                "country": "IE",
-                "currency": "EUR",
-                "source_exchange": "XETRA",
-                "fetched_at": "2026-01-01T00:00:00+00:00",
-            },
-        )
+def test_legacy_quote_run_mutation_is_gone() -> None:
+    response = _client(HostedApiState()).post(
+        "/quote-runs",
+        headers=_headers(idempotency="legacy-quote-run"),
+        json={"metadata_selection_id": "selection-1"},
     )
 
-    def fake_fetch_all_quotes_workflow(**kwargs: Any) -> dict[str, Any]:
-        calls.append(kwargs)
-        kwargs["on_progress"](3, 4, 0)
-        return {
-            "coverage_rows": 1,
-            "raw_dataset_errors": 0,
-            "raw_dataset_successes": 2,
-            "quote_errors": 0,
-            "quote_successes": 1,
-            "run_id": kwargs["run_id"],
-            "selection_id": kwargs["selection_id"],
-            "selected_listing_count": 1,
-            "silver_quote_rows": 42,
-        }
-
-    monkeypatch.setattr(
-        "portfell.hosted_api.run_fetch_all_quotes_workflow",
-        fake_fetch_all_quotes_workflow,
-    )
-    monkeypatch.setattr(hosted_api.os, "process_cpu_count", lambda: 6)
-    client = _client(state)
-    client.post(
-        "/credentials/eodhd",
-        headers=_headers(idempotency="credential-load-selected-isins"),
-        json={"provider_key": "secret-provider-token"},
-    )
-    created = _json(
-        client.post(
-            "/metadata-builder",
-            headers=_headers(idempotency="metadata-project-load-selected-isins"),
-            json={
-                "exchange": "XETRA",
-                "name": "UCITS ETF",
-                "instrument_type": "ETF",
-                "country": "IE",
-                "currency": "EUR",
-            },
-        )
-    )
-    selection_id = created["selection"]["selection_id"]
-
-    loaded_data = _json(
-        client.post(
-            "/quote-runs",
-            headers=_headers(idempotency="load-selected-isins-1"),
-            json={"project_id": created["project"]["project_id"]},
-        )
-    )
-    loaded_data_again = _json(
-        client.post(
-            "/quote-runs",
-            headers=_headers(idempotency="load-selected-isins-1"),
-            json={"project_id": created["project"]["project_id"]},
-        )
-    )
-    loaded_status = _json(
-        client.get(f"/quote-runs/{loaded_data['download_run_id']}", headers=_headers(csrf=False))
-    )
-    paths = LakePaths(root=lake_root)
-    persisted_selection_rows = read_rows(paths.metadata_builder_isins(selection_id))
-    current_selection = read_json(paths.current_metadata_builder_selection())
-    reloaded_project = _json(client.get("/projects", headers=_headers(csrf=False)))["items"][0]
-
-    assert len(calls) == 1
-    assert calls[0]["root"] == lake_root
-    assert calls[0]["selection_id"] == selection_id
-    assert calls[0]["concurrency"] == 6
-    assert calls[0]["memory_safe"] is True
-    assert calls[0]["eodhd_config"].api_token == "secret-provider-token"
-    assert persisted_selection_rows[0]["isin"] == "IE1"
-    assert persisted_selection_rows[0]["exchange"] == "XETRA"
-    assert persisted_selection_rows[0]["code"] == "AAA"
-    assert current_selection["selection_id"] == selection_id
-    assert loaded_data["download_run_id"] == loaded_data_again["download_run_id"]
-    assert loaded_data["status"] == "running"
-    assert loaded_data_again["status"] == "succeeded"
-    assert loaded_data["kind"] == "load-data"
-    assert loaded_data["observation_count"] == 1
-    assert loaded_data_again["quote_successes"] == 1
-    assert loaded_data_again["raw_dataset_successes"] == 2
-    assert loaded_data_again["selected_listing_count"] == 1
-    assert loaded_data_again["selected_count"] == 1
-    assert loaded_data_again["silver_quote_rows"] == 42
-    assert loaded_status["completed"] == 3
-    assert loaded_status["started_at"] > 0
-    assert loaded_status["total"] == 4
-    assert loaded_status["percent"] == 100
-    assert reloaded_project["data_loaded"] is True
+    assert response.status_code == 410
+    assert _json(response) == {"detail": "shared_market_refresh_required"}
 
 
 def test_quote_run_progress_is_visible_after_the_first_completed_task(
@@ -450,7 +348,7 @@ def test_quote_run_progress_is_visible_after_the_first_completed_task(
     )
 
 
-def test_load_selected_isins_reuses_running_quote_run_for_new_idempotency_key(
+def test_legacy_quote_run_mutation_does_not_reuse_or_start_a_running_run(
     tmp_path: Path,
     monkeypatch: Any,
 ) -> None:
@@ -517,17 +415,13 @@ def test_load_selected_isins_reuses_running_quote_run_for_new_idempotency_key(
     state.downloads_by_id[run.download_run_id] = run
     state.download_summaries_by_id[run.download_run_id] = {"total": 4, "completed": 2}
 
-    response = _json(
-        client.post(
-            "/quote-runs",
-            headers=_headers(idempotency="new-quote-run-request"),
-            json={"project_id": created["project"]["project_id"]},
-        )
+    response = client.post(
+        "/quote-runs",
+        headers=_headers(idempotency="new-quote-run-request"),
+        json={"project_id": created["project"]["project_id"]},
     )
 
-    assert response["download_run_id"] == run.download_run_id
-    assert response["status"] == "running"
-    assert response["completed"] == 2
+    assert response.status_code == 410
     assert calls == []
 
 

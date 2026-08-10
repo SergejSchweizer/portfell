@@ -37,22 +37,15 @@ def test_workflow_pages_place_ingestion_actions_before_their_stage_controls() ->
     assert '"/univariate-statistics"' not in metadata_page
     assert '"portfell:workflow-updated"' in metadata_page
     assert "Download Historical Data" not in metadata_page
-    assert "Update Historical Data" in univariate_page
-    assert "univariateStatisticsApi.startQuoteRun" in univariate_page
-    assert univariate_page.index('<Panel title="Univariate Statistics">') < univariate_page.index(
-        "quote-fetch__action"
-    )
-    assert univariate_page.index("<progress") < univariate_page.index("quote-fetch__action")
-    assert "loadQuoteRun" in univariate_page
-    assert "Restoring the current historical-data download status" in univariate_page
-    assert "workflowQuoteRunId" in univariate_page
-    assert "historicalDataUpdateLabel" in univariate_page
-    assert "remaining" in (WEB_ROOT / "src" / "quote-progress.ts").read_text(encoding="utf-8")
-    assert "error_code" in univariate_page
-    assert "Refreshing the current historical-data download status" in univariate_page
     assert (
-        'disabled={!metadata.metadata_selection_id || quoteStatus === "running"}' in univariate_page
+        "Historical data is refreshed automatically by the shared-data service" in univariate_page
     )
+    assert "Update Historical Data" not in univariate_page
+    assert "Download Historical Data" not in univariate_page
+    assert "startQuoteRun" not in univariate_page
+    assert "loadQuoteRun" not in univariate_page
+    assert "quoteStatus" not in univariate_page
+    assert "/quote-runs" not in univariate_page
     assert "!metadata.quote_run_id" in univariate_page
     assert 'page.id === "univariate_statistics"' in frame
     assert "metricDefinitions" in univariate_page
@@ -116,7 +109,6 @@ def test_three_module_ui_uses_canonical_server_owned_workflow_contracts() -> Non
         "/api/workflow",
         "/api/metadata/fetch-all",
         "/api/metadata-builder",
-        "/api/quote-runs",
         "/api/univariate-statistics/runs",
         "/api/bivariate-statistics/plan",
         "/api/bivariate-statistics/runs",

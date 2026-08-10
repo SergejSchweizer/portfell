@@ -1,5 +1,5 @@
 
-import type { ApiCredentialStatus, ApiCredentialValue, ApiMetadataFetch, ApiProjectContext, ApiProjectMetadataBuilder, ApiQuoteFetch, ApiWorkflow } from "../contracts";
+import type { ApiCredentialStatus, ApiCredentialValue, ApiMetadataFetch, ApiProjectContext, ApiProjectMetadataBuilder, ApiWorkflow } from "../contracts";
 
 export class ApiError extends Error {
   constructor(
@@ -93,6 +93,4 @@ export function loadProjectWorkflow(projectId: string): Promise<ApiWorkflow> {
   return requestJson<ApiWorkflow>(`/api/projects/${encodeURIComponent(projectId)}/workflow`);
 }
 
-export function loadQuoteRun(quoteRunId: string): Promise<ApiQuoteFetch> {
-  return requestJson<ApiQuoteFetch>(`/api/quote-runs/${encodeURIComponent(quoteRunId)}`);
-}
+// Shared-market refresh is operations-owned; browser clients do not expose quote runs.

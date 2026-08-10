@@ -12,6 +12,7 @@ from portfell.entitlements import ProviderDownloadRun
 from portfell.hosted_api_errors import HostedApplicationError, HostedRuntimeError
 from portfell.hosted_api_local_runtime import LocalHostedRuntime
 from portfell.hosted_api_service_support import (
+    _apply_univariate_selection_settings,
     current_project,
     idempotent_response,
     opaque_id,
@@ -98,41 +99,6 @@ def test_workspace_repository_round_trips_durable_state(tmp_path: Path) -> None:
     state.current_project_id_by_user["user-a"] = "project-1"
     state.current_metadata_selection_by_user["user-a"] = "selection-1"
     state.metadata_revisions_by_user["user-a"] = "revision-1"
-    quote_run = ProviderDownloadRun(
-        "quote-run-1", "user-a", "credential-1", "eodhd", "succeeded", ("IE1",), "hash-1"
-    )
-    state.downloads_by_id[quote_run.download_run_id] = quote_run
-    state.download_summaries_by_id[quote_run.download_run_id] = {
-        "total": 1,
-        "completed": 1,
-        "failed": 0,
-        "percent": 100,
-    }
-    state.quote_rows_by_run_id[quote_run.download_run_id] = (
-        {"isin": "IE1", "exchange": "XETRA", "code": "AAA", "date": "2026-08-08"},
-    )
-    univariate = ResearchRun(
-        "univariate-1",
-        "user-a",
-        "source-1",
-        "complete",
-        ({"isin": "IE1", "distribution_frequency": "annual"},),
-        1,
-        1,
-    )
-    state.univariate_runs_by_id[univariate.run_id] = univariate
-    state.quote_run_by_univariate_run_id[univariate.run_id] = quote_run.download_run_id
-    bivariate = ResearchRun(
-        "bivariate-1",
-        "user-a",
-        "source-bivariate-1",
-        "complete",
-        ({"left_isin": "IE1", "right_isin": "IE2", "pearson_correlation": 0.2},),
-        1,
-        1,
-    )
-    state.bivariate_runs_by_id[bivariate.run_id] = bivariate
-    remember_idempotency(state, "user-a", "fetch-all-quotes:project-1", "request-1", "quote-run-1")
 
     persist_local_workspace(state)
     restored = HostedApiState()
@@ -143,34 +109,7 @@ def test_workspace_repository_round_trips_durable_state(tmp_path: Path) -> None:
     assert restored.current_project_id_by_user == {"user-a": "project-1"}
     assert restored.current_metadata_selection_by_user == {"user-a": "selection-1"}
     assert restored.metadata_revisions_by_user == {"user-a": "revision-1"}
-    assert restored.downloads_by_id == state.downloads_by_id
-    assert restored.download_summaries_by_id == state.download_summaries_by_id
-    assert restored.quote_rows_by_run_id == state.quote_rows_by_run_id
-    assert restored.univariate_runs_by_id == state.univariate_runs_by_id
-    assert restored.bivariate_runs_by_id == state.bivariate_runs_by_id
-    assert restored.quote_run_by_univariate_run_id == state.quote_run_by_univariate_run_id
-    assert restored.idempotency_refs == state.idempotency_refs
     assert json.loads((tmp_path / "workspace.json").read_text(encoding="utf-8"))["projects"]
-
-
-def test_workspace_restore_marks_interrupted_quote_runs_retryable(tmp_path: Path) -> None:
-    store = LocalWorkspaceStore(tmp_path / "workspace.json")
-    state = HostedApiState(workspace_store=store)
-    run = ProviderDownloadRun(
-        "quote-run-1", "user-a", "credential-1", "eodhd", "running", ("IE1",), "hash-1"
-    )
-    state.downloads_by_id[run.download_run_id] = run
-    state.download_summaries_by_id[run.download_run_id] = {"total": 10, "completed": 4}
-    persist_local_workspace(state)
-
-    restored = HostedApiState()
-    restore_local_workspace(restored, store.load())
-
-    assert restored.downloads_by_id[run.download_run_id].status == "failed"
-    assert (
-        restored.download_summaries_by_id[run.download_run_id]["error_code"]
-        == "quote_run_interrupted_by_restart"
-    )
 
 
 def test_local_workspace_principal_rejects_blank_user_id() -> None:
@@ -212,11 +151,7 @@ def test_local_runtime_reports_metadata_lake_permission_errors() -> None:
     )
 
     with pytest.raises(HostedRuntimeError, match="lake_write_permission_denied"):
-        runtime.run_metadata(
-            provider_key="secret",
-            concurrency=1,
-            on_progress=_discard_progress,
-        )
+        runtime.run_metadata(provider_key="secret", concurrency=1, on_progress=_discard_progress)
 
 
 def test_quote_fetch_compatibility_hook_delegates(
@@ -390,8 +325,8 @@ def test_workflow_row_resolves_completed_research_chain() -> None:
     univariate = ResearchRun("univariate-1", "user-a", "quote-1", "complete", (), 0, 0)
     state.univariate_runs_by_id[univariate.run_id] = univariate
     state.quote_run_by_univariate_run_id[univariate.run_id] = "quote-1"
-    univariate_selection = UnivariateSelection(
-        "univariate-selection-1",
+    filtered = UnivariateSelection(
+        "filter-1",
         "user-a",
         univariate.run_id,
         ("IE1",),
@@ -399,14 +334,14 @@ def test_workflow_row_resolves_completed_research_chain() -> None:
         (),
         1,
     )
-    state.univariate_selections_by_id[univariate_selection.selection_id] = univariate_selection
-    state.current_univariate_selection_by_user["user-a"] = univariate_selection.selection_id
+    state.univariate_selections_by_id[filtered.selection_id] = filtered
+    state.current_univariate_selection_by_user["user-a"] = filtered.selection_id
 
     stages = workflow_row(state, "user-a", "project-1")["stages"]
 
     assert stages["metadata_builder"]["status"] == "complete"
     assert stages["univariate_statistics"]["status"] == "complete"
-    assert stages["univariate_statistics"]["univariate_selection_id"]
+    assert stages["bivariate_statistics"]["status"] == "ready"
     assert workflow_row(state, "user-a", None)["stages"]["metadata_builder"]["status"] == "ready"
 
 
@@ -430,3 +365,26 @@ def test_workflow_row_exposes_an_active_quote_run_for_the_current_selection() ->
 
     assert stages["metadata_builder"]["quote_run_id"] == run_id
     assert stages["univariate_statistics"]["status"] == "ready"
+
+
+def test_univariate_selection_settings_filter_frequency_and_numeric_ranges() -> None:
+    rows: tuple[JsonRow, ...] = (
+        {"distribution_frequency": "monthly", "mean": 1.0},
+        {"distribution_frequency": "annual", "mean": 1.0},
+        {"distribution_frequency": "monthly", "mean": 3.0},
+        {"distribution_frequency": "unknown", "mean": 1.0},
+        {"distribution_frequency": "monthly", "mean": "invalid"},
+    )
+
+    filtered = _apply_univariate_selection_settings(
+        rows,
+        {
+            "dividend_frequencies": ["monthly", 3],
+            "statistic_ranges": {
+                "mean": [{"minimum": 0.0, "maximum": 2.0}],
+                "ignored": "not-a-range",
+            },
+        },
+    )
+
+    assert filtered == (rows[0],)

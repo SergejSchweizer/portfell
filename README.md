@@ -1,6 +1,6 @@
 # Portfell
 
-Last reviewed: 2026-08-09
+Last reviewed: 2026-08-10
 
 ## Table Of Contents
 
@@ -465,22 +465,21 @@ Statistic paths deliberately do not include a selection id. Later metadata or un
 
 ## Scheduled Portfell Cron
 
-Portfell cron should call the `fetch-all-quotes` module for quote updates, not individual ad hoc Bronze/Silver snippets. Keep the cron job readable by defining absolute paths once:
+The hosted/local-app runtime refreshes canonical shared market data through the
+`shared-market-refresh` Compose operations service. Browser pages never call EODHD. Install the
+idempotent managed cron block from the absolute repository root:
 
-```cron
-SHELL=/bin/bash
-PORTFELL_PROJECT=/home/dev_portfell/portfell
-PORTFELL_UV=/home/dev_portfell/.local/bin/uv
-PORTFELL_LOCK=/home/dev_portfell/portfell/lake/silver/runs/portfell-fetch-all-quotes.lock
-PORTFELL_LOG=/home/dev_portfell/portfell/.logs/cron-fetch-all-quotes.log
-
-# Daily quote fetch at 18:00 local server time.
-0 18 * * * cd "$PORTFELL_PROJECT" && /usr/bin/flock -n "$PORTFELL_LOCK" "$PORTFELL_UV" run portfell fetch-all-quotes --root "$PORTFELL_PROJECT/lake" --concurrency 2 --debug >> "$PORTFELL_LOG" 2>&1
+```bash
+portfell-shared-market-cron run-once --project-root "$(pwd)"
+portfell-shared-market-cron install --project-root "$(pwd)"
+portfell-shared-market-cron status --project-root "$(pwd)"
 ```
 
-Inspect it with `crontab -l`. Cron output is appended to `.logs/cron-fetch-all-quotes.log`.
-
-The dry run writes discovery candidates, a canonical universe, bronze plan, quote rows, coverage manifests, and Gold return/correlation/covariance/feature inputs under the selected local lake root.
+The job runs at `02:15 Europe/Amsterdam`, uses `/usr/bin/flock -n`, and appends output to
+`/var/log/portfell/shared-market-refresh.log`. It invokes only
+`shared-market-refresh`, which refreshes the de-duplicated active-project inventory with bounded
+correction overlap. See [Shared Market Refresh Operations](docs/shared-market-refresh.md) for
+initial backfill, verification, recovery, log rotation, and uninstall instructions.
 
 ## EODHD Request Safety
 

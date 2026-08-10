@@ -1,6 +1,6 @@
 # Backlog
 
-Last reviewed: 2026-08-09
+Last reviewed: 2026-08-10
 
 ## Table Of Contents
 
@@ -624,7 +624,7 @@ one-time initial refresh and operational verification succeed in the target envi
 
 Branch: `feat/shared-market-store-contract`.
 
-Git status: not started. PR: TBD.
+Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/269.
 
 Priority: P0 shared-data correctness foundation.
 
@@ -687,7 +687,7 @@ repeats the incomplete listing only.
 
 Branch: `feat/shared-market-refresh-command`.
 
-Git status: not started. PR: TBD.
+Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/269.
 
 Priority: P0 unattended ingestion path.
 
@@ -745,7 +745,7 @@ duplicate success publication.
 
 Branch: `refactor/project-shared-market-consumers`.
 
-Git status: not started. PR: TBD.
+Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/269.
 
 Priority: P0 remove project data duplication.
 
@@ -802,7 +802,7 @@ shared content reuses the same snapshot and artifacts without copying rows or st
 
 Branch: `feat/nightly-market-refresh-cron`.
 
-Git status: not started. PR: TBD.
+Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/269.
 
 Priority: P0 operational prerequisite for removing manual refresh.
 
@@ -862,7 +862,7 @@ unchanged.
 
 Branch: `refactor/remove-manual-historical-data-update`.
 
-Git status: not started. PR: TBD.
+Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/269.
 
 Priority: P1 final user-facing shared-data cutover.
 

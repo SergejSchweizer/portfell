@@ -7,7 +7,6 @@ import {
   loadProjectContext,
   loadProjectMetadataBuilder,
   loadProjectWorkflow,
-  loadQuoteRun,
   loadWorkflow,
   postJson,
   requestJson,
@@ -76,11 +75,11 @@ describe("API client", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await Promise.all([
-      loadWorkflow(), loadEodhdCredentialStatus(), loadEodhdCredentialValue(), loadMetadataFetchRun("run/a"), loadProjectContext(), loadProjectMetadataBuilder("project/a"), selectCurrentProject("project/a"), loadProjectWorkflow("project/a"), loadQuoteRun("quote/a"),
+      loadWorkflow(), loadEodhdCredentialStatus(), loadEodhdCredentialValue(), loadMetadataFetchRun("run/a"), loadProjectContext(), loadProjectMetadataBuilder("project/a"), selectCurrentProject("project/a"), loadProjectWorkflow("project/a"),
     ]);
 
     expect(fetchMock.mock.calls.map(([path]) => path)).toEqual([
-      "/api/workflow", "/api/credentials/eodhd", "/api/credentials/eodhd/value", "/api/metadata/fetch-all/run%2Fa", "/api/project-context", "/api/projects/project%2Fa/metadata-builder", "/api/project-context/current-project", "/api/projects/project%2Fa/workflow", "/api/quote-runs/quote%2Fa",
+      "/api/workflow", "/api/credentials/eodhd", "/api/credentials/eodhd/value", "/api/metadata/fetch-all/run%2Fa", "/api/project-context", "/api/projects/project%2Fa/metadata-builder", "/api/project-context/current-project", "/api/projects/project%2Fa/workflow",
     ]);
   });
 
@@ -98,7 +97,7 @@ describe("API client", () => {
       metadataBuilderApi.loadProjectCriteria("project/a"), metadataBuilderApi.loadFieldOptions(), metadataBuilderApi.saveCredential("key"),
       metadataBuilderApi.fetchAll(), metadataBuilderApi.createProject(metadataRequest),
       univariateStatisticsApi.startRun(univariateRequest), univariateStatisticsApi.loadRun("run/a"), univariateStatisticsApi.loadResults("run/a", 10, 5),
-      univariateStatisticsApi.startQuoteRun({ metadata_selection_id: "selection/a" }), univariateStatisticsApi.loadSelectionSettings("project/a"),
+      univariateStatisticsApi.loadSelectionSettings("project/a"),
       univariateStatisticsApi.saveSelectionSettings("project/a", settings),
       bivariateStatisticsApi.plan(bivariateRequest), bivariateStatisticsApi.startRun(bivariateRequest), bivariateStatisticsApi.loadRun("run/a"),
       bivariateStatisticsApi.loadRunData("run/a"),
