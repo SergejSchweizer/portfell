@@ -102,8 +102,12 @@ def test_postgres_credential_store_binds_only_encrypted_record_material() -> Non
 
     rendered = str(connection.executed)
     assert "abcd-secret-token-1234" not in rendered
-    assert "update portfell_app.provider_credentials" in connection.executed[0][0]
-    assert "insert into portfell_app.provider_credentials" in connection.executed[1][0]
+    assert connection.executed[0] == (
+        "select set_config(%s, %s, true)",
+        ("portfell.current_user_id", "user-1"),
+    )
+    assert "update portfell_app.provider_credentials" in connection.executed[1][0]
+    assert "insert into portfell_app.provider_credentials" in connection.executed[2][0]
     assert isinstance(store, CredentialStore)
 
 
