@@ -20,7 +20,7 @@ from portfell.hosted_api_service_support import (
     stable_hash,
 )
 from portfell.hosted_api_state import HostedApiState, SelectionRecord
-from portfell.hosted_credentials import CredentialVaultError
+from portfell.hosted_credentials import CredentialVaultError, EodhdCredentialVault
 from portfell.hosted_local_project_repository import LocalProjectRepository
 from portfell.hosted_local_selection_repository import LocalSelectionRepository
 from portfell.hosted_repository_importer import ProjectRepository, TenantSelection
@@ -41,11 +41,13 @@ class QuoteRunService:
         runtime: HostedRuntimePort,
         project_repository: ProjectRepository | None = None,
         selection_repository: SelectionRepository | None = None,
+        credential_vault: EodhdCredentialVault | None = None,
     ) -> None:
         self.state = state
         self.runtime = runtime
         self._projects = project_repository or LocalProjectRepository(state)
         self._selections = selection_repository or LocalSelectionRepository(state)
+        self._credentials = credential_vault or state.credential_vault()
 
     def start(
         self,
@@ -87,7 +89,7 @@ class QuoteRunService:
             )
             return self.status(user_id, active.download_run_id), None
         try:
-            provider_key = self.state.credential_vault().unwrap_for_provider_call(user_id=user_id)
+            provider_key = self._credentials.unwrap_for_provider_call(user_id=user_id)
         except CredentialVaultError as error:
             raise HostedApplicationError(422, "eodhd_credential_required") from error
         run = ProviderDownloadRun(

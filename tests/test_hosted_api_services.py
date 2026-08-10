@@ -413,12 +413,17 @@ def test_metadata_builder_can_use_an_injected_selection_repository() -> None:
     assert repeated == created
 
 
-def test_quote_run_can_authorize_an_injected_project_repository() -> None:
+def test_quote_run_can_use_injected_project_repository_and_credential_vault() -> None:
     state = HostedApiState()
     user_id = "00000000-0000-5000-8000-000000000001"
     project_id = "00000000-0000-5000-8000-000000000002"
     selection_id = "00000000-0000-5000-8000-000000000003"
-    state.credential_vault().set_credential(user_id=user_id, provider_key="test-key")
+    vault = EodhdCredentialVault(
+        store=InMemoryCredentialStore(),
+        key_encryption_key=KeyEncryptionKey("test-v1", b"1" * 32),
+        fingerprint_secret=b"test-fingerprint-secret",
+    )
+    vault.set_credential(user_id=user_id, provider_key="test-key")
     repository = InMemoryProjectRepository()
     repository.create_project(TenantProject(project_id, user_id, "Income"))
     selections = InMemorySelectionRepository()
@@ -433,6 +438,7 @@ def test_quote_run_can_authorize_an_injected_project_repository() -> None:
         runtime,
         project_repository=repository,
         selection_repository=selections,
+        credential_vault=vault,
     )
 
     run, task = service.start(
@@ -444,6 +450,8 @@ def test_quote_run_can_authorize_an_injected_project_repository() -> None:
 
     assert state.projects_by_id == {}
     assert state.selections_by_id == {}
+    with pytest.raises(Exception, match="credential not found"):
+        state.credential_vault().status(user_id=user_id)
     assert run["status"] == "running"
     assert task is not None
 
