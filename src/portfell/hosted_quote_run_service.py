@@ -22,6 +22,8 @@ from portfell.hosted_api_service_support import (
 )
 from portfell.hosted_api_state import HostedApiState
 from portfell.hosted_credentials import CredentialVaultError
+from portfell.hosted_local_project_repository import LocalProjectRepository
+from portfell.hosted_repository_importer import ProjectRepository
 from portfell.hosted_workspace_repository import persist_local_workspace
 from portfell.shared_market_data import SharedListingKey
 from portfell.table_io import JsonRow
@@ -32,9 +34,15 @@ LOGGER = logging.getLogger(__name__)
 class QuoteRunService:
     """Own quote-run planning, execution, progress, and scoped rows."""
 
-    def __init__(self, state: HostedApiState, runtime: HostedRuntimePort) -> None:
+    def __init__(
+        self,
+        state: HostedApiState,
+        runtime: HostedRuntimePort,
+        project_repository: ProjectRepository | None = None,
+    ) -> None:
         self.state = state
         self.runtime = runtime
+        self._projects = project_repository or LocalProjectRepository(state)
 
     def start(
         self,
@@ -48,10 +56,10 @@ class QuoteRunService:
             selection = require_user_row(self.state.selections_by_id, selection_id, user_id)
             project_id = selection.project_id
         elif project_id is not None:
-            require_user_row(self.state.projects_by_id, project_id, user_id)
             selection = selection_for_project(self.state, project_id, user_id)
         else:
             raise HostedApplicationError(422, "metadata_selection_required")
+        self._require_project(user_id, project_id)
         operation = f"fetch-all-quotes:{project_id}"
         cached = idempotent_response(
             self.state,
@@ -183,3 +191,9 @@ class QuoteRunService:
         if completed_run.status == "succeeded":
             publish_user_data_snapshot(store=self.state.entitlements, run=completed_run)
         audit(self.state, run.user_id, "fetch_all_quotes.completed")
+
+    def _require_project(self, user_id: str, project_id: str) -> None:
+        if not any(
+            project.project_id == project_id for project in self._projects.list_projects(user_id)
+        ):
+            raise HostedApplicationError(404, "not_found")

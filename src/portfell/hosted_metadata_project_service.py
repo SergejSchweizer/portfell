@@ -18,11 +18,12 @@ from portfell.hosted_api_service_support import (
     opaque_id,
     remember_idempotency,
     selection_for_project,
-    set_current_project,
     stable_hash,
 )
 from portfell.hosted_api_state import HostedApiState, ProjectRecord, SelectionRecord
 from portfell.hosted_credentials import CredentialVaultError
+from portfell.hosted_local_project_repository import LocalProjectRepository
+from portfell.hosted_repository_importer import ProjectRepository, TenantProject
 from portfell.selection_filters import Predicate, filter_rows
 from portfell.table_io import JsonRow
 
@@ -30,9 +31,15 @@ from portfell.table_io import JsonRow
 class MetadataProjectService:
     """Own metadata refresh and metadata-derived project transitions."""
 
-    def __init__(self, state: HostedApiState, runtime: HostedRuntimePort) -> None:
+    def __init__(
+        self,
+        state: HostedApiState,
+        runtime: HostedRuntimePort,
+        project_repository: ProjectRepository | None = None,
+    ) -> None:
         self.state = state
         self.runtime = runtime
+        self._projects = project_repository or LocalProjectRepository(state)
 
     def _all_isins_rows(self) -> tuple[JsonRow, ...]:
         return self.state.all_isins_rows or self.runtime.all_isins_rows()
@@ -164,15 +171,16 @@ class MetadataProjectService:
             idempotency_key=idempotency_key,
         )
         if cached is not None:
-            project = self.state.projects_by_id[cached]
+            project = self._project(user_id, cached)
             selection = selection_for_project(self.state, project.project_id, user_id)
-            set_current_project(self.state, user_id, project.project_id)
+            self._projects.set_current_project(user_id=user_id, project_id=project.project_id)
             return self._project_selection_row(project, selection)
         project_id = str(
             uuid.uuid5(uuid.NAMESPACE_URL, f"portfell:project:{user_id}:{project_name}")
         )
-        project = ProjectRecord(project_id, user_id, project_name)
-        self.state.projects_by_id.setdefault(project_id, project)
+        project = self._record(
+            self._projects.create_project(TenantProject(project_id, user_id, project_name))
+        )
         members = tuple(f"{row['isin']}:{row['exchange']}:{row['code']}" for row in selected_rows)
         selection_id = str(
             uuid.uuid5(
@@ -184,7 +192,7 @@ class MetadataProjectService:
         self.state.selections_by_id.setdefault(selection_id, selection)
         self.state.current_metadata_selection_by_user[user_id] = selection_id
         self.state.current_univariate_selection_by_user.pop(user_id, None)
-        set_current_project(self.state, user_id, project_id)
+        self._projects.set_current_project(user_id=user_id, project_id=project_id)
         self.runtime.write_metadata_selection(selection_id, selected_rows, predicates)
         remember_idempotency(self.state, user_id, operation, idempotency_key, project_id)
         audit(self.state, user_id, "metadata_builder.project.create")
@@ -221,6 +229,16 @@ class MetadataProjectService:
             "selected_count": _unique_isin_count(selection.member_ids),
             **fields,
         }
+
+    @staticmethod
+    def _record(project: TenantProject) -> ProjectRecord:
+        return ProjectRecord(project.project_id, project.user_id, project.name)
+
+    def _project(self, user_id: str, project_id: str) -> ProjectRecord:
+        for project in self._projects.list_projects(user_id):
+            if project.project_id == project_id:
+                return self._record(project)
+        raise HostedApplicationError(404, "not_found")
 
 
 def _unique_listings(rows: list[JsonRow]) -> list[JsonRow]:
