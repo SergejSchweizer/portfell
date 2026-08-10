@@ -646,7 +646,7 @@ repeatable and stop before documented commit points on mismatch.
 
 Branch: `refactor/hosted-audit-event-injection`.
 
-Git status: pushed; project selection projections, credential commands, and audit events are moving behind explicit persistence ports. Production authority remains blocked by the required production-like import, parity, backup/restore, and rollback rehearsal.
+Git status: pushed; project selection projections, credential commands, and audit events are moving behind explicit persistence ports. Hosted launch is greenfield: existing local workspace, user metadata, credentials, runs, and downloaded data are deliberately discarded rather than imported. Production authority remains blocked by durable hosted runtime composition, a fresh catalog/bootstrap, RLS, backup/restore, and readiness evidence.
 
 PR: https://github.com/SergejSchweizer/portfell/pull/323.
 
@@ -661,15 +661,16 @@ Depends on: PR166.
 
 Scope:
 
-- Execute the approved quiesce/final PR158 import/parity procedure, take the PR166 rollback
-  checkpoint, switch dependency injection to PostgreSQL repositories and shared-store adapters, then
-  run post-cutover smoke/reconciliation checks.
+- Provision a fresh empty PostgreSQL catalog and shared store, switch dependency injection to
+  PostgreSQL repositories and shared-store adapters, then run bootstrap, restart, and smoke checks.
+  Do not import, reconcile, preserve, or provide rollback to any legacy local workspace, user
+  metadata, credentials, runs, or downloaded market data.
 - Remove hosted authority from `local-workspace.json`, `HostedApiState` dictionaries, per-user market
   grants/snapshots, copied market rows, and project-specific analytical paths. Preserve explicit local
   CLI adapters and prevent them from loading in hosted mode.
 - Update Compose/production config, OpenAPI/client manifests, architecture/security/privacy docs,
-  observability, and on-call instructions. Make rollback an explicit operator decision at the proven
-  checkpoint; introduce no new schema, queue, payload, or workflow feature.
+  observability, and on-call instructions for the fresh hosted bootstrap. Introduce no new schema,
+  queue, payload, or workflow feature.
 
 Acceptance:
 
@@ -681,16 +682,17 @@ Acceptance:
   one bootstrap path, one cron path, one operations credential role, no per-user market grants, and
   no project payload copies.
 - Ruff, format, strict Pyright, schema/security/architecture checks, migrations, at least 95%
-  coverage, TypeScript/Vitest/Playwright, Docker builds, reconciliation, rollback checkpoint, and
-  post-deploy smoke evidence pass before write traffic resumes.
+  coverage, TypeScript/Vitest/Playwright, Docker builds, fresh bootstrap, encrypted backup/restore,
+  and post-deploy smoke evidence pass before write traffic resumes.
 
-Security: Cutover requires PR156 licensing approval, PR166 evidence/signoff, least-privilege roles,
-RLS proof, encrypted rollback checkpoint, secret scan, and operations-credential readiness.
+Security: Launch requires PR156 licensing approval, least-privilege roles, RLS proof, encrypted
+backup/restore, secret scan, and operations-credential readiness. No legacy credential or workspace
+material may be mounted, imported, or exposed during the reset.
 
-Determinism: Final import, parity, publication boundary, dependency switch, smoke, and rollback
-checkpoint are tied to exact approved rehearsal artifacts and code/schema versions.
+Determinism: Fresh catalog creation, shared-store bootstrap, dependency switch, restart, and smoke
+evidence are tied to exact code/schema versions and an empty declared authority boundary.
 
-Idempotency: Final import/reconcile/restart/smoke operations are repeatable; the authority switch has
+Idempotency: Fresh bootstrap, restart, and smoke operations are repeatable; the authority switch has
 one documented commit point and retries cannot recreate legacy authority or duplicate payloads.
 
 ### PostgreSQL Tenant Plane And Shared Data Series Completion Gate
@@ -711,9 +713,9 @@ This series is complete only after PR156 through PR167 merge in order and the cu
 - project deletion and user credential deletion preserve shared payloads and other projects, while
   tenant history and crypto-shredding follow explicit retention policy;
 - old analysis runs remain reproducible from pinned immutable revisions after market corrections;
-- licensing approval, migration/parity, multi-replica load, adversarial isolation, backup/restore,
-  reconciliation, rollback, and two pre-cutover rehearsals are complete before PR167 switches
-  authority; post-cutover smoke and observability evidence then pass;
+- licensing approval, fresh catalog/shared-store bootstrap, multi-replica load, adversarial
+  isolation, backup/restore, and post-launch smoke/observability evidence are complete before PR167
+  switches authority; legacy data migration, parity, and rollback are intentionally out of scope;
 - local CLI mode remains supported through explicit local adapters and cannot be confused with the
   hosted PostgreSQL/shared-storage runtime.
 
