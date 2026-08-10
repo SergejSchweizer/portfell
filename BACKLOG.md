@@ -201,7 +201,7 @@ Branch: `refactor/postgres-hosted-repositories`.
 
 Git status: in progress.
 
-PR: https://github.com/SergejSchweizer/portfell/pull/286.
+PR: https://github.com/SergejSchweizer/portfell/pull/287.
 
 Priority: P0 remove JSON/in-memory hosted authority.
 
