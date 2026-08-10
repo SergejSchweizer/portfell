@@ -45,6 +45,8 @@ class _Connection:
         self.calls.append((sql, parameters))
         if "legacy_imports" in sql and parameters:
             return _Cursor(row=(parameters[0],))
+        if "current_project_preferences" in sql:
+            return _Cursor(rows=[("project-1",)])
         return _Cursor(rows=[("project-1", "user-a", "Income")])
 
 
@@ -139,6 +141,7 @@ def test_project_repository_is_idempotent_and_owner_scoped() -> None:
     assert repository.create_project(project) == project
     assert repository.list_projects("user-b") == ()
     repository.set_current_project(user_id="user-a", project_id="project-1")
+    assert repository.current_project_id("user-a") == "project-1"
     repository.delete_project(user_id="user-a", project_id="project-1")
 
     assert repository.list_projects("user-a") == ()
@@ -153,10 +156,13 @@ def test_postgres_project_repository_parameterizes_owned_commands() -> None:
 
     repository.create_project(project)
     repository.set_current_project(user_id="user-a", project_id="project-1")
+    assert repository.current_project_id("user-a") == "project-1"
 
     assert connection.calls[0][1] == ("portfell.current_user_id", "user-a")
     assert connection.calls[1][1] == ("project-1", "user-a", "Income")
     assert connection.calls[3][1] == ("user-a", "project-1")
+    assert connection.calls[4][1] == ("portfell.current_user_id", "user-a")
+    assert connection.calls[5][1] == ("user-a",)
 
 
 def test_postgres_importer_maps_legacy_ids_and_seals_membership() -> None:
