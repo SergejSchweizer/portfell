@@ -644,11 +644,11 @@ repeatable and stop before documented commit points on mismatch.
 
 ### PR167. Hosted Runtime Cutover And Legacy Authority Removal
 
-Branch: `refactor/hosted-credential-vault-injection`.
+Branch: `refactor/hosted-audit-event-injection`.
 
-Git status: pushed; project selection projections and credential commands are moving behind explicit persistence ports. Production authority remains blocked by the required production-like import, parity, backup/restore, and rollback rehearsal.
+Git status: pushed; project selection projections, credential commands, and audit events are moving behind explicit persistence ports. Production authority remains blocked by the required production-like import, parity, backup/restore, and rollback rehearsal.
 
-PR: https://github.com/SergejSchweizer/portfell/pull/322.
+PR: https://github.com/SergejSchweizer/portfell/pull/323.
 
 Depends on implementation branch: `refactor/hosted-research-selection-repository` (PR #320).
 
