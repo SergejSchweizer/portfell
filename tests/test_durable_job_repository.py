@@ -138,6 +138,21 @@ def test_heartbeat_extends_only_the_current_worker_lease() -> None:
     assert "lease_expires_at = now() + interval '5 minutes'" in connection.calls[0][0]
 
 
+def test_progress_is_bounded_and_requires_the_current_worker_lease() -> None:
+    connection = _Connection()
+    repository = PostgresDurableJobRepository(connection)
+
+    repository.update_progress(
+        job_id="job-1", lease_token="lease-1", completed_units=2, total_units=3
+    )
+
+    assert "set completed_units = %s, total_units = %s" in connection.calls[0][0]
+    with pytest.raises(DurableJobError, match="job_progress_invalid"):
+        repository.update_progress(
+            job_id="job-1", lease_token="lease-1", completed_units=4, total_units=3
+        )
+
+
 def test_expired_leases_return_jobs_to_queue_and_finish_attempts() -> None:
     connection = _Connection(rows=[("job-1",)])
 
