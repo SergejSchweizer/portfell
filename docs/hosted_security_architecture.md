@@ -1,19 +1,26 @@
-# Local Workspace Security Architecture
+# PostgreSQL Hosted Security Architecture
+
+
+## Table Of Contents
+
+- [Purpose](#purpose)
+- [Trust Boundaries](#trust-boundaries)
+- [Hosted Runtime Contract](#hosted-runtime-contract)
+- [Operations Boundary](#operations-boundary)
+- [Historical Hosted PR Evidence](#historical-hosted-pr-evidence)
 
 Last reviewed: 2026-08-04
 
 ## Purpose
 
-Portfell currently runs as one local workspace. It has no end-user authentication provider, browser session, callback route, or public multi-user deployment boundary. The local analytical core, encrypted EODHD credential handling, deterministic workflow state, and three-module Web workspace remain available.
-
-Public hosting is disabled until a replacement identity and authorization architecture is explicitly designed, implemented, and reviewed.
+Portfell runs with PostgreSQL as its only control-plane authority and an immutable shared-market store as its only market-payload plane. The API establishes a request-scoped tenant identity before every database operation; PostgreSQL row-level security enforces that scope. Projects own immutable selection metadata and analytical-run records, while shared market revisions are never copied into project workspaces.
 
 ## Trust Boundaries
 
 ```text
 browser
   |
-  | local workspace API requests
+  | authenticated API requests
   v
 web app --------------+
   |                   |
@@ -21,11 +28,11 @@ web app --------------+
   v                   |
 api service           |
   |                   |
-  | fixed local workspace identity
+  | request-scoped tenant identity
   v                   |
 postgresql with RLS   |
   |                   |
-  | catalog records, grants, runs, audit records
+  | catalog records, projects, selections, runs, audit records
   v                   |
 shared immutable store <---- EODHD provider
   ^
@@ -35,28 +42,26 @@ external KEK secret mount
 
 - **Browser** owns presentation and transient interaction state. It must not store EODHD keys, ciphertext, credential fingerprints, internal paths, or sensitive API responses in browser storage or URLs.
 - **Web app** owns route and presentation state. It proxies API requests and performs no financial calculations, credential storage, provider calls, or direct lake reads.
-- **API service** owns validation, credential handling, workflow orchestration, audit events, and the fixed local-workspace identity. Browser headers and cookies cannot select a different user.
-- **PostgreSQL** owns catalog, credential, project, grant, snapshot, analysis, artifact, and audit records. Existing user-scoped tables retain RLS to keep a future identity boundary possible.
+- **API service** owns validation, credential handling, workflow orchestration, and audit events. It provisions the configured principal and opens one transaction-scoped RLS context for each request.
+- **PostgreSQL** owns users, credentials, projects, immutable selections, durable jobs, workflow settings, analytical-run metadata, and audit records. Every user-scoped table is protected by RLS.
 - **External key-encryption key** remains outside Git, container images, CI artifacts, logs, and database backups.
 - **Shared immutable store** retains normalized provider observations and derived artifacts without granting browser-side direct access.
 
-## Local Runtime Contract
+## Hosted Runtime Contract
 
-The API resolves every request to the `user-a` local workspace. State-changing requests require no CSRF token because there is no browser session or cross-user boundary. The application must only be exposed to trusted local networks while this mode is active.
+The API container starts only through the PostgreSQL runtime factory. It rejects the retired `local` authority. Shared data is read from published immutable revisions, and only the internal bootstrap worker or the scheduled operations refresh service receives the EODHD operations credential.
 
-Plaintext EODHD keys must never enter source control, browser state, logs, or persisted API responses. global current-selection pointers remain forbidden; workflow state is derived from local workspace records. Public-hosted mode remains disabled until the hold below is lifted.
+Plaintext EODHD keys must never enter source control, browser state, logs, or persisted API responses. Global current-selection pointers, per-user market grants, local workspace JSON files, and project-specific market-payload copies are forbidden. Workflow state is derived from PostgreSQL records and published shared revisions.
 
-The catalog migration `remove_google_authentication` drops retired identity and session tables from existing local volumes. Historical migrations remain immutable so existing migration checksums stay valid.
+Historical migrations remain immutable so existing migration checksums stay valid.
 
-## Public Hosting Hold
+## Operations Boundary
 
-Do not enable public deployment while this contract is active. A future hosted design must introduce a reviewed identity provider, authorization model, session strategy, migration plan, threat model, and public readiness evidence before any internet-facing release.
+The operations credential is mounted only into `project-bootstrap-worker` and the one-shot `shared-market-refresh` operations service. Both are on the internal Compose network and publish atomically to the shared store. API and Web containers never receive the operations token.
 
 ## Historical Hosted PR Evidence
 
-This table is implementation history, not the D017 production target. PR156 through PR167 supersede
-the user-grant and per-user snapshot authorization assumptions while retaining credential encryption,
-tenant isolation, and content-addressed physical reuse.
+This table is implementation history. PR156 through PR167 supersede user-grant, local-workspace, and per-user snapshot assumptions while retaining credential encryption, tenant isolation, and content-addressed physical reuse.
 
 | Requirement | PR |
 | --- | --- |

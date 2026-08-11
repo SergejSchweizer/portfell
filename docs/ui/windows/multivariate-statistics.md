@@ -1,5 +1,17 @@
 # Multivariate Statistics
 
+
+## Table Of Contents
+
+- [Purpose](#purpose)
+- [Server-owned inputs](#server-owned-inputs)
+- [Layout](#layout)
+- [States](#states)
+- [Accessibility and responsive behavior](#accessibility-and-responsive-behavior)
+- [Security and boundaries](#security-and-boundaries)
+- [Tests](#tests)
+- [Out of scope](#out-of-scope)
+
 ## Purpose
 
 Multivariate Statistics is the fourth research module. It consumes the

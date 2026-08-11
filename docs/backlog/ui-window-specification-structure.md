@@ -1,5 +1,15 @@
 # UI Window Specification Structure
 
+
+## Table Of Contents
+
+- [Backlog integration](#backlog-integration)
+- [Canonical structure](#canonical-structure)
+- [Rules](#rules)
+- [Acceptance for PR111](#acceptance-for-pr111)
+- [Acceptance for later UI PRs](#acceptance-for-later-ui-prs)
+- [Determinism and idempotency](#determinism-and-idempotency)
+
 Last reviewed: 2026-07-27
 
 ## Backlog integration

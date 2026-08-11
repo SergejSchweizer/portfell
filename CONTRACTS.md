@@ -1,4 +1,4 @@
-# Lake Contracts
+# Data Contracts
 
 Last reviewed: 2026-08-10
 
@@ -10,9 +10,9 @@ Last reviewed: 2026-08-10
 - [Portfolio Evaluation Outputs](#portfolio-evaluation-outputs)
 - [How This Fits The Onboarding Flow](#how-this-fits-the-onboarding-flow)
 
-## Local Workspace Project Context
+## Project Context
 
-The local Web workspace has one server-owned current-project preference. `GET
+The Web workspace has one PostgreSQL-backed, server-owned current-project preference. `GET
 /api/project-context` returns the deterministically sorted project summaries,
 the selected project id, and the selected project summary (or `null` values
 when no project exists). `PUT /api/project-context/current-project` accepts one
@@ -25,9 +25,9 @@ workflow when an owned project has no metadata selection; it never searches a
 different project's selection or run records. The browser treats project ids as
 opaque values and uses the typed API client for all three endpoints.
 
-Portfell uses deterministic local lake artifacts under a `LakePaths` root. Table paths ending in `.parquet` are physical Apache Parquet files written through `portfell.table_io`; JSON and CSV artifacts keep their native formats.
+The hosted runtime uses PostgreSQL for tenant records and published shared-data revisions for Parquet payloads. A standalone CLI `LakePaths` adapter is not a hosted authority.
 
-Read this after [ARCHITECTURE.md](../ARCHITECTURE.md) and before changing Search, statistics, or storage code.
+Read this after [ARCHITECTURE.md](ARCHITECTURE.md) and before changing Search, statistics, or storage code.
 
 ## Canonical Shared Market Data
 

@@ -1,5 +1,11 @@
 # Portfell Design System
 
+
+## Table Of Contents
+
+- [Principles](#principles)
+- [Tokens](#tokens)
+
 ## Principles
 
 Portfell puts content before decoration. Each task region has one clear primary

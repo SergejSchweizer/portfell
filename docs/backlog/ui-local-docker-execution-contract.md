@@ -1,5 +1,25 @@
 # Portfell UI Local Docker Execution Contract
 
+
+## Table Of Contents
+
+- [Status And Scope](#status-and-scope)
+- [Canonical Command Surface](#canonical-command-surface)
+- [Required Development Properties](#required-development-properties)
+- [PR101-PR108 Amendment](#pr101-pr108-amendment)
+  - [PR101 — Design System And Application Shell](#pr101-design-system-and-application-shell)
+  - [PR102 — Dashboard, Onboarding, And Funnel State](#pr102-dashboard-onboarding-and-funnel-state)
+  - [PR103 — Data Coverage And Metadata Universe Builder](#pr103-data-coverage-and-metadata-universe-builder)
+  - [PR104 — Univariate Research And Metric Filter](#pr104-univariate-research-and-metric-filter)
+  - [PR105 — Diversification And Pair Inspector](#pr105-diversification-and-pair-inspector)
+  - [PR106 — Portfolio Model And Constraint Workbench](#pr106-portfolio-model-and-constraint-workbench)
+  - [PR107 — Validation, Reports, And Trade Preparation](#pr107-validation-reports-and-trade-preparation)
+  - [PR108 — Production UI Cutover](#pr108-production-ui-cutover)
+- [Required Test Layers](#required-test-layers)
+- [Security](#security)
+- [Determinism](#determinism)
+- [Idempotency](#idempotency)
+
 Last reviewed: 2026-07-19
 
 ## Status And Scope

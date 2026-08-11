@@ -1,5 +1,44 @@
 # Critical Correctness Priority Queue
 
+
+## Table Of Contents
+
+- [Purpose](#purpose)
+- [Stop-The-Line Policy](#stop-the-line-policy)
+- [Immediate Execution Order](#immediate-execution-order)
+- [C01. Installed CLI Entry-Point Consistency And Smoke Gate](#c01-installed-cli-entry-point-consistency-and-smoke-gate)
+  - [Problem](#problem)
+  - [Scope](#scope)
+  - [Acceptance](#acceptance)
+  - [Determinism](#determinism)
+  - [Idempotency](#idempotency)
+- [C02. Walk-Forward Return Semantics And Production Defaults](#c02-walk-forward-return-semantics-and-production-defaults)
+  - [Problem](#problem)
+  - [Scope](#scope)
+  - [Acceptance](#acceptance)
+  - [Determinism](#determinism)
+  - [Idempotency](#idempotency)
+- [C03. Pairwise Scale Guards And Bucketed Persistence](#c03-pairwise-scale-guards-and-bucketed-persistence)
+  - [Problem](#problem)
+  - [Scope](#scope)
+  - [Acceptance](#acceptance)
+  - [Determinism](#determinism)
+  - [Idempotency](#idempotency)
+- [Mandatory Amendments To PR58](#mandatory-amendments-to-pr58)
+  - [Missing Covariance Is Not Zero](#missing-covariance-is-not-zero)
+  - [Matrix Diagnostics](#matrix-diagnostics)
+  - [Architecture Ownership](#architecture-ownership)
+  - [Additional Acceptance](#additional-acceptance)
+- [Mandatory Amendments To PR59](#mandatory-amendments-to-pr59)
+  - [No Silent Equal-Weight Fallback](#no-silent-equal-weight-fallback)
+  - [Required Solver Diagnostics](#required-solver-diagnostics)
+  - [Additional Acceptance](#additional-acceptance)
+- [Mandatory Amendments To PR61](#mandatory-amendments-to-pr61)
+- [Mandatory Amendments To PR62A-PR62F](#mandatory-amendments-to-pr62a-pr62f)
+- [Production Label Gate](#production-label-gate)
+- [CI And Governance Additions](#ci-and-governance-additions)
+- [Completion Rule](#completion-rule)
+
 Last reviewed: 2026-07-17
 
 ## Purpose

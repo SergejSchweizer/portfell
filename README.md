@@ -164,6 +164,7 @@ The current refactor target keeps portfolio optimization downstream from the ISI
 - [ARCHITECTURE.md](ARCHITECTURE.md) explains how modules connect and where responsibilities live.
 - [CONTRACTS.md](CONTRACTS.md) defines lake layers and table contracts.
 - [GATES.md](GATES.md) documents GitHub quality gates, branch protection, auto-merge, shards, and local validation commands.
+- [DOCKER.md](DOCKER.md) is the canonical container installation and operations guide.
 - [DECISIONS.md](DECISIONS.md) records why durable technical choices were made.
 - [RISKS.md](RISKS.md) tracks active project risks and mitigations.
 - [BACKLOG.md](BACKLOG.md) tracks PR-sized work and implementation status.

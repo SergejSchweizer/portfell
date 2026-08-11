@@ -1,5 +1,16 @@
 # Project Sidebar
 
+
+## Table Of Contents
+
+- [Inputs](#inputs)
+- [Header Metadata Fetch](#header-metadata-fetch)
+- [Required States](#required-states)
+- [Desktop Layout](#desktop-layout)
+- [Mobile Drawer](#mobile-drawer)
+- [Project Switch](#project-switch)
+- [Boundaries](#boundaries)
+
 The application sidebar is driven by the server-owned project context. It does
 not create, sort, authorize, or persist projects in the browser.
 

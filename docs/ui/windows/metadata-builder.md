@@ -1,5 +1,13 @@
 # Metadata Builder page
 
+
+## Table Of Contents
+
+- [Purpose](#purpose)
+- [Inputs and actions](#inputs-and-actions)
+- [States](#states)
+- [Acceptance](#acceptance)
+
 - Route: `/metadata-builder`
 - Page ID: `metadata_builder`
 - Component: `apps/web/src/pages/metadata-builder.tsx`

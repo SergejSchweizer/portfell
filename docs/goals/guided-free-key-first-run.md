@@ -1,5 +1,32 @@
 # Guided Free-Key First-Run Goal
 
+
+## Table Of Contents
+
+- [Purpose](#purpose)
+- [Product Promise](#product-promise)
+- [Primary First-Run Outcome](#primary-first-run-outcome)
+- [Guided Funnel](#guided-funnel)
+- [1. Connect Market Data](#1-connect-market-data)
+- [2. Select The Objective](#2-select-the-objective)
+- [3. Discover The Investment Universe](#3-discover-the-investment-universe)
+- [4. Metadata Eligibility Filter](#4-metadata-eligibility-filter)
+- [5. Free-Key Research Set](#5-free-key-research-set)
+- [6. Prepare Market History](#6-prepare-market-history)
+- [7. Univariate Statistics](#7-univariate-statistics)
+- [8. Univariate Selection](#8-univariate-selection)
+- [9. Bivariate Statistics](#9-bivariate-statistics)
+- [10. Multivariate Statistics](#10-multivariate-statistics)
+- [11. Portfolio Candidates](#11-portfolio-candidates)
+- [12. First Impressive Insight](#12-first-impressive-insight)
+- [AI Role](#ai-role)
+- [Persistence And Resumability](#persistence-and-resumability)
+- [Call-Budget Rules](#call-budget-rules)
+- [Trust And Limitations](#trust-and-limitations)
+- [Visual Design Goal](#visual-design-goal)
+- [Design Principles](#design-principles)
+- [Success Criteria](#success-criteria)
+
 Last reviewed: 2026-07-17
 
 ## Purpose

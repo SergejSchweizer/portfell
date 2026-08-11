@@ -1,5 +1,10 @@
 # Workflow modules
 
+
+## Table Of Contents
+
+- [Adding a module](#adding-a-module)
+
 Portfell's active research workflow is divided into four modules. A module owns
 its browser routes, typed API facade, persisted output identifiers, result state,
 and UI specification. Modules communicate only through server-persisted IDs and

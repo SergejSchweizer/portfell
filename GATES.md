@@ -1,5 +1,19 @@
 # Quality Gates
 
+
+## Table Of Contents
+
+- [Purpose](#purpose)
+- [Current Shape](#current-shape)
+- [GitHub Flow](#github-flow)
+- [`pr-quality`](#pr-quality)
+- [`merge-gate`](#merge-gate)
+- [Auto-Merge](#auto-merge)
+- [Branch Protection](#branch-protection)
+- [Conventional Commits](#conventional-commits)
+- [Sharding Policy](#sharding-policy)
+- [Update Rules](#update-rules)
+
 Last reviewed: 2026-07-19
 
 ## Purpose
