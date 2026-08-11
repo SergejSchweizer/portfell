@@ -41,12 +41,17 @@ class UnivariateResearchService:
         self._data = data
         self._persistence = persistence
 
-    def start(self, user_id: str, selection_id: str, quote_run_id: str) -> JsonRow:
+    def start(self, user_id: str, selection_id: str, quote_run_id: str | None) -> JsonRow:
         selection = self._repository.metadata_selection(selection_id, user_id)
-        quote_run = self._repository.quote_run(quote_run_id, user_id)
-        if quote_run.status != "succeeded":
-            raise HostedApplicationError(409, "quote_run_incomplete")
-        source_id = _source_id(selection.selection_id, quote_run.download_run_id)
+        source_quote_id = "shared-market" if quote_run_id is None else quote_run_id
+        if quote_run_id is not None:
+            quote_run = self._repository.quote_run(quote_run_id, user_id)
+            if quote_run.status != "succeeded":
+                raise HostedApplicationError(409, "quote_run_incomplete")
+            source_quote_id = quote_run.download_run_id
+        elif not self._data.selected_rows(selection.member_ids, dataset="quotes"):
+            raise HostedApplicationError(409, "shared_market_data_incomplete")
+        source_id = _source_id(selection.selection_id, source_quote_id)
         run_id = opaque_id("univariate-run", f"{user_id}:{source_id}")
         existing = self._repository.find_univariate_run(run_id, user_id)
         if existing is not None:
@@ -63,28 +68,31 @@ class UnivariateResearchService:
             completed=0,
         )
         self._repository.save_univariate_run(run)
-        self._repository.bind_quote_run(run.run_id, quote_run.download_run_id)
+        if quote_run_id is not None:
+            self._repository.bind_quote_run(run.run_id, source_quote_id)
         self._repository.audit(user_id, "univariate_statistics.start")
         return research_run_row(run)
 
-    def complete(self, user_id: str, selection_id: str, quote_run_id: str) -> None:
+    def complete(self, user_id: str, selection_id: str, quote_run_id: str | None) -> None:
         """Compute a previously created run outside the request-response lifecycle."""
 
         selection = self._repository.metadata_selection(selection_id, user_id)
-        quote_run = self._repository.quote_run(quote_run_id, user_id)
+        source_quote_id = "shared-market" if quote_run_id is None else quote_run_id
+        if quote_run_id is not None:
+            source_quote_id = self._repository.quote_run(quote_run_id, user_id).download_run_id
         run_id = opaque_id(
             "univariate-run",
-            f"{user_id}:{_source_id(selection.selection_id, quote_run.download_run_id)}",
+            f"{user_id}:{_source_id(selection.selection_id, source_quote_id)}",
         )
         run = self._repository.univariate_run(run_id, user_id)
         if run.status != "running":
             return
-        quote_rows = self._repository.quote_rows(quote_run.download_run_id)
+        quote_rows = () if quote_run_id is None else self._repository.quote_rows(source_quote_id)
         if quote_rows:
             computed = create_univariate_run(
                 user_id=user_id,
                 selection_id=selection.selection_id,
-                quote_run_id=quote_run.download_run_id,
+                quote_run_id=source_quote_id,
                 quote_rows=quote_rows,
                 dividend_rows=self._data.selected_rows(selection.member_ids, dataset="dividends"),
             )
@@ -103,7 +111,7 @@ class UnivariateResearchService:
             computed = create_univariate_run_from_statistics(
                 user_id=user_id,
                 selection_id=selection.selection_id,
-                quote_run_id=quote_run.download_run_id,
+                quote_run_id=source_quote_id,
                 rows=rows,
             )
         completed = replace(computed, run_id=run_id, total=run.total, completed=run.total)

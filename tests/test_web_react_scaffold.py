@@ -52,7 +52,7 @@ def test_workflow_pages_place_ingestion_actions_before_their_stage_controls() ->
     assert "loadQuoteRun" not in univariate_page
     assert "quoteStatus" not in univariate_page
     assert "/quote-runs" not in univariate_page
-    assert "!metadata.quote_run_id" in univariate_page
+    assert "!metadata.quote_run_id" not in univariate_page
     assert 'page.id === "univariate_statistics"' in frame
     assert "metricDefinitions" in univariate_page
     assert "univariate-group-card" in univariate_page

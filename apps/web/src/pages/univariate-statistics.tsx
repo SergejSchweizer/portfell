@@ -256,12 +256,11 @@ export function UnivariateStatisticsPage() {
   }
 
   async function compute() {
-    if (!metadata.metadata_selection_id || !metadata.quote_run_id) return;
+    if (!metadata.metadata_selection_id) return;
     setMessage("Computing univariate statistics…");
     try {
       const nextRun = await univariateStatisticsApi.startRun({
         metadata_selection_id: metadata.metadata_selection_id,
-        quote_run_id: metadata.quote_run_id,
       });
       setRun(nextRun);
       setUnivariateStartedAt(Date.now() / 1_000);
@@ -281,7 +280,7 @@ export function UnivariateStatisticsPage() {
             <progress id="univariate-progress" max={100} value={run?.percent ?? 0} />
             <p className="status-line" aria-live="polite">{message || "Compute statistics for the downloaded historical data."}</p>
             <div className="quote-fetch__action">
-              <Button type="button" variant="primary" disabled={!metadata.metadata_selection_id || !metadata.quote_run_id || run?.status === "running"} onClick={() => void compute()}>
+              <Button type="button" variant="primary" disabled={!metadata.metadata_selection_id || run?.status === "running"} onClick={() => void compute()}>
                 {run?.status === "running" ? "Computing…" : "Compute univariate statistics"}
               </Button>
             </div>

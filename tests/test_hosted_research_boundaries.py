@@ -167,6 +167,26 @@ def test_univariate_service_rejects_incomplete_quote_run() -> None:
         service.start("user-a", selection.selection_id, quote_run.download_run_id)
 
 
+def test_univariate_service_uses_published_shared_rows_without_a_quote_run() -> None:
+    selection = SelectionRecord("selection-1", "user-a", "project-1", "UCITS", ("IE1:XETRA:AAA",))
+    state = HostedApiState(selections_by_id={selection.selection_id: selection})
+    data = FakeResearchData(
+        ({"isin": "IE1", "exchange": "XETRA", "code": "AAA", "observation_count": 4},),
+        [],
+        selected_result=({"isin": "IE1", "exchange": "XETRA", "code": "AAA"},),
+    )
+    service = UnivariateResearchService(
+        HostedResearchRepository(state), data, RecordingPersistence()
+    )
+
+    started = service.start("user-a", selection.selection_id, None)
+    service.complete("user-a", selection.selection_id, None)
+
+    assert started["status"] == "running"
+    assert state.univariate_runs_by_id[str(started["run_id"])].status == "complete"
+    assert data.selected_calls[0] == (selection.member_ids, "quotes")
+
+
 def test_bivariate_service_covers_plan_reuse_and_failure_transitions(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
