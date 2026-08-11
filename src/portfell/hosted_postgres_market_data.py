@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 from collections.abc import Mapping
+from hashlib import sha256
 from typing import Any, Protocol, cast
 
 from portfell.hosted_research_ports import ResearchDataset, UnivariateProgress
@@ -33,6 +34,22 @@ class PostgresSharedMarketData:
         ).fetchall()
         return tuple(_document(row) for row in rows)
 
+    def upsert_metadata(self, rows: tuple[JsonRow, ...]) -> None:
+        """Publish canonical metadata without any tenant fields."""
+
+        for row in rows:
+            listing = SharedListingKey.from_row(row)
+            self._assert_shared(row, listing)
+            self._connection.execute(
+                """
+insert into portfell_app.shared_market_metadata (provider, exchange, code, isin, document)
+values (%s, %s, %s, %s, %s::jsonb)
+on conflict (provider, exchange, code, isin) do update
+set document = excluded.document, updated_at = now()
+""",
+                (*_listing_values(listing), _json(row)),
+            )
+
     def selected_rows(
         self, member_ids: tuple[str, ...], *, dataset: ResearchDataset
     ) -> tuple[JsonRow, ...]:
@@ -52,6 +69,59 @@ order by business_key
 
     def quote_rows(self, member_ids: tuple[str, ...]) -> tuple[JsonRow, ...]:
         return self.selected_rows(member_ids, dataset="quotes")
+
+    def upsert_rows(
+        self, dataset_type: ResearchDataset, listing: SharedListingKey, rows: tuple[JsonRow, ...]
+    ) -> None:
+        """Publish rows by canonical business key and refresh coverage atomically."""
+
+        canonical: dict[str, JsonRow] = {}
+        for row in rows:
+            self._assert_shared(row, listing)
+            canonical[_business_key(dataset_type, row)] = dict(row)
+        for business_key, row in sorted(canonical.items()):
+            self._connection.execute(
+                """
+insert into portfell_app.shared_market_rows (
+    dataset_type, provider, exchange, code, isin, business_key, document
+) values (%s, %s, %s, %s, %s, %s, %s::jsonb)
+on conflict (dataset_type, provider, exchange, code, isin, business_key) do update
+set document = excluded.document, updated_at = now()
+""",
+                (dataset_type, *_listing_values(listing), business_key, _json(row)),
+            )
+        published = self.selected_rows(
+            (f"{listing.isin}:{listing.exchange}:{listing.code}",), dataset=dataset_type
+        )
+        dates = sorted(str(row["date"]) for row in published if row.get("date"))
+        digest = sha256(_json(published).encode()).hexdigest()
+        self._connection.execute(
+            """
+insert into portfell_app.shared_market_coverage (
+    dataset_type, provider, exchange, code, isin, first_business_date, last_business_date,
+    row_count, content_hash
+) values (%s, %s, %s, %s, %s, %s::date, %s::date, %s, %s)
+on conflict (dataset_type, provider, exchange, code, isin) do update
+set first_business_date = excluded.first_business_date,
+    last_business_date = excluded.last_business_date, row_count = excluded.row_count,
+    content_hash = excluded.content_hash, updated_at = now()
+""",
+            (
+                dataset_type,
+                *_listing_values(listing),
+                dates[0] if dates else None,
+                dates[-1] if dates else None,
+                len(published),
+                digest,
+            ),
+        )
+
+    @staticmethod
+    def _assert_shared(row: Mapping[str, Any], listing: SharedListingKey) -> None:
+        if {"user_id", "project_id", "credential_id", "run_id"}.intersection(row):
+            raise ValueError("shared_market_tenant_field_forbidden")
+        if SharedListingKey.from_row(row) != listing:
+            raise ValueError("shared_market_listing_identity_mismatch")
 
 
 class PostgresResearchData:
@@ -95,3 +165,21 @@ def _document(row: tuple[object, ...]) -> JsonRow:
     if not isinstance(value, Mapping):
         raise ValueError("shared_market_document_invalid")
     return dict(cast(Mapping[str, Any], value))
+
+
+def _listing_values(listing: SharedListingKey) -> tuple[str, str, str, str]:
+    return listing.provider, listing.exchange, listing.code, listing.isin
+
+
+def _business_key(dataset: ResearchDataset, row: Mapping[str, Any]) -> str:
+    if dataset == "quotes":
+        value = row.get("date")
+    else:
+        value = row.get("date", row.get("payment_date", row.get("ex_date")))
+    if not isinstance(value, str) or not value:
+        raise ValueError("shared_market_business_key_invalid")
+    return value
+
+
+def _json(value: object) -> str:
+    return json.dumps(value, sort_keys=True, separators=(",", ":"))

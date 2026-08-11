@@ -31,3 +31,16 @@ def test_reads_tenant_neutral_metadata_and_selected_listing_rows() -> None:
         {"isin": "US1", "exchange": "US", "code": "ONE", "date": "2026-01-01"},
     )
     assert connection.calls[1][1] == ("quotes", "eodhd", "US", "ONE", "US1")
+
+
+def test_rejects_tenant_fields_from_shared_rows() -> None:
+    data = PostgresSharedMarketData(_Connection())
+
+    try:
+        data.upsert_metadata(
+            ({"isin": "US1", "exchange": "US", "code": "ONE", "user_id": "forbidden"},)
+        )
+    except ValueError as error:
+        assert str(error) == "shared_market_tenant_field_forbidden"
+    else:
+        raise AssertionError("tenant fields must never enter shared storage")
