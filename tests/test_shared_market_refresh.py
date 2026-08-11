@@ -119,32 +119,13 @@ def test_refresh_rejects_invalid_settings_and_persists_partial_failure(tmp_path)
 
 
 def test_refresh_lock_and_cli_exit_codes(tmp_path, monkeypatch, capsys) -> None:  # type: ignore[no-untyped-def]
-    store = SharedMarketDataStore(tmp_path)
-    state = _state()
+    _ = capsys
     monkeypatch.delenv("PORTFELL_SHARED_DATA_ROOT", raising=False)
-    monkeypatch.delenv("PORTFELL_EODHD_KEK_FILE", raising=False)
+    monkeypatch.delenv("PORTFELL_DATABASE_URL", raising=False)
     assert refresh.main([]) == 4
 
     monkeypatch.setenv("PORTFELL_SHARED_DATA_ROOT", str(tmp_path))
-    monkeypatch.setenv("PORTFELL_EODHD_KEK_FILE", str(tmp_path / "kek"))
-    monkeypatch.setattr(
-        refresh,
-        "create_persistent_local_workspace_state",
-        lambda *_args, **_kwargs: state,
-    )
-    monkeypatch.setattr(refresh, "load_key_encryption_key", lambda *_args, **_kwargs: object())
-    state.shared_market_data_store = store
-    assert refresh.main(["--dry-run", "--end-date", "2026-01-01"]) == 0
-    assert '"dry_run": true' in capsys.readouterr().out
-
-    monkeypatch.setenv("PORTFELL_OPERATIONS_EODHD_TOKEN", "operations-secret")
-    state.shared_market_data_store = None
-    assert refresh.main([]) == 6
-    monkeypatch.setattr(
-        refresh,
-        "create_persistent_local_workspace_state",
-        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError()),
-    )
+    assert refresh.main(["--dry-run", "--end-date", "2026-01-01"]) == 4
     assert refresh.main([]) == 4
 
 
@@ -170,46 +151,10 @@ def test_eodhd_fetch_scopes_requests_and_rejects_invalid_payloads() -> None:
 
 def test_refresh_cli_requires_operations_credential_before_planning(tmp_path, monkeypatch) -> None:  # type: ignore[no-untyped-def]
     monkeypatch.setenv("PORTFELL_SHARED_DATA_ROOT", str(tmp_path))
-    monkeypatch.setenv("PORTFELL_EODHD_KEK_FILE", str(tmp_path / "kek"))
+    monkeypatch.setenv("PORTFELL_DATABASE_URL", "postgresql://worker@postgres/portfell")
     monkeypatch.delenv("PORTFELL_OPERATIONS_EODHD_TOKEN", raising=False)
-    monkeypatch.setattr(
-        refresh,
-        "create_persistent_local_workspace_state",
-        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("must not plan")),
-    )
 
     assert refresh.main(["--end-date", "2026-01-01"]) == 4
-
-
-def test_refresh_cli_uses_operations_credential_for_a_non_dry_run(
-    tmp_path, monkeypatch, capsys
-) -> None:  # type: ignore[no-untyped-def]
-    state = _state()
-    state.shared_market_data_store = SharedMarketDataStore(tmp_path)
-    monkeypatch.setenv("PORTFELL_SHARED_DATA_ROOT", str(tmp_path))
-    monkeypatch.setenv("PORTFELL_EODHD_KEK_FILE", str(tmp_path / "kek"))
-    monkeypatch.setenv("PORTFELL_OPERATIONS_EODHD_TOKEN", "operations-secret")
-    monkeypatch.setattr(
-        refresh,
-        "create_persistent_local_workspace_state",
-        lambda *_args, **_kwargs: state,
-    )
-    monkeypatch.setattr(refresh, "load_key_encryption_key", lambda *_args, **_kwargs: object())
-    received_tokens: list[str] = []
-    monkeypatch.setattr(
-        refresh,
-        "EodhdClient",
-        lambda config: received_tokens.append(config.api_token) or object(),
-    )
-    monkeypatch.setattr(
-        refresh,
-        "refresh_shared_market_data",
-        lambda **_kwargs: RefreshResult("inventory", "2026-01-01", 0, 0, 0, 0, False, ()),
-    )
-
-    assert refresh.main(["--end-date", "2026-01-01"]) == 0
-    assert received_tokens == ["operations-secret"]
-    assert '"dry_run": false' in capsys.readouterr().out
 
 
 def test_refresh_cli_reads_postgres_active_inventory(tmp_path, monkeypatch, capsys) -> None:  # type: ignore[no-untyped-def]

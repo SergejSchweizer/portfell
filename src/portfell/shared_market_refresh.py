@@ -15,9 +15,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from portfell.config import EodhdConfig
-from portfell.hosted_api import create_persistent_local_workspace_state
 from portfell.hosted_api_state import HostedApiState
-from portfell.hosted_credentials import load_key_encryption_key
 from portfell.hosted_database_connection import connect
 from portfell.hosted_postgres_active_inventory import PostgresActiveProjectInventory
 from portfell.http import EodhdClient
@@ -239,49 +237,16 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     args = build_parser().parse_args(argv)
     root = os.environ.get("PORTFELL_SHARED_DATA_ROOT")
-    key_file = os.environ.get("PORTFELL_EODHD_KEK_FILE")
     database_url = os.environ.get("PORTFELL_DATABASE_URL")
     operations_token = _operations_token()
-    if not root or (not args.dry_run and not operations_token):
+    if not root or not database_url or (not args.dry_run and not operations_token):
         return 4
     try:
-        if database_url:
-            return _run_postgres_refresh(args, Path(root), database_url, operations_token)
-        if not key_file:
-            return 4
-        state = create_persistent_local_workspace_state(
-            Path(root),
-            key_encryption_key=load_key_encryption_key(
-                Path(key_file), version=os.environ.get("PORTFELL_EODHD_KEK_VERSION", "local-v1")
-            ),
-        )
-        store = state.shared_market_data_store
-        if store is None:
-            return 6
-        if args.dry_run:
-            result = refresh_shared_market_data(
-                store=store,
-                state=state,
-                fetch=lambda _: (),
-                end_date=args.end_date,
-                concurrency=args.concurrency,
-                dry_run=True,
-            )
-        else:
-            client = EodhdClient(EodhdConfig(api_token=operations_token))
-            result = refresh_shared_market_data(
-                store=store,
-                state=state,
-                fetch=_eodhd_fetch(client),
-                end_date=args.end_date,
-                concurrency=args.concurrency,
-            )
+        return _run_postgres_refresh(args, Path(root), database_url, operations_token)
     except SharedMarketRefreshError as error:
         return 2 if str(error) == "shared_market_refresh_locked" else 5
     except Exception:
         return 4
-    print(json.dumps(result.row(), sort_keys=True))
-    return 0
 
 
 def _run_postgres_refresh(
