@@ -914,7 +914,7 @@ state.
 
 Branch: `chore/synology-persistent-data-root`.
 
-Git status: not started. PR: TBD.
+Git status: in progress. PR: https://github.com/SergejSchweizer/portfell/pull/328.
 
 Priority: P0 establish final durable storage before cron installation.
 
