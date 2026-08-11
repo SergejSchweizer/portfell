@@ -1,18 +1,21 @@
-"""In-memory repository adapter for hosted research application services."""
+"""Repository adapter for hosted research application services."""
 
 from __future__ import annotations
+
+import uuid
 
 from portfell.entitlements import ProviderDownloadRun
 from portfell.hosted_api_errors import HostedApplicationError
 from portfell.hosted_api_service_support import (
-    audit,
     require_user_row,
 )
 from portfell.hosted_api_state import AnalysisRecord, HostedApiState, ProjectRecord, SelectionRecord
+from portfell.hosted_audit_event_repository import AuditEventRepository, HostedAuditEvent
 from portfell.hosted_idempotency_repository import (
     IdempotencyRepository,
     LocalIdempotencyRepository,
 )
+from portfell.hosted_local_audit_event_repository import LocalAuditEventRepository
 from portfell.hosted_local_project_repository import LocalProjectRepository
 from portfell.hosted_local_selection_repository import LocalSelectionRepository
 from portfell.hosted_repository_importer import ProjectRepository
@@ -31,11 +34,13 @@ class HostedResearchRepository:
         project_repository: ProjectRepository | None = None,
         selection_repository: SelectionRepository | None = None,
         idempotency_repository: IdempotencyRepository | None = None,
+        audit_repository: AuditEventRepository | None = None,
     ) -> None:
         self._state = state
         self._projects = project_repository or LocalProjectRepository(state)
         self._selections = selection_repository or LocalSelectionRepository(state)
         self._idempotency = idempotency_repository or LocalIdempotencyRepository(state)
+        self._audit_events = audit_repository or LocalAuditEventRepository(state)
 
     def metadata_selection(self, selection_id: str, user_id: str) -> SelectionRecord:
         selection = self._selections.by_id(selection_id=selection_id, user_id=user_id)
@@ -132,4 +137,12 @@ class HostedResearchRepository:
         )
 
     def audit(self, user_id: str, action: str) -> None:
-        audit(self._state, user_id, action)
+        self._audit_events.append(
+            HostedAuditEvent(
+                audit_event_id=str(uuid.uuid4()),
+                user_id=user_id,
+                event_type=action,
+                subject_ref=f"user:{user_id}",
+                metadata={},
+            )
+        )
