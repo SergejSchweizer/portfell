@@ -85,13 +85,29 @@ def test_local_workspace_user_provider_is_stable_and_server_owned() -> None:
     assert second == first
 
 
-def test_postgres_runtime_request_never_falls_back_to_local_workspace(
+def test_postgres_runtime_requires_its_explicit_runtime_dependencies(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("PORTFELL_HOSTED_AUTHORITY", "postgres")
 
-    with pytest.raises(HostedApiError, match="postgres_hosted_runtime_not_configured"):
+    with pytest.raises(HostedApiError, match="postgres_hosted_runtime_configuration_required"):
         hosted_api.create_runtime_app()
+
+
+def test_postgres_runtime_composes_without_a_local_workspace(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    key_path = tmp_path / "kek"
+    key_path.write_bytes(b"k" * 32)
+    monkeypatch.setenv("PORTFELL_HOSTED_AUTHORITY", "postgres")
+    monkeypatch.setenv("PORTFELL_DATABASE_URL", "postgresql://portfell_app@postgres:5432/portfell")
+    monkeypatch.setenv("PORTFELL_SHARED_DATA_ROOT", str(tmp_path / "shared"))
+    monkeypatch.setenv("PORTFELL_EODHD_KEK_FILE", str(key_path))
+
+    application = hosted_api.create_runtime_app()
+
+    assert application.state.portfell_state.workspace_store is None
+    assert application.state.portfell_state.shared_market_data_store is None
 
 
 def test_database_runtime_requires_explicit_authority(

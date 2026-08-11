@@ -34,13 +34,11 @@ def test_compose_defines_persistent_internal_postgres_and_shared_data() -> None:
     assert "5432" in postgres["expose"]
     assert "portfell-postgres-data:/var/lib/postgresql/data" in postgres["volumes"]
     assert "portfell-shared-data:/srv/portfell/shared-data" in api["volumes"]
-    assert "./lake:/srv/portfell/lake" in api["volumes"]
-    assert api["environment"]["PORTFELL_HOSTED_AUTHORITY"] == "local"
+    assert "./lake:/srv/portfell/lake" not in api["volumes"]
+    assert api["environment"]["PORTFELL_HOSTED_AUTHORITY"] == "postgres"
     assert api["environment"]["PORTFELL_DATABASE_PASSWORD_FILE"] == "/run/secrets/postgres_password"
     assert api["secrets"] == ["eodhd_kek", "postgres_password"]
-    assert api["environment"]["PORTFELL_LAKE_ROOT"] == "/srv/portfell/lake"
     assert api["group_add"] == [
-        "${PORTFELL_LAKE_GROUP_ID:-1001}",
         "${PORTFELL_SECRET_GROUP_ID:-100}",
     ]
 
@@ -73,7 +71,8 @@ def test_operations_refresh_is_profiled_and_has_only_the_required_secret_mount()
     assert refresh["profiles"] == ["operations"]
     assert refresh["command"] == ["python", "-m", "portfell.shared_market_refresh"]
     assert refresh["volumes"] == ["portfell-shared-data:/srv/portfell/shared-data"]
-    assert refresh["secrets"] == ["eodhd_kek", "operations_eodhd_token"]
+    assert refresh["secrets"] == ["eodhd_kek", "operations_eodhd_token", "postgres_password"]
+    assert refresh["environment"]["PORTFELL_DATABASE_URL"] == "postgresql://portfell_app@postgres:5432/portfell"
     assert "ports" not in refresh
 
 

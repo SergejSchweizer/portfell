@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from fastapi import FastAPI, Request
 
@@ -41,15 +41,24 @@ from portfell.hosted_api_state import (
 from portfell.hosted_bivariate_service import BivariateResearchService
 from portfell.hosted_credential_project_service import CredentialProjectService
 from portfell.hosted_credentials import (
+    EodhdCredentialVault,
     FileCredentialStore,
     KeyEncryptionKey,
     load_key_encryption_key,
 )
+from portfell.hosted_database_connection import connect as connect_database
+from portfell.hosted_download_run_repository import PostgresDownloadRunRepository
 from portfell.hosted_metadata_project_service import MetadataProjectService
 from portfell.hosted_multivariate_service import MultivariateResearchService
+from portfell.hosted_postgres_repository_bundle import PostgresHostedRepositoryBundle
 from portfell.hosted_postgres_request_scope import RequestScopedPostgresConnection
+from portfell.hosted_postgres_research_repository import PostgresResearchRepository
+from portfell.hosted_postgres_runtime import PostgresHostedRuntime
 from portfell.hosted_quote_run_service import QuoteRunService
-from portfell.hosted_research_persistence import LocalResearchPersistence
+from portfell.hosted_research_persistence import (
+    LocalResearchPersistence,
+    PostgresResearchPersistence,
+)
 from portfell.hosted_research_ports import ResearchDataPort
 from portfell.hosted_research_repository import HostedResearchRepository
 from portfell.hosted_research_service import ResearchService
@@ -57,6 +66,8 @@ from portfell.hosted_routes_credentials import credential_router
 from portfell.hosted_routes_metadata_projects import metadata_project_router
 from portfell.hosted_routes_quote_runs import quote_run_router
 from portfell.hosted_routes_research import research_router
+from portfell.hosted_shared_market_research_data import SharedMarketResearchData
+from portfell.hosted_shared_quote_publisher import SharedQuotePublisher
 from portfell.hosted_univariate_service import UnivariateResearchService
 from portfell.hosted_workspace import LocalWorkspaceStore
 from portfell.hosted_workspace_repository import restore_local_workspace
@@ -130,6 +141,99 @@ def _research_service(state: HostedApiState, data: ResearchDataPort) -> Research
         MultivariateResearchService(state, data, persistence, repository),
         HostedAnalysisService(repository, persistence),
     )
+
+
+def _postgres_services(
+    state: HostedApiState,
+    *,
+    request_scope: RequestScopedPostgresConnection,
+    shared_data_root: Path,
+    key_encryption_key: KeyEncryptionKey,
+) -> tuple[CredentialProjectService, MetadataProjectService, QuoteRunService, ResearchService]:
+    """Compose hosted services from PostgreSQL control records and shared payloads only."""
+
+    repositories = PostgresHostedRepositoryBundle.from_connection(request_scope)
+    credential_vault = EodhdCredentialVault(
+        store=repositories.credentials,
+        key_encryption_key=key_encryption_key,
+        fingerprint_secret=key_encryption_key.material,
+    )
+    runtime = PostgresHostedRuntime(shared_data_root)
+    data = SharedMarketResearchData(SharedMarketDataStore(shared_data_root))
+
+    def quote_rows(run_id: str) -> tuple[dict[str, object], ...]:
+        row = request_scope.execute(
+            "select response_manifest from portfell_app.download_runs "
+            "where download_run_id = %s::uuid",
+            (run_id,),
+        ).fetchone()
+        if row is None or len(row) != 1 or not isinstance(row[0], dict):
+            return ()
+        manifest = cast(dict[str, object], row[0])
+        scope = cast(object, manifest.get("requested_scope"))
+        if not isinstance(scope, dict):
+            return ()
+        members = cast(object, scope.get("member_ids"))
+        if not isinstance(members, list) or not all(isinstance(item, str) for item in members):
+            return ()
+        return data.selected_rows(tuple(cast(list[str], members)), dataset="quotes")
+
+    research_repository = PostgresResearchRepository(
+        request_scope,
+        projects=repositories.projects,
+        selections=repositories.selections,
+        quotes=repositories.quotes,
+        quote_rows=quote_rows,
+        analyses=repositories.analyses,
+    )
+    persistence = PostgresResearchPersistence()
+    credentials = CredentialProjectService(
+        state,
+        runtime,
+        repositories.projects,
+        repositories.selections,
+        repositories.settings,
+        credential_vault,
+        repositories.audit,
+        PostgresDownloadRunRepository(request_scope),
+        repositories.idempotency,
+    )
+    metadata = MetadataProjectService(
+        state,
+        runtime,
+        repositories.projects,
+        repositories.selections,
+        repositories.metadata,
+        credential_vault,
+        repositories.audit,
+    )
+    quotes = QuoteRunService(
+        state,
+        runtime,
+        repositories.projects,
+        repositories.selections,
+        credential_vault,
+        repositories.quotes,
+        repositories.audit,
+        repositories.idempotency,
+        SharedQuotePublisher(SharedMarketDataStore(shared_data_root)),
+    )
+    research = ResearchService(
+        UnivariateResearchService(research_repository, data, persistence),
+        BivariateResearchService(research_repository, data, persistence),
+        MultivariateResearchService(
+            state,
+            data,
+            persistence,
+            research_repository,
+            repositories.projects,
+            repositories.selections,
+            repositories.multivariate,
+            runtime.all_isins_rows,
+        ),
+        HostedAnalysisService(research_repository, persistence),
+    )
+    return credentials, metadata, quotes, research
 
 
 def create_persistent_local_workspace_state(
@@ -223,7 +327,29 @@ def create_runtime_app() -> FastAPI:
         raise HostedApiError("hosted_authority_must_be_explicit")
     authority = configured_authority or "local"
     if authority == "postgres":
-        raise HostedApiError("postgres_hosted_runtime_not_configured")
+        database_url = os.environ.get("PORTFELL_DATABASE_URL")
+        shared_data_root = os.environ.get("PORTFELL_SHARED_DATA_ROOT")
+        key_path = os.environ.get("PORTFELL_EODHD_KEK_FILE")
+        if not database_url or not shared_data_root or not key_path:
+            raise HostedApiError("postgres_hosted_runtime_configuration_required")
+        key_encryption_key = load_key_encryption_key(
+            Path(key_path),
+            version=os.environ.get("PORTFELL_EODHD_KEK_VERSION", "hosted-v1"),
+        )
+        request_scope = RequestScopedPostgresConnection(
+            lambda: connect_database(database_url, autocommit=False)
+        )
+        state = HostedApiState()
+        return create_app(
+            state,
+            services=_postgres_services(
+                state,
+                request_scope=request_scope,
+                shared_data_root=Path(shared_data_root),
+                key_encryption_key=key_encryption_key,
+            ),
+            request_scope=request_scope,
+        )
     if authority != "local":
         raise HostedApiError("hosted_authority_invalid")
     shared_data_root = os.environ.get("PORTFELL_SHARED_DATA_ROOT")
