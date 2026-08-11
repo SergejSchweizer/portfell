@@ -6,11 +6,13 @@ from portfell.entitlements import ProviderDownloadRun
 from portfell.hosted_api_errors import HostedApplicationError
 from portfell.hosted_api_service_support import (
     audit,
-    idempotent_response,
-    remember_idempotency,
     require_user_row,
 )
 from portfell.hosted_api_state import AnalysisRecord, HostedApiState, ProjectRecord, SelectionRecord
+from portfell.hosted_idempotency_repository import (
+    IdempotencyRepository,
+    LocalIdempotencyRepository,
+)
 from portfell.hosted_local_project_repository import LocalProjectRepository
 from portfell.hosted_local_selection_repository import LocalSelectionRepository
 from portfell.hosted_repository_importer import ProjectRepository
@@ -28,10 +30,12 @@ class HostedResearchRepository:
         state: HostedApiState,
         project_repository: ProjectRepository | None = None,
         selection_repository: SelectionRepository | None = None,
+        idempotency_repository: IdempotencyRepository | None = None,
     ) -> None:
         self._state = state
         self._projects = project_repository or LocalProjectRepository(state)
         self._selections = selection_repository or LocalSelectionRepository(state)
+        self._idempotency = idempotency_repository or LocalIdempotencyRepository(state)
 
     def metadata_selection(self, selection_id: str, user_id: str) -> SelectionRecord:
         selection = self._selections.by_id(selection_id=selection_id, user_id=user_id)
@@ -111,12 +115,21 @@ class HostedResearchRepository:
         self._state.analyses_by_id[analysis.run_id] = analysis
 
     def cached_id(self, user_id: str, operation: str, key: str | None) -> str | None:
-        return idempotent_response(
-            self._state, user_id=user_id, operation=operation, idempotency_key=key
+        return self._idempotency.lookup(
+            user_id=user_id,
+            operation=operation,
+            key=key,
+            request_hash=operation,
         )
 
     def remember_id(self, user_id: str, operation: str, key: str | None, row_id: str) -> None:
-        remember_idempotency(self._state, user_id, operation, key, row_id)
+        self._idempotency.remember(
+            user_id=user_id,
+            operation=operation,
+            key=key,
+            request_hash=operation,
+            response_ref=row_id,
+        )
 
     def audit(self, user_id: str, action: str) -> None:
         audit(self._state, user_id, action)
