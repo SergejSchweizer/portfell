@@ -105,6 +105,36 @@ jobs:
             node:24-alpine \
             sh -lc 'npm ci && npm run typecheck && npm run test:coverage'
 
+  merge-web-interactions:
+    name: merge-web-interactions
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          fetch-depth: 0
+          ref: ${{ github.sha }}
+
+      - name: Run deterministic browser interaction inventory
+        run: |
+          docker run --rm --ipc=host --user "$(id -u):$(id -g)" \
+            -e CI=true \
+            -e npm_config_cache=/tmp/npm-cache \
+            -v "$GITHUB_WORKSPACE:/workspace" \
+            -w /workspace/apps/web \
+            mcr.microsoft.com/playwright:v1.62.1-noble \
+            bash -lc 'npm ci && npm run build && npm run e2e'
+
+      - name: Upload browser failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: merge-web-interactions-artifacts
+          path: apps/web/test-results
+          if-no-files-found: ignore
+          retention-days: 7
+
   merge-unit-tests:
     name: merge-unit-tests-${{ matrix.shard }}
     runs-on: ubuntu-latest
@@ -208,6 +238,7 @@ jobs:
       - merge-lint-quality
       - merge-type-quality
       - merge-web-unit-quality
+      - merge-web-interactions
       - merge-unit-tests
       - merge-integration-tests
     if: always()
@@ -242,11 +273,12 @@ jobs:
           LINT_RESULT: ${{ needs.merge-lint-quality.result }}
           TYPE_RESULT: ${{ needs.merge-type-quality.result }}
           WEB_UNIT_RESULT: ${{ needs.merge-web-unit-quality.result }}
+          WEB_INTERACTIONS_RESULT: ${{ needs.merge-web-interactions.result }}
           UNIT_RESULT: ${{ needs.merge-unit-tests.result }}
           INTEGRATION_RESULT: ${{ needs.merge-integration-tests.result }}
         run: |
-          if [[ "$LINT_RESULT" != "success" || "$TYPE_RESULT" != "success" || "$WEB_UNIT_RESULT" != "success" || "$UNIT_RESULT" != "success" || "$INTEGRATION_RESULT" != "success" ]]; then
-            echo "merge-gate failed: lint=$LINT_RESULT type=$TYPE_RESULT web_unit=$WEB_UNIT_RESULT unit=$UNIT_RESULT integration=$INTEGRATION_RESULT" >&2
+          if [[ "$LINT_RESULT" != "success" || "$TYPE_RESULT" != "success" || "$WEB_UNIT_RESULT" != "success" || "$WEB_INTERACTIONS_RESULT" != "success" || "$UNIT_RESULT" != "success" || "$INTEGRATION_RESULT" != "success" ]]; then
+            echo "merge-gate failed: lint=$LINT_RESULT type=$TYPE_RESULT web_unit=$WEB_UNIT_RESULT web_interactions=$WEB_INTERACTIONS_RESULT unit=$UNIT_RESULT integration=$INTEGRATION_RESULT" >&2
             exit 1
           fi
           echo "merge-gate prerequisites passed."

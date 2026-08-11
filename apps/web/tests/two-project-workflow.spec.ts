@@ -1,4 +1,5 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
+import { buttonInteractionManifest } from "./button-interaction-manifest";
 
 type Project = {
   id: string;
@@ -227,11 +228,24 @@ async function switchProject(page: Page, projectId: string) {
   await page.getByLabel("Project", { exact: true }).selectOption(projectId);
 }
 
+async function expectManifestControls(page: Page, route: string, state: "ready" | "complete") {
+  const viewport = page.viewportSize();
+  const expected = buttonInteractionManifest.filter((entry) =>
+    (entry.route === route && (entry.state === "ready" || entry.state === state))
+    || (entry.route === "*" && entry.state === "mobile-closed" && Boolean(viewport && viewport.width < 768)),
+  );
+  for (const control of expected) {
+    await expect(page.getByRole(control.role, { name: control.name, exact: true })).toBeVisible();
+  }
+  await expect(page.getByRole("button").or(page.getByRole("tab"))).toHaveCount(expected.length);
+}
+
 test("two dummy projects created through the UI preserve every research control and project setting", async ({ page }) => {
   const fixture = await installTwoProjectApi(page);
   await page.goto("/metadata-builder");
   await expect(page).toHaveURL(/\/metadata-builder$/);
   await expect(page.getByText("2 · Metadata Builder")).toBeVisible();
+  await expectManifestControls(page, "/metadata-builder", "ready");
 
   await page.getByLabel("EODHD key").fill("dummy-eodhd-key");
   await page.getByRole("button", { name: "Fetch all metadata" }).click();
@@ -240,7 +254,9 @@ test("two dummy projects created through the UI preserve every research control 
   await createProject(page, { exchange: "XETRA", instrumentType: "ETF", country: "IE", currency: "EUR", name: "Alpha income" });
   await expect(page.getByText("3 listings ready.")).toBeVisible();
   await page.goto("/univariate-statistics");
+  await expectManifestControls(page, "/univariate-statistics", "ready");
   await computeUnivariate(page);
+  await expectManifestControls(page, "/univariate-statistics", "complete");
 
   const selections = page.locator(".univariate-statistics-page .portfolio-selection select");
   await expect(selections).toHaveCount(1);
@@ -274,8 +290,10 @@ test("two dummy projects created through the UI preserve every research control 
 
   await switchProject(page, "project-2");
   await page.goto("/bivariate-statistics");
+  await expectManifestControls(page, "/bivariate-statistics", "ready");
   await page.getByRole("button", { name: "Compute Bivariate Statistics" }).click();
   await expect(page.getByText("1 pair statistics computed.")).toBeVisible();
+  await expectManifestControls(page, "/bivariate-statistics", "complete");
   for (const tab of ["Covariance", "Pearson", "Spearman", "Downside", "Tail Dependence", "Co-exceedance", "Rolling-Correlation", "Drawdown Overlap", "Tail-Risk Scatter"]) {
     await page.getByRole("tab", { name: tab }).click();
     await expect(page.getByRole("tab", { name: tab })).toHaveAttribute("aria-selected", "true");
@@ -284,12 +302,20 @@ test("two dummy projects created through the UI preserve every research control 
   const viewport = page.viewportSize();
   if (viewport && viewport.width < 768) {
     await page.getByRole("button", { name: "Open project navigation" }).click();
+    const backdrop = page.getByRole("button", { name: "Close project navigation" });
+    const backdropBox = await backdrop.boundingBox();
+    if (!backdropBox) throw new Error("project navigation backdrop has no clickable area");
+    await page.mouse.click(backdropBox.x + backdropBox.width - 8, backdropBox.y + backdropBox.height / 2);
+    await expect(backdrop).not.toBeVisible();
+    await page.getByRole("button", { name: "Open project navigation" }).click();
   }
   await page.getByRole("link", { name: /Multivariate Statistics/ }).click();
   await expect(page).toHaveURL(/\/multivariate-statistics$/);
   await expect(page.getByRole("heading", { name: "Multivariate Statistics" })).toBeVisible();
+  await expectManifestControls(page, "/multivariate-statistics", "ready");
   await page.getByRole("button", { name: "Compute multivariate statistics" }).click();
   await expect(page.getByText("Candidate ETFs")).toBeVisible();
+  await expectManifestControls(page, "/multivariate-statistics", "complete");
   for (const tab of ["Overview", "Risk Structure", "Portfolio Candidates", "Risk Contributions", "Income Evidence", "Validation"]) {
     await page.getByRole("tab", { name: tab }).click();
     await expect(page.getByRole("tab", { name: tab })).toHaveAttribute("aria-selected", "true");
@@ -303,7 +329,6 @@ test("two dummy projects created through the UI preserve every research control 
     "POST /api/credentials/eodhd",
     "POST /api/metadata/fetch-all",
     "POST /api/metadata-builder",
-    "POST /api/quote-runs",
     "POST /api/univariate-statistics/runs",
     "POST /api/bivariate-statistics/plan",
     "POST /api/bivariate-statistics/runs",
@@ -311,4 +336,5 @@ test("two dummy projects created through the UI preserve every research control 
     "PATCH /api/multivariate-statistics/runs/multivariate-project-2/settings",
     "PUT /api/project-context/current-project",
   ]));
+  expect(fixture.calls).not.toContain("POST /api/quote-runs");
 });
