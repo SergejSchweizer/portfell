@@ -55,8 +55,9 @@ class HostedResearchRepository:
     def univariate_run(self, run_id: str, user_id: str) -> ResearchRun:
         return require_user_row(self._state.univariate_runs_by_id, run_id, user_id)
 
-    def find_univariate_run(self, run_id: str) -> ResearchRun | None:
-        return self._state.univariate_runs_by_id.get(run_id)
+    def find_univariate_run(self, run_id: str, user_id: str) -> ResearchRun | None:
+        run = self._state.univariate_runs_by_id.get(run_id)
+        return run if run is not None and run.user_id == user_id else None
 
     def save_univariate_run(self, run: ResearchRun) -> None:
         self._state.univariate_runs_by_id[run.run_id] = run
@@ -90,8 +91,9 @@ class HostedResearchRepository:
     def bivariate_run(self, run_id: str, user_id: str) -> ResearchRun:
         return require_user_row(self._state.bivariate_runs_by_id, run_id, user_id)
 
-    def find_bivariate_run(self, run_id: str) -> ResearchRun | None:
-        return self._state.bivariate_runs_by_id.get(run_id)
+    def find_bivariate_run(self, run_id: str, user_id: str) -> ResearchRun | None:
+        run = self._state.bivariate_runs_by_id.get(run_id)
+        return run if run is not None and run.user_id == user_id else None
 
     def save_bivariate_run(self, run: ResearchRun) -> None:
         self._state.bivariate_runs_by_id[run.run_id] = run

@@ -11,6 +11,7 @@ from typing import Protocol
 from portfell.hosted_download_run_schema import DOWNLOAD_RUN_PARTIAL_STATUS_SQL
 from portfell.legacy_import_schema import LEGACY_IMPORT_LEDGER_SQL
 from portfell.metadata_lifecycle_schema import METADATA_LIFECYCLE_SCHEMA_SQL
+from portfell.research_lifecycle_schema import RESEARCH_LIFECYCLE_SCHEMA_SQL
 from portfell.tenant_control_schema import (
     D017_DURABLE_JOB_SCHEMA_SQL,
     D017_ROLE_SPECS,
@@ -133,6 +134,10 @@ HOSTED_TABLES: tuple[HostedTable, ...] = (
     ),
     HostedTable("portfell_app.selections", True, True, "Persisted user selection definitions."),
     HostedTable("portfell_app.analysis_runs", True, True, "User-owned analysis run references."),
+    HostedTable("portfell_app.research_runs", True, False, "Durable research run lifecycle."),
+    HostedTable(
+        "portfell_app.univariate_selections", True, True, "Persisted univariate result selections."
+    ),
     *(HostedTable(*spec) for spec in D017_TABLE_SPECS),
     HostedTable(
         "portfell_app.artifacts", False, True, "Shared immutable derived artifact catalog."
@@ -473,6 +478,7 @@ MIGRATIONS: tuple[HostedMigration, ...] = (
     HostedMigration(8, "legacy_import_ledger", LEGACY_IMPORT_LEDGER_SQL),
     HostedMigration(9, "download_run_partial_status", DOWNLOAD_RUN_PARTIAL_STATUS_SQL),
     HostedMigration(10, "durable_metadata_lifecycle", METADATA_LIFECYCLE_SCHEMA_SQL),
+    HostedMigration(11, "durable_research_lifecycle", RESEARCH_LIFECYCLE_SCHEMA_SQL),
 )
 
 

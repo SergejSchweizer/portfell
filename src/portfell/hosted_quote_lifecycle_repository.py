@@ -8,6 +8,7 @@ from typing import Protocol, cast
 
 from portfell.entitlements import ProviderDownloadRun
 from portfell.hosted_api_state import HostedApiState
+from portfell.hosted_catalog import set_authenticated_user_sql
 from portfell.hosted_download_run_repository import (
     DownloadRunConnection,
     PostgresDownloadRunRepository,
@@ -75,6 +76,7 @@ class PostgresQuoteLifecycleRepository:
         return self._runs.get(user_id=user_id, download_run_id=run_id)
 
     def progress(self, *, user_id: str, run_id: str) -> JsonRow | None:
+        self._connection.execute(*set_authenticated_user_sql(user_id))
         row = self._connection.execute(
             "select response_manifest from portfell_app.download_runs "
             "where download_run_id = %s::uuid and user_id = %s::uuid",

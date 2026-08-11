@@ -48,7 +48,7 @@ class UnivariateResearchService:
             raise HostedApplicationError(409, "quote_run_incomplete")
         source_id = _source_id(selection.selection_id, quote_run.download_run_id)
         run_id = opaque_id("univariate-run", f"{user_id}:{source_id}")
-        existing = self._repository.find_univariate_run(run_id)
+        existing = self._repository.find_univariate_run(run_id, user_id)
         if existing is not None:
             if existing.status != "failed":
                 return research_run_row(existing)
@@ -91,7 +91,7 @@ class UnivariateResearchService:
         else:
             rows = self._data.build_univariate_rows(
                 selection.member_ids,
-                on_progress=lambda completed: self._update_progress(run_id, completed),
+                on_progress=lambda completed: self._update_progress(user_id, run_id, completed),
             )
             if not rows:
                 self._repository.save_univariate_run(
@@ -145,8 +145,8 @@ class UnivariateResearchService:
         selection = self._repository.univariate_selection(selection_id, user_id)
         return page_rows(selection.rows, limit=limit, offset=offset)
 
-    def _update_progress(self, run_id: str, completed: int) -> None:
-        run = self._repository.find_univariate_run(run_id)
+    def _update_progress(self, user_id: str, run_id: str, completed: int) -> None:
+        run = self._repository.find_univariate_run(run_id, user_id)
         if run is not None and run.status == "running":
             self._repository.save_univariate_run(replace(run, completed=min(completed, run.total)))
 

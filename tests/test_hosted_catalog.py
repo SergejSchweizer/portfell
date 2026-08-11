@@ -65,6 +65,8 @@ def test_hosted_catalog_contracts_validate_security_invariants() -> None:
         "portfell_app.user_grants",
         "portfell_app.selections",
         "portfell_app.analysis_runs",
+        "portfell_app.research_runs",
+        "portfell_app.univariate_selections",
         "portfell_app.artifacts",
         "portfell_app.artifact_inputs",
         "portfell_app.audit_events",
@@ -79,7 +81,7 @@ def test_hosted_migration_sql_defines_rls_and_immutable_catalog_shape() -> None:
     migrations = migration_plan()
     sql = "\n".join(migration.sql.lower() for migration in migrations)
 
-    assert [migration.version for migration in migrations] == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    assert [migration.version for migration in migrations] == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
     assert len({migration.checksum for migration in migrations}) == len(migrations)
     assert "create table if not exists portfell_app.provider_credentials" in sql
     assert "ciphertext bytea not null" in sql
@@ -117,6 +119,9 @@ def test_hosted_migration_sql_defines_rls_and_immutable_catalog_shape() -> None:
     assert "on portfell_app.jobs (status, available_at, priority desc, created_at)" in sql
     assert "payload" not in D017_DURABLE_JOB_SCHEMA_SQL.lower()
     assert "create table if not exists portfell_private.legacy_imports" in sql
+    assert "create table if not exists portfell_app.research_runs" in sql
+    assert "create table if not exists portfell_app.univariate_selections" in sql
+    assert "create table if not exists portfell_app.research_run_rows" in sql
 
 
 def test_apply_hosted_catalog_migrations_is_deterministic_and_idempotent() -> None:
