@@ -819,7 +819,7 @@ deleting shared payloads, tenant history, or unrelated cron entries.
 
 Branch: `chore/web-button-interaction-gate`.
 
-Git status: not started. PR: TBD.
+Git status: in progress. PR: https://github.com/SergejSchweizer/portfell/pull/329.
 
 Priority: P1 prevent untested browser interactions from merging.
 
