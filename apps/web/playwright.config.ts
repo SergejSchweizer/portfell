@@ -16,4 +16,10 @@ export default defineConfig({
     { name: "tablet", use: { ...devices["iPad Pro 11"], viewport: { width: 1024, height: 1366 } } },
     { name: "mobile", use: { ...devices["iPhone 13"], viewport: { width: 390, height: 844 } } },
   ],
+  webServer: {
+    command: "npm run build && npm start",
+    url: "http://127.0.0.1:3000/health",
+    reuseExistingServer: !process.env.CI,
+    timeout: 120_000,
+  },
 });
