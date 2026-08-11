@@ -47,9 +47,11 @@ browser
                  +---------------------+  +-------------------+
 ```
 
-`portfell-postgress`, `portfell-api`, and `portfell-web` are intentional fixed
-container names. Development uses Compose-managed durable volumes; production
-uses the explicit Synology bind mounts described below.
+`portfell-postgress`, `portfell-api`, `portfell-web`, and `portfell-worker` are
+intentional fixed container names. `portfell-worker` runs the
+`project-bootstrap-worker` Compose service. Development uses Compose-managed
+durable volumes; production uses the explicit Synology bind mounts described
+below.
 
 ## 2. Prerequisites
 
@@ -117,7 +119,8 @@ docker compose --env-file .env.local ps
 docker compose --env-file .env.local logs --tail 100 api web project-bootstrap-worker
 ```
 
-Wait until `portfell-postgress`, `portfell-api-1`, and `portfell-web` are
+Wait until `portfell-postgress`, `portfell-api`, `portfell-web`, and
+`portfell-worker` are
 healthy. Open `http://localhost:3000` for the Web UI and
 `http://localhost:8000/health` for the API health response.
 

@@ -128,6 +128,7 @@ services:
           memory: 512M
 
   project-bootstrap-worker:
+    container_name: portfell-worker
     build:
       context: .
       dockerfile: apps/api/Dockerfile
