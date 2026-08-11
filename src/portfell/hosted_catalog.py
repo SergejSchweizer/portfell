@@ -10,6 +10,7 @@ from typing import Protocol
 
 from portfell.hosted_download_run_schema import DOWNLOAD_RUN_PARTIAL_STATUS_SQL
 from portfell.legacy_import_schema import LEGACY_IMPORT_LEDGER_SQL
+from portfell.metadata_lifecycle_schema import METADATA_LIFECYCLE_SCHEMA_SQL
 from portfell.tenant_control_schema import (
     D017_DURABLE_JOB_SCHEMA_SQL,
     D017_ROLE_SPECS,
@@ -471,6 +472,7 @@ MIGRATIONS: tuple[HostedMigration, ...] = (
     HostedMigration(7, "d017_durable_job_queue", D017_DURABLE_JOB_SCHEMA_SQL),
     HostedMigration(8, "legacy_import_ledger", LEGACY_IMPORT_LEDGER_SQL),
     HostedMigration(9, "download_run_partial_status", DOWNLOAD_RUN_PARTIAL_STATUS_SQL),
+    HostedMigration(10, "durable_metadata_lifecycle", METADATA_LIFECYCLE_SCHEMA_SQL),
 )
 
 

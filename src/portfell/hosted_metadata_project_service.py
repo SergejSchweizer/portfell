@@ -14,15 +14,15 @@ from portfell.hosted_api_serializers import (
 )
 from portfell.hosted_api_service_support import (
     audit,
-    idempotent_response,
     opaque_id,
-    remember_idempotency,
     stable_hash,
 )
 from portfell.hosted_api_state import HostedApiState, ProjectRecord, SelectionRecord
 from portfell.hosted_credentials import CredentialVaultError
+from portfell.hosted_local_metadata_repository import LocalMetadataLifecycleRepository
 from portfell.hosted_local_project_repository import LocalProjectRepository
 from portfell.hosted_local_selection_repository import LocalSelectionRepository
+from portfell.hosted_metadata_repository import MetadataLifecycleRepository, MetadataRun
 from portfell.hosted_repository_importer import (
     ProjectRepository,
     TenantProject,
@@ -42,11 +42,13 @@ class MetadataProjectService:
         runtime: HostedRuntimePort,
         project_repository: ProjectRepository | None = None,
         selection_repository: SelectionRepository | None = None,
+        metadata_repository: MetadataLifecycleRepository | None = None,
     ) -> None:
         self.state = state
         self.runtime = runtime
         self._projects = project_repository or LocalProjectRepository(state)
         self._selections = selection_repository or LocalSelectionRepository(state)
+        self._metadata = metadata_repository or LocalMetadataLifecycleRepository(state)
 
     def _all_isins_rows(self) -> tuple[JsonRow, ...]:
         return self.state.all_isins_rows or self.runtime.all_isins_rows()
@@ -66,36 +68,35 @@ class MetadataProjectService:
         except CredentialVaultError as error:
             raise HostedApplicationError(422, "eodhd_key_required") from error
         run_id = opaque_id("metadata-run", f"{user_id}:{uuid.uuid4()}")
-        self.state.metadata_runs_by_id[run_id] = {
-            "metadata_run_id": run_id,
-            "user_id": user_id,
-            "status": "running",
-            "total": 0,
-            "completed": 0,
-            "skipped_exchange_count": 0,
-            "percent": 0,
-        }
+        run = self._metadata.create(MetadataRun(run_id, user_id, "running", 0, 0, 0, 0, {}))
         audit(self.state, user_id, "fetch_all_metadata.started")
-        return metadata_fetch_row(
-            self.state.metadata_runs_by_id[run_id]
-        ), lambda: self.run_metadata_fetch(user_id, run_id, provider_key)
+        return metadata_fetch_row(_metadata_row(run)), lambda: self.run_metadata_fetch(
+            user_id, run_id, provider_key
+        )
 
     def metadata_fetch_status(self, user_id: str, run_id: str) -> JsonRow:
-        run = self.state.metadata_runs_by_id.get(run_id)
-        if run is None or run.get("user_id") != user_id:
+        run = self._metadata.status(user_id=user_id, run_id=run_id)
+        if run is None:
             raise HostedApplicationError(404, "metadata_run_not_found")
-        return metadata_fetch_row(run)
+        return metadata_fetch_row(_metadata_row(run))
 
     def run_metadata_fetch(self, user_id: str, run_id: str, provider_key: str) -> None:
         def update_progress(completed: int, total: int, skipped: int) -> None:
             percent = round((completed / total) * 100) if total else 0
-            self.state.metadata_runs_by_id[run_id] = {
-                **self.state.metadata_runs_by_id[run_id],
-                "completed": completed,
-                "total": total,
-                "skipped_exchange_count": skipped,
-                "percent": percent,
-            }
+            current = self._metadata.status(user_id=user_id, run_id=run_id)
+            if current is not None:
+                self._metadata.update(
+                    MetadataRun(
+                        run_id,
+                        user_id,
+                        "running",
+                        total,
+                        completed,
+                        skipped,
+                        percent,
+                        current.summary,
+                    )
+                )
 
         try:
             summary = self.runtime.run_metadata(
@@ -109,29 +110,46 @@ class MetadataProjectService:
         except Exception:
             self._fail_metadata_fetch(user_id, run_id, "metadata_fetch_failed")
             return
-        self.state.metadata_revisions_by_user[user_id] = opaque_id(
-            "metadata-revision", stable_hash(summary)
-        )
+        revision_id = opaque_id("metadata-revision", stable_hash(summary))
+        self._metadata.set_revision(user_id=user_id, revision_id=revision_id)
         self.state.current_metadata_selection_by_user.pop(user_id, None)
         self.state.current_univariate_selection_by_user.pop(user_id, None)
-        self.state.metadata_runs_by_id[run_id] = {
-            **self.state.metadata_runs_by_id[run_id],
-            "status": "succeeded",
-            "row_count": int(summary["all_isins_rows"]),
-            "exchange_count": int(summary["exchange_count"]),
-            "requested_exchange_count": int(summary["requested_exchange_count"]),
-            "skipped_exchange_count": int(summary["skipped_exchange_count"]),
-            "skipped_exchanges": list(summary["skipped_exchanges"]),
-            "percent": 100,
-        }
+        current = self._metadata.status(user_id=user_id, run_id=run_id)
+        if current is not None:
+            self._metadata.update(
+                MetadataRun(
+                    run_id,
+                    user_id,
+                    "succeeded",
+                    current.total,
+                    current.completed,
+                    int(summary["skipped_exchange_count"]),
+                    100,
+                    {
+                        "row_count": int(summary["all_isins_rows"]),
+                        "exchange_count": int(summary["exchange_count"]),
+                        "requested_exchange_count": int(summary["requested_exchange_count"]),
+                        "skipped_exchanges": list(summary["skipped_exchanges"]),
+                    },
+                )
+            )
         audit(self.state, user_id, "fetch_all_metadata.completed")
 
     def _fail_metadata_fetch(self, user_id: str, run_id: str, code: str) -> None:
-        self.state.metadata_runs_by_id[run_id] = {
-            **self.state.metadata_runs_by_id[run_id],
-            "status": "failed",
-            "error_code": code,
-        }
+        current = self._metadata.status(user_id=user_id, run_id=run_id)
+        if current is not None:
+            self._metadata.update(
+                MetadataRun(
+                    run_id,
+                    user_id,
+                    "failed",
+                    current.total,
+                    current.completed,
+                    current.skipped_exchange_count,
+                    current.percent,
+                    {**current.summary, "error_code": code},
+                )
+            )
         audit(self.state, user_id, "fetch_all_metadata.failed")
 
     def create_project_from_criteria(
@@ -171,11 +189,13 @@ class MetadataProjectService:
             or "metadata_builder_project"
         )
         operation = f"metadata-builder-project:{project_name}"
-        cached = idempotent_response(
-            self.state,
-            user_id=user_id,
-            operation=operation,
-            idempotency_key=idempotency_key,
+        request_hash = stable_hash({"operation": operation, "members": selected_rows})
+        cached = (
+            self._metadata.idempotent_response(
+                user_id=user_id, operation=operation, key=idempotency_key, request_hash=request_hash
+            )
+            if idempotency_key is not None
+            else None
         )
         if cached is not None:
             project = self._project(user_id, cached)
@@ -204,7 +224,14 @@ class MetadataProjectService:
         self.state.current_univariate_selection_by_user.pop(user_id, None)
         self._projects.set_current_project(user_id=user_id, project_id=project_id)
         self.runtime.write_metadata_selection(selection_id, selected_rows, predicates)
-        remember_idempotency(self.state, user_id, operation, idempotency_key, project_id)
+        if idempotency_key is not None:
+            self._metadata.remember_idempotency(
+                user_id=user_id,
+                operation=operation,
+                key=idempotency_key,
+                request_hash=request_hash,
+                response_ref=project_id,
+            )
         audit(self.state, user_id, "metadata_builder.project.create")
         return self._project_selection_row(project, selection)
 
@@ -265,6 +292,19 @@ class MetadataProjectService:
         if selection is None:
             raise HostedApplicationError(404, "not_found")
         return self._selection_record(selection)
+
+
+def _metadata_row(run: MetadataRun) -> JsonRow:
+    return {
+        "metadata_run_id": run.metadata_run_id,
+        "user_id": run.user_id,
+        "status": run.status,
+        "total": run.total,
+        "completed": run.completed,
+        "skipped_exchange_count": run.skipped_exchange_count,
+        "percent": run.percent,
+        **run.summary,
+    }
 
 
 def _unique_listings(rows: list[JsonRow]) -> list[JsonRow]:
