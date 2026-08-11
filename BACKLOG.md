@@ -63,9 +63,10 @@ cross-user provenance from shared ingestion. It requires explicit provider-licen
 cross-customer storage, derived reuse, and service-credential ingestion; PR156 is a blocking
 fail-closed gate, not optional documentation.
 
-PR156 through PR168 are sequential. No PR may dual-write market/statistical payloads into
-PostgreSQL, put user/project fields into shared payloads, authorize from object existence, let a
-browser choose storage paths or credentials, or retain local-workspace JSON as a second hosted
+PR156 through PR167 are sequential. PR168 and PR169 both depend on PR167 and may execute in
+parallel; both are required to complete the series. No PR may dual-write market/statistical payloads
+into PostgreSQL, put user/project fields into shared payloads, authorize from object existence, let
+a browser choose storage paths or credentials, or retain local-workspace JSON as a second hosted
 source of truth after cutover.
 
 ### PR156. Shared Data Licensing Decision And Plane Contracts
@@ -801,10 +802,108 @@ block and unrelated crontab bytes; repeated target-date execution joins one dura
 converges on one immutable revision per content identity. Uninstall/restore can be repeated without
 deleting shared payloads, tenant history, or unrelated cron entries.
 
+### PR169. Exhaustive Button Interaction Tests And Required Merge Gates
+
+Branch: `chore/web-button-interaction-gate`.
+
+Git status: not started. PR: TBD.
+
+Priority: P1 prevent untested browser interactions from merging.
+
+Depends on: PR167. May execute in parallel with PR168.
+
+Scope:
+
+- Add a machine-readable Playwright interaction manifest covering every rendered native `button`,
+  shared `Button`, `IconButton`, `role="button"`, and `role="tab"` in every production Portfell route
+  and reachable workflow state. Each entry records route, viewport applicability, accessible name,
+  setup state, expected enabled/disabled state, click action, expected API/navigation/UI effect, and
+  duplicate-click behavior.
+- Add an inventory guard that renders each registered route/state, discovers controls by semantic
+  role and accessible name, and compares the discovered set with the manifest in both directions.
+  A newly added, renamed, removed, duplicated, or inaccessible button/tab must fail until its
+  interaction case and manifest entry are updated.
+- Implement isolated Playwright cases using `getByRole` and deterministic `page.route` fixtures.
+  Test visible/accessibility state before interaction and prove the exact API method/path and payload,
+  navigation target, dialog/drawer/tab state, persisted setting, or rendered result after interaction.
+  Unhandled browser API requests fail the test.
+- Cover each action's applicable `ready`, `locked`, `pending`, `running`, `complete`, and `failed`
+  states. Disabled controls make no request. Repeated clicks while work is active create no duplicate
+  request/run. Retry after a modeled failure follows the documented idempotent behavior.
+- Cover navigation/drawer controls, metadata actions, project creation/switching, all Uni/Bi/Multi
+  compute actions, settings/candidate controls, tabs, icon-only controls, and responsive-only
+  controls. Use `aria-label` fixes only where a control lacks a stable accessible name; do not add
+  test ids or change product behavior when a semantic locator is available.
+- Run every interaction scenario through the existing Playwright `desktop`, `tablet`, and `mobile`
+  projects. Configure a deterministic local Web server lifecycle, fixed timezone/locale, reduced
+  motion where relevant, clean state per test, and trace/screenshot/video capture only on failure.
+- Add `pr-web-interactions` to `.github/workflows/pr-quality.yml` and
+  `merge-web-interactions` to `.github/workflows/merge-gate.yml`. Each job installs pinned Node
+  dependencies and the pinned Playwright Chromium runtime, builds/serves the Web application, runs
+  the complete interaction inventory on all three viewports, uploads failure artifacts, and is a
+  mandatory dependency of the stable aggregate `pr-quality` or `merge-gate` result.
+- Update `GATES.md`, local quality commands, workflow/governance tests, and contributor guidance so
+  the button inventory cannot be skipped by branch protection, auto-merge, direct main validation,
+  or the documented local pre-push procedure.
+
+Acceptance:
+
+- A committed manifest entry exists for every control discovered as `button` or `tab` on Metadata
+  Builder, Univariate Statistics, Bivariate Statistics, Multivariate Statistics, and the responsive
+  application shell in every registered workflow state. There are zero discovered-but-unregistered
+  and zero registered-but-undiscovered controls on desktop, tablet, and mobile.
+- Every manifest entry has exactly one deterministic interaction test or an explicit disabled-state
+  assertion. Tests locate controls by role and accessible name; no case depends on generated CSS
+  classes, DOM child position, visible implementation text without a role, arbitrary sleeps, or a
+  production EODHD/PostgreSQL request.
+- Enabled action tests assert the exact request method, path, relevant payload, request count, and
+  resulting UI state. Navigation, drawer, tab, and purely local controls assert their exact URL,
+  focus/expanded/selected state, or visible content and make zero unexpected API calls.
+- Locked, pending, and running controls are disabled or absent according to contract and produce
+  zero side effects. Double-click or repeated-click tests prove one logical request/run for every
+  submitting action. Failure/retry tests show the stable error and one idempotent retry.
+- Icon-only controls have a unique non-empty accessible name. Duplicate accessible names are allowed
+  only when the test scopes them to a documented semantic region; keyboard activation and focus
+  visibility pass for all actionable controls.
+- A mutation fixture that adds an unregistered button, removes a registered button, changes an
+  accessible name, or changes a button to the wrong enabled state makes the inventory/interaction
+  suite fail with a message naming route, state, role, and control name.
+- `npm run typecheck`, `npm run test:coverage`, `npm run build`, and `npm run e2e` pass from
+  `apps/web`; `npm run e2e` executes and passes the complete manifest on the configured `desktop`,
+  `tablet`, and `mobile` projects with no retries required.
+- `pr-quality.yml` contains a `pr-web-interactions` job and its aggregate fails when that job is
+  failed, cancelled, or skipped. `merge-gate.yml` contains an equivalent `merge-web-interactions`
+  job and its aggregate enforces the same result on the exact merged `main` commit.
+- A controlled failing interaction test produces Playwright trace, screenshot, and retained video
+  artifacts with documented retention; a passing run does not upload unnecessary browser artifacts.
+  Fixtures and artifacts contain no credentials, tokens, real customer/project data, or unrestricted
+  shared inventory.
+- `GATES.md` lists both Web interaction jobs, their exact commands, browser/version pinning, artifact
+  behavior, local equivalent, and required aggregate relationship. Governance tests fail if either
+  workflow job, aggregate dependency, manifest guard, or documented gate is removed.
+- Branch-protection evidence shows the stable required `pr-quality` check cannot succeed without all
+  button interaction tests. The final PR reports button/tab counts by route and state, all commands,
+  durations, results, and any deliberately non-actionable disabled controls.
+
+Security: Browser fixtures use synthetic opaque ids and values only. No test calls Google, EODHD,
+production PostgreSQL, or production shared storage. Traces, screenshots, videos, logs, and CI
+artifacts are secret-scanned and cannot contain provider keys, sessions, credentials, internal paths,
+or real project membership.
+
+Determinism: Manifest order, route/state fixtures, API responses, accessible names, timezone, locale,
+viewport definitions, animation policy, browser version, and expected effects are committed and
+pinned. Tests use condition-based assertions rather than sleeps and pass independently of execution
+order or worker scheduling.
+
+Idempotency: Every test starts from isolated state and can be retried without retaining projects,
+runs, settings, routes, or browser storage. Repeated user actions are asserted to join/reuse one
+logical operation where required; CI reruns do not contact production services or mutate external
+state.
+
 ### PostgreSQL Tenant Plane And Shared Data Series Completion Gate
 
-This series is complete only after PR156 through PR168 merge in order and the current gates in
-[GATES.md](GATES.md) pass. One production-like evidence bundle must prove:
+This series is complete only after PR156 through PR167 merge in order, PR168 and PR169 complete, and
+the current gates in [GATES.md](GATES.md) pass. One production-like evidence bundle must prove:
 
 - all user metadata, encrypted credential envelopes, immutable projects with exactly one canonical
   member per unique ISIN, jobs/outbox/attempts, runs, audit, and top-level artifact references are
@@ -819,6 +918,9 @@ This series is complete only after PR156 through PR168 merge in order and the cu
 - the production service user's managed cron block is installed idempotently at
   `02:15 Europe/Amsterdam`, one natural scheduled run succeeds, monitoring/rotation are live, and exact
   uninstall/crontab-restore/application-rollback evidence is approved;
+- every production button and tab has a semantic interaction case on desktop, tablet, and mobile;
+  the inventory guard and Playwright interaction jobs are mandatory dependencies of both stable
+  merge-quality aggregates;
 - project deletion and user credential deletion preserve shared payloads and other projects, while
   tenant history and crypto-shredding follow explicit retention policy;
 - old analysis runs remain reproducible from pinned immutable revisions after market corrections;
