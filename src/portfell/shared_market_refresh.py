@@ -119,9 +119,10 @@ def plan_refresh(
 def refresh_shared_market_data(
     *,
     store: SharedMarketDataStore,
-    state: HostedApiState,
     fetch: ProviderFetch,
     end_date: date,
+    listings: Iterable[SharedListingKey] | None = None,
+    state: HostedApiState | None = None,
     concurrency: int = 4,
     dry_run: bool = False,
 ) -> RefreshResult:
@@ -129,9 +130,11 @@ def refresh_shared_market_data(
 
     if concurrency < 1:
         raise SharedMarketRefreshError("invalid_refresh_concurrency")
-    listings = active_project_inventory(state)
-    requests = plan_refresh(store, listings, end_date=end_date)
-    result_hash = inventory_hash(listings)
+    resolved_listings = (
+        tuple(listings) if listings is not None else active_project_inventory(_state(state))
+    )
+    requests = plan_refresh(store, resolved_listings, end_date=end_date)
+    result_hash = inventory_hash(resolved_listings)
     if dry_run:
         return RefreshResult(
             result_hash, end_date.isoformat(), len(requests), 0, 0, 0, True, requests
@@ -170,6 +173,12 @@ def refresh_shared_market_data(
         if errors:
             raise SharedMarketRefreshError("shared_market_refresh_partial_failure")
         return result
+
+
+def _state(state: HostedApiState | None) -> HostedApiState:
+    if state is None:
+        raise SharedMarketRefreshError("active_inventory_required")
+    return state
 
 
 def _refresh_one(

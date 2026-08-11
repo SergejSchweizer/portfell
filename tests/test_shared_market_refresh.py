@@ -85,6 +85,17 @@ def test_delta_plan_skips_fully_covered_data_and_backfills_only_new_listings(tmp
     ]
 
 
+def test_refresh_accepts_worker_owned_inventory_without_workspace_state(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    result = refresh_shared_market_data(
+        store=SharedMarketDataStore(tmp_path),
+        listings=(SharedListingKey("eodhd", "XETRA", "ABC", "IE1"),),
+        fetch=_fetch,
+        end_date=date(2026, 1, 10),
+    )
+
+    assert result.requested == 3
+
+
 def test_refresh_rejects_invalid_settings_and_persists_partial_failure(tmp_path) -> None:  # type: ignore[no-untyped-def]
     store = SharedMarketDataStore(tmp_path)
     with pytest.raises(SharedMarketRefreshError, match="invalid_correction_overlap"):
