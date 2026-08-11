@@ -43,6 +43,26 @@ class RequestScopedPostgresConnection:
         return connection.execute(sql, parameters)
 
     @contextmanager
+    def transaction(self) -> Generator[None]:
+        """Reuse an authenticated request transaction or own one worker transaction."""
+
+        if self._current.get() is not None:
+            yield
+            return
+        connection = self._connect()
+        token: Token[ScopedConnection | None] = self._current.set(connection)
+        try:
+            yield
+        except BaseException:
+            connection.rollback()
+            raise
+        else:
+            connection.commit()
+        finally:
+            self._current.reset(token)
+            connection.close()
+
+    @contextmanager
     def request(self, user_id: str) -> Generator[None]:
         """Bind one user to one transaction and commit only successful requests."""
 

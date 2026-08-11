@@ -66,3 +66,25 @@ def test_request_scoped_connection_rolls_back_on_exception() -> None:
     assert created[0].rolled_back
     assert not created[0].committed
     assert created[0].closed
+
+
+def test_transaction_reuses_the_authenticated_request_connection() -> None:
+    created: list[_Connection] = []
+    scope = RequestScopedPostgresConnection(lambda: created.append(_Connection()) or created[-1])
+
+    with scope.request("00000000-0000-5000-8000-000000000001"), scope.transaction():
+        scope.execute("select 1")
+
+    assert len(created) == 1
+    assert created[0].calls[-1] == ("select 1", ())
+
+
+def test_worker_transaction_owns_and_commits_a_connection() -> None:
+    created: list[_Connection] = []
+    scope = RequestScopedPostgresConnection(lambda: created.append(_Connection()) or created[-1])
+
+    with scope.transaction():
+        scope.execute("select 1")
+
+    assert created[0].committed
+    assert created[0].closed
