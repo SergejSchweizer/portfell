@@ -58,6 +58,10 @@ services:
   api:
     container_name: portfell-e2e-api
     restart: "no"
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
     environment:
       EODHD_BASE_URL: http://eodhd-stub:8080/api
     depends_on:
@@ -84,6 +88,10 @@ services:
   project-bootstrap-worker:
     container_name: portfell-e2e-worker
     restart: "no"
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
     environment:
       EODHD_BASE_URL: http://eodhd-stub:8080/api
       PORTFELL_WORKER_POLL_SECONDS: "0.1"
