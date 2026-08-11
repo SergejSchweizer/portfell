@@ -107,12 +107,12 @@ def _run_once(project_root: Path, log_path: Path, *, dry_run: bool = False) -> i
         command.append("--dry-run")
     command.extend(
         (
-        "--profile",
-        "operations",
-        "run",
-        "--rm",
-        "--no-deps",
-        "shared-market-refresh",
+            "--profile",
+            "operations",
+            "run",
+            "--rm",
+            "--no-deps",
+            "shared-market-refresh",
         )
     )
     if dry_run:
