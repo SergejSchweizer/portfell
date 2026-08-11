@@ -63,11 +63,12 @@ cross-user provenance from shared ingestion. It requires explicit provider-licen
 cross-customer storage, derived reuse, and service-credential ingestion; PR156 is a blocking
 fail-closed gate, not optional documentation.
 
-PR156 through PR167 are sequential. PR168 and PR169 both depend on PR167 and may execute in
-parallel; both are required to complete the series. No PR may dual-write market/statistical payloads
-into PostgreSQL, put user/project fields into shared payloads, authorize from object existence, let
-a browser choose storage paths or credentials, or retain local-workspace JSON as a second hosted
-source of truth after cutover.
+PR156 through PR167 are sequential. PR170 depends on PR167 and must complete before PR168 installs
+the production cron against the final storage paths. PR169 depends on PR167 and may execute in
+parallel. PR168, PR169, and PR170 are all required to complete the series. No PR may dual-write
+market/statistical payloads into PostgreSQL, put user/project fields into shared payloads, authorize
+from object existence, let a browser choose storage paths or credentials, or retain local-workspace
+JSON as a second hosted source of truth after cutover.
 
 ### PR156. Shared Data Licensing Decision And Plane Contracts
 
@@ -647,14 +648,17 @@ repeatable and stop before documented commit points on mismatch.
 
 Branch: `refactor/hosted-credential-vault-injection`.
 
-Git status: pushed; project selection projections and credential commands are moving behind explicit persistence ports. Production authority remains blocked by the required production-like import, parity, backup/restore, and rollback rehearsal.
+Git status: merged. The final hosted runtime cutover merged through PR #326; production authority
+remains blocked by the required production-like import, parity, backup/restore, and rollback
+rehearsal.
 
 PR: https://github.com/SergejSchweizer/portfell/pull/322.
 
 Depends on implementation branch: `refactor/hosted-research-selection-repository` (PR #320).
 
-Prior planning PR: https://github.com/SergejSchweizer/portfell/pull/300 (merged; remaining
-implementation continues through stacked branches).
+Final implementation PR: https://github.com/SergejSchweizer/portfell/pull/326.
+
+Prior planning PR: https://github.com/SergejSchweizer/portfell/pull/300 (merged).
 
 Priority: P0 activate the proven architecture.
 
@@ -698,11 +702,11 @@ one documented commit point and retries cannot recreate legacy authority or dupl
 
 Branch: `chore/install-production-market-refresh-cron`.
 
-Git status: not started. PR: TBD.
+Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/327.
 
 Priority: P0 complete the production operations rollout.
 
-Depends on: PR167.
+Depends on: PR167 and PR170.
 
 Scope:
 
@@ -710,14 +714,19 @@ Scope:
   `dev_portfell`, using the absolute checkout `/home/dev_portfell/portfell`. Do not install against a
   feature checkout, unmerged commit, mutable image tag, local-workspace authority, or developer
   credential.
+- Require the Compose `shared-market-refresh` job to mount the persistent host lake
+  `/volume2/docker/portfell/lake` at `/srv/portfell/shared-data` and set
+  `PORTFELL_SHARED_DATA_ROOT=/srv/portfell/shared-data`. The cron may publish quote, dividend, split,
+  coverage, manifest, and shared analytical updates only through this mount and may not write a
+  repository `lake`, named volume, project directory, or container-local persistent path.
 - Record a preflight evidence bundle that pins the deployed Git SHA and container image digest;
   confirms PR156 licensing approval, PR167 PostgreSQL/shared-store authority, migration head, healthy
   PostgreSQL/API/workers, the dedicated operations credential, external secret-file permissions,
   shared-store write/atomic-replace capability, free disk space, and synchronized host time.
 - Back up the service user's existing crontab with owner-only permissions and a SHA-256 digest before
-  mutation. Provision `/var/log/portfell/shared-market-refresh.log`, its parent directory, and
-  logrotate ownership/retention so the non-interactive service user can append logs without making
-  configuration or secrets world-writable.
+  mutation. Provision `/volume2/docker/portfell/logs/shared-market-refresh.log`, its parent
+  directory, and logrotate ownership/retention so the non-interactive service user can append logs
+  without making configuration or secrets world-writable.
 - From the absolute production root, run `docker compose --env-file .env.local config`, then
   `portfell-refresh-shared-market-data --dry-run`. The dry run must resolve the PostgreSQL active-
   project listing union, operations credential, durable queue, shared root, lock, and delta plan
@@ -768,6 +777,10 @@ Acceptance:
 - The rendered cron command contains only absolute paths, obtains the non-blocking flock, runs
   `docker compose --profile operations run --rm --no-deps shared-market-refresh`, writes the approved
   log, and exposes no network port or long-running second API process.
+- Inspection of the one-shot container proves source `/volume2/docker/portfell/lake`, destination
+  `/srv/portfell/shared-data`, and `PORTFELL_SHARED_DATA_ROOT=/srv/portfell/shared-data` agree. A
+  controlled refresh changes only expected files below the host lake and creates no persistent data
+  in the checkout, another host path, an anonymous/named volume, or the container writable layer.
 - A lock-contention test returns the documented non-success/no-op result, starts no provider request,
   publishes no revision, and leaves the active refresh and last valid catalog readable. Repeating a
   logical target date joins/reuses one durable job.
@@ -900,10 +913,127 @@ runs, settings, routes, or browser storage. Repeated user actions are asserted t
 logical operation where required; CI reruns do not contact production services or mutate external
 state.
 
+### PR170. UGREEN NAS Persistent Data Root And Safe Volume Migration
+
+Branch: `chore/ugreen-nas-persistent-data-root`.
+
+Git status: in progress. PR: https://github.com/SergejSchweizer/portfell/pull/330.
+
+Priority: P0 establish final durable storage before cron installation.
+
+Depends on: PR167. Must complete before PR168.
+
+Scope:
+
+- Introduce one explicit production host setting
+  `PORTFELL_DATA_ROOT=/volume2/docker/portfell`. Keep container paths unchanged while mapping
+  PostgreSQL to `${PORTFELL_DATA_ROOT}/postgres:/var/lib/postgresql/data` and the canonical shared
+  lake to `${PORTFELL_DATA_ROOT}/lake:/srv/portfell/shared-data` through the production
+  Compose override.
+- Mount the exact same persistent-lake bind path into API, project-bootstrap worker, shared-market
+  refresh, and every analytical worker that reads or publishes shared payloads. No production
+  service may retain a named, anonymous, project-local, or second bind mount for the same persistent
+  target.
+- Define and provision `${PORTFELL_DATA_ROOT}/postgres`, `lake`, `logs`, and `backups` with
+  documented owner, group, mode, ACL, capacity threshold, and backup policy. Resolve required
+  container UIDs/GIDs from the pinned images instead of assuming workstation ids, and prove each
+  service has only its required read/write access.
+- Keep PostgreSQL password, EODHD KEK, operations token, and all other secrets outside
+  `${PORTFELL_DATA_ROOT}` in owner-restricted external secret files. Do not relocate Docker's global
+  engine `data-root`, container metadata, images, build cache, or sockets; this PR moves Portfell's
+  durable application data only.
+- Add a fail-closed migration preflight that verifies the absolute UGREEN NAS path, real directory
+  resolution, filesystem type and atomic-rename support, free space/inodes, ownership/ACLs, backup
+  destination, pinned image digests, migration head, healthy source stack, inactive cron, and no
+  concurrent bootstrap/refresh/analysis writer.
+- Quiesce API write traffic and workers at a documented checkpoint. Create a checksummed logical
+  PostgreSQL backup with roles/schema/data metadata, and copy shared storage with metadata-preserving,
+  checksum-verified tooling while all publishers are stopped. Never copy live PostgreSQL data files
+  as a database backup.
+- Initialize PostgreSQL on the new bind path, restore the logical backup, start services against the
+  new paths, and reconcile schema version, tenant/project/selection/job/run/reference counts,
+  credential-envelope metadata, shared file/object counts, bytes, manifests, content hashes,
+  coverage catalog, and duplicate business keys before resuming writes.
+- Preserve the old Docker named volumes read-only and do not run `docker compose down -v`, volume
+  prune, or destructive cleanup during migration. Record a rollback checkpoint that stops the new
+  stack, restores the old Compose mounts, reconciles source state, and resumes the previous stack
+  without deleting either copy.
+- Update `.env.example`, production Compose example, deployment/readiness checks, backup/restore and
+  UGREEN NAS runbooks, PR168 cron log path, monitoring, and tests. Document NAS/Docker restart behavior,
+  NAS volume unavailability, read-only filesystem, disk-full, permission drift, backup retention,
+  and eventual named-volume cleanup as a separately approved destructive operation.
+
+Acceptance:
+
+- Rendering production Compose with `PORTFELL_DATA_ROOT=/volume2/docker/portfell` succeeds and shows
+  exactly `/volume2/docker/portfell/postgres:/var/lib/postgresql/data` for PostgreSQL and
+  `/volume2/docker/portfell/lake:/srv/portfell/shared-data` for every required consumer and
+  publisher. No production config contains the old named volumes or a second mount at either target.
+- Development Compose remains usable without a UGREEN NAS filesystem and continues to use explicit
+  development volumes. Missing, relative, symlink-escaped, root-level, nonexistent, or non-writable
+  production `PORTFELL_DATA_ROOT` values fail before a container starts or source data changes.
+- The provisioned `postgres`, `lake`, `logs`, and `backups` directories have documented
+  numeric owners/groups, restrictive modes/ACLs, sufficient free bytes/inodes, and write probes from
+  only the intended container users. Web has no database, shared-data, backup, or secret mount.
+- A repository and rendered-Compose scan proves no secret file resides below
+  `/volume2/docker/portfell`, no secret value appears in Compose/environment output, and no container
+  receives a secret it does not require.
+- Migration preflight records source named-volume ids, source/target capacity, Git SHA, image
+  digests, migration head, current PostgreSQL counts, shared inventory/catalog hashes, active-job
+  count, and cron state. Any active writer, stale backup, failed health check, insufficient capacity,
+  permission mismatch, or unsupported atomic rename stops before quiesce/copy/restore.
+- The PostgreSQL backup is a successful logical dump with SHA-256 digest and restorable metadata.
+  Restoring it into a clean target reproduces migration head and exact normalized counts for users,
+  encrypted credential rows, projects, immutable selections/members, jobs/attempts/outbox, analysis
+  runs, audit history, and artifact references without exposing credential plaintext.
+- The quiesced shared-data copy preserves relative paths, file sizes, modes, and content. Source and
+  target have identical file/object counts, total bytes, manifest identities, catalog entries, and
+  SHA-256/content hashes; corrupt, missing, extra, partially copied, or tenant-bearing payloads fail
+  reconciliation.
+- After cutover, API, PostgreSQL, bootstrap worker, analytical workers, and Web become healthy;
+  repeated container recreation and one Docker/DSM restart retain projects, encrypted credentials,
+  job history, analyses, shared market revisions, coverage, and shared artifacts.
+- A synthetic project bootstrap and a shared-market refresh write only below the two approved bind
+  roots. Every market-data write lands below `/volume2/docker/portfell/lake`, survives restart,
+  remains visible to the authorized project, and creates zero duplicate full business keys or
+  project-specific market-data copies.
+- Backup/restore tooling writes only to `/volume2/docker/portfell/backups`, verifies checksums before
+  restore, applies documented retention, and completes one clean-destination restore drill for both
+  PostgreSQL and shared data.
+- A rollback rehearsal from the post-cutover checkpoint restores the old named-volume configuration
+  and exact pre-cutover state within the documented RTO. Switching forward again is repeatable and
+  produces the same reconciled identities and counts.
+- Old named volumes still exist, are not mounted by the accepted production config, and are marked
+  read-only/retained with ids and expiry criteria. Their deletion requires a later explicit approval
+  after backup retention and rollback windows expire; this PR executes no volume deletion.
+- PR168's rendered cron command and logrotate configuration use
+  `/volume2/docker/portfell/logs/shared-market-refresh.log`; its one-shot refresh sees the same
+  PostgreSQL and shared-data bind mounts as the long-running services.
+- Compose contract tests, migration dry-run/failure-injection tests, backup/restore tests,
+  reconciliation, permission/security checks, repository secret scan, Docker restart smoke test,
+  and every current gate in `GATES.md` pass. The redacted evidence bundle records commands, times,
+  exit codes, digests, counts, operator signoff, cutover checkpoint, and rollback result.
+
+Security: Bind roots use least-privilege numeric ownership and restrictive ACLs. Database files,
+shared payloads, backups, and logs contain no plaintext provider key, KEK, database password, session
+token, or unrestricted tenant export. Secrets remain separately mounted and backups are encrypted
+with recovery material stored outside the NAS data root.
+
+Determinism: Production root, subdirectories, container targets, image digests, UID/GID resolution,
+mount contracts, backup format, copy flags, reconciliation schema, cutover checkpoints, and rollback
+commands are explicit and versioned. Equivalent source state produces the same normalized database
+counts and shared content hashes.
+
+Idempotency: Provisioning, Compose rendering, preflight, logical backup, quiesced copy, restore into a
+clean target, reconciliation, restart, and forward/rollback rehearsal are repeatable. Retries never
+delete source volumes, overwrite an unverified backup, duplicate database rows/shared payloads, or
+mount two writable authorities at once.
+
 ### PostgreSQL Tenant Plane And Shared Data Series Completion Gate
 
-This series is complete only after PR156 through PR167 merge in order, PR168 and PR169 complete, and
-the current gates in [GATES.md](GATES.md) pass. One production-like evidence bundle must prove:
+This series is complete only after PR156 through PR167 merge in order, PR170 completes before PR168,
+PR168 and PR169 complete, and the current gates in [GATES.md](GATES.md) pass. One production-like
+evidence bundle must prove:
 
 - all user metadata, encrypted credential envelopes, immutable projects with exactly one canonical
   member per unique ISIN, jobs/outbox/attempts, runs, audit, and top-level artifact references are
@@ -921,6 +1051,9 @@ the current gates in [GATES.md](GATES.md) pass. One production-like evidence bun
 - every production button and tab has a semantic interaction case on desktop, tablet, and mobile;
   the inventory guard and Playwright interaction jobs are mandatory dependencies of both stable
   merge-quality aggregates;
+- production PostgreSQL, shared payloads, logs, and backups use the approved
+  `/volume2/docker/portfell` bind roots with verified permissions, checksums, restart persistence,
+  backup/restore, and a rehearsed non-destructive rollback; secrets remain outside that tree;
 - project deletion and user credential deletion preserve shared payloads and other projects, while
   tenant history and crypto-shredding follow explicit retention policy;
 - old analysis runs remain reproducible from pinned immutable revisions after market corrections;

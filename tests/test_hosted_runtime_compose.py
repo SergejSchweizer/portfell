@@ -20,6 +20,21 @@ def _compose() -> ComposeMapping:
     )
 
 
+def _production_compose_source() -> str:
+    return (REPOSITORY_ROOT / "compose.production.yaml").read_text(encoding="utf-8")
+
+
+def test_production_override_uses_one_explicit_ugreen_nas_data_root() -> None:
+    source = _production_compose_source()
+
+    assert source.count("${PORTFELL_DATA_ROOT:?set an absolute production Portfell data root}") == 4
+    assert "}/postgres:/var/lib/postgresql/data" in source
+    assert source.count("}/lake:/srv/portfell/shared-data") == 3
+    assert "portfell-postgres-data:" not in source
+    assert "portfell-shared-data:" not in source
+    assert "volumes: !reset {}" in source
+
+
 def test_compose_defines_persistent_internal_postgres_and_shared_data() -> None:
     compose = _compose()
     services = cast(ComposeMapping, compose["services"])
@@ -86,6 +101,7 @@ def test_project_initial_fill_worker_is_internal_and_operations_credential_only(
     worker = cast(
         ComposeMapping, cast(ComposeMapping, _compose()["services"])["project-bootstrap-worker"]
     )
+    assert worker["container_name"] == "portfell-worker"
     assert worker["command"] == ["python", "-m", "portfell.hosted_project_bootstrap_worker"]
     assert worker["secrets"] == ["operations_eodhd_token", "postgres_password"]
     assert worker["volumes"] == ["portfell-shared-data:/srv/portfell/shared-data"]

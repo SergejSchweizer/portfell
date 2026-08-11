@@ -11,8 +11,10 @@ market refresh operations, continue with [docs/shared-market-refresh.md](docs/sh
 - [3. External Secrets](#3-external-secrets)
 - [4. Configure The Environment](#4-configure-the-environment)
 - [5. Start And Verify](#5-start-and-verify)
-- [6. Day-To-Day Commands](#6-day-to-day-commands)
-- [7. Troubleshooting](#7-troubleshooting)
+- [6. UGREEN NAS Production Storage](#6-ugreen-nas-production-storage)
+- [7. Non-Destructive Storage Migration](#7-non-destructive-storage-migration)
+- [8. Day-To-Day Commands](#8-day-to-day-commands)
+- [9. Troubleshooting](#9-troubleshooting)
 
 ## 1. Runtime Model
 
@@ -27,7 +29,7 @@ browser
    |
    v
 +----------------+       +-------------------+
-| portfell-web   | ----> | portfell-api-1    |
+| portfell-web   | ----> | portfell-api      |
 +----------------+       +-------------------+
                                   |
                        request-scoped RLS transaction
@@ -41,14 +43,16 @@ browser
                   durable initial-fill job    |    published revisions
                                   v            v
                  +---------------------+  +-------------------+
-                 | bootstrap worker    |  | shared-data volume|
+| bootstrap worker    |  | shared-data plane |
                  | operations token    |  | market-data/      |
                  +---------------------+  +-------------------+
 ```
 
-`portfell-postgress` is the intentional fixed PostgreSQL container name.
-`portfell-api-1` remains Compose-managed because API replicas must not share a
-hard-coded name.
+`portfell-postgress`, `portfell-api`, `portfell-web`, and `portfell-worker` are
+intentional fixed container names. `portfell-worker` runs the
+`project-bootstrap-worker` Compose service. Development uses Compose-managed
+durable volumes; production uses the explicit UGREEN NAS bind mounts described
+below.
 
 ## 2. Prerequisites
 
@@ -116,11 +120,77 @@ docker compose --env-file .env.local ps
 docker compose --env-file .env.local logs --tail 100 api web project-bootstrap-worker
 ```
 
-Wait until `portfell-postgress`, `portfell-api-1`, and `portfell-web` are
+Wait until `portfell-postgress`, `portfell-api`, `portfell-web`, and
+`portfell-worker` are
 healthy. Open `http://localhost:3000` for the Web UI and
 `http://localhost:8000/health` for the API health response.
 
-## 6. Day-To-Day Commands
+## 6. UGREEN NAS Production Storage
+
+Production data lives below one host root and is never mixed with repository
+files or Docker's global engine data root.
+
+```text
+/volume2/docker/portfell
+├── postgres/   PostgreSQL bind mount
+├── lake/       shared immutable market-data revisions
+├── logs/       operations logs
+└── backups/    encrypted logical backups
+```
+
+Set `PORTFELL_DATA_ROOT=/volume2/docker/portfell` in the production-only
+environment file and render the explicit override before starting services:
+
+```bash
+docker compose --env-file .env.local -f compose.yaml -f compose.production.yaml config
+portfell-ugreen-nas-data-root-preflight --root "$PORTFELL_DATA_ROOT"
+docker compose --env-file .env.local -f compose.yaml -f compose.production.yaml up --build --detach
+```
+
+The override resets the development named-volume declarations. API, bootstrap
+worker, and the one-shot refresh service share only `lake/`; Web receives none
+of these mounts. The preflight rejects a non-canonical root, missing required
+directories, world-writable storage, no free inodes, failed write probes, or a
+lake that does not support atomic replacement. Keep secrets outside this tree.
+
+## 7. Non-Destructive Storage Migration
+
+Moving an existing runtime to the UGREEN NAS bind root is an operator-controlled
+cutover. It must be performed from the merged `main` checkout by `dev_portfell`;
+do not copy live PostgreSQL files, run `docker compose down -v`, or prune the
+old named volumes.
+
+```text
+old named volumes -- logical dump + checksummed lake copy --> bind-root restore
+       ^                                                        |
+       |---------------- rollback checkpoint -------------------|
+```
+
+1. Stop new write traffic, wait for bootstrap, analysis, and refresh jobs to
+   become terminal, and record the merged Git SHA, image digests, migration
+   head, volume ids, catalog hash, and normalized PostgreSQL counts.
+2. Run the production-root preflight. Create an encrypted logical PostgreSQL
+   dump below `backups/`, record its SHA-256, and copy the quiesced lake with
+   metadata-preserving, checksum-verified tooling. Database files themselves
+   are never a backup format. Use `portfell-persistent-data-inventory
+   reconcile --source <quiesced-source> --target "$PORTFELL_DATA_ROOT/lake"
+   --output "$PORTFELL_DATA_ROOT/backups/<cutover>/lake-reconciliation.json"`
+   and accept the copy only when it exits successfully with `"passed":true`.
+3. Preserve the old volumes read-only. Restore into the new empty bind mounts,
+   start using `compose.production.yaml`, then compare schema head, normalized
+   tenant counts, lake paths/bytes/content hashes, coverage catalog, and
+   duplicate business-key count before enabling writes.
+4. Recreate services and perform a Docker/DSM restart smoke check. A synthetic
+   bootstrap and refresh may write only below `postgres/` and `lake/`.
+5. Retain the old volumes through the approved rollback and backup-retention
+   window. Deleting them is a separate destructive operation requiring explicit
+   approval.
+
+The rollback checkpoint stops the new stack, restores the prior Compose mount
+configuration, verifies the preserved source counts and catalog, and only then
+resumes the previous stack. Do not overwrite either copy during a rollback.
+
+## 8. Day-To-Day Commands
 
 Use these commands for safe routine operations:
 
@@ -143,7 +213,7 @@ catalog and published shared-market revisions. Scheduled refresh, log rotation,
 and cron installation are documented only in
 [docs/shared-market-refresh.md](docs/shared-market-refresh.md).
 
-## 7. Troubleshooting
+## 9. Troubleshooting
 
 If Compose configuration reports a missing secret variable, add the *path* to
 `.env.local`, confirm that the path is absolute, and verify that the file is

@@ -1,0 +1,20 @@
+# Production-only override. Keep development's Compose-managed volumes in compose.yaml.
+services:
+  postgres:
+    volumes:
+      - ${PORTFELL_DATA_ROOT:?set an absolute production Portfell data root}/postgres:/var/lib/postgresql/data
+
+  api:
+    volumes:
+      - ${PORTFELL_DATA_ROOT:?set an absolute production Portfell data root}/lake:/srv/portfell/shared-data
+
+  project-bootstrap-worker:
+    volumes:
+      - ${PORTFELL_DATA_ROOT:?set an absolute production Portfell data root}/lake:/srv/portfell/shared-data
+
+  shared-market-refresh:
+    volumes:
+      - ${PORTFELL_DATA_ROOT:?set an absolute production Portfell data root}/lake:/srv/portfell/shared-data
+
+# Production has no Compose-managed durable storage authority.
+volumes: !reset {}
