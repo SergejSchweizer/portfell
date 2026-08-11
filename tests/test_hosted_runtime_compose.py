@@ -76,6 +76,17 @@ def test_operations_refresh_is_profiled_and_has_only_the_required_secret_mount()
     assert "ports" not in refresh
 
 
+def test_project_initial_fill_worker_is_internal_and_operations_credential_only() -> None:
+    worker = cast(
+        ComposeMapping, cast(ComposeMapping, _compose()["services"])["project-bootstrap-worker"]
+    )
+    assert worker["command"] == ["python", "-m", "portfell.hosted_project_bootstrap_worker"]
+    assert worker["secrets"] == ["operations_eodhd_token", "postgres_password"]
+    assert worker["volumes"] == ["portfell-shared-data:/srv/portfell/shared-data"]
+    assert worker["networks"] == ["portfell-internal"]
+    assert "ports" not in worker
+
+
 def test_web_compose_develop_watch_rebuilds_local_ui_changes() -> None:
     services = cast(ComposeMapping, _compose()["services"])
     web = cast(ComposeMapping, services["web"])

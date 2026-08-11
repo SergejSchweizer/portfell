@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+from contextlib import nullcontext
 from datetime import date
 from typing import Any
 
 from portfell.durable_job_repository import ClaimedJob
-from portfell.hosted_project_bootstrap_worker import ProjectBootstrapWorker
+from portfell.hosted_project_bootstrap_worker import (
+    PostgresSelectionMembers,
+    ProjectBootstrapWorker,
+)
 from portfell.shared_market_data import SharedMarketDataStore
 
 
@@ -30,6 +34,26 @@ class _Jobs:
     ) -> None:
         assert (job_id, lease_token) == ("job-1", "lease-1")
         self.completed.append((status, terminal_code))
+
+
+class _SelectionCursor:
+    def __init__(self, rows: list[tuple[object, ...]]) -> None:
+        self._rows = rows
+
+    def fetchall(self) -> list[tuple[object, ...]]:
+        return self._rows
+
+
+class _SelectionConnection:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, tuple[object, ...]]] = []
+
+    def transaction(self) -> Any:
+        return nullcontext()
+
+    def execute(self, sql: str, parameters: tuple[object, ...] = ()) -> _SelectionCursor:
+        self.calls.append((sql, parameters))
+        return _SelectionCursor([("IE0000000001", "XETRA", "ONE")])
 
 
 def _job(kind: str = "project_initial_fill") -> ClaimedJob:
@@ -79,3 +103,13 @@ def test_worker_marks_the_claimed_bootstrap_failed_without_provider_access(tmp_p
 
     assert (result.claimed_count, result.succeeded_count, result.failed_count) == (1, 0, 1)
     assert jobs.completed == [("failed", "initial_fill_failed")]
+
+
+def test_postgres_selection_reader_binds_the_claimed_user_before_reading_members() -> None:
+    connection = _SelectionConnection()
+
+    members = PostgresSelectionMembers(connection)("user-1", "selection-1")
+
+    assert members == ("IE0000000001:XETRA:ONE",)
+    assert connection.calls[0][1][1] == "user-1"
+    assert "project_selection_members" in connection.calls[1][0]

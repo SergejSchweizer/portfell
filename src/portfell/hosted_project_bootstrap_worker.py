@@ -2,14 +2,29 @@
 
 from __future__ import annotations
 
+import argparse
+import os
+import time
 from collections.abc import Callable
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from datetime import date
+from pathlib import Path
 from typing import Protocol
 
-from portfell.durable_job_repository import ClaimedJob
+from portfell.config import EodhdConfig
+from portfell.durable_job_repository import ClaimedJob, PostgresDurableJobRepository
+from portfell.hosted_catalog import set_authenticated_user_sql
+from portfell.hosted_database_connection import connect
+from portfell.http import EodhdClient
 from portfell.shared_market_data import SharedListingKey, SharedMarketDataStore
-from portfell.shared_market_refresh import ProviderFetch, RefreshResult, refresh_shared_market_data
+from portfell.shared_market_refresh import (
+    ProviderFetch,
+    RefreshResult,
+    _eodhd_fetch,
+    _operations_token,
+    refresh_shared_market_data,
+)
 
 
 class BootstrapJobQueue(Protocol):
@@ -25,6 +40,42 @@ class BootstrapJobQueue(Protocol):
 
 
 SelectionMembers = Callable[[str, str], tuple[str, ...]]
+
+
+class SelectionCursor(Protocol):
+    def fetchall(self) -> list[tuple[object, ...]]: ...
+
+
+class SelectionConnection(Protocol):
+    def transaction(self) -> AbstractContextManager[object]: ...
+
+    def execute(self, sql: str, parameters: tuple[object, ...] = ()) -> SelectionCursor: ...
+
+
+class PostgresSelectionMembers:
+    """Read one RLS-owned immutable member set for a claimed worker job."""
+
+    def __init__(self, connection: SelectionConnection) -> None:
+        self._connection = connection
+
+    def __call__(self, user_id: str, selection_id: str) -> tuple[str, ...]:
+        with self._connection.transaction():
+            self._connection.execute(*set_authenticated_user_sql(user_id))
+            rows = self._connection.execute(
+                """
+select isin, exchange, code
+from portfell_app.project_selection_members
+where selection_version_id = %s::uuid
+order by isin, exchange, code
+""",
+                (selection_id,),
+            ).fetchall()
+        if any(
+            len(row) != 3 or not all(isinstance(value, str) and value for value in row)
+            for row in rows
+        ):
+            raise ValueError("bootstrap_members_projection_invalid")
+        return tuple(f"{row[0]}:{row[1]}:{row[2]}" for row in rows)
 
 
 @dataclass(frozen=True)
@@ -114,3 +165,55 @@ class ProjectBootstrapWorker:
             status="partial" if result.failed else "succeeded",
             terminal_code=None if not result.failed else "initial_fill_partial",
         )
+
+
+def build_parser() -> argparse.ArgumentParser:
+    """Build the non-interactive worker command parser."""
+
+    parser = argparse.ArgumentParser(description="Run Portfell project initial-fill worker jobs.")
+    parser.add_argument("--worker-id", default=f"bootstrap-worker-{os.getpid()}")
+    parser.add_argument("--batch-size", type=int, default=1)
+    parser.add_argument("--concurrency", type=int, default=max(1, os.process_cpu_count() or 1))
+    parser.add_argument("--poll-seconds", type=float, default=2.0)
+    parser.add_argument("--once", action="store_true")
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Run worker-owned initial fills using only the operations market credential."""
+
+    args = build_parser().parse_args(argv)
+    root = os.environ.get("PORTFELL_SHARED_DATA_ROOT")
+    database_url = os.environ.get("PORTFELL_DATABASE_URL")
+    token = _operations_token()
+    if (
+        not root
+        or not database_url
+        or not token
+        or args.batch_size < 1
+        or args.concurrency < 1
+        or args.poll_seconds <= 0
+    ):
+        return 4
+    connection = connect(database_url, autocommit=False)
+    try:
+        worker = ProjectBootstrapWorker(
+            jobs=PostgresDurableJobRepository(connection),
+            members_for_selection=PostgresSelectionMembers(connection),
+            store=SharedMarketDataStore(Path(root)),
+            fetch=_eodhd_fetch(EodhdClient(EodhdConfig(api_token=token))),
+            end_date=date.today(),
+            concurrency=args.concurrency,
+        )
+        while True:
+            result = worker.run_once(worker_id=args.worker_id, batch_size=args.batch_size)
+            if args.once:
+                return 0 if result.failed_count == 0 else 5
+            if result.claimed_count == 0:
+                time.sleep(args.poll_seconds)
+    finally:
+        connection.close()
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
