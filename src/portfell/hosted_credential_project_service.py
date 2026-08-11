@@ -146,11 +146,15 @@ class CredentialProjectService:
         if cached is not None:
             return download_row(self.state.downloads_by_id[cached])
         observation_ids = tuple(opaque_id("observation", value) for value in sorted(set(symbols)))
+        try:
+            credential_id = self._credentials.status(user_id=user_id).credential_id
+        except Exception as error:
+            raise HostedApplicationError(422, "eodhd_credential_required") from error
         request_hash = stable_hash({"user_id": user_id, "symbols": list(observation_ids)})
         run = ProviderDownloadRun(
             download_run_id=opaque_id("download-run", request_hash),
             user_id=user_id,
-            credential_id="credential-ref",
+            credential_id=credential_id,
             provider="eodhd",
             status="succeeded",
             returned_observation_ids=observation_ids,

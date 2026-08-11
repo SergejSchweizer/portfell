@@ -51,6 +51,7 @@ class LocalMetadataLifecycleRepository:
 
 def _row(run: MetadataRun) -> dict[str, object]:
     return {
+        **run.summary,
         "metadata_run_id": run.metadata_run_id,
         "user_id": run.user_id,
         "status": run.status,
@@ -58,5 +59,4 @@ def _row(run: MetadataRun) -> dict[str, object]:
         "completed": run.completed,
         "skipped_exchange_count": run.skipped_exchange_count,
         "percent": run.percent,
-        **run.summary,
     }

@@ -94,13 +94,14 @@ class QuoteRunService:
             )
             return self.status(user_id, active.download_run_id), None
         try:
+            credential = self._credentials.status(user_id=user_id)
             provider_key = self._credentials.unwrap_for_provider_call(user_id=user_id)
         except CredentialVaultError as error:
             raise HostedApplicationError(422, "eodhd_credential_required") from error
         run = ProviderDownloadRun(
             download_run_id=run_id,
             user_id=user_id,
-            credential_id="project-selection",
+            credential_id=credential.credential_id,
             provider="eodhd",
             status="running",
             returned_observation_ids=selection.member_ids,

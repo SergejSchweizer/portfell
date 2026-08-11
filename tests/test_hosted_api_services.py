@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from typing import Any
+from uuid import UUID
 
 import pytest
 
@@ -102,6 +103,14 @@ def _discard_progress(_completed: int, _total: int, _skipped: int) -> None:
 
 def _one_isin_row(_path: Path) -> list[JsonRow]:
     return [{"isin": "IE1"}]
+
+
+def test_opaque_ids_are_stable_postgres_uuid_values() -> None:
+    value = opaque_id("quote-run", "same-input")
+
+    assert value == opaque_id("quote-run", "same-input")
+    assert value != opaque_id("metadata-run", "same-input")
+    assert str(UUID(value)) == value
 
 
 def test_workspace_repository_round_trips_durable_state(tmp_path: Path) -> None:

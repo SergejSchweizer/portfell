@@ -195,6 +195,12 @@ def test_credential_lifecycle_redacts_sensitive_material() -> None:
 
 def test_downloads_publish_visible_user_datasets_and_are_idempotent() -> None:
     client = _client()
+    credential = client.post(
+        "/credentials/eodhd",
+        headers=_headers(idempotency="download-credential"),
+        json={"provider_key": "test-provider-token"},
+    )
+    assert credential.status_code == 200
 
     plan = _json(
         client.post(
