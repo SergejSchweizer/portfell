@@ -81,6 +81,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         raise SystemExit("project root must contain compose.yaml")
     if args.action == "run-once":
         _validate_production_paths(args.data_root, log_path)
+        _validate_project_data_root(root, args.data_root)
         return _run_once(root, log_path)
     current = _read_crontab()
     installed = BEGIN_MARKER in current and END_MARKER in current
@@ -90,6 +91,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     replacement = cron_block(root, log_path) if args.action == "install" else None
     if args.action == "install":
         _validate_production_paths(args.data_root, log_path)
+        _validate_project_data_root(root, args.data_root)
         _compose_config(root)
         _run_once(root, log_path, dry_run=True)
     _write_crontab(replace_managed_block(current, replacement))
@@ -167,6 +169,27 @@ def _validate_production_paths(data_root: Path, log_path: Path) -> None:
     )
     if not all(check.passed for check in checks):
         raise ValueError("production data-root preflight failed")
+
+
+def _validate_project_data_root(project_root: Path, data_root: Path) -> None:
+    """Require Compose's env file to select the same approved data root."""
+
+    environment_file = project_root / ".env.local"
+    try:
+        lines = environment_file.read_text(encoding="utf-8").splitlines()
+    except OSError as error:
+        raise ValueError("production environment file is unavailable") from error
+    expected = str(_absolute(data_root, "data root"))
+    configured = next(
+        (
+            line.partition("=")[2].strip().strip("\"'")
+            for line in lines
+            if line.strip().startswith("PORTFELL_DATA_ROOT=")
+        ),
+        None,
+    )
+    if configured != expected:
+        raise ValueError("PORTFELL_DATA_ROOT must match the approved production data root")
 
 
 if __name__ == "__main__":

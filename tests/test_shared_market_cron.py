@@ -58,6 +58,7 @@ def test_main_installs_statuses_and_uninstalls_only_the_managed_block(
 
     monkeypatch.setattr(cron, "_read_crontab", lambda: crontab)
     monkeypatch.setattr(cron, "_validate_production_paths", lambda _root, _log: None)
+    monkeypatch.setattr(cron, "_validate_project_data_root", lambda _root, _data_root: None)
     monkeypatch.setattr(cron, "_compose_config", lambda _: calls.append("config"))
     monkeypatch.setattr(
         cron, "_run_once", lambda _root, _log, *, dry_run=False: calls.append(f"run:{dry_run}") or 0
@@ -120,3 +121,12 @@ def test_production_paths_reject_an_unapproved_data_root(tmp_path: Path) -> None
 
     with pytest.raises(ValueError, match="preflight"):
         cron._validate_production_paths(root, log_path)
+
+
+def test_project_environment_must_select_the_same_data_root(tmp_path: Path) -> None:
+    root = tmp_path / "project"
+    root.mkdir()
+    (root / ".env.local").write_text("PORTFELL_DATA_ROOT=/wrong/path\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="must match"):
+        cron._validate_project_data_root(root, cron.PRODUCTION_DATA_ROOT)
