@@ -289,6 +289,25 @@ class MetadataProjectService:
             **fields,
         }
 
+    def initial_fill_status(self, user_id: str, project_id: str) -> JsonRow:
+        """Return the owned bootstrap lifecycle without exposing shared inventory."""
+
+        self._project(user_id, project_id)
+        if self._bootstrap is None:
+            raise HostedApplicationError(404, "initial_fill_not_found")
+        status = self._bootstrap.status(user_id=user_id, project_id=project_id)
+        if status is None:
+            raise HostedApplicationError(404, "initial_fill_not_found")
+        return {
+            "bootstrap_id": status.bootstrap.bootstrap.bootstrap_id,
+            "job_id": status.bootstrap.job_id,
+            "status": status.status,
+            "completed_units": status.completed_units,
+            "total_units": status.total_units,
+            "selected_listing_count": status.bootstrap.bootstrap.selected_listing_count,
+            "terminal_code": status.terminal_code,
+        }
+
     @staticmethod
     def _record(project: TenantProject) -> ProjectRecord:
         return ProjectRecord(project.project_id, project.user_id, project.name)

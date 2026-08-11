@@ -34,6 +34,17 @@ class DurableProjectBootstrap:
     job_id: str
 
 
+@dataclass(frozen=True)
+class InitialFillStatus:
+    """Project-scoped lifecycle projection without shared-market inventory."""
+
+    bootstrap: DurableProjectBootstrap
+    status: str
+    completed_units: int
+    total_units: int
+    terminal_code: str | None
+
+
 class ProjectBootstrapRepository(Protocol):
     """Port for creating the one immutable initial fill attached to a project."""
 
@@ -45,6 +56,8 @@ class ProjectBootstrapRepository(Protocol):
         selection_id: str,
         member_ids: tuple[str, ...],
     ) -> DurableProjectBootstrap: ...
+
+    def status(self, *, user_id: str, project_id: str) -> InitialFillStatus | None: ...
 
 
 class PostgresProjectBootstrapRepository:
@@ -114,6 +127,35 @@ on conflict (project_id) do nothing
             )
             return self._existing(project_id) or DurableProjectBootstrap(bootstrap, job_id)
 
+    def status(self, *, user_id: str, project_id: str) -> InitialFillStatus | None:
+        """Read one owned job projection; the global queue is never enumerated."""
+
+        self._bind(user_id)
+        bootstrap = self._existing(project_id)
+        if bootstrap is None or bootstrap.bootstrap.user_id != user_id:
+            return None
+        row = self._connection.execute(
+            """
+select status, completed_units, total_units, terminal_code
+from portfell_app.jobs
+where job_id = %s::uuid
+""",
+            (bootstrap.job_id,),
+        ).fetchone()
+        if row is None or len(row) != 4 or not isinstance(row[0], str):
+            raise BootstrapError("bootstrap_job_projection_invalid")
+        if not isinstance(row[1], int) or not isinstance(row[2], int):
+            raise BootstrapError("bootstrap_job_projection_invalid")
+        if row[3] is not None and not isinstance(row[3], str):
+            raise BootstrapError("bootstrap_job_projection_invalid")
+        return InitialFillStatus(
+            bootstrap,
+            _bootstrap_status(row[0]),
+            row[1],
+            row[2],
+            row[3],
+        )
+
     def _existing(self, project_id: str) -> DurableProjectBootstrap | None:
         rows = self._connection.execute(
             """
@@ -167,3 +209,18 @@ def _bootstrap_id(project_id: str, selection_id: str, member_ids: tuple[str, ...
         separators=(",", ":"),
     )
     return hashlib.sha256(payload.encode()).hexdigest()
+
+
+def _bootstrap_status(job_status: str) -> str:
+    statuses = {
+        "queued": "planning",
+        "running": "running",
+        "succeeded": "ready",
+        "partial": "partial",
+        "failed": "failed",
+        "cancelled": "failed",
+    }
+    try:
+        return statuses[job_status]
+    except KeyError as error:
+        raise BootstrapError("bootstrap_job_status_invalid") from error
