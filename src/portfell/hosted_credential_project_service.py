@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import Callable
 
 from portfell.entitlements import (
     ProviderDownloadRun,
@@ -65,6 +66,7 @@ class CredentialProjectService:
         audit_repository: AuditEventRepository | None = None,
         download_run_repository: DownloadRunRepository | None = None,
         idempotency_repository: IdempotencyRepository | None = None,
+        workflow_reader: Callable[[str, str | None], JsonRow] | None = None,
     ) -> None:
         self.state = state
         self.runtime = runtime
@@ -77,6 +79,7 @@ class CredentialProjectService:
         self._audit_events = audit_repository or LocalAuditEventRepository(state)
         self._download_runs = download_run_repository or LocalDownloadRunRepository(state)
         self._idempotency = idempotency_repository or LocalIdempotencyRepository(state)
+        self._workflow_reader = workflow_reader
 
     def workflow(self, user_id: str, project_id: str | None = None) -> JsonRow:
         if project_id is None:
@@ -84,6 +87,8 @@ class CredentialProjectService:
             project_id = None if project is None else project.project_id
         else:
             self._project(user_id, project_id)
+        if self._workflow_reader is not None:
+            return self._workflow_reader(user_id, project_id)
         metadata_rows = self.state.all_isins_rows
         if project_id is not None and not metadata_rows and self.runtime is not None:
             metadata_rows = self.runtime.all_isins_rows()

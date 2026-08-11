@@ -54,6 +54,7 @@ from portfell.hosted_postgres_repository_bundle import PostgresHostedRepositoryB
 from portfell.hosted_postgres_request_scope import RequestScopedPostgresConnection
 from portfell.hosted_postgres_research_repository import PostgresResearchRepository
 from portfell.hosted_postgres_runtime import PostgresHostedRuntime
+from portfell.hosted_postgres_workflow import PostgresWorkflowReader
 from portfell.hosted_project_bootstrap_repository import PostgresProjectBootstrapRepository
 from portfell.hosted_quote_run_service import QuoteRunService
 from portfell.hosted_research_persistence import (
@@ -161,6 +162,12 @@ def _postgres_services(
     )
     runtime = PostgresHostedRuntime(shared_data_root)
     data = SharedMarketResearchData(SharedMarketDataStore(shared_data_root))
+    bootstrap = PostgresProjectBootstrapRepository(request_scope)
+    workflow_reader = PostgresWorkflowReader(
+        selections=repositories.selections,
+        bootstrap=bootstrap,
+        metadata_rows=runtime.all_isins_rows,
+    )
 
     def quote_rows(run_id: str) -> tuple[dict[str, object], ...]:
         row = request_scope.execute(
@@ -198,6 +205,7 @@ def _postgres_services(
         repositories.audit,
         PostgresDownloadRunRepository(request_scope),
         repositories.idempotency,
+        workflow_reader,
     )
     metadata = MetadataProjectService(
         state,
@@ -207,7 +215,7 @@ def _postgres_services(
         repositories.metadata,
         credential_vault,
         repositories.audit,
-        PostgresProjectBootstrapRepository(request_scope),
+        bootstrap,
     )
     quotes = QuoteRunService(
         state,
