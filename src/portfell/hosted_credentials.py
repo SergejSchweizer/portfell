@@ -417,6 +417,8 @@ def _record_from_file_row(row: Mapping[str, object]) -> EncryptedCredentialRecor
 def _credential_text(value: object) -> str:
     """Require one text value from an encrypted credential row."""
 
+    if isinstance(value, uuid.UUID):
+        return str(value)
     if not isinstance(value, str):
         raise CredentialVaultError("credential row contains invalid text")
     return value

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import uuid
 from pathlib import Path
 
 import pytest
@@ -136,6 +137,37 @@ def test_postgres_credential_store_rejects_mismatched_associated_data() -> None:
     with pytest.raises(CredentialVaultError, match="associated data"):
         PostgresCredentialStore(connection).get(user_id="user-1")
     assert "credential_id::text, user_id::text" in connection.executed[1][0]
+
+
+def test_postgres_credential_store_accepts_psycopg_uuid_projections() -> None:
+    credential_id = uuid.UUID("00000000-0000-0000-0000-000000000001")
+    user_id = uuid.UUID("00000000-0000-0000-0000-000000000002")
+    connection = _FakeConnection()
+    connection.row = (
+        credential_id,
+        user_id,
+        "eodhd",
+        "active",
+        b"ciphertext",
+        b"nonce",
+        b"wrapped-data-key",
+        b"wrap-nonce",
+        "kek-v1",
+        {
+            "credential_id": str(credential_id),
+            "user_id": str(user_id),
+            "provider": "eodhd",
+            "schema_version": 1,
+        },
+        "fingerprint",
+        "abcd...1234",
+    )
+
+    record = PostgresCredentialStore(connection).get(user_id=str(user_id))
+
+    assert record is not None
+    assert record.credential_id == str(credential_id)
+    assert record.user_id == str(user_id)
 
 
 def test_wrong_user_associated_data_rejects_decryption() -> None:
