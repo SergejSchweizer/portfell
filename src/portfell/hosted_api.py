@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 
 from portfell.entitlements import ProviderDownloadRun
 from portfell.hosted_analysis_service import HostedAnalysisService
@@ -46,6 +46,7 @@ from portfell.hosted_credentials import (
 )
 from portfell.hosted_metadata_project_service import MetadataProjectService
 from portfell.hosted_multivariate_service import MultivariateResearchService
+from portfell.hosted_postgres_request_scope import RequestScopedPostgresConnection
 from portfell.hosted_quote_run_service import QuoteRunService
 from portfell.hosted_research_persistence import LocalResearchPersistence
 from portfell.hosted_research_ports import ResearchDataPort
@@ -158,6 +159,7 @@ def create_app(
         ResearchService,
     ]
     | None = None,
+    request_scope: RequestScopedPostgresConnection | None = None,
 ) -> FastAPI:
     """Compose the hosted application and its concern-specific route adapters."""
 
@@ -181,6 +183,15 @@ def create_app(
         return provider.current_user()
 
     application = FastAPI(title="Portfell Hosted API", version="0.1.0")
+    if request_scope is not None:
+
+        @application.middleware("http")
+        async def postgres_request_scope(  # pyright: ignore[reportUnusedFunction]
+            request: Request, call_next: Any
+        ) -> Any:
+            with request_scope.request(provider.current_user().user_id):
+                return await call_next(request)
+
     application.state.portfell_state = resolved_state
     application.include_router(
         credential_router(credentials, current_user=current_user, workspace_user=workspace_user)

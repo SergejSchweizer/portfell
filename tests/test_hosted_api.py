@@ -21,6 +21,7 @@ from portfell.hosted_api import (
     create_persistent_local_workspace_state,
 )
 from portfell.hosted_credentials import InMemoryCredentialStore, KeyEncryptionKey
+from portfell.hosted_postgres_request_scope import RequestScopedPostgresConnection
 from portfell.hosted_research_workflow import ResearchRun, UnivariateSelection
 from portfell.paths import LakePaths
 from portfell.table_io import write_rows
@@ -46,6 +47,25 @@ def _json(response: Any) -> dict[str, Any]:
     payload = response.json()
     assert isinstance(payload, dict)
     return cast("dict[str, Any]", payload)
+
+
+class _ScopedConnection:
+    def __init__(self) -> None:
+        self.statements: list[tuple[str, tuple[object, ...]]] = []
+        self.committed = False
+        self.closed = False
+
+    def execute(self, sql: str, parameters: tuple[object, ...] = ()) -> None:
+        self.statements.append((sql, parameters))
+
+    def commit(self) -> None:
+        self.committed = True
+
+    def rollback(self) -> None:
+        raise AssertionError("successful request must not roll back")
+
+    def close(self) -> None:
+        self.closed = True
 
 
 def test_local_workspace_requires_no_authentication_or_csrf() -> None:
@@ -101,6 +121,24 @@ def test_api_uses_injected_current_user_provider() -> None:
     status = _json(client.get("/credentials/eodhd"))
 
     assert status["status"] == "active"
+
+
+def test_api_wraps_requests_in_an_authenticated_postgres_transaction() -> None:
+    connections: list[_ScopedConnection] = []
+
+    def connect() -> _ScopedConnection:
+        connection = _ScopedConnection()
+        connections.append(connection)
+        return connection
+
+    scope = RequestScopedPostgresConnection(connect)
+
+    response = TestClient(create_app(request_scope=scope)).get("/health")
+
+    assert response.status_code == 200
+    assert connections[0].committed
+    assert connections[0].closed
+    assert connections[0].statements[0][1][1] == DEFAULT_LOCAL_WORKSPACE_USER_ID
 
 
 def test_api_uses_injected_credential_vault_dependencies() -> None:
