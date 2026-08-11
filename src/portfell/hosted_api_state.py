@@ -48,8 +48,8 @@ class CurrentUserProvider(Protocol):
 
 
 @dataclass(frozen=True)
-class LocalWorkspaceUserProvider:
-    """Resolve the stable single-user local-workspace principal."""
+class ConfiguredUserProvider:
+    """Resolve one server-configured principal without browser input."""
 
     user_id: str = DEFAULT_LOCAL_WORKSPACE_USER_ID
 
@@ -60,9 +60,12 @@ class LocalWorkspaceUserProvider:
             raise ValueError("local workspace user id must be a UUID") from error
 
     def current_user(self) -> ApiUser:
-        """Return the configured server-side local principal."""
+        """Return the configured server-side principal."""
 
         return ApiUser(user_id=self.user_id)
+
+
+LocalWorkspaceUserProvider = ConfiguredUserProvider
 
 
 @dataclass(frozen=True)
