@@ -43,6 +43,7 @@ from portfell.hosted_credentials import (
 )
 from portfell.hosted_download_run_repository import DownloadRunRepository
 from portfell.hosted_metadata_project_service import MetadataProjectService
+from portfell.hosted_project_bootstrap_repository import DurableProjectBootstrap
 from portfell.hosted_quote_run_service import QuoteRunService
 from portfell.hosted_repository_importer import (
     InMemoryProjectRepository,
@@ -56,6 +57,7 @@ from portfell.hosted_selection_repository import InMemorySelectionRepository
 from portfell.hosted_workspace import LocalWorkspaceStore
 from portfell.hosted_workspace_repository import persist_local_workspace, restore_local_workspace
 from portfell.paths import LakePaths
+from portfell.project_selection_bootstrap import ProjectBootstrap
 from portfell.selection_filters import Predicate
 from portfell.table_io import JsonRow
 
@@ -479,6 +481,69 @@ def test_metadata_builder_can_use_an_injected_selection_repository() -> None:
     assert state.projects_by_id == {}
     assert state.selections_by_id == {}
     assert repeated == created
+
+
+def test_metadata_builder_enqueues_the_exact_initial_fill_when_configured() -> None:
+    class BootstrapRecorder:
+        calls: list[tuple[str, str, str, tuple[str, ...]]] = []
+
+        def start(
+            self, *, user_id: str, project_id: str, selection_id: str, member_ids: tuple[str, ...]
+        ) -> DurableProjectBootstrap:
+            self.calls.append((user_id, project_id, selection_id, member_ids))
+            return DurableProjectBootstrap(
+                ProjectBootstrap(
+                    "bootstrap-1", user_id, project_id, selection_id, member_ids, len(member_ids)
+                ),
+                "job-1",
+            )
+
+    state = HostedApiState(
+        all_isins_rows=(
+            {
+                "isin": "IE1",
+                "exchange": "XETRA",
+                "code": "AAA",
+                "name": "Example",
+                "instrument_type": "ETF",
+                "country": "IE",
+                "currency": "EUR",
+            },
+        )
+    )
+    recorder = BootstrapRecorder()
+    service = MetadataProjectService(
+        state,
+        LocalHostedRuntime(
+            quote_workflow=_empty_workflow, metadata_workflow=_empty_workflow, cpu_count=lambda: 1
+        ),
+        bootstrap_repository=recorder,
+    )
+
+    created = service.create_project_from_criteria(
+        "00000000-0000-5000-8000-000000000001",
+        exchange="XETRA",
+        name="Example",
+        instrument_type="ETF",
+        country="IE",
+        currency="EUR",
+        idempotency_key=None,
+    )
+
+    assert recorder.calls == [
+        (
+            "00000000-0000-5000-8000-000000000001",
+            created["project"]["project_id"],
+            created["selection"]["selection_id"],
+            ("IE1:XETRA:AAA",),
+        )
+    ]
+    assert created["initial_fill"] == {
+        "bootstrap_id": "bootstrap-1",
+        "job_id": "job-1",
+        "status": "not_started",
+        "selected_listing_count": 1,
+    }
 
 
 def test_quote_run_can_use_injected_project_repository_and_credential_vault() -> None:

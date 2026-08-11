@@ -24,6 +24,7 @@ from portfell.hosted_local_metadata_repository import LocalMetadataLifecycleRepo
 from portfell.hosted_local_project_repository import LocalProjectRepository
 from portfell.hosted_local_selection_repository import LocalSelectionRepository
 from portfell.hosted_metadata_repository import MetadataLifecycleRepository, MetadataRun
+from portfell.hosted_project_bootstrap_repository import ProjectBootstrapRepository
 from portfell.hosted_repository_importer import (
     ProjectRepository,
     TenantProject,
@@ -46,6 +47,7 @@ class MetadataProjectService:
         metadata_repository: MetadataLifecycleRepository | None = None,
         credential_vault: EodhdCredentialVault | None = None,
         audit_repository: AuditEventRepository | None = None,
+        bootstrap_repository: ProjectBootstrapRepository | None = None,
     ) -> None:
         self.state = state
         self.runtime = runtime
@@ -54,6 +56,7 @@ class MetadataProjectService:
         self._metadata = metadata_repository or LocalMetadataLifecycleRepository(state)
         self._credentials = credential_vault or state.credential_vault()
         self._audit_events = audit_repository or LocalAuditEventRepository(state)
+        self._bootstrap = bootstrap_repository
 
     def _all_isins_rows(self) -> tuple[JsonRow, ...]:
         return self.state.all_isins_rows or self.runtime.all_isins_rows()
@@ -225,6 +228,16 @@ class MetadataProjectService:
         )
         self._projects.set_current_project(user_id=user_id, project_id=project_id)
         self.runtime.write_metadata_selection(selection_id, selected_rows, predicates)
+        bootstrap = (
+            None
+            if self._bootstrap is None
+            else self._bootstrap.start(
+                user_id=user_id,
+                project_id=project_id,
+                selection_id=selection_id,
+                member_ids=selection.member_ids,
+            )
+        )
         if idempotency_key is not None:
             self._metadata.remember_idempotency(
                 user_id=user_id,
@@ -234,7 +247,15 @@ class MetadataProjectService:
                 response_ref=project_id,
             )
         self._audit(user_id, "metadata_builder.project.create")
-        return self._project_selection_row(project, selection)
+        result = self._project_selection_row(project, selection)
+        if bootstrap is not None:
+            result["initial_fill"] = {
+                "bootstrap_id": bootstrap.bootstrap.bootstrap_id,
+                "job_id": bootstrap.job_id,
+                "status": bootstrap.bootstrap.status,
+                "selected_listing_count": bootstrap.bootstrap.selected_listing_count,
+            }
+        return result
 
     @staticmethod
     def _project_selection_row(project: ProjectRecord, selection: SelectionRecord) -> JsonRow:

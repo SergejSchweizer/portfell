@@ -34,6 +34,19 @@ class DurableProjectBootstrap:
     job_id: str
 
 
+class ProjectBootstrapRepository(Protocol):
+    """Port for creating the one immutable initial fill attached to a project."""
+
+    def start(
+        self,
+        *,
+        user_id: str,
+        project_id: str,
+        selection_id: str,
+        member_ids: tuple[str, ...],
+    ) -> DurableProjectBootstrap: ...
+
+
 class PostgresProjectBootstrapRepository:
     """Freeze one exact selection and enqueue at most one initial-fill job per project."""
 

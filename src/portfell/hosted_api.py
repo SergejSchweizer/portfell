@@ -54,6 +54,7 @@ from portfell.hosted_postgres_repository_bundle import PostgresHostedRepositoryB
 from portfell.hosted_postgres_request_scope import RequestScopedPostgresConnection
 from portfell.hosted_postgres_research_repository import PostgresResearchRepository
 from portfell.hosted_postgres_runtime import PostgresHostedRuntime
+from portfell.hosted_project_bootstrap_repository import PostgresProjectBootstrapRepository
 from portfell.hosted_quote_run_service import QuoteRunService
 from portfell.hosted_research_persistence import (
     LocalResearchPersistence,
@@ -206,6 +207,7 @@ def _postgres_services(
         repositories.metadata,
         credential_vault,
         repositories.audit,
+        PostgresProjectBootstrapRepository(request_scope),
     )
     quotes = QuoteRunService(
         state,
