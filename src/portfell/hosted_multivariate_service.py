@@ -68,7 +68,6 @@ class MultivariateResearchService:
         self._projects = project_repository or LocalProjectRepository(state)
         self._selections = selection_repository or LocalSelectionRepository(state)
         self._runs = run_repository or LocalMultivariateRunRepository(state)
-        self._run_users: dict[str, str] = {}
         self._research = research_repository
         self._metadata_rows = metadata_rows or (lambda: state.all_isins_rows)
 
@@ -122,7 +121,6 @@ class MultivariateResearchService:
             validation=(),
         )
         self._runs.save(run, make_current=True)
-        self._run_users[run_id] = user_id
         self._persistence.persist()
         return multivariate_run_row(run)
 
@@ -152,7 +150,12 @@ class MultivariateResearchService:
         if run.status != "running":
             return
         try:
-            completed = self._compute(run, on_phase=self._advance)
+            completed = self._compute(
+                run,
+                on_phase=lambda run_id, phase, completed_units: self._advance(
+                    user_id, run_id, phase, completed_units
+                ),
+            )
         except (HostedApplicationError, ValueError) as error:
             completed = replace(run, status="failed", phase="failed", failure_reason=str(error))
         self._runs.save(completed)
@@ -249,10 +252,7 @@ class MultivariateResearchService:
             raise HostedApplicationError(422, "project_metadata_dependency_mismatch")
         return selection_record(selection)
 
-    def _advance(self, run_id: str, phase: str, completed_units: int) -> None:
-        user_id = self._run_users.get(run_id)
-        if user_id is None:
-            return
+    def _advance(self, user_id: str, run_id: str, phase: str, completed_units: int) -> None:
         current = self._runs.get(user_id=user_id, run_id=run_id)
         if current is None or current.status != "running":
             return
@@ -275,8 +275,9 @@ class MultivariateResearchService:
         source_run = self._research.univariate_run(selection.source_run_id, run.user_id)
         metadata_selection = self._metadata_selection_for_project(run.user_id, run.project_id)
         quote_run_id = self._research.quote_run_id(source_run.run_id)
+        source_quote_id = quote_run_id or "shared-market"
         expected_source_id = stable_hash(
-            {"selection_id": metadata_selection.selection_id, "quote_run_id": quote_run_id}
+            {"selection_id": metadata_selection.selection_id, "quote_run_id": source_quote_id}
         )
         if source_run.source_id != expected_source_id:
             raise HostedApplicationError(422, "project_univariate_dependency_mismatch")
@@ -313,7 +314,7 @@ class MultivariateResearchService:
             date_end=calendar_dates[-1] if calendar_dates else None,
             observation_count=len(calendar_dates),
             quote_artifact_ids={
-                key: f"quote:{quote_run_id}:{key.isin}:{key.exchange}:{key.code}" for key in keys
+                key: f"quote:{source_quote_id}:{key.isin}:{key.exchange}:{key.code}" for key in keys
             },
             dividend_artifact_ids={
                 key: f"dividend:{key.isin}:{key.exchange}:{key.code}" for key in keys

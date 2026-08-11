@@ -154,8 +154,8 @@ def test_multivariate_service_resolves_pinned_project_dependencies_and_persists_
     started = service.start("user-a", project_id, bivariate_run_id, {})
     assert started["status"] == "running"
     assert started["estimated_remaining_seconds"] is not None
-    service._advance(str(started["run_id"]), "build_risk_model", 2)  # pyright: ignore[reportPrivateUsage]
-    service._advance(str(started["run_id"]), "resolve_inputs", 1)  # pyright: ignore[reportPrivateUsage]
+    service._advance("user-a", str(started["run_id"]), "build_risk_model", 2)  # pyright: ignore[reportPrivateUsage]
+    service._advance("user-a", str(started["run_id"]), "resolve_inputs", 1)  # pyright: ignore[reportPrivateUsage]
     running = service.status("user-a", str(started["run_id"]))
     assert running["phase"] == "build_risk_model"
     assert running["completed_units"] == 2
@@ -353,7 +353,27 @@ def test_multivariate_service_rejects_missing_dependency_closure_and_marks_failu
     started = service.start("user-a", project_id, bivariate_run_id, {"variant": "bad-source"})
     service.complete("user-a", str(started["run_id"]))
     assert service.status("user-a", str(started["run_id"]))["status"] == "failed"
-    service._advance("unknown-run", "build_risk_model", 1)  # pyright: ignore[reportPrivateUsage]
+    service._advance("user-a", "unknown-run", "build_risk_model", 1)  # pyright: ignore[reportPrivateUsage]
+
+
+def test_multivariate_service_accepts_a_published_shared_market_univariate_run() -> None:
+    state, data, project_id, bivariate_run_id = _fixtures()
+    state.quote_run_by_univariate_run_id.clear()
+    source = stable_hash({"selection_id": "metadata-selection-a", "quote_run_id": "shared-market"})
+    existing = state.univariate_runs_by_id["univariate-a"]
+    state.univariate_runs_by_id["univariate-a"] = ResearchRun(
+        "univariate-a", "user-a", source, "complete", existing.rows, 5, 5
+    )
+    service = _service(state, data, _Persistence())
+
+    started = service.start("user-a", project_id, bivariate_run_id, {})
+    service.complete("user-a", str(started["run_id"]))
+
+    completed = service.status("user-a", str(started["run_id"]))
+    assert completed["status"] == "complete"
+    artifacts = service.artifacts("user-a", str(started["run_id"]))
+    quote_ids = artifacts["input_snapshot"]["quote_artifact_ids"]
+    assert all("shared-market" in artifact_id for _, artifact_id in quote_ids)
 
 
 def test_multivariate_service_refits_candidates_for_walk_forward_validation() -> None:
