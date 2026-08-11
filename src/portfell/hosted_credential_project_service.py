@@ -32,6 +32,10 @@ from portfell.hosted_api_state import HostedApiState, ProjectRecord, SelectionRe
 from portfell.hosted_credentials import EodhdCredentialVault
 from portfell.hosted_local_project_repository import LocalProjectRepository
 from portfell.hosted_local_selection_repository import LocalSelectionRepository
+from portfell.hosted_project_settings_repository import (
+    LocalProjectSettingsRepository,
+    ProjectSettingsRepository,
+)
 from portfell.hosted_repository_importer import (
     ProjectRepository,
     TenantImportError,
@@ -52,12 +56,16 @@ class CredentialProjectService:
         runtime: HostedRuntimePort | None = None,
         project_repository: ProjectRepository | None = None,
         selection_repository: SelectionRepository | None = None,
+        project_settings_repository: ProjectSettingsRepository | None = None,
         credential_vault: EodhdCredentialVault | None = None,
     ) -> None:
         self.state = state
         self.runtime = runtime
         self._projects = project_repository or LocalProjectRepository(state)
         self._selections = selection_repository or LocalSelectionRepository(state)
+        self._project_settings = project_settings_repository or LocalProjectSettingsRepository(
+            state
+        )
         self._credentials = credential_vault or state.credential_vault()
 
     def workflow(self, user_id: str, project_id: str | None = None) -> JsonRow:
@@ -214,20 +222,18 @@ class CredentialProjectService:
 
     def univariate_selection_settings(self, user_id: str, project_id: str) -> JsonRow:
         self._project(user_id, project_id)
-        return {
-            "dividend_frequencies": [],
-            "statistic_labels": {},
-            "statistic_ranges": {},
-            **self.state.univariate_selection_settings_by_project.get(project_id, {}),
-        }
+        return self._project_settings.univariate(user_id=user_id, project_id=project_id)
 
     def save_univariate_selection_settings(
         self, user_id: str, project_id: str, settings: JsonRow
     ) -> JsonRow:
         self._project(user_id, project_id)
-        self.state.univariate_selection_settings_by_project[project_id] = dict(settings)
-        persist_local_workspace(self.state)
-        return self.univariate_selection_settings(user_id, project_id)
+        value = self._project_settings.save_univariate(
+            user_id=user_id, project_id=project_id, settings=settings
+        )
+        if self.state.workspace_store is not None:
+            persist_local_workspace(self.state)
+        return value
 
     def delete_project(self, user_id: str, project_id: str) -> JsonRow:
         self._delete_project(user_id, project_id)

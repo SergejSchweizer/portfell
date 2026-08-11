@@ -81,7 +81,20 @@ def test_hosted_migration_sql_defines_rls_and_immutable_catalog_shape() -> None:
     migrations = migration_plan()
     sql = "\n".join(migration.sql.lower() for migration in migrations)
 
-    assert [migration.version for migration in migrations] == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+    assert [migration.version for migration in migrations] == [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+    ]
     assert len({migration.checksum for migration in migrations}) == len(migrations)
     assert "create table if not exists portfell_app.provider_credentials" in sql
     assert "ciphertext bytea not null" in sql
@@ -122,6 +135,7 @@ def test_hosted_migration_sql_defines_rls_and_immutable_catalog_shape() -> None:
     assert "create table if not exists portfell_app.research_runs" in sql
     assert "create table if not exists portfell_app.univariate_selections" in sql
     assert "create table if not exists portfell_app.research_run_rows" in sql
+    assert "create table if not exists portfell_app.project_univariate_settings" in sql
 
 
 def test_apply_hosted_catalog_migrations_is_deterministic_and_idempotent() -> None:
