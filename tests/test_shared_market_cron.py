@@ -19,6 +19,7 @@ from portfell.shared_market_cron import (
 def test_cron_block_uses_the_operations_service_without_secret_values(tmp_path: Path) -> None:
     block = cron_block(tmp_path / "project", tmp_path / "logs" / "refresh.log")
 
+    assert SCHEDULE == "15 20 * * *"
     assert BEGIN_MARKER in block and END_MARKER in block
     assert f"CRON_TZ={TIMEZONE}" in block
     assert block.count(SCHEDULE) == 1

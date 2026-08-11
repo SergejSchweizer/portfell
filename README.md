@@ -478,7 +478,7 @@ portfell-shared-market-cron install --project-root "$(pwd)"
 portfell-shared-market-cron status --project-root "$(pwd)"
 ```
 
-The job runs at `02:15 Europe/Amsterdam`, uses `/usr/bin/flock -n`, and appends output to
+The job runs at `20:15 Europe/Amsterdam`, uses `/usr/bin/flock -n`, and appends output to
 `/var/log/portfell/shared-market-refresh.log`. It invokes only
 `shared-market-refresh`, which refreshes the de-duplicated active-project inventory with bounded
 correction overlap. See [Shared Market Refresh Operations](docs/shared-market-refresh.md) for

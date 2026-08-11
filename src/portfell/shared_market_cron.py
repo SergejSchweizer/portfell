@@ -12,7 +12,7 @@ from portfell.ugreen_nas_data_root_preflight import validate_data_root
 
 BEGIN_MARKER = "# BEGIN PORTFELL SHARED MARKET REFRESH"
 END_MARKER = "# END PORTFELL SHARED MARKET REFRESH"
-SCHEDULE = "15 2 * * *"
+SCHEDULE = "15 20 * * *"
 TIMEZONE = "Europe/Amsterdam"
 PRODUCTION_DATA_ROOT = Path("/volume2/docker/portfell")
 PRODUCTION_LOG_NAME = "shared-market-refresh.log"
