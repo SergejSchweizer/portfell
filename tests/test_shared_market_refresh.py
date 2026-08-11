@@ -43,7 +43,7 @@ def test_first_refresh_backfills_once_and_second_refresh_is_idempotent(tmp_path)
         store=store, state=_state(), fetch=_fetch, end_date=date(2026, 1, 10), concurrency=2
     )
     assert first.requested == 3 and first.updated == 3
-    assert second.requested == 3 and second.unchanged == 3
+    assert second.requested == 0 and second.unchanged == 0
     assert len(store.coverage()) == 3
     assert (store.root / "refresh-runs" / "2026-01-10.json").is_file()
 
@@ -60,6 +60,29 @@ def test_delta_plan_uses_bounded_correction_overlap_and_dry_run_writes_nothing(t
     assert all(item.start_date is None for item in refreshed.requests)
     planned = plan_refresh(store, [refreshed.requests[0].listing], end_date=date(2026, 1, 11))
     assert all(item.start_date == "2026-01-03" for item in planned)
+
+
+def test_delta_plan_skips_fully_covered_data_and_backfills_only_new_listings(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    store = SharedMarketDataStore(tmp_path)
+    covered = SharedListingKey("eodhd", "XETRA", "ABC", "IE1")
+    fresh = SharedListingKey("eodhd", "XETRA", "XYZ", "IE2")
+    for dataset in ("quotes", "dividends", "splits"):
+        row = {**covered.as_row(), "date": "2026-01-10"}
+        if dataset == "quotes":
+            row["adjusted_close"] = 10.0
+        elif dataset == "dividends":
+            row["event_id"] = "event"
+        else:
+            row["split_factor"] = 1.0
+        store.upsert(dataset, covered, [row])
+
+    requests = plan_refresh(store, [covered, fresh], end_date=date(2026, 1, 10))
+
+    assert [(item.dataset_type, item.listing.isin, item.start_date) for item in requests] == [
+        ("quotes", "IE2", None),
+        ("dividends", "IE2", None),
+        ("splits", "IE2", None),
+    ]
 
 
 def test_refresh_rejects_invalid_settings_and_persists_partial_failure(tmp_path) -> None:  # type: ignore[no-untyped-def]

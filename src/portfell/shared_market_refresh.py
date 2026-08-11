@@ -100,6 +100,12 @@ def plan_refresh(
     for listing in sorted(set(listings)):
         for dataset_type in DATASETS:
             record = coverage.get((dataset_type, listing))
+            if (
+                record is not None
+                and record.last_business_date is not None
+                and date.fromisoformat(record.last_business_date) >= end_date
+            ):
+                continue
             start = None
             if record is not None and record.last_business_date is not None:
                 start = (
