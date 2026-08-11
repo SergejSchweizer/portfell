@@ -149,6 +149,7 @@ services:
         condition: service_healthy
     networks:
       - portfell-internal
+      - portfell-public
     group_add:
       - "${PORTFELL_SECRET_GROUP_ID:-100}"
     read_only: true
