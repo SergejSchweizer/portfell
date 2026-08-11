@@ -1,4 +1,4 @@
-"""Fail-closed preflight for the production Synology durable-data root."""
+"""Fail-closed preflight for the production UGREEN NAS durable-data root."""
 
 from __future__ import annotations
 
@@ -80,7 +80,7 @@ def _not_world_writable(path: Path) -> bool:
 def _free_inodes_available(filesystem: os.statvfs_result) -> bool:
     """Accept filesystems that explicitly do not report an inode budget.
 
-    Synology-backed filesystems can report both inode fields as zero even when
+    UGREEN NAS filesystems can report both inode fields as zero even when
     storage is writable and inode exhaustion is not a meaningful capacity
     signal. A non-zero total keeps the normal fail-closed availability check.
     """

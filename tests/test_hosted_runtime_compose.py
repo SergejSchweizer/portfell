@@ -24,7 +24,7 @@ def _production_compose_source() -> str:
     return (REPOSITORY_ROOT / "compose.production.yaml").read_text(encoding="utf-8")
 
 
-def test_production_override_uses_one_explicit_synology_data_root() -> None:
+def test_production_override_uses_one_explicit_ugreen_nas_data_root() -> None:
     source = _production_compose_source()
 
     assert source.count("${PORTFELL_DATA_ROOT:?set an absolute production Portfell data root}") == 4

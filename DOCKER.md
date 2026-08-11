@@ -11,7 +11,7 @@ market refresh operations, continue with [docs/shared-market-refresh.md](docs/sh
 - [3. External Secrets](#3-external-secrets)
 - [4. Configure The Environment](#4-configure-the-environment)
 - [5. Start And Verify](#5-start-and-verify)
-- [6. Synology Production Storage](#6-synology-production-storage)
+- [6. UGREEN NAS Production Storage](#6-ugreen-nas-production-storage)
 - [7. Non-Destructive Storage Migration](#7-non-destructive-storage-migration)
 - [8. Day-To-Day Commands](#8-day-to-day-commands)
 - [9. Troubleshooting](#9-troubleshooting)
@@ -51,7 +51,7 @@ browser
 `portfell-postgress`, `portfell-api`, `portfell-web`, and `portfell-worker` are
 intentional fixed container names. `portfell-worker` runs the
 `project-bootstrap-worker` Compose service. Development uses Compose-managed
-durable volumes; production uses the explicit Synology bind mounts described
+durable volumes; production uses the explicit UGREEN NAS bind mounts described
 below.
 
 ## 2. Prerequisites
@@ -125,7 +125,7 @@ Wait until `portfell-postgress`, `portfell-api`, `portfell-web`, and
 healthy. Open `http://localhost:3000` for the Web UI and
 `http://localhost:8000/health` for the API health response.
 
-## 6. Synology Production Storage
+## 6. UGREEN NAS Production Storage
 
 Production data lives below one host root and is never mixed with repository
 files or Docker's global engine data root.
@@ -143,7 +143,7 @@ environment file and render the explicit override before starting services:
 
 ```bash
 docker compose --env-file .env.local -f compose.yaml -f compose.production.yaml config
-portfell-synology-data-root-preflight --root "$PORTFELL_DATA_ROOT"
+portfell-ugreen-nas-data-root-preflight --root "$PORTFELL_DATA_ROOT"
 docker compose --env-file .env.local -f compose.yaml -f compose.production.yaml up --build --detach
 ```
 
@@ -155,7 +155,7 @@ lake that does not support atomic replacement. Keep secrets outside this tree.
 
 ## 7. Non-Destructive Storage Migration
 
-Moving an existing runtime to the Synology bind root is an operator-controlled
+Moving an existing runtime to the UGREEN NAS bind root is an operator-controlled
 cutover. It must be performed from the merged `main` checkout by `dev_portfell`;
 do not copy live PostgreSQL files, run `docker compose down -v`, or prune the
 old named volumes.

@@ -913,7 +913,7 @@ runs, settings, routes, or browser storage. Repeated user actions are asserted t
 logical operation where required; CI reruns do not contact production services or mutate external
 state.
 
-### PR170. Synology Persistent Data Root And Safe Volume Migration
+### PR170. UGREEN NAS Persistent Data Root And Safe Volume Migration
 
 Branch: `chore/synology-persistent-data-root`.
 
@@ -942,7 +942,7 @@ Scope:
   `${PORTFELL_DATA_ROOT}` in owner-restricted external secret files. Do not relocate Docker's global
   engine `data-root`, container metadata, images, build cache, or sockets; this PR moves Portfell's
   durable application data only.
-- Add a fail-closed migration preflight that verifies the absolute Synology path, real directory
+- Add a fail-closed migration preflight that verifies the absolute UGREEN NAS path, real directory
   resolution, filesystem type and atomic-rename support, free space/inodes, ownership/ACLs, backup
   destination, pinned image digests, migration head, healthy source stack, inactive cron, and no
   concurrent bootstrap/refresh/analysis writer.
@@ -959,7 +959,7 @@ Scope:
   stack, restores the old Compose mounts, reconciles source state, and resumes the previous stack
   without deleting either copy.
 - Update `.env.example`, production Compose example, deployment/readiness checks, backup/restore and
-  Synology runbooks, PR168 cron log path, monitoring, and tests. Document DSM/Docker restart behavior,
+  UGREEN NAS runbooks, PR168 cron log path, monitoring, and tests. Document NAS/Docker restart behavior,
   NAS volume unavailability, read-only filesystem, disk-full, permission drift, backup retention,
   and eventual named-volume cleanup as a separately approved destructive operation.
 
@@ -969,7 +969,7 @@ Acceptance:
   exactly `/volume2/docker/portfell/postgres:/var/lib/postgresql/data` for PostgreSQL and
   `/volume2/docker/portfell/lake:/srv/portfell/shared-data` for every required consumer and
   publisher. No production config contains the old named volumes or a second mount at either target.
-- Development Compose remains usable without a Synology filesystem and continues to use explicit
+- Development Compose remains usable without a UGREEN NAS filesystem and continues to use explicit
   development volumes. Missing, relative, symlink-escaped, root-level, nonexistent, or non-writable
   production `PORTFELL_DATA_ROOT` values fail before a container starts or source data changes.
 - The provisioned `postgres`, `lake`, `logs`, and `backups` directories have documented

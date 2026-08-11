@@ -34,7 +34,7 @@ def test_portfell_console_scripts_are_registered() -> None:
         "portfell-quality",
         "portfell-refresh-shared-market-data",
         "portfell-shared-market-cron",
-        "portfell-synology-data-root-preflight",
+        "portfell-ugreen-nas-data-root-preflight",
     }
 
 
