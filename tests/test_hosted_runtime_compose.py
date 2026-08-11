@@ -20,6 +20,21 @@ def _compose() -> ComposeMapping:
     )
 
 
+def _production_compose_source() -> str:
+    return (REPOSITORY_ROOT / "compose.production.yaml").read_text(encoding="utf-8")
+
+
+def test_production_override_uses_one_explicit_synology_data_root() -> None:
+    source = _production_compose_source()
+
+    assert source.count("${PORTFELL_DATA_ROOT:?set an absolute production Portfell data root}") == 4
+    assert "}/postgres:/var/lib/postgresql/data" in source
+    assert source.count("}/lake:/srv/portfell/shared-data") == 3
+    assert "portfell-postgres-data:" not in source
+    assert "portfell-shared-data:" not in source
+    assert "volumes: !reset {}" in source
+
+
 def test_compose_defines_persistent_internal_postgres_and_shared_data() -> None:
     compose = _compose()
     services = cast(ComposeMapping, compose["services"])

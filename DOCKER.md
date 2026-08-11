@@ -11,8 +11,9 @@ market refresh operations, continue with [docs/shared-market-refresh.md](docs/sh
 - [3. External Secrets](#3-external-secrets)
 - [4. Configure The Environment](#4-configure-the-environment)
 - [5. Start And Verify](#5-start-and-verify)
-- [6. Day-To-Day Commands](#6-day-to-day-commands)
-- [7. Troubleshooting](#7-troubleshooting)
+- [6. Synology Production Storage](#6-synology-production-storage)
+- [7. Day-To-Day Commands](#7-day-to-day-commands)
+- [8. Troubleshooting](#8-troubleshooting)
 
 ## 1. Runtime Model
 
@@ -27,7 +28,7 @@ browser
    |
    v
 +----------------+       +-------------------+
-| portfell-web   | ----> | portfell-api-1    |
+| portfell-web   | ----> | portfell-api      |
 +----------------+       +-------------------+
                                   |
                        request-scoped RLS transaction
@@ -41,14 +42,14 @@ browser
                   durable initial-fill job    |    published revisions
                                   v            v
                  +---------------------+  +-------------------+
-                 | bootstrap worker    |  | shared-data volume|
+| bootstrap worker    |  | shared-data plane |
                  | operations token    |  | market-data/      |
                  +---------------------+  +-------------------+
 ```
 
-`portfell-postgress` is the intentional fixed PostgreSQL container name.
-`portfell-api-1` remains Compose-managed because API replicas must not share a
-hard-coded name.
+`portfell-postgress`, `portfell-api`, and `portfell-web` are intentional fixed
+container names. Development uses Compose-managed durable volumes; production
+uses the explicit Synology bind mounts described below.
 
 ## 2. Prerequisites
 
@@ -120,7 +121,32 @@ Wait until `portfell-postgress`, `portfell-api-1`, and `portfell-web` are
 healthy. Open `http://localhost:3000` for the Web UI and
 `http://localhost:8000/health` for the API health response.
 
-## 6. Day-To-Day Commands
+## 6. Synology Production Storage
+
+Production data lives below one host root and is never mixed with repository
+files or Docker's global engine data root.
+
+```text
+/volume2/docker/portfell
+├── postgres/   PostgreSQL bind mount
+├── lake/       shared immutable market-data revisions
+├── logs/       operations logs
+└── backups/    encrypted logical backups
+```
+
+Set `PORTFELL_DATA_ROOT=/volume2/docker/portfell` in the production-only
+environment file and render the explicit override before starting services:
+
+```bash
+docker compose --env-file .env.local -f compose.yaml -f compose.production.yaml config
+docker compose --env-file .env.local -f compose.yaml -f compose.production.yaml up --build --detach
+```
+
+The override resets the development named-volume declarations. API, bootstrap
+worker, and the one-shot refresh service share only `lake/`; Web receives none
+of these mounts. Keep secrets outside this tree.
+
+## 7. Day-To-Day Commands
 
 Use these commands for safe routine operations:
 
@@ -143,7 +169,7 @@ catalog and published shared-market revisions. Scheduled refresh, log rotation,
 and cron installation are documented only in
 [docs/shared-market-refresh.md](docs/shared-market-refresh.md).
 
-## 7. Troubleshooting
+## 8. Troubleshooting
 
 If Compose configuration reports a missing secret variable, add the *path* to
 `.env.local`, confirm that the path is absolute, and verify that the file is
