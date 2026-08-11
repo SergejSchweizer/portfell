@@ -166,7 +166,7 @@ def create_app(
     """Compose the hosted application and its concern-specific route adapters."""
 
     resolved_state = state or HostedApiState()
-    provider = current_user_provider or LocalWorkspaceUserProvider(
+    provider = current_user_provider or ConfiguredUserProvider(
         user_id=os.environ.get("PORTFELL_LOCAL_WORKSPACE_USER_ID", DEFAULT_LOCAL_WORKSPACE_USER_ID)
     )
     if services is None:
