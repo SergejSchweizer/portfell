@@ -6,14 +6,12 @@ import json
 import os
 from collections.abc import Mapping
 from hashlib import sha256
-from typing import Any, Literal, Protocol, cast
+from typing import Any, Protocol, cast
 
 from portfell.hosted_research_ports import ResearchDataset, UnivariateProgress
 from portfell.shared_market_data import SharedListingKey
 from portfell.table_io import JsonRow
 from portfell.univariate_statistics import build_univariate_statistics
-
-SharedDataset = Literal["quotes", "dividends", "splits"]
 
 
 class MarketDataCursor(Protocol):
@@ -58,14 +56,22 @@ set document = excluded.document, updated_at = now()
         values: list[JsonRow] = []
         for member_id in member_ids:
             listing = SharedListingKey.from_member_id(member_id)
-            values.extend(self._rows_for_listing(dataset, listing))
+            rows = self._connection.execute(
+                """
+select document from portfell_app.shared_market_rows
+where dataset_type = %s and provider = %s and exchange = %s and code = %s and isin = %s
+order by business_key
+""",
+                (dataset, listing.provider, listing.exchange, listing.code, listing.isin),
+            ).fetchall()
+            values.extend(_document(row) for row in rows)
         return tuple(values)
 
     def quote_rows(self, member_ids: tuple[str, ...]) -> tuple[JsonRow, ...]:
         return self.selected_rows(member_ids, dataset="quotes")
 
     def upsert_rows(
-        self, dataset_type: SharedDataset, listing: SharedListingKey, rows: tuple[JsonRow, ...]
+        self, dataset_type: ResearchDataset, listing: SharedListingKey, rows: tuple[JsonRow, ...]
     ) -> None:
         """Publish rows by canonical business key and refresh coverage atomically."""
 
@@ -84,7 +90,9 @@ set document = excluded.document, updated_at = now()
 """,
                 (dataset_type, *_listing_values(listing), business_key, _json(row)),
             )
-        published = self._rows_for_listing(dataset_type, listing)
+        published = self.selected_rows(
+            (f"{listing.isin}:{listing.exchange}:{listing.code}",), dataset=dataset_type
+        )
         dates = sorted(str(row["date"]) for row in published if row.get("date"))
         digest = sha256(_json(published).encode()).hexdigest()
         self._connection.execute(
@@ -114,19 +122,6 @@ set first_business_date = excluded.first_business_date,
             raise ValueError("shared_market_tenant_field_forbidden")
         if SharedListingKey.from_row(row) != listing:
             raise ValueError("shared_market_listing_identity_mismatch")
-
-    def _rows_for_listing(
-        self, dataset: SharedDataset, listing: SharedListingKey
-    ) -> tuple[JsonRow, ...]:
-        rows = self._connection.execute(
-            """
-select document from portfell_app.shared_market_rows
-where dataset_type = %s and provider = %s and exchange = %s and code = %s and isin = %s
-order by business_key
-""",
-            (dataset, *_listing_values(listing)),
-        ).fetchall()
-        return tuple(_document(row) for row in rows)
 
 
 class PostgresResearchData:
@@ -176,7 +171,7 @@ def _listing_values(listing: SharedListingKey) -> tuple[str, str, str, str]:
     return listing.provider, listing.exchange, listing.code, listing.isin
 
 
-def _business_key(dataset: SharedDataset, row: Mapping[str, Any]) -> str:
+def _business_key(dataset: ResearchDataset, row: Mapping[str, Any]) -> str:
     if dataset == "quotes":
         value = row.get("date")
     else:
