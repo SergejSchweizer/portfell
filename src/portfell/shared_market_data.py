@@ -17,7 +17,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
-from portfell.hosted_api_state import HostedApiState
 from portfell.table_io import JsonRow, read_json, read_rows, write_json, write_rows
 
 _FORBIDDEN_FIELDS = frozenset(
@@ -224,27 +223,6 @@ class SharedMarketDataStore:
     def _validate_dataset(dataset_type: str) -> None:
         if dataset_type not in _DATASETS:
             raise SharedMarketDataError("unsupported_shared_market_dataset")
-
-
-def active_project_inventory(
-    state: HostedApiState, *, provider: str = "eodhd"
-) -> tuple[SharedListingKey, ...]:
-    """Return the stable full-key union selected by non-deleted projects."""
-
-    project_ids = {
-        project.project_id
-        for project in state.projects_by_id.values()
-        if not getattr(project, "deleted", False)
-    }
-    members = {
-        member
-        for selection in state.selections_by_id.values()
-        if selection.project_id in project_ids
-        for member in selection.member_ids
-    }
-    return tuple(
-        sorted(SharedListingKey.from_member_id(member, provider=provider) for member in members)
-    )
 
 
 def inventory_hash(items: Iterable[SharedListingKey]) -> str:
