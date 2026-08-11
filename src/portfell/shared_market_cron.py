@@ -8,7 +8,7 @@ import subprocess
 from collections.abc import Sequence
 from pathlib import Path
 
-from portfell.synology_data_root_preflight import validate_data_root
+from portfell.ugreen_nas_data_root_preflight import validate_data_root
 
 BEGIN_MARKER = "# BEGIN PORTFELL SHARED MARKET REFRESH"
 END_MARKER = "# END PORTFELL SHARED MARKET REFRESH"

@@ -20,7 +20,7 @@ root, run the refresh-specific steps:
 ```bash
 export PORTFELL_ROOT=/home/dev_portfell/portfell
 export PORTFELL_DATA_ROOT=/volume2/docker/portfell
-portfell-synology-data-root-preflight --root "$PORTFELL_DATA_ROOT"
+portfell-ugreen-nas-data-root-preflight --root "$PORTFELL_DATA_ROOT"
 portfell-refresh-shared-market-data --dry-run
 portfell-shared-market-cron run-once --project-root "$PORTFELL_ROOT" --data-root "$PORTFELL_DATA_ROOT"
 portfell-shared-market-cron install --project-root "$PORTFELL_ROOT" --data-root "$PORTFELL_DATA_ROOT"
