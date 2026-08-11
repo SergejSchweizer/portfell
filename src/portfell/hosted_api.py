@@ -151,6 +151,13 @@ def create_app(
     state: HostedApiState | None = None,
     *,
     current_user_provider: CurrentUserProvider | None = None,
+    services: tuple[
+        CredentialProjectService,
+        MetadataProjectService,
+        QuoteRunService,
+        ResearchService,
+    ]
+    | None = None,
 ) -> FastAPI:
     """Compose the hosted application and its concern-specific route adapters."""
 
@@ -158,11 +165,14 @@ def create_app(
     provider = current_user_provider or LocalWorkspaceUserProvider(
         user_id=os.environ.get("PORTFELL_LOCAL_WORKSPACE_USER_ID", DEFAULT_LOCAL_WORKSPACE_USER_ID)
     )
-    runtime = _runtime()
-    credentials = CredentialProjectService(resolved_state, runtime)
-    metadata = MetadataProjectService(resolved_state, runtime)
-    quotes = QuoteRunService(resolved_state, runtime)
-    research = _research_service(resolved_state, runtime)
+    if services is None:
+        runtime = _runtime()
+        credentials = CredentialProjectService(resolved_state, runtime)
+        metadata = MetadataProjectService(resolved_state, runtime)
+        quotes = QuoteRunService(resolved_state, runtime)
+        research = _research_service(resolved_state, runtime)
+    else:
+        credentials, metadata, quotes, research = services
 
     def current_user() -> ApiUser:
         return provider.current_user()
