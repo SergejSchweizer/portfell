@@ -703,7 +703,7 @@ one documented commit point and retries cannot recreate legacy authority or dupl
 Branch: `chore/install-production-market-refresh-cron`.
 
 Git status: in progress. The implementation merged in PR #329; the remaining operational
-acceptance is first natural `02:15 Europe/Amsterdam` scheduled-run evidence.
+acceptance is first natural `20:15 Europe/Amsterdam` scheduled-run evidence.
 
 Implementation PR: https://github.com/SergejSchweizer/portfell/pull/329.
 
@@ -741,12 +741,12 @@ Scope:
 - Install with
   `portfell-shared-market-cron install --project-root /home/dev_portfell/portfell`, then verify
   `status` and `crontab -l`. The one managed block must use
-  `SHELL=/bin/bash`, `CRON_TZ=Europe/Amsterdam`, `15 2 * * *`, `/usr/bin/flock -n`, absolute paths,
+  `SHELL=/bin/bash`, `CRON_TZ=Europe/Amsterdam`, `15 20 * * *`, `/usr/bin/flock -n`, absolute paths,
   the Compose `operations` profile, and the `shared-market-refresh` one-shot service.
 - Repeat installation and prove the crontab digest is unchanged and every unrelated entry remains
   byte-identical. Verify lock contention is side-effect free and that a simultaneous manual start
   cannot create a second logical refresh job.
-- Observe one natural cron-triggered execution at `02:15 Europe/Amsterdam`; a manual `run-once` does
+- Observe one natural cron-triggered execution at `20:15 Europe/Amsterdam`; a manual `run-once` does
   not satisfy this step. Verify start time, terminal success, manifest/catalog freshness, zero secret
   leakage, bounded provider requests, no duplicate revisions, project-scoped freshness, logrotate,
   status/SLO metrics, and alert recovery.
@@ -772,7 +772,7 @@ Acceptance:
   quote/dividend/split coverage through the target date or a documented market-closed/not-applicable
   status; and duplicate full business-key count is zero.
 - Before installation, `portfell-shared-market-cron status` reports `installed=false`. Afterwards it
-  reports `installed=true`, schedule `15 2 * * *`, timezone `Europe/Amsterdam`, and fresh successful
+  reports `installed=true`, schedule `15 20 * * *`, timezone `Europe/Amsterdam`, and fresh successful
   state; `crontab -l` contains exactly one complete managed Portfell block and no secret value.
 - Installing twice yields the same complete crontab SHA-256 digest. The pre-install backup digest is
   recorded, owner-only, restorable, and all unrelated crontab bytes are identical before and after
@@ -787,7 +787,7 @@ Acceptance:
 - A lock-contention test returns the documented non-success/no-op result, starts no provider request,
   publishes no revision, and leaves the active refresh and last valid catalog readable. Repeating a
   logical target date joins/reuses one durable job.
-- The first naturally scheduled run starts at the next `02:15 Europe/Amsterdam` cron window, reaches
+- The first naturally scheduled run starts at the next `20:15 Europe/Amsterdam` cron window, reaches
   `succeeded` within the documented SLO, advances or confirms catalog freshness, processes only
   unique active-listing gaps, records zero duplicate business keys, and leaves all project freshness
   endpoints healthy after API/worker restart.
@@ -1049,7 +1049,7 @@ evidence bundle must prove:
 - cron uses the same operations credential and applies gap/tail/correction deltas to the unique
   active-listing union through the same durable single-flight jobs;
 - the production service user's managed cron block is installed idempotently at
-  `02:15 Europe/Amsterdam`, one natural scheduled run succeeds, monitoring/rotation are live, and exact
+  `20:15 Europe/Amsterdam`, one natural scheduled run succeeds, monitoring/rotation are live, and exact
   uninstall/crontab-restore/application-rollback evidence is approved;
 - every production button and tab has a semantic interaction case on desktop, tablet, and mobile;
   the inventory guard and Playwright interaction jobs are mandatory dependencies of both stable
@@ -1859,7 +1859,7 @@ Scope:
   secrets; volume write access; and a successful `--dry-run` before changing crontab.
 - Manage one delimited Portfell block in the service user's crontab while preserving every unrelated
   byte/entry. Set `SHELL=/bin/bash`, `CRON_TZ=Europe/Amsterdam`, and schedule daily execution at
-  `02:15` with absolute paths and `/usr/bin/flock -n`.
+  `20:15` with absolute paths and `/usr/bin/flock -n`.
 - Run `docker compose run --rm --no-deps market-data-refresh`, append stdout/stderr to a dedicated
   rotation-compatible log, propagate the refresh exit code, and include no secret in crontab or the
   host command line.
