@@ -592,7 +592,10 @@ def test_metadata_builder_enqueues_the_exact_initial_fill_when_configured() -> N
         "bootstrap_id": "bootstrap-1",
         "job_id": "job-1",
         "status": "not_started",
+        "completed_units": 0,
+        "total_units": 1,
         "selected_listing_count": 1,
+        "terminal_code": None,
     }
 
 

@@ -268,7 +268,10 @@ class MetadataProjectService:
                 "bootstrap_id": bootstrap.bootstrap.bootstrap_id,
                 "job_id": bootstrap.job_id,
                 "status": bootstrap.bootstrap.status,
+                "completed_units": 0,
+                "total_units": bootstrap.bootstrap.selected_listing_count,
                 "selected_listing_count": bootstrap.bootstrap.selected_listing_count,
+                "terminal_code": None,
             }
         return result
 
