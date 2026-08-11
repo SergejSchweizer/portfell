@@ -290,6 +290,7 @@ def create_app(
     | None = None,
     request_scope: RequestScopedPostgresConnection | None = None,
     ensure_user: Callable[[str], None] | None = None,
+    include_quote_routes: bool = True,
 ) -> FastAPI:
     """Compose the hosted application and its concern-specific route adapters."""
 
@@ -337,9 +338,10 @@ def create_app(
             workspace_user=workspace_user,
         )
     )
-    application.include_router(
-        quote_run_router(quotes, current_user=current_user, workspace_user=workspace_user)
-    )
+    if include_quote_routes:
+        application.include_router(
+            quote_run_router(quotes, current_user=current_user, workspace_user=workspace_user)
+        )
     application.include_router(
         research_router(research, current_user=current_user, workspace_user=workspace_user)
     )
@@ -377,22 +379,9 @@ def create_runtime_app() -> FastAPI:
             ),
             request_scope=request_scope,
             ensure_user=PostgresHostedUserRepository(request_scope).create,
+            include_quote_routes=False,
         )
-    if authority != "local":
-        raise HostedApiError("hosted_authority_invalid")
-    shared_data_root = os.environ.get("PORTFELL_SHARED_DATA_ROOT")
-    key_path = os.environ.get("PORTFELL_EODHD_KEK_FILE")
-    if not shared_data_root or not key_path:
-        return create_app()
-    key_encryption_key = load_key_encryption_key(
-        Path(key_path),
-        version=os.environ.get("PORTFELL_EODHD_KEK_VERSION", "local-v1"),
-    )
-    return create_app(
-        create_persistent_local_workspace_state(
-            Path(shared_data_root), key_encryption_key=key_encryption_key
-        )
-    )
+    raise HostedApiError("postgres_hosted_authority_required")
 
 
 def _run_quote_fetch(
@@ -414,4 +403,7 @@ def _stable_hash(payload: dict[str, Any]) -> str:
     return stable_hash(payload)
 
 
-app = create_runtime_app()
+# Test clients and import-time tooling use an explicitly injected application.
+# The container entry point invokes ``create_runtime_app`` as a Uvicorn factory,
+# which accepts PostgreSQL as its only hosted authority.
+app = create_app()

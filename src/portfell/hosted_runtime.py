@@ -19,7 +19,13 @@ def run_api_placeholder() -> int:
 
     import uvicorn
 
-    uvicorn.run("portfell.hosted_api:app", host="0.0.0.0", port=8000, log_level="info")
+    uvicorn.run(
+        "portfell.hosted_api:create_runtime_app",
+        factory=True,
+        host="0.0.0.0",
+        port=8000,
+        log_level="info",
+    )
     return 0
 
 

@@ -76,6 +76,12 @@ def test_local_workspace_requires_no_authentication_or_csrf() -> None:
     assert client.post("/projects", json={"name": "Core"}).status_code == 200
 
 
+def test_postgres_composition_excludes_legacy_user_quote_routes() -> None:
+    application = create_app(include_quote_routes=False)
+
+    assert "/quote-runs" not in application.openapi()["paths"]
+
+
 def test_local_workspace_user_provider_is_stable_and_server_owned() -> None:
     provider = LocalWorkspaceUserProvider(user_id="00000000-0000-5000-8000-000000000002")
     first = provider.current_user()
@@ -120,13 +126,14 @@ def test_database_runtime_requires_explicit_authority(
         hosted_api.create_runtime_app()
 
 
-def test_database_runtime_allows_explicit_local_authority(
+def test_runtime_rejects_the_removed_local_authority(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("PORTFELL_HOSTED_AUTHORITY", "local")
     monkeypatch.setenv("PORTFELL_DATABASE_URL", "postgresql://portfell_app@postgres:5432/portfell")
 
-    assert hosted_api.create_runtime_app().state.portfell_state is not None
+    with pytest.raises(HostedApiError, match="postgres_hosted_authority_required"):
+        hosted_api.create_runtime_app()
 
 
 def test_api_uses_injected_current_user_provider() -> None:

@@ -60,6 +60,7 @@ def test_web_has_no_shared_data_mount_or_authentication_secret() -> None:
     services = cast(ComposeMapping, _compose()["services"])
     web = cast(ComposeMapping, services["web"])
 
+    assert web["container_name"] == "portfell-web"
     assert "volumes" not in web
     assert "secrets" not in web
     assert "PORTFELL_API_BASE_URL" in web["environment"]

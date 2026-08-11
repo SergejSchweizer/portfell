@@ -84,6 +84,7 @@ services:
           memory: 1G
 
   web:
+    container_name: portfell-web
     build:
       context: .
       dockerfile: apps/web/Dockerfile
