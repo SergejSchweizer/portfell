@@ -13,12 +13,13 @@ from portfell.hosted_api_serializers import (
     selection_row,
 )
 from portfell.hosted_api_service_support import (
-    audit,
     opaque_id,
     stable_hash,
 )
 from portfell.hosted_api_state import HostedApiState, ProjectRecord, SelectionRecord
+from portfell.hosted_audit_event_repository import AuditEventRepository, HostedAuditEvent
 from portfell.hosted_credentials import CredentialVaultError, EodhdCredentialVault
+from portfell.hosted_local_audit_event_repository import LocalAuditEventRepository
 from portfell.hosted_local_metadata_repository import LocalMetadataLifecycleRepository
 from portfell.hosted_local_project_repository import LocalProjectRepository
 from portfell.hosted_local_selection_repository import LocalSelectionRepository
@@ -44,6 +45,7 @@ class MetadataProjectService:
         selection_repository: SelectionRepository | None = None,
         metadata_repository: MetadataLifecycleRepository | None = None,
         credential_vault: EodhdCredentialVault | None = None,
+        audit_repository: AuditEventRepository | None = None,
     ) -> None:
         self.state = state
         self.runtime = runtime
@@ -51,6 +53,7 @@ class MetadataProjectService:
         self._selections = selection_repository or LocalSelectionRepository(state)
         self._metadata = metadata_repository or LocalMetadataLifecycleRepository(state)
         self._credentials = credential_vault or state.credential_vault()
+        self._audit_events = audit_repository or LocalAuditEventRepository(state)
 
     def _all_isins_rows(self) -> tuple[JsonRow, ...]:
         return self.state.all_isins_rows or self.runtime.all_isins_rows()
@@ -71,7 +74,7 @@ class MetadataProjectService:
             raise HostedApplicationError(422, "eodhd_key_required") from error
         run_id = opaque_id("metadata-run", f"{user_id}:{uuid.uuid4()}")
         run = self._metadata.create(MetadataRun(run_id, user_id, "running", 0, 0, 0, 0, {}))
-        audit(self.state, user_id, "fetch_all_metadata.started")
+        self._audit(user_id, "fetch_all_metadata.started")
         return metadata_fetch_row(_metadata_row(run)), lambda: self.run_metadata_fetch(
             user_id, run_id, provider_key
         )
@@ -133,7 +136,7 @@ class MetadataProjectService:
                     },
                 )
             )
-        audit(self.state, user_id, "fetch_all_metadata.completed")
+        self._audit(user_id, "fetch_all_metadata.completed")
 
     def _fail_metadata_fetch(self, user_id: str, run_id: str, code: str) -> None:
         current = self._metadata.status(user_id=user_id, run_id=run_id)
@@ -150,7 +153,7 @@ class MetadataProjectService:
                     {**current.summary, "error_code": code},
                 )
             )
-        audit(self.state, user_id, "fetch_all_metadata.failed")
+        self._audit(user_id, "fetch_all_metadata.failed")
 
     def create_project_from_criteria(
         self,
@@ -230,7 +233,7 @@ class MetadataProjectService:
                 request_hash=request_hash,
                 response_ref=project_id,
             )
-        audit(self.state, user_id, "metadata_builder.project.create")
+        self._audit(user_id, "metadata_builder.project.create")
         return self._project_selection_row(project, selection)
 
     @staticmethod
@@ -290,6 +293,17 @@ class MetadataProjectService:
         if selection is None:
             raise HostedApplicationError(404, "not_found")
         return self._selection_record(selection)
+
+    def _audit(self, user_id: str, event_type: str) -> None:
+        self._audit_events.append(
+            HostedAuditEvent(
+                audit_event_id=str(uuid.uuid4()),
+                user_id=user_id,
+                event_type=event_type,
+                subject_ref=f"user:{user_id}",
+                metadata={},
+            )
+        )
 
 
 def _metadata_row(run: MetadataRun) -> JsonRow:

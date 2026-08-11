@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import time
+import uuid
 from collections.abc import Callable
 from dataclasses import replace
 
@@ -12,14 +13,15 @@ from portfell.hosted_api_errors import HostedApplicationError
 from portfell.hosted_api_ports import HostedRuntimePort
 from portfell.hosted_api_serializers import quote_run_row
 from portfell.hosted_api_service_support import (
-    audit,
     idempotent_response,
     opaque_id,
     remember_idempotency,
     stable_hash,
 )
 from portfell.hosted_api_state import HostedApiState, SelectionRecord
+from portfell.hosted_audit_event_repository import AuditEventRepository, HostedAuditEvent
 from portfell.hosted_credentials import CredentialVaultError, EodhdCredentialVault
+from portfell.hosted_local_audit_event_repository import LocalAuditEventRepository
 from portfell.hosted_local_project_repository import LocalProjectRepository
 from portfell.hosted_local_selection_repository import LocalSelectionRepository
 from portfell.hosted_quote_lifecycle_repository import (
@@ -46,6 +48,7 @@ class QuoteRunService:
         selection_repository: SelectionRepository | None = None,
         credential_vault: EodhdCredentialVault | None = None,
         quote_repository: QuoteLifecycleRepository | None = None,
+        audit_repository: AuditEventRepository | None = None,
     ) -> None:
         self.state = state
         self.runtime = runtime
@@ -53,6 +56,7 @@ class QuoteRunService:
         self._selections = selection_repository or LocalSelectionRepository(state)
         self._credentials = credential_vault or state.credential_vault()
         self._quotes = quote_repository or LocalQuoteLifecycleRepository(state)
+        self._audit_events = audit_repository or LocalAuditEventRepository(state)
 
     def start(
         self,
@@ -123,7 +127,7 @@ class QuoteRunService:
         }
         self._quotes.create(run, progress=progress)
         remember_idempotency(self.state, user_id, operation, idempotency_key, run_id)
-        audit(self.state, user_id, "fetch_all_quotes.started")
+        self._audit(user_id, "fetch_all_quotes.started")
         return self.status(user_id, run_id), lambda: self.run_quote_fetch(
             run, selection.selection_id, provider_key
         )
@@ -181,7 +185,7 @@ class QuoteRunService:
                     "error_code": f"quote_download_{type(error).__name__.lower()}",
                 },
             )
-            audit(self.state, run.user_id, "fetch_all_quotes.failed")
+            self._audit(run.user_id, "fetch_all_quotes.failed")
             return
         scoped_rows = tuple(dict(row) for row in summary.pop("scoped_quote_rows", ()))
         if self.state.shared_market_data_store is not None:
@@ -209,7 +213,7 @@ class QuoteRunService:
             self.state.quote_rows_by_run_id[run.download_run_id] = scoped_rows
         if completed_run.status == "succeeded":
             publish_user_data_snapshot(store=self.state.entitlements, run=completed_run)
-        audit(self.state, run.user_id, "fetch_all_quotes.completed")
+        self._audit(run.user_id, "fetch_all_quotes.completed")
 
     def _require_project(self, user_id: str, project_id: str) -> None:
         if not any(
@@ -228,6 +232,17 @@ class QuoteRunService:
         if selection is None:
             raise HostedApplicationError(404, "not_found")
         return self._selection_record(selection)
+
+    def _audit(self, user_id: str, event_type: str) -> None:
+        self._audit_events.append(
+            HostedAuditEvent(
+                audit_event_id=str(uuid.uuid4()),
+                user_id=user_id,
+                event_type=event_type,
+                subject_ref=f"user:{user_id}",
+                metadata={},
+            )
+        )
 
     @staticmethod
     def _selection_record(selection: TenantSelection) -> SelectionRecord:
