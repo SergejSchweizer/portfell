@@ -18,11 +18,9 @@ from portfell.hosted_api_serializers import (
     selection_row,
 )
 from portfell.hosted_api_service_support import (
-    idempotent_response,
     opaque_id,
     page,
     project_data_loaded,
-    remember_idempotency,
     stable_hash,
     workflow_row,
 )
@@ -30,6 +28,10 @@ from portfell.hosted_api_state import HostedApiState, ProjectRecord, SelectionRe
 from portfell.hosted_audit_event_repository import AuditEventRepository, HostedAuditEvent
 from portfell.hosted_credentials import EodhdCredentialVault
 from portfell.hosted_download_run_repository import DownloadRunRepository
+from portfell.hosted_idempotency_repository import (
+    IdempotencyRepository,
+    LocalIdempotencyRepository,
+)
 from portfell.hosted_local_audit_event_repository import LocalAuditEventRepository
 from portfell.hosted_local_download_run_repository import LocalDownloadRunRepository
 from portfell.hosted_local_project_repository import LocalProjectRepository
@@ -62,6 +64,7 @@ class CredentialProjectService:
         credential_vault: EodhdCredentialVault | None = None,
         audit_repository: AuditEventRepository | None = None,
         download_run_repository: DownloadRunRepository | None = None,
+        idempotency_repository: IdempotencyRepository | None = None,
     ) -> None:
         self.state = state
         self.runtime = runtime
@@ -73,6 +76,7 @@ class CredentialProjectService:
         self._credentials = credential_vault or state.credential_vault()
         self._audit_events = audit_repository or LocalAuditEventRepository(state)
         self._download_runs = download_run_repository or LocalDownloadRunRepository(state)
+        self._idempotency = idempotency_repository or LocalIdempotencyRepository(state)
 
     def workflow(self, user_id: str, project_id: str | None = None) -> JsonRow:
         if project_id is None:
@@ -113,17 +117,22 @@ class CredentialProjectService:
     def set_credential(
         self, user_id: str, provider_key: str, idempotency_key: str | None
     ) -> JsonRow:
-        cached = idempotent_response(
-            self.state,
+        request_hash = stable_hash({"provider_key": provider_key})
+        cached = self._idempotency.lookup(
             user_id=user_id,
             operation="set-credential",
-            idempotency_key=idempotency_key,
+            key=idempotency_key,
+            request_hash=request_hash,
         )
         if cached is not None:
             return self.credential_status(user_id)
         value = self._credentials.set_credential(user_id=user_id, provider_key=provider_key)
-        remember_idempotency(
-            self.state, user_id, "set-credential", idempotency_key, value.credential_id
+        self._idempotency.remember(
+            user_id=user_id,
+            operation="set-credential",
+            key=idempotency_key,
+            request_hash=request_hash,
+            response_ref=value.credential_id,
         )
         self._audit(user_id, "credential.set")
         return credential_status_row(value)
@@ -143,11 +152,12 @@ class CredentialProjectService:
     def run_download(
         self, user_id: str, symbols: list[str], idempotency_key: str | None
     ) -> JsonRow:
-        cached = idempotent_response(
-            self.state,
+        idempotency_hash = stable_hash({"symbols": sorted(symbols)})
+        cached = self._idempotency.lookup(
             user_id=user_id,
             operation="download-run",
-            idempotency_key=idempotency_key,
+            key=idempotency_key,
+            request_hash=idempotency_hash,
         )
         if cached is not None:
             return download_row(self._require_download_run(user_id, cached))
@@ -169,8 +179,12 @@ class CredentialProjectService:
         )
         run = self._download_runs.create(run)
         publish_user_data_snapshot(store=self.state.entitlements, run=run)
-        remember_idempotency(
-            self.state, user_id, "download-run", idempotency_key, run.download_run_id
+        self._idempotency.remember(
+            user_id=user_id,
+            operation="download-run",
+            key=idempotency_key,
+            request_hash=idempotency_hash,
+            response_ref=run.download_run_id,
         )
         self._audit(user_id, "download.run")
         return download_row(run)
@@ -188,18 +202,25 @@ class CredentialProjectService:
 
     def create_project(self, user_id: str, name: str, idempotency_key: str | None) -> JsonRow:
         operation = f"project:{name}"
-        cached = idempotent_response(
-            self.state,
+        request_hash = stable_hash({"name": name})
+        cached = self._idempotency.lookup(
             user_id=user_id,
             operation=operation,
-            idempotency_key=idempotency_key,
+            key=idempotency_key,
+            request_hash=request_hash,
         )
         if cached is not None:
             return project_row(self._project(user_id, cached))
         project_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"portfell:project:{user_id}:{name}"))
         project = self._projects.create_project(TenantProject(project_id, user_id, name))
         self._projects.set_current_project(user_id=user_id, project_id=project.project_id)
-        remember_idempotency(self.state, user_id, operation, idempotency_key, project_id)
+        self._idempotency.remember(
+            user_id=user_id,
+            operation=operation,
+            key=idempotency_key,
+            request_hash=request_hash,
+            response_ref=project_id,
+        )
         self._audit(user_id, "project.create")
         return project_row(self._record(project))
 
