@@ -32,8 +32,8 @@ from portfell.hosted_quote_lifecycle_repository import (
 )
 from portfell.hosted_repository_importer import ProjectRepository, TenantSelection
 from portfell.hosted_selection_repository import SelectionRepository
+from portfell.hosted_shared_quote_publisher import SharedQuotePublisher
 from portfell.hosted_workspace_repository import persist_local_workspace
-from portfell.shared_market_data import SharedListingKey
 from portfell.table_io import JsonRow
 
 LOGGER = logging.getLogger(__name__)
@@ -52,6 +52,7 @@ class QuoteRunService:
         quote_repository: QuoteLifecycleRepository | None = None,
         audit_repository: AuditEventRepository | None = None,
         idempotency_repository: IdempotencyRepository | None = None,
+        quote_publisher: SharedQuotePublisher | None = None,
     ) -> None:
         self.state = state
         self.runtime = runtime
@@ -61,6 +62,11 @@ class QuoteRunService:
         self._quotes = quote_repository or LocalQuoteLifecycleRepository(state)
         self._audit_events = audit_repository or LocalAuditEventRepository(state)
         self._idempotency = idempotency_repository or LocalIdempotencyRepository(state)
+        self._quote_publisher = quote_publisher or (
+            None
+            if state.shared_market_data_store is None
+            else SharedQuotePublisher(state.shared_market_data_store)
+        )
 
     def start(
         self,
@@ -174,7 +180,8 @@ class QuoteRunService:
                     "total": total,
                 },
             )
-            if time.monotonic() - last_persisted_at >= 5.0:
+            should_persist = time.monotonic() - last_persisted_at >= 5.0
+            if self.state.workspace_store is not None and should_persist:
                 persist_local_workspace(self.state)
                 last_persisted_at = time.monotonic()
 
@@ -202,13 +209,8 @@ class QuoteRunService:
             self._audit(run.user_id, "fetch_all_quotes.failed")
             return
         scoped_rows = tuple(dict(row) for row in summary.pop("scoped_quote_rows", ()))
-        if self.state.shared_market_data_store is not None:
-            rows_by_listing: dict[SharedListingKey, list[JsonRow]] = {}
-            for row in scoped_rows:
-                listing = SharedListingKey.from_row(row)
-                rows_by_listing.setdefault(listing, []).append(row)
-            for listing, rows in rows_by_listing.items():
-                self.state.shared_market_data_store.upsert("quotes", listing, rows)
+        if self._quote_publisher is not None:
+            self._quote_publisher.publish(scoped_rows)
         progress = self._quotes.progress(user_id=run.user_id, run_id=run.download_run_id) or {}
         failed = int(progress["failed"])
         completed_run = replace(run, status="partial" if failed else "succeeded")
@@ -223,7 +225,7 @@ class QuoteRunService:
         }
         self._quotes.update(completed_run, progress=terminal_progress)
         # Compatibility cache only: persistent consumers read the canonical store.
-        if self.state.shared_market_data_store is None:
+        if self._quote_publisher is None:
             self.state.quote_rows_by_run_id[run.download_run_id] = scoped_rows
         if completed_run.status == "succeeded":
             publish_user_data_snapshot(store=self.state.entitlements, run=completed_run)
