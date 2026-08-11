@@ -1,6 +1,6 @@
 # Backlog
 
-Last reviewed: 2026-08-10
+Last reviewed: 2026-08-11
 
 ## Table Of Contents
 
@@ -63,9 +63,10 @@ cross-user provenance from shared ingestion. It requires explicit provider-licen
 cross-customer storage, derived reuse, and service-credential ingestion; PR156 is a blocking
 fail-closed gate, not optional documentation.
 
-PR156 through PR167 are sequential. No PR may dual-write market/statistical payloads into
-PostgreSQL, put user/project fields into shared payloads, authorize from object existence, let a
-browser choose storage paths or credentials, or retain local-workspace JSON as a second hosted
+PR156 through PR167 are sequential. PR168 and PR169 both depend on PR167 and may execute in
+parallel; both are required to complete the series. No PR may dual-write market/statistical payloads
+into PostgreSQL, put user/project fields into shared payloads, authorize from object existence, let
+a browser choose storage paths or credentials, or retain local-workspace JSON as a second hosted
 source of truth after cutover.
 
 ### PR156. Shared Data Licensing Decision And Plane Contracts
@@ -693,10 +694,216 @@ checkpoint are tied to exact approved rehearsal artifacts and code/schema versio
 Idempotency: Final import/reconcile/restart/smoke operations are repeatable; the authority switch has
 one documented commit point and retries cannot recreate legacy authority or duplicate payloads.
 
+### PR168. Production Cron Installation And First Scheduled Run Evidence
+
+Branch: `chore/install-production-market-refresh-cron`.
+
+Git status: not started. PR: TBD.
+
+Priority: P0 complete the production operations rollout.
+
+Depends on: PR167.
+
+Scope:
+
+- Install the already implemented shared-market refresh cron on the production host as service user
+  `dev_portfell`, using the absolute checkout `/home/dev_portfell/portfell`. Do not install against a
+  feature checkout, unmerged commit, mutable image tag, local-workspace authority, or developer
+  credential.
+- Record a preflight evidence bundle that pins the deployed Git SHA and container image digest;
+  confirms PR156 licensing approval, PR167 PostgreSQL/shared-store authority, migration head, healthy
+  PostgreSQL/API/workers, the dedicated operations credential, external secret-file permissions,
+  shared-store write/atomic-replace capability, free disk space, and synchronized host time.
+- Back up the service user's existing crontab with owner-only permissions and a SHA-256 digest before
+  mutation. Provision `/var/log/portfell/shared-market-refresh.log`, its parent directory, and
+  logrotate ownership/retention so the non-interactive service user can append logs without making
+  configuration or secrets world-writable.
+- From the absolute production root, run `docker compose --env-file .env.local config`, then
+  `portfell-refresh-shared-market-data --dry-run`. The dry run must resolve the PostgreSQL active-
+  project listing union, operations credential, durable queue, shared root, lock, and delta plan
+  without making a provider request or mutating market/catalog state.
+- Execute `portfell-shared-market-cron run-once --project-root /home/dev_portfell/portfell` before
+  installation. Wait for the durable refresh job to reach a successful terminal state and reconcile
+  its inventory hash, requested gaps, immutable revisions, coverage catalog, failures, and duplicate
+  business keys against PostgreSQL and shared storage.
+- Install with
+  `portfell-shared-market-cron install --project-root /home/dev_portfell/portfell`, then verify
+  `status` and `crontab -l`. The one managed block must use
+  `SHELL=/bin/bash`, `CRON_TZ=Europe/Amsterdam`, `15 2 * * *`, `/usr/bin/flock -n`, absolute paths,
+  the Compose `operations` profile, and the `shared-market-refresh` one-shot service.
+- Repeat installation and prove the crontab digest is unchanged and every unrelated entry remains
+  byte-identical. Verify lock contention is side-effect free and that a simultaneous manual start
+  cannot create a second logical refresh job.
+- Observe one natural cron-triggered execution at `02:15 Europe/Amsterdam`; a manual `run-once` does
+  not satisfy this step. Verify start time, terminal success, manifest/catalog freshness, zero secret
+  leakage, bounded provider requests, no duplicate revisions, project-scoped freshness, logrotate,
+  status/SLO metrics, and alert recovery.
+- Commit only redacted operational evidence and checksums. Document exact install, status, log,
+  retry, credential-rotation, disk-full, stale-run, uninstall, crontab-restore, and application
+  rollback commands with named owner and decision points.
+
+Acceptance:
+
+- The PR identifies one production target with service user `dev_portfell`, root
+  `/home/dev_portfell/portfell`, exact merged PR167 Git SHA, exact API/worker image digest, migration
+  head, and approved PR156 licensing evidence; all values match the running services before any
+  crontab write.
+- Preflight is green for PostgreSQL/RLS, API/workers, operations credential, external secret modes,
+  shared-store atomic writes, queue claims, at least the documented minimum free disk space, NTP
+  synchronization, Docker Compose configuration, log directory, and logrotate. Any failed item stops
+  before changing crontab or provider/catalog state.
+- The recorded dry run exits `0`, reports the exact deduplicated active-project listing count and
+  inventory hash, creates no provider request/job/revision/catalog mutation, prints no credential or
+  secret path content, and uses no local-workspace JSON authority.
+- The pre-install `run-once` exits `0`; its durable job reaches `succeeded`; requested, succeeded,
+  unchanged, and failed counts reconcile; failed count is zero; every active project member has
+  quote/dividend/split coverage through the target date or a documented market-closed/not-applicable
+  status; and duplicate full business-key count is zero.
+- Before installation, `portfell-shared-market-cron status` reports `installed=false`. Afterwards it
+  reports `installed=true`, schedule `15 2 * * *`, timezone `Europe/Amsterdam`, and fresh successful
+  state; `crontab -l` contains exactly one complete managed Portfell block and no secret value.
+- Installing twice yields the same complete crontab SHA-256 digest. The pre-install backup digest is
+  recorded, owner-only, restorable, and all unrelated crontab bytes are identical before and after
+  install.
+- The rendered cron command contains only absolute paths, obtains the non-blocking flock, runs
+  `docker compose --profile operations run --rm --no-deps shared-market-refresh`, writes the approved
+  log, and exposes no network port or long-running second API process.
+- A lock-contention test returns the documented non-success/no-op result, starts no provider request,
+  publishes no revision, and leaves the active refresh and last valid catalog readable. Repeating a
+  logical target date joins/reuses one durable job.
+- The first naturally scheduled run starts at the next `02:15 Europe/Amsterdam` cron window, reaches
+  `succeeded` within the documented SLO, advances or confirms catalog freshness, processes only
+  unique active-listing gaps, records zero duplicate business keys, and leaves all project freshness
+  endpoints healthy after API/worker restart.
+- Monitoring demonstrates an alert for a synthetic stale/failed status and a clear recovery after a
+  successful refresh. Logs rotate with the documented owner/mode/retention and contain no EODHD key,
+  KEK, database password, credential envelope, session token, or unrestricted project inventory.
+- The redacted evidence bundle contains command, timestamp, exit code, Git/image/schema identities,
+  crontab before/after hashes, run/job/manifest identities, reconciliation totals, first scheduled-
+  run proof, monitoring proof, operator signoff, and rollback checkpoint. Repository secret scanning
+  and every current gate in `GATES.md` pass.
+- An operator following only the committed runbook can inspect status, retry a failed refresh, rotate
+  the operations credential, recover from disk-full or stale lock, uninstall only the managed block,
+  restore the exact prior crontab, and invoke the PR167 application rollback without deleting shared
+  market data or PostgreSQL history.
+
+Security: Installation uses the least-privilege production service user and dedicated operations
+credential. Secrets remain in external owner-restricted files/mounts and never appear in crontab,
+commands, evidence, logs, environment dumps, Git, or CI. Evidence is redacted and secret-scanned
+before review.
+
+Determinism: The target root, service user, Git SHA, image digest, migration head, Compose profile,
+service name, timezone, schedule, lock, log path, installer command, readiness thresholds, and
+evidence schema are explicit and versioned. The cron block does not depend on cwd, shell profile,
+PATH lookup, locale, or mutable tags.
+
+Idempotency: Preflight and dry run are non-mutating; repeated installation preserves one managed
+block and unrelated crontab bytes; repeated target-date execution joins one durable refresh job and
+converges on one immutable revision per content identity. Uninstall/restore can be repeated without
+deleting shared payloads, tenant history, or unrelated cron entries.
+
+### PR169. Exhaustive Button Interaction Tests And Required Merge Gates
+
+Branch: `chore/web-button-interaction-gate`.
+
+Git status: not started. PR: TBD.
+
+Priority: P1 prevent untested browser interactions from merging.
+
+Depends on: PR167. May execute in parallel with PR168.
+
+Scope:
+
+- Add a machine-readable Playwright interaction manifest covering every rendered native `button`,
+  shared `Button`, `IconButton`, `role="button"`, and `role="tab"` in every production Portfell route
+  and reachable workflow state. Each entry records route, viewport applicability, accessible name,
+  setup state, expected enabled/disabled state, click action, expected API/navigation/UI effect, and
+  duplicate-click behavior.
+- Add an inventory guard that renders each registered route/state, discovers controls by semantic
+  role and accessible name, and compares the discovered set with the manifest in both directions.
+  A newly added, renamed, removed, duplicated, or inaccessible button/tab must fail until its
+  interaction case and manifest entry are updated.
+- Implement isolated Playwright cases using `getByRole` and deterministic `page.route` fixtures.
+  Test visible/accessibility state before interaction and prove the exact API method/path and payload,
+  navigation target, dialog/drawer/tab state, persisted setting, or rendered result after interaction.
+  Unhandled browser API requests fail the test.
+- Cover each action's applicable `ready`, `locked`, `pending`, `running`, `complete`, and `failed`
+  states. Disabled controls make no request. Repeated clicks while work is active create no duplicate
+  request/run. Retry after a modeled failure follows the documented idempotent behavior.
+- Cover navigation/drawer controls, metadata actions, project creation/switching, all Uni/Bi/Multi
+  compute actions, settings/candidate controls, tabs, icon-only controls, and responsive-only
+  controls. Use `aria-label` fixes only where a control lacks a stable accessible name; do not add
+  test ids or change product behavior when a semantic locator is available.
+- Run every interaction scenario through the existing Playwright `desktop`, `tablet`, and `mobile`
+  projects. Configure a deterministic local Web server lifecycle, fixed timezone/locale, reduced
+  motion where relevant, clean state per test, and trace/screenshot/video capture only on failure.
+- Add `pr-web-interactions` to `.github/workflows/pr-quality.yml` and
+  `merge-web-interactions` to `.github/workflows/merge-gate.yml`. Each job installs pinned Node
+  dependencies and the pinned Playwright Chromium runtime, builds/serves the Web application, runs
+  the complete interaction inventory on all three viewports, uploads failure artifacts, and is a
+  mandatory dependency of the stable aggregate `pr-quality` or `merge-gate` result.
+- Update `GATES.md`, local quality commands, workflow/governance tests, and contributor guidance so
+  the button inventory cannot be skipped by branch protection, auto-merge, direct main validation,
+  or the documented local pre-push procedure.
+
+Acceptance:
+
+- A committed manifest entry exists for every control discovered as `button` or `tab` on Metadata
+  Builder, Univariate Statistics, Bivariate Statistics, Multivariate Statistics, and the responsive
+  application shell in every registered workflow state. There are zero discovered-but-unregistered
+  and zero registered-but-undiscovered controls on desktop, tablet, and mobile.
+- Every manifest entry has exactly one deterministic interaction test or an explicit disabled-state
+  assertion. Tests locate controls by role and accessible name; no case depends on generated CSS
+  classes, DOM child position, visible implementation text without a role, arbitrary sleeps, or a
+  production EODHD/PostgreSQL request.
+- Enabled action tests assert the exact request method, path, relevant payload, request count, and
+  resulting UI state. Navigation, drawer, tab, and purely local controls assert their exact URL,
+  focus/expanded/selected state, or visible content and make zero unexpected API calls.
+- Locked, pending, and running controls are disabled or absent according to contract and produce
+  zero side effects. Double-click or repeated-click tests prove one logical request/run for every
+  submitting action. Failure/retry tests show the stable error and one idempotent retry.
+- Icon-only controls have a unique non-empty accessible name. Duplicate accessible names are allowed
+  only when the test scopes them to a documented semantic region; keyboard activation and focus
+  visibility pass for all actionable controls.
+- A mutation fixture that adds an unregistered button, removes a registered button, changes an
+  accessible name, or changes a button to the wrong enabled state makes the inventory/interaction
+  suite fail with a message naming route, state, role, and control name.
+- `npm run typecheck`, `npm run test:coverage`, `npm run build`, and `npm run e2e` pass from
+  `apps/web`; `npm run e2e` executes and passes the complete manifest on the configured `desktop`,
+  `tablet`, and `mobile` projects with no retries required.
+- `pr-quality.yml` contains a `pr-web-interactions` job and its aggregate fails when that job is
+  failed, cancelled, or skipped. `merge-gate.yml` contains an equivalent `merge-web-interactions`
+  job and its aggregate enforces the same result on the exact merged `main` commit.
+- A controlled failing interaction test produces Playwright trace, screenshot, and retained video
+  artifacts with documented retention; a passing run does not upload unnecessary browser artifacts.
+  Fixtures and artifacts contain no credentials, tokens, real customer/project data, or unrestricted
+  shared inventory.
+- `GATES.md` lists both Web interaction jobs, their exact commands, browser/version pinning, artifact
+  behavior, local equivalent, and required aggregate relationship. Governance tests fail if either
+  workflow job, aggregate dependency, manifest guard, or documented gate is removed.
+- Branch-protection evidence shows the stable required `pr-quality` check cannot succeed without all
+  button interaction tests. The final PR reports button/tab counts by route and state, all commands,
+  durations, results, and any deliberately non-actionable disabled controls.
+
+Security: Browser fixtures use synthetic opaque ids and values only. No test calls Google, EODHD,
+production PostgreSQL, or production shared storage. Traces, screenshots, videos, logs, and CI
+artifacts are secret-scanned and cannot contain provider keys, sessions, credentials, internal paths,
+or real project membership.
+
+Determinism: Manifest order, route/state fixtures, API responses, accessible names, timezone, locale,
+viewport definitions, animation policy, browser version, and expected effects are committed and
+pinned. Tests use condition-based assertions rather than sleeps and pass independently of execution
+order or worker scheduling.
+
+Idempotency: Every test starts from isolated state and can be retried without retaining projects,
+runs, settings, routes, or browser storage. Repeated user actions are asserted to join/reuse one
+logical operation where required; CI reruns do not contact production services or mutate external
+state.
+
 ### PostgreSQL Tenant Plane And Shared Data Series Completion Gate
 
-This series is complete only after PR156 through PR167 merge in order and the current gates in
-[GATES.md](GATES.md) pass. One production-like evidence bundle must prove:
+This series is complete only after PR156 through PR167 merge in order, PR168 and PR169 complete, and
+the current gates in [GATES.md](GATES.md) pass. One production-like evidence bundle must prove:
 
 - all user metadata, encrypted credential envelopes, immutable projects with exactly one canonical
   member per unique ISIN, jobs/outbox/attempts, runs, audit, and top-level artifact references are
@@ -708,6 +915,12 @@ This series is complete only after PR156 through PR167 merge in order and the cu
   operations credential, including zero-provider-call completion; users trigger no later refresh;
 - cron uses the same operations credential and applies gap/tail/correction deltas to the unique
   active-listing union through the same durable single-flight jobs;
+- the production service user's managed cron block is installed idempotently at
+  `02:15 Europe/Amsterdam`, one natural scheduled run succeeds, monitoring/rotation are live, and exact
+  uninstall/crontab-restore/application-rollback evidence is approved;
+- every production button and tab has a semantic interaction case on desktop, tablet, and mobile;
+  the inventory guard and Playwright interaction jobs are mandatory dependencies of both stable
+  merge-quality aggregates;
 - project deletion and user credential deletion preserve shared payloads and other projects, while
   tenant history and crypto-shredding follow explicit retention policy;
 - old analysis runs remain reproducible from pinned immutable revisions after market corrections;

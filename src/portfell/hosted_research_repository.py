@@ -1,16 +1,21 @@
-"""In-memory repository adapter for hosted research application services."""
+"""Repository adapter for hosted research application services."""
 
 from __future__ import annotations
+
+import uuid
 
 from portfell.entitlements import ProviderDownloadRun
 from portfell.hosted_api_errors import HostedApplicationError
 from portfell.hosted_api_service_support import (
-    audit,
-    idempotent_response,
-    remember_idempotency,
     require_user_row,
 )
 from portfell.hosted_api_state import AnalysisRecord, HostedApiState, ProjectRecord, SelectionRecord
+from portfell.hosted_audit_event_repository import AuditEventRepository, HostedAuditEvent
+from portfell.hosted_idempotency_repository import (
+    IdempotencyRepository,
+    LocalIdempotencyRepository,
+)
+from portfell.hosted_local_audit_event_repository import LocalAuditEventRepository
 from portfell.hosted_local_project_repository import LocalProjectRepository
 from portfell.hosted_local_selection_repository import LocalSelectionRepository
 from portfell.hosted_repository_importer import ProjectRepository
@@ -28,10 +33,14 @@ class HostedResearchRepository:
         state: HostedApiState,
         project_repository: ProjectRepository | None = None,
         selection_repository: SelectionRepository | None = None,
+        idempotency_repository: IdempotencyRepository | None = None,
+        audit_repository: AuditEventRepository | None = None,
     ) -> None:
         self._state = state
         self._projects = project_repository or LocalProjectRepository(state)
         self._selections = selection_repository or LocalSelectionRepository(state)
+        self._idempotency = idempotency_repository or LocalIdempotencyRepository(state)
+        self._audit_events = audit_repository or LocalAuditEventRepository(state)
 
     def metadata_selection(self, selection_id: str, user_id: str) -> SelectionRecord:
         selection = self._selections.by_id(selection_id=selection_id, user_id=user_id)
@@ -55,8 +64,9 @@ class HostedResearchRepository:
     def univariate_run(self, run_id: str, user_id: str) -> ResearchRun:
         return require_user_row(self._state.univariate_runs_by_id, run_id, user_id)
 
-    def find_univariate_run(self, run_id: str) -> ResearchRun | None:
-        return self._state.univariate_runs_by_id.get(run_id)
+    def find_univariate_run(self, run_id: str, user_id: str) -> ResearchRun | None:
+        run = self._state.univariate_runs_by_id.get(run_id)
+        return run if run is not None and run.user_id == user_id else None
 
     def save_univariate_run(self, run: ResearchRun) -> None:
         self._state.univariate_runs_by_id[run.run_id] = run
@@ -90,8 +100,9 @@ class HostedResearchRepository:
     def bivariate_run(self, run_id: str, user_id: str) -> ResearchRun:
         return require_user_row(self._state.bivariate_runs_by_id, run_id, user_id)
 
-    def find_bivariate_run(self, run_id: str) -> ResearchRun | None:
-        return self._state.bivariate_runs_by_id.get(run_id)
+    def find_bivariate_run(self, run_id: str, user_id: str) -> ResearchRun | None:
+        run = self._state.bivariate_runs_by_id.get(run_id)
+        return run if run is not None and run.user_id == user_id else None
 
     def save_bivariate_run(self, run: ResearchRun) -> None:
         self._state.bivariate_runs_by_id[run.run_id] = run
@@ -109,12 +120,29 @@ class HostedResearchRepository:
         self._state.analyses_by_id[analysis.run_id] = analysis
 
     def cached_id(self, user_id: str, operation: str, key: str | None) -> str | None:
-        return idempotent_response(
-            self._state, user_id=user_id, operation=operation, idempotency_key=key
+        return self._idempotency.lookup(
+            user_id=user_id,
+            operation=operation,
+            key=key,
+            request_hash=operation,
         )
 
     def remember_id(self, user_id: str, operation: str, key: str | None, row_id: str) -> None:
-        remember_idempotency(self._state, user_id, operation, key, row_id)
+        self._idempotency.remember(
+            user_id=user_id,
+            operation=operation,
+            key=key,
+            request_hash=operation,
+            response_ref=row_id,
+        )
 
     def audit(self, user_id: str, action: str) -> None:
-        audit(self._state, user_id, action)
+        self._audit_events.append(
+            HostedAuditEvent(
+                audit_event_id=str(uuid.uuid4()),
+                user_id=user_id,
+                event_type=action,
+                subject_ref=f"user:{user_id}",
+                metadata={},
+            )
+        )

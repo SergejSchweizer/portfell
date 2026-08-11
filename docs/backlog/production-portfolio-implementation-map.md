@@ -1,5 +1,50 @@
 # Production Portfolio Implementation Map
 
+
+## Table Of Contents
+
+- [Purpose](#purpose)
+- [Current Baseline](#current-baseline)
+- [Architecture Ownership Rules](#architecture-ownership-rules)
+- [Shared Return Mathematics](#shared-return-mathematics)
+- [PR57. Instrument-Level Rebalancing Drift And Cost Basis](#pr57-instrument-level-rebalancing-drift-and-cost-basis)
+- [PR58. Risk Model Package And Covariance Diagnostics](#pr58-risk-model-package-and-covariance-diagnostics)
+  - [`contracts.py`](#contractspy)
+  - [`matrix.py`](#matrixpy)
+  - [`estimators.py`](#estimatorspy)
+  - [`diagnostics.py`](#diagnosticspy)
+  - [`service.py`](#servicepy)
+  - [`writers.py`](#writerspy)
+- [PR59. Production Numerical Solver Boundary](#pr59-production-numerical-solver-boundary)
+  - [`baseline.py`](#baselinepy)
+  - [`constraints.py`](#constraintspy)
+  - [`objectives.py`](#objectivespy)
+  - [`solver.py`](#solverpy)
+  - [`diagnostics.py`](#diagnosticspy)
+  - [`writers.py`](#writerspy)
+- [PR60. Production Minimum Variance And Equal Risk Contribution](#pr60-production-minimum-variance-and-equal-risk-contribution)
+- [PR61. True HRP And Minimum CVaR Optimizers](#pr61-true-hrp-and-minimum-cvar-optimizers)
+  - [True HRP](#true-hrp)
+  - [Minimum CVaR](#minimum-cvar)
+- [PR62. Income And Distribution Quality Metrics](#pr62-income-and-distribution-quality-metrics)
+  - [`contracts.py`](#contractspy)
+  - [`distributions.py`](#distributionspy)
+  - [`metrics.py`](#metricspy)
+  - [`service.py`](#servicepy)
+  - [`writers.py`](#writerspy)
+- [Pairwise Statistics Scalability](#pairwise-statistics-scalability)
+- [PR63. Portfolio Profiles, Constraints, And Ensemble Candidate](#pr63-portfolio-profiles-constraints-and-ensemble-candidate)
+- [PR64. Walk-Forward Model Comparison Scorecard](#pr64-walk-forward-model-comparison-scorecard)
+- [PR65 Through PR68 Ownership Notes](#pr65-through-pr68-ownership-notes)
+  - [PR65. Stress, Bootstrap, And Sensitivity](#pr65-stress-bootstrap-and-sensitivity)
+  - [PR66. Explainable Recommendation Report](#pr66-explainable-recommendation-report)
+  - [PR67. Current Positions And Flatex Transition](#pr67-current-positions-and-flatex-transition)
+  - [PR68. Local Reports And Monitoring](#pr68-local-reports-and-monitoring)
+- [Schema And Artifact Checklist](#schema-and-artifact-checklist)
+- [Test Strategy](#test-strategy)
+- [Delivery Order](#delivery-order)
+- [Completion Gate](#completion-gate)
+
 Last reviewed: 2026-07-17
 
 ## Purpose

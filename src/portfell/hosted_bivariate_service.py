@@ -52,7 +52,7 @@ class BivariateResearchService:
             raise HostedApplicationError(422, "pair_plan_not_runnable")
         source = bivariate_source_id(selection)
         run_id = opaque_id("bivariate-run", f"{user_id}:{source}")
-        existing = self._repository.find_bivariate_run(run_id)
+        existing = self._repository.find_bivariate_run(run_id, user_id)
         if existing is not None and existing.status != "failed":
             return research_run_row(existing)
         run = ResearchRun(
@@ -86,7 +86,7 @@ class BivariateResearchService:
             return
 
         def update_progress(completed: int, total: int) -> None:
-            active = self._repository.find_bivariate_run(run_id)
+            active = self._repository.find_bivariate_run(run_id, user_id)
             if active is not None and active.status == "running":
                 self._repository.save_bivariate_run(
                     replace(active, completed=min(completed, total), total=total)

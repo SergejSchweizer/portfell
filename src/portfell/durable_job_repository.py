@@ -202,6 +202,26 @@ returning job_id
             if updated is None:
                 raise DurableJobError("job_lease_lost")
 
+    def update_progress(
+        self, *, job_id: str, lease_token: str, completed_units: int, total_units: int
+    ) -> None:
+        """Persist bounded progress only for the worker that still owns the lease."""
+
+        if completed_units < 0 or total_units < 0 or completed_units > total_units:
+            raise DurableJobError("job_progress_invalid")
+        with self._connection.transaction():
+            updated = self._connection.execute(
+                """
+update portfell_app.jobs
+set completed_units = %s, total_units = %s, heartbeat_at = now(), updated_at = now()
+where job_id = %s::uuid and status = 'running' and lease_token = %s::uuid
+returning job_id
+""",
+                (completed_units, total_units, job_id, lease_token),
+            ).fetchone()
+            if updated is None:
+                raise DurableJobError("job_lease_lost")
+
     def recover_expired_leases(self) -> tuple[str, ...]:
         """Return expired running jobs to the queue and close their attempts."""
 

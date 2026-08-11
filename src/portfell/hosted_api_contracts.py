@@ -63,7 +63,7 @@ class UnivariateRunRequest(BaseModel):
     """Immutable inputs for one univariate statistics run."""
 
     metadata_selection_id: str
-    quote_run_id: str
+    quote_run_id: str | None = None
 
 
 class UnivariateSelectionRangeRequest(BaseModel):

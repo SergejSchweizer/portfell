@@ -77,6 +77,10 @@ def metadata_project_router(
         project, selection = call(projects.project_metadata_builder, user.user_id, str(project_id))
         return call(metadata.project_criteria_row, project, selection)
 
+    @router.get("/projects/{project_id}/initial-fill")
+    def initial_fill_status(project_id: UUID, user: ApiUser = Depends(current_user)) -> JsonRow:
+        return call(metadata.initial_fill_status, user.user_id, str(project_id))
+
     @router.get("/projects/{project_id}/univariate-selection-settings")
     def univariate_selection_settings(
         project_id: UUID, user: ApiUser = Depends(current_user)

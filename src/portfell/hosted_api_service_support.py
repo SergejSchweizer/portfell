@@ -31,7 +31,14 @@ REMOVED_PROJECT_NAMES = frozenset({"Statistics Smoke"})
 
 
 def opaque_id(kind: str, value: str) -> str:
-    return f"{kind}_{uuid.uuid5(uuid.NAMESPACE_URL, value).hex}"
+    """Return a deterministic public identifier compatible with PostgreSQL UUID columns.
+
+    ``kind`` remains part of the UUID namespace input so identifiers from different
+    resource families cannot collide, while the serialized value itself remains an
+    opaque UUID instead of a legacy prefixed pseudo-identifier.
+    """
+
+    return str(uuid.uuid5(uuid.NAMESPACE_URL, f"portfell:{kind}:{value}"))
 
 
 def stable_hash(payload: JsonRow) -> str:

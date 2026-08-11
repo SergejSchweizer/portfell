@@ -1,5 +1,17 @@
 # UI page development
 
+
+## Table Of Contents
+
+- [Canonical locations](#canonical-locations)
+- [Responsive shell](#responsive-shell)
+- [Shared controls](#shared-controls)
+- [Create a new page](#create-a-new-page)
+- [Change an existing page](#change-an-existing-page)
+- [Required page states](#required-page-states)
+- [Validation](#validation)
+- [Pull-request contract](#pull-request-contract)
+
 This document is the required workflow for creating or changing a Portfell React page.
 
 ## Canonical locations

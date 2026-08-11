@@ -30,3 +30,11 @@ def multivariate_run_row(run: MultivariateRunRecord) -> JsonRow:
         "warnings": list(run.warnings),
         "failure_reason": run.failure_reason,
     }
+
+
+def candidate_row(candidates: tuple[JsonRow, ...], candidate_id: str) -> JsonRow | None:
+    """Return one persisted candidate without exposing its backing run."""
+
+    return next(
+        (dict(item) for item in candidates if item.get("candidate_id") == candidate_id), None
+    )

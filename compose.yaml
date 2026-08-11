@@ -2,6 +2,7 @@ name: portfell
 
 services:
   postgres:
+    container_name: portfell-postgress
     image: postgres:17-alpine
     restart: unless-stopped
     environment:
@@ -37,24 +38,23 @@ services:
           memory: 1G
 
   api:
+    container_name: portfell-api
     build:
       context: .
       dockerfile: apps/api/Dockerfile
     restart: unless-stopped
     environment:
       PORTFELL_ENV: development
-      PORTFELL_HOSTED_AUTHORITY: local
+      PORTFELL_HOSTED_AUTHORITY: postgres
       PORTFELL_DATABASE_URL: postgresql://portfell_app@postgres:5432/portfell
       PORTFELL_DATABASE_PASSWORD_FILE: /run/secrets/postgres_password
       PORTFELL_SHARED_DATA_ROOT: /srv/portfell/shared-data
-      PORTFELL_LAKE_ROOT: /srv/portfell/lake
       PORTFELL_EODHD_KEK_FILE: /run/secrets/eodhd_kek
     secrets:
       - eodhd_kek
       - postgres_password
     volumes:
       - portfell-shared-data:/srv/portfell/shared-data
-      - ./lake:/srv/portfell/lake
     depends_on:
       postgres:
         condition: service_healthy
@@ -70,7 +70,6 @@ services:
       - portfell-internal
       - portfell-public
     group_add:
-      - "${PORTFELL_LAKE_GROUP_ID:-1001}"
       - "${PORTFELL_SECRET_GROUP_ID:-100}"
     read_only: true
     tmpfs:
@@ -86,6 +85,7 @@ services:
           memory: 1G
 
   web:
+    container_name: portfell-web
     build:
       context: .
       dockerfile: apps/web/Dockerfile
@@ -127,6 +127,42 @@ services:
           cpus: "1.0"
           memory: 512M
 
+  project-bootstrap-worker:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    command: ["python", "-m", "portfell.hosted_project_bootstrap_worker"]
+    environment:
+      PORTFELL_SHARED_DATA_ROOT: /srv/portfell/shared-data
+      PORTFELL_DATABASE_URL: postgresql://portfell_app@postgres:5432/portfell
+      PORTFELL_DATABASE_PASSWORD_FILE: /run/secrets/postgres_password
+      PORTFELL_OPERATIONS_EODHD_TOKEN_FILE: /run/secrets/operations_eodhd_token
+    secrets:
+      - operations_eodhd_token
+      - postgres_password
+    volumes:
+      - portfell-shared-data:/srv/portfell/shared-data
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - portfell-internal
+    group_add:
+      - "${PORTFELL_SECRET_GROUP_ID:-100}"
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    deploy:
+      resources:
+        limits:
+          cpus: "6.0"
+          memory: 1G
+
   shared-market-refresh:
     build:
       context: .
@@ -136,11 +172,14 @@ services:
     command: ["python", "-m", "portfell.shared_market_refresh"]
     environment:
       PORTFELL_SHARED_DATA_ROOT: /srv/portfell/shared-data
+      PORTFELL_DATABASE_URL: postgresql://portfell_app@postgres:5432/portfell
+      PORTFELL_DATABASE_PASSWORD_FILE: /run/secrets/postgres_password
       PORTFELL_EODHD_KEK_FILE: /run/secrets/eodhd_kek
       PORTFELL_OPERATIONS_EODHD_TOKEN_FILE: /run/secrets/operations_eodhd_token
     secrets:
       - eodhd_kek
       - operations_eodhd_token
+      - postgres_password
     volumes:
       - portfell-shared-data:/srv/portfell/shared-data
     networks:

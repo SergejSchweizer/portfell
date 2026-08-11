@@ -66,15 +66,19 @@ def resolve_workflow(
         metadata_identifiers,
     )
     stages["univariate_statistics"] = WorkflowStage("ready")
-    if not (quote_run_id and univariate_run_id):
+    # Shared-market projects have no user-owned quote run.  Their immutable
+    # metadata selection and published market revision are sufficient inputs
+    # for a durable univariate run.
+    if not univariate_run_id:
         return {stage_id: stages[stage_id].to_row() for stage_id in WORKFLOW_STAGE_IDS}
 
     univariate_identifiers = {
         "metadata_revision_id": metadata_revision_id,
         "metadata_selection_id": metadata_selection_id,
-        "quote_run_id": quote_run_id,
         "univariate_run_id": univariate_run_id,
     }
+    if quote_run_id:
+        univariate_identifiers["quote_run_id"] = quote_run_id
     if univariate_selection_id:
         univariate_identifiers["univariate_selection_id"] = univariate_selection_id
     stages["univariate_statistics"] = WorkflowStage("complete", univariate_identifiers)
@@ -84,28 +88,23 @@ def resolve_workflow(
     stages["bivariate_statistics"] = WorkflowStage("ready")
     if bivariate_run_id:
         resolved_bivariate_status = bivariate_status or "complete"
+        bivariate_identifiers = {
+            "metadata_revision_id": metadata_revision_id,
+            "metadata_selection_id": metadata_selection_id,
+            "univariate_run_id": univariate_run_id,
+            "univariate_selection_id": univariate_selection_id,
+            "bivariate_run_id": bivariate_run_id,
+        }
+        if quote_run_id:
+            bivariate_identifiers["quote_run_id"] = quote_run_id
         stages["bivariate_statistics"] = WorkflowStage(
             resolved_bivariate_status,
-            {
-                "metadata_revision_id": metadata_revision_id,
-                "metadata_selection_id": metadata_selection_id,
-                "quote_run_id": quote_run_id,
-                "univariate_run_id": univariate_run_id,
-                "univariate_selection_id": univariate_selection_id,
-                "bivariate_run_id": bivariate_run_id,
-            },
+            bivariate_identifiers,
         )
         if resolved_bivariate_status == "complete":
             stages["multivariate_statistics"] = WorkflowStage(
                 "ready",
-                {
-                    "metadata_revision_id": metadata_revision_id,
-                    "metadata_selection_id": metadata_selection_id,
-                    "quote_run_id": quote_run_id,
-                    "univariate_run_id": univariate_run_id,
-                    "univariate_selection_id": univariate_selection_id,
-                    "bivariate_run_id": bivariate_run_id,
-                },
+                dict(bivariate_identifiers),
             )
             if multivariate_run_id and multivariate_status:
                 stages["multivariate_statistics"] = WorkflowStage(

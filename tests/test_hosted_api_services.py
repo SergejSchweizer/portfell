@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from typing import Any
+from uuid import UUID
 
 import pytest
 
@@ -33,13 +34,16 @@ from portfell.hosted_api_state import (
     ProjectRecord,
     SelectionRecord,
 )
+from portfell.hosted_audit_event_repository import HostedAuditEvent
 from portfell.hosted_credential_project_service import CredentialProjectService
 from portfell.hosted_credentials import (
     EodhdCredentialVault,
     InMemoryCredentialStore,
     KeyEncryptionKey,
 )
+from portfell.hosted_download_run_repository import DownloadRunRepository
 from portfell.hosted_metadata_project_service import MetadataProjectService
+from portfell.hosted_project_bootstrap_repository import DurableProjectBootstrap
 from portfell.hosted_quote_run_service import QuoteRunService
 from portfell.hosted_repository_importer import (
     InMemoryProjectRepository,
@@ -53,6 +57,7 @@ from portfell.hosted_selection_repository import InMemorySelectionRepository
 from portfell.hosted_workspace import LocalWorkspaceStore
 from portfell.hosted_workspace_repository import persist_local_workspace, restore_local_workspace
 from portfell.paths import LakePaths
+from portfell.project_selection_bootstrap import ProjectBootstrap
 from portfell.selection_filters import Predicate
 from portfell.table_io import JsonRow
 
@@ -102,6 +107,14 @@ def _discard_progress(_completed: int, _total: int, _skipped: int) -> None:
 
 def _one_isin_row(_path: Path) -> list[JsonRow]:
     return [{"isin": "IE1"}]
+
+
+def test_opaque_ids_are_stable_postgres_uuid_values() -> None:
+    value = opaque_id("quote-run", "same-input")
+
+    assert value == opaque_id("quote-run", "same-input")
+    assert value != opaque_id("metadata-run", "same-input")
+    assert str(UUID(value)) == value
 
 
 def test_workspace_repository_round_trips_durable_state(tmp_path: Path) -> None:
@@ -275,6 +288,63 @@ def test_credential_commands_can_use_an_injected_vault_without_state_authority()
         state.credential_vault().status(user_id=user_id)
 
 
+def test_download_commands_can_use_an_injected_repository_without_state_authority() -> None:
+    class DownloadRepository(DownloadRunRepository):
+        def __init__(self) -> None:
+            self.runs: dict[str, ProviderDownloadRun] = {}
+
+        def create(self, run: ProviderDownloadRun) -> ProviderDownloadRun:
+            self.runs[run.download_run_id] = run
+            return run
+
+        def get(self, *, user_id: str, download_run_id: str) -> ProviderDownloadRun | None:
+            run = self.runs.get(download_run_id)
+            return run if run is not None and run.user_id == user_id else None
+
+    state = HostedApiState()
+    vault = EodhdCredentialVault(
+        store=InMemoryCredentialStore(),
+        key_encryption_key=KeyEncryptionKey("test-v1", b"1" * 32),
+        fingerprint_secret=b"test-fingerprint-secret",
+    )
+    user_id = "00000000-0000-5000-8000-000000000001"
+    credential = vault.set_credential(user_id=user_id, provider_key="test-key")
+    repository = DownloadRepository()
+    service = CredentialProjectService(
+        state,
+        credential_vault=vault,
+        download_run_repository=repository,
+    )
+
+    created = service.run_download(user_id, ["AAA"], idempotency_key=None)
+
+    assert state.downloads_by_id == {}
+    assert repository.runs[created["download_run_id"]].credential_id == credential.credential_id
+    assert service.download_status(user_id, created["download_run_id"]) == created
+
+
+def test_project_commands_can_use_an_injected_audit_repository_without_state_authority() -> None:
+    class AuditRepository:
+        def __init__(self) -> None:
+            self.events: list[HostedAuditEvent] = []
+
+        def append(self, event: HostedAuditEvent) -> HostedAuditEvent:
+            self.events.append(event)
+            return event
+
+    state = HostedApiState()
+    audit_repository = AuditRepository()
+    service = CredentialProjectService(state, audit_repository=audit_repository)
+    user_id = "00000000-0000-5000-8000-000000000001"
+
+    service.create_project(user_id, "Income", idempotency_key=None)
+
+    assert state.audit_events == []
+    assert [(event.event_type, event.subject_ref) for event in audit_repository.events] == [
+        ("project.create", f"user:{user_id}")
+    ]
+
+
 def test_project_commands_can_use_an_injected_repository_without_state_authority() -> None:
     state = HostedApiState()
     repository = InMemoryProjectRepository()
@@ -360,6 +430,32 @@ def test_metadata_builder_project_can_use_an_injected_project_repository() -> No
     assert repository.current_project_id(user_id) == created["project"]["project_id"]
 
 
+def test_project_context_can_use_durable_data_loaded_projection() -> None:
+    state = HostedApiState()
+    user_id = "00000000-0000-5000-8000-000000000001"
+    project_id = "00000000-0000-5000-8000-000000000002"
+    projects = InMemoryProjectRepository()
+    projects.create_project(TenantProject(project_id, user_id, "Income"))
+    selections = InMemorySelectionRepository()
+    selections.create(TenantSelection("selection-1", project_id, user_id, "Income", ("IE1",)))
+    service = CredentialProjectService(
+        state,
+        project_repository=projects,
+        selection_repository=selections,
+        project_data_loaded_reader=lambda reader_user_id, reader_project_id: (
+            (
+                reader_user_id,
+                reader_project_id,
+            )
+            == (user_id, project_id)
+        ),
+    )
+
+    context = service.project_context(user_id)
+
+    assert context["projects"][0]["data_loaded"] is True
+
+
 def test_metadata_builder_can_use_an_injected_selection_repository() -> None:
     state = HostedApiState(
         all_isins_rows=(
@@ -411,6 +507,69 @@ def test_metadata_builder_can_use_an_injected_selection_repository() -> None:
     assert state.projects_by_id == {}
     assert state.selections_by_id == {}
     assert repeated == created
+
+
+def test_metadata_builder_enqueues_the_exact_initial_fill_when_configured() -> None:
+    class BootstrapRecorder:
+        calls: list[tuple[str, str, str, tuple[str, ...]]] = []
+
+        def start(
+            self, *, user_id: str, project_id: str, selection_id: str, member_ids: tuple[str, ...]
+        ) -> DurableProjectBootstrap:
+            self.calls.append((user_id, project_id, selection_id, member_ids))
+            return DurableProjectBootstrap(
+                ProjectBootstrap(
+                    "bootstrap-1", user_id, project_id, selection_id, member_ids, len(member_ids)
+                ),
+                "job-1",
+            )
+
+    state = HostedApiState(
+        all_isins_rows=(
+            {
+                "isin": "IE1",
+                "exchange": "XETRA",
+                "code": "AAA",
+                "name": "Example",
+                "instrument_type": "ETF",
+                "country": "IE",
+                "currency": "EUR",
+            },
+        )
+    )
+    recorder = BootstrapRecorder()
+    service = MetadataProjectService(
+        state,
+        LocalHostedRuntime(
+            quote_workflow=_empty_workflow, metadata_workflow=_empty_workflow, cpu_count=lambda: 1
+        ),
+        bootstrap_repository=recorder,
+    )
+
+    created = service.create_project_from_criteria(
+        "00000000-0000-5000-8000-000000000001",
+        exchange="XETRA",
+        name="Example",
+        instrument_type="ETF",
+        country="IE",
+        currency="EUR",
+        idempotency_key=None,
+    )
+
+    assert recorder.calls == [
+        (
+            "00000000-0000-5000-8000-000000000001",
+            created["project"]["project_id"],
+            created["selection"]["selection_id"],
+            ("IE1:XETRA:AAA",),
+        )
+    ]
+    assert created["initial_fill"] == {
+        "bootstrap_id": "bootstrap-1",
+        "job_id": "job-1",
+        "status": "not_started",
+        "selected_listing_count": 1,
+    }
 
 
 def test_quote_run_can_use_injected_project_repository_and_credential_vault() -> None:

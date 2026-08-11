@@ -1,5 +1,40 @@
 # EU Tax And Cost Architecture
 
+
+## Table Of Contents
+
+- [Purpose](#purpose)
+- [Product Objective](#product-objective)
+- [Architectural Principles](#architectural-principles)
+- [Required Jurisdiction Dimensions](#required-jurisdiction-dimensions)
+- [Target Package Structure](#target-package-structure)
+- [Jurisdiction-Neutral Tax Contracts](#jurisdiction-neutral-tax-contracts)
+- [Country Adapter Protocol](#country-adapter-protocol)
+- [Rule Data Versus Calculation Code](#rule-data-versus-calculation-code)
+- [Fund-Specific Tax Data](#fund-specific-tax-data)
+- [Cost-Basis Methods](#cost-basis-methods)
+- [Loss Offsetting And Tax-Year State](#loss-offsetting-and-tax-year-state)
+- [Broker, Venue, And Jurisdiction Cost Separation](#broker-venue-and-jurisdiction-cost-separation)
+  - [Broker cost profile](#broker-cost-profile)
+  - [Venue cost profile](#venue-cost-profile)
+  - [Execution model](#execution-model)
+  - [Jurisdiction transaction costs](#jurisdiction-transaction-costs)
+- [Cost Contracts](#cost-contracts)
+- [Calculation Status And Confidence](#calculation-status-and-confidence)
+- [After-Tax Cash-Flow Engine](#after-tax-cash-flow-engine)
+- [Portfolio Objective Integration](#portfolio-objective-integration)
+- [Persistence Contracts](#persistence-contracts)
+- [Backtest Requirements](#backtest-requirements)
+- [EU Country Rollout Strategy](#eu-country-rollout-strategy)
+- [Proposed Backlog Extension](#proposed-backlog-extension)
+  - [PR62A. Jurisdiction-Neutral Tax And Cost Contracts](#pr62a-jurisdiction-neutral-tax-and-cost-contracts)
+  - [PR62B. Austria Tax And Broker Reference Adapter](#pr62b-austria-tax-and-broker-reference-adapter)
+  - [PR62C. Historical Rule Resolution And Tax-Year Engine](#pr62c-historical-rule-resolution-and-tax-year-engine)
+  - [PR62D. Broker, Venue, FX, And Transaction-Cost Engine](#pr62d-broker-venue-fx-and-transaction-cost-engine)
+  - [PR62E. Net Cash Flow And Sustainability Metrics](#pr62e-net-cash-flow-and-sustainability-metrics)
+  - [PR62F. EU Adapter Expansion Framework](#pr62f-eu-adapter-expansion-framework)
+- [Acceptance Gate For EU-Wide Claims](#acceptance-gate-for-eu-wide-claims)
+
 Last reviewed: 2026-07-17
 
 ## Purpose

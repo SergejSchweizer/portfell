@@ -6,7 +6,6 @@ from types import SimpleNamespace
 import pytest
 
 import portfell.shared_market_refresh as refresh
-from portfell.hosted_api_state import HostedApiState, ProjectRecord, SelectionRecord
 from portfell.shared_market_data import SharedListingKey, SharedMarketDataStore
 from portfell.shared_market_refresh import (
     RefreshResult,
@@ -15,12 +14,7 @@ from portfell.shared_market_refresh import (
     refresh_shared_market_data,
 )
 
-
-def _state() -> HostedApiState:
-    return HostedApiState(
-        projects_by_id={"p": ProjectRecord("p", "user", "P")},
-        selections_by_id={"s": SelectionRecord("s", "user", "p", "S", ("IE1:XETRA:ABC",))},
-    )
+_LISTINGS = (SharedListingKey("eodhd", "XETRA", "ABC", "IE1"),)
 
 
 def _fetch(request):  # type: ignore[no-untyped-def]
@@ -37,13 +31,13 @@ def _fetch(request):  # type: ignore[no-untyped-def]
 def test_first_refresh_backfills_once_and_second_refresh_is_idempotent(tmp_path) -> None:  # type: ignore[no-untyped-def]
     store = SharedMarketDataStore(tmp_path)
     first = refresh_shared_market_data(
-        store=store, state=_state(), fetch=_fetch, end_date=date(2026, 1, 10), concurrency=2
+        store=store, listings=_LISTINGS, fetch=_fetch, end_date=date(2026, 1, 10), concurrency=2
     )
     second = refresh_shared_market_data(
-        store=store, state=_state(), fetch=_fetch, end_date=date(2026, 1, 10), concurrency=2
+        store=store, listings=_LISTINGS, fetch=_fetch, end_date=date(2026, 1, 10), concurrency=2
     )
     assert first.requested == 3 and first.updated == 3
-    assert second.requested == 3 and second.unchanged == 3
+    assert second.requested == 0 and second.unchanged == 0
     assert len(store.coverage()) == 3
     assert (store.root / "refresh-runs" / "2026-01-10.json").is_file()
 
@@ -51,15 +45,49 @@ def test_first_refresh_backfills_once_and_second_refresh_is_idempotent(tmp_path)
 def test_delta_plan_uses_bounded_correction_overlap_and_dry_run_writes_nothing(tmp_path) -> None:  # type: ignore[no-untyped-def]
     store = SharedMarketDataStore(tmp_path)
     dry = refresh_shared_market_data(
-        store=store, state=_state(), fetch=_fetch, end_date=date(2026, 1, 10), dry_run=True
+        store=store, listings=_LISTINGS, fetch=_fetch, end_date=date(2026, 1, 10), dry_run=True
     )
     assert dry.dry_run and not store.root.exists()
     refreshed = refresh_shared_market_data(
-        store=store, state=_state(), fetch=_fetch, end_date=date(2026, 1, 10)
+        store=store, listings=_LISTINGS, fetch=_fetch, end_date=date(2026, 1, 10)
     )
     assert all(item.start_date is None for item in refreshed.requests)
     planned = plan_refresh(store, [refreshed.requests[0].listing], end_date=date(2026, 1, 11))
     assert all(item.start_date == "2026-01-03" for item in planned)
+
+
+def test_delta_plan_skips_fully_covered_data_and_backfills_only_new_listings(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    store = SharedMarketDataStore(tmp_path)
+    covered = SharedListingKey("eodhd", "XETRA", "ABC", "IE1")
+    fresh = SharedListingKey("eodhd", "XETRA", "XYZ", "IE2")
+    for dataset in ("quotes", "dividends", "splits"):
+        row = {**covered.as_row(), "date": "2026-01-10"}
+        if dataset == "quotes":
+            row["adjusted_close"] = 10.0
+        elif dataset == "dividends":
+            row["event_id"] = "event"
+        else:
+            row["split_factor"] = 1.0
+        store.upsert(dataset, covered, [row])
+
+    requests = plan_refresh(store, [covered, fresh], end_date=date(2026, 1, 10))
+
+    assert [(item.dataset_type, item.listing.isin, item.start_date) for item in requests] == [
+        ("quotes", "IE2", None),
+        ("dividends", "IE2", None),
+        ("splits", "IE2", None),
+    ]
+
+
+def test_refresh_accepts_worker_owned_inventory_without_workspace_state(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    result = refresh_shared_market_data(
+        store=SharedMarketDataStore(tmp_path),
+        listings=(SharedListingKey("eodhd", "XETRA", "ABC", "IE1"),),
+        fetch=_fetch,
+        end_date=date(2026, 1, 10),
+    )
+
+    assert result.requested == 3
 
 
 def test_refresh_rejects_invalid_settings_and_persists_partial_failure(tmp_path) -> None:  # type: ignore[no-untyped-def]
@@ -68,7 +96,7 @@ def test_refresh_rejects_invalid_settings_and_persists_partial_failure(tmp_path)
         plan_refresh(store, (), end_date=date(2026, 1, 1), correction_overlap_days=-1)
     with pytest.raises(SharedMarketRefreshError, match="invalid_refresh_concurrency"):
         refresh_shared_market_data(
-            store=store, state=_state(), fetch=_fetch, end_date=date(2026, 1, 1), concurrency=0
+            store=store, listings=_LISTINGS, fetch=_fetch, end_date=date(2026, 1, 1), concurrency=0
         )
 
     def failing_fetch(request):  # type: ignore[no-untyped-def]
@@ -78,39 +106,20 @@ def test_refresh_rejects_invalid_settings_and_persists_partial_failure(tmp_path)
 
     with pytest.raises(SharedMarketRefreshError, match="partial_failure"):
         refresh_shared_market_data(
-            store=store, state=_state(), fetch=failing_fetch, end_date=date(2026, 1, 1)
+            store=store, listings=_LISTINGS, fetch=failing_fetch, end_date=date(2026, 1, 1)
         )
     manifest = (store.root / "refresh-runs" / "2026-01-01.json").read_text(encoding="utf-8")
     assert '"failed": 1' in manifest
 
 
 def test_refresh_lock_and_cli_exit_codes(tmp_path, monkeypatch, capsys) -> None:  # type: ignore[no-untyped-def]
-    store = SharedMarketDataStore(tmp_path)
-    state = _state()
+    _ = capsys
     monkeypatch.delenv("PORTFELL_SHARED_DATA_ROOT", raising=False)
-    monkeypatch.delenv("PORTFELL_EODHD_KEK_FILE", raising=False)
+    monkeypatch.delenv("PORTFELL_DATABASE_URL", raising=False)
     assert refresh.main([]) == 4
 
     monkeypatch.setenv("PORTFELL_SHARED_DATA_ROOT", str(tmp_path))
-    monkeypatch.setenv("PORTFELL_EODHD_KEK_FILE", str(tmp_path / "kek"))
-    monkeypatch.setattr(
-        refresh,
-        "create_persistent_local_workspace_state",
-        lambda *_args, **_kwargs: state,
-    )
-    monkeypatch.setattr(refresh, "load_key_encryption_key", lambda *_args, **_kwargs: object())
-    state.shared_market_data_store = store
-    assert refresh.main(["--dry-run", "--end-date", "2026-01-01"]) == 0
-    assert '"dry_run": true' in capsys.readouterr().out
-
-    monkeypatch.setenv("PORTFELL_OPERATIONS_EODHD_TOKEN", "operations-secret")
-    state.shared_market_data_store = None
-    assert refresh.main([]) == 6
-    monkeypatch.setattr(
-        refresh,
-        "create_persistent_local_workspace_state",
-        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError()),
-    )
+    assert refresh.main(["--dry-run", "--end-date", "2026-01-01"]) == 4
     assert refresh.main([]) == 4
 
 
@@ -136,43 +145,38 @@ def test_eodhd_fetch_scopes_requests_and_rejects_invalid_payloads() -> None:
 
 def test_refresh_cli_requires_operations_credential_before_planning(tmp_path, monkeypatch) -> None:  # type: ignore[no-untyped-def]
     monkeypatch.setenv("PORTFELL_SHARED_DATA_ROOT", str(tmp_path))
-    monkeypatch.setenv("PORTFELL_EODHD_KEK_FILE", str(tmp_path / "kek"))
+    monkeypatch.setenv("PORTFELL_DATABASE_URL", "postgresql://worker@postgres/portfell")
     monkeypatch.delenv("PORTFELL_OPERATIONS_EODHD_TOKEN", raising=False)
-    monkeypatch.setattr(
-        refresh,
-        "create_persistent_local_workspace_state",
-        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("must not plan")),
-    )
 
     assert refresh.main(["--end-date", "2026-01-01"]) == 4
 
 
-def test_refresh_cli_uses_operations_credential_for_a_non_dry_run(
-    tmp_path, monkeypatch, capsys
-) -> None:  # type: ignore[no-untyped-def]
-    state = _state()
-    state.shared_market_data_store = SharedMarketDataStore(tmp_path)
+def test_refresh_cli_reads_postgres_active_inventory(tmp_path, monkeypatch, capsys) -> None:  # type: ignore[no-untyped-def]
+    class Connection:
+        def close(self) -> None:
+            return None
+
+    class Inventory:
+        def __init__(self, _connection: Connection) -> None:
+            pass
+
+        def listings(self) -> tuple[SharedListingKey, ...]:
+            return (SharedListingKey("eodhd", "XETRA", "ABC", "IE1"),)
+
     monkeypatch.setenv("PORTFELL_SHARED_DATA_ROOT", str(tmp_path))
-    monkeypatch.setenv("PORTFELL_EODHD_KEK_FILE", str(tmp_path / "kek"))
+    monkeypatch.setenv("PORTFELL_DATABASE_URL", "postgresql://worker@postgres/portfell")
     monkeypatch.setenv("PORTFELL_OPERATIONS_EODHD_TOKEN", "operations-secret")
-    monkeypatch.setattr(
-        refresh,
-        "create_persistent_local_workspace_state",
-        lambda *_args, **_kwargs: state,
-    )
-    monkeypatch.setattr(refresh, "load_key_encryption_key", lambda *_args, **_kwargs: object())
-    received_tokens: list[str] = []
-    monkeypatch.setattr(
-        refresh,
-        "EodhdClient",
-        lambda config: received_tokens.append(config.api_token) or object(),
-    )
+    monkeypatch.setattr(refresh, "connect", lambda *_args, **_kwargs: Connection())
+    monkeypatch.setattr(refresh, "PostgresActiveProjectInventory", Inventory)
+    seen: dict[str, object] = {}
     monkeypatch.setattr(
         refresh,
         "refresh_shared_market_data",
-        lambda **_kwargs: RefreshResult("inventory", "2026-01-01", 0, 0, 0, 0, False, ()),
+        lambda **kwargs: (
+            seen.update(kwargs) or RefreshResult("inventory", "2026-01-01", 0, 0, 0, 0, False, ())
+        ),
     )
 
     assert refresh.main(["--end-date", "2026-01-01"]) == 0
-    assert received_tokens == ["operations-secret"]
+    assert seen["listings"] == (SharedListingKey("eodhd", "XETRA", "ABC", "IE1"),)
     assert '"dry_run": false' in capsys.readouterr().out

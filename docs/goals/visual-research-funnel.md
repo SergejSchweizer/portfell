@@ -1,5 +1,43 @@
 # Visual Research Funnel Goal
 
+
+## Table Of Contents
+
+- [Purpose](#purpose)
+- [Core Experience](#core-experience)
+- [Four Visual Macro Phases](#four-visual-macro-phases)
+- [Persistent Funnel Indicator](#persistent-funnel-indicator)
+- [Public Landing Page](#public-landing-page)
+- [Research Workspace Layout](#research-workspace-layout)
+  - [Desktop](#desktop)
+  - [Mobile](#mobile)
+- [Screen Hierarchy](#screen-hierarchy)
+- [Connect Market Data Screen](#connect-market-data-screen)
+- [Select Objective Screen](#select-objective-screen)
+- [Universe Discovery Screen](#universe-discovery-screen)
+- [Metadata Builder Screen](#metadata-builder-screen)
+- [Free-Key Research Set Screen](#free-key-research-set-screen)
+- [Market History Screen](#market-history-screen)
+- [Univariate Analysis Screen](#univariate-analysis-screen)
+- [Univariate Selection Screen](#univariate-selection-screen)
+- [Bivariate Analysis Screen](#bivariate-analysis-screen)
+- [Multivariate Analysis Screen](#multivariate-analysis-screen)
+- [Portfolio Candidate Screen](#portfolio-candidate-screen)
+- [Final Portfell Moment](#final-portfell-moment)
+- [AI Presentation](#ai-presentation)
+- [Visual Design System](#visual-design-system)
+  - [Color](#color)
+  - [Typography](#typography)
+  - [Spacing](#spacing)
+  - [Cards And Surfaces](#cards-and-surfaces)
+  - [Controls](#controls)
+- [Motion System](#motion-system)
+- [Visualization Responsibilities](#visualization-responsibilities)
+- [Progressive Disclosure](#progressive-disclosure)
+- [Accessibility And Responsiveness](#accessibility-and-responsiveness)
+- [Non-Goals](#non-goals)
+- [Design Acceptance Criteria](#design-acceptance-criteria)
+
 Last reviewed: 2026-07-17
 
 ## Purpose

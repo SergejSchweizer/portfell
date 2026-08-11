@@ -10,7 +10,6 @@ import type {
 
 export type UnivariateRunRequest = Readonly<{
   metadata_selection_id: string;
-  quote_run_id: string;
 }>;
 
 export const univariateStatisticsApi = {

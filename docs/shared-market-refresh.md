@@ -1,5 +1,11 @@
 # Shared Market Refresh Operations
 
+
+## Table Of Contents
+
+- [One-Time Rollout](#one-time-rollout)
+- [Schedule And Recovery](#schedule-and-recovery)
+
 The `shared-market-refresh` Compose operations service refreshes the canonical
 `PORTFELL_SHARED_DATA_ROOT/market-data` store for the de-duplicated active-project
 inventory. A newly created project's Metadata Builder may request its initial selected-listing
@@ -7,12 +13,11 @@ download; that route is server-owned, idempotent, and separate from the schedule
 
 ## One-Time Rollout
 
-From the absolute repository root, with `.env.local` pointing only to external
-secret files:
+Complete container installation, secret configuration, and base-service health
+checks using [DOCKER.md](../DOCKER.md) first. From the absolute repository
+root, run the refresh-specific steps:
 
 ```bash
-docker compose --env-file .env.local build api
-docker compose --env-file .env.local up --detach postgres api web
 portfell-refresh-shared-market-data --dry-run
 portfell-shared-market-cron run-once --project-root "$(pwd)"
 portfell-shared-market-cron install --project-root "$(pwd)"

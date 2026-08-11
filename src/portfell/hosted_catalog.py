@@ -8,8 +8,15 @@ import hashlib
 from dataclasses import dataclass
 from typing import Protocol
 
+from portfell.analysis_lifecycle_schema import ANALYSIS_LIFECYCLE_SCHEMA_SQL
+from portfell.catalog_contract_validation import validate_catalog_contracts
 from portfell.hosted_download_run_schema import DOWNLOAD_RUN_PARTIAL_STATUS_SQL
 from portfell.legacy_import_schema import LEGACY_IMPORT_LEDGER_SQL
+from portfell.metadata_lifecycle_schema import METADATA_LIFECYCLE_SCHEMA_SQL
+from portfell.multivariate_lifecycle_schema import MULTIVARIATE_LIFECYCLE_SCHEMA_SQL
+from portfell.project_bootstrap_schema import PROJECT_BOOTSTRAP_SCHEMA_SQL
+from portfell.project_settings_schema import PROJECT_SETTINGS_SCHEMA_SQL
+from portfell.research_lifecycle_schema import RESEARCH_LIFECYCLE_SCHEMA_SQL
 from portfell.tenant_control_schema import (
     D017_DURABLE_JOB_SCHEMA_SQL,
     D017_ROLE_SPECS,
@@ -132,6 +139,16 @@ HOSTED_TABLES: tuple[HostedTable, ...] = (
     ),
     HostedTable("portfell_app.selections", True, True, "Persisted user selection definitions."),
     HostedTable("portfell_app.analysis_runs", True, True, "User-owned analysis run references."),
+    HostedTable("portfell_app.research_runs", True, False, "Durable research run lifecycle."),
+    HostedTable(
+        "portfell_app.project_initial_fills",
+        True,
+        False,
+        "One durable initial shared-market fill per immutable project selection.",
+    ),
+    HostedTable(
+        "portfell_app.univariate_selections", True, True, "Persisted univariate result selections."
+    ),
     *(HostedTable(*spec) for spec in D017_TABLE_SPECS),
     HostedTable(
         "portfell_app.artifacts", False, True, "Shared immutable derived artifact catalog."
@@ -471,18 +488,17 @@ MIGRATIONS: tuple[HostedMigration, ...] = (
     HostedMigration(7, "d017_durable_job_queue", D017_DURABLE_JOB_SCHEMA_SQL),
     HostedMigration(8, "legacy_import_ledger", LEGACY_IMPORT_LEDGER_SQL),
     HostedMigration(9, "download_run_partial_status", DOWNLOAD_RUN_PARTIAL_STATUS_SQL),
+    HostedMigration(10, "durable_metadata_lifecycle", METADATA_LIFECYCLE_SCHEMA_SQL),
+    HostedMigration(11, "durable_research_lifecycle", RESEARCH_LIFECYCLE_SCHEMA_SQL),
+    HostedMigration(12, "durable_project_settings", PROJECT_SETTINGS_SCHEMA_SQL),
+    HostedMigration(13, "durable_multivariate_lifecycle", MULTIVARIATE_LIFECYCLE_SCHEMA_SQL),
+    HostedMigration(14, "durable_analysis_records", ANALYSIS_LIFECYCLE_SCHEMA_SQL),
+    HostedMigration(15, "durable_project_initial_fills", PROJECT_BOOTSTRAP_SCHEMA_SQL),
 )
 
 
 def create_role_sql(role: HostedRole) -> str:
-    """Return idempotent SQL for one hosted database role.
-
-    Args:
-        role: Hosted role contract to materialize.
-
-    Returns:
-        PostgreSQL DO block that creates the role without BYPASSRLS.
-    """
+    """Return idempotent role SQL without BYPASSRLS."""
 
     bypass_rls = "bypassrls" if role.can_bypass_rls else "nobypassrls"
     return f"""
@@ -500,29 +516,13 @@ def migration_plan() -> tuple[HostedMigration, ...]:
 
 
 def set_authenticated_user_sql(user_id: str) -> tuple[str, tuple[object, ...]]:
-    """Return SQL that binds a transaction-local authenticated user id.
-
-    Args:
-        user_id: Authenticated internal Portfell user id.
-
-    Returns:
-        SQL and parameters suitable for a database driver's execute method.
-    """
+    """Bind the authenticated user to the current database transaction."""
 
     return "select set_config(%s, %s, true)", (AUTHENTICATED_USER_SETTING, user_id)
 
 
 def apply_hosted_catalog_migrations(connection: CatalogConnection) -> int:
-    """Apply the hosted catalog role and schema migrations.
-
-    Args:
-        connection: Database connection implementing the minimal execution protocol.
-
-    Side Effects:
-        Executes deterministic idempotent role creation and schema migration SQL.
-
-    Returns: Number of newly applied catalog migrations.
-    """
+    """Apply the hosted catalog roles and migrations once."""
 
     for role in HOSTED_ROLES:
         connection.execute(create_role_sql(role))
@@ -556,24 +556,5 @@ values (%s, %s, %s)
 
 
 def validate_hosted_catalog_contracts() -> None:
-    """Validate static hosted catalog invariants.
-
-    Raises:
-        ValueError: If a role, table, or migration contract violates hosted security rules.
-    """
-
-    if any(role.can_bypass_rls for role in HOSTED_ROLES):
-        raise ValueError("hosted roles must not bypass RLS")
-    runtime_roles = {"portfell_app", "portfell_worker", "portfell_readonly"}
-    if any(role.owns_tables for role in HOSTED_ROLES if role.name in runtime_roles):
-        raise ValueError("runtime roles must not own tables")
-    versions = [migration.version for migration in MIGRATIONS]
-    if versions != sorted(set(versions)):
-        raise ValueError("migration versions must be unique and ordered")
-    user_scoped = [table for table in HOSTED_TABLES if table.user_scoped]
-    if not user_scoped:
-        raise ValueError("at least one user-scoped table is required")
-    sql = "\n".join(migration.sql.lower() for migration in MIGRATIONS)
-    for forbidden in ("plaintext", "api_token", "eodhd_token", "bypassrls"):
-        if forbidden in sql:
-            raise ValueError(f"forbidden hosted catalog token present: {forbidden}")
+    """Validate static hosted catalog invariants."""
+    validate_catalog_contracts(roles=HOSTED_ROLES, tables=HOSTED_TABLES, migrations=MIGRATIONS)

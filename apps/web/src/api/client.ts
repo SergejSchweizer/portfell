@@ -1,5 +1,5 @@
 
-import type { ApiCredentialStatus, ApiCredentialValue, ApiMetadataFetch, ApiProjectContext, ApiProjectMetadataBuilder, ApiQuoteFetch, ApiWorkflow } from "../contracts";
+import type { ApiCredentialStatus, ApiCredentialValue, ApiInitialFill, ApiMetadataFetch, ApiProjectContext, ApiProjectMetadataBuilder, ApiWorkflow } from "../contracts";
 
 export class ApiError extends Error {
   constructor(
@@ -82,6 +82,10 @@ export function loadProjectMetadataBuilder(projectId: string): Promise<ApiProjec
   return requestJson<ApiProjectMetadataBuilder>(`/api/projects/${encodeURIComponent(projectId)}/metadata-builder`);
 }
 
+export function loadProjectInitialFill(projectId: string): Promise<ApiInitialFill> {
+  return requestJson<ApiInitialFill>(`/api/projects/${encodeURIComponent(projectId)}/initial-fill`);
+}
+
 export function selectCurrentProject(projectId: string): Promise<ApiProjectContext> {
   return requestJson<ApiProjectContext>("/api/project-context/current-project", {
     method: "PUT",
@@ -91,8 +95,4 @@ export function selectCurrentProject(projectId: string): Promise<ApiProjectConte
 
 export function loadProjectWorkflow(projectId: string): Promise<ApiWorkflow> {
   return requestJson<ApiWorkflow>(`/api/projects/${encodeURIComponent(projectId)}/workflow`);
-}
-
-export function loadQuoteRun(quoteRunId: string): Promise<ApiQuoteFetch> {
-  return requestJson<ApiQuoteFetch>(`/api/quote-runs/${encodeURIComponent(quoteRunId)}`);
 }

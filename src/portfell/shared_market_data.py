@@ -17,7 +17,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
-from portfell.hosted_api_state import HostedApiState
 from portfell.table_io import JsonRow, read_json, read_rows, write_json, write_rows
 
 _FORBIDDEN_FIELDS = frozenset(
@@ -92,20 +91,24 @@ class CoverageRecord:
 
 
 class SharedMarketDataStore:
-    """One canonical Parquet file per dataset and full listing identity."""
+    """Immutable Parquet revisions per dataset and full listing identity."""
 
     def __init__(self, root: Path, *, before_replace: Callable[[Path], None] | None = None) -> None:
         self.root = root / "market-data"
         self._before_replace = before_replace
         self._catalog_lock = threading.RLock()
 
-    def listing_path(self, dataset_type: str, listing: SharedListingKey) -> Path:
+    def revision_path(
+        self, dataset_type: str, listing: SharedListingKey, content_hash: str
+    ) -> Path:
         self._validate_dataset(dataset_type)
         return (
             self.root
+            / "revisions"
             / dataset_type
             / _path_part(listing.exchange)
-            / (f"{_path_part(listing.isin)}__{_path_part(listing.code)}.parquet")
+            / f"{_path_part(listing.isin)}__{_path_part(listing.code)}"
+            / f"{content_hash}.parquet"
         )
 
     def upsert(
@@ -114,7 +117,6 @@ class SharedMarketDataStore:
         """Merge complete business keys, atomically publish, and update coverage."""
 
         self._validate_dataset(dataset_type)
-        path = self.listing_path(dataset_type, listing)
         existing = self.read(dataset_type, listing)
         merged = {
             _business_key(dataset_type, row): _normalized_row(row, listing) for row in existing
@@ -123,13 +125,15 @@ class SharedMarketDataStore:
             normalized = _normalized_row(row, listing)
             merged[_business_key(dataset_type, normalized)] = normalized
         canonical = [merged[key] for key in sorted(merged)]
-        _atomic_write(path, canonical, self._before_replace)
         record = _coverage(
             dataset_type,
             listing,
             canonical,
             published_at_epoch=0,
         )
+        path = self.revision_path(dataset_type, listing, record.content_hash)
+        if not path.exists():
+            _atomic_write(path, canonical, self._before_replace)
         with self._catalog_lock:
             catalog = {
                 key: value
@@ -143,15 +147,33 @@ class SharedMarketDataStore:
         return record
 
     def read(self, dataset_type: str, listing: SharedListingKey) -> list[JsonRow]:
-        path = self.listing_path(dataset_type, listing)
-        if not path.exists():
+        record = next(
+            (
+                item
+                for item in self.coverage()
+                if item.dataset_type == dataset_type and item.listing == listing
+            ),
+            None,
+        )
+        if record is None:
             return []
+        return self.read_revision(dataset_type, listing, record.content_hash)
+
+    def read_revision(
+        self, dataset_type: str, listing: SharedListingKey, content_hash: str
+    ) -> list[JsonRow]:
+        """Read one explicitly pinned immutable revision."""
+
+        self._validate_dataset(dataset_type)
+        path = self.revision_path(dataset_type, listing, content_hash)
         try:
             rows = read_rows(path)
         except Exception as error:
             raise SharedMarketDataError("shared_market_file_corrupt") from error
         if any(SharedListingKey.from_row(row) != listing for row in rows):
             raise SharedMarketDataError("shared_market_listing_identity_mismatch")
+        if _hash(rows) != content_hash:
+            raise SharedMarketDataError("shared_market_revision_hash_mismatch")
         return rows
 
     def coverage(self) -> tuple[CoverageRecord, ...]:
@@ -159,8 +181,9 @@ class SharedMarketDataStore:
 
     def rebuild_coverage(self) -> tuple[CoverageRecord, ...]:
         records: list[CoverageRecord] = []
+        current = {(item.dataset_type, item.listing): item for item in self.coverage()}
         for dataset in sorted(_DATASETS):
-            for path in sorted((self.root / dataset).glob("*/*.parquet")):
+            for path in sorted((self.root / "revisions" / dataset).glob("*/*/*.parquet")):
                 try:
                     rows = read_rows(path)
                 except Exception as error:
@@ -168,7 +191,10 @@ class SharedMarketDataStore:
                 if not rows:
                     continue
                 listing = SharedListingKey.from_row(rows[0])
-                records.append(_coverage(dataset, listing, rows, published_at_epoch=0))
+                record = _coverage(dataset, listing, rows, published_at_epoch=0)
+                active = current.get((dataset, listing))
+                if active is None or active.content_hash == record.content_hash:
+                    records.append(record)
         _atomic_write_json(
             self.root / "coverage.json", {"records": [item.row() for item in records]}
         )
@@ -197,27 +223,6 @@ class SharedMarketDataStore:
     def _validate_dataset(dataset_type: str) -> None:
         if dataset_type not in _DATASETS:
             raise SharedMarketDataError("unsupported_shared_market_dataset")
-
-
-def active_project_inventory(
-    state: HostedApiState, *, provider: str = "eodhd"
-) -> tuple[SharedListingKey, ...]:
-    """Return the stable full-key union selected by non-deleted projects."""
-
-    project_ids = {
-        project.project_id
-        for project in state.projects_by_id.values()
-        if not getattr(project, "deleted", False)
-    }
-    members = {
-        member
-        for selection in state.selections_by_id.values()
-        if selection.project_id in project_ids
-        for member in selection.member_ids
-    }
-    return tuple(
-        sorted(SharedListingKey.from_member_id(member, provider=provider) for member in members)
-    )
 
 
 def inventory_hash(items: Iterable[SharedListingKey]) -> str:

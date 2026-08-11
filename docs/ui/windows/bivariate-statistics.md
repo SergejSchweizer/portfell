@@ -1,5 +1,13 @@
 # Bivariate Statistics page
 
+
+## Table Of Contents
+
+- [Purpose](#purpose)
+- [Module boundary](#module-boundary)
+- [Contract](#contract)
+- [Acceptance](#acceptance)
+
 - Route: `/bivariate-statistics`
 - Page ID: `bivariate_statistics`
 - Component: `apps/web/src/pages/bivariate-statistics.tsx`

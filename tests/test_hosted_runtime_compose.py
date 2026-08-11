@@ -29,18 +29,18 @@ def test_compose_defines_persistent_internal_postgres_and_shared_data() -> None:
 
     assert "portfell-postgres-data" in volumes
     assert "portfell-shared-data" in volumes
+    assert postgres["container_name"] == "portfell-postgress"
     assert postgres["networks"] == ["portfell-internal"]
     assert "ports" not in postgres
     assert "5432" in postgres["expose"]
     assert "portfell-postgres-data:/var/lib/postgresql/data" in postgres["volumes"]
     assert "portfell-shared-data:/srv/portfell/shared-data" in api["volumes"]
-    assert "./lake:/srv/portfell/lake" in api["volumes"]
-    assert api["environment"]["PORTFELL_HOSTED_AUTHORITY"] == "local"
+    assert api["container_name"] == "portfell-api"
+    assert "./lake:/srv/portfell/lake" not in api["volumes"]
+    assert api["environment"]["PORTFELL_HOSTED_AUTHORITY"] == "postgres"
     assert api["environment"]["PORTFELL_DATABASE_PASSWORD_FILE"] == "/run/secrets/postgres_password"
     assert api["secrets"] == ["eodhd_kek", "postgres_password"]
-    assert api["environment"]["PORTFELL_LAKE_ROOT"] == "/srv/portfell/lake"
     assert api["group_add"] == [
-        "${PORTFELL_LAKE_GROUP_ID:-1001}",
         "${PORTFELL_SECRET_GROUP_ID:-100}",
     ]
 
@@ -61,6 +61,7 @@ def test_web_has_no_shared_data_mount_or_authentication_secret() -> None:
     services = cast(ComposeMapping, _compose()["services"])
     web = cast(ComposeMapping, services["web"])
 
+    assert web["container_name"] == "portfell-web"
     assert "volumes" not in web
     assert "secrets" not in web
     assert "PORTFELL_API_BASE_URL" in web["environment"]
@@ -73,8 +74,24 @@ def test_operations_refresh_is_profiled_and_has_only_the_required_secret_mount()
     assert refresh["profiles"] == ["operations"]
     assert refresh["command"] == ["python", "-m", "portfell.shared_market_refresh"]
     assert refresh["volumes"] == ["portfell-shared-data:/srv/portfell/shared-data"]
-    assert refresh["secrets"] == ["eodhd_kek", "operations_eodhd_token"]
+    assert refresh["secrets"] == ["eodhd_kek", "operations_eodhd_token", "postgres_password"]
+    assert (
+        refresh["environment"]["PORTFELL_DATABASE_URL"]
+        == "postgresql://portfell_app@postgres:5432/portfell"
+    )
     assert "ports" not in refresh
+
+
+def test_project_initial_fill_worker_is_internal_and_operations_credential_only() -> None:
+    worker = cast(
+        ComposeMapping, cast(ComposeMapping, _compose()["services"])["project-bootstrap-worker"]
+    )
+    assert worker["command"] == ["python", "-m", "portfell.hosted_project_bootstrap_worker"]
+    assert worker["secrets"] == ["operations_eodhd_token", "postgres_password"]
+    assert worker["volumes"] == ["portfell-shared-data:/srv/portfell/shared-data"]
+    assert worker["networks"] == ["portfell-internal"]
+    assert worker["group_add"] == ["${PORTFELL_SECRET_GROUP_ID:-100}"]
+    assert "ports" not in worker
 
 
 def test_web_compose_develop_watch_rebuilds_local_ui_changes() -> None:

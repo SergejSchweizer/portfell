@@ -1,8 +1,4 @@
-"""Project-scoped Multivariate application service.
-
-This service resolves an explicit completed Bivariate run and its dependency
-closure. It deliberately does not call the generic analysis placeholder.
-"""
+"""Project-scoped Multivariate application service."""
 
 from __future__ import annotations
 
@@ -13,12 +9,21 @@ from typing import Any
 
 from portfell.gold import build_returns
 from portfell.hosted_api_errors import HostedApplicationError
-from portfell.hosted_api_service_support import opaque_id, require_user_row, stable_hash
+from portfell.hosted_api_service_support import opaque_id, stable_hash
 from portfell.hosted_api_state import HostedApiState, MultivariateRunRecord, SelectionRecord
 from portfell.hosted_local_project_repository import LocalProjectRepository
 from portfell.hosted_local_selection_repository import LocalSelectionRepository
+from portfell.hosted_multivariate_run_repository import (
+    LocalMultivariateRunRepository,
+    MultivariateRunRepository,
+)
+from portfell.hosted_multivariate_run_views import MultivariateRunViews
 from portfell.hosted_repository_importer import ProjectRepository
-from portfell.hosted_research_ports import ResearchDataPort, ResearchPersistencePort
+from portfell.hosted_research_ports import (
+    ResearchDataPort,
+    ResearchPersistencePort,
+    ResearchRunRepository,
+)
 from portfell.hosted_research_workflow import UnivariateSelection, bivariate_source_id
 from portfell.hosted_selection_repository import SelectionRepository, selection_record
 from portfell.income import (
@@ -44,28 +49,40 @@ from portfell.multivariate_validation import (
 from portfell.table_io import JsonRow
 
 
-class MultivariateResearchService:
-    """Run, persist, and expose Multivariate artifacts for one owned project."""
+class MultivariateResearchService(MultivariateRunViews):
+    _PHASES = (
+        "resolve_inputs",
+        "build_risk_model",
+        "build_structure",
+        "build_income_evidence",
+        "build_candidates",
+        "validate_candidates",
+    )
 
     def __init__(
         self,
         state: HostedApiState,
         data: ResearchDataPort,
         persistence: ResearchPersistencePort,
+        research_repository: ResearchRunRepository,
         project_repository: ProjectRepository | None = None,
         selection_repository: SelectionRepository | None = None,
+        run_repository: MultivariateRunRepository | None = None,
+        metadata_rows: Callable[[], tuple[JsonRow, ...]] | None = None,
     ) -> None:
-        self._state = state
         self._data = data
         self._persistence = persistence
         self._projects = project_repository or LocalProjectRepository(state)
         self._selections = selection_repository or LocalSelectionRepository(state)
+        self._runs = run_repository or LocalMultivariateRunRepository(state)
+        self._research = research_repository
+        self._metadata_rows = metadata_rows or (lambda: state.all_isins_rows)
 
     def start(
         self, user_id: str, project_id: str, bivariate_run_id: str, settings: JsonRow
     ) -> JsonRow:
         self._require_project(user_id, project_id)
-        bivariate = require_user_row(self._state.bivariate_runs_by_id, bivariate_run_id, user_id)
+        bivariate = self._research.bivariate_run(bivariate_run_id, user_id)
         if bivariate.status != "complete":
             raise HostedApplicationError(422, "bivariate_run_not_complete")
         self._metadata_selection_for_project(user_id, project_id)
@@ -79,17 +96,18 @@ class MultivariateResearchService:
             }
         )
         run_id = opaque_id("multivariate-run", f"{user_id}:{logical_hash}")
-        existing = self._state.multivariate_runs_by_id.get(run_id)
+        existing = self._runs.by_logical_hash(user_id=user_id, logical_hash=logical_hash)
         if existing is not None:
             return multivariate_run_row(existing)
-        previous_id = self._state.current_multivariate_run_by_project.get(project_id)
-        previous = self._state.multivariate_runs_by_id.get(previous_id or "")
+        previous = self._runs.current(user_id=user_id, project_id=project_id)
         if previous is not None and previous.status in {"ready", "running", "complete"}:
-            self._state.multivariate_runs_by_id[previous.run_id] = replace(
-                previous,
-                status="stale",
-                phase="stale",
-                failure_reason="stale_upstream_dependency",
+            self._runs.save(
+                replace(
+                    previous,
+                    status="stale",
+                    phase="stale",
+                    failure_reason="stale_upstream_dependency",
+                )
             )
         run = MultivariateRunRecord(
             run_id=run_id,
@@ -109,17 +127,15 @@ class MultivariateResearchService:
             candidates=(),
             validation=(),
         )
-        self._state.multivariate_runs_by_id[run_id] = run
-        self._state.current_multivariate_run_by_project[project_id] = run_id
+        self._runs.save(run, make_current=True)
         self._persistence.persist()
         return multivariate_run_row(run)
 
     def plan(
         self, user_id: str, project_id: str, bivariate_run_id: str, settings: JsonRow
     ) -> JsonRow:
-        """Return a read-only, project-authorized execution plan before starting work."""
         self._require_project(user_id, project_id)
-        bivariate = require_user_row(self._state.bivariate_runs_by_id, bivariate_run_id, user_id)
+        bivariate = self._research.bivariate_run(bivariate_run_id, user_id)
         selection = self._selection_for_bivariate(user_id, bivariate_run_id)
         metadata = self._metadata_selection_for_project(user_id, project_id)
         reasons = [] if bivariate.status == "complete" else ["bivariate_run_not_complete"]
@@ -132,93 +148,41 @@ class MultivariateResearchService:
             "univariate_selection_id": selection.selection_id,
             "listing_count": len(selection.member_ids),
             "total_units": 6,
-            "phases": [
-                "resolve_inputs",
-                "build_risk_model",
-                "build_structure",
-                "build_income_evidence",
-                "build_candidates",
-                "validate_candidates",
-            ],
+            "phases": list(self._PHASES),
             "settings": dict(settings),
         }
 
     def complete(self, user_id: str, run_id: str) -> None:
-        run = require_user_row(self._state.multivariate_runs_by_id, run_id, user_id)
+        run = self._require_run(user_id, run_id)
         if run.status != "running":
             return
         try:
-            completed = self._compute(run, on_phase=self._advance)
+            completed = self._compute(
+                run,
+                on_phase=lambda run_id, phase, completed_units: self._advance(
+                    user_id, run_id, phase, completed_units
+                ),
+            )
         except (HostedApplicationError, ValueError) as error:
             completed = replace(run, status="failed", phase="failed", failure_reason=str(error))
-        self._state.multivariate_runs_by_id[run_id] = completed
+        self._runs.save(completed)
         self._persistence.persist()
-
-    def status(self, user_id: str, run_id: str) -> JsonRow:
-        return multivariate_run_row(
-            require_user_row(self._state.multivariate_runs_by_id, run_id, user_id)
-        )
-
-    def summary(self, user_id: str, run_id: str) -> JsonRow:
-        return dict(require_user_row(self._state.multivariate_runs_by_id, run_id, user_id).summary)
 
     def _require_project(self, user_id: str, project_id: str) -> None:
         project_ids = {project.project_id for project in self._projects.list_projects(user_id)}
         if project_id not in project_ids:
             raise HostedApplicationError(404, "not_found")
 
-    def structure(self, user_id: str, run_id: str) -> JsonRow:
-        return dict(
-            require_user_row(self._state.multivariate_runs_by_id, run_id, user_id).structure
-        )
-
-    def candidates(self, user_id: str, run_id: str) -> JsonRow:
-        run = require_user_row(self._state.multivariate_runs_by_id, run_id, user_id)
-        return {"items": list(run.candidates)}
-
-    def candidate_detail(self, user_id: str, run_id: str, candidate_id: str) -> JsonRow:
-        run = require_user_row(self._state.multivariate_runs_by_id, run_id, user_id)
-        candidate = next(
-            (item for item in run.candidates if item.get("candidate_id") == candidate_id), None
-        )
-        if candidate is None:
+    def _require_run(self, user_id: str, run_id: str) -> MultivariateRunRecord:
+        run = self._runs.get(user_id=user_id, run_id=run_id)
+        if run is None:
             raise HostedApplicationError(404, "not_found")
-        return dict(candidate)
-
-    def risk_contributions(self, user_id: str, run_id: str, candidate_id: str | None) -> JsonRow:
-        run = require_user_row(self._state.multivariate_runs_by_id, run_id, user_id)
-        items = run.risk_contributions
-        if candidate_id is not None:
-            items = tuple(item for item in items if item.get("candidate_id") == candidate_id)
-        return {"items": list(items)}
-
-    def income_evidence(self, user_id: str, run_id: str) -> JsonRow:
-        run = require_user_row(self._state.multivariate_runs_by_id, run_id, user_id)
-        return {"items": list(run.income_evidence)}
-
-    def components(self, user_id: str, run_id: str, limit: int, offset: int) -> JsonRow:
-        run = require_user_row(self._state.multivariate_runs_by_id, run_id, user_id)
-        safe_limit, safe_offset = max(1, min(limit, 100)), max(0, offset)
-        return {
-            "items": list(run.components[safe_offset : safe_offset + safe_limit]),
-            "total": len(run.components),
-            "limit": safe_limit,
-            "offset": safe_offset,
-        }
-
-    def validation(self, user_id: str, run_id: str) -> JsonRow:
-        run = require_user_row(self._state.multivariate_runs_by_id, run_id, user_id)
-        return {"items": list(run.validation)}
-
-    def artifacts(self, user_id: str, run_id: str) -> JsonRow:
-        return dict(
-            require_user_row(self._state.multivariate_runs_by_id, run_id, user_id).artifacts
-        )
+        return run
 
     def update_settings(
         self, user_id: str, run_id: str, selected_candidate_ids: tuple[str, ...]
     ) -> JsonRow:
-        run = require_user_row(self._state.multivariate_runs_by_id, run_id, user_id)
+        run = self._require_run(user_id, run_id)
         known_ids = {str(candidate.get("candidate_id")) for candidate in run.candidates}
         if (
             len(set(selected_candidate_ids)) != len(selected_candidate_ids)
@@ -229,17 +193,16 @@ class MultivariateResearchService:
             run,
             settings={**run.settings, "selected_candidate_ids": list(selected_candidate_ids)},
         )
-        self._state.multivariate_runs_by_id[run_id] = updated
+        self._runs.save(updated)
         self._persistence.persist()
         return multivariate_run_row(updated)
 
     def _selection_for_bivariate(self, user_id: str, run_id: str) -> UnivariateSelection:
-        bivariate = require_user_row(self._state.bivariate_runs_by_id, run_id, user_id)
+        bivariate = self._research.bivariate_run(run_id, user_id)
         matches = [
             selection
-            for selection in self._state.univariate_selections_by_id.values()
-            if selection.user_id == user_id
-            and bivariate_source_id(selection) == bivariate.source_id
+            for selection in self._research.univariate_selections(user_id)
+            if bivariate_source_id(selection) == bivariate.source_id
         ]
         if len(matches) != 1:
             raise HostedApplicationError(422, "bivariate_dependency_mismatch")
@@ -251,10 +214,8 @@ class MultivariateResearchService:
             raise HostedApplicationError(422, "project_metadata_dependency_mismatch")
         return selection_record(selection)
 
-    def _advance(self, run_id: str, phase: str, completed_units: int) -> None:
-        """Persist strictly monotonic phase progress for concurrent status polling."""
-
-        current = self._state.multivariate_runs_by_id.get(run_id)
+    def _advance(self, user_id: str, run_id: str, phase: str, completed_units: int) -> None:
+        current = self._runs.get(user_id=user_id, run_id=run_id)
         if current is None or current.status != "running":
             return
         next_completed = max(current.completed_units, min(completed_units, current.total_units))
@@ -263,7 +224,7 @@ class MultivariateResearchService:
             phase=phase if next_completed > current.completed_units else current.phase,
             completed_units=next_completed,
         )
-        self._state.multivariate_runs_by_id[run_id] = advanced
+        self._runs.save(advanced)
         self._persistence.persist()
 
     def _compute(
@@ -273,23 +234,22 @@ class MultivariateResearchService:
         on_phase: Callable[[str, str, int], None],
     ) -> MultivariateRunRecord:
         selection = self._selection_for_bivariate(run.user_id, run.bivariate_run_id)
-        source_run = require_user_row(
-            self._state.univariate_runs_by_id, selection.source_run_id, run.user_id
-        )
+        source_run = self._research.univariate_run(selection.source_run_id, run.user_id)
         metadata_selection = self._metadata_selection_for_project(run.user_id, run.project_id)
-        quote_run_id = self._state.quote_run_by_univariate_run_id.get(source_run.run_id, "")
+        quote_run_id = self._research.quote_run_id(source_run.run_id)
+        source_quote_id = quote_run_id or "shared-market"
         expected_source_id = stable_hash(
-            {"selection_id": metadata_selection.selection_id, "quote_run_id": quote_run_id}
+            {"selection_id": metadata_selection.selection_id, "quote_run_id": source_quote_id}
         )
         if source_run.source_id != expected_source_id:
             raise HostedApplicationError(422, "project_univariate_dependency_mismatch")
-        quotes = self._state.quote_rows_by_run_id.get(quote_run_id) or self._data.selected_rows(
+        quotes = self._research.quote_rows(quote_run_id) or self._data.selected_rows(
             selection.member_ids, dataset="quotes"
         )
         dividends = self._data.selected_rows(selection.member_ids, dataset="dividends")
         metadata = {
             (str(row.get("isin", "")), str(row.get("exchange", "")), str(row.get("code", ""))): row
-            for row in self._state.all_isins_rows
+            for row in self._metadata_rows()
         }
         selected: list[JsonRow] = []
         for row in selection.rows:
@@ -316,7 +276,7 @@ class MultivariateResearchService:
             date_end=calendar_dates[-1] if calendar_dates else None,
             observation_count=len(calendar_dates),
             quote_artifact_ids={
-                key: f"quote:{quote_run_id}:{key.isin}:{key.exchange}:{key.code}" for key in keys
+                key: f"quote:{source_quote_id}:{key.isin}:{key.exchange}:{key.code}" for key in keys
             },
             dividend_artifact_ids={
                 key: f"dividend:{key.isin}:{key.exchange}:{key.code}" for key in keys

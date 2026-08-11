@@ -1,14 +1,13 @@
 
 import { useEffect, useState, type FormEvent } from "react";
-import { loadProjectContext, loadProjectWorkflow } from "../api/client";
+import { loadProjectContext } from "../api/client";
 import { metadataBuilderApi } from "../api/metadata-builder";
 import { Button } from "../components/button";
 import { EmptyState } from "../components/empty-state";
 import { LoadingState } from "../components/loading-state";
 import { Panel } from "../components/panel";
-import type { ApiProjectSummary, ApiQuoteFetch } from "../contracts";
+import type { ApiInitialFill, ApiProjectSummary } from "../contracts";
 import { useResource } from "../hooks/use-resource";
-import { historicalDataUpdateLabel } from "../quote-progress";
 import { useMetadataFetch } from "../shell/metadata-fetch-context";
 
 export function MetadataBuilderPage() {
@@ -21,9 +20,8 @@ export function MetadataBuilderPage() {
   const [currency, setCurrency] = useState("");
   const [name, setName] = useState("");
   const [selectionStatus, setSelectionStatus] = useState("Choose at least one Metadata Builder criterion.");
-  const [metadataSelectionId, setMetadataSelectionId] = useState<string | null>(null);
-  const [quoteRun, setQuoteRun] = useState<ApiQuoteFetch | null>(null);
-  const [quoteMessage, setQuoteMessage] = useState("Create a project before downloading historical data.");
+  const [initialFill, setInitialFill] = useState<ApiInitialFill | null>(null);
+  const [initialFillMessage, setInitialFillMessage] = useState("Create a project to schedule its initial data fill.");
 
   useEffect(() => {
     const refresh = () => setMetadataRevision((value) => value + 1);
@@ -36,9 +34,8 @@ export function MetadataBuilderPage() {
 
     const resetProjectState = () => {
       setSelectionStatus("Choose at least one Metadata Builder criterion.");
-      setMetadataSelectionId(null);
-      setQuoteRun(null);
-      setQuoteMessage("Create a project before downloading historical data.");
+      setInitialFill(null);
+      setInitialFillMessage("Create a project to schedule its initial data fill.");
     };
 
     const loadProjectCriteria = async (project: ApiProjectSummary | null) => {
@@ -55,19 +52,15 @@ export function MetadataBuilderPage() {
         setCountry(criteria.country);
         setCurrency(criteria.currency);
         setName(criteria.name);
-        setMetadataSelectionId(criteria.selection_id);
         setSelectionStatus(`${criteria.selected_count.toLocaleString()} unique ISINs selected.`);
         try {
-          const workflow = await loadProjectWorkflow(project.project_id);
-          const quoteRunId = workflow.stages.metadata_builder.quote_run_id;
-          if (!quoteRunId || cancelled) return;
-          const run = await metadataBuilderApi.loadQuoteRun(quoteRunId);
+          const fill = await metadataBuilderApi.loadInitialFill(project.project_id);
           if (cancelled) return;
-          setQuoteRun(run);
-          setQuoteMessage(historicalDataUpdateLabel(run));
+          setInitialFill(fill);
+          setInitialFillMessage(initialFillLabel(fill));
         } catch (error) {
           if (!cancelled) {
-            setQuoteMessage(error instanceof Error ? error.message : "Historical download status could not be loaded.");
+            setInitialFillMessage(error instanceof Error ? error.message : "Initial historical-data status could not be loaded.");
           }
         }
       } catch (error) {
@@ -94,24 +87,26 @@ export function MetadataBuilderPage() {
   }, []);
 
   useEffect(() => {
-    if (!quoteRun || quoteRun.status !== "running") return;
+    if (!initialFill || !["planning", "running"].includes(initialFill.status)) return;
     let cancelled = false;
     let timeoutId: number | undefined;
 
     const poll = async () => {
       try {
-        const nextRun = await metadataBuilderApi.loadQuoteRun(quoteRun.download_run_id);
+        const context = await loadProjectContext();
+        if (!context.current_project) return;
+        const nextFill = await metadataBuilderApi.loadInitialFill(context.current_project.project_id);
         if (cancelled) return;
-        setQuoteRun(nextRun);
-        setQuoteMessage(historicalDataUpdateLabel(nextRun));
-        if (nextRun.status === "running") {
+        setInitialFill(nextFill);
+        setInitialFillMessage(initialFillLabel(nextFill));
+        if (["planning", "running"].includes(nextFill.status)) {
           timeoutId = window.setTimeout(() => void poll(), 750);
         } else {
           window.dispatchEvent(new Event("portfell:workflow-updated"));
         }
       } catch (error) {
         if (!cancelled) {
-          setQuoteMessage(error instanceof Error ? error.message : "Historical download status could not be loaded.");
+          setInitialFillMessage(error instanceof Error ? error.message : "Initial historical-data status could not be loaded.");
         }
       }
     };
@@ -121,7 +116,7 @@ export function MetadataBuilderPage() {
       cancelled = true;
       if (timeoutId !== undefined) window.clearTimeout(timeoutId);
     };
-  }, [quoteRun]);
+  }, [initialFill]);
 
   async function createProject(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -135,24 +130,11 @@ export function MetadataBuilderPage() {
         currency,
       });
       setSelectionStatus(`${result.selected_count.toLocaleString()} unique ISINs selected.`);
-      setMetadataSelectionId(result.selection.selection_id);
-      setQuoteRun(null);
-      setQuoteMessage("Download quotes, dividends, and splits for this project.");
+      setInitialFill(result.initial_fill ?? null);
+      setInitialFillMessage(result.initial_fill ? initialFillLabel(result.initial_fill) : "Initial data fill is not available for this project.");
       window.dispatchEvent(new Event("portfell:workflow-updated"));
     } catch (error) {
       setSelectionStatus(error instanceof Error ? error.message : "Metadata Builder could not create the project.");
-    }
-  }
-
-  async function downloadHistoricalData() {
-    if (!metadataSelectionId) return;
-    setQuoteMessage("Starting historical download…");
-    try {
-      const run = await metadataBuilderApi.startQuoteRun({ metadata_selection_id: metadataSelectionId });
-      setQuoteRun(run);
-      setQuoteMessage(historicalDataUpdateLabel(run));
-    } catch (error) {
-      setQuoteMessage(error instanceof Error ? error.message : "Historical download could not be started.");
     }
   }
 
@@ -223,23 +205,24 @@ export function MetadataBuilderPage() {
         </form>
         <p className="status-line" aria-live="polite">{selectionStatus}</p>
       </Panel>
-      <Panel title="Download Historical Data">
+      <Panel title="Historical Data">
         <div className="quote-fetch quote-fetch--panel metadata-download">
-          <label htmlFor="historical-data-progress">Historical download progress</label>
-          <progress id="historical-data-progress" max={100} value={quoteRun?.percent ?? 0} />
-          <output className="status-line" aria-live="polite">{quoteMessage}</output>
-          <div className="quote-fetch__action">
-            <Button
-              type="button"
-              variant="primary"
-              disabled={!metadataSelectionId || quoteRun?.status === "running"}
-              onClick={() => void downloadHistoricalData()}
-            >
-              {quoteRun?.status === "running" ? historicalDataUpdateLabel(quoteRun) : "Download Historical Data"}
-            </Button>
-          </div>
+          <label htmlFor="historical-data-progress">Initial fill progress</label>
+          <progress id="historical-data-progress" max={100} value={initialFillProgress(initialFill)} />
+          <output className="status-line" aria-live="polite">{initialFillMessage}</output>
         </div>
       </Panel>
     </section>
   );
+}
+
+function initialFillProgress(fill: ApiInitialFill | null): number {
+  if (!fill || !fill.total_units) return fill?.status === "ready" ? 100 : 0;
+  return Math.min(100, Math.round((fill.completed_units / fill.total_units) * 100));
+}
+
+function initialFillLabel(fill: ApiInitialFill): string {
+  if (fill.status === "ready") return `${fill.selected_listing_count.toLocaleString()} listings ready.`;
+  if (fill.status === "partial" || fill.status === "failed") return fill.terminal_code ?? `Initial fill ${fill.status}.`;
+  return `${fill.completed_units.toLocaleString()} of ${fill.total_units.toLocaleString()} initial-fill tasks completed.`;
 }

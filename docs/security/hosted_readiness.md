@@ -1,5 +1,21 @@
 # Hosted Readiness
 
+
+## Table Of Contents
+
+- [D017 Provider License](#d017-provider-license)
+- [Historical D016 EODHD Storage And Derived Display Rights](#historical-d016-eodhd-storage-and-derived-display-rights)
+- [Historical D016 Personal License Boundary](#historical-d016-personal-license-boundary)
+- [Historical D016 Shared Physical Deduplication](#historical-d016-shared-physical-deduplication)
+- [Historical D016 User Key Backed Grants](#historical-d016-user-key-backed-grants)
+- [Retention And Account Deletion](#retention-and-account-deletion)
+- [GDPR Rights And Country Coverage](#gdpr-rights-and-country-coverage)
+- [Audit Retention And Incident Response](#audit-retention-and-incident-response)
+- [Encrypted Backups And Restore Drills](#encrypted-backups-and-restore-drills)
+- [KEK Recovery And Rotation](#kek-recovery-and-rotation)
+- [Database Role Review](#database-role-review)
+- [No Automatic Broker Execution](#no-automatic-broker-execution)
+
 Last reviewed: 2026-08-10
 
 This document is evidence for `docs/security/hosted_readiness.json`. The JSON file is the machine-readable gate input; this file explains the decisions in operational language.

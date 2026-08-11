@@ -21,6 +21,7 @@ from portfell.hosted_api import (
     create_persistent_local_workspace_state,
 )
 from portfell.hosted_credentials import InMemoryCredentialStore, KeyEncryptionKey
+from portfell.hosted_postgres_request_scope import RequestScopedPostgresConnection
 from portfell.hosted_research_workflow import ResearchRun, UnivariateSelection
 from portfell.paths import LakePaths
 from portfell.table_io import write_rows
@@ -48,12 +49,37 @@ def _json(response: Any) -> dict[str, Any]:
     return cast("dict[str, Any]", payload)
 
 
+class _ScopedConnection:
+    def __init__(self) -> None:
+        self.statements: list[tuple[str, tuple[object, ...]]] = []
+        self.committed = False
+        self.closed = False
+
+    def execute(self, sql: str, parameters: tuple[object, ...] = ()) -> None:
+        self.statements.append((sql, parameters))
+
+    def commit(self) -> None:
+        self.committed = True
+
+    def rollback(self) -> None:
+        raise AssertionError("successful request must not roll back")
+
+    def close(self) -> None:
+        self.closed = True
+
+
 def test_local_workspace_requires_no_authentication_or_csrf() -> None:
     client = _client()
 
     assert client.get("/health").json() == {"status": "ok"}
     assert client.get("/auth/google/start").status_code == 404
     assert client.post("/projects", json={"name": "Core"}).status_code == 200
+
+
+def test_postgres_composition_excludes_legacy_user_quote_routes() -> None:
+    application = create_app(include_quote_routes=False)
+
+    assert "/quote-runs" not in application.openapi()["paths"]
 
 
 def test_local_workspace_user_provider_is_stable_and_server_owned() -> None:
@@ -65,13 +91,29 @@ def test_local_workspace_user_provider_is_stable_and_server_owned() -> None:
     assert second == first
 
 
-def test_postgres_runtime_request_never_falls_back_to_local_workspace(
+def test_postgres_runtime_requires_its_explicit_runtime_dependencies(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("PORTFELL_HOSTED_AUTHORITY", "postgres")
 
-    with pytest.raises(HostedApiError, match="postgres_hosted_runtime_not_configured"):
+    with pytest.raises(HostedApiError, match="postgres_hosted_runtime_configuration_required"):
         hosted_api.create_runtime_app()
+
+
+def test_postgres_runtime_composes_without_a_local_workspace(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    key_path = tmp_path / "kek"
+    key_path.write_bytes(b"k" * 32)
+    monkeypatch.setenv("PORTFELL_HOSTED_AUTHORITY", "postgres")
+    monkeypatch.setenv("PORTFELL_DATABASE_URL", "postgresql://portfell_app@postgres:5432/portfell")
+    monkeypatch.setenv("PORTFELL_SHARED_DATA_ROOT", str(tmp_path / "shared"))
+    monkeypatch.setenv("PORTFELL_EODHD_KEK_FILE", str(key_path))
+
+    application = hosted_api.create_runtime_app()
+
+    assert application.state.portfell_state.workspace_store is None
+    assert application.state.portfell_state.shared_market_data_store is None
 
 
 def test_database_runtime_requires_explicit_authority(
@@ -84,13 +126,14 @@ def test_database_runtime_requires_explicit_authority(
         hosted_api.create_runtime_app()
 
 
-def test_database_runtime_allows_explicit_local_authority(
+def test_runtime_rejects_the_removed_local_authority(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("PORTFELL_HOSTED_AUTHORITY", "local")
     monkeypatch.setenv("PORTFELL_DATABASE_URL", "postgresql://portfell_app@postgres:5432/portfell")
 
-    assert hosted_api.create_runtime_app().state.portfell_state is not None
+    with pytest.raises(HostedApiError, match="postgres_hosted_authority_required"):
+        hosted_api.create_runtime_app()
 
 
 def test_api_uses_injected_current_user_provider() -> None:
@@ -101,6 +144,45 @@ def test_api_uses_injected_current_user_provider() -> None:
     status = _json(client.get("/credentials/eodhd"))
 
     assert status["status"] == "active"
+
+
+def test_api_wraps_requests_in_an_authenticated_postgres_transaction() -> None:
+    connections: list[_ScopedConnection] = []
+
+    def connect() -> _ScopedConnection:
+        connection = _ScopedConnection()
+        connections.append(connection)
+        return connection
+
+    scope = RequestScopedPostgresConnection(connect)
+
+    response = TestClient(create_app(request_scope=scope)).get("/health")
+
+    assert response.status_code == 200
+    assert connections[0].committed
+    assert connections[0].closed
+    assert connections[0].statements[0][1][1] == DEFAULT_LOCAL_WORKSPACE_USER_ID
+
+
+def test_api_provisions_the_server_principal_inside_the_postgres_request_scope() -> None:
+    connections: list[_ScopedConnection] = []
+    provisioned: list[str] = []
+
+    def connect() -> _ScopedConnection:
+        connection = _ScopedConnection()
+        connections.append(connection)
+        return connection
+
+    response = TestClient(
+        create_app(
+            request_scope=RequestScopedPostgresConnection(connect),
+            ensure_user=provisioned.append,
+        )
+    ).get("/health")
+
+    assert response.status_code == 200
+    assert provisioned == [DEFAULT_LOCAL_WORKSPACE_USER_ID]
+    assert connections[0].statements[0][1][1] == provisioned[0]
 
 
 def test_api_uses_injected_credential_vault_dependencies() -> None:
@@ -195,6 +277,12 @@ def test_credential_lifecycle_redacts_sensitive_material() -> None:
 
 def test_downloads_publish_visible_user_datasets_and_are_idempotent() -> None:
     client = _client()
+    credential = client.post(
+        "/credentials/eodhd",
+        headers=_headers(idempotency="download-credential"),
+        json={"provider_key": "test-provider-token"},
+    )
+    assert credential.status_code == 200
 
     plan = _json(
         client.post(
@@ -372,7 +460,7 @@ def test_quote_run_downloads_only_the_metadata_builder_selection(monkeypatch: An
         }
 
     monkeypatch.setattr(
-        "portfell.hosted_api.run_fetch_all_quotes_workflow",
+        "portfell.hosted_local_test_composition.run_fetch_all_quotes_workflow",
         fake_fetch_all_quotes_workflow,
     )
     state = HostedApiState(
@@ -444,7 +532,7 @@ def test_quote_run_progress_is_visible_after_the_first_completed_task(
         }
 
     monkeypatch.setattr(
-        "portfell.hosted_api.run_fetch_all_quotes_workflow",
+        "portfell.hosted_local_test_composition.run_fetch_all_quotes_workflow",
         fake_fetch_all_quotes_workflow,
     )
 
@@ -492,7 +580,7 @@ def test_quote_run_mutation_reuses_a_running_run(
         }
 
     monkeypatch.setattr(
-        "portfell.hosted_api.run_fetch_all_quotes_workflow",
+        "portfell.hosted_local_test_composition.run_fetch_all_quotes_workflow",
         fake_fetch_all_quotes_workflow,
     )
     client = _client(state)
@@ -1169,7 +1257,9 @@ def test_bivariate_statistics_restore_quotes_from_the_persistent_lake(
             json={"univariate_selection_id": filtered.selection_id},
         )
     )
-    hosted_api._research_service(state, hosted_api._runtime()).complete_bivariate(
+    from portfell.hosted_local_test_composition import local_research_service, local_runtime
+
+    local_research_service(state, local_runtime()).complete_bivariate(
         DEFAULT_LOCAL_WORKSPACE_USER_ID, filtered.selection_id
     )
     completed = _json(

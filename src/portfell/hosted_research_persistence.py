@@ -14,3 +14,10 @@ class LocalResearchPersistence:
 
     def persist(self) -> None:
         persist_local_workspace(self._state)
+
+
+class PostgresResearchPersistence:
+    """PostgreSQL repositories persist each transition in the request transaction."""
+
+    def persist(self) -> None:
+        """Keep the research-service port explicit without a local workspace side effect."""

@@ -1,5 +1,13 @@
 # Univariate Statistics page
 
+
+## Table Of Contents
+
+- [Purpose](#purpose)
+- [Module boundary](#module-boundary)
+- [Contract](#contract)
+- [Acceptance](#acceptance)
+
 - Route: `/univariate-statistics`
 - Page ID: `univariate_statistics`
 - Component: `apps/web/src/pages/univariate-statistics.tsx`
