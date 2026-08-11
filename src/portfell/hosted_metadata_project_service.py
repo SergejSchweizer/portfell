@@ -18,7 +18,7 @@ from portfell.hosted_api_service_support import (
     stable_hash,
 )
 from portfell.hosted_api_state import HostedApiState, ProjectRecord, SelectionRecord
-from portfell.hosted_credentials import CredentialVaultError
+from portfell.hosted_credentials import CredentialVaultError, EodhdCredentialVault
 from portfell.hosted_local_metadata_repository import LocalMetadataLifecycleRepository
 from portfell.hosted_local_project_repository import LocalProjectRepository
 from portfell.hosted_local_selection_repository import LocalSelectionRepository
@@ -43,12 +43,14 @@ class MetadataProjectService:
         project_repository: ProjectRepository | None = None,
         selection_repository: SelectionRepository | None = None,
         metadata_repository: MetadataLifecycleRepository | None = None,
+        credential_vault: EodhdCredentialVault | None = None,
     ) -> None:
         self.state = state
         self.runtime = runtime
         self._projects = project_repository or LocalProjectRepository(state)
         self._selections = selection_repository or LocalSelectionRepository(state)
         self._metadata = metadata_repository or LocalMetadataLifecycleRepository(state)
+        self._credentials = credential_vault or state.credential_vault()
 
     def _all_isins_rows(self) -> tuple[JsonRow, ...]:
         return self.state.all_isins_rows or self.runtime.all_isins_rows()
@@ -64,7 +66,7 @@ class MetadataProjectService:
 
     def start_metadata_fetch(self, user_id: str) -> tuple[JsonRow, Callable[[], None]]:
         try:
-            provider_key = self.state.credential_vault().unwrap_for_provider_call(user_id=user_id)
+            provider_key = self._credentials.unwrap_for_provider_call(user_id=user_id)
         except CredentialVaultError as error:
             raise HostedApplicationError(422, "eodhd_key_required") from error
         run_id = opaque_id("metadata-run", f"{user_id}:{uuid.uuid4()}")
@@ -112,8 +114,6 @@ class MetadataProjectService:
             return
         revision_id = opaque_id("metadata-revision", stable_hash(summary))
         self._metadata.set_revision(user_id=user_id, revision_id=revision_id)
-        self.state.current_metadata_selection_by_user.pop(user_id, None)
-        self.state.current_univariate_selection_by_user.pop(user_id, None)
         current = self._metadata.status(user_id=user_id, run_id=run_id)
         if current is not None:
             self._metadata.update(
@@ -220,8 +220,6 @@ class MetadataProjectService:
                 TenantSelection(selection_id, project_id, user_id, project_name, members)
             )
         )
-        self.state.current_metadata_selection_by_user[user_id] = selection_id
-        self.state.current_univariate_selection_by_user.pop(user_id, None)
         self._projects.set_current_project(user_id=user_id, project_id=project_id)
         self.runtime.write_metadata_selection(selection_id, selected_rows, predicates)
         if idempotency_key is not None:
