@@ -13,6 +13,7 @@ from portfell.hosted_download_run_schema import DOWNLOAD_RUN_PARTIAL_STATUS_SQL
 from portfell.legacy_import_schema import LEGACY_IMPORT_LEDGER_SQL
 from portfell.metadata_lifecycle_schema import METADATA_LIFECYCLE_SCHEMA_SQL
 from portfell.multivariate_lifecycle_schema import MULTIVARIATE_LIFECYCLE_SCHEMA_SQL
+from portfell.project_bootstrap_schema import PROJECT_BOOTSTRAP_SCHEMA_SQL
 from portfell.project_settings_schema import PROJECT_SETTINGS_SCHEMA_SQL
 from portfell.research_lifecycle_schema import RESEARCH_LIFECYCLE_SCHEMA_SQL
 from portfell.tenant_control_schema import (
@@ -138,6 +139,12 @@ HOSTED_TABLES: tuple[HostedTable, ...] = (
     HostedTable("portfell_app.selections", True, True, "Persisted user selection definitions."),
     HostedTable("portfell_app.analysis_runs", True, True, "User-owned analysis run references."),
     HostedTable("portfell_app.research_runs", True, False, "Durable research run lifecycle."),
+    HostedTable(
+        "portfell_app.project_initial_fills",
+        True,
+        False,
+        "One durable initial shared-market fill per immutable project selection.",
+    ),
     HostedTable(
         "portfell_app.univariate_selections", True, True, "Persisted univariate result selections."
     ),
@@ -485,6 +492,7 @@ MIGRATIONS: tuple[HostedMigration, ...] = (
     HostedMigration(12, "durable_project_settings", PROJECT_SETTINGS_SCHEMA_SQL),
     HostedMigration(13, "durable_multivariate_lifecycle", MULTIVARIATE_LIFECYCLE_SCHEMA_SQL),
     HostedMigration(14, "durable_analysis_records", ANALYSIS_LIFECYCLE_SCHEMA_SQL),
+    HostedMigration(15, "durable_project_initial_fills", PROJECT_BOOTSTRAP_SCHEMA_SQL),
 )
 
 
