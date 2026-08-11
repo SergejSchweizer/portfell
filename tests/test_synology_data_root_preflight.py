@@ -1,8 +1,13 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
-from portfell.synology_data_root_preflight import REQUIRED_DIRECTORIES, validate_data_root
+from portfell.synology_data_root_preflight import (
+    REQUIRED_DIRECTORIES,
+    _free_inodes_available,
+    validate_data_root,
+)
 
 
 def _root(tmp_path: Path) -> Path:
@@ -55,3 +60,9 @@ def test_data_root_preflight_rejects_world_writable_storage_directory(tmp_path: 
     checks = validate_data_root(root, minimum_free_bytes=0, expected_root=root)
 
     assert "backups_not_world_writable" in {check.name for check in checks if not check.passed}
+
+
+def test_free_inode_check_accepts_synology_filesystems_without_inode_accounting() -> None:
+    assert _free_inodes_available(SimpleNamespace(f_files=0, f_favail=0))
+    assert _free_inodes_available(SimpleNamespace(f_files=100, f_favail=1))
+    assert not _free_inodes_available(SimpleNamespace(f_files=100, f_favail=0))

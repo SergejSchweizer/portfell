@@ -48,7 +48,7 @@ def validate_data_root(
     filesystem = os.statvfs(root)
     available_bytes = filesystem.f_bavail * filesystem.f_frsize
     checks.append(DataRootCheck("free_space", available_bytes >= minimum_free_bytes))
-    checks.append(DataRootCheck("free_inodes", filesystem.f_favail > 0))
+    checks.append(DataRootCheck("free_inodes", _free_inodes_available(filesystem)))
     checks.append(DataRootCheck("root_not_world_writable", _not_world_writable(root)))
     for name in ("lake", "logs", "backups"):
         checks.append(DataRootCheck(f"{name}_write_probe", _write_probe(root / name)))
@@ -75,6 +75,17 @@ def _not_world_writable(path: Path) -> bool:
         return path.stat().st_mode & 0o002 == 0
     except OSError:
         return False
+
+
+def _free_inodes_available(filesystem: os.statvfs_result) -> bool:
+    """Accept filesystems that explicitly do not report an inode budget.
+
+    Synology-backed filesystems can report both inode fields as zero even when
+    storage is writable and inode exhaustion is not a meaningful capacity
+    signal. A non-zero total keeps the normal fail-closed availability check.
+    """
+
+    return filesystem.f_files == 0 or filesystem.f_favail > 0
 
 
 def _write_probe(directory: Path) -> bool:
