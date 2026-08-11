@@ -38,7 +38,7 @@ from portfell.multivariate_inputs import (
 )
 from portfell.multivariate_quote_views import common_dates, first_price, last_price
 from portfell.multivariate_risk_model import build_multivariate_risk_model
-from portfell.multivariate_run_view import multivariate_run_row
+from portfell.multivariate_run_view import candidate_row, multivariate_run_row
 from portfell.multivariate_structure import build_multivariate_structure
 from portfell.multivariate_validation import (
     build_candidate_scorecards,
@@ -61,8 +61,8 @@ class MultivariateResearchService:
         project_repository: ProjectRepository | None = None,
         selection_repository: SelectionRepository | None = None,
         run_repository: MultivariateRunRepository | None = None,
+        metadata_rows: Callable[[], tuple[JsonRow, ...]] | None = None,
     ) -> None:
-        self._state = state
         self._data = data
         self._persistence = persistence
         self._projects = project_repository or LocalProjectRepository(state)
@@ -70,6 +70,7 @@ class MultivariateResearchService:
         self._runs = run_repository or LocalMultivariateRunRepository(state)
         self._run_users: dict[str, str] = {}
         self._research = research_repository
+        self._metadata_rows = metadata_rows or (lambda: state.all_isins_rows)
 
     def start(
         self, user_id: str, project_id: str, bivariate_run_id: str, settings: JsonRow
@@ -181,13 +182,10 @@ class MultivariateResearchService:
         return {"items": list(self._require_run(user_id, run_id).candidates)}
 
     def candidate_detail(self, user_id: str, run_id: str, candidate_id: str) -> JsonRow:
-        run = self._require_run(user_id, run_id)
-        candidate = next(
-            (item for item in run.candidates if item.get("candidate_id") == candidate_id), None
-        )
+        candidate = candidate_row(self._require_run(user_id, run_id).candidates, candidate_id)
         if candidate is None:
             raise HostedApplicationError(404, "not_found")
-        return dict(candidate)
+        return candidate
 
     def risk_contributions(self, user_id: str, run_id: str, candidate_id: str | None) -> JsonRow:
         run = self._require_run(user_id, run_id)
@@ -288,7 +286,7 @@ class MultivariateResearchService:
         dividends = self._data.selected_rows(selection.member_ids, dataset="dividends")
         metadata = {
             (str(row.get("isin", "")), str(row.get("exchange", "")), str(row.get("code", ""))): row
-            for row in self._state.all_isins_rows
+            for row in self._metadata_rows()
         }
         selected: list[JsonRow] = []
         for row in selection.rows:
