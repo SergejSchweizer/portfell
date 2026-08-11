@@ -301,7 +301,7 @@ on conflict (credential_id) do update set
         self._bind_user(user_id)
         cursor = self._connection.execute(
             """
-select credential_id, user_id, provider, status, ciphertext, nonce, wrapped_data_key,
+select credential_id::text, user_id::text, provider, status, ciphertext, nonce, wrapped_data_key,
        wrap_nonce, key_version, associated_data, fingerprint_hmac, masked_label
 from portfell_app.provider_credentials
 where user_id = %s and provider = %s

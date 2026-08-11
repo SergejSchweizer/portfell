@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Callable
+from typing import Protocol
 
 from portfell.hosted_api_errors import HostedApplicationError, HostedRuntimeError
 from portfell.hosted_api_ports import HostedRuntimePort
@@ -35,6 +36,12 @@ from portfell.selection_filters import Predicate, filter_rows
 from portfell.table_io import JsonRow
 
 
+class MetadataRefreshQueue(Protocol):
+    """Enqueue a worker-owned metadata refresh without exposing provider credentials."""
+
+    def enqueue(self, *, metadata_run_id: str, user_id: str) -> None: ...
+
+
 class MetadataProjectService:
     """Own metadata refresh and metadata-derived project transitions."""
 
@@ -48,6 +55,7 @@ class MetadataProjectService:
         credential_vault: EodhdCredentialVault | None = None,
         audit_repository: AuditEventRepository | None = None,
         bootstrap_repository: ProjectBootstrapRepository | None = None,
+        metadata_refresh_queue: MetadataRefreshQueue | None = None,
     ) -> None:
         self.state = state
         self.runtime = runtime
@@ -57,6 +65,7 @@ class MetadataProjectService:
         self._credentials = credential_vault or state.credential_vault()
         self._audit_events = audit_repository or LocalAuditEventRepository(state)
         self._bootstrap = bootstrap_repository
+        self._metadata_refresh_queue = metadata_refresh_queue
 
     def _all_isins_rows(self) -> tuple[JsonRow, ...]:
         return self.state.all_isins_rows or self.runtime.all_isins_rows()
@@ -71,6 +80,12 @@ class MetadataProjectService:
         }
 
     def start_metadata_fetch(self, user_id: str) -> tuple[JsonRow, Callable[[], None]]:
+        if self._metadata_refresh_queue is not None:
+            run_id = opaque_id("metadata-run", f"{user_id}:{uuid.uuid4()}")
+            run = self._metadata.create(MetadataRun(run_id, user_id, "running", 0, 0, 0, 0, {}))
+            self._metadata_refresh_queue.enqueue(metadata_run_id=run_id, user_id=user_id)
+            self._audit(user_id, "fetch_all_metadata.queued")
+            return metadata_fetch_row(_metadata_row(run)), lambda: None
         try:
             provider_key = self._credentials.unwrap_for_provider_call(user_id=user_id)
         except CredentialVaultError as error:

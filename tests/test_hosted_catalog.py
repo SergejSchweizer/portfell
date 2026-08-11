@@ -98,6 +98,7 @@ def test_hosted_migration_sql_defines_rls_and_immutable_catalog_shape() -> None:
         13,
         14,
         15,
+        16,
     ]
     assert len({migration.checksum for migration in migrations}) == len(migrations)
     assert "create table if not exists portfell_app.provider_credentials" in sql
@@ -144,6 +145,7 @@ def test_hosted_migration_sql_defines_rls_and_immutable_catalog_shape() -> None:
     assert "create table if not exists portfell_app.hosted_analysis_records" in sql
     assert "create table if not exists portfell_app.project_initial_fills" in sql
     assert "bootstrap_job_id uuid not null unique" in sql
+    assert "create table if not exists portfell_app.metadata_refresh_jobs" in sql
 
 
 def test_apply_hosted_catalog_migrations_is_deterministic_and_idempotent() -> None:

@@ -509,6 +509,30 @@ def test_metadata_builder_can_use_an_injected_selection_repository() -> None:
     assert repeated == created
 
 
+def test_metadata_refresh_queue_does_not_require_a_browser_credential() -> None:
+    class QueueRecorder:
+        calls: list[tuple[str, str]] = []
+
+        def enqueue(self, *, metadata_run_id: str, user_id: str) -> None:
+            self.calls.append((metadata_run_id, user_id))
+
+    user_id = "00000000-0000-5000-8000-000000000001"
+    queue = QueueRecorder()
+    service = MetadataProjectService(
+        HostedApiState(),
+        LocalHostedRuntime(
+            quote_workflow=_empty_workflow, metadata_workflow=_empty_workflow, cpu_count=lambda: 1
+        ),
+        metadata_refresh_queue=queue,
+    )
+
+    run, background = service.start_metadata_fetch(user_id)
+
+    assert run["status"] == "running"
+    assert queue.calls == [(run["metadata_run_id"], user_id)]
+    assert background() is None
+
+
 def test_metadata_builder_enqueues_the_exact_initial_fill_when_configured() -> None:
     class BootstrapRecorder:
         calls: list[tuple[str, str, str, tuple[str, ...]]] = []

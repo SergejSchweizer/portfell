@@ -12,10 +12,11 @@ from datetime import date
 from pathlib import Path
 from typing import Protocol
 
-from portfell.config import EodhdConfig
+from portfell.config import runtime_eodhd_config
 from portfell.durable_job_repository import ClaimedJob, PostgresDurableJobRepository
 from portfell.hosted_catalog import set_authenticated_user_sql
 from portfell.hosted_database_connection import connect
+from portfell.hosted_metadata_refresh_worker import build_metadata_refresh_worker
 from portfell.http import EodhdClient
 from portfell.shared_market_data import SharedListingKey, SharedMarketDataStore
 from portfell.shared_market_refresh import (
@@ -195,21 +196,28 @@ def main(argv: list[str] | None = None) -> int:
         or args.poll_seconds <= 0
     ):
         return 4
-    connection = connect(database_url, autocommit=False)
+    # Repositories explicitly delimit each claim/update with ``transaction()``.
+    # Autocommit keeps those worker transactions short-lived instead of retaining
+    # an implicit outer transaction for the lifetime of the polling process.
+    connection = connect(database_url, autocommit=True)
     try:
         worker = ProjectBootstrapWorker(
             jobs=PostgresDurableJobRepository(connection),
             members_for_selection=PostgresSelectionMembers(connection),
             store=SharedMarketDataStore(Path(root)),
-            fetch=eodhd_fetch(EodhdClient(EodhdConfig(api_token=token))),
+            fetch=eodhd_fetch(EodhdClient(runtime_eodhd_config(token))),
             end_date=date.today(),
             concurrency=args.concurrency,
         )
         while True:
+            metadata_result = build_metadata_refresh_worker(
+                connection, shared_data_root=Path(root), operations_token=token
+            ).run_once()
             result = worker.run_once(worker_id=args.worker_id, batch_size=args.batch_size)
             if args.once:
-                return 0 if result.failed_count == 0 else 5
-            if result.claimed_count == 0:
+                metadata_succeeded = not metadata_result.claimed or metadata_result.succeeded
+                return 0 if result.failed_count == 0 and metadata_succeeded else 5
+            if result.claimed_count == 0 and not metadata_result.claimed:
                 time.sleep(args.poll_seconds)
     finally:
         connection.close()

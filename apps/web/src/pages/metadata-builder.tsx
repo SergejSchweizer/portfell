@@ -13,7 +13,7 @@ import { useMetadataFetch } from "../shell/metadata-fetch-context";
 export function MetadataBuilderPage() {
   const [metadataRevision, setMetadataRevision] = useState(0);
   const options = useResource(metadataBuilderApi.loadFieldOptions, [metadataRevision]);
-  const { fetchMetadata, fetching, hasSavedCredential, metadataProgress, metadataStatus, providerKey } = useMetadataFetch();
+  const { fetchMetadata, fetching, metadataProgress, metadataStatus } = useMetadataFetch();
   const [exchange, setExchange] = useState("");
   const [instrumentType, setInstrumentType] = useState("");
   const [country, setCountry] = useState("");
@@ -146,7 +146,7 @@ export function MetadataBuilderPage() {
     return (
       <EmptyState
         title="Metadata unavailable"
-        description="Enter an EODHD key in the header and fetch all metadata first."
+        description="Fetch all metadata to load the shared catalogue first."
       />
     );
   }
@@ -159,7 +159,7 @@ export function MetadataBuilderPage() {
           <progress id="metadata-progress" max={100} value={metadataProgress} />
           <output className="status-line" aria-live="polite">{metadataStatus}</output>
           <div className="quote-fetch__action">
-          <Button type="button" variant="primary" disabled={(!providerKey.trim() && !hasSavedCredential) || fetching} onClick={() => void fetchMetadata()}>
+          <Button type="button" variant="primary" disabled={fetching} onClick={() => void fetchMetadata()}>
             {fetching ? "Fetching…" : "Fetch all metadata"}
           </Button>
           </div>

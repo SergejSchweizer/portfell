@@ -247,7 +247,6 @@ test("two dummy projects created through the UI preserve every research control 
   await expect(page.getByText("2 · Metadata Builder")).toBeVisible();
   await expectManifestControls(page, "/metadata-builder", "ready");
 
-  await page.getByLabel("EODHD key").fill("dummy-eodhd-key");
   await page.getByRole("button", { name: "Fetch all metadata" }).click();
   await expect(page.getByText("4 metadata rows from 1 exchanges loaded.")).toBeVisible();
 
@@ -326,7 +325,6 @@ test("two dummy projects created through the UI preserve every research control 
 
   expect([...fixture.projects.values()].map((project) => project.name)).toEqual(["Alpha income", "Beta growth"]);
   expect(fixture.calls).toEqual(expect.arrayContaining([
-    "POST /api/credentials/eodhd",
     "POST /api/metadata/fetch-all",
     "POST /api/metadata-builder",
     "POST /api/univariate-statistics/runs",

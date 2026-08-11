@@ -123,3 +123,23 @@ def load_eodhd_config(
         ),
         retry_backoff_seconds=_float_setting(source, "EODHD_RETRY_BACKOFF_SECONDS", 0.5),
     )
+
+
+def runtime_eodhd_config(api_token: str, *, env: Mapping[str, str] | None = None) -> EodhdConfig:
+    """Build a provider configuration from a secret token and non-secret runtime tuning.
+
+    Hosted workers receive their token through an owner-restricted file, while test
+    stacks may safely override the base URL with a local deterministic provider.
+    """
+
+    source = os.environ if env is None else env
+    return EodhdConfig(
+        api_token=api_token,
+        base_url=source.get("EODHD_BASE_URL", EodhdConfig.base_url),
+        timeout_seconds=_float_setting(source, "EODHD_TIMEOUT_SECONDS", 30.0),
+        max_retries=_int_setting(source, "EODHD_MAX_RETRIES", 2),
+        min_request_interval_seconds=_float_setting(
+            source, "EODHD_MIN_REQUEST_INTERVAL_SECONDS", 0.25
+        ),
+        retry_backoff_seconds=_float_setting(source, "EODHD_RETRY_BACKOFF_SECONDS", 0.5),
+    )

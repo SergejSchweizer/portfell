@@ -135,6 +135,7 @@ def test_postgres_credential_store_rejects_mismatched_associated_data() -> None:
 
     with pytest.raises(CredentialVaultError, match="associated data"):
         PostgresCredentialStore(connection).get(user_id="user-1")
+    assert "credential_id::text, user_id::text" in connection.executed[1][0]
 
 
 def test_wrong_user_associated_data_rejects_decryption() -> None:
