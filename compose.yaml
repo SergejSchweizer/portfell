@@ -2,6 +2,7 @@ name: portfell
 
 services:
   postgres:
+    container_name: portfell-postgress
     image: postgres:17-alpine
     restart: unless-stopped
     environment:

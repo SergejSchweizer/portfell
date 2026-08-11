@@ -29,6 +29,7 @@ def test_compose_defines_persistent_internal_postgres_and_shared_data() -> None:
 
     assert "portfell-postgres-data" in volumes
     assert "portfell-shared-data" in volumes
+    assert postgres["container_name"] == "portfell-postgress"
     assert postgres["networks"] == ["portfell-internal"]
     assert "ports" not in postgres
     assert "5432" in postgres["expose"]
