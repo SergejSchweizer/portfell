@@ -115,6 +115,10 @@ def _run_once(project_root: Path, log_path: Path, *, dry_run: bool = False) -> i
         "shared-market-refresh",
         )
     )
+    if dry_run:
+        return subprocess.run(
+            command, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT
+        ).returncode
     with log_path.open("a", encoding="utf-8") as log:
         return subprocess.run(command, check=False, stdout=log, stderr=subprocess.STDOUT).returncode
 

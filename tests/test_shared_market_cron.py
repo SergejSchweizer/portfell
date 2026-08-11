@@ -97,6 +97,7 @@ def test_cron_subprocess_helpers_and_missing_project_are_safe(
     cron._compose_config(root)
     assert commands[0][0][len(cron._compose_command(root))] == "--dry-run"
     assert commands[0][0][-1] == "shared-market-refresh"
+    assert commands[0][1]["stdout"] is cron.subprocess.DEVNULL
     assert commands[1][0][-1] == "config"
     assert cron._read_crontab() == "existing"
     cron._write_crontab("managed\n")
