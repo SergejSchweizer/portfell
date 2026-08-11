@@ -702,7 +702,10 @@ one documented commit point and retries cannot recreate legacy authority or dupl
 
 Branch: `chore/install-production-market-refresh-cron`.
 
-Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/327.
+Git status: in progress. The implementation merged in PR #329; the remaining operational
+acceptance is first natural `02:15 Europe/Amsterdam` scheduled-run evidence.
+
+Implementation PR: https://github.com/SergejSchweizer/portfell/pull/329.
 
 Priority: P0 complete the production operations rollout.
 
@@ -819,7 +822,7 @@ deleting shared payloads, tenant history, or unrelated cron entries.
 
 Branch: `chore/web-button-interaction-gate`.
 
-Git status: in progress. PR: https://github.com/SergejSchweizer/portfell/pull/329.
+Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/327.
 
 Priority: P1 prevent untested browser interactions from merging.
 
@@ -917,7 +920,7 @@ state.
 
 Branch: `chore/ugreen-nas-persistent-data-root`.
 
-Git status: in progress. PR: https://github.com/SergejSchweizer/portfell/pull/330.
+Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/330.
 
 Priority: P0 establish final durable storage before cron installation.
 
