@@ -62,6 +62,17 @@ export type ApiMetadataProject = Readonly<{
   project: Readonly<{ project_id: string; name: string }>;
   selection: Readonly<{ selection_id: string; name: string }>;
   selected_count: number;
+  initial_fill?: ApiInitialFill;
+}>;
+
+export type ApiInitialFill = Readonly<{
+  bootstrap_id: string;
+  job_id: string;
+  status: "not_started" | "planning" | "running" | "ready" | "partial" | "failed";
+  completed_units: number;
+  total_units: number;
+  selected_listing_count: number;
+  terminal_code: string | null;
 }>;
 
 export type ApiQuoteFetch = Readonly<{

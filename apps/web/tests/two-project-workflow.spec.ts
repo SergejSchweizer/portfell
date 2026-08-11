@@ -4,7 +4,6 @@ type Project = {
   id: string;
   name: string;
   criteria: { exchange: string; instrument_type: string; country: string; currency: string; name: string };
-  quoteRunId?: string;
   univariateRunId?: string;
   bivariateRunId?: string;
   multivariateRunId?: string;
@@ -47,12 +46,11 @@ function workflow(project: Project | undefined) {
       process_overview: { metadata_downloaded_isins: 4 },
     };
   }
-  const quoteReady = Boolean(project.quoteRunId);
   const univariateReady = Boolean(project.univariateRunId);
   return {
     stages: {
-      metadata_builder: { status: "complete", metadata_selection_id: `selection-${project.id}`, quote_run_id: project.quoteRunId },
-      univariate_statistics: { status: univariateReady ? "complete" : quoteReady ? "ready" : "ready", univariate_run_id: project.univariateRunId, univariate_selection_id: univariateReady ? `univariate-selection-${project.id}` : undefined },
+      metadata_builder: { status: "complete", metadata_selection_id: `selection-${project.id}` },
+      univariate_statistics: { status: univariateReady ? "complete" : "ready", univariate_run_id: project.univariateRunId, univariate_selection_id: univariateReady ? `univariate-selection-${project.id}` : undefined },
       bivariate_statistics: univariateReady ? { status: project.bivariateRunId ? "complete" : "ready", bivariate_run_id: project.bivariateRunId } : { status: "locked" },
       multivariate_statistics: project.bivariateRunId ? {
         status: project.multivariateRunId ? "complete" : "ready",
@@ -132,6 +130,10 @@ async function installTwoProjectApi(page: Page): Promise<WorkflowFixture> {
       const project = projects.get(projectCriteria[1])!;
       return response(route, { project_id: project.id, selection_id: `selection-${project.id}`, selected_count: 3, ...project.criteria });
     }
+    const initialFill = path.match(/^\/api\/projects\/([^/]+)\/initial-fill$/);
+    if (method === "GET" && initialFill) {
+      return response(route, { bootstrap_id: `bootstrap-${initialFill[1]}`, job_id: `job-${initialFill[1]}`, status: "ready", completed_units: 3, total_units: 3, selected_listing_count: 3, terminal_code: null });
+    }
     if (method === "POST" && path === "/api/metadata-builder") {
       const id = `project-${projects.size + 1}`;
       const project: Project = {
@@ -142,7 +144,7 @@ async function installTwoProjectApi(page: Page): Promise<WorkflowFixture> {
       };
       projects.set(id, project);
       currentProjectId = id;
-      return response(route, { project: { project_id: id, name: project.name }, selection: { selection_id: `selection-${id}`, name: project.name }, selected_count: 3 });
+      return response(route, { project: { project_id: id, name: project.name }, selection: { selection_id: `selection-${id}`, name: project.name }, selected_count: 3, initial_fill: { bootstrap_id: `bootstrap-${id}`, job_id: `job-${id}`, status: "ready", completed_units: 3, total_units: 3, selected_listing_count: 3, terminal_code: null } });
     }
     const selectionSettings = path.match(/^\/api\/projects\/([^/]+)\/univariate-selection-settings$/);
     if (selectionSettings) {
@@ -154,12 +156,6 @@ async function installTwoProjectApi(page: Page): Promise<WorkflowFixture> {
         return response(route, project.settings);
       }
     }
-    if (method === "POST" && path === "/api/quote-runs") {
-      const project = current()!;
-      project.quoteRunId = `quote-${project.id}`;
-      return response(route, { download_run_id: project.quoteRunId, status: "running", total: 3, completed: 0, failed: 0, percent: 0, selected_listing_count: 3 });
-    }
-    if (method === "GET" && path.startsWith("/api/quote-runs/")) return response(route, { download_run_id: path.split("/").at(-1), status: "succeeded", total: 3, completed: 3, failed: 0, percent: 100, selected_listing_count: 3, quote_successes: 3, quote_errors: 0 });
     if (method === "POST" && path === "/api/univariate-statistics/runs") {
       const project = current()!;
       project.univariateRunId = `univariate-${project.id}`;
@@ -205,7 +201,7 @@ async function installTwoProjectApi(page: Page): Promise<WorkflowFixture> {
 }
 
 function projectSummary(project: Project) {
-  return { project_id: project.id, name: project.name, selection_id: `selection-${project.id}`, selected_count: 3, data_loaded: Boolean(project.quoteRunId) };
+  return { project_id: project.id, name: project.name, selection_id: `selection-${project.id}`, selected_count: 3, data_loaded: true };
 }
 
 async function createProject(page: Page, filter: { exchange: string; instrumentType: string; country: string; currency: string; name: string }) {
@@ -225,11 +221,6 @@ async function computeUnivariate(page: Page) {
   await expect(page.getByRole("img", { name: "Annual dividend yield distribution for 3 ISINs" })).toBeVisible();
 }
 
-async function downloadHistoricalData(page: Page) {
-  await page.getByRole("button", { name: "Download Historical Data" }).click();
-  await expect(page.getByText("Updating historical data · 3 / 3 ISINs · 100%")).toBeVisible();
-}
-
 async function switchProject(page: Page, projectId: string) {
   const navigation = page.getByLabel("Open project navigation");
   if (await navigation.isVisible()) await navigation.click();
@@ -247,7 +238,7 @@ test("two dummy projects created through the UI preserve every research control 
   await expect(page.getByText("4 metadata rows from 1 exchanges loaded.")).toBeVisible();
 
   await createProject(page, { exchange: "XETRA", instrumentType: "ETF", country: "IE", currency: "EUR", name: "Alpha income" });
-  await downloadHistoricalData(page);
+  await expect(page.getByText("3 listings ready.")).toBeVisible();
   await page.goto("/univariate-statistics");
   await computeUnivariate(page);
 
@@ -266,7 +257,7 @@ test("two dummy projects created through the UI preserve every research control 
 
   await page.goto("/metadata-builder");
   await createProject(page, { exchange: "LSE", instrumentType: "FUND", country: "LU", currency: "USD", name: "Beta growth" });
-  await downloadHistoricalData(page);
+  await expect(page.getByText("3 listings ready.")).toBeVisible();
   await page.goto("/univariate-statistics");
   await computeUnivariate(page);
 

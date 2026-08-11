@@ -32,15 +32,17 @@ def test_workflow_pages_place_ingestion_actions_before_their_stage_controls() ->
     assert (
         metadata_page.index('<Panel title="Download Metadata">')
         < metadata_page.index('<Panel title="Metadata Builder">')
-        < metadata_page.index('<Panel title="Download Historical Data">')
+            < metadata_page.index('<Panel title="Historical Data">')
     )
     assert "EODHD key" in frame
     assert "Fetch all metadata" not in frame
     assert '"/univariate-statistics"' not in metadata_page
     assert '"portfell:workflow-updated"' in metadata_page
-    assert "Download Historical Data" in metadata_page
-    assert "startQuoteRun" in metadata_page
-    assert "historicalDataUpdateLabel" in metadata_page
+    assert "Initial fill progress" in metadata_page
+    assert "Download Historical Data" not in metadata_page
+    assert "loadInitialFill" in metadata_page
+    assert "startQuoteRun" not in metadata_page
+    assert "historicalDataUpdateLabel" not in metadata_page
     assert (
         "Historical data is refreshed automatically by the shared-data service" in univariate_page
     )
@@ -113,7 +115,7 @@ def test_three_module_ui_uses_canonical_server_owned_workflow_contracts() -> Non
         "/api/workflow",
         "/api/metadata/fetch-all",
         "/api/metadata-builder",
-        "/api/quote-runs",
+        "/api/projects/${encodeURIComponent(projectId)}/initial-fill",
         "/api/univariate-statistics/runs",
         "/api/bivariate-statistics/plan",
         "/api/bivariate-statistics/runs",

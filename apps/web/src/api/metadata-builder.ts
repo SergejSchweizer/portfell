@@ -4,8 +4,8 @@ import {
   loadEodhdCredentialStatus,
   loadEodhdCredentialValue,
   loadMetadataFetchRun,
+  loadProjectInitialFill,
   loadProjectMetadataBuilder,
-  loadQuoteRun,
   postJson,
   requestJson,
 } from "./client";
@@ -13,10 +13,10 @@ import type {
   ApiCredentialStatus,
   ApiCredentialValue,
   ApiFieldOptions,
+  ApiInitialFill,
   ApiMetadataFetch,
   ApiMetadataProject,
   ApiProjectMetadataBuilder,
-  ApiQuoteFetch,
 } from "../contracts";
 
 export type MetadataBuilderCriteriaRequest = Readonly<{
@@ -27,10 +27,6 @@ export type MetadataBuilderCriteriaRequest = Readonly<{
   currency: string;
 }>;
 
-export type QuoteRunRequest = Readonly<{
-  metadata_selection_id: string;
-}>;
-
 export const metadataBuilderApi = {
   loadCredentialStatus: (): Promise<ApiCredentialStatus> => loadEodhdCredentialStatus(),
   loadCredentialValue: (): Promise<ApiCredentialValue> => loadEodhdCredentialValue(),
@@ -38,6 +34,7 @@ export const metadataBuilderApi = {
   loadProjectCriteria: (projectId: string): Promise<ApiProjectMetadataBuilder> => (
     loadProjectMetadataBuilder(projectId)
   ),
+  loadInitialFill: (projectId: string): Promise<ApiInitialFill> => loadProjectInitialFill(projectId),
   loadFieldOptions: (): Promise<ApiFieldOptions> => requestJson<ApiFieldOptions>("/api/metadata-builder/options"),
   saveCredential: (providerKey: string): Promise<ApiCredentialStatus> => (
     postJson<ApiCredentialStatus>("/api/credentials/eodhd", { provider_key: providerKey })
@@ -46,8 +43,4 @@ export const metadataBuilderApi = {
   createProject: (request: MetadataBuilderCriteriaRequest): Promise<ApiMetadataProject> => (
     postJson<ApiMetadataProject>("/api/metadata-builder", request)
   ),
-  startQuoteRun: (request: QuoteRunRequest): Promise<ApiQuoteFetch> => (
-    postJson<ApiQuoteFetch>("/api/quote-runs", request)
-  ),
-  loadQuoteRun: (runId: string): Promise<ApiQuoteFetch> => loadQuoteRun(runId),
 };
