@@ -15,14 +15,12 @@ from pathlib import Path
 from typing import Any, cast
 
 from portfell.config import EodhdConfig
-from portfell.hosted_api_state import HostedApiState
 from portfell.hosted_database_connection import connect
 from portfell.hosted_postgres_active_inventory import PostgresActiveProjectInventory
 from portfell.http import EodhdClient
 from portfell.shared_market_data import (
     SharedListingKey,
     SharedMarketDataStore,
-    active_project_inventory,
     inventory_hash,
 )
 from portfell.table_io import JsonRow
@@ -121,8 +119,7 @@ def refresh_shared_market_data(
     store: SharedMarketDataStore,
     fetch: ProviderFetch,
     end_date: date,
-    listings: Iterable[SharedListingKey] | None = None,
-    state: HostedApiState | None = None,
+    listings: Iterable[SharedListingKey],
     concurrency: int = 4,
     dry_run: bool = False,
 ) -> RefreshResult:
@@ -130,9 +127,7 @@ def refresh_shared_market_data(
 
     if concurrency < 1:
         raise SharedMarketRefreshError("invalid_refresh_concurrency")
-    resolved_listings = (
-        tuple(listings) if listings is not None else active_project_inventory(_state(state))
-    )
+    resolved_listings = tuple(listings)
     requests = plan_refresh(store, resolved_listings, end_date=end_date)
     result_hash = inventory_hash(resolved_listings)
     if dry_run:
@@ -173,12 +168,6 @@ def refresh_shared_market_data(
         if errors:
             raise SharedMarketRefreshError("shared_market_refresh_partial_failure")
         return result
-
-
-def _state(state: HostedApiState | None) -> HostedApiState:
-    if state is None:
-        raise SharedMarketRefreshError("active_inventory_required")
-    return state
 
 
 def _refresh_one(

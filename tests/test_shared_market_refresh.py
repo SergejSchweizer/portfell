@@ -6,7 +6,6 @@ from types import SimpleNamespace
 import pytest
 
 import portfell.shared_market_refresh as refresh
-from portfell.hosted_api_state import HostedApiState, ProjectRecord, SelectionRecord
 from portfell.shared_market_data import SharedListingKey, SharedMarketDataStore
 from portfell.shared_market_refresh import (
     RefreshResult,
@@ -15,12 +14,7 @@ from portfell.shared_market_refresh import (
     refresh_shared_market_data,
 )
 
-
-def _state() -> HostedApiState:
-    return HostedApiState(
-        projects_by_id={"p": ProjectRecord("p", "user", "P")},
-        selections_by_id={"s": SelectionRecord("s", "user", "p", "S", ("IE1:XETRA:ABC",))},
-    )
+_LISTINGS = (SharedListingKey("eodhd", "XETRA", "ABC", "IE1"),)
 
 
 def _fetch(request):  # type: ignore[no-untyped-def]
@@ -37,10 +31,10 @@ def _fetch(request):  # type: ignore[no-untyped-def]
 def test_first_refresh_backfills_once_and_second_refresh_is_idempotent(tmp_path) -> None:  # type: ignore[no-untyped-def]
     store = SharedMarketDataStore(tmp_path)
     first = refresh_shared_market_data(
-        store=store, state=_state(), fetch=_fetch, end_date=date(2026, 1, 10), concurrency=2
+        store=store, listings=_LISTINGS, fetch=_fetch, end_date=date(2026, 1, 10), concurrency=2
     )
     second = refresh_shared_market_data(
-        store=store, state=_state(), fetch=_fetch, end_date=date(2026, 1, 10), concurrency=2
+        store=store, listings=_LISTINGS, fetch=_fetch, end_date=date(2026, 1, 10), concurrency=2
     )
     assert first.requested == 3 and first.updated == 3
     assert second.requested == 0 and second.unchanged == 0
@@ -51,11 +45,11 @@ def test_first_refresh_backfills_once_and_second_refresh_is_idempotent(tmp_path)
 def test_delta_plan_uses_bounded_correction_overlap_and_dry_run_writes_nothing(tmp_path) -> None:  # type: ignore[no-untyped-def]
     store = SharedMarketDataStore(tmp_path)
     dry = refresh_shared_market_data(
-        store=store, state=_state(), fetch=_fetch, end_date=date(2026, 1, 10), dry_run=True
+        store=store, listings=_LISTINGS, fetch=_fetch, end_date=date(2026, 1, 10), dry_run=True
     )
     assert dry.dry_run and not store.root.exists()
     refreshed = refresh_shared_market_data(
-        store=store, state=_state(), fetch=_fetch, end_date=date(2026, 1, 10)
+        store=store, listings=_LISTINGS, fetch=_fetch, end_date=date(2026, 1, 10)
     )
     assert all(item.start_date is None for item in refreshed.requests)
     planned = plan_refresh(store, [refreshed.requests[0].listing], end_date=date(2026, 1, 11))
@@ -102,7 +96,7 @@ def test_refresh_rejects_invalid_settings_and_persists_partial_failure(tmp_path)
         plan_refresh(store, (), end_date=date(2026, 1, 1), correction_overlap_days=-1)
     with pytest.raises(SharedMarketRefreshError, match="invalid_refresh_concurrency"):
         refresh_shared_market_data(
-            store=store, state=_state(), fetch=_fetch, end_date=date(2026, 1, 1), concurrency=0
+            store=store, listings=_LISTINGS, fetch=_fetch, end_date=date(2026, 1, 1), concurrency=0
         )
 
     def failing_fetch(request):  # type: ignore[no-untyped-def]
@@ -112,7 +106,7 @@ def test_refresh_rejects_invalid_settings_and_persists_partial_failure(tmp_path)
 
     with pytest.raises(SharedMarketRefreshError, match="partial_failure"):
         refresh_shared_market_data(
-            store=store, state=_state(), fetch=failing_fetch, end_date=date(2026, 1, 1)
+            store=store, listings=_LISTINGS, fetch=failing_fetch, end_date=date(2026, 1, 1)
         )
     manifest = (store.root / "refresh-runs" / "2026-01-01.json").read_text(encoding="utf-8")
     assert '"failed": 1' in manifest
