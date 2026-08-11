@@ -41,7 +41,9 @@ def test_canonical_store_deduplicates_business_keys_and_replaces_corrections(tmp
     assert corrected.row_count == 2
     assert corrected.content_hash != first.content_hash
     assert [row["adjusted_close"] for row in store.read("quotes", listing)] == [11.0, 12.0]
-    assert store.listing_path("quotes", listing).is_file()
+    initial_rows = store.read_revision("quotes", listing, first.content_hash)
+    assert [row["adjusted_close"] for row in initial_rows] == [10.0]
+    assert store.revision_path("quotes", listing, corrected.content_hash).is_file()
     assert store.coverage() == (corrected,)
     assert store.rebuild_coverage() == (corrected,)
 
@@ -110,7 +112,12 @@ def test_same_isin_on_different_listings_never_shares_a_file(tmp_path) -> None: 
         secondary,
         [{**_row("2025-01-01", 20.0), "exchange": "LSE", "code": "ABC.L"}],
     )
-    assert store.listing_path("quotes", primary) != store.listing_path("quotes", secondary)
+    revisions = {item.listing: item for item in store.coverage()}
+    primary_revision = revisions[primary]
+    secondary_revision = revisions[secondary]
+    primary_path = store.revision_path("quotes", primary, primary_revision.content_hash)
+    secondary_path = store.revision_path("quotes", secondary, secondary_revision.content_hash)
+    assert primary_path != secondary_path
     assert store.read("quotes", primary)[0]["adjusted_close"] == 10.0
     assert store.read("quotes", secondary)[0]["adjusted_close"] == 20.0
 
