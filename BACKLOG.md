@@ -915,9 +915,9 @@ state.
 
 ### PR170. UGREEN NAS Persistent Data Root And Safe Volume Migration
 
-Branch: `chore/synology-persistent-data-root`.
+Branch: `chore/ugreen-nas-persistent-data-root`.
 
-Git status: in progress. PR: https://github.com/SergejSchweizer/portfell/pull/328.
+Git status: in progress. PR: https://github.com/SergejSchweizer/portfell/pull/330.
 
 Priority: P0 establish final durable storage before cron installation.
 
