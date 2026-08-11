@@ -165,12 +165,6 @@ def _postgres_services(
     runtime = PostgresHostedRuntime(shared_data_root)
     data = SharedMarketResearchData(SharedMarketDataStore(shared_data_root))
     bootstrap = PostgresProjectBootstrapRepository(request_scope)
-    workflow_reader = PostgresWorkflowReader(
-        selections=repositories.selections,
-        bootstrap=bootstrap,
-        metadata_rows=runtime.all_isins_rows,
-    )
-
     def project_data_loaded(user_id: str, project_id: str) -> bool:
         fill = bootstrap.status(user_id=user_id, project_id=project_id)
         return fill is not None and fill.status == "ready"
@@ -199,6 +193,18 @@ def _postgres_services(
         quotes=repositories.quotes,
         quote_rows=quote_rows,
         analyses=repositories.analyses,
+    )
+    workflow_reader = PostgresWorkflowReader(
+        selections=repositories.selections,
+        bootstrap=bootstrap,
+        metadata_rows=runtime.all_isins_rows,
+        research_state=(
+            lambda user_id, project_id, metadata_selection_id: research_repository.workflow_state(
+                user_id=user_id,
+                project_id=project_id,
+                metadata_selection_id=metadata_selection_id,
+            )
+        ),
     )
     persistence = PostgresResearchPersistence()
     credentials = CredentialProjectService(

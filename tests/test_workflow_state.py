@@ -84,3 +84,26 @@ def test_multivariate_statistics_unlocks_only_after_bivariate_completion() -> No
         "univariate_selection_id": "univariate-selection-1",
         "bivariate_run_id": "bivariate-run-1",
     }
+
+
+def test_shared_market_workflow_does_not_require_a_legacy_quote_run() -> None:
+    resolved = resolve_workflow(
+        metadata_revision_id="shared-market",
+        metadata_selection_id="metadata-selection-1",
+        quote_run_id=None,
+        univariate_run_id="univariate-run-1",
+        univariate_selection_id="univariate-selection-1",
+        bivariate_run_id="bivariate-run-1",
+        bivariate_status="complete",
+    )
+
+    assert resolved["univariate_statistics"] == {
+        "status": "complete",
+        "metadata_revision_id": "shared-market",
+        "metadata_selection_id": "metadata-selection-1",
+        "univariate_run_id": "univariate-run-1",
+        "univariate_selection_id": "univariate-selection-1",
+    }
+    assert resolved["bivariate_statistics"]["status"] == "complete"
+    assert "quote_run_id" not in resolved["bivariate_statistics"]
+    assert resolved["multivariate_statistics"]["status"] == "ready"

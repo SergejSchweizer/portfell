@@ -7,16 +7,23 @@ from __future__ import annotations
 import json
 import uuid
 from collections.abc import Callable, Mapping
-from typing import Protocol, cast
+from typing import Literal, Protocol, cast
 
 from portfell.entitlements import ProviderDownloadRun
 from portfell.hosted_analysis_record_repository import AnalysisRecordRepository
 from portfell.hosted_api_errors import HostedApplicationError
+from portfell.hosted_api_service_support import opaque_id, stable_hash
 from portfell.hosted_api_state import AnalysisRecord, ProjectRecord, SelectionRecord
 from portfell.hosted_catalog import set_authenticated_user_sql
+from portfell.hosted_postgres_workflow import WorkflowResearchState
 from portfell.hosted_quote_lifecycle_repository import QuoteLifecycleRepository
 from portfell.hosted_repository_importer import ProjectRepository
-from portfell.hosted_research_workflow import ResearchRun, RunStatus, UnivariateSelection
+from portfell.hosted_research_workflow import (
+    ResearchRun,
+    RunStatus,
+    UnivariateSelection,
+    bivariate_source_id,
+)
 from portfell.hosted_selection_repository import SelectionRepository, selection_record
 from portfell.selection_filters import Predicate
 from portfell.table_io import JsonRow
@@ -160,6 +167,40 @@ on conflict (research_run_id) do update set quote_run_id = excluded.quote_run_id
     def save_bivariate_run(self, run: ResearchRun) -> None:
         self._save_run(run, kind="bivariate")
 
+    def workflow_state(
+        self, *, user_id: str, project_id: str, metadata_selection_id: str
+    ) -> WorkflowResearchState:
+        """Read the current durable research chain for a shared-market project."""
+
+        self._bind(user_id)
+        univariate_source = stable_hash(
+            {"selection_id": metadata_selection_id, "quote_run_id": "shared-market"}
+        )
+        univariate_run_id = opaque_id("univariate-run", f"{user_id}:{univariate_source}")
+        univariate = self._run_row(univariate_run_id, "univariate")
+        if univariate is None:
+            return WorkflowResearchState()
+        selection = self._current_selection_for_run(user_id, univariate.run_id)
+        if selection is None:
+            return WorkflowResearchState(
+                univariate_run_id=univariate.run_id,
+                univariate_status=univariate.status,
+            )
+        bivariate_source = bivariate_source_id(selection)
+        bivariate_run_id = opaque_id("bivariate-run", f"{user_id}:{bivariate_source}")
+        bivariate = self._run_row(bivariate_run_id, "bivariate")
+        multivariate = self._current_multivariate(project_id, bivariate_run_id)
+        return WorkflowResearchState(
+            univariate_run_id=univariate.run_id,
+            univariate_status=univariate.status,
+            univariate_selection_id=selection.selection_id,
+            univariate_selected_isins=len({member.split(":", 1)[0] for member in selection.member_ids}),
+            bivariate_run_id=None if bivariate is None else bivariate.run_id,
+            bivariate_status=None if bivariate is None else bivariate.status,
+            multivariate_run_id=None if multivariate is None else multivariate[0],
+            multivariate_status=None if multivariate is None else multivariate[1],
+        )
+
     def project(self, project_id: str, user_id: str) -> ProjectRecord:
         for project in self._projects.list_projects(user_id):
             if project.project_id == project_id:
@@ -257,6 +298,43 @@ on conflict (research_run_id) do update set quote_run_id = excluded.quote_run_id
             self._rows("univariate_selection_rows", "selection_id", selection_id),
             input_count,
         )
+
+    def _current_selection_for_run(self, user_id: str, run_id: str) -> UnivariateSelection | None:
+        row = self._connection.execute(
+            """
+select preference.selection_id
+from portfell_app.current_univariate_selection_preferences as preference
+join portfell_app.univariate_selections as selection
+  on selection.selection_id = preference.selection_id
+where preference.user_id = %s::uuid and selection.source_run_id = %s
+""",
+            (user_id, run_id),
+        ).fetchone()
+        if row is None or len(row) != 1 or not isinstance(row[0], str):
+            return None
+        return self._selection(row[0])
+
+    def _current_multivariate(
+        self, project_id: str, bivariate_run_id: str
+    ) -> tuple[str, Literal["ready", "running", "complete", "failed", "stale"]] | None:
+        row = self._connection.execute(
+            """
+select run.multivariate_run_id, run.status
+from portfell_app.current_multivariate_run_preferences as preference
+join portfell_app.multivariate_runs as run
+  on run.multivariate_run_id = preference.multivariate_run_id
+where preference.project_id = %s::uuid and run.bivariate_run_id = %s
+""",
+            (project_id, bivariate_run_id),
+        ).fetchone()
+        if (
+            row is None
+            or len(row) != 2
+            or not isinstance(row[0], str)
+            or row[1] not in {"ready", "running", "complete", "failed", "stale"}
+        ):
+            return None
+        return row[0], cast(Literal["ready", "running", "complete", "failed", "stale"], row[1])
 
     def _replace_rows(
         self, table: str, id_column: str, row_id: str, user_id: str, rows: tuple[JsonRow, ...]
