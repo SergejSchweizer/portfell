@@ -16,13 +16,16 @@ from portfell.hosted_api_service_support import (
     idempotent_response,
     opaque_id,
     remember_idempotency,
-    require_user_row,
     stable_hash,
 )
 from portfell.hosted_api_state import HostedApiState, SelectionRecord
 from portfell.hosted_credentials import CredentialVaultError, EodhdCredentialVault
 from portfell.hosted_local_project_repository import LocalProjectRepository
 from portfell.hosted_local_selection_repository import LocalSelectionRepository
+from portfell.hosted_quote_lifecycle_repository import (
+    LocalQuoteLifecycleRepository,
+    QuoteLifecycleRepository,
+)
 from portfell.hosted_repository_importer import ProjectRepository, TenantSelection
 from portfell.hosted_selection_repository import SelectionRepository
 from portfell.hosted_workspace_repository import persist_local_workspace
@@ -42,12 +45,14 @@ class QuoteRunService:
         project_repository: ProjectRepository | None = None,
         selection_repository: SelectionRepository | None = None,
         credential_vault: EodhdCredentialVault | None = None,
+        quote_repository: QuoteLifecycleRepository | None = None,
     ) -> None:
         self.state = state
         self.runtime = runtime
         self._projects = project_repository or LocalProjectRepository(state)
         self._selections = selection_repository or LocalSelectionRepository(state)
         self._credentials = credential_vault or state.credential_vault()
+        self._quotes = quote_repository or LocalQuoteLifecycleRepository(state)
 
     def start(
         self,
@@ -82,7 +87,7 @@ class QuoteRunService:
             }
         )
         run_id = opaque_id("fetch-all-quotes", f"{user_id}:{request_hash}")
-        active = self.state.downloads_by_id.get(run_id)
+        active = self._quotes.get(user_id=user_id, run_id=run_id)
         if active is not None and active.status == "running":
             remember_idempotency(
                 self.state, user_id, operation, idempotency_key, active.download_run_id
@@ -106,8 +111,7 @@ class QuoteRunService:
                 "member_ids": list(selection.member_ids),
             },
         )
-        self.state.downloads_by_id[run_id] = run
-        self.state.download_summaries_by_id[run_id] = {
+        progress = {
             "total": len(selection.member_ids) * 3 + 1,
             "completed": 0,
             "failed": 0,
@@ -116,6 +120,7 @@ class QuoteRunService:
             "started_at": time.time(),
             "selected_listing_count": len(selection.member_ids),
         }
+        self._quotes.create(run, progress=progress)
         remember_idempotency(self.state, user_id, operation, idempotency_key, run_id)
         audit(self.state, user_id, "fetch_all_quotes.started")
         return self.status(user_id, run_id), lambda: self.run_quote_fetch(
@@ -123,10 +128,10 @@ class QuoteRunService:
         )
 
     def status(self, user_id: str, run_id: str) -> JsonRow:
-        run = require_user_row(self.state.downloads_by_id, run_id, user_id)
-        return quote_run_row(
-            run, summary=self.state.download_summaries_by_id.get(run.download_run_id)
-        )
+        run = self._quotes.get(user_id=user_id, run_id=run_id)
+        if run is None:
+            raise HostedApplicationError(404, "not_found")
+        return quote_run_row(run, summary=self._quotes.progress(user_id=user_id, run_id=run_id))
 
     def run_quote_fetch(
         self, run: ProviderDownloadRun, selection_id: str, provider_key: str
@@ -138,14 +143,18 @@ class QuoteRunService:
             percent = (
                 min(99, max(1, round((completed / total) * 100))) if completed and total else 0
             )
-            self.state.download_summaries_by_id[run.download_run_id] = {
-                **self.state.download_summaries_by_id[run.download_run_id],
-                "completed": completed,
-                "failed": failed,
-                "percent": percent,
-                "progress": percent,
-                "total": total,
-            }
+            previous = self._quotes.progress(user_id=run.user_id, run_id=run.download_run_id) or {}
+            self._quotes.update(
+                run,
+                progress={
+                    **previous,
+                    "completed": completed,
+                    "failed": failed,
+                    "percent": percent,
+                    "progress": percent,
+                    "total": total,
+                },
+            )
             if time.monotonic() - last_persisted_at >= 5.0:
                 persist_local_workspace(self.state)
                 last_persisted_at = time.monotonic()
@@ -160,13 +169,17 @@ class QuoteRunService:
             )
         except Exception as error:
             LOGGER.exception("Quote download failed for selection %s", selection_id)
-            self.state.downloads_by_id[run.download_run_id] = replace(run, status="failed")
-            self.state.download_summaries_by_id[run.download_run_id] = {
-                **self.state.download_summaries_by_id[run.download_run_id],
-                "percent": 0,
-                "progress": 0,
-                "error_code": f"quote_download_{type(error).__name__.lower()}",
-            }
+            failed_run = replace(run, status="failed")
+            previous = self._quotes.progress(user_id=run.user_id, run_id=run.download_run_id) or {}
+            self._quotes.update(
+                failed_run,
+                progress={
+                    **previous,
+                    "percent": 0,
+                    "progress": 0,
+                    "error_code": f"quote_download_{type(error).__name__.lower()}",
+                },
+            )
             audit(self.state, run.user_id, "fetch_all_quotes.failed")
             return
         scoped_rows = tuple(dict(row) for row in summary.pop("scoped_quote_rows", ()))
@@ -177,14 +190,10 @@ class QuoteRunService:
                 rows_by_listing.setdefault(listing, []).append(row)
             for listing, rows in rows_by_listing.items():
                 self.state.shared_market_data_store.upsert("quotes", listing, rows)
-        progress = self.state.download_summaries_by_id[run.download_run_id]
+        progress = self._quotes.progress(user_id=run.user_id, run_id=run.download_run_id) or {}
         failed = int(progress["failed"])
         completed_run = replace(run, status="partial" if failed else "succeeded")
-        self.state.downloads_by_id[run.download_run_id] = completed_run
-        # Compatibility cache only: persistent consumers read the canonical store.
-        if self.state.shared_market_data_store is None:
-            self.state.quote_rows_by_run_id[run.download_run_id] = scoped_rows
-        self.state.download_summaries_by_id[run.download_run_id] = {
+        terminal_progress = {
             **summary,
             "completed": int(progress["completed"]),
             "failed": failed,
@@ -193,6 +202,10 @@ class QuoteRunService:
             "started_at": float(progress.get("started_at", time.time())),
             "total": int(progress["total"]),
         }
+        self._quotes.update(completed_run, progress=terminal_progress)
+        # Compatibility cache only: persistent consumers read the canonical store.
+        if self.state.shared_market_data_store is None:
+            self.state.quote_rows_by_run_id[run.download_run_id] = scoped_rows
         if completed_run.status == "succeeded":
             publish_user_data_snapshot(store=self.state.entitlements, run=completed_run)
         audit(self.state, run.user_id, "fetch_all_quotes.completed")

@@ -82,6 +82,31 @@ on conflict (user_id, request_hash) do nothing
         ).fetchone()
         return None if row is None else _download_run(row)
 
+    def update(self, run: ProviderDownloadRun, *, progress: JsonRow) -> ProviderDownloadRun:
+        """Persist one owned lifecycle transition and compact progress manifest."""
+
+        self._bind_user(run.user_id)
+        self._connection.execute(
+            """
+update portfell_app.download_runs
+set status = %s, response_manifest = %s::jsonb,
+    finished_at = case when %s in ('succeeded', 'failed', 'partial') then now() else null end
+where download_run_id = %s::uuid
+""",
+            (
+                run.status,
+                _json(
+                    {
+                        "returned_observation_ids": list(run.returned_observation_ids),
+                        "progress": progress,
+                    }
+                ),
+                run.status,
+                run.download_run_id,
+            ),
+        )
+        return run
+
     def _bind_user(self, user_id: str) -> None:
         self._connection.execute(*set_authenticated_user_sql(user_id))
 
