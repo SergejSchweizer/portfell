@@ -648,14 +648,17 @@ repeatable and stop before documented commit points on mismatch.
 
 Branch: `refactor/hosted-credential-vault-injection`.
 
-Git status: pushed; project selection projections and credential commands are moving behind explicit persistence ports. Production authority remains blocked by the required production-like import, parity, backup/restore, and rollback rehearsal.
+Git status: merged. The final hosted runtime cutover merged through PR #326; production authority
+remains blocked by the required production-like import, parity, backup/restore, and rollback
+rehearsal.
 
 PR: https://github.com/SergejSchweizer/portfell/pull/322.
 
 Depends on implementation branch: `refactor/hosted-research-selection-repository` (PR #320).
 
-Prior planning PR: https://github.com/SergejSchweizer/portfell/pull/300 (merged; remaining
-implementation continues through stacked branches).
+Final implementation PR: https://github.com/SergejSchweizer/portfell/pull/326.
+
+Prior planning PR: https://github.com/SergejSchweizer/portfell/pull/300 (merged).
 
 Priority: P0 activate the proven architecture.
 
@@ -699,7 +702,7 @@ one documented commit point and retries cannot recreate legacy authority or dupl
 
 Branch: `chore/install-production-market-refresh-cron`.
 
-Git status: not started. PR: TBD.
+Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/327.
 
 Priority: P0 complete the production operations rollout.
 
