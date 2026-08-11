@@ -13,7 +13,8 @@ def _root(tmp_path: Path) -> Path:
 
 
 def test_data_root_preflight_accepts_one_canonical_writable_tree(tmp_path: Path) -> None:
-    checks = validate_data_root(_root(tmp_path), minimum_free_bytes=0)
+    root = _root(tmp_path)
+    checks = validate_data_root(root, minimum_free_bytes=0, expected_root=root)
 
     assert all(check.passed for check in checks)
 
@@ -23,7 +24,7 @@ def test_data_root_preflight_rejects_missing_or_symlinked_directories(tmp_path: 
     (root / "lake").rmdir()
     (root / "lake").symlink_to(tmp_path)
 
-    checks = validate_data_root(root, minimum_free_bytes=0)
+    checks = validate_data_root(root, minimum_free_bytes=0, expected_root=root)
 
     assert not {check.name for check in checks if check.passed} >= {
         "lake_exists",
@@ -35,3 +36,13 @@ def test_data_root_preflight_requires_an_absolute_existing_root(tmp_path: Path) 
     checks = validate_data_root(Path("relative-root"), minimum_free_bytes=0)
 
     assert {check.name for check in checks if not check.passed} == {"absolute", "exists"}
+
+
+def test_data_root_preflight_rejects_an_unapproved_absolute_root(tmp_path: Path) -> None:
+    root = _root(tmp_path)
+
+    checks = validate_data_root(
+        root, minimum_free_bytes=0, expected_root=Path("/volume2/docker/portfell")
+    )
+
+    assert "approved_root" in {check.name for check in checks if not check.passed}

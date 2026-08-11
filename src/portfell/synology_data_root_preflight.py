@@ -19,11 +19,14 @@ class DataRootCheck:
     passed: bool
 
 
-def validate_data_root(root: Path, *, minimum_free_bytes: int) -> tuple[DataRootCheck, ...]:
+def validate_data_root(
+    root: Path, *, minimum_free_bytes: int, expected_root: Path | None = None
+) -> tuple[DataRootCheck, ...]:
     """Verify one absolute, non-symlinked root is ready before Compose mutation."""
 
     checks: list[DataRootCheck] = [
         DataRootCheck("absolute", root.is_absolute()),
+        DataRootCheck("approved_root", expected_root is None or root == expected_root),
         DataRootCheck("exists", root.is_dir()),
         DataRootCheck("not_symlink", not root.is_symlink()),
     ]
@@ -65,8 +68,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     parser.add_argument("--root", type=Path, default=Path(os.environ.get("PORTFELL_DATA_ROOT", "")))
     parser.add_argument("--minimum-free-gib", type=int, default=20)
+    parser.add_argument("--expected-root", type=Path, default=Path("/volume2/docker/portfell"))
     args = parser.parse_args(argv)
-    checks = validate_data_root(args.root, minimum_free_bytes=args.minimum_free_gib * 1024**3)
+    checks = validate_data_root(
+        args.root,
+        minimum_free_bytes=args.minimum_free_gib * 1024**3,
+        expected_root=args.expected_root,
+    )
     print(
         json.dumps(
             {
