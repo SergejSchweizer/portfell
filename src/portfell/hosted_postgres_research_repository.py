@@ -10,6 +10,7 @@ from collections.abc import Callable, Mapping
 from typing import Protocol, cast
 
 from portfell.entitlements import ProviderDownloadRun
+from portfell.hosted_analysis_record_repository import AnalysisRecordRepository
 from portfell.hosted_api_errors import HostedApplicationError
 from portfell.hosted_api_state import AnalysisRecord, ProjectRecord, SelectionRecord
 from portfell.hosted_catalog import set_authenticated_user_sql
@@ -45,12 +46,14 @@ class PostgresResearchRepository:
         selections: SelectionRepository,
         quotes: QuoteLifecycleRepository,
         quote_rows: QuoteRowsReader,
+        analyses: AnalysisRecordRepository,
     ) -> None:
         self._connection = connection
         self._projects = projects
         self._selections = selections
         self._quotes = quotes
         self._quote_rows = quote_rows
+        self._analyses = analyses
 
     def metadata_selection(self, selection_id: str, user_id: str) -> SelectionRecord:
         selection = self._selections.by_id(selection_id=selection_id, user_id=user_id)
@@ -164,10 +167,13 @@ on conflict (research_run_id) do update set quote_run_id = excluded.quote_run_id
         raise HostedApplicationError(404, "not_found")
 
     def analysis(self, run_id: str, user_id: str) -> AnalysisRecord:
-        raise HostedApplicationError(404, "not_found")
+        analysis = self._analyses.get(user_id=user_id, run_id=run_id)
+        if analysis is None:
+            raise HostedApplicationError(404, "not_found")
+        return analysis
 
     def save_analysis(self, analysis: AnalysisRecord) -> None:
-        raise RuntimeError("analysis_artifacts_not_configured")
+        self._analyses.save(analysis)
 
     def cached_id(self, user_id: str, operation: str, key: str | None) -> str | None:
         if key is None:

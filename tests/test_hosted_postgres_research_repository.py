@@ -40,6 +40,15 @@ class _Quotes:
         return None
 
 
+class _Analyses:
+    def get(self, *, user_id: str, run_id: str) -> None:
+        del user_id, run_id
+        return None
+
+    def save(self, record: object) -> object:
+        return record
+
+
 def _repository(connection: _Connection) -> PostgresResearchRepository:
     return PostgresResearchRepository(
         connection,
@@ -47,6 +56,7 @@ def _repository(connection: _Connection) -> PostgresResearchRepository:
         selections=_Selections(),  # type: ignore[arg-type]
         quotes=_Quotes(),  # type: ignore[arg-type]
         quote_rows=lambda _: (),
+        analyses=_Analyses(),  # type: ignore[arg-type]
     )
 
 

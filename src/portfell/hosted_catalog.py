@@ -8,6 +8,7 @@ import hashlib
 from dataclasses import dataclass
 from typing import Protocol
 
+from portfell.analysis_lifecycle_schema import ANALYSIS_LIFECYCLE_SCHEMA_SQL
 from portfell.hosted_download_run_schema import DOWNLOAD_RUN_PARTIAL_STATUS_SQL
 from portfell.legacy_import_schema import LEGACY_IMPORT_LEDGER_SQL
 from portfell.metadata_lifecycle_schema import METADATA_LIFECYCLE_SCHEMA_SQL
@@ -483,6 +484,7 @@ MIGRATIONS: tuple[HostedMigration, ...] = (
     HostedMigration(11, "durable_research_lifecycle", RESEARCH_LIFECYCLE_SCHEMA_SQL),
     HostedMigration(12, "durable_project_settings", PROJECT_SETTINGS_SCHEMA_SQL),
     HostedMigration(13, "durable_multivariate_lifecycle", MULTIVARIATE_LIFECYCLE_SCHEMA_SQL),
+    HostedMigration(14, "durable_analysis_records", ANALYSIS_LIFECYCLE_SCHEMA_SQL),
 )
 
 
