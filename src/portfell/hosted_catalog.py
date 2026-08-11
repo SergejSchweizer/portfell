@@ -485,14 +485,7 @@ MIGRATIONS: tuple[HostedMigration, ...] = (
 
 
 def create_role_sql(role: HostedRole) -> str:
-    """Return idempotent SQL for one hosted database role.
-
-    Args:
-        role: Hosted role contract to materialize.
-
-    Returns:
-        PostgreSQL DO block that creates the role without BYPASSRLS.
-    """
+    """Return idempotent role SQL without BYPASSRLS."""
 
     bypass_rls = "bypassrls" if role.can_bypass_rls else "nobypassrls"
     return f"""
@@ -510,29 +503,13 @@ def migration_plan() -> tuple[HostedMigration, ...]:
 
 
 def set_authenticated_user_sql(user_id: str) -> tuple[str, tuple[object, ...]]:
-    """Return SQL that binds a transaction-local authenticated user id.
-
-    Args:
-        user_id: Authenticated internal Portfell user id.
-
-    Returns:
-        SQL and parameters suitable for a database driver's execute method.
-    """
+    """Bind the authenticated user to the current database transaction."""
 
     return "select set_config(%s, %s, true)", (AUTHENTICATED_USER_SETTING, user_id)
 
 
 def apply_hosted_catalog_migrations(connection: CatalogConnection) -> int:
-    """Apply the hosted catalog role and schema migrations.
-
-    Args:
-        connection: Database connection implementing the minimal execution protocol.
-
-    Side Effects:
-        Executes deterministic idempotent role creation and schema migration SQL.
-
-    Returns: Number of newly applied catalog migrations.
-    """
+    """Apply the hosted catalog roles and migrations once."""
 
     for role in HOSTED_ROLES:
         connection.execute(create_role_sql(role))
@@ -566,11 +543,7 @@ values (%s, %s, %s)
 
 
 def validate_hosted_catalog_contracts() -> None:
-    """Validate static hosted catalog invariants.
-
-    Raises:
-        ValueError: If a role, table, or migration contract violates hosted security rules.
-    """
+    """Validate static hosted catalog invariants."""
 
     if any(role.can_bypass_rls for role in HOSTED_ROLES):
         raise ValueError("hosted roles must not bypass RLS")
