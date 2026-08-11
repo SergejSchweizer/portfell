@@ -35,6 +35,7 @@ Required check families:
 - Hosted public-repository security gates.
 - Hosted readiness records for licensing, privacy, retention, backup, restore, and key rotation.
 - Pyright strict typing.
+- Playwright interaction-inventory tests on desktop, tablet, and mobile.
 - Pytest Unit and Integration shards.
 - Coverage threshold enforcement on `main`.
 - Architecture checks.
@@ -109,6 +110,11 @@ pr-quality
     +-- pr-type-quality
     |       pyright
     |
+    +-- pr-web-interactions
+    |       npm run build && npm run e2e
+    |       desktop, tablet, and mobile interaction manifest
+    |       traces, screenshots, and videos retained only on failure
+    |
     +-- pr-unit-tests-[1..4]
     |       scripts/pytest_shard.py --suite unit --shard-index N --shard-count 4 -- -q -n auto
     |
@@ -123,6 +129,7 @@ Local equivalent:
 
 ```bash
 uv run portfell-quality pr
+cd apps/web && npm run e2e
 ```
 
 Release cutover can require the stricter public-hosted readiness mode:
@@ -201,6 +208,10 @@ merge-gate
     |
     +-- merge-type-quality
     |       pyright
+    |
+    +-- merge-web-interactions
+    |       npm run build && npm run e2e
+    |       desktop, tablet, and mobile interaction manifest
     |
     +-- merge-unit-tests-[1..4]
     |       scripts/pytest_shard.py --suite unit --shard-index N --shard-count 4 -- -q -n auto
@@ -319,3 +330,4 @@ Update `GATES.md` whenever any of these change:
 - branch protection required check names
 - local pre-commit gate behavior
 - shard count, coverage threshold, or required quality tools
+- browser version, interaction manifest, or browser-artifact retention policy

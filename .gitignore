@@ -32,6 +32,7 @@ apps/**/node_modules/
 apps/**/dist/
 apps/**/.vite/
 apps/**/coverage/
+apps/**/test-results/
 !GATES.md
 
 # Public examples are allowed; local secrets stay ignored.
