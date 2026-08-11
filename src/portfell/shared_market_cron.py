@@ -8,10 +8,14 @@ import subprocess
 from collections.abc import Sequence
 from pathlib import Path
 
+from portfell.synology_data_root_preflight import validate_data_root
+
 BEGIN_MARKER = "# BEGIN PORTFELL SHARED MARKET REFRESH"
 END_MARKER = "# END PORTFELL SHARED MARKET REFRESH"
 SCHEDULE = "15 2 * * *"
 TIMEZONE = "Europe/Amsterdam"
+PRODUCTION_DATA_ROOT = Path("/volume2/docker/portfell")
+PRODUCTION_LOG_NAME = "shared-market-refresh.log"
 
 
 def cron_block(project_root: Path, log_path: Path) -> str:
@@ -20,10 +24,13 @@ def cron_block(project_root: Path, log_path: Path) -> str:
     root = _absolute(project_root, "project root")
     log = _absolute(log_path, "log path")
     lock_path = root / ".shared-market-refresh.cron.lock"
-    command = (
-        f"/usr/bin/flock -n {lock_path} /usr/bin/docker compose --project-directory {root} "
-        f"--env-file {root / '.env.local'} --profile operations run --rm --no-deps "
-        f"shared-market-refresh >> {log} 2>&1"
+    command = " ".join(
+        (
+            f"/usr/bin/flock -n {lock_path}",
+            *_compose_command(root),
+            "--profile operations run --rm --no-deps shared-market-refresh",
+            f">> {log} 2>&1",
+        )
     )
     return "\n".join(
         (
@@ -61,8 +68,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     parser.add_argument("action", choices=("install", "status", "run-once", "uninstall"))
     parser.add_argument("--project-root", type=Path, default=Path.cwd())
+    parser.add_argument("--data-root", type=Path, default=PRODUCTION_DATA_ROOT)
     parser.add_argument(
-        "--log-path", type=Path, default=Path("/var/log/portfell/shared-market-refresh.log")
+        "--log-path",
+        type=Path,
+        default=PRODUCTION_DATA_ROOT / "logs" / PRODUCTION_LOG_NAME,
     )
     args = parser.parse_args(argv)
     root = _absolute(args.project_root, "project root")
@@ -70,6 +80,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not (root / "compose.yaml").is_file():
         raise SystemExit("project root must contain compose.yaml")
     if args.action == "run-once":
+        _validate_production_paths(args.data_root, log_path)
         return _run_once(root, log_path)
     current = _read_crontab()
     installed = BEGIN_MARKER in current and END_MARKER in current
@@ -78,6 +89,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0 if installed else 1
     replacement = cron_block(root, log_path) if args.action == "install" else None
     if args.action == "install":
+        _validate_production_paths(args.data_root, log_path)
         _compose_config(root)
         _run_once(root, log_path, dry_run=True)
     _write_crontab(replace_managed_block(current, replacement))
@@ -86,12 +98,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 def _run_once(project_root: Path, log_path: Path, *, dry_run: bool = False) -> int:
     command = [
-        "/usr/bin/docker",
-        "compose",
-        "--project-directory",
-        str(project_root),
-        "--env-file",
-        str(project_root / ".env.local"),
+        *_compose_command(project_root),
         "--profile",
         "operations",
         "run",
@@ -101,7 +108,6 @@ def _run_once(project_root: Path, log_path: Path, *, dry_run: bool = False) -> i
     ]
     if dry_run:
         command.append("--dry-run")
-    log_path.parent.mkdir(parents=True, exist_ok=True)
     with log_path.open("a", encoding="utf-8") as log:
         return subprocess.run(command, check=False, stdout=log, stderr=subprocess.STDOUT).returncode
 
@@ -109,12 +115,7 @@ def _run_once(project_root: Path, log_path: Path, *, dry_run: bool = False) -> i
 def _compose_config(project_root: Path) -> None:
     subprocess.run(
         [
-            "/usr/bin/docker",
-            "compose",
-            "--project-directory",
-            str(project_root),
-            "--env-file",
-            str(project_root / ".env.local"),
+            *_compose_command(project_root),
             "config",
         ],
         check=True,
@@ -135,6 +136,37 @@ def _absolute(path: Path, name: str) -> Path:
     if not resolved.is_absolute():
         raise ValueError(f"{name} must be absolute")
     return resolved
+
+
+def _compose_command(project_root: Path) -> tuple[str, ...]:
+    """Return the absolute production Compose invocation shared by cron paths."""
+
+    return (
+        "/usr/bin/docker",
+        "compose",
+        "--project-directory",
+        str(project_root),
+        "--env-file",
+        str(project_root / ".env.local"),
+        "-f",
+        str(project_root / "compose.yaml"),
+        "-f",
+        str(project_root / "compose.production.yaml"),
+    )
+
+
+def _validate_production_paths(data_root: Path, log_path: Path) -> None:
+    """Reject a cron mutation or refresh outside the one approved bind root."""
+
+    root = _absolute(data_root, "data root")
+    expected_log = root / "logs" / PRODUCTION_LOG_NAME
+    if log_path != expected_log:
+        raise ValueError(f"log path must be {expected_log}")
+    checks = validate_data_root(
+        root, minimum_free_bytes=20 * 1024**3, expected_root=PRODUCTION_DATA_ROOT
+    )
+    if not all(check.passed for check in checks):
+        raise ValueError("production data-root preflight failed")
 
 
 if __name__ == "__main__":

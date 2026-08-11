@@ -18,17 +18,20 @@ checks using [DOCKER.md](../DOCKER.md) first. From the absolute repository
 root, run the refresh-specific steps:
 
 ```bash
+export PORTFELL_ROOT=/home/dev_portfell/portfell
+export PORTFELL_DATA_ROOT=/volume2/docker/portfell
+portfell-synology-data-root-preflight --root "$PORTFELL_DATA_ROOT"
 portfell-refresh-shared-market-data --dry-run
-portfell-shared-market-cron run-once --project-root "$(pwd)"
-portfell-shared-market-cron install --project-root "$(pwd)"
-portfell-shared-market-cron status --project-root "$(pwd)"
+portfell-shared-market-cron run-once --project-root "$PORTFELL_ROOT" --data-root "$PORTFELL_DATA_ROOT"
+portfell-shared-market-cron install --project-root "$PORTFELL_ROOT" --data-root "$PORTFELL_DATA_ROOT"
+portfell-shared-market-cron status --project-root "$PORTFELL_ROOT" --data-root "$PORTFELL_DATA_ROOT"
 crontab -l
 ```
 
-`run-once` writes operational output to `/var/log/portfell/shared-market-refresh.log`
-by default. Configure host log rotation for that file. The installer validates
-Compose configuration and a refresh dry run before replacing only its delimited
-crontab block.
+`run-once` writes operational output to
+`/volume2/docker/portfell/logs/shared-market-refresh.log`. The installer uses
+both `compose.yaml` and `compose.production.yaml`, validates the final bind root
+and a refresh dry run before replacing only its delimited crontab block.
 
 ## Schedule And Recovery
 

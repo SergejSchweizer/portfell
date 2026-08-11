@@ -23,6 +23,8 @@ def test_cron_block_uses_the_operations_service_without_secret_values(tmp_path: 
     assert f"CRON_TZ={TIMEZONE}" in block
     assert block.count(SCHEDULE) == 1
     assert "/usr/bin/flock -n" in block
+    assert "-f /" in block
+    assert "compose.production.yaml" in block
     assert "--profile operations run --rm --no-deps shared-market-refresh" in block
     assert "EODHD" not in block and "KEK" not in block
 
@@ -48,11 +50,14 @@ def test_main_installs_statuses_and_uninstalls_only_the_managed_block(
     root = tmp_path / "project"
     root.mkdir()
     (root / "compose.yaml").touch()
-    log_path = tmp_path / "logs" / "refresh.log"
+    (root / "compose.production.yaml").touch()
+    data_root = tmp_path / "portfell"
+    log_path = data_root / "logs" / "shared-market-refresh.log"
     crontab = "MAILTO=ops@example.test\n"
     calls: list[str] = []
 
     monkeypatch.setattr(cron, "_read_crontab", lambda: crontab)
+    monkeypatch.setattr(cron, "_validate_production_paths", lambda _root, _log: None)
     monkeypatch.setattr(cron, "_compose_config", lambda _: calls.append("config"))
     monkeypatch.setattr(
         cron, "_run_once", lambda _root, _log, *, dry_run=False: calls.append(f"run:{dry_run}") or 0
@@ -60,15 +65,16 @@ def test_main_installs_statuses_and_uninstalls_only_the_managed_block(
     written: list[str] = []
     monkeypatch.setattr(cron, "_write_crontab", written.append)
 
-    assert cron.main(["install", "--project-root", str(root), "--log-path", str(log_path)]) == 0
+    args = ["--project-root", str(root), "--data-root", str(data_root), "--log-path", str(log_path)]
+    assert cron.main(["install", *args]) == 0
     assert calls == ["config", "run:True"]
     assert BEGIN_MARKER in written[-1]
     installed = written[-1]
     monkeypatch.setattr(cron, "_read_crontab", lambda: installed)
 
-    assert cron.main(["status", "--project-root", str(root)]) == 0
+    assert cron.main(["status", *args]) == 0
     assert '"installed": true' in capsys.readouterr().out
-    assert cron.main(["uninstall", "--project-root", str(root)]) == 0
+    assert cron.main(["uninstall", *args]) == 0
     assert written[-1] == crontab
 
 
@@ -78,6 +84,7 @@ def test_cron_subprocess_helpers_and_missing_project_are_safe(
     root = tmp_path / "project"
     root.mkdir()
     log_path = tmp_path / "logs" / "refresh.log"
+    log_path.parent.mkdir()
     commands: list[tuple[list[str], dict[str, object]]] = []
 
     def fake_run(command: list[str], **kwargs: object) -> SimpleNamespace:
@@ -95,3 +102,21 @@ def test_cron_subprocess_helpers_and_missing_project_are_safe(
 
     with pytest.raises(SystemExit, match="compose.yaml"):
         cron.main(["status", "--project-root", str(tmp_path / "missing")])
+
+
+def test_production_paths_require_the_final_bind_root_log_path(tmp_path: Path) -> None:
+    root = tmp_path / "portfell"
+    root.mkdir()
+    log_path = root / "logs" / "different.log"
+
+    with pytest.raises(ValueError, match="log path"):
+        cron._validate_production_paths(root, log_path)
+
+
+def test_production_paths_reject_an_unapproved_data_root(tmp_path: Path) -> None:
+    root = tmp_path / "portfell"
+    root.mkdir()
+    log_path = root / "logs" / cron.PRODUCTION_LOG_NAME
+
+    with pytest.raises(ValueError, match="preflight"):
+        cron._validate_production_paths(root, log_path)
