@@ -38,6 +38,7 @@ services:
           memory: 1G
 
   api:
+    container_name: portfell-api
     build:
       context: .
       dockerfile: apps/api/Dockerfile

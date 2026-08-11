@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from portfell.analysis_lifecycle_schema import ANALYSIS_LIFECYCLE_SCHEMA_SQL
+from portfell.catalog_contract_validation import validate_catalog_contracts
 from portfell.hosted_download_run_schema import DOWNLOAD_RUN_PARTIAL_STATUS_SQL
 from portfell.legacy_import_schema import LEGACY_IMPORT_LEDGER_SQL
 from portfell.metadata_lifecycle_schema import METADATA_LIFECYCLE_SCHEMA_SQL
@@ -556,19 +557,4 @@ values (%s, %s, %s)
 
 def validate_hosted_catalog_contracts() -> None:
     """Validate static hosted catalog invariants."""
-
-    if any(role.can_bypass_rls for role in HOSTED_ROLES):
-        raise ValueError("hosted roles must not bypass RLS")
-    runtime_roles = {"portfell_app", "portfell_worker", "portfell_readonly"}
-    if any(role.owns_tables for role in HOSTED_ROLES if role.name in runtime_roles):
-        raise ValueError("runtime roles must not own tables")
-    versions = [migration.version for migration in MIGRATIONS]
-    if versions != sorted(set(versions)):
-        raise ValueError("migration versions must be unique and ordered")
-    user_scoped = [table for table in HOSTED_TABLES if table.user_scoped]
-    if not user_scoped:
-        raise ValueError("at least one user-scoped table is required")
-    sql = "\n".join(migration.sql.lower() for migration in MIGRATIONS)
-    for forbidden in ("plaintext", "api_token", "eodhd_token", "bypassrls"):
-        if forbidden in sql:
-            raise ValueError(f"forbidden hosted catalog token present: {forbidden}")
+    validate_catalog_contracts(roles=HOSTED_ROLES, tables=HOSTED_TABLES, migrations=MIGRATIONS)

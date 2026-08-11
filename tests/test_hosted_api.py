@@ -460,7 +460,7 @@ def test_quote_run_downloads_only_the_metadata_builder_selection(monkeypatch: An
         }
 
     monkeypatch.setattr(
-        "portfell.hosted_api.run_fetch_all_quotes_workflow",
+        "portfell.hosted_local_test_composition.run_fetch_all_quotes_workflow",
         fake_fetch_all_quotes_workflow,
     )
     state = HostedApiState(
@@ -532,7 +532,7 @@ def test_quote_run_progress_is_visible_after_the_first_completed_task(
         }
 
     monkeypatch.setattr(
-        "portfell.hosted_api.run_fetch_all_quotes_workflow",
+        "portfell.hosted_local_test_composition.run_fetch_all_quotes_workflow",
         fake_fetch_all_quotes_workflow,
     )
 
@@ -580,7 +580,7 @@ def test_quote_run_mutation_reuses_a_running_run(
         }
 
     monkeypatch.setattr(
-        "portfell.hosted_api.run_fetch_all_quotes_workflow",
+        "portfell.hosted_local_test_composition.run_fetch_all_quotes_workflow",
         fake_fetch_all_quotes_workflow,
     )
     client = _client(state)
@@ -1257,7 +1257,9 @@ def test_bivariate_statistics_restore_quotes_from_the_persistent_lake(
             json={"univariate_selection_id": filtered.selection_id},
         )
     )
-    hosted_api._research_service(state, hosted_api._runtime()).complete_bivariate(
+    from portfell.hosted_local_test_composition import local_research_service, local_runtime
+
+    local_research_service(state, local_runtime()).complete_bivariate(
         DEFAULT_LOCAL_WORKSPACE_USER_ID, filtered.selection_id
     )
     completed = _json(

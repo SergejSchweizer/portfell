@@ -35,6 +35,7 @@ def test_compose_defines_persistent_internal_postgres_and_shared_data() -> None:
     assert "5432" in postgres["expose"]
     assert "portfell-postgres-data:/var/lib/postgresql/data" in postgres["volumes"]
     assert "portfell-shared-data:/srv/portfell/shared-data" in api["volumes"]
+    assert api["container_name"] == "portfell-api"
     assert "./lake:/srv/portfell/lake" not in api["volumes"]
     assert api["environment"]["PORTFELL_HOSTED_AUTHORITY"] == "postgres"
     assert api["environment"]["PORTFELL_DATABASE_PASSWORD_FILE"] == "/run/secrets/postgres_password"
