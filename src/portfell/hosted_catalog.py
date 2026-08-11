@@ -15,7 +15,6 @@ from portfell.metadata_lifecycle_schema import METADATA_LIFECYCLE_SCHEMA_SQL
 from portfell.multivariate_lifecycle_schema import MULTIVARIATE_LIFECYCLE_SCHEMA_SQL
 from portfell.project_settings_schema import PROJECT_SETTINGS_SCHEMA_SQL
 from portfell.research_lifecycle_schema import RESEARCH_LIFECYCLE_SCHEMA_SQL
-from portfell.shared_market_postgres_schema import SHARED_MARKET_POSTGRES_SCHEMA_SQL
 from portfell.tenant_control_schema import (
     D017_DURABLE_JOB_SCHEMA_SQL,
     D017_ROLE_SPECS,
@@ -486,7 +485,6 @@ MIGRATIONS: tuple[HostedMigration, ...] = (
     HostedMigration(12, "durable_project_settings", PROJECT_SETTINGS_SCHEMA_SQL),
     HostedMigration(13, "durable_multivariate_lifecycle", MULTIVARIATE_LIFECYCLE_SCHEMA_SQL),
     HostedMigration(14, "durable_analysis_records", ANALYSIS_LIFECYCLE_SCHEMA_SQL),
-    HostedMigration(15, "shared_market_postgres_artifacts", SHARED_MARKET_POSTGRES_SCHEMA_SQL),
 )
 
 
