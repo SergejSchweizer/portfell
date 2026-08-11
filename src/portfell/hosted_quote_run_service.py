@@ -13,14 +13,16 @@ from portfell.hosted_api_errors import HostedApplicationError
 from portfell.hosted_api_ports import HostedRuntimePort
 from portfell.hosted_api_serializers import quote_run_row
 from portfell.hosted_api_service_support import (
-    idempotent_response,
     opaque_id,
-    remember_idempotency,
     stable_hash,
 )
 from portfell.hosted_api_state import HostedApiState, SelectionRecord
 from portfell.hosted_audit_event_repository import AuditEventRepository, HostedAuditEvent
 from portfell.hosted_credentials import CredentialVaultError, EodhdCredentialVault
+from portfell.hosted_idempotency_repository import (
+    IdempotencyRepository,
+    LocalIdempotencyRepository,
+)
 from portfell.hosted_local_audit_event_repository import LocalAuditEventRepository
 from portfell.hosted_local_project_repository import LocalProjectRepository
 from portfell.hosted_local_selection_repository import LocalSelectionRepository
@@ -49,6 +51,7 @@ class QuoteRunService:
         credential_vault: EodhdCredentialVault | None = None,
         quote_repository: QuoteLifecycleRepository | None = None,
         audit_repository: AuditEventRepository | None = None,
+        idempotency_repository: IdempotencyRepository | None = None,
     ) -> None:
         self.state = state
         self.runtime = runtime
@@ -57,6 +60,7 @@ class QuoteRunService:
         self._credentials = credential_vault or state.credential_vault()
         self._quotes = quote_repository or LocalQuoteLifecycleRepository(state)
         self._audit_events = audit_repository or LocalAuditEventRepository(state)
+        self._idempotency = idempotency_repository or LocalIdempotencyRepository(state)
 
     def start(
         self,
@@ -74,15 +78,6 @@ class QuoteRunService:
         else:
             raise HostedApplicationError(422, "metadata_selection_required")
         self._require_project(user_id, project_id)
-        operation = f"fetch-all-quotes:{project_id}"
-        cached = idempotent_response(
-            self.state,
-            user_id=user_id,
-            operation=operation,
-            idempotency_key=idempotency_key,
-        )
-        if cached is not None:
-            return self.status(user_id, cached), None
         request_hash = stable_hash(
             {
                 "project_id": project_id,
@@ -90,11 +85,24 @@ class QuoteRunService:
                 "member_ids": list(selection.member_ids),
             }
         )
+        operation = f"fetch-all-quotes:{project_id}"
+        cached = self._idempotency.lookup(
+            user_id=user_id,
+            operation=operation,
+            key=idempotency_key,
+            request_hash=request_hash,
+        )
+        if cached is not None:
+            return self.status(user_id, cached), None
         run_id = opaque_id("fetch-all-quotes", f"{user_id}:{request_hash}")
         active = self._quotes.get(user_id=user_id, run_id=run_id)
         if active is not None and active.status == "running":
-            remember_idempotency(
-                self.state, user_id, operation, idempotency_key, active.download_run_id
+            self._idempotency.remember(
+                user_id=user_id,
+                operation=operation,
+                key=idempotency_key,
+                request_hash=request_hash,
+                response_ref=active.download_run_id,
             )
             return self.status(user_id, active.download_run_id), None
         try:
@@ -126,7 +134,13 @@ class QuoteRunService:
             "selected_listing_count": len(selection.member_ids),
         }
         self._quotes.create(run, progress=progress)
-        remember_idempotency(self.state, user_id, operation, idempotency_key, run_id)
+        self._idempotency.remember(
+            user_id=user_id,
+            operation=operation,
+            key=idempotency_key,
+            request_hash=request_hash,
+            response_ref=run_id,
+        )
         self._audit(user_id, "fetch_all_quotes.started")
         return self.status(user_id, run_id), lambda: self.run_quote_fetch(
             run, selection.selection_id, provider_key
