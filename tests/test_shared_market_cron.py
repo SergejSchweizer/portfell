@@ -95,7 +95,8 @@ def test_cron_subprocess_helpers_and_missing_project_are_safe(
     monkeypatch.setattr(cron.subprocess, "run", fake_run)
     assert cron._run_once(root, log_path, dry_run=True) == 0
     cron._compose_config(root)
-    assert "--dry-run" in commands[0][0]
+    assert commands[0][0][len(cron._compose_command(root))] == "--dry-run"
+    assert commands[0][0][-1] == "shared-market-refresh"
     assert commands[1][0][-1] == "config"
     assert cron._read_crontab() == "existing"
     cron._write_crontab("managed\n")

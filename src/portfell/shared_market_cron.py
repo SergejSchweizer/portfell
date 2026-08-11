@@ -99,17 +99,22 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 def _run_once(project_root: Path, log_path: Path, *, dry_run: bool = False) -> int:
-    command = [
-        *_compose_command(project_root),
+    command = [*_compose_command(project_root)]
+    if dry_run:
+        # This is a Docker Compose global option.  Passing it after the service
+        # name turns it into the container command and can leave a failed
+        # one-off container behind instead of validating the cron contract.
+        command.append("--dry-run")
+    command.extend(
+        (
         "--profile",
         "operations",
         "run",
         "--rm",
         "--no-deps",
         "shared-market-refresh",
-    ]
-    if dry_run:
-        command.append("--dry-run")
+        )
+    )
     with log_path.open("a", encoding="utf-8") as log:
         return subprocess.run(command, check=False, stdout=log, stderr=subprocess.STDOUT).returncode
 
