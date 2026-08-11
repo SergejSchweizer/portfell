@@ -87,6 +87,7 @@ def test_project_initial_fill_worker_is_internal_and_operations_credential_only(
     assert worker["secrets"] == ["operations_eodhd_token", "postgres_password"]
     assert worker["volumes"] == ["portfell-shared-data:/srv/portfell/shared-data"]
     assert worker["networks"] == ["portfell-internal"]
+    assert worker["group_add"] == ["${PORTFELL_SECRET_GROUP_ID:-100}"]
     assert "ports" not in worker
 
 
