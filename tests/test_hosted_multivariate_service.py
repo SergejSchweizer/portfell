@@ -13,6 +13,7 @@ from portfell.hosted_repository_importer import (
     TenantProject,
     TenantSelection,
 )
+from portfell.hosted_research_repository import HostedResearchRepository
 from portfell.hosted_research_workflow import (
     ResearchRun,
     UnivariateSelection,
@@ -49,6 +50,12 @@ class _Persistence:
 
     def persist(self) -> None:
         self.persisted += 1
+
+
+def _service(
+    state: HostedApiState, data: _Data, persistence: _Persistence
+) -> MultivariateResearchService:
+    return MultivariateResearchService(state, data, persistence, HostedResearchRepository(state))
 
 
 def _fixtures() -> tuple[HostedApiState, _Data, str, str]:
@@ -137,7 +144,7 @@ def _fixtures() -> tuple[HostedApiState, _Data, str, str]:
 def test_multivariate_service_resolves_pinned_project_dependencies_and_persists_result() -> None:
     state, data, project_id, bivariate_run_id = _fixtures()
     persistence = _Persistence()
-    service = MultivariateResearchService(state, data, persistence)
+    service = _service(state, data, persistence)
 
     plan = service.plan("user-a", project_id, bivariate_run_id, {})
     assert plan["allowed"] is True
@@ -196,7 +203,7 @@ def test_multivariate_service_rejects_bivariate_run_owned_by_another_user() -> N
     state.bivariate_runs_by_id[bivariate_run_id] = ResearchRun(
         bivariate_run_id, "user-b", "source", "complete", (), 1, 1
     )
-    service = MultivariateResearchService(state, data, _Persistence())
+    service = _service(state, data, _Persistence())
 
     try:
         service.start("user-a", project_id, bivariate_run_id, {})
@@ -226,6 +233,9 @@ def test_multivariate_plan_authorizes_an_injected_project_repository() -> None:
         state,
         data,
         _Persistence(),
+        HostedResearchRepository(
+            state, project_repository=repository, selection_repository=selections
+        ),
         project_repository=repository,
         selection_repository=selections,
     )
@@ -240,7 +250,7 @@ def test_multivariate_artifacts_and_project_selection_survive_workspace_restart(
     state, data, project_id, bivariate_run_id = _fixtures()
     store = LocalWorkspaceStore(tmp_path / "workspace.json")
     state.workspace_store = store
-    service = MultivariateResearchService(state, data, _Persistence())
+    service = _service(state, data, _Persistence())
     started = service.start("user-a", project_id, bivariate_run_id, {})
     service.complete("user-a", str(started["run_id"]))
     candidate_id = str(
@@ -262,7 +272,7 @@ def test_multivariate_artifacts_and_project_selection_survive_workspace_restart(
 def test_multivariate_service_covers_idempotency_stale_and_error_boundaries() -> None:
     state, data, project_id, bivariate_run_id = _fixtures()
     persistence = _Persistence()
-    service = MultivariateResearchService(state, data, persistence)
+    service = _service(state, data, persistence)
 
     state.bivariate_runs_by_id[bivariate_run_id] = ResearchRun(
         bivariate_run_id,
@@ -316,7 +326,7 @@ def test_multivariate_service_covers_idempotency_stale_and_error_boundaries() ->
 
 def test_multivariate_service_rejects_missing_dependency_closure_and_marks_failures() -> None:
     state, data, project_id, bivariate_run_id = _fixtures()
-    service = MultivariateResearchService(state, data, _Persistence())
+    service = _service(state, data, _Persistence())
     state.univariate_selections_by_id.clear()
     try:
         service.plan("user-a", project_id, bivariate_run_id, {})
@@ -326,7 +336,7 @@ def test_multivariate_service_rejects_missing_dependency_closure_and_marks_failu
         raise AssertionError("a bivariate run needs exactly one matching selection")
 
     state, data, project_id, bivariate_run_id = _fixtures()
-    service = MultivariateResearchService(state, data, _Persistence())
+    service = _service(state, data, _Persistence())
     state.selections_by_id.clear()
     try:
         service.plan("user-a", project_id, bivariate_run_id, {})
@@ -336,7 +346,7 @@ def test_multivariate_service_rejects_missing_dependency_closure_and_marks_failu
         raise AssertionError("a project needs exactly one metadata selection")
 
     state, data, project_id, bivariate_run_id = _fixtures()
-    service = MultivariateResearchService(state, data, _Persistence())
+    service = _service(state, data, _Persistence())
     state.univariate_runs_by_id["univariate-a"] = ResearchRun(
         "univariate-a", "user-a", "wrong-source", "complete", (), 5, 5
     )
@@ -360,7 +370,7 @@ def test_multivariate_service_refits_candidates_for_walk_forward_validation() ->
         for index in range(5)
         for day in range(505, 526)
     )
-    service = MultivariateResearchService(
+    service = _service(
         state, _Data((*data.quotes, *extended_quotes), data.dividends), _Persistence()
     )
     started = service.start("user-a", project_id, bivariate_run_id, {})

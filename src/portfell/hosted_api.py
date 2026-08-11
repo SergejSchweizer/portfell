@@ -124,7 +124,7 @@ def _research_service(state: HostedApiState, data: ResearchDataPort) -> Research
     return ResearchService(
         UnivariateResearchService(repository, data, persistence),
         BivariateResearchService(repository, data, persistence),
-        MultivariateResearchService(state, data, persistence),
+        MultivariateResearchService(state, data, persistence, repository),
         HostedAnalysisService(repository, persistence),
     )
 

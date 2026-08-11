@@ -1,8 +1,4 @@
-"""Project-scoped Multivariate application service.
-
-This service resolves an explicit completed Bivariate run and its dependency
-closure. It deliberately does not call the generic analysis placeholder.
-"""
+"""Project-scoped Multivariate application service."""
 
 from __future__ import annotations
 
@@ -27,7 +23,6 @@ from portfell.hosted_research_ports import (
     ResearchPersistencePort,
     ResearchRunRepository,
 )
-from portfell.hosted_research_repository import HostedResearchRepository
 from portfell.hosted_research_workflow import UnivariateSelection, bivariate_source_id
 from portfell.hosted_selection_repository import SelectionRepository, selection_record
 from portfell.income import (
@@ -54,17 +49,18 @@ from portfell.table_io import JsonRow
 
 
 class MultivariateResearchService:
-    """Run, persist, and expose Multivariate artifacts for one owned project."""
+    _PHASES = ("resolve_inputs", "build_risk_model", "build_structure", "build_income_evidence",
+               "build_candidates", "validate_candidates")
 
     def __init__(
         self,
         state: HostedApiState,
         data: ResearchDataPort,
         persistence: ResearchPersistencePort,
+        research_repository: ResearchRunRepository,
         project_repository: ProjectRepository | None = None,
         selection_repository: SelectionRepository | None = None,
         run_repository: MultivariateRunRepository | None = None,
-        research_repository: ResearchRunRepository | None = None,
     ) -> None:
         self._state = state
         self._data = data
@@ -73,11 +69,7 @@ class MultivariateResearchService:
         self._selections = selection_repository or LocalSelectionRepository(state)
         self._runs = run_repository or LocalMultivariateRunRepository(state)
         self._run_users: dict[str, str] = {}
-        self._research = research_repository or HostedResearchRepository(
-            state,
-            project_repository=self._projects,
-            selection_repository=self._selections,
-        )
+        self._research = research_repository
 
     def start(
         self, user_id: str, project_id: str, bivariate_run_id: str, settings: JsonRow
@@ -104,10 +96,10 @@ class MultivariateResearchService:
         if previous is not None and previous.status in {"ready", "running", "complete"}:
             self._runs.save(
                 replace(
-                previous,
-                status="stale",
-                phase="stale",
-                failure_reason="stale_upstream_dependency",
+                    previous,
+                    status="stale",
+                    phase="stale",
+                    failure_reason="stale_upstream_dependency",
                 )
             )
         run = MultivariateRunRecord(
@@ -136,7 +128,6 @@ class MultivariateResearchService:
     def plan(
         self, user_id: str, project_id: str, bivariate_run_id: str, settings: JsonRow
     ) -> JsonRow:
-        """Return a read-only, project-authorized execution plan before starting work."""
         self._require_project(user_id, project_id)
         bivariate = self._research.bivariate_run(bivariate_run_id, user_id)
         selection = self._selection_for_bivariate(user_id, bivariate_run_id)
@@ -151,14 +142,7 @@ class MultivariateResearchService:
             "univariate_selection_id": selection.selection_id,
             "listing_count": len(selection.member_ids),
             "total_units": 6,
-            "phases": [
-                "resolve_inputs",
-                "build_risk_model",
-                "build_structure",
-                "build_income_evidence",
-                "build_candidates",
-                "validate_candidates",
-            ],
+            "phases": list(self._PHASES),
             "settings": dict(settings),
         }
 
@@ -191,13 +175,10 @@ class MultivariateResearchService:
         return run
 
     def structure(self, user_id: str, run_id: str) -> JsonRow:
-        return dict(
-            self._require_run(user_id, run_id).structure
-        )
+        return dict(self._require_run(user_id, run_id).structure)
 
     def candidates(self, user_id: str, run_id: str) -> JsonRow:
-        run = self._require_run(user_id, run_id)
-        return {"items": list(run.candidates)}
+        return {"items": list(self._require_run(user_id, run_id).candidates)}
 
     def candidate_detail(self, user_id: str, run_id: str, candidate_id: str) -> JsonRow:
         run = self._require_run(user_id, run_id)
@@ -210,14 +191,14 @@ class MultivariateResearchService:
 
     def risk_contributions(self, user_id: str, run_id: str, candidate_id: str | None) -> JsonRow:
         run = self._require_run(user_id, run_id)
-        items = run.risk_contributions
-        if candidate_id is not None:
-            items = tuple(item for item in items if item.get("candidate_id") == candidate_id)
+        items = tuple(
+            item for item in run.risk_contributions
+            if candidate_id is None or item.get("candidate_id") == candidate_id
+        )
         return {"items": list(items)}
 
     def income_evidence(self, user_id: str, run_id: str) -> JsonRow:
-        run = self._require_run(user_id, run_id)
-        return {"items": list(run.income_evidence)}
+        return {"items": list(self._require_run(user_id, run_id).income_evidence)}
 
     def components(self, user_id: str, run_id: str, limit: int, offset: int) -> JsonRow:
         run = self._require_run(user_id, run_id)
@@ -230,13 +211,10 @@ class MultivariateResearchService:
         }
 
     def validation(self, user_id: str, run_id: str) -> JsonRow:
-        run = self._require_run(user_id, run_id)
-        return {"items": list(run.validation)}
+        return {"items": list(self._require_run(user_id, run_id).validation)}
 
     def artifacts(self, user_id: str, run_id: str) -> JsonRow:
-        return dict(
-            self._require_run(user_id, run_id).artifacts
-        )
+        return dict(self._require_run(user_id, run_id).artifacts)
 
     def update_settings(
         self, user_id: str, run_id: str, selected_candidate_ids: tuple[str, ...]
@@ -274,8 +252,6 @@ class MultivariateResearchService:
         return selection_record(selection)
 
     def _advance(self, run_id: str, phase: str, completed_units: int) -> None:
-        """Persist strictly monotonic phase progress for concurrent status polling."""
-
         user_id = self._run_users.get(run_id)
         if user_id is None:
             return
