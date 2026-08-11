@@ -24,6 +24,7 @@ portfell-quality = "portfell.quality:main"
 portfell-compose-web-watch = "portfell.compose_web_watch:main"
 portfell-refresh-shared-market-data = "portfell.shared_market_refresh:main"
 portfell-shared-market-cron = "portfell.shared_market_cron:main"
+portfell-synology-data-root-preflight = "portfell.synology_data_root_preflight:main"
 
 [dependency-groups]
 dev = [

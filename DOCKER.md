@@ -139,6 +139,7 @@ environment file and render the explicit override before starting services:
 
 ```bash
 docker compose --env-file .env.local -f compose.yaml -f compose.production.yaml config
+portfell-synology-data-root-preflight --root "$PORTFELL_DATA_ROOT"
 docker compose --env-file .env.local -f compose.yaml -f compose.production.yaml up --build --detach
 ```
 
