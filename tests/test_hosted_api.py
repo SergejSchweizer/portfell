@@ -157,6 +157,27 @@ def test_api_wraps_requests_in_an_authenticated_postgres_transaction() -> None:
     assert connections[0].statements[0][1][1] == DEFAULT_LOCAL_WORKSPACE_USER_ID
 
 
+def test_api_provisions_the_server_principal_inside_the_postgres_request_scope() -> None:
+    connections: list[_ScopedConnection] = []
+    provisioned: list[str] = []
+
+    def connect() -> _ScopedConnection:
+        connection = _ScopedConnection()
+        connections.append(connection)
+        return connection
+
+    response = TestClient(
+        create_app(
+            request_scope=RequestScopedPostgresConnection(connect),
+            ensure_user=provisioned.append,
+        )
+    ).get("/health")
+
+    assert response.status_code == 200
+    assert provisioned == [DEFAULT_LOCAL_WORKSPACE_USER_ID]
+    assert connections[0].statements[0][1][1] == provisioned[0]
+
+
 def test_api_uses_injected_credential_vault_dependencies() -> None:
     state = HostedApiState(
         credentials=InMemoryCredentialStore(),

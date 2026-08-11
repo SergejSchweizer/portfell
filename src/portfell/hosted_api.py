@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any, cast
 
@@ -71,6 +72,7 @@ from portfell.hosted_routes_research import research_router
 from portfell.hosted_shared_market_research_data import SharedMarketResearchData
 from portfell.hosted_shared_quote_publisher import SharedQuotePublisher
 from portfell.hosted_univariate_service import UnivariateResearchService
+from portfell.hosted_user_repository import PostgresHostedUserRepository
 from portfell.hosted_workspace import LocalWorkspaceStore
 from portfell.hosted_workspace_repository import restore_local_workspace
 from portfell.shared_market_data import SharedMarketDataStore
@@ -281,6 +283,7 @@ def create_app(
     ]
     | None = None,
     request_scope: RequestScopedPostgresConnection | None = None,
+    ensure_user: Callable[[str], None] | None = None,
 ) -> FastAPI:
     """Compose the hosted application and its concern-specific route adapters."""
 
@@ -310,7 +313,10 @@ def create_app(
         async def postgres_request_scope(  # pyright: ignore[reportUnusedFunction]
             request: Request, call_next: Any
         ) -> Any:
-            with request_scope.request(provider.current_user().user_id):
+            user_id = provider.current_user().user_id
+            with request_scope.request(user_id):
+                if ensure_user is not None:
+                    ensure_user(user_id)
                 return await call_next(request)
 
     application.state.portfell_state = resolved_state
@@ -364,6 +370,7 @@ def create_runtime_app() -> FastAPI:
                 key_encryption_key=key_encryption_key,
             ),
             request_scope=request_scope,
+            ensure_user=PostgresHostedUserRepository(request_scope).create,
         )
     if authority != "local":
         raise HostedApiError("hosted_authority_invalid")
