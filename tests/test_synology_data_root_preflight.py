@@ -46,3 +46,12 @@ def test_data_root_preflight_rejects_an_unapproved_absolute_root(tmp_path: Path)
     )
 
     assert "approved_root" in {check.name for check in checks if not check.passed}
+
+
+def test_data_root_preflight_rejects_world_writable_storage_directory(tmp_path: Path) -> None:
+    root = _root(tmp_path)
+    (root / "backups").chmod(0o777)
+
+    checks = validate_data_root(root, minimum_free_bytes=0, expected_root=root)
+
+    assert "backups_not_world_writable" in {check.name for check in checks if not check.passed}

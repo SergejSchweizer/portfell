@@ -40,12 +40,18 @@ def validate_data_root(
             (
                 DataRootCheck(f"{name}_exists", directory.is_dir()),
                 DataRootCheck(f"{name}_not_symlink", not directory.is_symlink()),
+                DataRootCheck(f"{name}_not_world_writable", _not_world_writable(directory)),
             )
         )
     if not all(check.passed for check in checks):
         return tuple(checks)
-    available_bytes = os.statvfs(root).f_bavail * os.statvfs(root).f_frsize
+    filesystem = os.statvfs(root)
+    available_bytes = filesystem.f_bavail * filesystem.f_frsize
     checks.append(DataRootCheck("free_space", available_bytes >= minimum_free_bytes))
+    checks.append(DataRootCheck("free_inodes", filesystem.f_favail > 0))
+    checks.append(DataRootCheck("root_not_world_writable", _not_world_writable(root)))
+    for name in ("lake", "logs", "backups"):
+        checks.append(DataRootCheck(f"{name}_write_probe", _write_probe(root / name)))
     checks.append(DataRootCheck("atomic_replace", _atomic_replace_supported(root / "lake")))
     return tuple(checks)
 
@@ -58,6 +64,25 @@ def _atomic_replace_supported(directory: Path) -> bool:
             source.write_text("probe", encoding="utf-8")
             source.replace(destination)
             return destination.read_text(encoding="utf-8") == "probe"
+    except OSError:
+        return False
+
+
+def _not_world_writable(path: Path) -> bool:
+    """Reject a data directory that any host user can modify."""
+
+    try:
+        return path.stat().st_mode & 0o002 == 0
+    except OSError:
+        return False
+
+
+def _write_probe(directory: Path) -> bool:
+    """Prove that the service user can create and remove a private probe."""
+
+    try:
+        with tempfile.TemporaryDirectory(dir=directory, prefix=".portfell-write-probe-"):
+            return True
     except OSError:
         return False
 

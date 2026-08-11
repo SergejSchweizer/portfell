@@ -12,8 +12,9 @@ market refresh operations, continue with [docs/shared-market-refresh.md](docs/sh
 - [4. Configure The Environment](#4-configure-the-environment)
 - [5. Start And Verify](#5-start-and-verify)
 - [6. Synology Production Storage](#6-synology-production-storage)
-- [7. Day-To-Day Commands](#7-day-to-day-commands)
-- [8. Troubleshooting](#8-troubleshooting)
+- [7. Non-Destructive Storage Migration](#7-non-destructive-storage-migration)
+- [8. Day-To-Day Commands](#8-day-to-day-commands)
+- [9. Troubleshooting](#9-troubleshooting)
 
 ## 1. Runtime Model
 
@@ -148,9 +149,45 @@ docker compose --env-file .env.local -f compose.yaml -f compose.production.yaml 
 
 The override resets the development named-volume declarations. API, bootstrap
 worker, and the one-shot refresh service share only `lake/`; Web receives none
-of these mounts. Keep secrets outside this tree.
+of these mounts. The preflight rejects a non-canonical root, missing required
+directories, world-writable storage, no free inodes, failed write probes, or a
+lake that does not support atomic replacement. Keep secrets outside this tree.
 
-## 7. Day-To-Day Commands
+## 7. Non-Destructive Storage Migration
+
+Moving an existing runtime to the Synology bind root is an operator-controlled
+cutover. It must be performed from the merged `main` checkout by `dev_portfell`;
+do not copy live PostgreSQL files, run `docker compose down -v`, or prune the
+old named volumes.
+
+```text
+old named volumes -- logical dump + checksummed lake copy --> bind-root restore
+       ^                                                        |
+       |---------------- rollback checkpoint -------------------|
+```
+
+1. Stop new write traffic, wait for bootstrap, analysis, and refresh jobs to
+   become terminal, and record the merged Git SHA, image digests, migration
+   head, volume ids, catalog hash, and normalized PostgreSQL counts.
+2. Run the production-root preflight. Create an encrypted logical PostgreSQL
+   dump below `backups/`, record its SHA-256, and copy the quiesced lake with
+   metadata-preserving, checksum-verified tooling. Database files themselves
+   are never a backup format.
+3. Preserve the old volumes read-only. Restore into the new empty bind mounts,
+   start using `compose.production.yaml`, then compare schema head, normalized
+   tenant counts, lake paths/bytes/content hashes, coverage catalog, and
+   duplicate business-key count before enabling writes.
+4. Recreate services and perform a Docker/DSM restart smoke check. A synthetic
+   bootstrap and refresh may write only below `postgres/` and `lake/`.
+5. Retain the old volumes through the approved rollback and backup-retention
+   window. Deleting them is a separate destructive operation requiring explicit
+   approval.
+
+The rollback checkpoint stops the new stack, restores the prior Compose mount
+configuration, verifies the preserved source counts and catalog, and only then
+resumes the previous stack. Do not overwrite either copy during a rollback.
+
+## 8. Day-To-Day Commands
 
 Use these commands for safe routine operations:
 
@@ -173,7 +210,7 @@ catalog and published shared-market revisions. Scheduled refresh, log rotation,
 and cron installation are documented only in
 [docs/shared-market-refresh.md](docs/shared-market-refresh.md).
 
-## 8. Troubleshooting
+## 9. Troubleshooting
 
 If Compose configuration reports a missing secret variable, add the *path* to
 `.env.local`, confirm that the path is absolute, and verify that the file is
