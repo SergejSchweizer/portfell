@@ -18,6 +18,8 @@ from portfell.config import EodhdConfig
 from portfell.hosted_api import create_persistent_local_workspace_state
 from portfell.hosted_api_state import HostedApiState
 from portfell.hosted_credentials import load_key_encryption_key
+from portfell.hosted_database_connection import connect
+from portfell.hosted_postgres_active_inventory import PostgresActiveProjectInventory
 from portfell.http import EodhdClient
 from portfell.shared_market_data import (
     SharedListingKey,
@@ -233,15 +235,20 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Run the refresh using the encrypted local-workspace credential only in-process."""
+    """Run the operations-credential refresh against the active project inventory."""
 
     args = build_parser().parse_args(argv)
     root = os.environ.get("PORTFELL_SHARED_DATA_ROOT")
     key_file = os.environ.get("PORTFELL_EODHD_KEK_FILE")
+    database_url = os.environ.get("PORTFELL_DATABASE_URL")
     operations_token = _operations_token()
-    if not root or not key_file or (not args.dry_run and not operations_token):
+    if not root or (not args.dry_run and not operations_token):
         return 4
     try:
+        if database_url:
+            return _run_postgres_refresh(args, Path(root), database_url, operations_token)
+        if not key_file:
+            return 4
         state = create_persistent_local_workspace_state(
             Path(root),
             key_encryption_key=load_key_encryption_key(
@@ -275,6 +282,34 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 4
     print(json.dumps(result.row(), sort_keys=True))
     return 0
+
+
+def _run_postgres_refresh(
+    args: argparse.Namespace, root: Path, database_url: str, operations_token: str
+) -> int:
+    connection = connect(database_url, autocommit=False)
+    try:
+        listings = PostgresActiveProjectInventory(connection).listings()
+    finally:
+        connection.close()
+    store = SharedMarketDataStore(root)
+    fetch = _empty_fetch if args.dry_run else _eodhd_fetch(
+        EodhdClient(EodhdConfig(api_token=operations_token))
+    )
+    result = refresh_shared_market_data(
+        store=store,
+        listings=listings,
+        fetch=fetch,
+        end_date=args.end_date,
+        concurrency=args.concurrency,
+        dry_run=args.dry_run,
+    )
+    print(json.dumps(result.row(), sort_keys=True))
+    return 0
+
+
+def _empty_fetch(_: RefreshRequest) -> tuple[Mapping[str, Any], ...]:
+    return ()
 
 
 def _operations_token() -> str:

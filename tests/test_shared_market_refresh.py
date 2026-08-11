@@ -210,3 +210,33 @@ def test_refresh_cli_uses_operations_credential_for_a_non_dry_run(
     assert refresh.main(["--end-date", "2026-01-01"]) == 0
     assert received_tokens == ["operations-secret"]
     assert '"dry_run": false' in capsys.readouterr().out
+
+
+def test_refresh_cli_reads_postgres_active_inventory(tmp_path, monkeypatch, capsys) -> None:  # type: ignore[no-untyped-def]
+    class Connection:
+        def close(self) -> None:
+            return None
+
+    class Inventory:
+        def __init__(self, _connection: Connection) -> None:
+            pass
+
+        def listings(self) -> tuple[SharedListingKey, ...]:
+            return (SharedListingKey("eodhd", "XETRA", "ABC", "IE1"),)
+
+    monkeypatch.setenv("PORTFELL_SHARED_DATA_ROOT", str(tmp_path))
+    monkeypatch.setenv("PORTFELL_DATABASE_URL", "postgresql://worker@postgres/portfell")
+    monkeypatch.setenv("PORTFELL_OPERATIONS_EODHD_TOKEN", "operations-secret")
+    monkeypatch.setattr(refresh, "connect", lambda *_args, **_kwargs: Connection())
+    monkeypatch.setattr(refresh, "PostgresActiveProjectInventory", Inventory)
+    seen: dict[str, object] = {}
+    monkeypatch.setattr(
+        refresh,
+        "refresh_shared_market_data",
+        lambda **kwargs: seen.update(kwargs)
+        or RefreshResult("inventory", "2026-01-01", 0, 0, 0, 0, False, ()),
+    )
+
+    assert refresh.main(["--end-date", "2026-01-01"]) == 0
+    assert seen["listings"] == (SharedListingKey("eodhd", "XETRA", "ABC", "IE1"),)
+    assert '"dry_run": false' in capsys.readouterr().out
