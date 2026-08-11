@@ -172,7 +172,10 @@ old named volumes -- logical dump + checksummed lake copy --> bind-root restore
 2. Run the production-root preflight. Create an encrypted logical PostgreSQL
    dump below `backups/`, record its SHA-256, and copy the quiesced lake with
    metadata-preserving, checksum-verified tooling. Database files themselves
-   are never a backup format.
+   are never a backup format. Use `portfell-persistent-data-inventory
+   reconcile --source <quiesced-source> --target "$PORTFELL_DATA_ROOT/lake"
+   --output "$PORTFELL_DATA_ROOT/backups/<cutover>/lake-reconciliation.json"`
+   and accept the copy only when it exits successfully with `"passed":true`.
 3. Preserve the old volumes read-only. Restore into the new empty bind mounts,
    start using `compose.production.yaml`, then compare schema head, normalized
    tenant counts, lake paths/bytes/content hashes, coverage catalog, and
