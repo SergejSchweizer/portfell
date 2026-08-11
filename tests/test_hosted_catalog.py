@@ -94,6 +94,7 @@ def test_hosted_migration_sql_defines_rls_and_immutable_catalog_shape() -> None:
         10,
         11,
         12,
+        13,
     ]
     assert len({migration.checksum for migration in migrations}) == len(migrations)
     assert "create table if not exists portfell_app.provider_credentials" in sql
@@ -136,6 +137,7 @@ def test_hosted_migration_sql_defines_rls_and_immutable_catalog_shape() -> None:
     assert "create table if not exists portfell_app.univariate_selections" in sql
     assert "create table if not exists portfell_app.research_run_rows" in sql
     assert "create table if not exists portfell_app.project_univariate_settings" in sql
+    assert "create table if not exists portfell_app.multivariate_runs" in sql
 
 
 def test_apply_hosted_catalog_migrations_is_deterministic_and_idempotent() -> None:

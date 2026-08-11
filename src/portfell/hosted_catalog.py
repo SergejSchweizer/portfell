@@ -11,6 +11,7 @@ from typing import Protocol
 from portfell.hosted_download_run_schema import DOWNLOAD_RUN_PARTIAL_STATUS_SQL
 from portfell.legacy_import_schema import LEGACY_IMPORT_LEDGER_SQL
 from portfell.metadata_lifecycle_schema import METADATA_LIFECYCLE_SCHEMA_SQL
+from portfell.multivariate_lifecycle_schema import MULTIVARIATE_LIFECYCLE_SCHEMA_SQL
 from portfell.project_settings_schema import PROJECT_SETTINGS_SCHEMA_SQL
 from portfell.research_lifecycle_schema import RESEARCH_LIFECYCLE_SCHEMA_SQL
 from portfell.tenant_control_schema import (
@@ -481,6 +482,7 @@ MIGRATIONS: tuple[HostedMigration, ...] = (
     HostedMigration(10, "durable_metadata_lifecycle", METADATA_LIFECYCLE_SCHEMA_SQL),
     HostedMigration(11, "durable_research_lifecycle", RESEARCH_LIFECYCLE_SCHEMA_SQL),
     HostedMigration(12, "durable_project_settings", PROJECT_SETTINGS_SCHEMA_SQL),
+    HostedMigration(13, "durable_multivariate_lifecycle", MULTIVARIATE_LIFECYCLE_SCHEMA_SQL),
 )
 
 
