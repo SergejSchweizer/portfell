@@ -430,6 +430,30 @@ def test_metadata_builder_project_can_use_an_injected_project_repository() -> No
     assert repository.current_project_id(user_id) == created["project"]["project_id"]
 
 
+def test_project_context_can_use_durable_data_loaded_projection() -> None:
+    state = HostedApiState()
+    user_id = "00000000-0000-5000-8000-000000000001"
+    project_id = "00000000-0000-5000-8000-000000000002"
+    projects = InMemoryProjectRepository()
+    projects.create_project(TenantProject(project_id, user_id, "Income"))
+    selections = InMemorySelectionRepository()
+    selections.create(TenantSelection("selection-1", project_id, user_id, "Income", ("IE1",)))
+    service = CredentialProjectService(
+        state,
+        project_repository=projects,
+        selection_repository=selections,
+        project_data_loaded_reader=lambda reader_user_id, reader_project_id: (
+            reader_user_id,
+            reader_project_id,
+        )
+        == (user_id, project_id),
+    )
+
+    context = service.project_context(user_id)
+
+    assert context["projects"][0]["data_loaded"] is True
+
+
 def test_metadata_builder_can_use_an_injected_selection_repository() -> None:
     state = HostedApiState(
         all_isins_rows=(

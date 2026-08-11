@@ -169,6 +169,10 @@ def _postgres_services(
         metadata_rows=runtime.all_isins_rows,
     )
 
+    def project_data_loaded(user_id: str, project_id: str) -> bool:
+        fill = bootstrap.status(user_id=user_id, project_id=project_id)
+        return fill is not None and fill.status == "ready"
+
     def quote_rows(run_id: str) -> tuple[dict[str, object], ...]:
         row = request_scope.execute(
             "select response_manifest from portfell_app.download_runs "
@@ -206,6 +210,7 @@ def _postgres_services(
         PostgresDownloadRunRepository(request_scope),
         repositories.idempotency,
         workflow_reader,
+        project_data_loaded,
     )
     metadata = MetadataProjectService(
         state,

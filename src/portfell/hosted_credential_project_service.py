@@ -67,6 +67,7 @@ class CredentialProjectService:
         download_run_repository: DownloadRunRepository | None = None,
         idempotency_repository: IdempotencyRepository | None = None,
         workflow_reader: Callable[[str, str | None], JsonRow] | None = None,
+        project_data_loaded_reader: Callable[[str, str], bool] | None = None,
     ) -> None:
         self.state = state
         self.runtime = runtime
@@ -80,6 +81,7 @@ class CredentialProjectService:
         self._download_runs = download_run_repository or LocalDownloadRunRepository(state)
         self._idempotency = idempotency_repository or LocalIdempotencyRepository(state)
         self._workflow_reader = workflow_reader
+        self._project_data_loaded_reader = project_data_loaded_reader
 
     def workflow(self, user_id: str, project_id: str | None = None) -> JsonRow:
         if project_id is None:
@@ -409,5 +411,9 @@ class CredentialProjectService:
             "selected_count": len(
                 {member_id.split(":", 1)[0] for member_id in selection.member_ids}
             ),
-            "data_loaded": project_data_loaded(self.state, project.project_id, user_id),
+            "data_loaded": (
+                project_data_loaded(self.state, project.project_id, user_id)
+                if self._project_data_loaded_reader is None
+                else self._project_data_loaded_reader(user_id, project.project_id)
+            ),
         }
