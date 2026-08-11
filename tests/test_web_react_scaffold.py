@@ -32,7 +32,7 @@ def test_workflow_pages_place_ingestion_actions_before_their_stage_controls() ->
     assert (
         metadata_page.index('<Panel title="Download Metadata">')
         < metadata_page.index('<Panel title="Metadata Builder">')
-            < metadata_page.index('<Panel title="Historical Data">')
+        < metadata_page.index('<Panel title="Historical Data">')
     )
     assert "EODHD key" in frame
     assert "Fetch all metadata" not in frame

@@ -2,7 +2,6 @@
 
 # ruff: noqa: E501
 
-
 RESEARCH_LIFECYCLE_SCHEMA_SQL = """
 create table if not exists portfell_app.research_runs (
     research_run_id text primary key,

@@ -147,7 +147,11 @@ on conflict (research_run_id) do update set quote_run_id = excluded.quote_run_id
             ),
         )
         self._replace_rows(
-            "univariate_selection_rows", "selection_id", selection.selection_id, selection.user_id, selection.rows
+            "univariate_selection_rows",
+            "selection_id",
+            selection.selection_id,
+            selection.user_id,
+            selection.rows,
         )
         return selection
 
@@ -194,7 +198,9 @@ on conflict (research_run_id) do update set quote_run_id = excluded.quote_run_id
             univariate_run_id=univariate.run_id,
             univariate_status=univariate.status,
             univariate_selection_id=selection.selection_id,
-            univariate_selected_isins=len({member.split(":", 1)[0] for member in selection.member_ids}),
+            univariate_selected_isins=len(
+                {member.split(":", 1)[0] for member in selection.member_ids}
+            ),
             bivariate_run_id=None if bivariate is None else bivariate.run_id,
             bivariate_status=None if bivariate is None else bivariate.status,
             multivariate_run_id=None if multivariate is None else multivariate[0],
@@ -246,9 +252,20 @@ on conflict (research_run_id) do update set quote_run_id = excluded.quote_run_id
         self._bind(run.user_id)
         self._connection.execute(
             "insert into portfell_app.research_runs (research_run_id, user_id, run_kind, source_id, status, total, completed, failed) values (%s, %s::uuid, %s, %s, %s, %s, %s, %s) on conflict (research_run_id) do update set status = excluded.status, total = excluded.total, completed = excluded.completed, failed = excluded.failed, updated_at = now()",
-            (run.run_id, run.user_id, kind, run.source_id, run.status, run.total, run.completed, run.failed),
+            (
+                run.run_id,
+                run.user_id,
+                kind,
+                run.source_id,
+                run.status,
+                run.total,
+                run.completed,
+                run.failed,
+            ),
         )
-        self._replace_rows("research_run_rows", "research_run_id", run.run_id, run.user_id, run.rows)
+        self._replace_rows(
+            "research_run_rows", "research_run_id", run.run_id, run.user_id, run.rows
+        )
 
     def _run(self, *, run_id: str, user_id: str, kind: str, required: bool) -> ResearchRun:
         self._bind(user_id)
@@ -264,7 +281,11 @@ on conflict (research_run_id) do update set quote_run_id = excluded.quote_run_id
         ).fetchone()
         if row is None:
             return None
-        if len(row) != 7 or not all(isinstance(item, str) for item in row[:4]) or not all(isinstance(item, int) for item in row[4:]):
+        if (
+            len(row) != 7
+            or not all(isinstance(item, str) for item in row[:4])
+            or not all(isinstance(item, int) for item in row[4:])
+        ):
             raise RuntimeError("research_run_projection_invalid")
         rows = self._rows("research_run_rows", "research_run_id", run_id)
         run_id_value = cast(str, row[0])
@@ -281,7 +302,13 @@ on conflict (research_run_id) do update set quote_run_id = excluded.quote_run_id
         ).fetchone()
         if row is None:
             return None
-        if len(row) != 6 or not all(isinstance(item, str) for item in row[:3]) or not isinstance(row[3], list) or not isinstance(row[4], list) or not isinstance(row[5], int):
+        if (
+            len(row) != 6
+            or not all(isinstance(item, str) for item in row[:3])
+            or not isinstance(row[3], list)
+            or not isinstance(row[4], list)
+            or not isinstance(row[5], int)
+        ):
             raise RuntimeError("univariate_selection_projection_invalid")
         selection_id_value = cast(str, row[0])
         user_id = cast(str, row[1])
@@ -339,7 +366,9 @@ where preference.project_id = %s::uuid and run.bivariate_run_id = %s
     def _replace_rows(
         self, table: str, id_column: str, row_id: str, user_id: str, rows: tuple[JsonRow, ...]
     ) -> None:
-        self._connection.execute(f"delete from portfell_app.{table} where {id_column} = %s", (row_id,))
+        self._connection.execute(
+            f"delete from portfell_app.{table} where {id_column} = %s", (row_id,)
+        )
         for ordinal, row in enumerate(rows):
             self._connection.execute(
                 f"insert into portfell_app.{table} ({id_column}, user_id, ordinal, row_data) values (%s, %s::uuid, %s, %s::jsonb)",
@@ -350,7 +379,8 @@ where preference.project_id = %s::uuid and run.bivariate_run_id = %s
         return tuple(
             dict(cast(Mapping[str, object], row[0]))
             for row in self._connection.execute(
-                f"select row_data from portfell_app.{table} where {id_column} = %s order by ordinal", (row_id,)
+                f"select row_data from portfell_app.{table} where {id_column} = %s order by ordinal",
+                (row_id,),
             ).fetchall()
             if len(row) == 1 and isinstance(row[0], Mapping)
         )
@@ -365,6 +395,10 @@ def _predicate_row(predicate: Predicate) -> JsonRow:
 
 def _predicate(value: Mapping[str, object]) -> Predicate:
     metric, operator, expected = value.get("metric"), value.get("operator"), value.get("value")
-    if not isinstance(metric, str) or not isinstance(operator, str) or not isinstance(expected, str):
+    if (
+        not isinstance(metric, str)
+        or not isinstance(operator, str)
+        or not isinstance(expected, str)
+    ):
         raise RuntimeError("univariate_selection_projection_invalid")
     return Predicate(metric, operator, expected)

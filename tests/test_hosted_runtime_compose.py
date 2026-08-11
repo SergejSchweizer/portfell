@@ -75,7 +75,10 @@ def test_operations_refresh_is_profiled_and_has_only_the_required_secret_mount()
     assert refresh["command"] == ["python", "-m", "portfell.shared_market_refresh"]
     assert refresh["volumes"] == ["portfell-shared-data:/srv/portfell/shared-data"]
     assert refresh["secrets"] == ["eodhd_kek", "operations_eodhd_token", "postgres_password"]
-    assert refresh["environment"]["PORTFELL_DATABASE_URL"] == "postgresql://portfell_app@postgres:5432/portfell"
+    assert (
+        refresh["environment"]["PORTFELL_DATABASE_URL"]
+        == "postgresql://portfell_app@postgres:5432/portfell"
+    )
     assert "ports" not in refresh
 
 

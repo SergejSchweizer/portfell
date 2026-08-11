@@ -15,9 +15,7 @@ class AnalysisRecordCursor(Protocol):
 
 
 class AnalysisRecordConnection(Protocol):
-    def execute(
-        self, sql: str, parameters: tuple[object, ...] = ()
-    ) -> AnalysisRecordCursor: ...
+    def execute(self, sql: str, parameters: tuple[object, ...] = ()) -> AnalysisRecordCursor: ...
 
 
 class AnalysisRecordRepository(Protocol):

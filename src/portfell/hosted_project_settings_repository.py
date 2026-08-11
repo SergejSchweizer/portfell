@@ -21,9 +21,7 @@ class ProjectSettingsCursor(Protocol):
 
 
 class ProjectSettingsConnection(Protocol):
-    def execute(
-        self, sql: str, parameters: tuple[object, ...] = ()
-    ) -> ProjectSettingsCursor: ...
+    def execute(self, sql: str, parameters: tuple[object, ...] = ()) -> ProjectSettingsCursor: ...
 
 
 class ProjectSettingsRepository(Protocol):

@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from portfell.hosted_analysis_service import HostedAnalysisService
 from portfell.hosted_api_local_runtime import LocalHostedRuntime
+from portfell.hosted_api_ports import Workflow
 from portfell.hosted_api_state import HostedApiState
 from portfell.hosted_bivariate_service import BivariateResearchService
 from portfell.hosted_credentials import FileCredentialStore, KeyEncryptionKey
@@ -25,8 +26,8 @@ from portfell.workflows import run_fetch_all_metadata_workflow, run_fetch_all_qu
 
 def local_runtime() -> LocalHostedRuntime:
     return LocalHostedRuntime(
-        quote_workflow=lambda **kwargs: run_fetch_all_quotes_workflow(**kwargs),
-        metadata_workflow=lambda **kwargs: run_fetch_all_metadata_workflow(**kwargs),
+        quote_workflow=cast(Workflow, run_fetch_all_quotes_workflow),
+        metadata_workflow=cast(Workflow, run_fetch_all_metadata_workflow),
         cpu_count=lambda: os.process_cpu_count(),
     )
 

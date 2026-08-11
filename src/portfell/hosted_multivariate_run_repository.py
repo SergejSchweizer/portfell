@@ -15,9 +15,7 @@ class MultivariateRunCursor(Protocol):
 
 
 class MultivariateRunConnection(Protocol):
-    def execute(
-        self, sql: str, parameters: tuple[object, ...] = ()
-    ) -> MultivariateRunCursor: ...
+    def execute(self, sql: str, parameters: tuple[object, ...] = ()) -> MultivariateRunCursor: ...
 
 
 class MultivariateRunRepository(Protocol):

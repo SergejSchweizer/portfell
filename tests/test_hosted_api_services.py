@@ -443,10 +443,12 @@ def test_project_context_can_use_durable_data_loaded_projection() -> None:
         project_repository=projects,
         selection_repository=selections,
         project_data_loaded_reader=lambda reader_user_id, reader_project_id: (
-            reader_user_id,
-            reader_project_id,
-        )
-        == (user_id, project_id),
+            (
+                reader_user_id,
+                reader_project_id,
+            )
+            == (user_id, project_id)
+        ),
     )
 
     context = service.project_context(user_id)

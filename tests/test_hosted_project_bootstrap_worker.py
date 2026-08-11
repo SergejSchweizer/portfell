@@ -66,15 +66,17 @@ def test_worker_refreshes_only_the_claimed_exact_selection(tmp_path: Any) -> Non
     worker = ProjectBootstrapWorker(
         jobs=jobs,
         members_for_selection=lambda user_id, selection_id: (
-            "IE0000000001:XETRA:ONE",
-        )
-        if (user_id, selection_id) == ("user-1", "selection-1")
-        else (),
+            ("IE0000000001:XETRA:ONE",)
+            if (user_id, selection_id) == ("user-1", "selection-1")
+            else ()
+        ),
         store=SharedMarketDataStore(tmp_path),
-        fetch=lambda request: requested.append(
-            f"{request.listing.isin}:{request.listing.exchange}:{request.listing.code}"
-        )
-        or (),
+        fetch=lambda request: (
+            requested.append(
+                f"{request.listing.isin}:{request.listing.exchange}:{request.listing.code}"
+            )
+            or ()
+        ),
         end_date=date(2026, 8, 11),
         concurrency=1,
     )

@@ -29,6 +29,7 @@ def test_publishes_each_full_listing_to_its_own_immutable_revision(tmp_path) -> 
     )
 
     assert len(store.coverage()) == 2
-    assert store.read("quotes", SharedListingKey("eodhd", "XETRA", "ABC", "IE1"))[0][
-        "adjusted_close"
-    ] == 10.0
+    assert (
+        store.read("quotes", SharedListingKey("eodhd", "XETRA", "ABC", "IE1"))[0]["adjusted_close"]
+        == 10.0
+    )

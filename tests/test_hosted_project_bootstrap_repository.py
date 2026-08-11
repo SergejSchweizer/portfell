@@ -89,8 +89,7 @@ def test_postgres_bootstrap_freezes_membership_and_enqueues_one_job() -> None:
     assert first.bootstrap.selected_listing_count == 2
     assert sum("insert into portfell_app.jobs" in sql for sql, _ in connection.statements) == 1
     fill_inserts = sum(
-        "insert into portfell_app.project_initial_fills" in sql
-        for sql, _ in connection.statements
+        "insert into portfell_app.project_initial_fills" in sql for sql, _ in connection.statements
     )
     assert fill_inserts == 1
 

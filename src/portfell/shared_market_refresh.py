@@ -227,7 +227,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     root = os.environ.get("PORTFELL_SHARED_DATA_ROOT")
     database_url = os.environ.get("PORTFELL_DATABASE_URL")
-    operations_token = _operations_token()
+    operations_token = operations_token_from_environment()
     if not root or not database_url or (not args.dry_run and not operations_token):
         return 4
     try:
@@ -247,8 +247,10 @@ def _run_postgres_refresh(
     finally:
         connection.close()
     store = SharedMarketDataStore(root)
-    fetch = _empty_fetch if args.dry_run else _eodhd_fetch(
-        EodhdClient(EodhdConfig(api_token=operations_token))
+    fetch = (
+        _empty_fetch
+        if args.dry_run
+        else eodhd_fetch(EodhdClient(EodhdConfig(api_token=operations_token)))
     )
     result = refresh_shared_market_data(
         store=store,
@@ -266,7 +268,7 @@ def _empty_fetch(_: RefreshRequest) -> tuple[Mapping[str, Any], ...]:
     return ()
 
 
-def _operations_token() -> str:
+def operations_token_from_environment() -> str:
     path = os.environ.get("PORTFELL_OPERATIONS_EODHD_TOKEN_FILE")
     if path:
         try:
@@ -276,7 +278,7 @@ def _operations_token() -> str:
     return os.environ.get("PORTFELL_OPERATIONS_EODHD_TOKEN", "").strip()
 
 
-def _eodhd_fetch(client: EodhdClient) -> ProviderFetch:
+def eodhd_fetch(client: EodhdClient) -> ProviderFetch:
     endpoints = {"quotes": "eod", "dividends": "div", "splits": "splits"}
 
     def fetch(request: RefreshRequest) -> Iterable[Mapping[str, Any]]:
@@ -297,6 +299,10 @@ def _eodhd_fetch(client: EodhdClient) -> ProviderFetch:
         ]
 
     return fetch
+
+
+# Backward-compatible test seam; production consumers use ``eodhd_fetch``.
+_eodhd_fetch = eodhd_fetch
 
 
 if __name__ == "__main__":

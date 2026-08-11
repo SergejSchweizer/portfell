@@ -78,9 +78,7 @@ class PostgresWorkflowReader:
                 metadata_selection_id=selection.selection_id if is_ready else None,
                 quote_run_id=None,
                 univariate_run_id=(
-                    research.univariate_run_id
-                    if research.univariate_status == "complete"
-                    else None
+                    research.univariate_run_id if research.univariate_status == "complete" else None
                 ),
                 univariate_selection_id=research.univariate_selection_id,
                 bivariate_run_id=research.bivariate_run_id,

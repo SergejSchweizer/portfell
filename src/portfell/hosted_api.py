@@ -105,7 +105,7 @@ def create_app(
     ]
     | None = None,
     request_scope: RequestScopedPostgresConnection | None = None,
-    ensure_user: Callable[[str], None] | None = None,
+    ensure_user: Callable[[str], object] | None = None,
     include_quote_routes: bool = True,
 ) -> FastAPI:
     """Compose the hosted application and its concern-specific route adapters."""

@@ -61,13 +61,16 @@ def build_postgres_services(
         if row is None or len(row) != 1 or not isinstance(row[0], dict):
             return ()
         manifest = cast(dict[str, object], row[0])
-        scope = manifest.get("requested_scope")
+        scope = cast(object, manifest.get("requested_scope"))
         if not isinstance(scope, dict):
             return ()
-        members = scope.get("member_ids")
-        if not isinstance(members, list) or not all(isinstance(item, str) for item in members):
+        members = cast(object, cast(dict[str, object], scope).get("member_ids"))
+        if not isinstance(members, list):
             return ()
-        return data.selected_rows(tuple(members), dataset="quotes")
+        typed_members = cast(list[object], members)
+        if not all(isinstance(item, str) for item in typed_members):
+            return ()
+        return data.selected_rows(tuple(cast(list[str], typed_members)), dataset="quotes")
 
     research_repository = PostgresResearchRepository(
         request_scope,

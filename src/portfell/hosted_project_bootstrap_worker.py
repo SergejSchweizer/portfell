@@ -21,8 +21,8 @@ from portfell.shared_market_data import SharedListingKey, SharedMarketDataStore
 from portfell.shared_market_refresh import (
     ProviderFetch,
     RefreshResult,
-    _eodhd_fetch,
-    _operations_token,
+    eodhd_fetch,
+    operations_token_from_environment,
     refresh_shared_market_data,
 )
 
@@ -185,7 +185,7 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     root = os.environ.get("PORTFELL_SHARED_DATA_ROOT")
     database_url = os.environ.get("PORTFELL_DATABASE_URL")
-    token = _operations_token()
+    token = operations_token_from_environment()
     if (
         not root
         or not database_url
@@ -201,7 +201,7 @@ def main(argv: list[str] | None = None) -> int:
             jobs=PostgresDurableJobRepository(connection),
             members_for_selection=PostgresSelectionMembers(connection),
             store=SharedMarketDataStore(Path(root)),
-            fetch=_eodhd_fetch(EodhdClient(EodhdConfig(api_token=token))),
+            fetch=eodhd_fetch(EodhdClient(EodhdConfig(api_token=token))),
             end_date=date.today(),
             concurrency=args.concurrency,
         )

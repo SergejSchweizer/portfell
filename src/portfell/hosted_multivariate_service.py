@@ -17,6 +17,7 @@ from portfell.hosted_multivariate_run_repository import (
     LocalMultivariateRunRepository,
     MultivariateRunRepository,
 )
+from portfell.hosted_multivariate_run_views import MultivariateRunViews
 from portfell.hosted_repository_importer import ProjectRepository
 from portfell.hosted_research_ports import (
     ResearchDataPort,
@@ -38,7 +39,7 @@ from portfell.multivariate_inputs import (
 )
 from portfell.multivariate_quote_views import common_dates, first_price, last_price
 from portfell.multivariate_risk_model import build_multivariate_risk_model
-from portfell.multivariate_run_view import candidate_row, multivariate_run_row
+from portfell.multivariate_run_view import multivariate_run_row
 from portfell.multivariate_structure import build_multivariate_structure
 from portfell.multivariate_validation import (
     build_candidate_scorecards,
@@ -48,9 +49,15 @@ from portfell.multivariate_validation import (
 from portfell.table_io import JsonRow
 
 
-class MultivariateResearchService:
-    _PHASES = ("resolve_inputs", "build_risk_model", "build_structure", "build_income_evidence",
-               "build_candidates", "validate_candidates")
+class MultivariateResearchService(MultivariateRunViews):
+    _PHASES = (
+        "resolve_inputs",
+        "build_risk_model",
+        "build_structure",
+        "build_income_evidence",
+        "build_candidates",
+        "validate_candidates",
+    )
 
     def __init__(
         self,
@@ -161,12 +168,6 @@ class MultivariateResearchService:
         self._runs.save(completed)
         self._persistence.persist()
 
-    def status(self, user_id: str, run_id: str) -> JsonRow:
-        return multivariate_run_row(self._require_run(user_id, run_id))
-
-    def summary(self, user_id: str, run_id: str) -> JsonRow:
-        return dict(self._require_run(user_id, run_id).summary)
-
     def _require_project(self, user_id: str, project_id: str) -> None:
         project_ids = {project.project_id for project in self._projects.list_projects(user_id)}
         if project_id not in project_ids:
@@ -177,45 +178,6 @@ class MultivariateResearchService:
         if run is None:
             raise HostedApplicationError(404, "not_found")
         return run
-
-    def structure(self, user_id: str, run_id: str) -> JsonRow:
-        return dict(self._require_run(user_id, run_id).structure)
-
-    def candidates(self, user_id: str, run_id: str) -> JsonRow:
-        return {"items": list(self._require_run(user_id, run_id).candidates)}
-
-    def candidate_detail(self, user_id: str, run_id: str, candidate_id: str) -> JsonRow:
-        candidate = candidate_row(self._require_run(user_id, run_id).candidates, candidate_id)
-        if candidate is None:
-            raise HostedApplicationError(404, "not_found")
-        return candidate
-
-    def risk_contributions(self, user_id: str, run_id: str, candidate_id: str | None) -> JsonRow:
-        run = self._require_run(user_id, run_id)
-        items = tuple(
-            item for item in run.risk_contributions
-            if candidate_id is None or item.get("candidate_id") == candidate_id
-        )
-        return {"items": list(items)}
-
-    def income_evidence(self, user_id: str, run_id: str) -> JsonRow:
-        return {"items": list(self._require_run(user_id, run_id).income_evidence)}
-
-    def components(self, user_id: str, run_id: str, limit: int, offset: int) -> JsonRow:
-        run = self._require_run(user_id, run_id)
-        safe_limit, safe_offset = max(1, min(limit, 100)), max(0, offset)
-        return {
-            "items": list(run.components[safe_offset : safe_offset + safe_limit]),
-            "total": len(run.components),
-            "limit": safe_limit,
-            "offset": safe_offset,
-        }
-
-    def validation(self, user_id: str, run_id: str) -> JsonRow:
-        return {"items": list(self._require_run(user_id, run_id).validation)}
-
-    def artifacts(self, user_id: str, run_id: str) -> JsonRow:
-        return dict(self._require_run(user_id, run_id).artifacts)
 
     def update_settings(
         self, user_id: str, run_id: str, selected_candidate_ids: tuple[str, ...]

@@ -7,7 +7,7 @@ import json
 import uuid
 from contextlib import AbstractContextManager
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Protocol, cast
 
 from portfell.durable_job_repository import DurableJob, OutboxEvent, PostgresDurableJobRepository
 from portfell.hosted_catalog import set_authenticated_user_sql
@@ -182,9 +182,9 @@ order by member.isin, member.exchange, member.code
             raise BootstrapError("bootstrap_projection_invalid")
         # The catalog relationship guarantees member immutability; callers need its identity only.
         user_id, stored_project, selection_id, membership_hash, count, status, job_id, _, _, _ = (
-            first
+            cast(tuple[str, str, str, str, int, str, str, str, str, str], first)
         )
-        member_ids = tuple(f"{row[7]}:{row[8]}:{row[9]}" for row in rows)
+        member_ids = tuple(f"{str(row[7])}:{str(row[8])}:{str(row[9])}" for row in rows)
         bootstrap = ProjectBootstrap(
             bootstrap_id=_bootstrap_id(stored_project, selection_id, member_ids),
             user_id=user_id,

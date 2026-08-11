@@ -172,8 +172,9 @@ def test_refresh_cli_reads_postgres_active_inventory(tmp_path, monkeypatch, caps
     monkeypatch.setattr(
         refresh,
         "refresh_shared_market_data",
-        lambda **kwargs: seen.update(kwargs)
-        or RefreshResult("inventory", "2026-01-01", 0, 0, 0, 0, False, ()),
+        lambda **kwargs: (
+            seen.update(kwargs) or RefreshResult("inventory", "2026-01-01", 0, 0, 0, 0, False, ())
+        ),
     )
 
     assert refresh.main(["--end-date", "2026-01-01"]) == 0

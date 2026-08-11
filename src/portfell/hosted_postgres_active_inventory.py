@@ -12,9 +12,7 @@ class ActiveInventoryCursor(Protocol):
 
 
 class ActiveInventoryConnection(Protocol):
-    def execute(
-        self, sql: str, parameters: tuple[object, ...] = ()
-    ) -> ActiveInventoryCursor: ...
+    def execute(self, sql: str, parameters: tuple[object, ...] = ()) -> ActiveInventoryCursor: ...
 
 
 class PostgresActiveProjectInventory:
