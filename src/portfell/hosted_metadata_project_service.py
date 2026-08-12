@@ -333,6 +333,7 @@ class MetadataProjectService:
             "selected_listing_count": status.bootstrap.bootstrap.selected_listing_count,
             "terminal_code": status.terminal_code,
             "started_at": status.started_at_epoch,
+            "last_progress_at": status.last_progress_at_epoch,
         }
 
     @staticmethod

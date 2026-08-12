@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import fcntl
 import json
+import logging
 import os
 from collections.abc import Callable, Generator, Iterable, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -18,6 +19,7 @@ from portfell.config import EodhdConfig
 from portfell.hosted_database_connection import connect
 from portfell.hosted_postgres_active_inventory import PostgresActiveProjectInventory
 from portfell.http import EodhdClient
+from portfell.logging import get_logger, log_event, setup_logging
 from portfell.shared_market_data import (
     SharedListingKey,
     SharedMarketDataStore,
@@ -28,6 +30,7 @@ from portfell.table_io import JsonRow
 DATASETS = ("quotes", "dividends", "splits")
 DEFAULT_CORRECTION_OVERLAP_DAYS = 7
 _WRITE_BATCH_SIZE = 128
+LOGGER = get_logger(__name__)
 
 
 class SharedMarketRefreshError(RuntimeError):
@@ -132,6 +135,18 @@ def refresh_shared_market_data(
     resolved_listings = tuple(listings)
     requests = plan_refresh(store, resolved_listings, end_date=end_date)
     result_hash = inventory_hash(resolved_listings)
+    log_event(
+        LOGGER,
+        logging.INFO,
+        module="shared-market-refresh",
+        event="refresh_planned",
+        fields={
+            "concurrency": concurrency,
+            "listing_count": len(resolved_listings),
+            "requested": len(requests),
+            "target_date": end_date.isoformat(),
+        },
+    )
     if dry_run:
         return RefreshResult(
             result_hash, end_date.isoformat(), len(requests), 0, 0, 0, True, requests
@@ -175,7 +190,15 @@ def refresh_shared_market_data(
                 changed = store.upsert_many(
                     (request.dataset_type, request.listing, rows) for request, rows in batch
                 )
-            except Exception:
+            except Exception as error:
+                log_event(
+                    LOGGER,
+                    logging.ERROR,
+                    module="shared-market-refresh",
+                    event="batch_persist_failed",
+                    fields={"batch_size": len(batch), "target_date": end_date.isoformat()},
+                    error=error,
+                )
                 errors.extend("provider_or_storage_failure" for _ in batch)
                 for request, _ in batch:
                     mark_request_completed(request)
@@ -192,7 +215,21 @@ def refresh_shared_market_data(
                 request = futures[future]
                 try:
                     rows = future.result()
-                except Exception:
+                except Exception as error:
+                    log_event(
+                        LOGGER,
+                        logging.ERROR,
+                        module="shared-market-refresh",
+                        event="provider_request_failed",
+                        fields={
+                            "code": request.listing.code,
+                            "dataset_type": request.dataset_type,
+                            "exchange": request.listing.exchange,
+                            "isin": request.listing.isin,
+                            "start_date": request.start_date or "full_history",
+                        },
+                        error=error,
+                    )
                     errors.append("provider_or_storage_failure")
                     mark_request_completed(request)
                 else:
@@ -213,6 +250,18 @@ def refresh_shared_market_data(
             tuple(sorted(errors)),
         )
         _write_manifest(store.root, result)
+        log_event(
+            LOGGER,
+            logging.INFO if not errors else logging.WARNING,
+            module="shared-market-refresh",
+            event="refresh_completed",
+            fields={
+                "failed": len(errors),
+                "requested": len(requests),
+                "unchanged": unchanged,
+                "updated": updated,
+            },
+        )
         if errors:
             raise SharedMarketRefreshError("shared_market_refresh_partial_failure")
         return result
@@ -261,6 +310,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     """Run the operations-credential refresh against the active project inventory."""
 
     args = build_parser().parse_args(argv)
+    setup_logging(debug=os.environ.get("PORTFELL_LOG_LEVEL", "").upper() == "DEBUG")
     root = os.environ.get("PORTFELL_SHARED_DATA_ROOT")
     database_url = os.environ.get("PORTFELL_DATABASE_URL")
     operations_token = operations_token_from_environment()
@@ -269,8 +319,24 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         return _run_postgres_refresh(args, Path(root), database_url, operations_token)
     except SharedMarketRefreshError as error:
+        log_event(
+            LOGGER,
+            logging.ERROR,
+            module="shared-market-refresh",
+            event="refresh_failed",
+            fields={"exit_code": 2 if str(error) == "shared_market_refresh_locked" else 5},
+            error=error,
+        )
         return 2 if str(error) == "shared_market_refresh_locked" else 5
-    except Exception:
+    except Exception as error:
+        log_event(
+            LOGGER,
+            logging.ERROR,
+            module="shared-market-refresh",
+            event="refresh_failed",
+            fields={"exit_code": 4},
+            error=error,
+        )
         return 4
 
 
