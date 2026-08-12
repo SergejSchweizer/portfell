@@ -1523,7 +1523,7 @@ merge, satisfy the current `merge-gate` requirements in `GATES.md`.
 
 Branch: `fix/multivariate-performance-cvar`.
 
-Git status: in progress. PR: TBD.
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/367.
 
 Priority: P0 multivariate result availability.
 
