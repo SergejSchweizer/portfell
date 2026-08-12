@@ -209,6 +209,13 @@ def test_postgres_research_repository_binds_quote_reference_to_run_owner() -> No
     assert parameters == ("00000000-0000-5000-8000-000000000010", "univariate-run-1")
 
 
+def test_postgres_research_repository_skips_empty_quote_run_ids() -> None:
+    connection = _Connection()
+
+    assert _repository(connection).quote_rows("") == ()
+    assert connection.calls == []
+
+
 def test_postgres_workflow_derives_bivariate_selection_from_saved_univariate_filters() -> None:
     connection = _WorkflowConnection()
 

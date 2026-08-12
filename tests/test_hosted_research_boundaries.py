@@ -266,6 +266,46 @@ def test_bivariate_service_covers_plan_reuse_and_failure_transitions(
         service.covariance_matrix("user-a", orphan.run_id)
 
 
+def test_bivariate_service_uses_shared_market_quotes_without_a_quote_run(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    selection = UnivariateSelection(
+        "two",
+        "user-a",
+        "uni",
+        ("IE1:XETRA:AAA", "IE2:XETRA:BBB"),
+        (),
+        (),
+        2,
+    )
+    univariate = ResearchRun("uni", "user-a", "source", "complete", (), 2, 2)
+    state = HostedApiState(
+        univariate_runs_by_id={univariate.run_id: univariate},
+        univariate_selections_by_id={selection.selection_id: selection},
+    )
+    shared_quotes = ({"isin": "IE1"}, {"isin": "IE2"})
+    data = FakeResearchData((), [], selected_result=shared_quotes)
+    service = BivariateResearchService(
+        HostedResearchRepository(state), data, RecordingPersistence()
+    )
+    captured: dict[str, object] = {}
+
+    def compute_from_shared_quotes(**kwargs: object) -> ResearchRun:
+        captured.update(kwargs)
+        return ResearchRun("computed", "user-a", "source", "complete", (), 1, 1)
+
+    monkeypatch.setattr(
+        bivariate_service_module, "create_bivariate_run", compute_from_shared_quotes
+    )
+
+    started = service.start("user-a", selection.selection_id)
+    service.complete("user-a", selection.selection_id)
+
+    assert state.bivariate_runs_by_id[str(started["run_id"])].status == "complete"
+    assert captured["quote_rows"] == shared_quotes
+    assert data.selected_calls == [(selection.member_ids, "quotes")]
+
+
 def test_local_research_adapter_builds_rows_and_reports_progress(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

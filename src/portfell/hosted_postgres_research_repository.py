@@ -77,7 +77,7 @@ class PostgresResearchRepository:
         return run
 
     def quote_rows(self, run_id: str) -> tuple[JsonRow, ...]:
-        return self._quote_rows(run_id)
+        return () if not run_id else self._quote_rows(run_id)
 
     def univariate_run(self, run_id: str, user_id: str) -> ResearchRun:
         return self._run(run_id=run_id, user_id=user_id, kind="univariate", required=True)
