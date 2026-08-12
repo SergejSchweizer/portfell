@@ -83,7 +83,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 }
 .metadata-fetch__credential-input { display: grid; gap: 5px; min-width: 0; justify-items: end; }
 .metadata-fetch label { display: grid; gap: 5px; color: #5f6368; }
-.metadata-fetch__progress { height: 4px; min-height: 4px; margin: 0; }
+.metadata-fetch__progress { height: 14px; min-height: 14px; margin: 0; }
 .metadata-fetch__status { grid-column: 1 / -1; min-height: 20px; color: #5f6368; }
 .metadata-fetch__action { display: grid; gap: var(--space-3); justify-items: start; }
 .project-sidebar { padding: var(--space-6) var(--space-4); background: var(--surface); border-right: 1px solid var(--border); }
@@ -126,7 +126,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 .portfell-panel:has(.metadata-download), .portfell-panel:has(.metadata-builder-form) { padding: 12px 16px; }
 .portfell-panel:has(.metadata-download) h2, .portfell-panel:has(.metadata-builder-form) h2 { margin: 0 0 8px; font-size: 18px; line-height: 24px; }
 .metadata-download { gap: 6px; }
-.metadata-download progress { height: 8px; }
+.metadata-download progress { height: 14px; }
 .metadata-download .status-line, .portfell-panel:has(.metadata-builder-form) > .status-line { min-height: 16px; margin: 0; }
 .metadata-download .portfell-button, .metadata-builder-form .portfell-button { min-height: 32px; }
 .metadata-builder-form { gap: 8px; }
@@ -140,11 +140,11 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
   gap: 8px;
 }
 .quote-fetch--panel { margin-top: 0; padding-top: 0; border-top: 0; }
-.quote-fetch progress { width: 100%; height: 18px; }
+.quote-fetch progress { width: 100%; height: 14px; }
 .historical-data { gap: 6px; }
 .portfell-panel:has(.historical-data) { padding: 12px 16px; }
 .portfell-panel:has(.historical-data) h2 { margin: 0 0 8px; font-size: 18px; line-height: 24px; }
-.historical-data progress { height: 8px; }
+.historical-data progress { height: 14px; }
 .historical-data .status-line { min-height: 16px; margin: 0; }
 .historical-data .portfell-button { min-height: 32px; }
 .quote-fetch__action { display: flex; justify-content: flex-end; }
@@ -165,7 +165,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 .univariate-compute .status-line { min-height: 16px; margin: 0; }
 .univariate-compute .portfell-button { min-height: 32px; }
 .bivariate-compute { gap: 6px; margin-bottom: var(--space-4); }
-.quote-fetch.bivariate-compute progress { height: 8px; min-height: 8px; }
+.quote-fetch.bivariate-compute progress { height: 14px; min-height: 14px; }
 .bivariate-compute .status-line { min-height: 16px; margin: 0; }
 .bivariate-compute .portfell-button { min-height: 32px; }
 .bivariate-statistic { display: grid; grid-template-columns: minmax(260px, .9fr) minmax(420px, 1.6fr); gap: var(--space-6); padding: var(--space-4); border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--canvas); }
@@ -320,7 +320,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
   align-items: end;
 }
 .predicate-row label { display: grid; gap: 5px; color: #5f6368; }
-progress { width: 100%; min-height: 18px; }
+progress { width: 100%; min-height: 14px; }
 table { width: 100%; border-collapse: collapse; }
 th, td { padding: 10px; border-bottom: 1px solid #e5e8ec; text-align: left; }
 @media (max-width: 900px) {

@@ -31,7 +31,7 @@ or calculates financial values in the browser.
 - Locked state: one `Multivariate Statistics` panel explains that Bivariate
   Statistics must complete first.
 - Ready state: the Bivariate-style compact server-owned progress panel with a
-  labelled determinate progress bar, status line, and right-aligned compute action.
+  labelled 14px determinate progress bar, status line, and right-aligned compute action.
 - Complete state: Overview, Risk Structure, Portfolio Candidates, Risk
   Contributions, Income Evidence, and Validation tabs in the responsive multi-row
   statistics tab grid, with no horizontal tab scrolling.

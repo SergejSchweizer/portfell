@@ -1491,6 +1491,30 @@ Idempotency: Rendering the additional facts is read-only and does not create or 
 Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
 merge, satisfy the current `merge-gate` requirements in `GATES.md`.
 
+### PR208. Statistics Progress Height
+
+Branch: `fix/statistics-progress-height`.
+
+Git status: in progress. PR: TBD.
+
+Priority: P2 workflow consistency.
+
+Depends on: PR207.
+
+Scope: Use the Univariate Statistics 14px progress-bar height for every workflow progress indicator.
+
+Acceptance: Metadata, historical-data, Univariate, Bivariate, and Multivariate progress bars render
+at the same 14px height without changing their progress semantics or actions.
+
+Security: Styling changes do not alter server-owned workflow state or requests.
+
+Determinism: The fixed shared CSS height renders consistently for every workflow state.
+
+Idempotency: Rendering the shared style makes no state mutation.
+
+Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
+merge, satisfy the current `merge-gate` requirements in `GATES.md`.
+
 ### PR207. Market-Price NAV Proxy
 
 Branch: `fix/market-price-nav-proxy`.
