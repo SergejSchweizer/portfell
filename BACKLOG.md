@@ -1491,6 +1491,32 @@ Idempotency: Rendering the additional facts is read-only and does not create or 
 Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
 merge, satisfy the current `merge-gate` requirements in `GATES.md`.
 
+### PR215. Parallel Walk-Forward Refits
+
+Branch: `refactor/multivariate-walk-forward-parallelism`.
+
+Git status: in progress. PR: TBD.
+
+Priority: P1 multivariate compute performance.
+
+Depends on: PR214.
+
+Scope: Distribute independent Walk-Forward risk-model and candidate refits across all runtime-visible
+CPUs while retaining chronological turnover evaluation.
+
+Acceptance: The API process pool receives one independent refit task per complete Walk-Forward window;
+the resulting validation splits retain chronological turnover and unchanged financial semantics.
+
+Security: Worker tasks consume only the already-authorized, project-scoped in-memory inputs.
+
+Determinism: Refits are associated with their chronological windows before sequential evaluation, so
+parallel completion order cannot affect persisted values.
+
+Idempotency: A run still persists one deterministic result for its versioned input identity.
+
+Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
+merge, satisfy the current `merge-gate` requirements in `GATES.md`.
+
 ### PR214. Multivariate Stall Recovery
 
 Branch: `fix/multivariate-stall-recovery`.

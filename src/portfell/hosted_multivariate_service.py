@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 import os
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable
 from concurrent.futures import Executor, ProcessPoolExecutor
 from dataclasses import replace
 from time import time
-from typing import Any
 
 from portfell.gold import build_returns
 from portfell.hosted_api_errors import HostedApplicationError
@@ -34,13 +33,14 @@ from portfell.income import (
     build_income_evidence,
     normalize_distribution_events,
 )
-from portfell.multivariate_candidates import PortfolioCandidate, build_candidate_set
+from portfell.multivariate_candidates import build_candidate_set
 from portfell.multivariate_inputs import (
     MultivariateInputDependencies,
     MultivariateListingKey,
     build_multivariate_input_snapshot,
 )
 from portfell.multivariate_quote_views import common_dates, first_price, last_price
+from portfell.multivariate_refits import build_refitted_candidate_sets
 from portfell.multivariate_risk_model import build_multivariate_risk_model
 from portfell.multivariate_run_view import multivariate_run_row
 from portfell.multivariate_structure import build_multivariate_structure
@@ -327,25 +327,17 @@ class MultivariateResearchService(MultivariateRunViews):
             executor=executor,
         )
         on_phase(run.run_id, "validate_candidates", 5)
-
-        def refit_candidates(
-            training_rows: Sequence[Mapping[str, Any]],
-        ) -> tuple[PortfolioCandidate, ...]:
-            training_risk = build_multivariate_risk_model(
-                snapshot=snapshot, return_rows=training_rows
-            )
-            return build_candidate_set(
-                snapshot=snapshot,
-                risk_model=training_risk,
-                return_rows=training_rows,
-                income=income,
-                executor=executor,
-            )
-
+        refitted_candidates = build_refitted_candidate_sets(
+            executor=executor,
+            candidates=candidates,
+            snapshot=snapshot,
+            return_rows=returns,
+            income=income,
+        )
         validation = validate_candidates(
             candidates=candidates,
             return_rows=returns,
-            candidate_factory=refit_candidates,
+            precomputed_candidates=refitted_candidates,
             risk_model_id=risk.risk_model_id,
         )
         scenarios = validate_candidate_stress(candidates=candidates, return_rows=returns)

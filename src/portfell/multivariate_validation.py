@@ -48,6 +48,25 @@ _SCENARIO_NAMES = (
 )
 
 
+def walk_forward_training_rows(
+    *,
+    candidates: Sequence[PortfolioCandidate],
+    return_rows: Sequence[Mapping[str, Any]],
+    policy: WalkForwardPolicy = DEFAULT_WALK_FORWARD_POLICY,
+) -> tuple[tuple[Mapping[str, Any], ...], ...]:
+    dates = _common_dates(candidates, return_rows)
+    if len(dates) < policy.minimum_training_observations + policy.test_window_observations:
+        return ()
+    return tuple(
+        tuple(row for row in return_rows if str(row.get("date", "")) in set(dates[:start]))
+        for start in range(
+            policy.minimum_training_observations, len(dates), policy.test_window_observations
+        )
+        if len(dates[start : start + policy.test_window_observations])
+        == policy.test_window_observations
+    )
+
+
 @dataclass(frozen=True)
 class ValidationSplit:
     split_id: str
@@ -112,6 +131,7 @@ def validate_candidates(
     return_rows: Sequence[Mapping[str, Any]],
     policy: WalkForwardPolicy = DEFAULT_WALK_FORWARD_POLICY,
     candidate_factory: CandidateFactory | None = None,
+    precomputed_candidates: Sequence[Sequence[PortfolioCandidate]] | None = None,
     risk_model_id: str | None = None,
 ) -> tuple[ValidationSplit, ...]:
     """Validate candidates on common out-of-sample slices.
@@ -122,6 +142,8 @@ def validate_candidates(
     this pure helper useful for explicit static-weight research fixtures.
     """
 
+    if candidate_factory is not None and precomputed_candidates is not None:
+        raise ValueError("candidate_factory_and_precomputed_candidates_are_exclusive")
     dates = _common_dates(candidates, return_rows)
     if len(dates) < policy.minimum_training_observations + policy.test_window_observations:
         return tuple(
@@ -129,16 +151,25 @@ def validate_candidates(
         )
     results: list[ValidationSplit] = []
     previous_weights: dict[str, tuple[tuple[MultivariateListingKey, float], ...]] = {}
+    refit_index = 0
     for start in range(
         policy.minimum_training_observations, len(dates), policy.test_window_observations
     ):
         test_dates = dates[start : start + policy.test_window_observations]
         if len(test_dates) != policy.test_window_observations:
             continue
-        training_rows = [row for row in return_rows if str(row.get("date", "")) in dates[:start]]
-        evaluated = (
-            tuple(candidate_factory(training_rows)) if candidate_factory else tuple(candidates)
+        training_rows = tuple(
+            row for row in return_rows if str(row.get("date", "")) in set(dates[:start])
         )
+        if precomputed_candidates is not None:
+            if refit_index >= len(precomputed_candidates):
+                raise ValueError("missing_precomputed_candidates")
+            evaluated = tuple(precomputed_candidates[refit_index])
+            refit_index += 1
+        else:
+            evaluated = (
+                tuple(candidate_factory(training_rows)) if candidate_factory else tuple(candidates)
+            )
         by_method = {candidate.method: candidate for candidate in evaluated}
         for requested in candidates:
             candidate = by_method.get(requested.method)
@@ -193,6 +224,8 @@ def validate_candidates(
                     test_observation_count=len(test),
                 )
             )
+    if precomputed_candidates is not None and refit_index != len(precomputed_candidates):
+        raise ValueError("unexpected_precomputed_candidates")
     return tuple(results)
 
 

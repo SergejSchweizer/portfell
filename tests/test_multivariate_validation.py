@@ -110,6 +110,28 @@ def test_walk_forward_refits_only_on_each_training_slice_and_persists_turnover()
     assert splits[0].turnover == 1.0
 
 
+def test_walk_forward_uses_precomputed_refits_in_chronological_turnover_order() -> None:
+    rows = [
+        {
+            "isin": "IE1",
+            "exchange": "X",
+            "code": "A",
+            "date": f"2025-01-{day:02d}",
+            "return": 0.01,
+        }
+        for day in range(1, 11)
+    ]
+    splits = validate_candidates(
+        candidates=[_candidate()],
+        return_rows=rows,
+        policy=WalkForwardPolicy(minimum_training_observations=4, test_window_observations=2),
+        precomputed_candidates=[[_candidate()], [_candidate()], [_candidate()]],
+    )
+
+    assert len(splits) == 3
+    assert [split.turnover for split in splits] == [1.0, 0.0, 0.0]
+
+
 def test_stress_and_scorecards_are_deterministic_and_do_not_select_a_winner() -> None:
     rows = [
         {

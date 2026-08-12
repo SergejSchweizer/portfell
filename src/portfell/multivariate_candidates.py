@@ -17,7 +17,10 @@ from typing import Any
 from portfell.contract_versioning import ContractVersion, stable_contract_id
 from portfell.income import IncomeEvidence
 from portfell.multivariate_inputs import MultivariateInputSnapshot, MultivariateListingKey
-from portfell.multivariate_risk_model import MultivariateRiskModelArtifact
+from portfell.multivariate_risk_model import (
+    MultivariateRiskModelArtifact,
+    build_multivariate_risk_model,
+)
 from portfell.portfolio import portfolio_variance
 from portfell.portfolio_parts.clustering import (
     correlation_distance_matrix,
@@ -72,6 +75,16 @@ class MonthlyDistributionEtfPortfolioPolicy:
 
 
 DEFAULT_MONTHLY_DISTRIBUTION_ETF_PORTFOLIO_POLICY = MonthlyDistributionEtfPortfolioPolicy()
+
+
+@dataclass(frozen=True)
+class CandidateRefitTask:
+    snapshot: MultivariateInputSnapshot
+    return_rows: tuple[Mapping[str, Any], ...]
+    income: Mapping[MultivariateListingKey, IncomeEvidence]
+    policy: MonthlyDistributionEtfPortfolioPolicy = (
+        DEFAULT_MONTHLY_DISTRIBUTION_ETF_PORTFOLIO_POLICY
+    )
 
 
 @dataclass(frozen=True)
@@ -162,6 +175,17 @@ def _build_candidate(
     ],
 ) -> PortfolioCandidate:
     return _candidate(*task)
+
+
+def build_refit_candidate_set(task: CandidateRefitTask) -> tuple[PortfolioCandidate, ...]:
+    risk_model = build_multivariate_risk_model(snapshot=task.snapshot, return_rows=task.return_rows)
+    return build_candidate_set(
+        snapshot=task.snapshot,
+        risk_model=risk_model,
+        return_rows=task.return_rows,
+        income=task.income,
+        policy=task.policy,
+    )
 
 
 def _feasibility_reason(
