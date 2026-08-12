@@ -293,9 +293,21 @@ def _business_key(dataset_type: str, row: Mapping[str, Any]) -> str:
     if dataset_type == "quotes":
         values = (row.get("date"),)
     elif dataset_type == "dividends":
-        values = (row.get("event_id", row.get("id")), row.get("payment_date", row.get("date")))
+        event_id = row.get("event_id", row.get("id", row.get("source_id")))
+        if event_id is not None and event_id != "":
+            values = (event_id, row.get("payment_date", row.get("paymentDate", row.get("date"))))
+        else:
+            event_date = row.get("date", row.get("payment_date", row.get("paymentDate")))
+            details = (
+                row.get("declarationDate", ""),
+                row.get("recordDate", ""),
+                row.get("paymentDate", row.get("payment_date", "")),
+                row.get("period", ""),
+                row.get("unadjustedValue", row.get("value", "")),
+            )
+            values = (event_date, *(detail for detail in details if detail not in (None, "")))
     else:
-        values = (row.get("date"), row.get("split_factor", row.get("ratio")))
+        values = (row.get("date"), row.get("split_factor", row.get("ratio", row.get("split"))))
     if any(value is None or value == "" for value in values):
         raise SharedMarketDataError("shared_market_business_key_missing")
     return "\u001f".join(str(value) for value in values)
