@@ -8,6 +8,8 @@ from dataclasses import dataclass
 from math import sqrt
 from typing import Any
 
+import polars as pl
+
 from portfell.table_io import JsonRow
 
 ListingKey = tuple[str, str, str]
@@ -135,9 +137,15 @@ class PairStatistics:
 
 def index_returns(return_rows: Sequence[Mapping[str, Any]]) -> ReturnsByListing:
     indexed: ReturnsByListing = {}
-    for row in return_rows:
-        key = (str(row["isin"]), str(row["exchange"]), str(row["code"]))
-        indexed.setdefault(key, {})[str(row["date"])] = float(row["return"])
+    frame = pl.DataFrame([dict(row) for row in return_rows], infer_schema_length=None)
+    if frame.is_empty():
+        return indexed
+    for listing_rows in frame.sort(  # pyright: ignore[reportUnknownMemberType]
+        "isin", "exchange", "code", "date"
+    ).partition_by("isin", "exchange", "code", maintain_order=True):
+        rows = listing_rows.to_dicts()
+        key = (str(rows[0]["isin"]), str(rows[0]["exchange"]), str(rows[0]["code"]))
+        indexed[key] = {str(row["date"]): float(row["return"]) for row in rows}
     return indexed
 
 

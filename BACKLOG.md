@@ -1491,6 +1491,31 @@ Idempotency: Rendering the additional facts is read-only and does not create or 
 Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
 merge, satisfy the current `merge-gate` requirements in `GATES.md`.
 
+### PR217. Polars Statistics Pipelines
+
+Branch: `refactor/statistics-polars`.
+
+Git status: in progress. PR: TBD.
+
+Priority: P1 statistics data-processing performance.
+
+Depends on: PR216.
+
+Scope: Use Polars for Parquet I/O and tabular preparation in the Univariate, Bivariate, and
+Multivariate statistics pipelines.
+
+Acceptance: The three pipelines use Polars at their table boundaries, require no PyArrow runtime
+dependency, and preserve existing statistic and persisted Parquet contracts.
+
+Security: The conversion retains existing scoped inputs and does not change data-access boundaries.
+
+Determinism: Stable sorting and existing financial formulas retain deterministic result ordering and values.
+
+Idempotency: Existing cache keys and persisted artifact paths remain unchanged.
+
+Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
+merge, satisfy the current `merge-gate` requirements in `GATES.md`.
+
 ### PR216. Polars Dataframe Preference
 
 Branch: `docs/polars-dataframes`.

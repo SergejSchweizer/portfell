@@ -7,8 +7,8 @@ per the "Architecture Ownership" principle in
 mathematics belongs in a `portfolio_parts` implementation module, not
 dynamically re-imported from the `portfell.portfolio` facade.
 
-The repository intentionally has no numerical runtime dependency (pyarrow
-only). Rather than adding scipy/numpy, this module hand-implements a
+The repository intentionally has no numerical optimization runtime dependency (Polars
+is used only for tabular data). Rather than adding scipy/numpy, this module hand-implements a
 projected gradient descent solver with a backtracking (Armijo-style) line
 search and a capped-simplex projection, matching the existing pure-Python
 style used by `portfell.risk_model`'s Jacobi eigenvalue solver.

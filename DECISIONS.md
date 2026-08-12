@@ -160,7 +160,7 @@ Date: 2026-07-12
 
 Context: The lake artifacts use `.parquet` table contracts and should open in standard Parquet readers.
 
-Decision: Implement deterministic local table helpers in `portfell.table_io` and keep storage calls behind path and schema contracts. `.parquet` paths are written as physical Apache Parquet files through pyarrow; `.json` and review CSV artifacts keep their native formats.
+Decision: Implement deterministic local table helpers in `portfell.table_io` and keep storage calls behind path and schema contracts. `.parquet` paths are written as physical Apache Parquet files through Polars; `.json` and review CSV artifacts keep their native formats.
 
 Consequences: Search, Bronze, coverage, Gold inputs, and dry runs produce lake tables that open in standard Parquet tooling while module code still depends only on `portfell.table_io`.
 

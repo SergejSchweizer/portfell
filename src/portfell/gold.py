@@ -10,6 +10,8 @@ from datetime import UTC, datetime
 from math import log, sqrt
 from typing import Any
 
+import polars as pl
+
 from portfell.gold_pair_stats import (
     DEFAULT_MAX_PAIR_COUNT,
     bucket_correlation_edges,
@@ -48,14 +50,15 @@ class GoldListingResult:
 
 
 def build_returns(quote_rows: Sequence[Mapping[str, Any]]) -> list[JsonRow]:
-    by_listing: dict[tuple[str, str, str], list[Mapping[str, Any]]] = {}
-    for row in quote_rows:
-        key = (str(row["isin"]), str(row["exchange"]), str(row["code"]))
-        by_listing.setdefault(key, []).append(row)
-
     returns: list[JsonRow] = []
-    for (isin, exchange, code), rows in sorted(by_listing.items()):
-        ordered = sorted(rows, key=lambda row: str(row["date"]))
+    frame = pl.DataFrame([dict(row) for row in quote_rows], infer_schema_length=None)
+    if frame.is_empty():
+        return returns
+    for listing_rows in frame.sort(  # pyright: ignore[reportUnknownMemberType]
+        "isin", "exchange", "code", "date"
+    ).partition_by("isin", "exchange", "code", maintain_order=True):
+        ordered = listing_rows.to_dicts()
+        isin, exchange, code = (str(ordered[0][field]) for field in ("isin", "exchange", "code"))
         valid_quotes, _quarantined = filter_valid_price_points(ordered)
         for previous, current in zip(valid_quotes, valid_quotes[1:], strict=False):
             previous_close = float(previous["adjusted_close"])

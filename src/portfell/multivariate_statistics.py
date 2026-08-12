@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
+import polars as pl
+
 from portfell.bivariate_statistics import write_bivariate_statistics
 from portfell.calculation_status import UNAVAILABLE
 from portfell.contract_versioning import stable_contract_id
@@ -580,12 +582,20 @@ def _filter_quotes_to_selection(
     quotes: Sequence[Mapping[str, Any]],
     selected_rows: Sequence[Mapping[str, Any]],
 ) -> list[JsonRow]:
-    selected = {(str(row["isin"]), str(row["exchange"]), str(row["code"])) for row in selected_rows}
-    return [
-        dict(row)
-        for row in quotes
-        if (str(row["isin"]), str(row["exchange"]), str(row["code"])) in selected
-    ]
+    if not quotes or not selected_rows:
+        return []
+    selected = pl.DataFrame(
+        [
+            {field: str(row[field]) for field in ("isin", "exchange", "code")}
+            for row in selected_rows
+        ],
+        infer_schema_length=None,
+    ).unique()  # pyright: ignore[reportUnknownMemberType]
+    return (
+        pl.DataFrame([dict(row) for row in quotes], infer_schema_length=None)
+        .join(selected, on=["isin", "exchange", "code"], how="semi")
+        .to_dicts()
+    )
 
 
 def _portfolio_id(config: MultivariateStatisticsConfig, objective: str) -> str:

@@ -173,7 +173,7 @@ portfell/
 `-- AGENTS.md                       contributor and coding-agent workflow
 ```
 
-The Python package targets Python 3.14. Core runtime dependencies are intentionally small: PyArrow for physical tables, FastAPI/Uvicorn for the hosted API, Psycopg for PostgreSQL integration, and Cryptography for hosted credential encryption.
+The Python package targets Python 3.14. Core runtime dependencies are intentionally small: Polars for physical tables and dataframe transformations, FastAPI/Uvicorn for the hosted API, Psycopg for PostgreSQL integration, and Cryptography for hosted credential encryption.
 
 ## Execution Mode 1: Local CLI And Data Lake
 
