@@ -71,42 +71,47 @@ class BivariateResearchService:
     def complete(self, user_id: str, selection_id: str) -> None:
         """Compute every bivariate statistic in the background using all CPU cores."""
 
-        selection = self._repository.univariate_selection(selection_id, user_id)
-        run_id = opaque_id("bivariate-run", f"{user_id}:{bivariate_source_id(selection)}")
-        run = self._repository.bivariate_run(run_id, user_id)
-        if run.status != "running":
-            return
-        source_run = self._repository.univariate_run(selection.source_run_id, user_id)
-        quote_run_id = self._repository.quote_run_id(source_run.run_id)
-        quote_rows = self._repository.quote_rows(quote_run_id)
-        if not quote_rows:
-            quote_rows = self._data.selected_rows(selection.member_ids, dataset="quotes")
-        if not quote_rows:
-            self._fail(run, user_id)
-            return
-
-        def update_progress(completed: int, total: int) -> None:
-            active = self._repository.find_bivariate_run(run_id, user_id)
-            if active is not None and active.status == "running":
-                self._repository.save_bivariate_run(
-                    replace(active, completed=min(completed, total), total=total)
-                )
-
+        run: ResearchRun | None = None
         try:
+            selection = self._repository.univariate_selection(selection_id, user_id)
+            run_id = opaque_id("bivariate-run", f"{user_id}:{bivariate_source_id(selection)}")
+            run = self._repository.bivariate_run(run_id, user_id)
+            if run.status != "running":
+                return
+            source_run = self._repository.univariate_run(selection.source_run_id, user_id)
+            quote_run_id = self._repository.quote_run_id(source_run.run_id)
+            quote_rows = self._repository.quote_rows(quote_run_id)
+            if not quote_rows:
+                quote_rows = self._data.selected_rows(selection.member_ids, dataset="quotes")
+            if not quote_rows:
+                self._fail(run, user_id)
+                return
+
+            def update_progress(completed: int, total: int) -> None:
+                active = self._repository.find_bivariate_run(run_id, user_id)
+                if active is not None and active.status == "running":
+                    self._repository.save_bivariate_run(
+                        replace(active, completed=min(completed, total), total=total)
+                    )
+
             computed = create_bivariate_run(
                 user_id=user_id,
                 selection=selection,
                 quote_rows=quote_rows,
                 on_progress=update_progress,
             )
+            self._repository.save_bivariate_run(
+                replace(computed, run_id=run_id, total=computed.total, completed=computed.total)
+            )
+            self._repository.audit(user_id, "bivariate_statistics.complete")
+            self._persistence.persist()
         except HostedResearchError:
-            self._fail(run, user_id)
-            return
-        self._repository.save_bivariate_run(
-            replace(computed, run_id=run_id, total=computed.total, completed=computed.total)
-        )
-        self._repository.audit(user_id, "bivariate_statistics.complete")
-        self._persistence.persist()
+            if run is not None:
+                self._fail(run, user_id)
+        except Exception:
+            if run is not None:
+                self._fail(run, user_id)
+            raise
 
     def status(self, user_id: str, run_id: str) -> JsonRow:
         return research_run_row(self._repository.bivariate_run(run_id, user_id))

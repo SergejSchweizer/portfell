@@ -91,12 +91,14 @@ async function installTwoProjectApi(
   page: Page,
   initialFillStatus: "ready" | "running" = "ready",
   omitSelectionIdFromContext = false,
+  bivariateCompletesAfterPoll = false,
 ): Promise<WorkflowFixture> {
   const projects = new Map<string, Project>();
   const settingsWrites = new Map<string, number>();
   const calls: string[] = [];
   let currentProjectId: string | null = null;
   let metadataPolls = 0;
+  let bivariatePolls = 0;
   const initialFillStartedAt = Math.floor(Date.now() / 1_000) - 60;
   const initialFillRow = (projectId: string) => ({
     bootstrap_id: `bootstrap-${projectId}`,
@@ -190,9 +192,13 @@ async function installTwoProjectApi(
     if (method === "POST" && path === "/api/bivariate-statistics/runs") {
       const project = current()!;
       project.bivariateRunId = `bivariate-${project.id}`;
-      return response(route, { run_id: project.bivariateRunId, status: "complete", total: 3, completed: 3, failed: 0, percent: 100 });
+      return response(route, { run_id: project.bivariateRunId, status: bivariateCompletesAfterPoll ? "running" : "complete", total: 3, completed: bivariateCompletesAfterPoll ? 0 : 3, failed: 0, percent: bivariateCompletesAfterPoll ? 0 : 100 });
     }
-    if (method === "GET" && /^\/api\/bivariate-statistics\/runs\/[^/]+$/.test(path)) return response(route, { run_id: path.split("/").at(-1), status: "complete", total: 3, completed: 3, failed: 0, percent: 100 });
+    if (method === "GET" && /^\/api\/bivariate-statistics\/runs\/[^/]+$/.test(path)) {
+      bivariatePolls += 1;
+      const running = bivariateCompletesAfterPoll && bivariatePolls === 1;
+      return response(route, { run_id: path.split("/").at(-1), status: running ? "running" : "complete", total: 3, completed: running ? 0 : 3, failed: 0, percent: running ? 0 : 100 });
+    }
     if (method === "GET" && path.includes("/bivariate-statistics/runs/") && path.endsWith("/results")) return response(route, { items: [{ left_isin: labels[0].isin, left_exchange: "XETRA", left_code: "ALPHA", right_isin: labels[1].isin, right_exchange: "XETRA", right_code: "BETA", n_observations: 252, covariance: 0.12, pearson_correlation: 0.6, spearman_correlation: 0.5, downside_correlation: 0.7, lower_tail_dependence: 0.12, tail_coexceedance_rate: 0.08 }], total: 1, limit: 50, offset: 0 });
     if (method === "GET" && path.endsWith("/covariance-matrix")) return response(route, { labels, values: matrix, observation_count: 252, diagnostics: { listing_count: 3, pair_count: 3, observation_count: 252, average_pairwise_covariance: 0.09, average_pairwise_correlation: 0.4, equal_weight_volatility: 0.12, minimum_variance_volatility: 0.1, diversification_ratio: 1.2, effective_number_of_bets: 2.4, largest_equal_weight_risk_contribution: 0.4 } });
     if (method === "GET" && path.includes("/bivariate-statistics/") && path.endsWith("/summary")) return response(route, bivariateSummary());
@@ -265,6 +271,28 @@ test("selecting a project restores its Metadata Builder fields", async ({ page }
   await expect(page.getByLabel("Country")).toHaveValue("IE");
   await expect(page.getByLabel("Currency")).toHaveValue("EUR");
   await expect(page.getByLabel("Name contains")).toHaveValue("Alpha income");
+});
+
+test("Bivariate compute polls a running server run through completion", async ({ page }) => {
+  const fixture = await installTwoProjectApi(page, "ready", false, true);
+  await page.goto("/metadata-builder");
+  await createProject(page, { exchange: "XETRA", instrumentType: "ETF", country: "IE", currency: "EUR", name: "Bivariate lifecycle" });
+  await page.goto("/univariate-statistics");
+  await computeUnivariate(page);
+  await page.goto("/bivariate-statistics");
+
+  const action = page.getByRole("button", { name: "Compute Bivariate Statistics" });
+  await action.click();
+  await expect(page.getByRole("button", { name: "Computing…" })).toBeDisabled();
+  await expect(page.getByText("0 of 3 pair statistics computed.")).toBeVisible();
+  await expect(page.getByText("1 pair statistics computed.")).toBeVisible();
+  await expect(action).toBeEnabled();
+  await expect(page.getByRole("tab", { name: "Covariance" })).toBeVisible();
+  expect(fixture.calls).toEqual(expect.arrayContaining([
+    "POST /api/bivariate-statistics/plan",
+    "POST /api/bivariate-statistics/runs",
+    "GET /api/bivariate-statistics/runs/bivariate-project-1",
+  ]));
 });
 
 test("every workflow button completes its browser action for two isolated projects", async ({ page }) => {

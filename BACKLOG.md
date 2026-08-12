@@ -1277,6 +1277,29 @@ Determinism: The existing deterministic run identity remains unchanged across re
 
 Idempotency: Re-submitting an active run reuses its identity and can safely resume its computation.
 
+### PR194. Bivariate Compute Lifecycle
+
+Branch: `fix/bivariate-compute-lifecycle`.
+
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/354.
+
+Priority: P1 research workflow reliability.
+
+Depends on: PR193.
+
+Scope: Commit Bivariate run creation before detached computation, persist terminal failures, and
+cover the browser Compute Bivariate Statistics action through a running-to-complete lifecycle.
+
+Acceptance: A runnable Bivariate selection returns an immediately pollable `running` run; progress
+and duplicate-submit prevention remain visible until the run completes or fails; the completed
+result window then loads from server-owned data.
+
+Security: Detached computation uses a fresh autocommit connection with the initiating user's RLS context.
+
+Determinism: Re-submitting the same selection retains its deterministic Bivariate run identity.
+
+Idempotency: Repeated active-run starts reuse the same running run without duplicate computation.
+
 ### PR193. Statistics Result Completion Visibility
 
 Branch: `fix/statistics-completion-visibility`.
