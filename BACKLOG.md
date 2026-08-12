@@ -1348,7 +1348,7 @@ Idempotency: Revisiting a completed statistics result applies the same layout wi
 
 Branch: `fix/bivariate-filtered-selection`.
 
-Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/357.
+Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/357.
 
 Priority: P1 research workflow correctness.
 
@@ -1367,6 +1367,28 @@ Determinism: Equal completed Univariate rows and saved filters produce the same 
 
 Idempotency: Repeating a workflow read reuses the persisted deterministic selection without changing
 its members.
+
+### PR198. Desktop-Only UI Tests
+
+Branch: `chore/desktop-ui-tests`.
+
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/358.
+
+Priority: P2 test execution efficiency.
+
+Depends on: PR197.
+
+Scope: Run the Playwright UI and real-stack browser suites only with the desktop project.
+
+Acceptance: `npm run e2e` executes every UI scenario once using Desktop Chrome; tablet and mobile
+projects are absent from the Playwright configuration and browser-test quality-gate documentation.
+
+Security: Test fixture, browser artifact, and secret-handling boundaries are unchanged.
+
+Determinism: The fixed desktop viewport and browser remain unchanged across local and CI runs.
+
+Idempotency: Re-running the desktop suite creates no product-side mutations beyond its existing
+isolated test fixtures.
 
 ### PR193. Statistics Result Completion Visibility
 

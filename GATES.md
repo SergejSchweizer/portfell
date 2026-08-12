@@ -35,8 +35,8 @@ Required check families:
 - Hosted public-repository security gates.
 - Hosted readiness records for licensing, privacy, retention, backup, restore, and key rotation.
 - Pyright strict typing.
-- Playwright interaction-inventory tests on desktop, tablet, and mobile.
-- Real Docker browser tests for worker-owned metadata refreshes on desktop, tablet, and mobile.
+- Playwright interaction-inventory tests on desktop.
+- Real Docker browser tests for worker-owned metadata refreshes on desktop.
 - Pytest Unit and Integration shards.
 - Coverage threshold enforcement on `main`.
 - Architecture checks.
@@ -113,7 +113,7 @@ pr-quality
     |
         +-- pr-web-button-e2e
     |       npm run build && npm run e2e
-        |       desktop, tablet, and mobile workflow coverage for every visible button
+        |       desktop workflow coverage for every visible button
     |       traces, screenshots, and videos retained only on failure
     |
     +-- pr-real-stack-buttons
@@ -218,7 +218,7 @@ merge-gate
     |
         +-- merge-web-button-e2e
     |       npm run build && npm run e2e
-        |       desktop, tablet, and mobile workflow coverage for every visible button
+        |       desktop workflow coverage for every visible button
     |
     +-- merge-real-stack-buttons
     |       bash scripts/run_real_stack_e2e.sh

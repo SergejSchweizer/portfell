@@ -106,9 +106,10 @@ For a cross-page workflow change, add or extend the stateful two-project browser
 journey in `apps/web/tests/two-project-workflow.spec.ts`. It must create both
 projects through the visible metadata form, exercise every visible input and
 action in the affected workflow pages, and verify that saved state remains
-isolated after switching projects. Browser mocks may provide deterministic
-server responses, but they must behave as a stateful API rather than returning
-one fixed project for every request.
+isolated after switching projects. The Playwright journey runs on the desktop
+project only. Browser mocks may provide deterministic server responses, but they
+must behave as a stateful API rather than returning one fixed project for every
+request.
 
 ## Pull-request contract
 
