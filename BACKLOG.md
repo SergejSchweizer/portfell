@@ -942,7 +942,7 @@ artifact contract.
 
 Branch: `fix/initial-fill-status-sync`.
 
-Git status: in progress. PR: TBD.
+Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/338.
 
 Priority: P1 durable worker correctness.
 
@@ -962,6 +962,32 @@ cross-tenant access to initial-fill records.
 Determinism: Each durable queue status maps to one fixed initial-fill projection status.
 
 Idempotency: Repeating a synchronization write for the same job status leaves the same projection state.
+
+### PR179. Batched Shared Delta Publication
+
+Branch: `perf/shared-delta-publication`.
+
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/339.
+
+Priority: P1 worker throughput.
+
+Depends on: PR178.
+
+Scope: Batch shared quote, dividend, and split coverage-catalog publication during a delta refresh. Keep
+provider requests parallel and immutable revision files atomic, but read and replace the full coverage
+catalogue once per bounded batch instead of once per provider response.
+
+Acceptance: A batch of multiple listing/dataset updates reads the coverage catalogue once and publishes one
+complete catalogue replacement. Existing delta overlap, fully-covered request skipping, business-key merge,
+partial-failure reporting, and per-listing progress behavior remain covered by tests.
+
+Security: Shared rows retain their tenant-neutral schema checks, and batch publication never weakens the
+single refresh lock or atomic file-replacement guarantees.
+
+Determinism: Catalogue records and immutable revision content remain sorted and identical for the same
+request results independent of provider completion order.
+
+Idempotency: Repeating the same batch leaves the active coverage content hashes unchanged.
 
 ### PR168. Production Cron Installation And First Scheduled Run Evidence
 

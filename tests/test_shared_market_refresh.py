@@ -79,6 +79,40 @@ def test_delta_plan_skips_fully_covered_data_and_backfills_only_new_listings(tmp
     ]
 
 
+def test_batch_publish_reads_and_replaces_coverage_once(tmp_path, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    store = SharedMarketDataStore(tmp_path)
+    reads = 0
+    original_read_catalog = store._read_catalog
+
+    def count_catalog_reads():  # type: ignore[no-untyped-def]
+        nonlocal reads
+        reads += 1
+        return original_read_catalog()
+
+    monkeypatch.setattr(store, "_read_catalog", count_catalog_reads)
+    listings = tuple(
+        SharedListingKey("eodhd", "XETRA", f"A{index}", f"IE{index}") for index in range(3)
+    )
+    changed = store.upsert_many(
+        (
+            "quotes",
+            listing,
+            _fetch(
+                SimpleNamespace(
+                    listing=listing,
+                    dataset_type="quotes",
+                    end_date="2026-01-10",
+                )
+            ),
+        )
+        for listing in listings
+    )
+
+    assert changed == (True, True, True)
+    assert reads == 1
+    assert len(store.coverage()) == 3
+
+
 def test_refresh_accepts_worker_owned_inventory_without_workspace_state(tmp_path) -> None:  # type: ignore[no-untyped-def]
     result = refresh_shared_market_data(
         store=SharedMarketDataStore(tmp_path),
@@ -104,12 +138,18 @@ def test_refresh_rejects_invalid_settings_and_persists_partial_failure(tmp_path)
             raise RuntimeError("provider unavailable")
         return _fetch(request)
 
+    completed: list[SharedListingKey] = []
     with pytest.raises(SharedMarketRefreshError, match="partial_failure"):
         refresh_shared_market_data(
-            store=store, listings=_LISTINGS, fetch=failing_fetch, end_date=date(2026, 1, 1)
+            store=store,
+            listings=_LISTINGS,
+            fetch=failing_fetch,
+            end_date=date(2026, 1, 1),
+            on_listing_completed=completed.append,
         )
     manifest = (store.root / "refresh-runs" / "2026-01-01.json").read_text(encoding="utf-8")
     assert '"failed": 1' in manifest
+    assert completed == list(_LISTINGS)
 
 
 def test_refresh_lock_and_cli_exit_codes(tmp_path, monkeypatch, capsys) -> None:  # type: ignore[no-untyped-def]
