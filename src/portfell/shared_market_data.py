@@ -116,8 +116,48 @@ class SharedMarketDataStore:
     ) -> CoverageRecord:
         """Merge complete business keys, atomically publish, and update coverage."""
 
+        with self._catalog_lock:
+            catalog = self._read_catalog()
+            record, _ = self._upsert_with_catalog(catalog, dataset_type, listing, rows)
+            _atomic_write_json(
+                self.root / "coverage.json", {"records": [catalog[key] for key in sorted(catalog)]}
+            )
+        return record
+
+    def upsert_many(
+        self,
+        values: Iterable[tuple[str, SharedListingKey, Iterable[Mapping[str, Any]]]],
+    ) -> tuple[bool, ...]:
+        """Publish a batch while reading and replacing the coverage catalogue once."""
+
+        with self._catalog_lock:
+            catalog = self._read_catalog()
+            changed: list[bool] = []
+            for dataset_type, listing, rows in values:
+                _, item_changed = self._upsert_with_catalog(catalog, dataset_type, listing, rows)
+                changed.append(item_changed)
+            if changed:
+                _atomic_write_json(
+                    self.root / "coverage.json",
+                    {"records": [catalog[key] for key in sorted(catalog)]},
+                )
+        return tuple(changed)
+
+    def _upsert_with_catalog(
+        self,
+        catalog: dict[str, JsonRow],
+        dataset_type: str,
+        listing: SharedListingKey,
+        rows: Iterable[Mapping[str, Any]],
+    ) -> tuple[CoverageRecord, bool]:
         self._validate_dataset(dataset_type)
-        existing = self.read(dataset_type, listing)
+        key = _coverage_key_for(dataset_type, listing)
+        existing_record = _record(catalog[key]) if key in catalog else None
+        existing = (
+            []
+            if existing_record is None
+            else self.read_revision(dataset_type, listing, existing_record.content_hash)
+        )
         merged = {
             _business_key(dataset_type, row): _normalized_row(row, listing) for row in existing
         }
@@ -134,17 +174,9 @@ class SharedMarketDataStore:
         path = self.revision_path(dataset_type, listing, record.content_hash)
         if not path.exists():
             _atomic_write(path, canonical, self._before_replace)
-        with self._catalog_lock:
-            catalog = {
-                key: value
-                for key, value in self._read_catalog().items()
-                if key != _coverage_key(record)
-            }
-            catalog[_coverage_key(record)] = record.row()
-            _atomic_write_json(
-                self.root / "coverage.json", {"records": [catalog[key] for key in sorted(catalog)]}
-            )
-        return record
+        catalog[key] = record.row()
+        changed = existing_record is None or record.content_hash != existing_record.content_hash
+        return record, changed
 
     def read(self, dataset_type: str, listing: SharedListingKey) -> list[JsonRow]:
         record = next(
@@ -285,13 +317,17 @@ def _record(row: Mapping[str, Any]) -> CoverageRecord:
 
 
 def _coverage_key(record: CoverageRecord) -> str:
+    return _coverage_key_for(record.dataset_type, record.listing)
+
+
+def _coverage_key_for(dataset_type: str, listing: SharedListingKey) -> str:
     return ":".join(
         (
-            record.dataset_type,
-            record.listing.provider,
-            record.listing.exchange,
-            record.listing.code,
-            record.listing.isin,
+            dataset_type,
+            listing.provider,
+            listing.exchange,
+            listing.code,
+            listing.isin,
         )
     )
 

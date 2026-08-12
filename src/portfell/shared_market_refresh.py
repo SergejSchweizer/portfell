@@ -27,6 +27,7 @@ from portfell.table_io import JsonRow
 
 DATASETS = ("quotes", "dividends", "splits")
 DEFAULT_CORRECTION_OVERLAP_DAYS = 7
+_WRITE_BATCH_SIZE = 128
 
 
 class SharedMarketRefreshError(RuntimeError):
@@ -147,29 +148,59 @@ def refresh_shared_market_data(
         for listing, request_count in requests_per_listing.items():
             if request_count == 0 and on_listing_completed is not None:
                 on_listing_completed(listing)
+
+        def mark_request_completed(request: RefreshRequest) -> None:
+            completed_requests_per_listing[request.listing] += 1
+            if (
+                completed_requests_per_listing[request.listing]
+                == requests_per_listing[request.listing]
+                and on_listing_completed is not None
+            ):
+                on_listing_completed(request.listing)
+
+        def record_completed_request(request: RefreshRequest, changed: bool) -> None:
+            nonlocal updated, unchanged
+            if changed:
+                updated += 1
+            else:
+                unchanged += 1
+            mark_request_completed(request)
+
+        def publish_batch(
+            batch: list[tuple[RefreshRequest, tuple[Mapping[str, Any], ...]]],
+        ) -> None:
+            if not batch:
+                return
+            try:
+                changed = store.upsert_many(
+                    (request.dataset_type, request.listing, rows) for request, rows in batch
+                )
+            except Exception:
+                errors.extend("provider_or_storage_failure" for _ in batch)
+                for request, _ in batch:
+                    mark_request_completed(request)
+                return
+            for (request, _), item_changed in zip(batch, changed, strict=True):
+                record_completed_request(request, item_changed)
+
         with ThreadPoolExecutor(max_workers=concurrency) as executor:
             futures = {
-                executor.submit(_refresh_one, store, fetch, request): request
-                for request in requests
+                executor.submit(_fetch_rows, fetch, request): request for request in requests
             }
+            batch: list[tuple[RefreshRequest, tuple[Mapping[str, Any], ...]]] = []
             for future in as_completed(futures):
                 request = futures[future]
                 try:
-                    changed = future.result()
+                    rows = future.result()
                 except Exception:
                     errors.append("provider_or_storage_failure")
+                    mark_request_completed(request)
                 else:
-                    if changed:
-                        updated += 1
-                    else:
-                        unchanged += 1
-                completed_requests_per_listing[request.listing] += 1
-                if (
-                    completed_requests_per_listing[request.listing]
-                    == requests_per_listing[request.listing]
-                    and on_listing_completed is not None
-                ):
-                    on_listing_completed(request.listing)
+                    batch.append((request, rows))
+                    if len(batch) == _WRITE_BATCH_SIZE:
+                        publish_batch(batch)
+                        batch = []
+            publish_batch(batch)
         result = RefreshResult(
             result_hash,
             end_date.isoformat(),
@@ -187,20 +218,8 @@ def refresh_shared_market_data(
         return result
 
 
-def _refresh_one(
-    store: SharedMarketDataStore, fetch: ProviderFetch, request: RefreshRequest
-) -> bool:
-    before = store.coverage()
-    before_hash = next(
-        (
-            item.content_hash
-            for item in before
-            if item.dataset_type == request.dataset_type and item.listing == request.listing
-        ),
-        None,
-    )
-    record = store.upsert(request.dataset_type, request.listing, fetch(request))
-    return record.content_hash != before_hash
+def _fetch_rows(fetch: ProviderFetch, request: RefreshRequest) -> tuple[Mapping[str, Any], ...]:
+    return tuple(fetch(request))
 
 
 @contextmanager
