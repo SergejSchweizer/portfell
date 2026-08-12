@@ -361,6 +361,7 @@ test("Multivariate state resets when switching to another project", async ({ pag
   await computeUnivariate(page);
   await page.goto("/bivariate-statistics");
   await page.getByRole("button", { name: "Compute Bivariate Statistics" }).click();
+  await expect(page.getByRole("tab", { name: "Covariance" })).toBeVisible();
   await page.goto("/multivariate-statistics");
 
   await expect(page.getByText("Ready to compute.")).toBeVisible();
