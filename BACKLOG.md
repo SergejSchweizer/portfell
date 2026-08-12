@@ -1344,6 +1344,30 @@ Determinism: Each statistics page uses the same tab-layout rules for the same vi
 
 Idempotency: Revisiting a completed statistics result applies the same layout without mutation.
 
+### PR197. Bivariate Filtered Univariate Selection
+
+Branch: `fix/bivariate-filtered-selection`.
+
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/357.
+
+Priority: P1 research workflow correctness.
+
+Depends on: PR196.
+
+Scope: Apply project-persisted Univariate frequency and statistic-range filters when deriving the
+current durable selection supplied to Bivariate Statistics.
+
+Acceptance: Changing a Univariate filter persists its settings; the next workflow refresh exposes a
+selection containing exactly the matching ISINs; Bivariate pair planning and computation use that
+selection.
+
+Security: Selection derivation remains user-scoped under RLS and contains no provider credentials.
+
+Determinism: Equal completed Univariate rows and saved filters produce the same selection identity.
+
+Idempotency: Repeating a workflow read reuses the persisted deterministic selection without changing
+its members.
+
 ### PR193. Statistics Result Completion Visibility
 
 Branch: `fix/statistics-completion-visibility`.

@@ -68,9 +68,10 @@ The persistent project sidebar supplies the active project and its workflow
 status. A project with a persisted metadata selection remains pending until its
 shared-market coverage is complete; no project quote run is created. After a project switch, local run,
 result-table, and status-message state are cleared before the project-scoped
-workflow is reloaded. Once the univariate run completes, the server creates the automatic all-results
-selection and unlocks Bivariate Statistics directly. There is no standalone filter module or route in
-the browser workflow.
+workflow is reloaded. Once the univariate run completes, the server applies the project-persisted
+dividend-frequency and statistic-range filters to create the current deterministic Univariate
+selection. Bivariate Statistics receives that selection directly on its next workflow refresh. There
+is no standalone filter module or route in the browser workflow.
 
 ## Acceptance
 

@@ -14,15 +14,15 @@
 
 ## Purpose
 
-Run and present server-computed pairwise statistics for the automatic all-results selection produced
-when univariate statistics complete. The server's automatic all-results selection is an internal
-persistence hand-off, not a separate browser filter module.
+Run and present server-computed pairwise statistics for the persisted filtered selection produced
+from completed Univariate Statistics. The server's selection is an internal persistence hand-off, not
+a separate browser filter module.
 
 ## Module boundary
 
-Bivariate Statistics consumes the persisted selected-ISIN set from Univariate Statistics and owns
-pairwise rows and matrices. It must not modify the metadata or univariate selections, and portfolio
-construction remains a later module.
+Bivariate Statistics consumes the persisted selected-ISIN set derived from Univariate Statistics'
+saved dividend-frequency and statistic-range filters, and owns pairwise rows and matrices. It must not
+modify the metadata or univariate selections, and portfolio construction remains a later module.
 
 ## Contract
 

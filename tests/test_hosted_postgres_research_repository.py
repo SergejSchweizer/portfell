@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 from portfell.hosted_postgres_research_repository import PostgresResearchRepository
 from portfell.hosted_research_workflow import ResearchRun, UnivariateSelection
 from portfell.selection_filters import Predicate
@@ -20,6 +22,87 @@ class _Connection:
     def execute(self, sql: str, parameters: tuple[object, ...] = ()) -> _Cursor:
         self.calls.append((sql, parameters))
         return _Cursor()
+
+
+class _ResultCursor:
+    def __init__(
+        self,
+        row: tuple[object, ...] | None = None,
+        rows: list[tuple[object, ...]] | None = None,
+    ) -> None:
+        self._row = row
+        self._rows = [] if rows is None else rows
+
+    def fetchone(self) -> tuple[object, ...] | None:
+        return self._row
+
+    def fetchall(self) -> list[tuple[object, ...]]:
+        return self._rows
+
+
+class _WorkflowConnection(_Connection):
+    def execute(self, sql: str, parameters: tuple[object, ...] = ()) -> _ResultCursor:
+        self.calls.append((sql, parameters))
+        if "from portfell_app.research_runs" in sql:
+            return _ResultCursor(
+                (
+                    "univariate-run-1",
+                    "00000000-0000-5000-8000-000000000001",
+                    "source-1",
+                    "complete",
+                    3,
+                    3,
+                    0,
+                )
+            )
+        if "from portfell_app.research_run_rows" in sql:
+            return _ResultCursor(
+                rows=[
+                    (
+                        {
+                            "isin": "IE00A",
+                            "exchange": "XETRA",
+                            "code": "AAA",
+                            "distribution_frequency": "monthly",
+                            "mean": 1.0,
+                        },
+                    ),
+                    (
+                        {
+                            "isin": "IE00B",
+                            "exchange": "XETRA",
+                            "code": "BBB",
+                            "distribution_frequency": "annual",
+                            "mean": 1.0,
+                        },
+                    ),
+                    (
+                        {
+                            "isin": "IE00C",
+                            "exchange": "XETRA",
+                            "code": "CCC",
+                            "distribution_frequency": "monthly",
+                            "mean": 3.0,
+                        },
+                    ),
+                ]
+            )
+        if "current_univariate_selection_preferences as preference" in sql:
+            return _ResultCursor()
+        if "from portfell_app.project_univariate_settings" in sql:
+            return _ResultCursor(
+                (
+                    {
+                        "dividend_frequencies": ["monthly"],
+                        "statistic_ranges": {"mean": [{"minimum": 0.0, "maximum": 2.0}]},
+                    },
+                )
+            )
+        if "from portfell_app.univariate_selections" in sql:
+            return _ResultCursor()
+        if "current_multivariate_run_preferences" in sql:
+            return _ResultCursor()
+        return _ResultCursor()
 
 
 class _Projects:
@@ -124,3 +207,25 @@ def test_postgres_research_repository_binds_quote_reference_to_run_owner() -> No
     assert "select research_run_id, user_id" in statement
     assert "research_run_quote_bindings" in statement
     assert parameters == ("00000000-0000-5000-8000-000000000010", "univariate-run-1")
+
+
+def test_postgres_workflow_derives_bivariate_selection_from_saved_univariate_filters() -> None:
+    connection = _WorkflowConnection()
+
+    workflow = _repository(connection).workflow_state(
+        user_id="00000000-0000-5000-8000-000000000001",
+        project_id="00000000-0000-5000-8000-000000000002",
+        metadata_selection_id="metadata-selection-1",
+    )
+
+    assert workflow.univariate_selected_isins == 1
+    assert workflow.univariate_selection_id is not None
+    selection_insert = next(
+        parameters
+        for statement, parameters in connection.calls
+        if "insert into portfell_app.univariate_selections" in statement
+    )
+    assert json.loads(selection_insert[3]) == ["IE00A:XETRA:AAA"]
+    assert any(
+        "current_univariate_selection_preferences" in statement for statement, _ in connection.calls
+    )
