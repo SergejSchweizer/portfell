@@ -12,7 +12,7 @@ from portfell.contract_versioning import ContractVersion, stable_contract_id
 from portfell.multivariate_candidates import PortfolioCandidate
 from portfell.multivariate_inputs import MultivariateListingKey
 
-VALIDATION_CONTRACT = ContractVersion("multivariate.validation", 3)
+VALIDATION_CONTRACT = ContractVersion("multivariate.validation", 4)
 CandidateFactory = Callable[[Sequence[Mapping[str, Any]]], Sequence[PortfolioCandidate]]
 
 
@@ -21,6 +21,7 @@ class WalkForwardPolicy:
     version: ContractVersion = VALIDATION_CONTRACT
     minimum_training_observations: int = 100
     test_window_observations: int = 21
+    maximum_refit_count: int = 24
     minimum_completed_splits: int = 2
     transaction_cost_rate: float = 0.0005
     bootstrap_seed: int = 41
@@ -31,6 +32,7 @@ class WalkForwardPolicy:
             "version": self.version.qualified_name,
             "minimum_training_observations": self.minimum_training_observations,
             "test_window_observations": self.test_window_observations,
+            "maximum_refit_count": self.maximum_refit_count,
             "minimum_completed_splits": self.minimum_completed_splits,
             "transaction_cost_rate": self.transaction_cost_rate,
             "bootstrap_seed": self.bootstrap_seed,
@@ -59,11 +61,27 @@ def walk_forward_training_rows(
         return ()
     return tuple(
         tuple(row for row in return_rows if str(row.get("date", "")) in set(dates[:start]))
+        for start in _walk_forward_starts(dates, policy)
+    )
+
+
+def _walk_forward_starts(dates: Sequence[str], policy: WalkForwardPolicy) -> tuple[int, ...]:
+    starts = tuple(
+        start
         for start in range(
             policy.minimum_training_observations, len(dates), policy.test_window_observations
         )
         if len(dates[start : start + policy.test_window_observations])
         == policy.test_window_observations
+    )
+    if policy.maximum_refit_count < 1:
+        raise ValueError("maximum_refit_count must be positive")
+    if len(starts) <= policy.maximum_refit_count:
+        return starts
+    last_index = len(starts) - 1
+    limit_index = policy.maximum_refit_count - 1
+    return tuple(
+        starts[index * last_index // limit_index] for index in range(policy.maximum_refit_count)
     )
 
 
@@ -152,12 +170,8 @@ def validate_candidates(
     results: list[ValidationSplit] = []
     previous_weights: dict[str, tuple[tuple[MultivariateListingKey, float], ...]] = {}
     refit_index = 0
-    for start in range(
-        policy.minimum_training_observations, len(dates), policy.test_window_observations
-    ):
+    for start in _walk_forward_starts(dates, policy):
         test_dates = dates[start : start + policy.test_window_observations]
-        if len(test_dates) != policy.test_window_observations:
-            continue
         training_rows = tuple(
             row for row in return_rows if str(row.get("date", "")) in set(dates[:start])
         )
@@ -183,7 +197,7 @@ def validate_candidates(
             turnover = _turnover(previous, candidate.weights)
             cost = (
                 turnover * policy.transaction_cost_rate
-                if candidate_factory is not None
+                if candidate_factory is not None or precomputed_candidates is not None
                 else policy.transaction_cost_rate
             )
             previous_weights[candidate.method] = candidate.weights

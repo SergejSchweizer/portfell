@@ -38,7 +38,7 @@ from portfell.portfolio_parts.solvers import (
 )
 
 CANDIDATE_CONTRACT = ContractVersion("multivariate.candidates", 1)
-MAX_WALK_FORWARD_SOLVER_ITERATIONS = 2_000
+MAX_WALK_FORWARD_SOLVER_ITERATIONS = 500
 METHODS = (
     "equal_weight",
     "inverse_volatility",

@@ -130,6 +130,37 @@ def test_walk_forward_uses_precomputed_refits_in_chronological_turnover_order() 
 
     assert len(splits) == 3
     assert [split.turnover for split in splits] == [1.0, 0.0, 0.0]
+    assert [split.transaction_cost for split in splits] == [0.0005, 0.0, 0.0]
+
+
+def test_walk_forward_caps_refits_across_the_full_history() -> None:
+    rows = [
+        {
+            "isin": "IE1",
+            "exchange": "X",
+            "code": "A",
+            "date": f"2025-01-{day:02d}",
+            "return": 0.01,
+        }
+        for day in range(1, 21)
+    ]
+    policy = WalkForwardPolicy(
+        minimum_training_observations=4,
+        test_window_observations=2,
+        maximum_refit_count=3,
+    )
+    training_ends: list[str] = []
+
+    def refit(training_rows: Sequence[Mapping[str, Any]]) -> list[PortfolioCandidate]:
+        training_ends.append(str(training_rows[-1]["date"]))
+        return [_candidate()]
+
+    splits = validate_candidates(
+        candidates=[_candidate()], return_rows=rows, policy=policy, candidate_factory=refit
+    )
+
+    assert len(splits) == 3
+    assert training_ends == ["2025-01-04", "2025-01-10", "2025-01-18"]
 
 
 def test_stress_and_scorecards_are_deterministic_and_do_not_select_a_winner() -> None:

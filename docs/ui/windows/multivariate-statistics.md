@@ -55,7 +55,9 @@ or calculates financial values in the browser.
   the server reports `running`. Independent candidate optimizers and their Walk-Forward refits run
   in a server-owned process pool sized to all CPUs available to the runtime container. A run that
   exceeds the server execution limit transitions to `failed`, exposes its failure reason, and may
-  be recomputed rather than remaining indefinitely `running`.
+  be recomputed rather than remaining indefinitely `running`. Walk-Forward validation uses at most
+  24 deterministic windows spanning the available history; refits run in parallel, while turnover
+  and transaction costs are evaluated in chronological order.
 - Complete: persisted result tabs load automatically only after the particular Multivariate run reaches
   `complete`, after refresh or project reactivation. Every tab renders a server-produced, project-owned artifact:
   the immutable input snapshot, canonical risk model, empirical

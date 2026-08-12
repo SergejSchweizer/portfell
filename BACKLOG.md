@@ -1491,6 +1491,34 @@ Idempotency: Rendering the additional facts is read-only and does not create or 
 Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
 merge, satisfy the current `merge-gate` requirements in `GATES.md`.
 
+### PR218. Multivariate Validation Budget
+
+Branch: `fix/multivariate-validation-budget`.
+
+Git status: in progress. PR: TBD.
+
+Priority: P0 multivariate workflow liveness.
+
+Depends on: PR217.
+
+Scope: Bound deterministic Walk-Forward refits and their solver work so Multivariate Statistics
+completes within its server execution limit while retaining chronological turnover costs.
+
+Acceptance: At most 24 representative refit windows span the available history; their parallel
+results persist turnover-based transaction costs in chronological order; a new execution contract
+allows recomputation after prior timed-out runs.
+
+Security: The bounded worker tasks retain the existing project-scoped, authorized inputs.
+
+Determinism: Window sampling includes the chronological endpoints and uses deterministic integer
+positions; the validation contract versions this changed evidence policy.
+
+Idempotency: The v4 execution contract produces one fresh deterministic run identity without
+mutating prior terminal artifacts.
+
+Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
+merge, satisfy the current `merge-gate` requirements in `GATES.md`.
+
 ### PR217. Polars Statistics Pipelines
 
 Branch: `refactor/statistics-polars`.
