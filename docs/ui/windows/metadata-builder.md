@@ -24,6 +24,11 @@ The persistent header owns the EODHD key and saved-key state. The first white pa
 
 After a successful `Create new project` response, that action button becomes the initial-fill status surface. It restores an existing run after reload or project switch, disables duplicate starts while running, and polls the server-provided progress. While running it shows completed listings and a client-side estimate derived from the server `started_at`, `last_progress_at`, `completed`, and `total` fields. When server-side listing progress is stale, it shows a stable provider-wait state instead of increasing the estimate. Statistical calculations belong to later modules.
 
+When an initial fill fails, the action changes to `Quote load failed - Retry quote load`. Submitting the
+unchanged selection requeues that project's failed server-owned job, resets visible progress, and resumes
+the normal planning and running states. It does not create a second project or duplicate the frozen
+selection.
+
 ## States
 
 Idle, metadata-fetching, metadata-fetch-failed, filtering, selection-ready, historical-download-running, historical-download-failed, metadata-empty, and metadata-unavailable states must be explicit. A metadata refresh invalidates and reloads the available filter options.

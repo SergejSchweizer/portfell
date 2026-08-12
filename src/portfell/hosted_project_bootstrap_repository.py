@@ -6,7 +6,7 @@ import hashlib
 import json
 import uuid
 from contextlib import AbstractContextManager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Protocol, cast
 
 from portfell.durable_job_repository import DurableJob, OutboxEvent, PostgresDurableJobRepository
@@ -98,6 +98,11 @@ class PostgresProjectBootstrapRepository:
             self._bind(user_id)
             existing = self._existing(project_id)
             if existing is not None:
+                if existing.bootstrap.status == "failed":
+                    self._retry_failed_job(existing)
+                    return DurableProjectBootstrap(
+                        replace(existing.bootstrap, status="not_started"), existing.job_id
+                    )
                 return existing
             self._jobs.enqueue(
                 job=DurableJob(
@@ -214,6 +219,26 @@ order by member.isin, member.exchange, member.code
         if hashlib.sha256("\n".join(member_ids).encode()).hexdigest() != membership_hash:
             raise BootstrapError("bootstrap_membership_hash_invalid")
         return DurableProjectBootstrap(bootstrap, job_id)
+
+    def _retry_failed_job(self, existing: DurableProjectBootstrap) -> None:
+        self._connection.execute(
+            """
+update portfell_app.jobs
+set status = 'queued', completed_units = 0, total_units = 0, attempt_count = 0,
+    available_at = now(), lease_owner = null, lease_token = null, lease_expires_at = null,
+    heartbeat_at = null, terminal_code = null, updated_at = now()
+where job_id = %s::uuid and status in ('failed', 'cancelled')
+""",
+            (existing.job_id,),
+        )
+        self._connection.execute(
+            """
+update portfell_app.project_initial_fills
+set status = 'not_started', updated_at = now()
+where bootstrap_job_id = %s::uuid
+""",
+            (existing.job_id,),
+        )
 
     def _bind(self, user_id: str) -> None:
         self._connection.execute(*set_authenticated_user_sql(user_id))

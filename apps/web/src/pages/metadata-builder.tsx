@@ -225,7 +225,7 @@ function initialFillButtonLabel(fill: ApiInitialFill | null): string {
   }
   if (fill.status === "ready") return "Quotes ready - Create new project";
   if (fill.status === "partial") return "Quotes partially loaded - Create new project";
-  return "Quote load failed - Create new project";
+  return "Quote load failed - Retry quote load";
 }
 
 function initialFillRemainingTime(fill: ApiInitialFill): string {
