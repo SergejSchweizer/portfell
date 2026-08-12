@@ -57,7 +57,10 @@ function historyRequirement(reasons: readonly string[] | undefined): string | nu
 function performancePoints(values: ApiMultivariatePerformance["instrument_series"][number]["values"], minimum: number, maximum: number, start: number, end: number): string {
   const width = 760;
   const height = 240;
-  return values.map((value) => {
+  return values.filter((value) => {
+    const time = Date.parse(value.date);
+    return time >= start && time <= end;
+  }).map((value) => {
     const time = Date.parse(value.date);
     const x = 20 + (time - start) / Math.max(1, end - start) * width;
     const y = 20 + (maximum - value.return) / Math.max(0.000001, maximum - minimum) * height;
@@ -65,7 +68,7 @@ function performancePoints(values: ApiMultivariatePerformance["instrument_series
   }).join(" ");
 }
 
-function PerformanceChart({ performance }: Readonly<{ performance: ApiMultivariatePerformance }>) {
+function PerformanceChart({ performance, alignedPeriod }: Readonly<{ performance: ApiMultivariatePerformance; alignedPeriod?: Readonly<{ date_start: string; date_end: string }> }>) {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const portfolios = performance.portfolio_series;
   const series = [...performance.instrument_series, ...portfolios];
@@ -74,9 +77,13 @@ function PerformanceChart({ performance }: Readonly<{ performance: ApiMultivaria
   const minimum = Math.min(0, ...values.map((item) => item.return));
   const maximum = Math.max(0, ...values.map((item) => item.return));
   const times = values.map((item) => Date.parse(item.date));
-  const start = Math.min(...times);
-  const end = Math.max(...times);
-  const timeline = portfolios[0]?.values ?? performance.instrument_series[0]?.values ?? [];
+  // The x-axis shows only the server-aligned analysis period, not each instrument's full individual history.
+  const start = alignedPeriod ? Date.parse(alignedPeriod.date_start) : Math.min(...times);
+  const end = alignedPeriod ? Date.parse(alignedPeriod.date_end) : Math.max(...times);
+  const timeline = (portfolios[0]?.values ?? performance.instrument_series[0]?.values ?? []).filter((item) => {
+    const time = Date.parse(item.date);
+    return time >= start && time <= end;
+  });
   const hoveredDate = hoveredIndex == null ? undefined : timeline[hoveredIndex]?.date;
   const hoverPosition = hoveredIndex == null || timeline.length < 2 ? 20 : 20 + hoveredIndex / (timeline.length - 1) * 760;
   const hoveredValues = hoveredDate == null ? [] : [
@@ -268,7 +275,7 @@ export function MultivariateStatisticsPage() {
       {activeTab === "portfolio-candidates" && <div className="multivariate-candidates">{candidates?.items.map((candidate) => <article key={candidate.candidate_id}><label><input type="checkbox" checked={selectedCandidateIds.includes(candidate.candidate_id)} onChange={(event) => void toggleCandidate(candidate.candidate_id, event.target.checked)} /> Portfolio selection</label><h3>{portfolioMethod(candidate.method)}{candidate.baseline ? " · Baseline" : ""}</h3><p>{candidate.status}{candidate.reasons.length ? ` · ${candidate.reasons.join(", ")}` : ""}</p><p>Volatility: {percent(candidate.volatility)} · VaR: {percent(candidate.var)} · CVaR: {percent(candidate.cvar)}</p><p>Total return: {percent(candidate.total_return)} · Maximum drawdown: {percent(candidate.max_drawdown)}</p><p>Average monthly return: {percent(candidate.average_monthly_return)} · Average annual return: {percent(candidate.average_annual_return)}</p><p>Maximum weight: {percent(candidate.maximum_weight)} · Effective holdings: {number(candidate.effective_holding_count)}</p><p>Herfindahl concentration: {number(candidate.herfindahl_index)} · Diversification ratio: {number(candidate.diversification_ratio)}</p><p>Gross historical yield: {percent(candidate.gross_ttm_distribution_yield)} · Gross monthly distribution: {number(candidate.gross_monthly_distribution)}</p><ul>{candidate.weights.map((weight) => <li key={`${weight.isin}:${weight.exchange}:${weight.code}`}>{weight.code}.{weight.exchange}: {percent(weight.weight)}</li>)}</ul></article>)}</div>}
       {activeTab === "risk-contributions" && <table><caption>Capital weights and percent risk contributions for the selected candidate</caption><thead><tr><th>Listing</th><th>Capital weight</th><th>Marginal contribution</th><th>Percent risk contribution</th></tr></thead><tbody>{selectedContributions.map((item) => <tr key={`${item.candidate_id}:${item.isin}:${item.exchange}:${item.code}`}><td>{item.code}.{item.exchange}</td><td>{percent(item.weight)}</td><td>{number(item.marginal_risk_contribution)}</td><td>{percent(item.percent_risk_contribution)}</td></tr>)}</tbody></table>}
       {activeTab === "income-evidence" && <><p>All income values are gross historical observations. Net, sustainable, tax, and cost claims remain unavailable unless a verified source is present. Capital change uses the quoted market-price proxy.</p><table><caption>Monthly-distribution evidence</caption><thead><tr><th>Listing</th><th>Observed months</th><th>Coverage</th><th>Gross TTM yield</th><th>Trend</th><th>Cuts</th><th>Total return</th><th>Market-price capital change (NAV proxy)</th><th>Warnings</th></tr></thead><tbody>{income?.items.map((item) => <tr key={`${item.isin}:${item.exchange}:${item.code}`}><td>{item.code}.{item.exchange}</td><td>{item.observed_month_count}</td><td>{percent(item.observed_payment_coverage)}</td><td>{percent(item.gross_ttm_distribution_yield)}</td><td>{number(item.distribution_trend)}</td><td>{item.cut_count ?? "Unavailable"}</td><td>{percent(item.total_return)}</td><td>{percent(item.market_price_capital_change)}</td><td>{[...item.warnings, ...item.availability_reasons].join(", ") || "None"}</td></tr>)}</tbody></table></>}
-      {activeTab === "performance" && performance && <><PerformanceChart performance={performance} /><h3>Monthly portfolio returns</h3><table><caption>Compounded monthly return for every feasible portfolio</caption><thead><tr><th>Portfolio</th><th>Month</th><th>Return</th></tr></thead><tbody>{performance.period_returns.filter((item) => item.period === "monthly").map((item) => <tr key={`${item.candidate_id}:${item.period}:${item.label}`}><td>{portfolioMethod(item.method)}</td><td>{item.label}</td><td>{percent(item.return)}</td></tr>)}</tbody></table><h3>Annual portfolio returns</h3><table><caption>Compounded calendar-year return for every feasible portfolio</caption><thead><tr><th>Portfolio</th><th>Year</th><th>Return</th></tr></thead><tbody>{performance.period_returns.filter((item) => item.period === "annual").map((item) => <tr key={`${item.candidate_id}:${item.period}:${item.label}`}><td>{portfolioMethod(item.method)}</td><td>{item.label}</td><td>{percent(item.return)}</td></tr>)}</tbody></table></>}
+      {activeTab === "performance" && performance && <><PerformanceChart performance={performance} alignedPeriod={summary?.aligned_period} /><h3>Monthly portfolio returns</h3><table><caption>Compounded monthly return for every feasible portfolio</caption><thead><tr><th>Portfolio</th><th>Month</th><th>Return</th></tr></thead><tbody>{performance.period_returns.filter((item) => item.period === "monthly").map((item) => <tr key={`${item.candidate_id}:${item.period}:${item.label}`}><td>{portfolioMethod(item.method)}</td><td>{item.label}</td><td>{percent(item.return)}</td></tr>)}</tbody></table><h3>Annual portfolio returns</h3><table><caption>Compounded calendar-year return for every feasible portfolio</caption><thead><tr><th>Portfolio</th><th>Year</th><th>Return</th></tr></thead><tbody>{performance.period_returns.filter((item) => item.period === "annual").map((item) => <tr key={`${item.candidate_id}:${item.period}:${item.label}`}><td>{portfolioMethod(item.method)}</td><td>{item.label}</td><td>{percent(item.return)}</td></tr>)}</tbody></table></>}
       {activeTab === "validation" && <table><caption>Persisted walk-forward, stress, and scorecard evidence</caption><thead><tr><th>Type</th><th>Method</th><th>Status</th><th>Reason</th></tr></thead><tbody>{validation?.items.map((item, index) => <tr key={`${String(item.kind)}:${String(item.candidate_id)}:${index}`}><td>{String(item.kind ?? "validation")}</td><td>{String(item.method ?? "Unavailable")}</td><td>{String(item.status ?? "available")}</td><td>{String(item.reason ?? item.availability_reasons ?? "None")}</td></tr>)}</tbody></table>}
     </Panel>}
   </section>;
