@@ -1495,7 +1495,7 @@ merge, satisfy the current `merge-gate` requirements in `GATES.md`.
 
 Branch: `fix/multivariate-stall-recovery`.
 
-Git status: in progress. PR: TBD.
+Git status: pushed. PR: TBD.
 
 Priority: P0 workflow liveness.
 
