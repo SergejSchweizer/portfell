@@ -23,6 +23,7 @@ class LocalSelectionRepository(SelectionRepository):
             selection.project_id,
             selection.name,
             selection.member_ids,
+            selection.metadata_builder_predicates,
         )
         self._state.selections_by_id.setdefault(selection.selection_id, record)
         return selection
@@ -56,4 +57,5 @@ class LocalSelectionRepository(SelectionRepository):
             selection.user_id,
             selection.name,
             selection.member_ids,
+            selection.metadata_builder_predicates,
         )

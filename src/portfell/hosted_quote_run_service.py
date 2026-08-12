@@ -268,4 +268,5 @@ class QuoteRunService:
             selection.project_id,
             selection.name,
             selection.member_ids,
+            selection.metadata_builder_predicates,
         )

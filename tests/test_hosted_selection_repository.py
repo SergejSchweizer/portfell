@@ -27,8 +27,8 @@ class _Connection:
 def test_selection_repository_reads_owned_sealed_membership_in_canonical_order() -> None:
     connection = _Connection(
         [
-            ("selection-1", "project-1", "user-a", "UCITS", "IE1", "XETRA", "AAA"),
-            ("selection-1", "project-1", "user-a", "UCITS", "IE2", "XNAS", "BBB"),
+            ("selection-1", "project-1", "user-a", "UCITS", "[]", "IE1", "XETRA", "AAA"),
+            ("selection-1", "project-1", "user-a", "UCITS", "[]", "IE2", "XNAS", "BBB"),
         ]
     )
 
@@ -70,7 +70,7 @@ def test_selection_repository_rejects_malformed_owned_projection() -> None:
         )
 
     blank_member = _Connection(
-        [("selection-1", "project-1", "user-a", "UCITS", "", "XETRA", "AAA")]
+        [("selection-1", "project-1", "user-a", "UCITS", "[]", "", "XETRA", "AAA")]
     )
     with pytest.raises(TenantImportError, match="selection_projection_invalid"):
         PostgresSelectionRepository(blank_member).for_project(

@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import hashlib
-from typing import Protocol
+import json
+from typing import Protocol, cast
 
 from portfell.hosted_api_state import SelectionRecord
 from portfell.hosted_catalog import set_authenticated_user_sql
@@ -69,6 +70,7 @@ def selection_record(selection: TenantSelection) -> SelectionRecord:
         selection.project_id,
         selection.name,
         selection.member_ids,
+        selection.metadata_builder_predicates,
     )
 
 
@@ -87,8 +89,8 @@ class PostgresSelectionRepository:
             """
 insert into portfell_app.project_selection_versions (
     selection_version_id, project_id, user_id, name, membership_hash,
-    canonical_listing_policy_version
-) values (%s::uuid, %s::uuid, %s::uuid, %s, %s, 'selection-v1')
+    canonical_listing_policy_version, metadata_builder_predicates
+) values (%s::uuid, %s::uuid, %s::uuid, %s, %s, 'selection-v1', %s::jsonb)
 on conflict (project_id) do nothing
 """,
             (
@@ -97,6 +99,7 @@ on conflict (project_id) do nothing
                 selection.user_id,
                 selection.name,
                 membership_hash,
+                json.dumps(selection.metadata_builder_predicates),
             ),
         )
         existing = self.for_project(project_id=selection.project_id, user_id=selection.user_id)
@@ -139,7 +142,8 @@ where selection_version_id = %s::uuid and membership_sealed_at is null
         rows = self._connection.execute(
             """
 select version.selection_version_id::text, version.project_id::text, version.user_id::text,
-       version.name, member.isin, member.exchange, member.code
+    version.name, version.metadata_builder_predicates::text, member.isin,
+    member.exchange, member.code
 from portfell_app.project_selection_versions as version
 join portfell_app.project_selection_members as member
   on member.selection_version_id = version.selection_version_id
@@ -151,16 +155,18 @@ order by member.isin, member.exchange, member.code
         if not rows:
             return None
         first = rows[0]
-        if len(first) != 7 or any(not isinstance(value, str) or not value for value in first):
+        if not _valid_selection_projection(first):
             raise TenantImportError("selection_projection_invalid")
-        selection_id, stored_project_id, stored_user_id, name, _, _, _ = first
-        members = tuple(f"{row[4]}:{row[5]}:{row[6]}" for row in rows)
+        selection_id, stored_project_id, stored_user_id, name, predicates, _, _, _ = first
+        predicate_texts = _predicate_texts(predicates)
+        members = tuple(f"{row[5]}:{row[6]}:{row[7]}" for row in rows)
         return TenantSelection(
             str(selection_id),
             str(stored_project_id),
             str(stored_user_id),
             str(name),
             members,
+            predicate_texts,
         )
 
     def by_id(self, *, selection_id: str, user_id: str) -> TenantSelection | None:
@@ -168,7 +174,8 @@ order by member.isin, member.exchange, member.code
         rows = self._connection.execute(
             """
 select version.selection_version_id::text, version.project_id::text, version.user_id::text,
-       version.name, member.isin, member.exchange, member.code
+    version.name, version.metadata_builder_predicates::text, member.isin,
+    member.exchange, member.code
 from portfell_app.project_selection_versions as version
 join portfell_app.project_selection_members as member
   on member.selection_version_id = version.selection_version_id
@@ -187,13 +194,33 @@ def _selection_from_rows(rows: list[tuple[object, ...]]) -> TenantSelection | No
     if not rows:
         return None
     first = rows[0]
-    if len(first) != 7 or any(not isinstance(value, str) or not value for value in first):
+    if not _valid_selection_projection(first):
         raise TenantImportError("selection_projection_invalid")
-    selection_id, project_id, user_id, name, _, _, _ = first
+    selection_id, project_id, user_id, name, predicates, _, _, _ = first
     return TenantSelection(
         str(selection_id),
         str(project_id),
         str(user_id),
         str(name),
-        tuple(f"{row[4]}:{row[5]}:{row[6]}" for row in rows),
+        tuple(f"{row[5]}:{row[6]}:{row[7]}" for row in rows),
+        _predicate_texts(predicates),
     )
+
+
+def _predicate_texts(value: object) -> tuple[str, ...]:
+    if not isinstance(value, str):
+        raise TenantImportError("selection_projection_invalid")
+    try:
+        parsed: object = json.loads(value)
+    except json.JSONDecodeError as error:
+        raise TenantImportError("selection_projection_invalid") from error
+    if not isinstance(parsed, list):
+        raise TenantImportError("selection_projection_invalid")
+    items = cast(list[object], parsed)
+    if not all(isinstance(item, str) for item in items):
+        raise TenantImportError("selection_projection_invalid")
+    return tuple(cast(str, item) for item in items)
+
+
+def _valid_selection_projection(row: tuple[object, ...]) -> bool:
+    return len(row) == 8 and all(isinstance(value, str) and value for value in (*row[:4], *row[5:]))

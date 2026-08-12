@@ -32,7 +32,7 @@ from portfell.hosted_repository_importer import (
     TenantSelection,
 )
 from portfell.hosted_selection_repository import SelectionRepository
-from portfell.selection_filters import Predicate, filter_rows
+from portfell.selection_filters import Predicate, filter_rows, parse_predicates
 from portfell.table_io import JsonRow
 
 
@@ -238,7 +238,14 @@ class MetadataProjectService:
         )
         selection = self._selection_record(
             self._selections.create(
-                TenantSelection(selection_id, project_id, user_id, project_name, members)
+                TenantSelection(
+                    selection_id,
+                    project_id,
+                    user_id,
+                    project_name,
+                    members,
+                    tuple(predicate.as_text() for predicate in predicates),
+                )
             )
         )
         self._projects.set_current_project(user_id=user_id, project_id=project_id)
@@ -293,7 +300,7 @@ class MetadataProjectService:
             "name": "",
         }
         try:
-            predicates = self.runtime.metadata_builder_predicates(selection.selection_id)
+            predicates = parse_predicates(list(selection.metadata_builder_predicates))
         except ValueError as error:
             raise HostedApplicationError(500, "metadata_builder_manifest_invalid") from error
         for predicate in predicates:
@@ -346,6 +353,7 @@ class MetadataProjectService:
             selection.project_id,
             selection.name,
             selection.member_ids,
+            selection.metadata_builder_predicates,
         )
 
     def _selection_for_project(self, user_id: str, project_id: str) -> SelectionRecord:
