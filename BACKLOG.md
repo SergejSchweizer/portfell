@@ -1495,7 +1495,7 @@ merge, satisfy the current `merge-gate` requirements in `GATES.md`.
 
 Branch: `fix/project-statistics-state`.
 
-Git status: in progress. PR: TBD.
+Git status: pushed. PR: TBD.
 
 Priority: P1 project-state correctness.
 
