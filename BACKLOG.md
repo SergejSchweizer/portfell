@@ -1413,6 +1413,29 @@ Determinism: The same selection and Shared-Market revision resolve the same Biva
 Idempotency: Retrying a previously failed Bivariate run with unchanged inputs reuses its deterministic
 run identity and completes once the Shared-Market rows are available.
 
+### PR200. Multivariate Compute Layout
+
+Branch: `fix/multivariate-compute-layout`.
+
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/360.
+
+Priority: P2 research workflow usability.
+
+Depends on: PR199.
+
+Scope: Align the Multivariate Statistics progress bar and compute button layout with Bivariate
+Statistics.
+
+Acceptance: Multivariate renders the same labelled progress-panel structure, 8px progress bar,
+status line, right-aligned primary action, and `Computing…` running label as Bivariate.
+
+Security: The layout consumes existing server-owned run values without new client-side calculations.
+
+Determinism: Equivalent run states render the same compute-panel structure on both statistics pages.
+
+Idempotency: Re-rendering or revisiting a run changes no server state until the existing compute action
+is selected.
+
 ### PR193. Statistics Result Completion Visibility
 
 Branch: `fix/statistics-completion-visibility`.

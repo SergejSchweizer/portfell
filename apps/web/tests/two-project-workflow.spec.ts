@@ -92,6 +92,7 @@ async function installTwoProjectApi(
   initialFillStatus: "ready" | "running" = "ready",
   omitSelectionIdFromContext = false,
   bivariateCompletesAfterPoll = false,
+  multivariateCompletesAfterPoll = false,
 ): Promise<WorkflowFixture> {
   const projects = new Map<string, Project>();
   const settingsWrites = new Map<string, number>();
@@ -99,6 +100,7 @@ async function installTwoProjectApi(
   let currentProjectId: string | null = null;
   let metadataPolls = 0;
   let bivariatePolls = 0;
+  let multivariatePolls = 0;
   const initialFillStartedAt = Math.floor(Date.now() / 1_000) - 60;
   const initialFillRow = (projectId: string) => ({
     bootstrap_id: `bootstrap-${projectId}`,
@@ -209,7 +211,11 @@ async function installTwoProjectApi(
       project.multivariateRunId = `multivariate-${project.id}`;
       return response(route, multivariateRun(project, "running"));
     }
-    if (method === "GET" && /^\/api\/multivariate-statistics\/runs\/[^/]+$/.test(path)) return response(route, multivariateRun(current()!, "complete"));
+    if (method === "GET" && /^\/api\/multivariate-statistics\/runs\/[^/]+$/.test(path)) {
+      multivariatePolls += 1;
+      const running = multivariateCompletesAfterPoll && multivariatePolls <= 5;
+      return response(route, multivariateRun(current()!, running ? "running" : "complete"));
+    }
     if (method === "GET" && path.endsWith("/summary")) return response(route, multivariateSummary());
     if (method === "GET" && path.endsWith("/structure")) return response(route, multivariateStructure());
     if (method === "GET" && path.endsWith("/candidates")) return response(route, multivariateCandidates());
@@ -307,6 +313,28 @@ test("Bivariate compute button polls through completion without a terminal failu
   ]));
 });
 
+test("Multivariate compute button polls resolve_inputs through completion", async ({ page }) => {
+  const fixture = await installTwoProjectApi(page, "ready", false, false, true);
+  await page.goto("/metadata-builder");
+  await createProject(page, { exchange: "XETRA", instrumentType: "ETF", country: "IE", currency: "EUR", name: "Multivariate lifecycle" });
+  await page.goto("/univariate-statistics");
+  await computeUnivariate(page);
+  await page.goto("/bivariate-statistics");
+  await page.getByRole("button", { name: "Compute Bivariate Statistics" }).click();
+  await expect(page.getByRole("tab", { name: "Covariance" })).toBeVisible();
+  await page.goto("/multivariate-statistics");
+
+  await page.getByRole("button", { name: "Compute multivariate statistics" }).click();
+  await expect(page.getByRole("button", { name: "Computing…" })).toBeDisabled();
+  await expect(page.getByText("resolve_inputs · 0 of 6 phases complete · 0s elapsed · about 10s remaining")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Compute multivariate statistics" })).toBeEnabled();
+  await expect(page.getByText("Candidate ETFs")).toBeVisible();
+  expect(fixture.calls).toEqual(expect.arrayContaining([
+    "POST /api/multivariate-statistics/runs",
+    "GET /api/multivariate-statistics/runs/multivariate-project-1",
+  ]));
+});
+
 test("every workflow button completes its browser action for two isolated projects", async ({ page }) => {
   const fixture = await installTwoProjectApi(page);
   await page.goto("/metadata-builder");
@@ -378,6 +406,10 @@ test("every workflow button completes its browser action for two isolated projec
   await expect(page).toHaveURL(/\/multivariate-statistics$/);
   await expect(page.getByRole("heading", { name: "Multivariate Statistics" })).toBeVisible();
   await expect(page.getByRole("tab", { name: "Overview" })).not.toBeVisible();
+  const multivariateCompute = page.locator(".multivariate-statistics-page .bivariate-compute");
+  await expect(multivariateCompute.getByLabel("Multivariate statistics progress")).toBeVisible();
+  await expect(multivariateCompute.locator("progress")).toHaveCSS("height", "8px");
+  await expect(multivariateCompute.locator(".quote-fetch__action")).toHaveCSS("justify-content", "flex-end");
   await page.getByRole("button", { name: "Compute multivariate statistics" }).click();
   await expect(page.getByText("Candidate ETFs")).toBeVisible();
   await expect(page.locator(".statistics-tabs")).toHaveCSS("display", "grid");

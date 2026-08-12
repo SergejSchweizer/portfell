@@ -30,7 +30,8 @@ or calculates financial values in the browser.
 
 - Locked state: one `Multivariate Statistics` panel explains that Bivariate
   Statistics must complete first.
-- Ready state: compact server-owned progress header and a compute action.
+- Ready state: the Bivariate-style compact server-owned progress panel with a
+  labelled determinate progress bar, status line, and right-aligned compute action.
 - Complete state: Overview, Risk Structure, Portfolio Candidates, Risk
   Contributions, Income Evidence, and Validation tabs in the responsive multi-row
   statistics tab grid, with no horizontal tab scrolling.
@@ -40,7 +41,9 @@ or calculates financial values in the browser.
 - Loading: show the shared loading state.
 - Locked: Bivariate Statistics is incomplete, failed, running, or stale.
 - Ready: Bivariate Statistics is complete and its immutable run id is shown.
-- Running: the server-owned phase and completed/total units are displayed.
+- Running: the server-owned phase and completed/total units are displayed and polled every
+  750 milliseconds until the run reaches a terminal state. The action remains disabled while
+  the server reports `running`.
 - Complete: persisted result tabs load automatically only after the particular Multivariate run reaches
   `complete`, after refresh or project reactivation. Every tab renders a server-produced, project-owned artifact:
   the immutable input snapshot, canonical risk model, empirical
@@ -69,7 +72,8 @@ or trade instruction.
 ## Tests
 
 Route and workflow-state tests prove that it remains locked until Bivariate
-Statistics is complete. API-contract tests cover the bounded artifact,
+Statistics is complete. The desktop two-project workflow test verifies that the
+compute action polls from `resolve_inputs` to persisted results. API-contract tests cover the bounded artifact,
 component, risk-contribution, income-evidence, validation, and candidate
 selection routes. Docker builds run TypeScript checking and the production web
 build after UI changes.

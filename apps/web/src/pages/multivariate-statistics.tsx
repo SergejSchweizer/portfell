@@ -77,6 +77,39 @@ export function MultivariateStatisticsPage() {
     if (runId) void loadRun(runId).catch(() => setMessage("Multivariate results are unavailable."));
   }, [stage?.multivariate_run_id]);
 
+  useEffect(() => {
+    if (!run || run.status !== "running") return;
+    const activeRunId = run.run_id;
+    let cancelled = false;
+    let timeoutId: number | undefined;
+    async function pollMultivariateRun() {
+      try {
+        const current = await multivariateStatisticsApi.loadRun(activeRunId);
+        if (cancelled) return;
+        setRun(current);
+        if (current.status === "running") {
+          timeoutId = window.setTimeout(() => void pollMultivariateRun(), 750);
+          return;
+        }
+        if (current.status === "failed") {
+          setMessage(current.failure_reason || "Multivariate calculation failed. Please try again.");
+          return;
+        }
+        await loadRun(current.run_id);
+        if (cancelled) return;
+        setRevision((value) => value + 1);
+        window.dispatchEvent(new Event("portfell:workflow-updated"));
+      } catch (error) {
+        if (!cancelled) setMessage(error instanceof Error ? error.message : "Could not retrieve multivariate calculation status.");
+      }
+    }
+    void pollMultivariateRun();
+    return () => {
+      cancelled = true;
+      if (timeoutId !== undefined) window.clearTimeout(timeoutId);
+    };
+  }, [run?.run_id]);
+
   async function compute() {
     if (!projectId || !bivariateRunId) return;
     setMessage("");
@@ -103,10 +136,16 @@ export function MultivariateStatisticsPage() {
   const artifactRisk = artifacts?.risk_model as Readonly<{ estimator?: string; shrinkage_intensity?: number | null }> | undefined;
   return <section className="multivariate-statistics-page" data-route="multivariate-statistics-page">
     <Panel title="Multivariate Statistics">
-      <div className="research-run-header"><div><p>Joint risk structure and comparable portfolio candidates for the completed Bivariate universe.</p>
-        <p className="status-line" aria-live="polite">{run ? `${run.phase} · ${run.completed_units} of ${run.total_units} phases complete · ${run.elapsed_seconds}s elapsed${run.estimated_remaining_seconds == null ? "" : ` · about ${run.estimated_remaining_seconds}s remaining`}` : "Ready to compute."}</p></div>
-        <Button onClick={() => void compute()} disabled={!projectId || !bivariateRunId || run?.status === "running"}>Compute multivariate statistics</Button></div>
-      <progress value={progress} max={100} aria-label="Multivariate statistics progress" />
+      <div className="quote-fetch quote-fetch--panel bivariate-compute">
+        <label htmlFor="multivariate-progress">Multivariate statistics progress</label>
+        <progress id="multivariate-progress" value={progress} max={100} />
+        <p className="status-line" aria-live="polite">{run ? `${run.phase} · ${run.completed_units} of ${run.total_units} phases complete · ${run.elapsed_seconds}s elapsed${run.estimated_remaining_seconds == null ? "" : ` · about ${run.estimated_remaining_seconds}s remaining`}` : "Ready to compute."}</p>
+        <div className="quote-fetch__action">
+          <Button type="button" variant="primary" onClick={() => void compute()} disabled={!projectId || !bivariateRunId || run?.status === "running"}>
+            {run?.status === "running" ? "Computing…" : "Compute multivariate statistics"}
+          </Button>
+        </div>
+      </div>
       {stage?.status === "stale" && <p role="status">The prior multivariate result is stale because its bivariate input changed. Compute a new run to refresh it.</p>}
       {message && <p role="alert">{message}</p>}{run?.failure_reason && <p role="alert">{run.failure_reason}</p>}
     </Panel>
