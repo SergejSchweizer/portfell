@@ -28,7 +28,7 @@ export function MetadataFetchProvider({ children }: Readonly<{ children: ReactNo
   const [fetching, setFetching] = useState(false);
   const [metadataRunId, setMetadataRunId] = useState<string | null>(null);
   const [metadataProgress, setMetadataProgress] = useState(0);
-  const [metadataStatus, setMetadataStatus] = useState("Enter an EODHD key to refresh listing metadata.");
+  const [metadataStatus, setMetadataStatus] = useState("Refresh listing metadata with the operations provider credential.");
   const hasSavedCredential = credential.status === "ready" && credential.data.status === "active";
 
   useEffect(() => {
@@ -76,12 +76,11 @@ export function MetadataFetchProvider({ children }: Readonly<{ children: ReactNo
   }, [fetching, metadataRunId]);
 
   async function fetchMetadata() {
-    if ((!providerKey.trim() && !hasSavedCredential) || fetching) return;
+    if (fetching) return;
     setFetching(true);
     setMetadataProgress(0);
-    setMetadataStatus(providerKey.trim() ? "Saving key and fetching metadata..." : "Fetching metadata...");
+    setMetadataStatus("Fetching metadata...");
     try {
-      if (providerKey.trim()) await postJson("/api/credentials/eodhd", { provider_key: providerKey.trim() });
       const result = await postJson<ApiMetadataFetch>("/api/metadata/fetch-all", {});
       setMetadataRunId(result.metadata_run_id);
       setMetadataProgress(result.percent);

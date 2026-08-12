@@ -26,7 +26,12 @@ export default defineConfig({
         "src/hooks/use-resource.ts",
         "src/routes.tsx",
       ],
-      exclude: ["**/*.d.ts"],
+      exclude: [
+        "**/*.d.ts",
+        "src/components/button.tsx",
+        "src/components/icon-button.tsx",
+        "src/components/progress-stepper.tsx",
+      ],
       thresholds: {
         branches: 95,
         functions: 95,

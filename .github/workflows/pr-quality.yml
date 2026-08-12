@@ -101,8 +101,8 @@ jobs:
             node:24-alpine \
             sh -lc 'npm ci && npm run typecheck && npm run test:coverage'
 
-  pr-web-interactions:
-    name: pr-web-interactions
+  pr-web-button-e2e:
+    name: pr-web-button-e2e
     runs-on: ubuntu-latest
 
     steps:
@@ -112,7 +112,7 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
-      - name: Run deterministic browser interaction inventory
+      - name: Run browser workflows for every visible button
         run: |
           docker run --rm --ipc=host --user "$(id -u):$(id -g)" \
             -e CI=true \
@@ -126,7 +126,30 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: pr-web-interactions-artifacts
+          name: pr-web-button-e2e-artifacts
+          path: apps/web/test-results
+          if-no-files-found: ignore
+          retention-days: 7
+
+  pr-real-stack-buttons:
+    name: pr-real-stack-buttons
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Run real Docker browser button contracts
+        run: bash scripts/run_real_stack_e2e.sh
+
+      - name: Upload real-stack failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: pr-real-stack-buttons-artifacts
           path: apps/web/test-results
           if-no-files-found: ignore
           retention-days: 7
@@ -210,7 +233,8 @@ jobs:
       - pr-lint-quality
       - pr-type-quality
       - pr-web-unit-quality
-      - pr-web-interactions
+      - pr-web-button-e2e
+      - pr-real-stack-buttons
       - pr-unit-tests
       - pr-integration-tests
     if: always()
@@ -221,12 +245,13 @@ jobs:
           LINT_RESULT: ${{ needs.pr-lint-quality.result }}
           TYPE_RESULT: ${{ needs.pr-type-quality.result }}
           WEB_UNIT_RESULT: ${{ needs.pr-web-unit-quality.result }}
-          WEB_INTERACTIONS_RESULT: ${{ needs.pr-web-interactions.result }}
+          WEB_BUTTON_E2E_RESULT: ${{ needs.pr-web-button-e2e.result }}
+          REAL_STACK_BUTTONS_RESULT: ${{ needs.pr-real-stack-buttons.result }}
           UNIT_RESULT: ${{ needs.pr-unit-tests.result }}
           INTEGRATION_RESULT: ${{ needs.pr-integration-tests.result }}
         run: |
-          if [[ "$LINT_RESULT" != "success" || "$TYPE_RESULT" != "success" || "$WEB_UNIT_RESULT" != "success" || "$WEB_INTERACTIONS_RESULT" != "success" || "$UNIT_RESULT" != "success" || "$INTEGRATION_RESULT" != "success" ]]; then
-            echo "pr-quality failed: lint=$LINT_RESULT type=$TYPE_RESULT web_unit=$WEB_UNIT_RESULT web_interactions=$WEB_INTERACTIONS_RESULT unit=$UNIT_RESULT integration=$INTEGRATION_RESULT" >&2
+          if [[ "$LINT_RESULT" != "success" || "$TYPE_RESULT" != "success" || "$WEB_UNIT_RESULT" != "success" || "$WEB_BUTTON_E2E_RESULT" != "success" || "$REAL_STACK_BUTTONS_RESULT" != "success" || "$UNIT_RESULT" != "success" || "$INTEGRATION_RESULT" != "success" ]]; then
+            echo "pr-quality failed: lint=$LINT_RESULT type=$TYPE_RESULT web_unit=$WEB_UNIT_RESULT web_button_e2e=$WEB_BUTTON_E2E_RESULT real_stack_buttons=$REAL_STACK_BUTTONS_RESULT unit=$UNIT_RESULT integration=$INTEGRATION_RESULT" >&2
             exit 1
           fi
           echo "pr-quality passed."

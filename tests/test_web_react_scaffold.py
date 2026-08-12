@@ -29,16 +29,16 @@ def test_workflow_pages_place_ingestion_actions_before_their_stage_controls() ->
         encoding="utf-8"
     )
     assert "Fetch all metadata" in metadata_page
-    assert (
-        metadata_page.index('<Panel title="Download Metadata">')
-        < metadata_page.index('<Panel title="Metadata Builder">')
-        < metadata_page.index('<Panel title="Historical Data">')
+    assert metadata_page.index('<Panel title="Download Metadata">') < metadata_page.index(
+        '<Panel title="Metadata Builder">'
     )
     assert "EODHD key" in frame
     assert "Fetch all metadata" not in frame
     assert '"/univariate-statistics"' not in metadata_page
     assert '"portfell:workflow-updated"' in metadata_page
-    assert "Initial fill progress" in metadata_page
+    assert "initialFillButtonLabel" in metadata_page
+    assert "Loading quotes:" in metadata_page
+    assert '<Panel title="Historical Data">' not in metadata_page
     assert "Download Historical Data" not in metadata_page
     assert "loadInitialFill" in metadata_page
     assert "startQuoteRun" not in metadata_page
@@ -178,13 +178,15 @@ def test_metadata_builder_restores_saved_project_criteria() -> None:
     assert "setName(criteria.name)" in page
 
 
-def test_metadata_refresh_keeps_the_entered_eodhd_key_in_the_header() -> None:
+def test_metadata_refresh_uses_the_operations_credential_not_a_browser_key() -> None:
     context = (WEB_ROOT / "src" / "shell" / "metadata-fetch-context.tsx").read_text(
         encoding="utf-8"
     )
 
+    assert 'postJson<ApiMetadataFetch>("/api/metadata/fetch-all", {})' in context
     assert (
-        'await postJson("/api/credentials/eodhd", { provider_key: providerKey.trim() })' in context
+        'await postJson("/api/credentials/eodhd", { provider_key: providerKey.trim() })'
+        not in context
     )
     assert 'setProviderKey("")' not in context
 
@@ -200,7 +202,7 @@ def test_metadata_header_uses_masked_saved_credential_without_browser_secret_per
     assert "loadEodhdCredentialValue" in context
     assert "setProviderKey(savedProviderKey.data.provider_key)" in context
     assert "Saved: {maskedCredentialLabel}" in frame
-    assert "!providerKey.trim() && !hasSavedCredential" in context
+    assert "if (fetching) return;" in context
     assert 'setProviderKey("")' not in context
     assert 'type="text"' in frame
     assert 'requestJson<ApiCredentialStatus>("/api/credentials/eodhd")' in client
@@ -226,12 +228,15 @@ def test_metadata_panel_uses_the_historical_data_progress_status_action_layout()
     assert 'fetching ? <progress className="metadata-fetch__progress"' not in frame
     assert 'id="metadata-progress"' in page
     assert "max={100} value={metadataProgress}" in page
-    assert page.index("metadata-progress") < page.index("Fetch all metadata")
+    metadata_panel = page.index('<Panel title="Download Metadata">')
+    progress = page.index("metadata-progress", metadata_panel)
+    action = page.index("Fetch all metadata", metadata_panel)
+    assert progress < action
     assert "metadataStatus" not in frame
     assert "metadataStatus" in page
     status_output = '<output className="status-line" aria-live="polite">{metadataStatus}</output>'
-    assert page.index("metadata-progress") < page.index(status_output)
-    assert page.index(status_output) < page.index("Fetch all metadata")
+    assert progress < page.index(status_output, metadata_panel)
+    assert page.index(status_output, metadata_panel) < action
     assert "loadMetadataFetchRun" in context
     assert "exchanges completed" in context
     assert ".metadata-fetch__progress { height: 4px;" in styles

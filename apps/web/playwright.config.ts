@@ -1,12 +1,16 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const realStack = process.env.PORTFELL_REAL_STACK === "true";
+
 export default defineConfig({
   testDir: "./tests",
-  testMatch: "**/*.spec.ts",
-  fullyParallel: true,
+  testMatch: realStack ? "**/*.real-stack.spec.ts" : "**/*.spec.ts",
+  testIgnore: realStack ? undefined : "**/*.real-stack.spec.ts",
+  fullyParallel: !realStack,
+  workers: realStack ? 1 : undefined,
   retries: 0,
   use: {
-    baseURL: "http://127.0.0.1:3000",
+    baseURL: realStack ? "http://127.0.0.1:13000" : "http://127.0.0.1:3000",
     trace: "on-first-retry",
     screenshot: "only-on-failure",
     video: "retain-on-failure",
@@ -16,7 +20,7 @@ export default defineConfig({
     { name: "tablet", use: { ...devices["iPad Pro 11"], viewport: { width: 1024, height: 1366 } } },
     { name: "mobile", use: { ...devices["iPhone 13"], viewport: { width: 390, height: 844 } } },
   ],
-  webServer: {
+  webServer: realStack ? undefined : {
     command: "npm run build && npm start",
     url: "http://127.0.0.1:3000/health",
     reuseExistingServer: !process.env.CI,

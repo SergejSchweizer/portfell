@@ -644,15 +644,15 @@ against exact code, schema, data boundary, and policy versions.
 Idempotency: Backup, restore, import, reconcile, readiness, retention, rehearsal, and rollback are
 repeatable and stop before documented commit points on mismatch.
 
-### PR167. Hosted Runtime Cutover And Legacy Authority Removal
+### PR167. Hosted Repository Injection Baseline
 
-Branch: `refactor/hosted-credential-vault-injection`.
+Branch: `refactor/hosted-quote-credential-vault`.
 
 Git status: merged. The final hosted runtime cutover merged through PR #326; production authority
 remains blocked by the required production-like import, parity, backup/restore, and rollback
 rehearsal.
 
-PR: https://github.com/SergejSchweizer/portfell/pull/322.
+PR: https://github.com/SergejSchweizer/portfell/pull/325.
 
 Depends on implementation branch: `refactor/hosted-research-selection-repository` (PR #320).
 
@@ -660,43 +660,231 @@ Final implementation PR: https://github.com/SergejSchweizer/portfell/pull/326.
 
 Prior planning PR: https://github.com/SergejSchweizer/portfell/pull/300 (merged).
 
-Priority: P0 activate the proven architecture.
+Priority: P0 establish injected persistence boundaries.
 
 Depends on: PR166.
 
 Scope:
 
-- Execute the approved quiesce/final PR158 import/parity procedure, take the PR166 rollback
-  checkpoint, switch dependency injection to PostgreSQL repositories and shared-store adapters, then
-  run post-cutover smoke/reconciliation checks.
-- Remove hosted authority from `local-workspace.json`, `HostedApiState` dictionaries, per-user market
-  grants/snapshots, copied market rows, and project-specific analytical paths. Preserve explicit local
-  CLI adapters and prevent them from loading in hosted mode.
-- Update Compose/production config, OpenAPI/client manifests, architecture/security/privacy docs,
-  observability, and on-call instructions. Make rollback an explicit operator decision at the proven
-  checkpoint; introduce no new schema, queue, payload, or workflow feature.
+- Inject existing project, selection, credential-vault, audit-event, terminal-download, and quote
+  credential ports into their owning services; retain explicit local adapters only for local mode.
+- Keep `PORTFELL_HOSTED_AUTHORITY=postgres` fail-closed until every later durable port is wired.
+- Record the greenfield reset decision: do not import or preserve legacy workspace, credential, run,
+  or market data.
 
 Acceptance:
 
-- After cutover and repeated restarts, control writes occur only in PostgreSQL and market/analytical
-  payload writes only in shared storage; hosted JSON/legacy tables/paths are never read or written.
-- Adversarial tests cover guessed ids, cross-user reads, deleted projects, stale sessions, worker
-  tokens, catalog ids, storage keys, timing-safe misses, and deletion. Local CLI tests remain green.
-- Final search and architecture tests prove one PostgreSQL tenant plane, one shared payload plane,
-  one bootstrap path, one cron path, one operations credential role, no per-user market grants, and
-  no project payload copies.
-- Ruff, format, strict Pyright, schema/security/architecture checks, migrations, at least 95%
-  coverage, TypeScript/Vitest/Playwright, Docker builds, reconciliation, rollback checkpoint, and
-  post-deploy smoke evidence pass before write traffic resumes.
+- Each injected service accepts an independently supplied port in tests without using the equivalent
+  `HostedApiState` authority; local behavior remains covered.
+- PostgreSQL runtime remains unavailable rather than falling back to local state.
 
-Security: Cutover requires PR156 licensing approval, PR166 evidence/signoff, least-privilege roles,
-RLS proof, encrypted rollback checkpoint, secret scan, and operations-credential readiness.
+Security: Injected credentials and audit events expose no plaintext, and no hosted code silently
+falls back from a supplied durable port to local state.
 
-Determinism: Final import, parity, publication boundary, dependency switch, smoke, and rollback
-checkpoint are tied to exact approved rehearsal artifacts and code/schema versions.
+Determinism: UUIDs, request hashes, and local adapter behavior remain stable across injected ports.
 
-Idempotency: Final import/reconcile/restart/smoke operations are repeatable; the authority switch has
-one documented commit point and retries cannot recreate legacy authority or duplicate payloads.
+Idempotency: Existing command idempotency remains unchanged when a service receives a durable port.
+
+### PR168. Durable Metadata Lifecycle And Request Idempotency
+
+Branch: `feat/hosted-metadata-lifecycle-repository`.
+
+Git status: planned. PR: TBD.
+
+Priority: P0 durable control-plane commands.
+
+Depends on: PR167.
+
+Scope: Add PostgreSQL migrations and repositories for metadata-fetch lifecycle, metadata revision
+pointers, and request idempotency. Replace `metadata_runs_by_id`, `metadata_revisions_by_user`, and
+hosted command idempotency dictionaries with transactional, user-scoped records; retain local adapters
+only in local mode.
+
+Acceptance: Restarting the hosted process preserves running/succeeded/failed metadata status, progress,
+revision identity, and idempotent responses. Cross-user reads and replay with conflicting payloads fail
+closed under RLS. No hosted route reads or writes the corresponding state dictionaries.
+
+Security: Bind every command to transaction-local user identity; idempotency rows contain no secrets.
+
+Determinism: Request hashes, terminal codes, revision IDs, and progress transitions are versioned and
+stable for identical input.
+
+Idempotency: Concurrent equivalent requests produce one lifecycle row and one response identity.
+
+### PR169. Durable Quote Jobs And Shared Market Publication
+
+Branch: `feat/hosted-quote-job-publication`.
+
+Git status: planned. PR: TBD.
+
+Priority: P0 durable ingestion execution.
+
+Depends on: PR168.
+
+Scope: Replace quote-run/progress dictionaries with PostgreSQL jobs, attempts, leases, and terminal
+records. Publish quote, dividend, and split bytes through the shared market store with immutable
+manifests and coverage revisions; persist only tenant references and lifecycle state in PostgreSQL.
+
+Acceptance: Worker restart resumes or safely reclaims a lease; progress and terminal status survive API
+restart; duplicate job requests single-flight by input hash; payload bytes contain no user/project field.
+Quote status authorizes through the owned project/selection before reading its control-plane record.
+
+Security: Browser input cannot select worker credentials, storage URIs, lease tokens, or shared roots.
+
+Determinism: Publication uses canonical listing identity, schema version, content hash, and atomic
+manifest swap.
+
+Idempotency: Replayed enqueue, claim, completion, and publication operations never duplicate business
+keys or expose a partial manifest.
+
+### PR170. Shared Coverage Catalog And Project Bootstrap
+
+Branch: `feat/hosted-shared-coverage-bootstrap`.
+
+Git status: planned. PR: TBD.
+
+Priority: P0 greenfield market bootstrap.
+
+Depends on: PR169.
+
+Scope: Implement a PostgreSQL coverage/catalog reference port and one resumable exact-selection
+bootstrap job using the operations credential. Remove per-user market grants, snapshots, copied rows,
+and terminal browser download semantics from hosted mode; preserve only local adapters for CLI/dev.
+
+Acceptance: A fresh project completes with zero provider calls when coverage is current, otherwise queues
+one operations-owned delta job. Two projects with overlapping listings reuse shared revisions without
+cross-project membership disclosure. Deleted projects do not delete shared payloads.
+
+Security: Only the trusted worker reads the operations credential; project authorization precedes every
+catalog or shared-store lookup.
+
+Determinism: Coverage is computed from exact canonical selections and revision manifests.
+
+Idempotency: Repeating project bootstrap reuses the same active job or confirmed coverage result.
+
+### PR171. Durable Research Run References
+
+Branch: `feat/hosted-research-run-repository`.
+
+Git status: planned. PR: TBD.
+
+Priority: P0 durable analytical control plane.
+
+Depends on: PR170.
+
+Scope: Persist univariate, bivariate, multivariate, analysis, selection-settings, and project-to-artifact
+references in PostgreSQL. Replace hosted research dictionaries and local persistence with repositories;
+store only hashes, statuses, input revision references, and artifact references in PostgreSQL.
+
+Acceptance: All research stages survive restart and reject guessed, deleted, stale, or cross-user IDs.
+PostgreSQL growth is reference-proportional, not payload- or pair-proportional. Local CLI tests continue
+through explicit local repositories.
+
+Security: RLS covers every run/reference query and mutation; payload locations are never client input.
+
+Determinism: Run identity derives from selection revision, market revisions, settings, and algorithm
+version.
+
+Idempotency: Equivalent submitted calculations share one run/reference identity per authorized scope.
+
+### PR172. Shared Analytical Artifact Store
+
+Branch: `feat/hosted-shared-analytical-artifacts`.
+
+Git status: planned. PR: TBD.
+
+Priority: P0 tenant-neutral analytical payloads.
+
+Depends on: PR171.
+
+Scope: Move Uni/Bi/Multi payloads, manifests, and result sections from hosted state to content-addressed
+shared storage. Add integrity-checked artifact adapters and enforce PostgreSQL-only project visibility
+references; remove hosted project-specific analytical payload copies.
+
+Acceptance: Equal exact inputs reuse one shared artifact; payloads contain no tenant fields; corrupt or
+missing manifests fail closed; an authorized run can be reproduced after restart and market correction.
+
+Security: Artifact IDs or storage paths never grant access without PostgreSQL authorization.
+
+Determinism: Artifact identity includes exact input manifests, algorithm and schema versions.
+
+Idempotency: Concurrent publication of equal artifacts yields one verified immutable manifest.
+
+### PR173. Operations Refresh And Greenfield Runtime Bootstrap
+
+Branch: `feat/hosted-operations-bootstrap`.
+
+Git status: planned. PR: TBD.
+
+Priority: P0 production-owned ingestion.
+
+Depends on: PR172.
+
+Scope: Wire the operations credential, one initial empty shared-store bootstrap, and cron-only refresh to
+the durable catalog/job pipeline. Remove hosted user-triggered provider ingestion and legacy workspace
+mounts from Compose; keep local refresh commands explicitly local.
+
+Acceptance: A fresh empty deployment bootstraps deterministically, cron refreshes the unique active
+listing union, and browser/API operations cannot trigger a provider call. Missing operations secrets or
+coverage manifests fail readiness without fallback.
+
+Security: Operations credentials are mounted only into authorized worker/cron services and never logs,
+API responses, or process arguments.
+
+Determinism: Cron input union, window planning, manifests, and freshness status are versioned.
+
+Idempotency: Repeated bootstrap and overlapping cron attempts single-flight and preserve the last valid
+shared publication.
+
+### PR174. PostgreSQL Hosted Runtime Composition
+
+Branch: `feat/hosted-postgres-runtime-composition`.
+
+Git status: planned. PR: TBD.
+
+Priority: P0 authority switch implementation.
+
+Depends on: PR173.
+
+Scope: Compose all durable repositories, shared stores, worker boundaries, and hosted authentication in
+`create_runtime_app`; enable explicit PostgreSQL authority only when every dependency is configured.
+Prevent local adapters, local workspace JSON, and in-memory authority from loading in hosted mode.
+
+Acceptance: `PORTFELL_HOSTED_AUTHORITY=postgres` starts against a fresh migrated catalog and shared
+store, repeated restarts retain all hosted state, and missing dependencies fail closed. Local authority
+continues to start only its explicit local composition.
+
+Security: Connection/password/KEK/operations secret handling remains file-mounted and redacted.
+
+Determinism: Composition chooses exactly one authority from explicit configuration.
+
+Idempotency: Repeated startup performs no migration, bootstrap, or data mutation outside its explicit
+operator command.
+
+### PR175. Greenfield Cutover Evidence And Legacy Authority Removal
+
+Branch: `feat/hosted-greenfield-cutover-evidence`.
+
+Git status: planned. PR: TBD.
+
+Priority: P0 final D017 launch gate.
+
+Depends on: PR174.
+
+Scope: Remove hosted legacy authority paths and prove the greenfield runtime through migrated-catalog,
+RLS/adversarial, backup/restore, restart, shared-store integrity, and post-deploy smoke evidence.
+Update Compose, runbooks, readiness, observability, API manifests, and architecture docs.
+
+Acceptance: Searches and architecture tests prove one PostgreSQL tenant plane and one shared payload
+plane; strict readiness and backup/restore pass; no hosted code reads/writes local workspace or legacy
+state dictionaries; local CLI remains explicit and green.
+
+Security: Include forced-RLS, guessed-ID, stale-session, worker-token, secret-scan, and deletion tests.
+
+Determinism: Evidence records exact code, schema, catalog, and shared-manifest versions.
+
+Idempotency: Repeating readiness, smoke, restore, and reconciliation checks is non-mutating or creates
+only declared immutable evidence.
 
 ### PR168. Production Cron Installation And First Scheduled Run Evidence
 
@@ -1060,9 +1248,9 @@ evidence bundle must prove:
 - project deletion and user credential deletion preserve shared payloads and other projects, while
   tenant history and crypto-shredding follow explicit retention policy;
 - old analysis runs remain reproducible from pinned immutable revisions after market corrections;
-- licensing approval, migration/parity, multi-replica load, adversarial isolation, backup/restore,
-  reconciliation, rollback, and two pre-cutover rehearsals are complete before PR167 switches
-  authority; post-cutover smoke and observability evidence then pass;
+- licensing approval, fresh catalog/shared-store bootstrap, multi-replica load, adversarial
+  isolation, backup/restore, and post-launch smoke/observability evidence are complete before PR167
+  switches authority; legacy data migration, parity, and rollback are intentionally out of scope;
 - local CLI mode remains supported through explicit local adapters and cannot be confused with the
   hosted PostgreSQL/shared-storage runtime.
 

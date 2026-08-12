@@ -213,7 +213,8 @@ returning job_id
             updated = self._connection.execute(
                 """
 update portfell_app.jobs
-set completed_units = %s, total_units = %s, heartbeat_at = now(), updated_at = now()
+set completed_units = %s, total_units = %s, heartbeat_at = now(),
+    lease_expires_at = now() + interval '5 minutes', updated_at = now()
 where job_id = %s::uuid and status = 'running' and lease_token = %s::uuid
 returning job_id
 """,

@@ -40,6 +40,7 @@ def test_compose_defines_persistent_internal_postgres_and_shared_data() -> None:
     services = cast(ComposeMapping, compose["services"])
     volumes = cast(ComposeMapping, compose["volumes"])
     postgres = cast(ComposeMapping, services["postgres"])
+    migrate = cast(ComposeMapping, services["catalog-migrate"])
     api = cast(ComposeMapping, services["api"])
 
     assert "portfell-postgres-data" in volumes
@@ -49,6 +50,9 @@ def test_compose_defines_persistent_internal_postgres_and_shared_data() -> None:
     assert "ports" not in postgres
     assert "5432" in postgres["expose"]
     assert "portfell-postgres-data:/var/lib/postgresql/data" in postgres["volumes"]
+    assert migrate["command"] == ["python", "-m", "portfell.hosted_catalog_migration"]
+    assert migrate["secrets"] == ["postgres_password"]
+    assert migrate["networks"] == ["portfell-internal"]
     assert "portfell-shared-data:/srv/portfell/shared-data" in api["volumes"]
     assert api["container_name"] == "portfell-api"
     assert "./lake:/srv/portfell/lake" not in api["volumes"]
@@ -105,7 +109,7 @@ def test_project_initial_fill_worker_is_internal_and_operations_credential_only(
     assert worker["command"] == ["python", "-m", "portfell.hosted_project_bootstrap_worker"]
     assert worker["secrets"] == ["operations_eodhd_token", "postgres_password"]
     assert worker["volumes"] == ["portfell-shared-data:/srv/portfell/shared-data"]
-    assert worker["networks"] == ["portfell-internal"]
+    assert worker["networks"] == ["portfell-internal", "portfell-public"]
     assert worker["group_add"] == ["${PORTFELL_SECRET_GROUP_ID:-100}"]
     assert "ports" not in worker
 
@@ -159,6 +163,9 @@ def test_compose_uses_health_checks_startup_order_and_hardening() -> None:
     api_depends = cast(ComposeMapping, cast(ComposeMapping, services["api"])["depends_on"])
     web_depends = cast(ComposeMapping, cast(ComposeMapping, services["web"])["depends_on"])
     assert cast(ComposeMapping, api_depends["postgres"])["condition"] == "service_healthy"
+    assert cast(ComposeMapping, api_depends["catalog-migrate"])["condition"] == (
+        "service_completed_successfully"
+    )
     assert cast(ComposeMapping, web_depends["api"])["condition"] == "service_healthy"
 
 

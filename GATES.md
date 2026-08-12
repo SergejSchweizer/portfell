@@ -36,6 +36,7 @@ Required check families:
 - Hosted readiness records for licensing, privacy, retention, backup, restore, and key rotation.
 - Pyright strict typing.
 - Playwright interaction-inventory tests on desktop, tablet, and mobile.
+- Real Docker browser tests for worker-owned metadata refreshes on desktop, tablet, and mobile.
 - Pytest Unit and Integration shards.
 - Coverage threshold enforcement on `main`.
 - Architecture checks.
@@ -110,10 +111,15 @@ pr-quality
     +-- pr-type-quality
     |       pyright
     |
-    +-- pr-web-interactions
+        +-- pr-web-button-e2e
     |       npm run build && npm run e2e
-    |       desktop, tablet, and mobile interaction manifest
+        |       desktop, tablet, and mobile workflow coverage for every visible button
     |       traces, screenshots, and videos retained only on failure
+    |
+    +-- pr-real-stack-buttons
+    |       bash scripts/run_real_stack_e2e.sh
+    |       real Web, API, PostgreSQL, worker, and deterministic EODHD test service
+    |       validates a browser metadata refresh through durable worker publication
     |
     +-- pr-unit-tests-[1..4]
     |       scripts/pytest_shard.py --suite unit --shard-index N --shard-count 4 -- -q -n auto
@@ -130,6 +136,7 @@ Local equivalent:
 ```bash
 uv run portfell-quality pr
 cd apps/web && npm run e2e
+bash scripts/run_real_stack_e2e.sh
 ```
 
 Release cutover can require the stricter public-hosted readiness mode:
@@ -209,9 +216,13 @@ merge-gate
     +-- merge-type-quality
     |       pyright
     |
-    +-- merge-web-interactions
+        +-- merge-web-button-e2e
     |       npm run build && npm run e2e
-    |       desktop, tablet, and mobile interaction manifest
+        |       desktop, tablet, and mobile workflow coverage for every visible button
+    |
+    +-- merge-real-stack-buttons
+    |       bash scripts/run_real_stack_e2e.sh
+    |       exact-main real Docker browser contract
     |
     +-- merge-unit-tests-[1..4]
     |       scripts/pytest_shard.py --suite unit --shard-index N --shard-count 4 -- -q -n auto

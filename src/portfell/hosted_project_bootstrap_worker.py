@@ -12,10 +12,11 @@ from datetime import date
 from pathlib import Path
 from typing import Protocol
 
-from portfell.config import EodhdConfig
+from portfell.config import runtime_eodhd_config
 from portfell.durable_job_repository import ClaimedJob, PostgresDurableJobRepository
 from portfell.hosted_catalog import set_authenticated_user_sql
 from portfell.hosted_database_connection import connect
+from portfell.hosted_metadata_refresh_worker import build_metadata_refresh_worker
 from portfell.http import EodhdClient
 from portfell.shared_market_data import SharedListingKey, SharedMarketDataStore
 from portfell.shared_market_refresh import (
@@ -134,12 +135,25 @@ class ProjectBootstrapWorker:
                 completed_units=0,
                 total_units=len(listings),
             )
+            completed_listings = 0
+
+            def report_listing_completed(_: SharedListingKey) -> None:
+                nonlocal completed_listings
+                completed_listings += 1
+                self._jobs.update_progress(
+                    job_id=job.job_id,
+                    lease_token=job.lease_token,
+                    completed_units=completed_listings,
+                    total_units=len(listings),
+                )
+
             result = refresh_shared_market_data(
                 store=self._store,
                 listings=listings,
                 fetch=self._fetch,
                 end_date=self._end_date,
                 concurrency=self._concurrency,
+                on_listing_completed=report_listing_completed,
             )
             self._complete(job, result, len(listings))
         except Exception:
@@ -195,21 +209,30 @@ def main(argv: list[str] | None = None) -> int:
         or args.poll_seconds <= 0
     ):
         return 4
-    connection = connect(database_url, autocommit=False)
+    # Repositories explicitly delimit each claim/update with ``transaction()``.
+    # Autocommit keeps those worker transactions short-lived instead of retaining
+    # an implicit outer transaction for the lifetime of the polling process.
+    connection = connect(database_url, autocommit=True)
     try:
+        jobs = PostgresDurableJobRepository(connection)
         worker = ProjectBootstrapWorker(
-            jobs=PostgresDurableJobRepository(connection),
+            jobs=jobs,
             members_for_selection=PostgresSelectionMembers(connection),
             store=SharedMarketDataStore(Path(root)),
-            fetch=eodhd_fetch(EodhdClient(EodhdConfig(api_token=token))),
+            fetch=eodhd_fetch(EodhdClient(runtime_eodhd_config(token))),
             end_date=date.today(),
             concurrency=args.concurrency,
         )
         while True:
+            jobs.recover_expired_leases()
+            metadata_result = build_metadata_refresh_worker(
+                connection, shared_data_root=Path(root), operations_token=token
+            ).run_once()
             result = worker.run_once(worker_id=args.worker_id, batch_size=args.batch_size)
             if args.once:
-                return 0 if result.failed_count == 0 else 5
-            if result.claimed_count == 0:
+                metadata_succeeded = not metadata_result.claimed or metadata_result.succeeded
+                return 0 if result.failed_count == 0 and metadata_succeeded else 5
+            if result.claimed_count == 0 and not metadata_result.claimed:
                 time.sleep(args.poll_seconds)
     finally:
         connection.close()
