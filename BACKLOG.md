@@ -1695,7 +1695,7 @@ merge, satisfy the current `merge-gate` requirements in `GATES.md`.
 
 Branch: `feat/project-scoped-urls`.
 
-Git status: in progress. PR: TBD.
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/374.
 
 Priority: P1 workspace shareability.
 
