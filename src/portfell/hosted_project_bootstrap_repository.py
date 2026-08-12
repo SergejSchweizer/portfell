@@ -224,7 +224,7 @@ order by member.isin, member.exchange, member.code
         self._connection.execute(
             """
 update portfell_app.jobs
-set status = 'queued', completed_units = 0, total_units = 0, attempt_count = 0,
+set status = 'queued', completed_units = 0, total_units = 0,
     available_at = now(), lease_owner = null, lease_token = null, lease_expires_at = null,
     heartbeat_at = null, terminal_code = null, updated_at = now()
 where job_id = %s::uuid and status in ('failed', 'cancelled')
