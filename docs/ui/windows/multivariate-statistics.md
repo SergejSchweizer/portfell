@@ -59,6 +59,7 @@ or calculates financial values in the browser.
   portfolio.
 - Hovering the Performance chart, or using its arrow keys after focus, opens an inspection tooltip
   for the nearest date with cumulative returns for every visible instrument and portfolio method.
+  Tooltip values use the same gray instrument and method-specific portfolio colors as the chart.
 
 ## States
 

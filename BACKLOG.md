@@ -1650,7 +1650,8 @@ Scope: Render all input-instrument adjusted-price return lines in neutral gray w
 method-specific colors for the feasible portfolio return lines and their legend swatches.
 
 Acceptance: Instrument lines and swatches are gray; feasible portfolio lines remain coloured,
-dashed, and distinguishable by method in the Multivariate Performance chart.
+dashed, and distinguishable by method in the Multivariate Performance chart and nearest-date
+tooltip.
 
 Security: The presentation change consumes only existing project-owned persisted performance data.
 
