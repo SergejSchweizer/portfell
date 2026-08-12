@@ -37,7 +37,7 @@ from portfell.portfolio_parts.solvers import (
     solve_minimum_variance,
 )
 
-CANDIDATE_CONTRACT = ContractVersion("multivariate.candidates", 1)
+CANDIDATE_CONTRACT = ContractVersion("multivariate.candidates", 2)
 MAX_WALK_FORWARD_SOLVER_ITERATIONS = 500
 METHODS = (
     "equal_weight",
@@ -46,6 +46,7 @@ METHODS = (
     "equal_risk_contribution",
     "hierarchical_risk_parity",
     "minimum_cvar",
+    "highest_monthly_return",
 )
 BASELINE_METHODS = frozenset({"equal_weight", "inverse_volatility"})
 
@@ -149,7 +150,7 @@ def build_candidate_set(
     ),
     executor: Executor | None = None,
 ) -> tuple[PortfolioCandidate, ...]:
-    """Build the six stable candidates from one input/risk-model pair."""
+    """Build the stable candidates from one input/risk-model pair."""
     infeasible_reason = _feasibility_reason(snapshot, risk_model, policy)
     if infeasible_reason:
         return tuple(
@@ -320,7 +321,48 @@ def _weights(
         if not outcome.converged:
             raise ValueError("minimum_cvar_solver_not_converged")
         return outcome.weights
+    if method == "highest_monthly_return":
+        return _highest_monthly_return_weights(keys, rows, policy)
     raise ValueError("unsupported_candidate_method")
+
+
+def _highest_monthly_return_weights(
+    keys: tuple[tuple[str, str, str], ...],
+    rows: Sequence[Mapping[str, Any]],
+    policy: MonthlyDistributionEtfPortfolioPolicy,
+) -> tuple[float, ...]:
+    indexed: dict[tuple[str, str, str], dict[str, float]] = {}
+    for row in rows:
+        key = (str(row["isin"]), str(row["exchange"]), str(row["code"]))
+        indexed.setdefault(key, {})[str(row["date"])] = float(row.get("return", 0))
+    if not keys or any(key not in indexed for key in keys):
+        raise ValueError("incomplete_aligned_return_history")
+    common_dates = set(indexed[keys[0]])
+    for key in keys[1:]:
+        common_dates &= set(indexed[key])
+    if len(common_dates) < 2:
+        raise ValueError("insufficient_aligned_return_history")
+    scores = [
+        _mean_monthly_return({date: indexed[key][date] for date in common_dates}) for key in keys
+    ]
+    weights = [policy.min_weight] * len(keys)
+    remaining = 1 - sum(weights)
+    for index in sorted(range(len(keys)), key=lambda item: (-scores[item], keys[item])):
+        allocation = min(policy.max_weight - policy.min_weight, remaining)
+        weights[index] += allocation
+        remaining -= allocation
+        if remaining <= 1e-12:
+            break
+    return tuple(weights)
+
+
+def _mean_monthly_return(log_returns: Mapping[str, float]) -> float:
+    """Return the mean compounded monthly return from chronologically grouped logs."""
+    monthly: dict[str, float] = {}
+    for date, value in log_returns.items():
+        month = date[:7]
+        monthly[month] = monthly.get(month, 0.0) + value
+    return sum(exp(value) - 1 for value in monthly.values()) / len(monthly)
 
 
 def _metrics(

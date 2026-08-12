@@ -44,9 +44,16 @@ or calculates financial values in the browser.
   holdings, diversification, return, drawdown, and gross historical income. Income Evidence
   includes observed coverage, trend, cuts, total return, and quoted market-price capital change
   as the NAV proxy.
+- Portfolio Candidates includes `highest_monthly_return`, a server-owned portfolio that maximizes
+  mean historical compounded calendar-month total return under the same long-only minimum and
+  maximum weights as every other candidate. It is descriptive historical evidence, not a forecast
+  or recommendation.
 - Performance renders persisted cumulative daily returns for every input instrument and the
   selected feasible portfolio on one chart, with the portfolio line in red. It also presents
   persisted compounded monthly and calendar-year returns for every feasible portfolio.
+- Hovering the Performance chart, or using its arrow keys after focus, opens an inspection tooltip
+  for the nearest date with cumulative returns for every visible instrument and the selected
+  portfolio. The selected portfolio remains visually distinguished in red.
 
 ## States
 
@@ -75,10 +82,11 @@ or calculates financial values in the browser.
 
 ## Accessibility and responsive behavior
 
-The page uses semantic panels, native progress, keyboard-operable tabs, and
-captioned tables. Candidate weights, risk contributions, component loadings,
-income evidence, and validation evidence all have textual alternatives. The
-sidebar remains the workflow navigation at every viewport width.
+The page uses semantic panels, native progress, keyboard-operable tabs, a
+keyboard-operable Performance-chart inspection surface, and captioned tables.
+Candidate weights, risk contributions, component loadings, income evidence, and
+validation evidence all have textual alternatives. The sidebar remains the
+workflow navigation at every viewport width.
 
 ## Security and boundaries
 
