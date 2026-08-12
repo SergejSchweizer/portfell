@@ -700,6 +700,35 @@ def test_quote_run_reuses_an_active_run_without_an_idempotency_key() -> None:
     assert second_task is None
 
 
+def test_quote_run_reuses_a_succeeded_run_without_an_idempotency_key() -> None:
+    state = HostedApiState()
+    state.projects_by_id["project-1"] = ProjectRecord("project-1", "user-a", "Income")
+    state.selections_by_id["selection-1"] = SelectionRecord(
+        "selection-1", "user-a", "project-1", "Income", ("IE1",)
+    )
+    state.credential_vault().set_credential(user_id="user-a", provider_key="test-key")
+    runtime = LocalHostedRuntime(
+        quote_workflow=_empty_workflow,
+        metadata_workflow=_empty_workflow,
+        cpu_count=lambda: 4,
+    )
+    service = QuoteRunService(state, runtime)
+
+    first, first_task = service.start(
+        "user-a", project_id="project-1", selection_id=None, idempotency_key=None
+    )
+    assert first_task is not None
+    first_task()
+
+    second, second_task = service.start(
+        "user-a", project_id="project-1", selection_id=None, idempotency_key=None
+    )
+
+    assert second["download_run_id"] == first["download_run_id"]
+    assert second["status"] == "succeeded"
+    assert second_task is None
+
+
 def test_project_context_cleans_discontinued_projects_and_tracks_loaded_data() -> None:
     state = HostedApiState()
     state.projects_by_id = {
