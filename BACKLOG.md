@@ -938,6 +938,31 @@ CI containers.
 Idempotency: Rebuilding the unchanged Dockerfile with the same Node 26 image produces the same application
 artifact contract.
 
+### PR178. Initial-Fill Status Projection Synchronization
+
+Branch: `fix/initial-fill-status-sync`.
+
+Git status: in progress. PR: TBD.
+
+Priority: P1 durable worker correctness.
+
+Depends on: PR167.
+
+Scope: Synchronize the project-owned `project_initial_fills.status` projection with durable
+`project_initial_fill` job transitions. Bind the job owner before each projection write so PostgreSQL RLS
+remains enforced for claim, terminal completion, and expired-lease recovery.
+
+Acceptance: Claim sets the projection to `running`; successful, partial, failed, and cancelled terminal jobs
+map to `ready`, `partial`, and `failed`; an expired lease maps the projection back to `planning`. Existing
+active rows are reconciled operationally, and the durable-job, bootstrap repository, and worker tests pass.
+
+Security: Projection updates use the job owner's transaction-local identity and never grant a worker broad
+cross-tenant access to initial-fill records.
+
+Determinism: Each durable queue status maps to one fixed initial-fill projection status.
+
+Idempotency: Repeating a synchronization write for the same job status leaves the same projection state.
+
 ### PR168. Production Cron Installation And First Scheduled Run Evidence
 
 Branch: `chore/install-production-market-refresh-cron`.

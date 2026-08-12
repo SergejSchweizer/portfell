@@ -50,6 +50,12 @@ class _Connection:
             return _Cursor(("job-1",) if self._inserted else None)
         if "for update skip locked" in sql:
             return _Cursor(rows=self._rows)
+        if "returning job_id::text, user_id::text, job_kind, status" in sql:
+            return _Cursor(
+                ("job-1", "user-1", "project_initial_fill", "succeeded")
+                if self.completion_succeeds
+                else None
+            )
         if "where job_id = %s::uuid and status = 'running'" in sql:
             if "set heartbeat_at" in sql:
                 return _Cursor(("job-1",) if self.heartbeat_succeeds else None)
@@ -155,13 +161,42 @@ def test_progress_is_bounded_and_requires_the_current_worker_lease() -> None:
 
 
 def test_expired_leases_return_jobs_to_queue_and_finish_attempts() -> None:
-    connection = _Connection(rows=[("job-1",)])
+    connection = _Connection(rows=[("job-1", "user-1", "project_initial_fill")])
 
     assert PostgresDurableJobRepository(connection).recover_expired_leases() == ("job-1",)
 
     statements = "\n".join(statement for statement, _ in connection.calls)
     assert "set status = 'queued'" in statements
     assert "terminal_code = 'lease_expired'" in statements
+
+
+def test_project_initial_fill_projection_tracks_job_transitions() -> None:
+    claim_connection = _Connection(
+        rows=[("job-1", "user-1", "project-1", "project_initial_fill", "hash-1", "input-1", 2)]
+    )
+    completion_connection = _Connection()
+    recovery_connection = _Connection(rows=[("job-1", "user-1", "project_initial_fill")])
+
+    PostgresDurableJobRepository(claim_connection).claim(worker_id="worker-1", batch_size=1)
+    PostgresDurableJobRepository(completion_connection).complete(
+        job_id="job-1", lease_token="lease-1", status="succeeded"
+    )
+    PostgresDurableJobRepository(recovery_connection).recover_expired_leases()
+
+    statements = "\n".join(
+        statement
+        for connection in (claim_connection, completion_connection, recovery_connection)
+        for statement, _ in connection.calls
+    )
+    assert "set status = 'running'" in statements
+    assert "returning job_id::text, user_id::text, job_kind, status" in statements
+    assert "set status = %s, updated_at = now()" in statements
+    assert sum("select set_config" in statement for statement, _ in claim_connection.calls) == 1
+    assert (
+        sum("select set_config" in statement for statement, _ in completion_connection.calls) == 1
+    )
+    assert sum("select set_config" in statement for statement, _ in recovery_connection.calls) == 1
+    assert statements.count("update portfell_app.project_initial_fills") == 3
 
 
 def test_durable_job_repository_rejects_invalid_identity_status_and_lost_heartbeat() -> None:

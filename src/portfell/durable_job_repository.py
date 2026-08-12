@@ -139,6 +139,13 @@ returning job.job_id::text, job.user_id::text, job.project_id::text, job.job_kin
                 (batch_size, worker_id, lease_token),
             ).fetchall()
             for row in rows:
+                claimed = _claimed_job(row, lease_token)
+                self._sync_initial_fill_status(
+                    job_id=claimed.job_id,
+                    user_id=claimed.user_id,
+                    job_kind=claimed.job_kind,
+                    status="running",
+                )
                 self._connection.execute(
                     """
 insert into portfell_app.job_attempts (job_attempt_id, job_id, attempt_number, worker_id)
@@ -169,12 +176,19 @@ update portfell_app.jobs
 set status = %s, terminal_code = %s, lease_owner = null, lease_token = null,
     lease_expires_at = null, heartbeat_at = now(), updated_at = now()
 where job_id = %s::uuid and status = 'running' and lease_token = %s::uuid
-returning job_id
+returning job_id::text, user_id::text, job_kind, status
 """,
                 (status, terminal_code, job_id, lease_token),
             ).fetchone()
             if completed is None:
                 raise DurableJobError("job_lease_lost")
+            completed_job_id, user_id, job_kind, completed_status = _completed_job(completed)
+            self._sync_initial_fill_status(
+                job_id=completed_job_id,
+                user_id=user_id,
+                job_kind=job_kind,
+                status=_initial_fill_status(completed_status),
+            )
             self._connection.execute(
                 """
 update portfell_app.job_attempts
@@ -233,10 +247,18 @@ update portfell_app.jobs
 set status = 'queued', lease_owner = null, lease_token = null, lease_expires_at = null,
     available_at = now(), updated_at = now()
 where status = 'running' and lease_expires_at <= now()
-returning job_id::text
+returning job_id::text, user_id::text, job_kind
 """
             ).fetchall()
-            job_ids = tuple(_job_id(row) for row in rows)
+            recovered = tuple(_recovered_job(row) for row in rows)
+            for job_id, user_id, job_kind in recovered:
+                self._sync_initial_fill_status(
+                    job_id=job_id,
+                    user_id=user_id,
+                    job_kind=job_kind,
+                    status="planning",
+                )
+            job_ids = tuple(job_id for job_id, _, _ in recovered)
             for job_id in job_ids:
                 self._connection.execute(
                     """
@@ -247,6 +269,21 @@ where job_id = %s::uuid and finished_at is null
                     (job_id,),
                 )
         return job_ids
+
+    def _sync_initial_fill_status(
+        self, *, job_id: str, user_id: str, job_kind: str, status: str
+    ) -> None:
+        if job_kind != "project_initial_fill":
+            return
+        self._connection.execute(*set_authenticated_user_sql(user_id))
+        self._connection.execute(
+            """
+update portfell_app.project_initial_fills
+set status = %s, updated_at = now()
+where bootstrap_job_id = %s::uuid
+""",
+            (status, job_id),
+        )
 
 
 def _claimed_job(row: tuple[object, ...], lease_token: str) -> ClaimedJob:
@@ -267,7 +304,26 @@ def _claimed_job(row: tuple[object, ...], lease_token: str) -> ClaimedJob:
     )
 
 
-def _job_id(row: tuple[object, ...]) -> str:
-    if len(row) != 1 or not isinstance(row[0], str) or not row[0]:
+def _completed_job(row: tuple[object, ...]) -> tuple[str, str, str, str]:
+    if len(row) != 4 or not all(isinstance(value, str) and value for value in row):
+        raise DurableJobError("job_completion_projection_invalid")
+    return str(row[0]), str(row[1]), str(row[2]), str(row[3])
+
+
+def _recovered_job(row: tuple[object, ...]) -> tuple[str, str, str]:
+    if len(row) != 3 or not all(isinstance(value, str) and value for value in row):
         raise DurableJobError("job_recovery_projection_invalid")
-    return row[0]
+    return str(row[0]), str(row[1]), str(row[2])
+
+
+def _initial_fill_status(job_status: str) -> str:
+    statuses = {
+        "succeeded": "ready",
+        "partial": "partial",
+        "failed": "failed",
+        "cancelled": "failed",
+    }
+    try:
+        return statuses[job_status]
+    except KeyError as error:
+        raise DurableJobError("job_terminal_status_invalid") from error
