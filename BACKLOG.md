@@ -1491,6 +1491,31 @@ Idempotency: Rendering the additional facts is read-only and does not create or 
 Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
 merge, satisfy the current `merge-gate` requirements in `GATES.md`.
 
+### PR211. Multivariate CPU Parallelism
+
+Branch: `feat/multivariate-cpu-parallelism`.
+
+Git status: in progress. PR: TBD.
+
+Priority: P1 multivariate execution performance.
+
+Depends on: PR210.
+
+Scope: Run independent Multivariate candidate optimizers and Walk-Forward refits in one process pool
+sized to every CPU available to the hosted runtime.
+
+Acceptance: A Multivariate compute provisions `runtime.process_cpu_count()` workers, reuses the pool
+for initial and refitted candidates, and preserves deterministic candidate and persisted-run outputs.
+
+Security: Worker processes receive only project-scoped, already-authorized immutable research inputs.
+
+Determinism: Parallel completion order does not affect the canonical method order or persisted artifacts.
+
+Idempotency: Equal inputs retain the same logical run identity and reuse existing completed runs.
+
+Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
+merge, satisfy the current `merge-gate` requirements in `GATES.md`.
+
 ### PR210. Portfolio Selection Counts
 
 Branch: `fix/portfolio-selection-counts`.

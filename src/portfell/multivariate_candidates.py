@@ -9,6 +9,7 @@ Weight.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from concurrent.futures import Executor
 from dataclasses import dataclass
 from math import exp, sqrt
 from typing import Any
@@ -132,15 +133,34 @@ def build_candidate_set(
     policy: MonthlyDistributionEtfPortfolioPolicy = (
         DEFAULT_MONTHLY_DISTRIBUTION_ETF_PORTFOLIO_POLICY
     ),
+    executor: Executor | None = None,
 ) -> tuple[PortfolioCandidate, ...]:
     """Build the six stable candidates from one input/risk-model pair."""
     infeasible_reason = _feasibility_reason(snapshot, risk_model, policy)
-    return tuple(
-        _unavailable(snapshot, risk_model, policy, method, infeasible_reason)
-        if infeasible_reason
-        else _candidate(snapshot, risk_model, return_rows, income, policy, method)
-        for method in METHODS
+    if infeasible_reason:
+        return tuple(
+            _unavailable(snapshot, risk_model, policy, method, infeasible_reason)
+            for method in METHODS
+        )
+    tasks = tuple((snapshot, risk_model, return_rows, income, policy, method) for method in METHODS)
+    return (
+        tuple(_build_candidate(task) for task in tasks)
+        if executor is None
+        else tuple(executor.map(_build_candidate, tasks))
     )
+
+
+def _build_candidate(
+    task: tuple[
+        MultivariateInputSnapshot,
+        MultivariateRiskModelArtifact,
+        Sequence[Mapping[str, Any]],
+        Mapping[MultivariateListingKey, IncomeEvidence],
+        MonthlyDistributionEtfPortfolioPolicy,
+        str,
+    ],
+) -> PortfolioCandidate:
+    return _candidate(*task)
 
 
 def _feasibility_reason(

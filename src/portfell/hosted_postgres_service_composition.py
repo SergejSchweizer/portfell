@@ -141,6 +141,7 @@ def build_postgres_services(
             repositories.selections,
             repositories.multivariate,
             runtime.all_isins_rows,
+            runtime.process_cpu_count,
         ),
         HostedAnalysisService(research_repository, persistence),
     )

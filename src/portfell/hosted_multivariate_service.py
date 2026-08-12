@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import os
 from collections.abc import Callable, Mapping, Sequence
+from concurrent.futures import Executor, ProcessPoolExecutor
 from dataclasses import replace
 from time import time
 from typing import Any
@@ -70,6 +72,7 @@ class MultivariateResearchService(MultivariateRunViews):
         selection_repository: SelectionRepository | None = None,
         run_repository: MultivariateRunRepository | None = None,
         metadata_rows: Callable[[], tuple[JsonRow, ...]] | None = None,
+        worker_count: Callable[[], int | None] = os.process_cpu_count,
     ) -> None:
         self._data = data
         self._persistence = persistence
@@ -78,6 +81,7 @@ class MultivariateResearchService(MultivariateRunViews):
         self._runs = run_repository or LocalMultivariateRunRepository(state)
         self._research = research_repository
         self._metadata_rows = metadata_rows or (lambda: state.all_isins_rows)
+        self._worker_count = worker_count
 
     def start(
         self, user_id: str, project_id: str, bivariate_run_id: str, settings: JsonRow
@@ -159,12 +163,15 @@ class MultivariateResearchService(MultivariateRunViews):
         if run.status != "running":
             return
         try:
-            completed = self._compute(
-                run,
-                on_phase=lambda run_id, phase, completed_units: self._advance(
-                    user_id, run_id, phase, completed_units
-                ),
-            )
+            workers = max(1, self._worker_count() or 1)
+            with ProcessPoolExecutor(max_workers=workers) as executor:
+                completed = self._compute(
+                    run,
+                    executor=executor,
+                    on_phase=lambda run_id, phase, completed_units: self._advance(
+                        user_id, run_id, phase, completed_units
+                    ),
+                )
         except (HostedApplicationError, ValueError) as error:
             completed = replace(run, status="failed", phase="failed", failure_reason=str(error))
         self._runs.save(completed)
@@ -233,6 +240,7 @@ class MultivariateResearchService(MultivariateRunViews):
         self,
         run: MultivariateRunRecord,
         *,
+        executor: Executor,
         on_phase: Callable[[str, str, int], None],
     ) -> MultivariateRunRecord:
         selection = self._selection_for_bivariate(run.user_id, run.bivariate_run_id)
@@ -305,7 +313,11 @@ class MultivariateResearchService(MultivariateRunViews):
         }
         on_phase(run.run_id, "build_candidates", 4)
         candidates = build_candidate_set(
-            snapshot=snapshot, risk_model=risk, return_rows=returns, income=income
+            snapshot=snapshot,
+            risk_model=risk,
+            return_rows=returns,
+            income=income,
+            executor=executor,
         )
         on_phase(run.run_id, "validate_candidates", 5)
 
@@ -320,6 +332,7 @@ class MultivariateResearchService(MultivariateRunViews):
                 risk_model=training_risk,
                 return_rows=training_rows,
                 income=income,
+                executor=executor,
             )
 
         validation = validate_candidates(
