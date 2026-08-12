@@ -1209,6 +1209,28 @@ Determinism: A retry preserves the existing deterministic job and selection iden
 Idempotency: Duplicate submissions during active or successful fills remain no-ops; repeated failed-fill
 submissions leave one queued job.
 
+### PR189. Preserve Initial-Fill Attempt History
+
+Branch: `fix/retry-attempt-history`.
+
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/349.
+
+Priority: P1 project data-loading resilience.
+
+Depends on: PR188.
+
+Scope: Preserve durable attempt numbering when requeueing a failed initial fill, so the next worker claim
+does not conflict with an existing `(job_id, attempt_number)` history record.
+
+Acceptance: A retry resets progress and terminal state without resetting `attempt_count`; its next claim
+creates the next sequential attempt record.
+
+Security: Retry remains project-owned and uses no browser-held provider credential.
+
+Determinism: Retries retain a stable job identity and monotonically increasing attempt numbers.
+
+Idempotency: Repeated retries preserve one job and one unique attempt row per claim.
+
 ### PR168. Production Cron Installation And First Scheduled Run Evidence
 
 Branch: `chore/install-production-market-refresh-cron`.

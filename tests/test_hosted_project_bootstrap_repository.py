@@ -125,3 +125,5 @@ def test_postgres_bootstrap_requeues_failed_initial_fill() -> None:
     assert retried.bootstrap.status == "not_started"
     assert sum("set status = 'queued'" in sql for sql, _ in connection.statements) == 1
     assert sum("set status = 'not_started'" in sql for sql, _ in connection.statements) == 1
+    retry_sql = next(sql for sql, _ in connection.statements if "set status = 'queued'" in sql)
+    assert "attempt_count" not in retry_sql
