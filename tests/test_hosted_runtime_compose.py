@@ -71,7 +71,7 @@ def test_compose_exposes_only_api_and_web_development_ports() -> None:
         "0.0.0.0:${PORTFELL_API_PORT:-8000}:8000"
     ]
     assert cast(ComposeMapping, services["web"])["ports"] == [
-        "0.0.0.0:${PORTFELL_WEB_PORT:-3000}:3000"
+        "0.0.0.0:${PORTFELL_WEB_PORT:-333}:3000"
     ]
     assert "ports" not in cast(ComposeMapping, services["postgres"])
 
