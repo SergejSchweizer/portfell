@@ -1495,7 +1495,7 @@ merge, satisfy the current `merge-gate` requirements in `GATES.md`.
 
 Branch: `fix/multivariate-history-eligibility`.
 
-Git status: in progress. PR: TBD.
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/364.
 
 Priority: P1 multivariate evidence availability.
 
