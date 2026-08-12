@@ -350,6 +350,9 @@ test("Multivariate compute button polls resolve_inputs through completion", asyn
   await expect(page.getByRole("tooltip")).toContainText("ALPHA.XETRA: 3.00%");
   await expect(page.getByRole("tooltip")).toContainText("Equal weight: 2.50%");
   await expect(page.getByRole("tooltip")).toContainText("Minimum variance: 2.70%");
+  await expect(page.locator(".performance-chart__tooltip-instrument")).toHaveCount(2);
+  await expect(page.locator(".performance-chart__tooltip-portfolio--0")).toContainText("Equal weight: 2.50%");
+  await expect(page.locator(".performance-chart__tooltip-portfolio--1")).toContainText("Minimum variance: 2.70%");
   expect(fixture.calls).toEqual(expect.arrayContaining([
     "POST /api/multivariate-statistics/runs",
     "GET /api/multivariate-statistics/runs/multivariate-project-1",

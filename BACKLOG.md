@@ -1612,7 +1612,7 @@ merge, satisfy the current `merge-gate` requirements in `GATES.md`.
 
 Branch: `feat/multivariate-all-portfolio-performance`.
 
-Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/370.
+Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/370.
 
 Priority: P1 multivariate explainability.
 
@@ -1632,6 +1632,32 @@ deterministic for identical artifacts and user interaction coordinates.
 
 Idempotency: Performance rendering and inspection are read-only and do not mutate run state or
 candidate selections.
+
+Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
+merge, satisfy the current `merge-gate` requirements in `GATES.md`.
+
+### PR224. Multivariate Portfolio Color Hierarchy
+
+Branch: `feat/multivariate-portfolio-color-hierarchy`.
+
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/371.
+
+Priority: P1 multivariate visual clarity.
+
+Depends on: PR223.
+
+Scope: Render all input-instrument adjusted-price return lines in neutral gray while retaining
+method-specific colors for the feasible portfolio return lines and their legend swatches.
+
+Acceptance: Instrument lines and swatches are gray; feasible portfolio lines remain coloured,
+dashed, and distinguishable by method in the Multivariate Performance chart and nearest-date
+tooltip.
+
+Security: The presentation change consumes only existing project-owned persisted performance data.
+
+Determinism: Equivalent chart artifacts render with the same instrument and portfolio color classes.
+
+Idempotency: Rendering colors is read-only and does not mutate run state or candidate selections.
 
 Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
 merge, satisfy the current `merge-gate` requirements in `GATES.md`.

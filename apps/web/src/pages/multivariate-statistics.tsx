@@ -79,12 +79,16 @@ function PerformanceChart({ performance }: Readonly<{ performance: ApiMultivaria
   const timeline = portfolios[0]?.values ?? performance.instrument_series[0]?.values ?? [];
   const hoveredDate = hoveredIndex == null ? undefined : timeline[hoveredIndex]?.date;
   const hoverPosition = hoveredIndex == null || timeline.length < 2 ? 20 : 20 + hoveredIndex / (timeline.length - 1) * 760;
-  const hoveredValues = hoveredDate == null ? [] : series.flatMap((item) => {
-    const value = item.values.find((point) => point.date === hoveredDate);
-    if (!value) return [];
-    const label = "candidate_id" in item ? portfolioMethod(item.method) : `${item.code}.${item.exchange}`;
-    return [{ label, value: value.return, portfolio: "candidate_id" in item }];
-  });
+  const hoveredValues = hoveredDate == null ? [] : [
+    ...performance.instrument_series.flatMap((item) => {
+      const value = item.values.find((point) => point.date === hoveredDate);
+      return value ? [{ label: `${item.code}.${item.exchange}`, value: value.return, className: "performance-chart__tooltip-instrument" }] : [];
+    }),
+    ...portfolios.flatMap((item, index) => {
+      const value = item.values.find((point) => point.date === hoveredDate);
+      return value ? [{ label: portfolioMethod(item.method), value: value.return, className: `performance-chart__tooltip-portfolio performance-chart__tooltip-portfolio--${index % 5}` }] : [];
+    }),
+  ];
 
   function inspectAt(clientX: number, bounds: DOMRect) {
     const chartX = Math.max(20, Math.min(780, (clientX - bounds.left) / bounds.width * 800));
@@ -109,7 +113,7 @@ function PerformanceChart({ performance }: Readonly<{ performance: ApiMultivaria
         {portfolios.map((item, index) => <polyline key={item.candidate_id} className={`performance-chart__portfolio performance-chart__portfolio--${index % 5}`} points={performancePoints(item.values, minimum, maximum, start, end)} />)}
         {hoveredDate && <line className="performance-chart__cursor" x1={hoverPosition} x2={hoverPosition} y1="20" y2="260" />}
       </svg>
-      {hoveredDate && <div className="performance-chart__tooltip" role="tooltip"><strong>{hoveredDate}</strong>{hoveredValues.map((item) => <span className={item.portfolio ? "performance-chart__tooltip-portfolio" : undefined} key={item.label}>{item.label}: {percent(item.value)}</span>)}</div>}
+      {hoveredDate && <div className="performance-chart__tooltip" role="tooltip"><strong>{hoveredDate}</strong>{hoveredValues.map((item) => <span className={item.className} key={item.label}>{item.label}: {percent(item.value)}</span>)}</div>}
     </div>
     <ul className="performance-chart__series" aria-label="Performance series">{performance.instrument_series.map((item, index) => <li key={`${item.isin}:${item.exchange}:${item.code}`}><span className={`performance-chart__swatch performance-chart__instrument--${index % 5}`} />{item.code}.{item.exchange}</li>)}{portfolios.map((item, index) => <li key={item.candidate_id}><span className={`performance-chart__swatch performance-chart__portfolio performance-chart__portfolio--${index % 5}`} />{portfolioMethod(item.method)}</li>)}</ul>
   </>;

@@ -53,11 +53,13 @@ or calculates financial values in the browser.
   calendar-month and calendar-year total returns over the aligned historical period. They are
   descriptive historical metrics, not annualized forecasts.
 - Performance renders persisted cumulative daily returns for every input instrument and every
-  feasible portfolio on one chart. Portfolio lines are dashed and labelled by method; the chart
-  does not require a portfolio selection. It also presents persisted compounded monthly and
-  calendar-year returns for every feasible portfolio.
+  feasible portfolio on one chart. Instrument adjusted-price return lines are gray; portfolio lines
+  are dashed, coloured, and labelled by method. The chart does not require a portfolio selection.
+  It also presents persisted compounded monthly and calendar-year returns for every feasible
+  portfolio.
 - Hovering the Performance chart, or using its arrow keys after focus, opens an inspection tooltip
   for the nearest date with cumulative returns for every visible instrument and portfolio method.
+  Tooltip values use the same gray instrument and method-specific portfolio colors as the chart.
 
 ## States
 
