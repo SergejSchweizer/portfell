@@ -284,7 +284,7 @@ test("workflow sidebar colors complete, ready, and locked statuses", async ({ pa
   await expect(sidebar.locator('li[data-status="locked"] small').first()).toHaveCSS("color", "rgb(109, 114, 120)");
 });
 
-test("Bivariate compute polls a running server run through completion", async ({ page }) => {
+test("Bivariate compute button polls through completion without a terminal failure", async ({ page }) => {
   const fixture = await installTwoProjectApi(page, "ready", false, true);
   await page.goto("/metadata-builder");
   await createProject(page, { exchange: "XETRA", instrumentType: "ETF", country: "IE", currency: "EUR", name: "Bivariate lifecycle" });
@@ -299,6 +299,7 @@ test("Bivariate compute polls a running server run through completion", async ({
   await expect(page.getByText("1 pair statistics computed.")).toBeVisible();
   await expect(action).toBeEnabled();
   await expect(page.getByRole("tab", { name: "Covariance" })).toBeVisible();
+  await expect(page.getByText("Bivariate computation failed. Please try again.")).not.toBeVisible();
   expect(fixture.calls).toEqual(expect.arrayContaining([
     "POST /api/bivariate-statistics/plan",
     "POST /api/bivariate-statistics/runs",

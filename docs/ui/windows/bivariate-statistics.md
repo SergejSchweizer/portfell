@@ -37,7 +37,8 @@ and compute controls.
 
 Historical market data is refreshed centrally by the shared-market operations service. This page
 contains no provider-download action and renders pairwise computation only after the selected
-project's shared-market coverage is ready.
+project's shared-market coverage is ready. A completed Univariate run sourced from the shared market
+uses those published quote rows directly; it does not require a project quote-run identifier.
 
 Every pairwise metric and matrix in one run uses the same universe-wide date intersection. Summary
 and matrix contracts expose `date_start` and `date_end`; every facts table renders that aligned data

@@ -1372,7 +1372,7 @@ its members.
 
 Branch: `chore/desktop-ui-tests`.
 
-Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/358.
+Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/358.
 
 Priority: P2 test execution efficiency.
 
@@ -1389,6 +1389,29 @@ Determinism: The fixed desktop viewport and browser remain unchanged across loca
 
 Idempotency: Re-running the desktop suite creates no product-side mutations beyond its existing
 isolated test fixtures.
+
+### PR199. Bivariate Shared-Market Quote Fallback
+
+Branch: `fix/bivariate-shared-market-quotes`.
+
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/359.
+
+Priority: P1 research workflow reliability.
+
+Depends on: PR198.
+
+Scope: Let Bivariate Statistics use published Shared-Market quotes when its completed Univariate
+input has no project quote-run identifier.
+
+Acceptance: Clicking Compute Bivariate Statistics for a filtered Shared-Market Univariate selection
+reaches completed pairwise results without a PostgreSQL invalid-UUID failure or terminal UI error.
+
+Security: The fallback remains project-scoped and reads only server-published market data.
+
+Determinism: The same selection and Shared-Market revision resolve the same Bivariate input rows.
+
+Idempotency: Retrying a previously failed Bivariate run with unchanged inputs reuses its deterministic
+run identity and completes once the Shared-Market rows are available.
 
 ### PR193. Statistics Result Completion Visibility
 
