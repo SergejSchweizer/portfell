@@ -183,7 +183,8 @@ def test_multivariate_service_resolves_pinned_project_dependencies_and_persists_
     assert status["input_snapshot_id"]
     assert service.summary("user-a", str(started["run_id"]))["candidate_etf_count"] == 5
     candidates = service.candidates("user-a", str(started["run_id"]))["items"]
-    assert len(candidates) == 6
+    assert len(candidates) == 7
+    assert "highest_monthly_return" in {candidate["method"] for candidate in candidates}
     assert all(candidate["var"] is not None for candidate in candidates)
     assert all(candidate["maximum_weight"] is not None for candidate in candidates)
     assert all(candidate["herfindahl_index"] is not None for candidate in candidates)
@@ -361,7 +362,7 @@ def test_multivariate_service_covers_idempotency_stale_and_error_boundaries() ->
             "selection_id": "univariate-selection-a",
             "settings": {},
             "income_contract": INCOME_CONTRACT.qualified_name,
-            "execution_contract": "multivariate_execution.v8",
+            "execution_contract": "multivariate_execution.v9",
         }
     )
     assert service.start("user-a", project_id, bivariate_run_id, {})["run_id"] == first["run_id"]

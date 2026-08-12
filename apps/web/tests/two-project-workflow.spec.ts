@@ -341,7 +341,11 @@ test("Multivariate compute button polls resolve_inputs through completion", asyn
   await expect(page.getByText("Candidate ETFs")).toBeVisible();
   await page.getByRole("tab", { name: "Performance" }).click();
   await expect(page.getByText("Monthly portfolio returns")).toBeVisible();
-  await expect(page.getByRole("img", { name: "Cumulative return comparison for all instruments and the selected portfolio" })).toBeVisible();
+  const performanceChart = page.getByRole("group", { name: /Cumulative return comparison/ });
+  await expect(performanceChart).toBeVisible();
+  await performanceChart.hover();
+  await expect(page.getByRole("tooltip")).toContainText("ALPHA.XETRA: 3.00%");
+  await expect(page.getByRole("tooltip")).toContainText("Equal weight: 2.50%");
   expect(fixture.calls).toEqual(expect.arrayContaining([
     "POST /api/multivariate-statistics/runs",
     "GET /api/multivariate-statistics/runs/multivariate-project-1",

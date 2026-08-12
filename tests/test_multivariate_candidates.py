@@ -9,6 +9,7 @@ from portfell.multivariate_candidates import (
     MonthlyDistributionEtfPortfolioPolicy,
     _aligned_matrix,  # pyright: ignore[reportPrivateUsage]
     _diversification_ratio,  # pyright: ignore[reportPrivateUsage]
+    _highest_monthly_return_weights,  # pyright: ignore[reportPrivateUsage]
     _return_and_drawdown,  # pyright: ignore[reportPrivateUsage]
     _weights,  # pyright: ignore[reportPrivateUsage]
     build_candidate_set,
@@ -103,7 +104,7 @@ def _returns() -> list[dict[str, object]]:
     ]
 
 
-def test_candidate_set_has_six_stable_methods_and_no_silent_fallbacks() -> None:
+def test_candidate_set_has_stable_methods_and_no_silent_fallbacks() -> None:
     candidates = build_candidate_set(
         snapshot=_snapshot(), risk_model=_risk_model(), return_rows=_returns(), income={}
     )
@@ -130,6 +131,46 @@ def test_candidate_set_has_six_stable_methods_and_no_silent_fallbacks() -> None:
                     candidate.risk_contributions, candidate.weights, strict=True
                 )
             )
+
+
+def test_highest_monthly_return_weights_maximize_mean_compounded_monthly_return() -> None:
+    keys = tuple(key.as_tuple() for key in _keys()[:2])
+    rows = [
+        {
+            "isin": keys[0][0],
+            "exchange": keys[0][1],
+            "code": keys[0][2],
+            "date": "2025-01-02",
+            "return": 0.10,
+        },
+        {
+            "isin": keys[0][0],
+            "exchange": keys[0][1],
+            "code": keys[0][2],
+            "date": "2025-01-03",
+            "return": 0.10,
+        },
+        {
+            "isin": keys[1][0],
+            "exchange": keys[1][1],
+            "code": keys[1][2],
+            "date": "2025-01-02",
+            "return": 0.15,
+        },
+        {
+            "isin": keys[1][0],
+            "exchange": keys[1][1],
+            "code": keys[1][2],
+            "date": "2025-01-03",
+            "return": 0.00,
+        },
+    ]
+
+    weights = _highest_monthly_return_weights(
+        keys, rows, MonthlyDistributionEtfPortfolioPolicy(max_weight=0.6)
+    )
+
+    assert weights == pytest.approx((0.6, 0.4))
 
 
 def test_infeasible_bounds_remain_explicit_for_every_candidate() -> None:

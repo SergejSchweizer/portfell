@@ -1523,7 +1523,7 @@ merge, satisfy the current `merge-gate` requirements in `GATES.md`.
 
 Branch: `fix/multivariate-performance-cvar`.
 
-Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/367.
+Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/367.
 
 Priority: P0 multivariate result availability.
 
@@ -1545,6 +1545,36 @@ are deterministic for identical aligned return inputs and constraints.
 
 Idempotency: Execution contract v8 creates one fresh deterministic run identity without mutating
 prior terminal artifacts.
+
+Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
+merge, satisfy the current `merge-gate` requirements in `GATES.md`.
+
+### PR221. Multivariate Monthly-Return Candidate And Performance Inspection
+
+Branch: `feat/multivariate-performance-inspection`.
+
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/368.
+
+Priority: P1 multivariate explainability.
+
+Depends on: current `main`.
+
+Scope: Add the deterministic, bounded highest-historical-monthly-return portfolio candidate,
+invalidate prior Multivariate candidate artifacts with execution contract v9, and expose an
+accessible hover and keyboard inspection tooltip for every visible cumulative-return series.
+
+Acceptance: A v9 Multivariate run includes a feasible `highest_monthly_return` candidate when
+inputs permit. Hovering or keyboard-navigation on the Performance chart exposes the nearest date,
+every visible instrument cumulative return, and the selected portfolio cumulative return.
+
+Security: Candidate and performance values remain server-owned, project-scoped persisted artifacts;
+the browser only selects and displays an existing observation.
+
+Determinism: Candidate ranking, bounded allocation, candidate identity, and date-to-tooltip lookup
+are deterministic for identical aligned returns and user interaction coordinates.
+
+Idempotency: The v9 execution identity yields one fresh candidate artifact set without altering prior
+terminal artifacts. Chart inspection is read-only.
 
 Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
 merge, satisfy the current `merge-gate` requirements in `GATES.md`.
