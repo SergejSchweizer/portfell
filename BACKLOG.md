@@ -886,6 +886,31 @@ Determinism: Evidence records exact code, schema, catalog, and shared-manifest v
 Idempotency: Repeating readiness, smoke, restore, and reconciliation checks is non-mutating or creates
 only declared immutable evidence.
 
+### PR176. Dependency Baseline Update
+
+Branch: `chore/dependency-upgrades`.
+
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/336.
+
+Priority: P1 maintenance.
+
+Depends on: current `main`.
+
+Scope: Update the Python `uv` lockfile and the Web package manifest/lockfile to their newest compatible
+releases. Keep runtime base images on their supported major lines; do not perform an in-place PostgreSQL
+major upgrade as part of dependency resolution.
+
+Acceptance: `uv lock --upgrade --dry-run` and `npm outdated` report no resolvable package updates. The
+full Python quality gate, clean Web install, TypeScript check, production build, and Web coverage suite pass.
+
+Security: Preserve lockfile integrity and run the existing dependency/security gates; no package update
+introduces credentials, mutable package sources, or unpinned application dependencies.
+
+Determinism: Python and Web lockfiles fully determine the installed dependency graphs for the supported
+Python and Node runtimes.
+
+Idempotency: Re-resolving an unchanged manifest produces no lockfile changes.
+
 ### PR168. Production Cron Installation And First Scheduled Run Evidence
 
 Branch: `chore/install-production-market-refresh-cron`.
