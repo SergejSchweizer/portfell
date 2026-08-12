@@ -1491,6 +1491,30 @@ Idempotency: Rendering the additional facts is read-only and does not create or 
 Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
 merge, satisfy the current `merge-gate` requirements in `GATES.md`.
 
+### PR212. Univariate Compute Progress
+
+Branch: `fix/univariate-compute-progress`.
+
+Git status: in progress. PR: TBD.
+
+Priority: P1 workflow feedback correctness.
+
+Depends on: PR211.
+
+Scope: Report every completed listing while Univariate Statistics computes from a pinned quote run.
+
+Acceptance: The determinate Univariate progress bar advances before the run completes for both
+shared-market and quote-run input paths.
+
+Security: Progress reports expose only aggregate listing counts for the authorized run.
+
+Determinism: Progress callbacks do not affect statistical result ordering or artifacts.
+
+Idempotency: Equal inputs retain the same logical run identity and completed-run reuse behavior.
+
+Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
+merge, satisfy the current `merge-gate` requirements in `GATES.md`.
+
 ### PR211. Multivariate CPU Parallelism
 
 Branch: `feat/multivariate-cpu-parallelism`.

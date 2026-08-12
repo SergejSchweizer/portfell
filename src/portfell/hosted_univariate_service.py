@@ -101,6 +101,7 @@ class UnivariateResearchService:
                     dividend_rows=self._data.selected_rows(
                         selection.member_ids, dataset="dividends"
                     ),
+                    on_progress=lambda completed: self._update_progress(user_id, run_id, completed),
                 )
             else:
                 rows = self._data.build_univariate_rows(

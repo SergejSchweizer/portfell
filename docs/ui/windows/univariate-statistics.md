@@ -37,7 +37,8 @@ immutable metadata selection and quote run ids, and loads bounded results from
 statistics without recomputing them in React.
 
 The univariate-statistics action owns only computation progress, status, and its right-aligned action.
-Its determinate progress bar uses processed listings as its scale, including terminal failed listings.
+Its determinate progress bar uses processed listings as its scale, including terminal failed listings;
+the server reports each completed listing for both shared-market and pinned quote-run computations.
 All workflow progress bars use the shared 14px height.
 The Dividends univariate-statistic block is not rendered before
 the run is complete and its result payload has loaded, matching the result-driven bivariate

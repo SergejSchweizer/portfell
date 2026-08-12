@@ -87,6 +87,26 @@ def test_univariate_statistics_are_univariate_and_reference_one_listing(tmp_path
     assert read_rows(paths.gold_univariate_statistics("XETRA", "IE1")) == statistics
 
 
+@pytest.mark.parametrize("concurrency", [1, 2])
+def test_univariate_statistics_report_each_completed_listing(concurrency: int) -> None:
+    quotes = [
+        _quote("2026-01-01", 100.0),
+        _quote("2026-01-02", 101.0),
+        {**_quote("2026-01-01", 100.0), "isin": "IE2", "code": "BBB"},
+        {**_quote("2026-01-02", 102.0), "isin": "IE2", "code": "BBB"},
+    ]
+    completed: list[int] = []
+
+    rows = build_univariate_statistics(
+        quotes,
+        concurrency=concurrency,
+        on_progress=completed.append,
+    )
+
+    assert len(rows) == 2
+    assert completed == [1, 2]
+
+
 def test_univariate_statistics_reuses_cached_listing_artifacts(tmp_path: Path) -> None:
     paths = LakePaths(root=tmp_path / "lake")
     quotes = [

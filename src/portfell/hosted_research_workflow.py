@@ -58,6 +58,7 @@ def create_univariate_run(
     quote_run_id: str,
     quote_rows: Sequence[Mapping[str, Any]],
     dividend_rows: Sequence[Mapping[str, Any]] = (),
+    on_progress: Callable[[int], None] | None = None,
 ) -> ResearchRun:
     """Compute univariate rows from already scoped quote rows."""
 
@@ -66,6 +67,7 @@ def create_univariate_run(
             quote_rows,
             dividend_rows=dividend_rows,
             concurrency=None,
+            on_progress=on_progress,
         )
     )
     return create_univariate_run_from_statistics(

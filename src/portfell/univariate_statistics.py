@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from concurrent.futures import ProcessPoolExecutor
 from datetime import date
 from math import exp, log, sqrt
@@ -54,6 +54,7 @@ def build_univariate_statistics(
     dividend_rows: Sequence[Mapping[str, Any]] = (),
     confidence_level: float = DEFAULT_CONFIDENCE_LEVEL,
     concurrency: int | None = None,
+    on_progress: Callable[[int], None] | None = None,
 ) -> list[JsonRow]:
     """Compute only one-ISIN/listing statistics from quote rows.
 
@@ -86,9 +87,20 @@ def build_univariate_statistics(
     ]
     workers = _worker_count(concurrency)
     if workers == 1 or len(tasks) <= 1:
-        return [_build_univariate_listing_statistics(task) for task in tasks]
+        rows: list[JsonRow] = []
+        for completed, task in enumerate(tasks, start=1):
+            rows.append(_build_univariate_listing_statistics(task))
+            if on_progress is not None:
+                on_progress(completed)
+        return rows
     with ProcessPoolExecutor(max_workers=workers) as executor:
-        return list(executor.map(_build_univariate_listing_statistics, tasks))
+        rows: list[JsonRow] = []
+        computed_rows = executor.map(_build_univariate_listing_statistics, tasks)
+        for completed, row in enumerate(computed_rows, start=1):
+            rows.append(row)
+            if on_progress is not None:
+                on_progress(completed)
+        return rows
 
 
 def write_univariate_statistics(
