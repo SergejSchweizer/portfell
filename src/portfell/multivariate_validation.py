@@ -169,6 +169,7 @@ def validate_candidates(
         )
     results: list[ValidationSplit] = []
     previous_weights: dict[str, tuple[tuple[MultivariateListingKey, float], ...]] = {}
+    indexed_returns = _index_return_rows(return_rows)
     refit_index = 0
     for start in _walk_forward_starts(dates, policy):
         test_dates = dates[start : start + policy.test_window_observations]
@@ -190,8 +191,7 @@ def validate_candidates(
             if candidate is None or candidate.status != "feasible":
                 results.append(_unavailable(requested, "candidate_unavailable"))
                 continue
-            returns = _portfolio_returns_by_date((candidate,), return_rows)[candidate.method]
-            test = [returns[day] for day in test_dates]
+            test = _candidate_returns_for_dates(candidate, indexed_returns, test_dates)
             pre_cost = _compound(test)
             previous = previous_weights.get(candidate.method)
             turnover = _turnover(previous, candidate.weights)
@@ -316,10 +316,7 @@ def build_candidate_scorecards(
 def _portfolio_returns_by_date(
     candidates: Sequence[PortfolioCandidate], rows: Sequence[Mapping[str, Any]]
 ) -> dict[str, dict[str, float]]:
-    indexed: dict[tuple[str, str, str], dict[str, float]] = {}
-    for row in rows:
-        key = (str(row["isin"]), str(row["exchange"]), str(row["code"]))
-        indexed.setdefault(key, {})[str(row["date"])] = float(row.get("return", 0))
+    indexed = _index_return_rows(rows)
     output: dict[str, dict[str, float]] = {}
     for candidate in candidates:
         if candidate.status != "feasible":
@@ -338,6 +335,29 @@ def _portfolio_returns_by_date(
             for day in common
         }
     return output
+
+
+def _index_return_rows(
+    rows: Sequence[Mapping[str, Any]],
+) -> dict[tuple[str, str, str], dict[str, float]]:
+    indexed: dict[tuple[str, str, str], dict[str, float]] = {}
+    for row in rows:
+        key = (str(row["isin"]), str(row["exchange"]), str(row["code"]))
+        indexed.setdefault(key, {})[str(row["date"])] = float(row.get("return", 0))
+    return indexed
+
+
+def _candidate_returns_for_dates(
+    candidate: PortfolioCandidate,
+    indexed_returns: Mapping[tuple[str, str, str], Mapping[str, float]],
+    dates: Sequence[str],
+) -> list[float]:
+    weights = {key.as_tuple(): weight for key, weight in candidate.weights}
+    if any(key not in indexed_returns for key in weights):
+        raise ValueError("candidate_return_history_unavailable")
+    return [
+        sum(weight * indexed_returns[key][day] for key, weight in weights.items()) for day in dates
+    ]
 
 
 def _common_dates(

@@ -1505,15 +1505,15 @@ Scope: Bound deterministic Walk-Forward refits and their solver work so Multivar
 completes within its server execution limit while retaining chronological turnover costs.
 
 Acceptance: At most 24 representative refit windows span the available history; their parallel
-results persist turnover-based transaction costs in chronological order; a new execution contract
-allows recomputation after prior timed-out runs.
+results persist turnover-based transaction costs in chronological order; a shared return index avoids
+repeated full-history scans; a new execution contract allows recomputation after prior timed-out runs.
 
 Security: The bounded worker tasks retain the existing project-scoped, authorized inputs.
 
 Determinism: Window sampling includes the chronological endpoints and uses deterministic integer
 positions; the validation contract versions this changed evidence policy.
 
-Idempotency: The v4 execution contract produces one fresh deterministic run identity without
+Idempotency: The v5 execution contract produces one fresh deterministic run identity without
 mutating prior terminal artifacts.
 
 Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
