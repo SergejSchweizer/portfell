@@ -147,7 +147,18 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 .quote-fetch__action { display: flex; justify-content: flex-end; }
 .quote-fetch__action--dual { gap: var(--space-2); }
 .univariate-compute { gap: 6px; margin-bottom: var(--space-4); }
-.univariate-compute progress { height: 8px; }
+.univariate-compute progress { height: 14px; }
+.univariate-compute__progress {
+  appearance: none;
+  overflow: hidden;
+  border: 1px solid #9db8a7;
+  border-radius: 2px;
+  background: #e7efe9;
+  accent-color: var(--primary);
+}
+.univariate-compute__progress::-webkit-progress-bar { background: #e7efe9; }
+.univariate-compute__progress::-webkit-progress-value { background: var(--primary); }
+.univariate-compute__progress::-moz-progress-bar { background: var(--primary); }
 .univariate-compute .status-line { min-height: 16px; margin: 0; }
 .univariate-compute .portfell-button { min-height: 32px; }
 .bivariate-compute { gap: 6px; margin-bottom: var(--space-4); }
@@ -158,6 +169,21 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 .bivariate-statistic__tabs, .univariate-statistic__tabs { grid-column: 1 / -1; display: flex; gap: 2px; overflow-x: auto; border-bottom: 1px solid var(--border); }
 .bivariate-statistic__tabs button, .univariate-statistic__tabs button { flex: 0 0 auto; padding: 7px 12px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--text-muted); font: inherit; cursor: pointer; }
 .bivariate-statistic__tabs button.is-active, .univariate-statistic__tabs button.is-active { border-bottom-color: var(--primary); color: var(--text); font-weight: 600; }
+.univariate-statistic__tabs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 4px;
+  overflow: visible;
+  border-bottom: 0;
+}
+.univariate-statistic__tabs button {
+  min-height: 36px;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  text-align: center;
+}
+.univariate-statistic__tabs button.is-active { border-color: var(--primary); background: #e7efe9; }
 .bivariate-compute + .bivariate-statistic { margin-top: var(--space-4); }
 .bivariate-statistic + .bivariate-statistic { margin-top: var(--space-4); }
 .bivariate-statistic__facts { grid-column: 1 / -1; display: grid; align-content: start; gap: var(--space-2); }

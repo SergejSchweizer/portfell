@@ -7,6 +7,7 @@ import { LoadingState } from "../../src/components/loading-state";
 import { Panel } from "../../src/components/panel";
 import { StatusBadge } from "../../src/components/status-badge";
 import { initialFillStatusMessage } from "../../src/pages/metadata-builder";
+import { univariateProgress } from "../../src/pages/univariate-statistics";
 
 describe("shared React components", () => {
   it("renders optional empty-state, panel, loading, and field content", () => {
@@ -56,5 +57,17 @@ describe("shared React components", () => {
     expect(initialFillStatusMessage("2 unique ISINs selected.", { ...fill, status: "running" })).toBe(
       "2 unique ISINs selected.",
     );
+  });
+
+  it("uses processed listings as the univariate progress bar scale", () => {
+    expect(univariateProgress({
+      run_id: "run-1",
+      status: "running",
+      total: 1_752,
+      completed: 18,
+      failed: 2,
+      percent: 1,
+    })).toEqual({ max: 1_752, value: 20 });
+    expect(univariateProgress(null)).toEqual({ max: 1, value: 0 });
   });
 });
