@@ -1491,6 +1491,33 @@ Idempotency: Rendering the additional facts is read-only and does not create or 
 Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
 merge, satisfy the current `merge-gate` requirements in `GATES.md`.
 
+### PR214. Multivariate Stall Recovery
+
+Branch: `fix/multivariate-stall-recovery`.
+
+Git status: in progress. PR: TBD.
+
+Priority: P0 workflow liveness.
+
+Depends on: PR213.
+
+Scope: Bound Walk-Forward solver work and transition abandoned Multivariate runs from `running` to
+`failed` so users can recompute them.
+
+Acceptance: A Multivariate run never remains `running` after its execution limit; terminal failure
+exposes a reason, and the current project can start a new versioned run.
+
+Security: Timeout transitions expose only aggregate run state to the authorized project user.
+
+Determinism: Bounded solver iteration and the versioned execution contract preserve reproducible
+outputs for each run identity.
+
+Idempotency: The new execution contract yields one deterministic run identity and keeps prior runs
+read-only terminal artifacts.
+
+Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
+merge, satisfy the current `merge-gate` requirements in `GATES.md`.
+
 ### PR213. Project-Scoped Statistics State
 
 Branch: `fix/project-statistics-state`.

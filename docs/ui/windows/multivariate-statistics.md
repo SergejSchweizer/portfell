@@ -53,7 +53,9 @@ or calculates financial values in the browser.
 - Running: the server-owned phase and completed/total units are displayed and polled every
   750 milliseconds until the run reaches a terminal state. The action remains disabled while
   the server reports `running`. Independent candidate optimizers and their Walk-Forward refits run
-  in a server-owned process pool sized to all CPUs available to the runtime container.
+  in a server-owned process pool sized to all CPUs available to the runtime container. A run that
+  exceeds the server execution limit transitions to `failed`, exposes its failure reason, and may
+  be recomputed rather than remaining indefinitely `running`.
 - Complete: persisted result tabs load automatically only after the particular Multivariate run reaches
   `complete`, after refresh or project reactivation. Every tab renders a server-produced, project-owned artifact:
   the immutable input snapshot, canonical risk model, empirical

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -360,6 +360,7 @@ def test_multivariate_service_covers_idempotency_stale_and_error_boundaries() ->
             "selection_id": "univariate-selection-a",
             "settings": {},
             "income_contract": INCOME_CONTRACT.qualified_name,
+            "execution_contract": "multivariate_execution.v2",
         }
     )
     assert service.start("user-a", project_id, bivariate_run_id, {})["run_id"] == first["run_id"]
@@ -383,6 +384,25 @@ def test_multivariate_service_covers_idempotency_stale_and_error_boundaries() ->
     else:
         raise AssertionError("unknown or duplicate candidate ids must be rejected")
     service.complete("user-a", str(second["run_id"]))
+
+
+def test_multivariate_service_expires_abandoned_running_runs() -> None:
+    state, data, project_id, bivariate_run_id = _fixtures()
+    persistence = _Persistence()
+    service = _service(state, data, persistence)
+    started = service.start("user-a", project_id, bivariate_run_id, {})
+    run_id = str(started["run_id"])
+    state.multivariate_runs_by_id[run_id] = replace(
+        state.multivariate_runs_by_id[run_id],
+        started_at_epoch=0,
+    )
+
+    status = service.status("user-a", run_id)
+
+    assert status["status"] == "failed"
+    assert status["failure_reason"] == "compute_timeout"
+    assert status["estimated_remaining_seconds"] == 0
+    assert persistence.persisted >= 2
 
 
 def test_multivariate_service_rejects_missing_dependency_closure_and_marks_failures() -> None:

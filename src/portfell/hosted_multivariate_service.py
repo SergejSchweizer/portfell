@@ -53,6 +53,8 @@ from portfell.table_io import JsonRow
 
 
 class MultivariateResearchService(MultivariateRunViews):
+    _EXECUTION_CONTRACT = "multivariate_execution.v2"
+    _MAX_RUNNING_SECONDS = 900
     _PHASES = (
         "resolve_inputs",
         "build_risk_model",
@@ -99,6 +101,7 @@ class MultivariateResearchService(MultivariateRunViews):
                 "selection_id": selection.selection_id,
                 "settings": settings,
                 "income_contract": INCOME_CONTRACT.qualified_name,
+                "execution_contract": self._EXECUTION_CONTRACT,
             }
         )
         run_id = opaque_id("multivariate-run", f"{user_id}:{logical_hash}")
@@ -172,7 +175,7 @@ class MultivariateResearchService(MultivariateRunViews):
                         user_id, run_id, phase, completed_units
                     ),
                 )
-        except (HostedApplicationError, ValueError) as error:
+        except Exception as error:
             completed = replace(run, status="failed", phase="failed", failure_reason=str(error))
         self._runs.save(completed)
         self._persistence.persist()
@@ -186,6 +189,10 @@ class MultivariateResearchService(MultivariateRunViews):
         run = self._runs.get(user_id=user_id, run_id=run_id)
         if run is None:
             raise HostedApplicationError(404, "not_found")
+        if run.status == "running" and time() - run.started_at_epoch > self._MAX_RUNNING_SECONDS:
+            run = replace(run, status="failed", phase="failed", failure_reason="compute_timeout")
+            self._runs.save(run)
+            self._persistence.persist()
         return run
 
     def update_settings(
