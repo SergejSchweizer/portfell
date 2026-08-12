@@ -1491,6 +1491,30 @@ Idempotency: Rendering the additional facts is read-only and does not create or 
 Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
 merge, satisfy the current `merge-gate` requirements in `GATES.md`.
 
+### PR210. Portfolio Selection Counts
+
+Branch: `fix/portfolio-selection-counts`.
+
+Git status: in progress. PR: TBD.
+
+Priority: P2 filter clarity.
+
+Depends on: PR209.
+
+Scope: Display the current selected-ISIN count in every Univariate `Portfolio selection` filter label.
+
+Acceptance: Dividend-frequency and every quantitative filter show `Portfolio selection (N ISINs)`;
+the value refreshes from the project-scoped server workflow after each saved selection.
+
+Security: The browser renders the server-owned selection count and does not compute portfolio eligibility.
+
+Determinism: Equal project settings expose the same selected-ISIN count in every filter label.
+
+Idempotency: Rendering the count does not mutate selection settings.
+
+Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
+merge, satisfy the current `merge-gate` requirements in `GATES.md`.
+
 ### PR209. Metadata Option ISIN Counts
 
 Branch: `fix/metadata-option-counts`.

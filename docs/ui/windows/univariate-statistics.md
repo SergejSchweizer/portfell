@@ -74,8 +74,8 @@ dividend-frequency and statistic-range filters to create the current determinist
 selection. Bivariate Statistics receives that selection directly on its next workflow refresh. There
 is no standalone filter module or route in the browser workflow.
 
-Every active frequency or quantitative filter shows the server-owned `Bivariate selection` ISIN count
-after saving. Duration labels use strict minimum-history thresholds: `> 6 months` persists a minimum
+Every frequency or quantitative filter labels its `Portfolio selection` control with the current
+server-owned selected-ISIN count after saving. Duration labels use strict minimum-history thresholds: `> 6 months` persists a minimum
 of 127 trading-day observations, so exactly 126 observations do not qualify. `> 2 years` persists
 505 observations. `> 6 months` is the minimum filter for a production-eligible Multivariate input,
 which requires at least 100 common daily returns across the Bivariate selection.

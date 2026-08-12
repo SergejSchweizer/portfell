@@ -34,6 +34,13 @@ function response(route: Route, body: unknown) {
   return route.fulfill({ contentType: "application/json", body: JSON.stringify(body) });
 }
 
+function selectedUnivariateIsinCount(project: Project): number {
+  const frequencies = project.settings.dividend_frequencies;
+  return frequencies.length === 0
+    ? univariateRows.length
+    : univariateRows.filter((row) => frequencies.includes(row.distribution_frequency)).length;
+}
+
 function workflow(project: Project | undefined) {
   if (!project) {
     return {
@@ -59,7 +66,7 @@ function workflow(project: Project | undefined) {
         multivariate_run_id: project.multivariateRunId,
       } : { status: "locked" },
     },
-    process_overview: { metadata_downloaded_isins: 4, metadata_builder_isins: 3, univariate_statistics_isins: univariateReady ? 3 : null },
+    process_overview: { metadata_downloaded_isins: 4, metadata_builder_isins: 3, univariate_statistics_isins: univariateReady ? selectedUnivariateIsinCount(project) : null },
   };
 }
 
@@ -376,11 +383,13 @@ test("every workflow button completes its browser action for two isolated projec
 
   const selections = page.locator(".univariate-statistics-page .portfolio-selection select");
   await expect(selections).toHaveCount(1);
+  await expect(selections).toHaveAccessibleName("Portfolio selection (3 ISINs)");
   await selections.selectOption(["monthly", "annual"]);
-  await expect(page.getByText("Bivariate selection: 3 ISINs.")).toBeVisible();
+  await expect(selections).toHaveAccessibleName("Portfolio selection (2 ISINs)");
   for (const tab of ["Duration", "Annual Return", "Value at Risk", "Sortino ratio", "Expected shortfall", "Tail observations", "Sharpe ratio", "Maximum drawdown", "Trend R-squared"]) {
     await page.getByRole("tab", { name: tab }).click();
     await expect(selections).toHaveCount(1);
+    await expect(selections).toHaveAccessibleName("Portfolio selection (2 ISINs)");
     await selections.selectOption({ index: 0 });
   }
   await page.getByRole("tab", { name: "Duration" }).click();
