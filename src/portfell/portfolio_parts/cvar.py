@@ -142,7 +142,10 @@ def solve_minimum_cvar(
     still used (subgradient descent on `w` is not monotone). Convergence is
     declared when the best objective value has not improved by more than a
     `tolerance` relative fraction for `convergence_window` consecutive
-    iterations.
+    iterations. A projected update smaller than `tolerance` is also
+    stationary under the current bound constraints and therefore converged;
+    this avoids rejecting valid solutions merely because a discrete tail set
+    changes around the empirical VaR threshold.
     """
     if not 0 < confidence_level < 1:
         raise ValueError("confidence_level must be in (0, 1)")
@@ -174,11 +177,16 @@ def solve_minimum_cvar(
             weights, zeta, returns_matrix, confidence_level
         )
         step = base_step / sqrt(iteration)
-        weights = project_capped_simplex(
+        next_weights = project_capped_simplex(
             [w - step * g for w, g in zip(weights, gradient_w, strict=True)],
             min_weight=min_weight,
             max_weight=max_weight,
         )
+        projected_change = max(
+            abs(next_weight - weight)
+            for weight, next_weight in zip(weights, next_weights, strict=True)
+        )
+        weights = next_weights
         objective = cvar_objective(weights, zeta, returns_matrix, confidence_level)
         relative_improvement = (best_objective - objective) / max(abs(best_objective), 1e-8)
         if relative_improvement > tolerance:
@@ -187,6 +195,9 @@ def solve_minimum_cvar(
             stall_count = 0
         else:
             stall_count += 1
+        if projected_change <= tolerance:
+            converged = True
+            break
         if stall_count >= convergence_window:
             converged = True
             break

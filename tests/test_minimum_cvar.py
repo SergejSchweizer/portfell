@@ -127,6 +127,23 @@ def test_solve_minimum_cvar_handles_repeated_tail_losses() -> None:
     assert outcome.weights[1] > outcome.weights[0]
 
 
+def test_solve_minimum_cvar_accepts_projected_stationarity_with_a_changing_tail() -> None:
+    returns_matrix = [(-0.02, 0.01, 0.0), (-0.01, 0.0, 0.01)] * 100
+
+    outcome = solve_minimum_cvar(
+        returns_matrix,
+        confidence_level=0.95,
+        min_weight=0.0,
+        max_weight=0.6,
+        tolerance=1.0,
+        convergence_window=10_000,
+    )
+
+    assert outcome.converged is True
+    assert outcome.iteration_count == 1
+    assert sum(outcome.weights) == pytest.approx(1.0)
+
+
 def test_solve_minimum_cvar_rejects_invalid_confidence_level() -> None:
     with pytest.raises(ValueError, match="confidence_level"):
         solve_minimum_cvar([(0.01, 0.02)], confidence_level=1.0, min_weight=0.0, max_weight=1.0)

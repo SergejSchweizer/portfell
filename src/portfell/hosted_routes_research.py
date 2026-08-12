@@ -265,6 +265,10 @@ def research_router(
     def multivariate_artifacts(run_id: str, user: ApiUser = Depends(current_user)) -> JsonRow:
         return call(service.multivariate_artifacts, user.user_id, run_id)
 
+    @router.get("/multivariate-statistics/runs/{run_id}/performance")
+    def multivariate_performance(run_id: str, user: ApiUser = Depends(current_user)) -> JsonRow:
+        return call(service.multivariate_performance, user.user_id, run_id)
+
     @router.patch("/multivariate-statistics/runs/{run_id}/settings")
     def update_multivariate_settings(
         run_id: str,

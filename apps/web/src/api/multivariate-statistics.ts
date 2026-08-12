@@ -6,6 +6,7 @@ import type {
   ApiMultivariateComponents,
   ApiMultivariateArtifacts,
   ApiMultivariateIncomeEvidenceList,
+  ApiMultivariatePerformance,
   ApiMultivariateRiskContributions,
   ApiMultivariateRun,
   ApiMultivariateStructure,
@@ -45,6 +46,9 @@ export const multivariateStatisticsApi = {
   ),
   loadArtifacts: (runId: string): Promise<ApiMultivariateArtifacts> => (
     requestJson<ApiMultivariateArtifacts>(`/api/multivariate-statistics/runs/${encodeURIComponent(runId)}/artifacts`)
+  ),
+  loadPerformance: (runId: string): Promise<ApiMultivariatePerformance> => (
+    requestJson<ApiMultivariatePerformance>(`/api/multivariate-statistics/runs/${encodeURIComponent(runId)}/performance`)
   ),
   loadComponents: (runId: string, limit = 25, offset = 0): Promise<ApiMultivariateComponents> => (
     requestJson<ApiMultivariateComponents>(

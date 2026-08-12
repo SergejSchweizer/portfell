@@ -35,7 +35,7 @@ or calculates financial values in the browser.
 - Project switch: clear the prior project's run and result artifacts before loading
   the active project's workflow state; ignore late responses for the prior project.
 - Complete state: Overview, Risk Structure, Portfolio Candidates, Risk
-  Contributions, Income Evidence, and Validation tabs in the responsive multi-row
+  Contributions, Income Evidence, Performance, and Validation tabs in the responsive multi-row
   statistics tab grid, with no horizontal tab scrolling.
 - Overview includes candidate count, dominant-component share, and explicit input
   availability reasons. Risk Structure includes component thresholds, strongest driver,
@@ -44,6 +44,9 @@ or calculates financial values in the browser.
   holdings, diversification, return, drawdown, and gross historical income. Income Evidence
   includes observed coverage, trend, cuts, total return, and quoted market-price capital change
   as the NAV proxy.
+- Performance renders persisted cumulative daily returns for every input instrument and the
+  selected feasible portfolio on one chart, with the portfolio line in red. It also presents
+  persisted compounded monthly and calendar-year returns for every feasible portfolio.
 
 ## States
 
@@ -62,7 +65,7 @@ or calculates financial values in the browser.
   `complete`, after refresh or project reactivation. Every tab renders a server-produced, project-owned artifact:
   the immutable input snapshot, canonical risk model, empirical
   structure/loadings, candidate metrics and risk contributions, gross income
-  evidence, and walk-forward/stress/scorecard evidence.
+  evidence, cumulative and calendar-period performance, and walk-forward/stress/scorecard evidence.
 - Insufficient common history: retain unavailable facts rather than rendering substitute values, and state
   the required recovery path: select Univariate Duration `> 6 months`, recompute Bivariate Statistics,
   then compute Multivariate Statistics again. The production risk model requires 100 shared daily returns.

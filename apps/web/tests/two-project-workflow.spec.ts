@@ -93,6 +93,7 @@ function multivariateCandidates() { return { items: [{ candidate_id: "candidate-
 function multivariateComponents() { return { items: [{ component_id: "Component 1", isin: "IE00ALPHA01", exchange: "XETRA", code: "ALPHA", loading: 0.7, explained_variance: 0.6, cluster: "Cluster 1" }], total: 1, limit: 25, offset: 0 }; }
 function multivariateContributions() { return { items: [{ candidate_id: "candidate-equal", method: "equal_weight", isin: "IE00ALPHA01", exchange: "XETRA", code: "ALPHA", weight: 1 / 3, marginal_risk_contribution: 0.02, absolute_risk_contribution: 0.006, percent_risk_contribution: 0.34 }] }; }
 function multivariateIncome() { return { items: [{ isin: "IE00ALPHA01", exchange: "XETRA", code: "ALPHA", currency: "EUR", event_count: 12, observed_month_count: 12, observed_payment_coverage: 1, gross_ttm_distribution_amount: 2.4, gross_ttm_distribution_yield: 0.03, mean_observed_monthly_distribution: 0.2, median_observed_monthly_distribution: 0.2, lower_percentile_monthly_distribution: 0.18, coefficient_of_variation: 0.1, cut_count: 0, largest_cut: null, longest_falling_sequence: 0, distribution_trend: 0.01, price_return: 0.08, total_return: 0.1, distribution_to_total_return_gap: 0.02, market_price_capital_change: 0.08, availability_reasons: [], warnings: [] }] }; }
+function multivariatePerformance() { return { instrument_series: [{ isin: "IE00ALPHA01", exchange: "XETRA", code: "ALPHA", values: [{ date: "2024-01-02", return: 0.01 }, { date: "2024-01-03", return: 0.03 }] }, { isin: "IE00ALPHA02", exchange: "XETRA", code: "BETA", values: [{ date: "2024-01-02", return: -0.01 }, { date: "2024-01-03", return: 0.02 }] }], portfolio_series: [{ candidate_id: "candidate-equal", method: "equal_weight", values: [{ date: "2024-01-02", return: 0 }, { date: "2024-01-03", return: 0.025 }] }], period_returns: [{ candidate_id: "candidate-equal", method: "equal_weight", period: "monthly", label: "2024-01", return: 0.025 }, { candidate_id: "candidate-equal", method: "equal_weight", period: "annual", label: "2024", return: 0.025 }] }; }
 
 async function installTwoProjectApi(
   page: Page,
@@ -230,6 +231,7 @@ async function installTwoProjectApi(
     if (method === "GET" && path.endsWith("/components")) return response(route, multivariateComponents());
     if (method === "GET" && path.endsWith("/risk-contributions")) return response(route, multivariateContributions());
     if (method === "GET" && path.endsWith("/income-evidence")) return response(route, multivariateIncome());
+    if (method === "GET" && path.endsWith("/performance")) return response(route, multivariatePerformance());
     if (method === "GET" && path.endsWith("/validation")) return response(route, { items: [{ kind: "scorecard", method: "equal_weight", status: "available", reason: null }] });
     if (method === "GET" && path.endsWith("/artifacts")) return response(route, { risk_model: unavailableMultivariateEvidence ? { estimator: "ledoit_wolf", shrinkage_intensity: null, minimum_eigenvalue: null, condition_number: null, is_positive_semidefinite: false, observation_count: 100, availability_reasons: ["insufficient_common_history"] } : { estimator: "ledoit_wolf", shrinkage_intensity: 0.2, minimum_eigenvalue: 0.01, condition_number: 12.5, is_positive_semidefinite: true, observation_count: 252, availability_reasons: [] } });
     if (method === "PATCH" && path.endsWith("/settings")) {
@@ -337,9 +339,13 @@ test("Multivariate compute button polls resolve_inputs through completion", asyn
   await expect(page.getByText("resolve_inputs · 0 of 6 phases complete · 0s elapsed · about 10s remaining")).toBeVisible();
   await expect(page.getByRole("button", { name: "Compute multivariate statistics" })).toBeEnabled();
   await expect(page.getByText("Candidate ETFs")).toBeVisible();
+  await page.getByRole("tab", { name: "Performance" }).click();
+  await expect(page.getByText("Monthly portfolio returns")).toBeVisible();
+  await expect(page.getByRole("img", { name: "Cumulative return comparison for all instruments and the selected portfolio" })).toBeVisible();
   expect(fixture.calls).toEqual(expect.arrayContaining([
     "POST /api/multivariate-statistics/runs",
     "GET /api/multivariate-statistics/runs/multivariate-project-1",
+    "GET /api/multivariate-statistics/runs/multivariate-project-1/performance",
   ]));
 });
 
