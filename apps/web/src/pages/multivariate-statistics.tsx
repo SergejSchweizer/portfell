@@ -77,6 +77,39 @@ export function MultivariateStatisticsPage() {
     if (runId) void loadRun(runId).catch(() => setMessage("Multivariate results are unavailable."));
   }, [stage?.multivariate_run_id]);
 
+  useEffect(() => {
+    if (!run || run.status !== "running") return;
+    const activeRunId = run.run_id;
+    let cancelled = false;
+    let timeoutId: number | undefined;
+    async function pollMultivariateRun() {
+      try {
+        const current = await multivariateStatisticsApi.loadRun(activeRunId);
+        if (cancelled) return;
+        setRun(current);
+        if (current.status === "running") {
+          timeoutId = window.setTimeout(() => void pollMultivariateRun(), 750);
+          return;
+        }
+        if (current.status === "failed") {
+          setMessage(current.failure_reason || "Multivariate calculation failed. Please try again.");
+          return;
+        }
+        await loadRun(current.run_id);
+        if (cancelled) return;
+        setRevision((value) => value + 1);
+        window.dispatchEvent(new Event("portfell:workflow-updated"));
+      } catch (error) {
+        if (!cancelled) setMessage(error instanceof Error ? error.message : "Could not retrieve multivariate calculation status.");
+      }
+    }
+    void pollMultivariateRun();
+    return () => {
+      cancelled = true;
+      if (timeoutId !== undefined) window.clearTimeout(timeoutId);
+    };
+  }, [run?.run_id]);
+
   async function compute() {
     if (!projectId || !bivariateRunId) return;
     setMessage("");
