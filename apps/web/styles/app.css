@@ -119,6 +119,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 .metadata-builder-form label { display: grid; gap: 5px; color: #5f6368; }
 .metadata-builder-form__name { grid-column: 1 / span 3; }
 .metadata-builder-form__apply { display: flex; align-items: end; justify-content: flex-end; }
+.metadata-builder-form__apply .portfell-button { min-inline-size: 18rem; justify-content: center; white-space: normal; }
 .portfell-panel:has(.metadata-download), .portfell-panel:has(.metadata-builder-form) { padding: 12px 16px; }
 .portfell-panel:has(.metadata-download) h2, .portfell-panel:has(.metadata-builder-form) h2 { margin: 0 0 8px; font-size: 18px; line-height: 24px; }
 .metadata-download { gap: 6px; }

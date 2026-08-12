@@ -384,6 +384,7 @@ def test_metadata_builder_options_and_project_creation_use_all_isins_reference()
     assert "name_" not in created["project"]["name"]
     assert created["selection"]["member_ids"] == ["IE1:XETRA:AAA"]
     assert created["selected_count"] == 1
+    assert "initial_fill" not in created
     assert _json(client.get("/projects", headers=_headers(csrf=False)))["items"] == [
         {
             **created["project"],

@@ -4,6 +4,7 @@
 ## Table Of Contents
 
 - [One-Time Rollout](#one-time-rollout)
+- [On-Demand Metadata Refresh](#on-demand-metadata-refresh)
 - [Schedule And Recovery](#schedule-and-recovery)
 
 The `shared-market-refresh` Compose operations service refreshes the canonical
@@ -33,9 +34,34 @@ crontab -l
 both `compose.yaml` and `compose.production.yaml`, validates the final bind root
 and a refresh dry run before replacing only its delimited crontab block.
 
+## On-Demand Metadata Refresh
+
+The **Fetch all metadata** browser action creates a durable PostgreSQL job. It
+does not invoke EODHD from the API process and does not depend on a browser or
+user-provided provider key. The `portfell-worker` claims that job, uses the
+operations credential mounted only into the worker, and atomically publishes
+the refreshed shared catalogue.
+
+```text
+browser -> API -> PostgreSQL metadata-refresh job
+                         |
+                         v
+                 portfell-worker -> EODHD
+                         |
+                         v
+              shared metadata/current.parquet
+                         |
+                         v
+                   browser status polling
+```
+
+If the provider is unavailable, the worker stores the safe status code
+`eodhd_metadata_unavailable` in the metadata run. The raw provider response and
+operations credential are never sent to the browser.
+
 ## Schedule And Recovery
 
-The managed job runs daily at `02:15` in `Europe/Amsterdam`; DST follows that
+The managed job runs daily at `20:15` in `Europe/Amsterdam`; DST follows that
 timezone's cron behavior. `/usr/bin/flock -n` prevents overlapping runs. A
 lock-contention or provider partial failure leaves already atomically published
 listing files readable; review the log and re-run `run-once` after correcting the

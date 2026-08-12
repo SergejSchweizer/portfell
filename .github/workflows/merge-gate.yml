@@ -105,8 +105,8 @@ jobs:
             node:24-alpine \
             sh -lc 'npm ci && npm run typecheck && npm run test:coverage'
 
-  merge-web-interactions:
-    name: merge-web-interactions
+  merge-web-button-e2e:
+    name: merge-web-button-e2e
     runs-on: ubuntu-latest
 
     steps:
@@ -116,7 +116,7 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.sha }}
 
-      - name: Run deterministic browser interaction inventory
+      - name: Run browser workflows for every visible button
         run: |
           docker run --rm --ipc=host --user "$(id -u):$(id -g)" \
             -e CI=true \
@@ -130,7 +130,30 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: merge-web-interactions-artifacts
+          name: merge-web-button-e2e-artifacts
+          path: apps/web/test-results
+          if-no-files-found: ignore
+          retention-days: 7
+
+  merge-real-stack-buttons:
+    name: merge-real-stack-buttons
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          fetch-depth: 0
+          ref: ${{ github.sha }}
+
+      - name: Run real Docker browser button contracts
+        run: bash scripts/run_real_stack_e2e.sh
+
+      - name: Upload real-stack failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: merge-real-stack-buttons-artifacts
           path: apps/web/test-results
           if-no-files-found: ignore
           retention-days: 7
@@ -238,7 +261,8 @@ jobs:
       - merge-lint-quality
       - merge-type-quality
       - merge-web-unit-quality
-      - merge-web-interactions
+      - merge-web-button-e2e
+      - merge-real-stack-buttons
       - merge-unit-tests
       - merge-integration-tests
     if: always()
@@ -273,12 +297,13 @@ jobs:
           LINT_RESULT: ${{ needs.merge-lint-quality.result }}
           TYPE_RESULT: ${{ needs.merge-type-quality.result }}
           WEB_UNIT_RESULT: ${{ needs.merge-web-unit-quality.result }}
-          WEB_INTERACTIONS_RESULT: ${{ needs.merge-web-interactions.result }}
+          WEB_BUTTON_E2E_RESULT: ${{ needs.merge-web-button-e2e.result }}
+          REAL_STACK_BUTTONS_RESULT: ${{ needs.merge-real-stack-buttons.result }}
           UNIT_RESULT: ${{ needs.merge-unit-tests.result }}
           INTEGRATION_RESULT: ${{ needs.merge-integration-tests.result }}
         run: |
-          if [[ "$LINT_RESULT" != "success" || "$TYPE_RESULT" != "success" || "$WEB_UNIT_RESULT" != "success" || "$WEB_INTERACTIONS_RESULT" != "success" || "$UNIT_RESULT" != "success" || "$INTEGRATION_RESULT" != "success" ]]; then
-            echo "merge-gate failed: lint=$LINT_RESULT type=$TYPE_RESULT web_unit=$WEB_UNIT_RESULT web_interactions=$WEB_INTERACTIONS_RESULT unit=$UNIT_RESULT integration=$INTEGRATION_RESULT" >&2
+          if [[ "$LINT_RESULT" != "success" || "$TYPE_RESULT" != "success" || "$WEB_UNIT_RESULT" != "success" || "$WEB_BUTTON_E2E_RESULT" != "success" || "$REAL_STACK_BUTTONS_RESULT" != "success" || "$UNIT_RESULT" != "success" || "$INTEGRATION_RESULT" != "success" ]]; then
+            echo "merge-gate failed: lint=$LINT_RESULT type=$TYPE_RESULT web_unit=$WEB_UNIT_RESULT web_button_e2e=$WEB_BUTTON_E2E_RESULT real_stack_buttons=$REAL_STACK_BUTTONS_RESULT unit=$UNIT_RESULT integration=$INTEGRATION_RESULT" >&2
             exit 1
           fi
           echo "merge-gate prerequisites passed."

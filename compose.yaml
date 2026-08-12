@@ -37,6 +37,37 @@ services:
           cpus: "2.0"
           memory: 1G
 
+  catalog-migrate:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: "no"
+    command: ["python", "-m", "portfell.hosted_catalog_migration"]
+    environment:
+      PORTFELL_DATABASE_URL: postgresql://portfell_app@postgres:5432/portfell
+      PORTFELL_DATABASE_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets:
+      - postgres_password
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - portfell-internal
+    group_add:
+      - "${PORTFELL_SECRET_GROUP_ID:-100}"
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 256M
+
   api:
     container_name: portfell-api
     build:
@@ -58,6 +89,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      catalog-migrate:
+        condition: service_completed_successfully
     ports:
       - "0.0.0.0:${PORTFELL_API_PORT:-8000}:8000"
     healthcheck:
@@ -105,7 +138,7 @@ services:
       api:
         condition: service_healthy
     ports:
-      - "0.0.0.0:${PORTFELL_WEB_PORT:-3000}:3000"
+      - "0.0.0.0:${PORTFELL_WEB_PORT:-333}:3000"
     healthcheck:
       test: ["CMD", "node", "server.js", "--health"]
       interval: 10s
@@ -147,8 +180,11 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      catalog-migrate:
+        condition: service_completed_successfully
     networks:
       - portfell-internal
+      - portfell-public
     group_add:
       - "${PORTFELL_SECRET_GROUP_ID:-100}"
     read_only: true

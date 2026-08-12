@@ -12,6 +12,7 @@ from portfell.hosted_credential_project_service import CredentialProjectService
 from portfell.hosted_credentials import EodhdCredentialVault, KeyEncryptionKey
 from portfell.hosted_download_run_repository import PostgresDownloadRunRepository
 from portfell.hosted_metadata_project_service import MetadataProjectService
+from portfell.hosted_metadata_refresh_job_repository import PostgresMetadataRefreshJobRepository
 from portfell.hosted_multivariate_service import MultivariateResearchService
 from portfell.hosted_postgres_repository_bundle import PostgresHostedRepositoryBundle
 from portfell.hosted_postgres_request_scope import RequestScopedPostgresConnection
@@ -115,6 +116,7 @@ def build_postgres_services(
         credential_vault,
         repositories.audit,
         bootstrap,
+        PostgresMetadataRefreshJobRepository(request_scope),
     )
     quotes = QuoteRunService(
         state,

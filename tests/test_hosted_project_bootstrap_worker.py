@@ -66,7 +66,7 @@ def test_worker_refreshes_only_the_claimed_exact_selection(tmp_path: Any) -> Non
     worker = ProjectBootstrapWorker(
         jobs=jobs,
         members_for_selection=lambda user_id, selection_id: (
-            ("IE0000000001:XETRA:ONE",)
+            ("IE0000000001:XETRA:ONE", "IE0000000002:XETRA:TWO")
             if (user_id, selection_id) == ("user-1", "selection-1")
             else ()
         ),
@@ -85,8 +85,8 @@ def test_worker_refreshes_only_the_claimed_exact_selection(tmp_path: Any) -> Non
 
     assert result.claimed_count == result.succeeded_count == 1
     assert result.failed_count == 0
-    assert requested == ["IE0000000001:XETRA:ONE"] * 3
-    assert jobs.progress == [(0, 1), (1, 1)]
+    assert requested == ["IE0000000001:XETRA:ONE"] * 3 + ["IE0000000002:XETRA:TWO"] * 3
+    assert jobs.progress == [(0, 2), (1, 2), (2, 2), (2, 2)]
     assert jobs.completed == [("succeeded", None)]
 
 

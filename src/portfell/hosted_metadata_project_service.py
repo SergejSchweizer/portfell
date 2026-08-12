@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Callable
+from typing import Protocol
 
 from portfell.hosted_api_errors import HostedApplicationError, HostedRuntimeError
 from portfell.hosted_api_ports import HostedRuntimePort
@@ -31,8 +32,14 @@ from portfell.hosted_repository_importer import (
     TenantSelection,
 )
 from portfell.hosted_selection_repository import SelectionRepository
-from portfell.selection_filters import Predicate, filter_rows
+from portfell.selection_filters import Predicate, filter_rows, parse_predicates
 from portfell.table_io import JsonRow
+
+
+class MetadataRefreshQueue(Protocol):
+    """Enqueue a worker-owned metadata refresh without exposing provider credentials."""
+
+    def enqueue(self, *, metadata_run_id: str, user_id: str) -> None: ...
 
 
 class MetadataProjectService:
@@ -48,6 +55,7 @@ class MetadataProjectService:
         credential_vault: EodhdCredentialVault | None = None,
         audit_repository: AuditEventRepository | None = None,
         bootstrap_repository: ProjectBootstrapRepository | None = None,
+        metadata_refresh_queue: MetadataRefreshQueue | None = None,
     ) -> None:
         self.state = state
         self.runtime = runtime
@@ -57,6 +65,7 @@ class MetadataProjectService:
         self._credentials = credential_vault or state.credential_vault()
         self._audit_events = audit_repository or LocalAuditEventRepository(state)
         self._bootstrap = bootstrap_repository
+        self._metadata_refresh_queue = metadata_refresh_queue
 
     def _all_isins_rows(self) -> tuple[JsonRow, ...]:
         return self.state.all_isins_rows or self.runtime.all_isins_rows()
@@ -71,6 +80,12 @@ class MetadataProjectService:
         }
 
     def start_metadata_fetch(self, user_id: str) -> tuple[JsonRow, Callable[[], None]]:
+        if self._metadata_refresh_queue is not None:
+            run_id = opaque_id("metadata-run", f"{user_id}:{uuid.uuid4()}")
+            run = self._metadata.create(MetadataRun(run_id, user_id, "running", 0, 0, 0, 0, {}))
+            self._metadata_refresh_queue.enqueue(metadata_run_id=run_id, user_id=user_id)
+            self._audit(user_id, "fetch_all_metadata.queued")
+            return metadata_fetch_row(_metadata_row(run)), lambda: None
         try:
             provider_key = self._credentials.unwrap_for_provider_call(user_id=user_id)
         except CredentialVaultError as error:
@@ -223,7 +238,14 @@ class MetadataProjectService:
         )
         selection = self._selection_record(
             self._selections.create(
-                TenantSelection(selection_id, project_id, user_id, project_name, members)
+                TenantSelection(
+                    selection_id,
+                    project_id,
+                    user_id,
+                    project_name,
+                    members,
+                    tuple(predicate.as_text() for predicate in predicates),
+                )
             )
         )
         self._projects.set_current_project(user_id=user_id, project_id=project_id)
@@ -253,7 +275,11 @@ class MetadataProjectService:
                 "bootstrap_id": bootstrap.bootstrap.bootstrap_id,
                 "job_id": bootstrap.job_id,
                 "status": bootstrap.bootstrap.status,
+                "completed_units": 0,
+                "total_units": bootstrap.bootstrap.selected_listing_count,
                 "selected_listing_count": bootstrap.bootstrap.selected_listing_count,
+                "terminal_code": None,
+                "started_at": None,
             }
         return result
 
@@ -274,7 +300,7 @@ class MetadataProjectService:
             "name": "",
         }
         try:
-            predicates = self.runtime.metadata_builder_predicates(selection.selection_id)
+            predicates = parse_predicates(list(selection.metadata_builder_predicates))
         except ValueError as error:
             raise HostedApplicationError(500, "metadata_builder_manifest_invalid") from error
         for predicate in predicates:
@@ -306,6 +332,7 @@ class MetadataProjectService:
             "total_units": status.total_units,
             "selected_listing_count": status.bootstrap.bootstrap.selected_listing_count,
             "terminal_code": status.terminal_code,
+            "started_at": status.started_at_epoch,
         }
 
     @staticmethod
@@ -326,6 +353,7 @@ class MetadataProjectService:
             selection.project_id,
             selection.name,
             selection.member_ids,
+            selection.metadata_builder_predicates,
         )
 
     def _selection_for_project(self, user_id: str, project_id: str) -> SelectionRecord:

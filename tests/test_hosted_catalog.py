@@ -98,6 +98,9 @@ def test_hosted_migration_sql_defines_rls_and_immutable_catalog_shape() -> None:
         13,
         14,
         15,
+        16,
+        17,
+        18,
     ]
     assert len({migration.checksum for migration in migrations}) == len(migrations)
     assert "create table if not exists portfell_app.provider_credentials" in sql
@@ -119,6 +122,7 @@ def test_hosted_migration_sql_defines_rls_and_immutable_catalog_shape() -> None:
     assert "add column if not exists purpose text not null default 'user_metadata'" in sql
     assert "provider_credentials_one_active_user_provider_purpose_idx" in sql
     assert "create table if not exists portfell_app.project_selection_versions" in sql
+    assert "add column if not exists metadata_builder_predicates jsonb" in sql
     assert "create table if not exists portfell_app.project_selection_members" in sql
     assert "create table if not exists portfell_app.project_artifact_refs" in sql
     assert "references portfell_app.projects(project_id, user_id)" in sql
@@ -144,6 +148,9 @@ def test_hosted_migration_sql_defines_rls_and_immutable_catalog_shape() -> None:
     assert "create table if not exists portfell_app.hosted_analysis_records" in sql
     assert "create table if not exists portfell_app.project_initial_fills" in sql
     assert "bootstrap_job_id uuid not null unique" in sql
+    assert "create table if not exists portfell_app.metadata_refresh_jobs" in sql
+    assert "if tg_table_name = 'project_selection_versions' then" in sql
+    assert "if tg_table_name = 'project_selection_members' then" in sql
 
 
 def test_apply_hosted_catalog_migrations_is_deterministic_and_idempotent() -> None:

@@ -35,6 +35,7 @@ class TenantSelection:
     user_id: str
     name: str
     member_ids: tuple[str, ...]
+    metadata_builder_predicates: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

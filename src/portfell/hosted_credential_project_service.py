@@ -393,6 +393,7 @@ class CredentialProjectService:
             selection.project_id,
             selection.name,
             selection.member_ids,
+            selection.metadata_builder_predicates,
         )
 
     def _selection_for_project(self, user_id: str, project_id: str) -> SelectionRecord:

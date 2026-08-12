@@ -122,6 +122,7 @@ def refresh_shared_market_data(
     listings: Iterable[SharedListingKey],
     concurrency: int = 4,
     dry_run: bool = False,
+    on_listing_completed: Callable[[SharedListingKey], None] | None = None,
 ) -> RefreshResult:
     """Refresh each unique listing/dataset once and persist a redacted manifest."""
 
@@ -138,12 +139,21 @@ def refresh_shared_market_data(
         updated = 0
         unchanged = 0
         errors: list[str] = []
+        requests_per_listing = {
+            listing: sum(1 for request in requests if request.listing == listing)
+            for listing in resolved_listings
+        }
+        completed_requests_per_listing = dict.fromkeys(requests_per_listing, 0)
+        for listing, request_count in requests_per_listing.items():
+            if request_count == 0 and on_listing_completed is not None:
+                on_listing_completed(listing)
         with ThreadPoolExecutor(max_workers=concurrency) as executor:
             futures = {
                 executor.submit(_refresh_one, store, fetch, request): request
                 for request in requests
             }
             for future in as_completed(futures):
+                request = futures[future]
                 try:
                     changed = future.result()
                 except Exception:
@@ -153,6 +163,13 @@ def refresh_shared_market_data(
                         updated += 1
                     else:
                         unchanged += 1
+                completed_requests_per_listing[request.listing] += 1
+                if (
+                    completed_requests_per_listing[request.listing]
+                    == requests_per_listing[request.listing]
+                    and on_listing_completed is not None
+                ):
+                    on_listing_completed(request.listing)
         result = RefreshResult(
             result_hash,
             end_date.isoformat(),
