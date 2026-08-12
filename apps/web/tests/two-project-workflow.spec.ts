@@ -252,6 +252,22 @@ async function switchProject(page: Page, projectId: string) {
   await page.getByLabel("Project", { exact: true }).selectOption(projectId);
 }
 
+test("selecting a project restores its Metadata Builder fields", async ({ page }) => {
+  await installTwoProjectApi(page);
+  await page.goto("/metadata-builder");
+  await createProject(page, { exchange: "XETRA", instrumentType: "ETF", country: "IE", currency: "EUR", name: "Alpha income" });
+  await createProject(page, { exchange: "LSE", instrumentType: "FUND", country: "LU", currency: "USD", name: "Beta growth" });
+
+  await switchProject(page, "project-1");
+  await page.goto("/metadata-builder");
+
+  await expect(page.getByLabel("Exchange")).toHaveValue("XETRA");
+  await expect(page.getByLabel("Instrument type")).toHaveValue("ETF");
+  await expect(page.getByLabel("Country")).toHaveValue("IE");
+  await expect(page.getByLabel("Currency")).toHaveValue("EUR");
+  await expect(page.getByLabel("Name contains")).toHaveValue("Alpha income");
+});
+
 test("every workflow button completes its browser action for two isolated projects", async ({ page }) => {
   const fixture = await installTwoProjectApi(page);
   await page.goto("/metadata-builder");
