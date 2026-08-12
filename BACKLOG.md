@@ -1590,10 +1590,12 @@ Priority: P1 multivariate explainability.
 Depends on: PR221.
 
 Scope: Persist and display each feasible candidate's average compounded calendar-month and
-calendar-year total return alongside its existing portfolio statistics.
+calendar-year total return alongside its existing portfolio statistics, and render every feasible
+portfolio series with the input instruments in the Performance chart without a chart selection.
 
 Acceptance: Every feasible Candidate card shows average monthly and annual return values derived
-server-side from the aligned historical return period; unavailable candidates retain unavailable
+server-side from the aligned historical return period; the Performance chart and its tooltip include
+every feasible portfolio method without a chart selection; unavailable candidates retain unavailable
 metrics without fallback values.
 
 Security: The browser displays only project-owned persisted candidate metrics and performs no
