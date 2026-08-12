@@ -102,7 +102,7 @@ jobs:
             -e npm_config_cache=/tmp/npm-cache \
             -v "$GITHUB_WORKSPACE:/workspace" \
             -w /workspace/apps/web \
-            node:24-alpine \
+            node:26-alpine \
             sh -lc 'npm ci && npm run typecheck && npm run test:coverage'
 
   merge-web-button-e2e:
