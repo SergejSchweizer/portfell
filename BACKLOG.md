@@ -1092,6 +1092,29 @@ Determinism: Identical provider results and requested end dates yield the same c
 Idempotency: Repeating a refresh already checked through its target date creates no provider request or
 new market revision.
 
+### PR184. Faster EODHD Shared Refresh
+
+Branch: `fix/market-refresh-rate-limit`.
+
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/344.
+
+Priority: P1 shared-market refresh performance.
+
+Depends on: PR183.
+
+Scope: Reduce the default global EODHD request interval from 250 ms to 50 ms while preserving runtime
+environment overrides and rate-limit retry behavior. Route the standalone shared refresh through the
+same runtime configuration path as the hosted worker.
+
+Acceptance: The default permits 20 request starts per second; an environment override remains effective;
+and both hosted and standalone refreshes use the same runtime EODHD configuration.
+
+Security: The change does not expose or persist provider credentials.
+
+Determinism: Given the same configured interval, request pacing remains globally serialized and stable.
+
+Idempotency: Retrying a provider request retains the existing retry and persistence semantics.
+
 ### PR168. Production Cron Installation And First Scheduled Run Evidence
 
 Branch: `chore/install-production-market-refresh-cron`.
