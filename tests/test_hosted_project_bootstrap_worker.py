@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from contextlib import nullcontext
 from datetime import date
+from time import sleep
 from typing import Any
 
 from portfell.durable_job_repository import ClaimedJob
@@ -17,6 +18,7 @@ class _Jobs:
         self._jobs = jobs
         self.progress: list[tuple[int, int]] = []
         self.completed: list[tuple[str, str | None]] = []
+        self.heartbeats: list[tuple[str, str]] = []
 
     def claim(self, *, worker_id: str, batch_size: int) -> tuple[ClaimedJob, ...]:
         assert worker_id == "worker-1"
@@ -28,6 +30,9 @@ class _Jobs:
     ) -> None:
         assert (job_id, lease_token) == ("job-1", "lease-1")
         self.progress.append((completed_units, total_units))
+
+    def heartbeat(self, *, job_id: str, lease_token: str) -> None:
+        self.heartbeats.append((job_id, lease_token))
 
     def complete(
         self, *, job_id: str, lease_token: str, status: str, terminal_code: str | None = None
@@ -105,6 +110,24 @@ def test_worker_marks_the_claimed_bootstrap_failed_without_provider_access(tmp_p
 
     assert (result.claimed_count, result.succeeded_count, result.failed_count) == (1, 0, 1)
     assert jobs.completed == [("failed", "initial_fill_failed")]
+
+
+def test_worker_renews_the_lease_while_a_provider_request_is_slow(tmp_path: Any) -> None:
+    jobs = _Jobs((_job(),))
+    worker = ProjectBootstrapWorker(
+        jobs=jobs,
+        members_for_selection=lambda _user_id, _selection_id: ("IE0000000001:XETRA:ONE",),
+        store=SharedMarketDataStore(tmp_path),
+        fetch=lambda _request: sleep(0.02) or (),
+        end_date=date(2026, 8, 11),
+        concurrency=1,
+        heartbeat_interval_seconds=0.001,
+    )
+
+    result = worker.run_once(worker_id="worker-1")
+
+    assert result.succeeded_count == 1
+    assert jobs.heartbeats
 
 
 def test_postgres_selection_reader_binds_the_claimed_user_before_reading_members() -> None:

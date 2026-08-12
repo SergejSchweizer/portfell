@@ -74,6 +74,7 @@ export type ApiInitialFill = Readonly<{
   selected_listing_count: number;
   terminal_code: string | null;
   started_at: number | null;
+  last_progress_at: number | null;
 }>;
 
 export type ApiQuoteFetch = Readonly<{

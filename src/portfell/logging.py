@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging as py_logging
+import sys
 import zipfile
 from collections.abc import Mapping
 from datetime import UTC, date, datetime, timedelta
@@ -36,12 +37,19 @@ def log_event(
     module: str,
     event: str,
     fields: Mapping[str, Any] | None = None,
+    error: BaseException | None = None,
 ) -> None:
-    """Write one uniformly shaped Portfell log message."""
+    """Write one uniformly shaped Portfell log message with optional exception context."""
+    merged_fields = dict(fields or {})
+    if error is not None:
+        merged_fields.update(
+            error_type=type(error).__name__,
+            error_message=str(error) or type(error).__name__,
+        )
     message = f"module={module} event={event}"
-    if fields:
-        message = f"{message} {_format_fields(fields)}"
-    logger.log(level, message)
+    if merged_fields:
+        message = f"{message} {_format_fields(merged_fields)}"
+    logger.log(level, message, exc_info=error)
 
 
 def setup_logging(
@@ -55,31 +63,42 @@ def setup_logging(
     file format.
     """
     checked_at = now or datetime.now(UTC)
-    log_dir.mkdir(parents=True, exist_ok=True)
-    rotate_logs(log_dir=log_dir, now=checked_at)
+    try:
+        log_dir.mkdir(parents=True, exist_ok=True)
+        rotate_logs(log_dir=log_dir, now=checked_at)
+    except OSError:
+        log_path = None
+    else:
+        log_path = log_dir / f"portfell-{checked_at.date().isoformat()}.log"
 
     logger = py_logging.getLogger("portfell")
     logger.setLevel(py_logging.DEBUG if debug else py_logging.INFO)
     logger.propagate = False
 
     for handler in list(logger.handlers):
-        if getattr(handler, "_portfell_file_handler", False):
+        if getattr(handler, "_portfell_handler", False):
             logger.removeHandler(handler)
             handler.close()
 
-    handler = py_logging.FileHandler(
-        log_dir / f"portfell-{checked_at.date().isoformat()}.log", encoding="utf-8"
-    )
-    handler.setLevel(py_logging.DEBUG if debug else py_logging.INFO)
-    handler.setFormatter(UtcFormatter(LOG_FORMAT, LOG_DATE_FORMAT))
-    handler._portfell_file_handler = True  # type: ignore[attr-defined]
-    logger.addHandler(handler)
+    formatter = UtcFormatter(LOG_FORMAT, LOG_DATE_FORMAT)
+    if log_path is not None:
+        handler = py_logging.FileHandler(log_path, encoding="utf-8")
+        handler.setLevel(py_logging.DEBUG if debug else py_logging.INFO)
+        handler.setFormatter(formatter)
+        handler._portfell_handler = True  # type: ignore[attr-defined]
+        logger.addHandler(handler)
+
+    console_handler = py_logging.StreamHandler(sys.stderr)
+    console_handler.setLevel(py_logging.DEBUG if debug else py_logging.INFO)
+    console_handler.setFormatter(formatter)
+    console_handler._portfell_handler = True  # type: ignore[attr-defined]
+    logger.addHandler(console_handler)
     log_event(
         logger,
         py_logging.INFO,
         module="logging",
         event="configured",
-        fields={"debug": debug, "log_dir": log_dir},
+        fields={"debug": debug, "file_logging": log_path is not None, "log_dir": log_dir},
     )
     return logger
 

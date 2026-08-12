@@ -17,9 +17,44 @@ def test_setup_logging_writes_uniform_debug_log(tmp_path) -> None:  # type: igno
     log_path = log_dir / "portfell-2026-07-12.log"
     content = log_path.read_text(encoding="utf-8")
     assert "2026-" in content
-    assert " INFO portfell module=logging event=configured debug=true log_dir=" in content
+    assert (
+        " INFO portfell module=logging event=configured debug=true file_logging=true log_dir="
+        in content
+    )
     assert " DEBUG portfell.test module=test event=debug detail=yes" in content
     assert " INFO portfell.test module=test event=hello" in content
+
+
+def test_log_event_records_exception_cause_and_traceback(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    log_dir = tmp_path / ".logs"
+    setup_logging(log_dir=log_dir, now=datetime(2026, 7, 12, tzinfo=UTC))
+
+    try:
+        raise ValueError("provider response missing close")
+    except ValueError as error:
+        log_event(
+            get_logger("portfell.test"),
+            logging.ERROR,
+            module="test",
+            event="refresh_failed",
+            fields={"run_id": "run-123"},
+            error=error,
+        )
+
+    content = (log_dir / "portfell-2026-07-12.log").read_text(encoding="utf-8")
+    assert "module=test event=refresh_failed" in content
+    assert "error_message='provider response missing close'" in content
+    assert "error_type=ValueError run_id=run-123" in content
+    assert "ValueError: provider response missing close" in content
+
+
+def test_setup_logging_uses_stderr_when_the_log_path_is_not_a_directory(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    log_dir = tmp_path / "not-a-directory"
+    log_dir.write_text("occupied", encoding="utf-8")
+
+    logger = setup_logging(log_dir=log_dir, now=datetime(2026, 7, 12, tzinfo=UTC))
+
+    assert not any(isinstance(handler, logging.FileHandler) for handler in logger.handlers)
 
 
 def test_rotate_logs_zips_after_seven_days_and_deletes_after_month(tmp_path) -> None:  # type: ignore[no-untyped-def]

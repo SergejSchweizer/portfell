@@ -232,6 +232,9 @@ function initialFillRemainingTime(fill: ApiInitialFill): string {
   if (fill.started_at === null || fill.completed_units <= 0 || fill.total_units <= fill.completed_units) {
     return " - estimating time...";
   }
+  if (fill.last_progress_at !== null && Date.now() - fill.last_progress_at * 1_000 > 60_000) {
+    return " - waiting for provider progress...";
+  }
   const elapsedSeconds = (Date.now() - fill.started_at * 1_000) / 1_000;
   if (elapsedSeconds <= 0) return " - estimating time...";
   const remainingSeconds = Math.ceil((elapsedSeconds / fill.completed_units) * (fill.total_units - fill.completed_units));

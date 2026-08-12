@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import os
 import time
-from collections.abc import Callable
-from contextlib import AbstractContextManager
+from collections.abc import Callable, Generator
+from contextlib import AbstractContextManager, contextmanager
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
+from threading import Event, Thread
 from typing import Protocol
 
 from portfell.config import runtime_eodhd_config
@@ -18,6 +20,7 @@ from portfell.hosted_catalog import set_authenticated_user_sql
 from portfell.hosted_database_connection import connect
 from portfell.hosted_metadata_refresh_worker import build_metadata_refresh_worker
 from portfell.http import EodhdClient
+from portfell.logging import get_logger, log_event, setup_logging
 from portfell.shared_market_data import SharedListingKey, SharedMarketDataStore
 from portfell.shared_market_refresh import (
     ProviderFetch,
@@ -27,6 +30,8 @@ from portfell.shared_market_refresh import (
     refresh_shared_market_data,
 )
 
+LOGGER = get_logger(__name__)
+
 
 class BootstrapJobQueue(Protocol):
     def claim(self, *, worker_id: str, batch_size: int) -> tuple[ClaimedJob, ...]: ...
@@ -34,6 +39,8 @@ class BootstrapJobQueue(Protocol):
     def update_progress(
         self, *, job_id: str, lease_token: str, completed_units: int, total_units: int
     ) -> None: ...
+
+    def heartbeat(self, *, job_id: str, lease_token: str) -> None: ...
 
     def complete(
         self, *, job_id: str, lease_token: str, status: str, terminal_code: str | None = None
@@ -100,6 +107,7 @@ class ProjectBootstrapWorker:
         fetch: ProviderFetch,
         end_date: date,
         concurrency: int,
+        heartbeat_interval_seconds: float = 60.0,
     ) -> None:
         self._jobs = jobs
         self._members_for_selection = members_for_selection
@@ -107,6 +115,9 @@ class ProjectBootstrapWorker:
         self._fetch = fetch
         self._end_date = end_date
         self._concurrency = concurrency
+        if heartbeat_interval_seconds <= 0:
+            raise ValueError("heartbeat_interval_seconds_must_be_positive")
+        self._heartbeat_interval_seconds = heartbeat_interval_seconds
 
     def run_once(self, *, worker_id: str, batch_size: int = 1) -> BootstrapWorkerResult:
         """Claim and execute a bounded batch without using active-project inventory."""
@@ -124,6 +135,13 @@ class ProjectBootstrapWorker:
         return BootstrapWorkerResult(len(claimed), succeeded, failed)
 
     def _execute(self, job: ClaimedJob) -> bool:
+        log_event(
+            LOGGER,
+            logging.INFO,
+            module="project-bootstrap-worker",
+            event="job_started",
+            fields={"job_id": job.job_id, "job_kind": job.job_kind, "project_id": job.project_id},
+        )
         try:
             members = self._members_for_selection(job.user_id, job.input_ref)
             listings = tuple(SharedListingKey.from_member_id(member) for member in members)
@@ -147,16 +165,30 @@ class ProjectBootstrapWorker:
                     total_units=len(listings),
                 )
 
-            result = refresh_shared_market_data(
-                store=self._store,
-                listings=listings,
-                fetch=self._fetch,
-                end_date=self._end_date,
-                concurrency=self._concurrency,
-                on_listing_completed=report_listing_completed,
-            )
+            with self._lease_heartbeat(job):
+                result = refresh_shared_market_data(
+                    store=self._store,
+                    listings=listings,
+                    fetch=self._fetch,
+                    end_date=self._end_date,
+                    concurrency=self._concurrency,
+                    on_listing_completed=report_listing_completed,
+                )
             self._complete(job, result, len(listings))
-        except Exception:
+        except Exception as error:
+            log_event(
+                LOGGER,
+                logging.ERROR,
+                module="project-bootstrap-worker",
+                event="job_failed",
+                fields={
+                    "job_id": job.job_id,
+                    "job_kind": job.job_kind,
+                    "project_id": job.project_id,
+                    "selection_id": job.input_ref,
+                },
+                error=error,
+            )
             self._jobs.complete(
                 job_id=job.job_id,
                 lease_token=job.lease_token,
@@ -165,6 +197,33 @@ class ProjectBootstrapWorker:
             )
             return False
         return True
+
+    @contextmanager
+    def _lease_heartbeat(self, job: ClaimedJob) -> Generator[None]:
+        stopped = Event()
+
+        def renew_lease() -> None:
+            while not stopped.wait(self._heartbeat_interval_seconds):
+                try:
+                    self._jobs.heartbeat(job_id=job.job_id, lease_token=job.lease_token)
+                except Exception as error:
+                    log_event(
+                        LOGGER,
+                        logging.ERROR,
+                        module="project-bootstrap-worker",
+                        event="job_heartbeat_failed",
+                        fields={"job_id": job.job_id, "job_kind": job.job_kind},
+                        error=error,
+                    )
+                    return
+
+        heartbeat = Thread(target=renew_lease, name=f"portfell-heartbeat-{job.job_id}", daemon=True)
+        heartbeat.start()
+        try:
+            yield
+        finally:
+            stopped.set()
+            heartbeat.join()
 
     def _complete(self, job: ClaimedJob, result: RefreshResult, listing_count: int) -> None:
         self._jobs.update_progress(
@@ -178,6 +237,20 @@ class ProjectBootstrapWorker:
             lease_token=job.lease_token,
             status="partial" if result.failed else "succeeded",
             terminal_code=None if not result.failed else "initial_fill_partial",
+        )
+        log_event(
+            LOGGER,
+            logging.INFO if not result.failed else logging.WARNING,
+            module="project-bootstrap-worker",
+            event="job_completed",
+            fields={
+                "failed_requests": result.failed,
+                "job_id": job.job_id,
+                "job_kind": job.job_kind,
+                "listing_count": listing_count,
+                "status": "partial" if result.failed else "succeeded",
+                "updated_requests": result.updated,
+            },
         )
 
 
@@ -197,6 +270,7 @@ def main(argv: list[str] | None = None) -> int:
     """Run worker-owned initial fills using only the operations market credential."""
 
     args = build_parser().parse_args(argv)
+    setup_logging(debug=os.environ.get("PORTFELL_LOG_LEVEL", "").upper() == "DEBUG")
     root = os.environ.get("PORTFELL_SHARED_DATA_ROOT")
     database_url = os.environ.get("PORTFELL_DATABASE_URL")
     token = operations_token_from_environment()

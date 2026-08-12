@@ -993,7 +993,7 @@ Idempotency: Repeating the same batch leaves the active coverage content hashes 
 
 Branch: `fix/quote-run-success-reuse`.
 
-Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/340.
+Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/340.
 
 Priority: P1 worker efficiency.
 
@@ -1012,6 +1012,35 @@ credential status; no run becomes visible across tenants.
 Determinism: The stable request hash resolves the same project/selection/member set to the same run id.
 
 Idempotency: Equivalent active or succeeded requests produce no duplicate provider task.
+
+### PR181. Initial-Fill Lease Resilience And Observability
+
+Branch: `fix/initial-fill-observability`.
+
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/341.
+
+Priority: P1 durable worker reliability.
+
+Depends on: PR180.
+
+Scope: Keep an active initial-fill lease alive during long provider waits, expose the current-attempt
+start and last actual progress time through the owned status API, and make the Metadata Builder show a
+stable provider-wait state when progress is stale. Standardize runtime, worker, and shared-refresh logs
+to include actionable event context, exception causes, and Docker-visible output.
+
+Acceptance: A slow provider request renews its worker lease without changing the progress timestamp;
+the initial-fill status reports the current attempt rather than an earlier retry; stale progress no
+longer grows the displayed remaining-time estimate; and refresh/worker failures log redacted context
+with exception type and traceback.
+
+Security: Logs never include provider tokens, database URLs, or tenant data beyond the owned operational
+identifiers required to correlate an authorized job.
+
+Determinism: Job-state projections, response fields, and status labels are determined by the persisted
+job and progress timestamps, independent of browser polling cadence.
+
+Idempotency: Lease renewal changes only its existing job lease; repeated status reads and logger setup do
+not create work or duplicate log handlers.
 
 ### PR168. Production Cron Installation And First Scheduled Run Evidence
 

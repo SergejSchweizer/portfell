@@ -207,7 +207,7 @@ where job_id = %s::uuid and attempt_number = (
             updated = self._connection.execute(
                 """
 update portfell_app.jobs
-set heartbeat_at = now(), lease_expires_at = now() + interval '5 minutes', updated_at = now()
+set heartbeat_at = now(), lease_expires_at = now() + interval '5 minutes'
 where job_id = %s::uuid and status = 'running' and lease_token = %s::uuid
 returning job_id
 """,
