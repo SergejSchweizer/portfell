@@ -95,7 +95,7 @@ const server = http.createServer((request, response) => {
     serveFile(response, resolvedPath, staticContentType(resolvedPath));
     return;
   }
-  if (spaRoutes.has(requestUrl.pathname) || /^\/projects\/[^/]+\/(metadata-builder|univariate-statistics|bivariate-statistics|multivariate-statistics)$/.test(requestUrl.pathname)) {
+  if (spaRoutes.has(requestUrl.pathname) || /^\/projects\/[^/]+\/[^/]+\/(metadata-builder|univariate-statistics|bivariate-statistics|multivariate-statistics)$/.test(requestUrl.pathname)) {
     serveFile(response, path.join(distRoot, "index.html"), "text/html; charset=utf-8");
     return;
   }

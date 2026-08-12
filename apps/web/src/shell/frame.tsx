@@ -8,7 +8,7 @@ import {
 } from "../api/client";
 import type { ApiProjectContext, ApiWorkflow } from "../contracts";
 import { useResource } from "../hooks/use-resource";
-import { projectSlug, projectSlugFromPath, projectWorkflowPath, workflowPages, type WorkflowPageId } from "../routes";
+import { projectIdFromPath, projectWorkflowPath, workflowPages, type WorkflowPageId } from "../routes";
 import { MetadataFetchProvider, useMetadataFetch } from "./metadata-fetch-context";
 import { ProjectSidebar } from "./project-sidebar";
 
@@ -110,8 +110,8 @@ function ShellFrameContent({ currentPage, children }: ShellFrameProps) {
 
   useEffect(() => {
     if (context.status !== "ready" || switching) return;
-    const requestedProjectSlug = projectSlugFromPath(window.location.pathname);
-    const requestedProject = context.data.projects.find((project) => projectSlug(project.name) === requestedProjectSlug);
+    const requestedProjectId = projectIdFromPath(window.location.pathname);
+    const requestedProject = context.data.projects.find((project) => project.project_id === requestedProjectId);
     const currentProject = context.data.current_project;
     if (requestedProject && requestedProject.project_id !== currentProject?.project_id) {
       setSwitching(true);

@@ -91,7 +91,7 @@ export const workflowPages: readonly WorkflowPage[] = [
   },
 ];
 
-const projectPathPattern = /^\/projects\/([^/]+)(\/[^/?#]+)$/;
+const projectPathPattern = /^\/projects\/([^/]+)\/[^/]+(\/[^/?#]+)$/;
 
 export function projectSlug(name: string): string {
   const slug = name
@@ -104,10 +104,10 @@ export function projectSlug(name: string): string {
 }
 
 export function projectWorkflowPath(project: Pick<ApiProjectSummary, "project_id" | "name">, page: WorkflowPage): string {
-  return `/projects/${projectSlug(project.name)}${page.path}`;
+  return `/projects/${encodeURIComponent(project.project_id)}/${projectSlug(project.name)}${page.path}`;
 }
 
-export function projectSlugFromPath(pathname: string): string | null {
+export function projectIdFromPath(pathname: string): string | null {
   const match = pathname.match(projectPathPattern);
   if (!match) return null;
   try {

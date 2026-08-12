@@ -23,9 +23,8 @@ not create, sort, authorize, or persist projects in the browser.
   for the selected project.
 - `workflowPages` in `apps/web/src/routes.tsx` remains the only workflow route
   registry.
-- Canonical workflow URLs use `/projects/{project-name-slug}/{workflow-page}`.
-  The browser resolves the readable name slug to the owned project held in the current context;
-  the internal project id remains restricted to API requests.
+- Canonical workflow URLs use `/projects/{project_id}/{project-name-slug}/{workflow-page}`.
+  The immutable project id is authoritative; the readable name slug is canonicalized after load.
 
 ## Header Metadata Fetch
 
@@ -89,11 +88,11 @@ server-owned data. Metadata Builder additionally loads saved field values throug
 `GET /api/projects/{project_id}/metadata-builder`. A failed switch keeps the prior
 project and route intact.
 
-the readable slug; old links remain resolvable because authorization and identity
 Opening a canonical project URL activates that owned project before its workflow
 state is rendered. Legacy workflow-only URLs remain valid and are replaced with
-the canonical project URL after context loads. Renaming a project changes its
-canonical URL slug; shared links should use the current project name.
+the canonical project URL after context loads. Renaming a project changes only
+the readable slug; old links remain resolvable because authorization and identity
+use the project id.
 
 ## Boundaries
 

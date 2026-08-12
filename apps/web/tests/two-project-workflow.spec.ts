@@ -7,6 +7,7 @@ type Project = {
   univariateRunId?: string;
   bivariateRunId?: string;
   multivariateRunId?: string;
+  selectedCandidateIds?: string[];
   settings: { dividend_frequencies: string[]; statistic_labels: Record<string, string[]>; statistic_ranges: Record<string, { minimum: number; maximum: number }[]> };
 };
 
@@ -83,14 +84,14 @@ function bivariateSummary() {
 }
 
 function multivariateRun(project: Project, status: "running" | "complete") {
-  return { run_id: project.multivariateRunId, project_id: project.id, bivariate_run_id: project.bivariateRunId, input_snapshot_id: status === "complete" ? `snapshot-${project.id}` : null, status, phase: status === "complete" ? "complete" : "resolve_inputs", completed_units: status === "complete" ? 6 : 0, total_units: 6, elapsed_seconds: 0, estimated_remaining_seconds: status === "complete" ? 0 : 10, settings: {}, warnings: [], failure_reason: null };
+  return { run_id: project.multivariateRunId, project_id: project.id, bivariate_run_id: project.bivariateRunId, input_snapshot_id: status === "complete" ? `snapshot-${project.id}` : null, status, phase: status === "complete" ? "complete" : "resolve_inputs", completed_units: status === "complete" ? 6 : 0, total_units: 6, elapsed_seconds: 0, estimated_remaining_seconds: status === "complete" ? 0 : 10, settings: { selected_candidate_ids: project.selectedCandidateIds ?? [] }, warnings: [], failure_reason: null };
 }
 
 function multivariateSummary() { return { input_snapshot_id: "snapshot", risk_model_id: "risk", candidate_etf_count: 3, aligned_period: { date_start: "2024-01-01", date_end: "2025-01-01", observation_count: 252 }, availability_reasons: [] }; }
 function multivariateStructure() { return { risk_cluster_count: 2, dominant_component_share: 0.6, effective_rank: 1.8, effective_independent_drivers: 1.8, period: { date_start: "2024-01-01", date_end: "2025-01-01", observation_count: 252 }, thresholds: { components_for_80pct: 2, components_for_90pct: 2, components_for_95pct: 3 }, strongest_common_driver: { isin: "IE00ALPHA01", exchange: "XETRA", code: "ALPHA" }, largest_redundancy_warning: { left: { isin: "IE00ALPHA01", exchange: "XETRA", code: "ALPHA" }, right: { isin: "IE00ALPHA02", exchange: "XETRA", code: "BETA" }, correlation: 0.7 }, availability_reasons: [] }; }
 function multivariateCandidates() { return { items: [{ candidate_id: "candidate-equal", method: "equal_weight", baseline: true, status: "feasible", reasons: [], weights: [{ isin: "IE00ALPHA01", exchange: "XETRA", code: "ALPHA", weight: 1 / 3 }, { isin: "IE00ALPHA02", exchange: "XETRA", code: "BETA", weight: 1 / 3 }, { isin: "IE00ALPHA03", exchange: "XETRA", code: "GAMMA", weight: 1 / 3 }], variance: 0.02, volatility: 0.14, var: 0.03, cvar: 0.04, maximum_weight: 1 / 3, herfindahl_index: 1 / 3, effective_holding_count: 3, gross_ttm_distribution_yield: 0.03, gross_monthly_distribution: 0.2, total_return: 0.1, average_monthly_return: 0.01, average_annual_return: 0.12, max_drawdown: -0.12, diversification_ratio: 1.2 }] }; }
 function multivariateComponents() { return { items: [{ component_id: "Component 1", isin: "IE00ALPHA01", exchange: "XETRA", code: "ALPHA", loading: 0.7, explained_variance: 0.6, cluster: "Cluster 1" }], total: 1, limit: 25, offset: 0 }; }
-function multivariateContributions() { return { items: [{ candidate_id: "candidate-equal", method: "equal_weight", isin: "IE00ALPHA01", exchange: "XETRA", code: "ALPHA", weight: 1 / 3, marginal_risk_contribution: 0.02, absolute_risk_contribution: 0.006, percent_risk_contribution: 0.34 }, { candidate_id: "candidate-minimum-variance", method: "minimum_variance", isin: "IE00ALPHA01", exchange: "XETRA", code: "ALPHA", weight: 0.4, marginal_risk_contribution: 0.018, absolute_risk_contribution: 0.007, percent_risk_contribution: 0.36 }] }; }
+function multivariateContributions() { return { items: [{ candidate_id: "candidate-equal", method: "equal_weight", isin: "IE00ALPHA01", exchange: "XETRA", code: "ALPHA", weight: 1 / 3, marginal_risk_contribution: 0.02, absolute_risk_contribution: 0.006, percent_risk_contribution: 0.34 }] }; }
 function multivariateIncome() { return { items: [{ isin: "IE00ALPHA01", exchange: "XETRA", code: "ALPHA", currency: "EUR", event_count: 12, observed_month_count: 12, observed_payment_coverage: 1, gross_ttm_distribution_amount: 2.4, gross_ttm_distribution_yield: 0.03, mean_observed_monthly_distribution: 0.2, median_observed_monthly_distribution: 0.2, lower_percentile_monthly_distribution: 0.18, coefficient_of_variation: 0.1, cut_count: 0, largest_cut: null, longest_falling_sequence: 0, distribution_trend: 0.01, price_return: 0.08, total_return: 0.1, distribution_to_total_return_gap: 0.02, market_price_capital_change: 0.08, availability_reasons: [], warnings: [] }] }; }
 function multivariatePerformance() { return { instrument_series: [{ isin: "IE00ALPHA01", exchange: "XETRA", code: "ALPHA", values: [{ date: "2023-06-01", return: 0.5 }, { date: "2024-01-02", return: 0.01 }, { date: "2024-01-03", return: 0.03 }] }, { isin: "IE00ALPHA02", exchange: "XETRA", code: "BETA", values: [{ date: "2024-01-02", return: -0.01 }, { date: "2024-01-03", return: 0.02 }] }], portfolio_series: [{ candidate_id: "candidate-equal", method: "equal_weight", values: [{ date: "2024-01-02", return: 0 }, { date: "2024-01-03", return: 0.025 }] }, { candidate_id: "candidate-minimum-variance", method: "minimum_variance", values: [{ date: "2024-01-02", return: 0.005 }, { date: "2024-01-03", return: 0.027 }] }], period_returns: [{ candidate_id: "candidate-equal", method: "equal_weight", period: "monthly", label: "2024-01", return: 0.025 }, { candidate_id: "candidate-equal", method: "equal_weight", period: "annual", label: "2024", return: 0.025 }, { candidate_id: "candidate-minimum-variance", method: "minimum_variance", period: "monthly", label: "2024-01", return: 0.027 }, { candidate_id: "candidate-minimum-variance", method: "minimum_variance", period: "annual", label: "2024", return: 0.027 }] }; }
 
@@ -233,6 +234,11 @@ async function installTwoProjectApi(
     if (method === "GET" && path.endsWith("/performance")) return response(route, multivariatePerformance());
     if (method === "GET" && path.endsWith("/validation")) return response(route, { items: [{ kind: "scorecard", method: "equal_weight", status: "available", reason: null }] });
     if (method === "GET" && path.endsWith("/artifacts")) return response(route, { risk_model: unavailableMultivariateEvidence ? { estimator: "ledoit_wolf", shrinkage_intensity: null, minimum_eigenvalue: null, condition_number: null, is_positive_semidefinite: false, observation_count: 100, availability_reasons: ["insufficient_common_history"] } : { estimator: "ledoit_wolf", shrinkage_intensity: 0.2, minimum_eigenvalue: 0.01, condition_number: 12.5, is_positive_semidefinite: true, observation_count: 252, availability_reasons: [] } });
+    if (method === "PATCH" && path.endsWith("/settings")) {
+      const project = current()!;
+      project.selectedCandidateIds = body.selected_candidate_ids as string[];
+      return response(route, multivariateRun(project, "complete"));
+    }
     throw new Error(`Unhandled UI request: ${method} ${path}`);
   });
 
@@ -271,19 +277,17 @@ test("workflow URLs are canonical, project-scoped, and persist across every page
   await installTwoProjectApi(page);
   await page.goto("/metadata-builder");
   await createProject(page, { exchange: "XETRA", instrumentType: "ETF", country: "IE", currency: "EUR", name: "Alpha income" });
-  await expect(page).toHaveURL(/\/projects\/alpha-income\/metadata-builder$/);
+  await expect(page).toHaveURL(/\/projects\/project-1\/alpha-income\/metadata-builder$/);
 
   await page.goto("/univariate-statistics");
-  await expect(page).toHaveURL(/\/projects\/alpha-income\/univariate-statistics$/);
+  await expect(page).toHaveURL(/\/projects\/project-1\/alpha-income\/univariate-statistics$/);
   await computeUnivariate(page);
 
-  await page.goto("/metadata-builder");
-  await expect(page).toHaveURL(/\/projects\/alpha-income\/metadata-builder$/);
   await createProject(page, { exchange: "LSE", instrumentType: "FUND", country: "LU", currency: "USD", name: "Beta growth" });
-  await expect(page).toHaveURL(/\/projects\/beta-growth\/metadata-builder$/);
+  await expect(page).toHaveURL(/\/projects\/project-2\/beta-growth\/metadata-builder$/);
 
-  await page.goto("/projects/alpha-income/univariate-statistics");
-  await expect(page).toHaveURL(/\/projects\/alpha-income\/univariate-statistics$/);
+  await page.goto("/projects/project-1/anything-goes-here/univariate-statistics");
+  await expect(page).toHaveURL(/\/projects\/project-1\/alpha-income\/univariate-statistics$/);
   await page.getByRole("tab", { name: "Dividends" }).click();
   await expect(page.getByRole("img", { name: "Annual dividend yield distribution for 3 ISINs" })).toBeVisible();
 });
@@ -353,48 +357,21 @@ test("Multivariate compute button polls resolve_inputs through completion", asyn
   await expect(page.getByRole("button", { name: "Computing…" })).toBeDisabled();
   await expect(page.getByText("resolve_inputs · 0 of 6 phases complete · 0s elapsed · about 10s remaining")).toBeVisible();
   await expect(page.getByRole("button", { name: "Compute multivariate statistics" })).toBeEnabled();
-  await expect(page.getByRole("table", { name: "Portfolio overview metrics" })).toBeVisible();
-  await expect(page.getByRole("table", { name: "Multivariate overview facts" })).toHaveCount(0);
-  await expect(page.getByRole("tablist", { name: "Multivariate statistics views" }).getByRole("tab")).toHaveCount(2);
-  await expect(page.getByRole("tab", { name: "Risk Structure" })).toHaveCount(0);
+  await expect(page.getByText("Candidate ETFs")).toBeVisible();
   await page.getByRole("tab", { name: "Portfolio Candidates" }).click();
   await expect(page.getByText("Average monthly return: 1.00% · Average annual return: 12.00%")).toBeVisible();
-  await page.getByRole("tab", { name: "Overview" }).click();
-  const performanceChart = page.getByRole("group", { name: /Relative cumulative monthly return comparison/ });
+  await page.getByRole("tab", { name: "Performance" }).click();
+  await expect(page.getByText("Monthly portfolio returns")).toBeVisible();
+  const performanceChart = page.getByRole("group", { name: /Cumulative return comparison/ });
   await expect(performanceChart).toBeVisible();
-  await expect(page.getByRole("table", { name: "Multivariate overview facts" })).toHaveCount(0);
-  await expect(page.getByRole("table", { name: "Portfolio overview metrics" })).toHaveText(/MD.*Monthly Return.*Annual Return.*Holdings.*Deversifikaton/);
-  await expect(page.getByRole("table", { name: "Portfolio overview metrics" })).toHaveText(/Equal weight.*1\.00%.*12\.00%/);
-  await expect(page.locator(".performance-chart__axis-label").first()).toHaveText("Jan 2024");
-  await expect(page.locator(".performance-chart__axis-title")).toHaveText("Cumulative relative gain (%)");
-  const portfolioSeries = page.getByRole("list", { name: "Portfolio series" });
-  await expect(portfolioSeries).toContainText("Minimum variance");
-  await expect(portfolioSeries).not.toContainText("ALPHA.XETRA");
+  await expect(page.getByRole("list", { name: "Performance series" })).toContainText("Minimum variance");
   await performanceChart.hover();
-  await expect(page.getByRole("tooltip")).not.toContainText("ALPHA.XETRA");
+  await expect(page.getByRole("tooltip")).toContainText("ALPHA.XETRA: 3.00%");
   await expect(page.getByRole("tooltip")).toContainText("Equal weight: 2.50%");
   await expect(page.getByRole("tooltip")).toContainText("Minimum variance: 2.70%");
-  await expect(page.locator(".performance-chart__tooltip-instrument")).toHaveCount(0);
+  await expect(page.locator(".performance-chart__tooltip-instrument")).toHaveCount(2);
   await expect(page.locator(".performance-chart__tooltip-portfolio--0")).toContainText("Equal weight: 2.50%");
   await expect(page.locator(".performance-chart__tooltip-portfolio--1")).toContainText("Minimum variance: 2.70%");
-  await expect(performanceChart.locator(".performance-chart__portfolio--0").first()).toHaveCSS("stroke", "rgb(23, 105, 224)");
-  await expect(performanceChart.locator(".performance-chart__portfolio--1").first()).toHaveCSS("stroke", "rgb(19, 115, 51)");
-  await expect(performanceChart.locator(".performance-chart__portfolio--0").first()).toHaveCSS("stroke-dasharray", "none");
-  await expect(page.getByRole("checkbox", { name: "ALPHA.XETRA" })).toHaveCount(0);
-  await expect(performanceChart.locator(".performance-chart__instrument")).toHaveCount(2);
-  await page.getByRole("checkbox", { name: "Equal weight" }).uncheck();
-  await expect(performanceChart.locator(".performance-chart__portfolio")).toHaveCount(1);
-  await expect(performanceChart.locator(".performance-chart__instrument")).toHaveCount(2);
-  await performanceChart.hover();
-  await expect(page.getByRole("tooltip")).not.toContainText("Equal weight");
-  await page.getByRole("checkbox", { name: "Equal weight" }).check();
-  await expect(performanceChart.locator(".performance-chart__portfolio")).toHaveCount(2);
-  await page.getByRole("checkbox", { name: "Equal weight" }).uncheck();
-  await page.getByRole("checkbox", { name: "Minimum variance" }).uncheck();
-  await expect(performanceChart).toBeVisible();
-  await expect(performanceChart.locator(".performance-chart__instrument")).toHaveCount(2);
-  await expect(page.getByText("Select at least one series to show the performance chart.")).toHaveCount(0);
-  await page.getByRole("checkbox", { name: "Equal weight" }).check();
   await performanceChart.focus();
   await page.keyboard.press("Home");
   await expect(page.getByRole("tooltip")).toContainText("2024-01-02");
@@ -417,7 +394,7 @@ test("Multivariate state resets when switching to another project", async ({ pag
   await expect(page.getByRole("tab", { name: "Covariance" })).toBeVisible();
   await page.goto("/multivariate-statistics");
   await page.getByRole("button", { name: "Compute multivariate statistics" }).click();
-  await expect(page.getByRole("table", { name: "Portfolio overview metrics" })).toBeVisible();
+  await expect(page.getByText("Candidate ETFs")).toBeVisible();
 
   await page.goto("/metadata-builder");
   await createProject(page, { exchange: "LSE", instrumentType: "FUND", country: "LU", currency: "USD", name: "Second multivariate project" });
@@ -429,7 +406,7 @@ test("Multivariate state resets when switching to another project", async ({ pag
   await page.goto("/multivariate-statistics");
 
   await expect(page.getByText("Ready to compute.")).toBeVisible();
-  await expect(page.getByRole("table", { name: "Portfolio overview metrics" })).toHaveCount(0);
+  await expect(page.getByText("Candidate ETFs")).not.toBeVisible();
   await expect(page.getByRole("button", { name: "Compute multivariate statistics" })).toBeEnabled();
 });
 
@@ -447,7 +424,12 @@ test("Multivariate unavailable statistics never render as zero or failed diagnos
 
   await expect(page.getByText("Unavailable evidence: insufficient_common_history")).toBeVisible();
   await expect(page.getByText("This analysis needs at least 100 shared daily returns. In Univariate Statistics, select Duration > 6 months, recompute Bivariate Statistics, then compute this run again.")).toBeVisible();
-  await expect(page.getByRole("tab", { name: "Risk Structure" })).toHaveCount(0);
+  await page.getByRole("tab", { name: "Risk Structure" }).click();
+  for (const label of ["Effective rank", "Minimum eigenvalue", "Condition number", "Positive semidefinite"]) {
+    const fact = page.locator(".multivariate-facts div").filter({ has: page.getByText(label, { exact: true }) });
+    await expect(fact.getByRole("definition")).toHaveText("Unavailable");
+  }
+  await expect(page.getByText("Structure unavailable: risk_model_unavailable")).toBeVisible();
 });
 
 test("every workflow button completes its browser action for two isolated projects", async ({ page }) => {
@@ -538,19 +520,29 @@ test("every workflow button completes its browser action for two isolated projec
   await expect(multivariateCompute.locator("progress")).toHaveCSS("height", "14px");
   await expect(multivariateCompute.locator(".quote-fetch__action")).toHaveCSS("justify-content", "flex-end");
   await page.getByRole("button", { name: "Compute multivariate statistics" }).click();
-  await expect(page.getByRole("table", { name: "Portfolio overview metrics" })).toBeVisible();
+  await expect(page.getByText("Candidate ETFs")).toBeVisible();
+  await expect(page.getByText("Portfolio candidates", { exact: true })).toBeVisible();
+  await expect(page.getByText("60.00%")).toBeVisible();
   await expect(page.locator(".statistics-tabs")).toHaveCSS("display", "grid");
   await expect(page.locator(".statistics-tabs")).toHaveCSS("overflow-x", "visible");
-  for (const tab of ["Overview", "Portfolio Candidates"]) {
+  for (const tab of ["Overview", "Risk Structure", "Portfolio Candidates", "Risk Contributions", "Income Evidence", "Validation"]) {
     await page.getByRole("tab", { name: tab }).click();
     await expect(page.getByRole("tab", { name: tab })).toHaveAttribute("aria-selected", "true");
   }
+  await page.getByRole("tab", { name: "Risk Structure" }).click();
+  await expect(page.getByRole("definition").filter({ hasText: "ALPHA.XETRA" })).toBeVisible();
+  await expect(page.getByText("12.50", { exact: true })).toBeVisible();
+  await expect(page.getByText("Yes", { exact: true })).toBeVisible();
   await page.getByRole("tab", { name: "Portfolio Candidates" }).click();
   await expect(page.getByText(/VaR: 3.00%/)).toBeVisible();
   await expect(page.getByText(/Maximum weight: 33.33%/)).toBeVisible();
   await expect(page.getByText(/Effective holdings: 3.00/)).toBeVisible();
   await expect(page.getByText(/Herfindahl concentration: 0.33/)).toBeVisible();
-  await expect(page.getByLabel("Portfolio selection")).toHaveCount(0);
+  await page.getByLabel("Portfolio selection").click();
+  await expect.poll(() => fixture.projects.get("project-2")?.selectedCandidateIds).toEqual(["candidate-equal"]);
+  await page.getByRole("tab", { name: "Income Evidence" }).click();
+  await expect(page.getByRole("cell", { name: "100.00%" })).toBeVisible();
+  await expect(page.getByRole("cell", { name: "8.00%" })).toBeVisible();
 
   expect([...fixture.projects.values()].map((project) => project.name)).toEqual(["Alpha income", "Beta growth"]);
   expect(fixture.calls).toEqual(expect.arrayContaining([
@@ -560,9 +552,9 @@ test("every workflow button completes its browser action for two isolated projec
     "POST /api/bivariate-statistics/plan",
     "POST /api/bivariate-statistics/runs",
     "POST /api/multivariate-statistics/runs",
+    "PATCH /api/multivariate-statistics/runs/multivariate-project-2/settings",
     "PUT /api/project-context/current-project",
   ]));
-  expect(fixture.calls).not.toContain("PATCH /api/multivariate-statistics/runs/multivariate-project-2/settings");
   expect(fixture.calls).not.toContain("POST /api/quote-runs");
 });
 
