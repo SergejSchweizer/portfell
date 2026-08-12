@@ -32,6 +32,8 @@ or calculates financial values in the browser.
   Statistics must complete first.
 - Ready state: the Bivariate-style compact server-owned progress panel with a
   labelled 14px determinate progress bar, status line, and right-aligned compute action.
+- Project switch: clear the prior project's run and result artifacts before loading
+  the active project's workflow state; ignore late responses for the prior project.
 - Complete state: Overview, Risk Structure, Portfolio Candidates, Risk
   Contributions, Income Evidence, and Validation tabs in the responsive multi-row
   statistics tab grid, with no horizontal tab scrolling.

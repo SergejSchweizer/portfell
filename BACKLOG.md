@@ -1491,6 +1491,31 @@ Idempotency: Rendering the additional facts is read-only and does not create or 
 Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
 merge, satisfy the current `merge-gate` requirements in `GATES.md`.
 
+### PR213. Project-Scoped Statistics State
+
+Branch: `fix/project-statistics-state`.
+
+Git status: in progress. PR: TBD.
+
+Priority: P1 project-state correctness.
+
+Depends on: PR212.
+
+Scope: Clear stale client-side Multivariate run artifacts when switching projects and ignore late
+responses for the previous project.
+
+Acceptance: Each statistics page shows only the active project's Univariate, Bivariate, and
+Multivariate state after a project switch.
+
+Security: Client state remains bounded to server-authorized, project-scoped API responses.
+
+Determinism: Project switching does not alter persisted research runs or artifacts.
+
+Idempotency: Switching projects is read-only for research state.
+
+Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
+merge, satisfy the current `merge-gate` requirements in `GATES.md`.
+
 ### PR212. Univariate Compute Progress
 
 Branch: `fix/univariate-compute-progress`.

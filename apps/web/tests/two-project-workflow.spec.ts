@@ -343,6 +343,31 @@ test("Multivariate compute button polls resolve_inputs through completion", asyn
   ]));
 });
 
+test("Multivariate state resets when switching to another project", async ({ page }) => {
+  await installTwoProjectApi(page);
+  await page.goto("/metadata-builder");
+  await createProject(page, { exchange: "XETRA", instrumentType: "ETF", country: "IE", currency: "EUR", name: "First multivariate project" });
+  await page.goto("/univariate-statistics");
+  await computeUnivariate(page);
+  await page.goto("/bivariate-statistics");
+  await page.getByRole("button", { name: "Compute Bivariate Statistics" }).click();
+  await page.goto("/multivariate-statistics");
+  await page.getByRole("button", { name: "Compute multivariate statistics" }).click();
+  await expect(page.getByText("Candidate ETFs")).toBeVisible();
+
+  await page.goto("/metadata-builder");
+  await createProject(page, { exchange: "LSE", instrumentType: "FUND", country: "LU", currency: "USD", name: "Second multivariate project" });
+  await page.goto("/univariate-statistics");
+  await computeUnivariate(page);
+  await page.goto("/bivariate-statistics");
+  await page.getByRole("button", { name: "Compute Bivariate Statistics" }).click();
+  await page.goto("/multivariate-statistics");
+
+  await expect(page.getByText("Ready to compute.")).toBeVisible();
+  await expect(page.getByText("Candidate ETFs")).not.toBeVisible();
+  await expect(page.getByRole("button", { name: "Compute multivariate statistics" })).toBeEnabled();
+});
+
 test("Multivariate unavailable statistics never render as zero or failed diagnostics", async ({ page }) => {
   await installTwoProjectApi(page, "ready", false, false, false, true);
   await page.goto("/metadata-builder");

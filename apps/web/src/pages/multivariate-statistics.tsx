@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { loadProjectContext, loadWorkflow } from "../api/client";
 import { multivariateStatisticsApi } from "../api/multivariate-statistics";
 import { Button } from "../components/button";
@@ -61,6 +61,7 @@ export function MultivariateStatisticsPage() {
   const [artifacts, setArtifacts] = useState<ApiMultivariateArtifacts | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const [message, setMessage] = useState("");
+  const projectVersion = useRef(0);
 
   const bivariateRunId = workflow.status === "ready" ? workflow.data.stages.bivariate_statistics.bivariate_run_id : undefined;
   const projectId = projects.status === "ready" ? projects.data.current_project_id : null;
@@ -72,19 +73,43 @@ export function MultivariateStatisticsPage() {
     [contributions, selectedCandidateId],
   );
 
-  async function loadRun(runId: string) {
+  async function loadRun(runId: string, version = projectVersion.current) {
     const [nextRun, nextSummary, nextStructure, nextCandidates, nextComponents, nextContributions, nextIncome, nextValidation, nextArtifacts] = await Promise.all([
       multivariateStatisticsApi.loadRun(runId), multivariateStatisticsApi.loadSummary(runId), multivariateStatisticsApi.loadStructure(runId),
       multivariateStatisticsApi.loadCandidates(runId), multivariateStatisticsApi.loadComponents(runId), multivariateStatisticsApi.loadRiskContributions(runId),
       multivariateStatisticsApi.loadIncomeEvidence(runId), multivariateStatisticsApi.loadValidation(runId), multivariateStatisticsApi.loadArtifacts(runId),
     ]);
+    if (version !== projectVersion.current) return;
     setRun(nextRun); setSummary(nextSummary); setStructure(nextStructure); setCandidates(nextCandidates);
     setComponents(nextComponents); setContributions(nextContributions); setIncome(nextIncome); setValidation(nextValidation); setArtifacts(nextArtifacts);
   }
 
   useEffect(() => {
+    const resetProjectState = () => {
+      projectVersion.current += 1;
+      setRun(null);
+      setSummary(null);
+      setStructure(null);
+      setCandidates(null);
+      setComponents(null);
+      setContributions(null);
+      setIncome(null);
+      setValidation(null);
+      setArtifacts(null);
+      setActiveTab("overview");
+      setMessage("");
+      setRevision((value) => value + 1);
+    };
+    window.addEventListener("portfell:project-updated", resetProjectState);
+    return () => window.removeEventListener("portfell:project-updated", resetProjectState);
+  }, []);
+
+  useEffect(() => {
     const runId = stage?.multivariate_run_id;
-    if (runId) void loadRun(runId).catch(() => setMessage("Multivariate results are unavailable."));
+    const version = projectVersion.current;
+    if (runId) void loadRun(runId, version).catch(() => {
+      if (version === projectVersion.current) setMessage("Multivariate results are unavailable.");
+    });
   }, [stage?.multivariate_run_id]);
 
   useEffect(() => {
