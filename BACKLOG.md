@@ -1666,7 +1666,7 @@ merge, satisfy the current `merge-gate` requirements in `GATES.md`.
 
 Branch: `fix/multivariate-performance-aligned-range`.
 
-Git status: in progress. PR: TBD.
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/372.
 
 Priority: P1 multivariate visual clarity.
 
