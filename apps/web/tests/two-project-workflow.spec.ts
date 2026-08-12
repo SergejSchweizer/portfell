@@ -375,6 +375,7 @@ test("every workflow button completes its browser action for two isolated projec
   const selections = page.locator(".univariate-statistics-page .portfolio-selection select");
   await expect(selections).toHaveCount(1);
   await selections.selectOption(["monthly", "annual"]);
+  await expect(page.getByText("Bivariate selection: 3 ISINs.")).toBeVisible();
   for (const tab of ["Duration", "Annual Return", "Value at Risk", "Sortino ratio", "Expected shortfall", "Tail observations", "Sharpe ratio", "Maximum drawdown", "Trend R-squared"]) {
     await page.getByRole("tab", { name: tab }).click();
     await expect(selections).toHaveCount(1);

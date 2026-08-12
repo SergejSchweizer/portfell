@@ -1491,6 +1491,33 @@ Idempotency: Rendering the additional facts is read-only and does not create or 
 Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
 merge, satisfy the current `merge-gate` requirements in `GATES.md`.
 
+### PR203. Persisted Univariate Filter Feedback
+
+Branch: `fix/univariate-filter-feedback`.
+
+Git status: in progress. PR: TBD.
+
+Priority: P1 research workflow correctness.
+
+Depends on: PR202.
+
+Scope: Make Duration thresholds match their strict labels and expose the server-owned filtered
+Univariate count that Bivariate Statistics consumes after project settings save.
+
+Acceptance: Selecting `> 6 months` persists a minimum of 127 trading observations, excludes rows
+with 126 or fewer observations, and displays the exact Bivariate selection count after active
+filters are saved.
+
+Security: The count is derived by the server-owned workflow and does not expose rows outside the
+active project selection.
+
+Determinism: The same settings and run produce the same persisted filtered selection and count.
+
+Idempotency: Saving unchanged filters only refreshes the existing deterministic selection.
+
+Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
+merge, satisfy the current `merge-gate` requirements in `GATES.md`.
+
 ### PR193. Statistics Result Completion Visibility
 
 Branch: `fix/statistics-completion-visibility`.

@@ -36,14 +36,14 @@ const metricDefinitions: readonly MetricDefinition[] = [
 ];
 
 const quoteDurationThresholds: readonly Readonly<{ label: string; minimum: number }>[] = [
-  { label: "> 1 month", minimum: 21 },
-  { label: "> 2 months", minimum: 42 },
-  { label: "> 3 months", minimum: 63 },
-  { label: "> 6 months", minimum: 126 },
-  { label: "> 12 months", minimum: 252 },
-  { label: "> 3 years", minimum: 756 },
-  { label: "> 5 years", minimum: 1_260 },
-  { label: "> 10 years", minimum: 2_520 },
+  { label: "> 1 month", minimum: 22 },
+  { label: "> 2 months", minimum: 43 },
+  { label: "> 3 months", minimum: 64 },
+  { label: "> 6 months", minimum: 127 },
+  { label: "> 12 months", minimum: 253 },
+  { label: "> 3 years", minimum: 757 },
+  { label: "> 5 years", minimum: 1_261 },
+  { label: "> 10 years", minimum: 2_521 },
 ];
 
 
@@ -209,6 +209,9 @@ export function UnivariateStatisticsPage() {
   if (workflow.status === "error") return <p>Workflow state is unavailable.</p>;
   const stage = workflow.data.stages.univariate_statistics;
   const metadata = workflow.data.stages.metadata_builder;
+  const activeSelection = portfolioDividendFrequencies.length > 0
+    || Object.values(portfolioStatisticRanges).some((ranges) => ranges.length > 0);
+  const selectedForBivariate = workflow.data.process_overview?.univariate_statistics_isins;
   const progress = univariateProgress(run);
   const dividendFrequencyCounts = dividendFrequencyOptions.map((option) => ({
     ...option,
@@ -248,6 +251,7 @@ export function UnivariateStatisticsPage() {
       statistic_labels: statisticLabels,
       statistic_ranges: statisticRanges,
     });
+    setWorkflowRevision((value) => value + 1);
     window.dispatchEvent(new Event("portfell:workflow-updated"));
   }
 
@@ -329,6 +333,7 @@ export function UnivariateStatisticsPage() {
                   {dividendFrequencyOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                 </select>
               </label>
+              {activeSelection && <p className="status-line" role="status">Bivariate selection: {selectedForBivariate ?? "Updating…"} ISINs.</p>}
             <div className="dividend-histogram" role="img" aria-label={`Annual dividend yield distribution for ${results.length} ISINs`}>
               <span className="dividend-histogram__axis dividend-histogram__axis--y">ISIN count</span>
               <div className="dividend-histogram__plot">
@@ -437,6 +442,7 @@ export function UnivariateStatisticsPage() {
                           {histogramSelectionOptions.map((range) => <option key={range} value={range}>{range}</option>)}
                         </select>
                       </label>
+                      {activeSelection && <p className="status-line" role="status">Bivariate selection: {selectedForBivariate ?? "Updating…"} ISINs.</p>}
                       <div className="univariate-group-card__chart" role="img" aria-label={`${statistic.label} distribution across ${values.length} ISINs`}>
                       <span className="univariate-group-card__axis univariate-group-card__axis--y">ISIN count</span>
                       <div className="univariate-group-card__plot">

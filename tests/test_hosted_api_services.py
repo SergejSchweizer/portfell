@@ -859,3 +859,23 @@ def test_univariate_selection_settings_filter_frequency_and_numeric_ranges() -> 
     )
 
     assert filtered == (rows[0],)
+
+
+def test_univariate_duration_filter_excludes_the_exact_six_month_boundary() -> None:
+    rows: tuple[JsonRow, ...] = (
+        {"isin": "IE00A", "distribution_frequency": "monthly", "quote_observation_count": 126},
+        {"isin": "IE00B", "distribution_frequency": "monthly", "quote_observation_count": 127},
+        {"isin": "IE00C", "distribution_frequency": "monthly", "quote_observation_count": 21},
+    )
+
+    filtered = _apply_univariate_selection_settings(
+        rows,
+        {
+            "dividend_frequencies": ["monthly"],
+            "statistic_ranges": {
+                "quote_observation_count": [{"minimum": 127, "maximum": 9_007_199_254_740_991}],
+            },
+        },
+    )
+
+    assert filtered == (rows[1],)
