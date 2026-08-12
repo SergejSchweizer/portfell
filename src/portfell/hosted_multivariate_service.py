@@ -54,7 +54,7 @@ from portfell.table_io import JsonRow
 
 
 class MultivariateResearchService(MultivariateRunViews):
-    _EXECUTION_CONTRACT = "multivariate_execution.v5"
+    _EXECUTION_CONTRACT = "multivariate_execution.v6"
     _MAX_RUNNING_SECONDS = 900
     _PHASES = (
         "resolve_inputs",
