@@ -55,6 +55,9 @@ or calculates financial values in the browser.
 - Performance renders persisted cumulative daily returns for every input instrument and every
   feasible portfolio on one chart. Instrument adjusted-price return lines are gray; portfolio lines
   are dashed, coloured, and labelled by method. The chart does not require a portfolio selection.
+  Its x-axis is bounded to the server-owned aligned historical period from the summary artifact, the
+  same common-history window Univariate Statistics' Duration selection ultimately produces, rather
+  than each instrument's full individual price history.
   It also presents persisted compounded monthly and calendar-year returns for every feasible
   portfolio.
 - Hovering the Performance chart, or using its arrow keys after focus, opens an inspection tooltip

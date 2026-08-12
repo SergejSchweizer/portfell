@@ -1640,7 +1640,7 @@ merge, satisfy the current `merge-gate` requirements in `GATES.md`.
 
 Branch: `feat/multivariate-portfolio-color-hierarchy`.
 
-Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/371.
+Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/371.
 
 Priority: P1 multivariate visual clarity.
 
@@ -1658,6 +1658,35 @@ Security: The presentation change consumes only existing project-owned persisted
 Determinism: Equivalent chart artifacts render with the same instrument and portfolio color classes.
 
 Idempotency: Rendering colors is read-only and does not mutate run state or candidate selections.
+
+Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
+merge, satisfy the current `merge-gate` requirements in `GATES.md`.
+
+### PR225. Multivariate Performance Aligned-Period X-Axis
+
+Branch: `fix/multivariate-performance-aligned-range`.
+
+Git status: in progress. PR: TBD.
+
+Priority: P1 multivariate visual clarity.
+
+Depends on: PR224.
+
+Scope: Bound the Multivariate Performance chart x-axis to the server-owned aligned historical
+period instead of the full union of every instrument and portfolio series date, so the chart shows
+only the common analysis window Univariate Statistics' Duration selection ultimately produces.
+
+Acceptance: The Performance chart x-axis spans exactly the persisted `aligned_period` date range;
+instrument or portfolio points outside that range are not rendered.
+
+Security: The presentation change consumes only existing project-owned persisted performance and
+summary data.
+
+Determinism: Equivalent chart artifacts render the same aligned-period bounds and clipped point set
+for identical persisted data.
+
+Idempotency: Rendering the aligned x-axis is read-only and does not mutate run state or candidate
+selections.
 
 Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
 merge, satisfy the current `merge-gate` requirements in `GATES.md`.
