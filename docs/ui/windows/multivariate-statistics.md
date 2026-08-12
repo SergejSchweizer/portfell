@@ -55,6 +55,9 @@ or calculates financial values in the browser.
   the immutable input snapshot, canonical risk model, empirical
   structure/loadings, candidate metrics and risk contributions, gross income
   evidence, and walk-forward/stress/scorecard evidence.
+- Insufficient common history: retain unavailable facts rather than rendering substitute values, and state
+  the required recovery path: select Univariate Duration `> 2 years`, recompute Bivariate Statistics,
+  then compute Multivariate Statistics again. The production risk model requires 504 shared daily returns.
 - Failure: workflow-state retrieval failed; show a concise alert.
 - Stale: later multivariate work must return to Locked/Ready according to the
   server-owned workflow contract after an upstream change.

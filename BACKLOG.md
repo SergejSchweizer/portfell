@@ -1417,7 +1417,7 @@ run identity and completes once the Shared-Market rows are available.
 
 Branch: `fix/multivariate-compute-layout`.
 
-Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/360.
+Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/360.
 
 Priority: P2 research workflow usability.
 
@@ -1440,7 +1440,7 @@ is selected.
 
 Branch: `fix/multivariate-run-recovery`.
 
-Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/361.
+Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/361.
 
 Priority: P1 research workflow reliability.
 
@@ -1491,11 +1491,36 @@ Idempotency: Rendering the additional facts is read-only and does not create or 
 Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
 merge, satisfy the current `merge-gate` requirements in `GATES.md`.
 
+### PR205. Multivariate History Guidance
+
+Branch: `fix/multivariate-history-guidance`.
+
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/365.
+
+Priority: P1 multivariate evidence usability.
+
+Depends on: PR204.
+
+Scope: Explain the mandatory shared-history recovery path when Multivariate evidence is unavailable.
+
+Acceptance: An `insufficient_common_history` result states that the policy requires 504 shared daily
+returns and directs the user to choose Univariate Duration `> 2 years`, recompute Bivariate, then
+recompute Multivariate.
+
+Security: The browser displays only server-produced availability reasons and does not calculate history.
+
+Determinism: The guidance appears only for the stable `insufficient_common_history` reason.
+
+Idempotency: Rendering the guidance does not change settings or run state.
+
+Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
+merge, satisfy the current `merge-gate` requirements in `GATES.md`.
+
 ### PR204. Multivariate History Eligibility
 
 Branch: `fix/multivariate-history-eligibility`.
 
-Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/364.
+Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/364.
 
 Priority: P1 multivariate evidence availability.
 
