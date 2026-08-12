@@ -8,6 +8,7 @@ from portfell.config import (
     load_eodhd_config,
     read_env_file,
     read_secret_config,
+    runtime_eodhd_config,
 )
 
 
@@ -62,6 +63,17 @@ def test_load_eodhd_config_reads_http_rate_limit_settings() -> None:
     assert config.max_retries == 4
     assert config.min_request_interval_seconds == 1.25
     assert config.retry_backoff_seconds == 2.5
+
+
+def test_runtime_eodhd_config_uses_fast_default_and_allows_override() -> None:
+    assert runtime_eodhd_config("token", env={}).min_request_interval_seconds == 0.05
+    assert (
+        runtime_eodhd_config(
+            "token",
+            env={"EODHD_MIN_REQUEST_INTERVAL_SECONDS": "0.1"},
+        ).min_request_interval_seconds
+        == 0.1
+    )
 
 
 def test_eodhd_config_rejects_invalid_retry_settings() -> None:

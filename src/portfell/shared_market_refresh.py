@@ -15,7 +15,7 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import Any, cast
 
-from portfell.config import EodhdConfig
+from portfell.config import runtime_eodhd_config
 from portfell.hosted_database_connection import connect
 from portfell.hosted_postgres_active_inventory import PostgresActiveProjectInventory
 from portfell.http import EodhdClient
@@ -352,7 +352,7 @@ def _run_postgres_refresh(
     fetch = (
         _empty_fetch
         if args.dry_run
-        else eodhd_fetch(EodhdClient(EodhdConfig(api_token=operations_token)))
+        else eodhd_fetch(EodhdClient(runtime_eodhd_config(operations_token)))
     )
     result = refresh_shared_market_data(
         store=store,
