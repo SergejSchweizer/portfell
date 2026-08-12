@@ -1553,7 +1553,7 @@ merge, satisfy the current `merge-gate` requirements in `GATES.md`.
 
 Branch: `feat/multivariate-performance-inspection`.
 
-Git status: in progress. PR: TBD.
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/368.
 
 Priority: P1 multivariate explainability.
 
