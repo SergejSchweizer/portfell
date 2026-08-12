@@ -102,7 +102,7 @@ class QuoteRunService:
             return self.status(user_id, cached), None
         run_id = opaque_id("fetch-all-quotes", f"{user_id}:{request_hash}")
         active = self._quotes.get(user_id=user_id, run_id=run_id)
-        if active is not None and active.status == "running":
+        if active is not None and active.status in {"running", "succeeded"}:
             self._idempotency.remember(
                 user_id=user_id,
                 operation=operation,

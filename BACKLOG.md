@@ -967,7 +967,7 @@ Idempotency: Repeating a synchronization write for the same job status leaves th
 
 Branch: `perf/shared-delta-publication`.
 
-Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/339.
+Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/339.
 
 Priority: P1 worker throughput.
 
@@ -988,6 +988,30 @@ Determinism: Catalogue records and immutable revision content remain sorted and 
 request results independent of provider completion order.
 
 Idempotency: Repeating the same batch leaves the active coverage content hashes unchanged.
+
+### PR180. Quote Run Success Reuse
+
+Branch: `fix/quote-run-success-reuse`.
+
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/340.
+
+Priority: P1 worker efficiency.
+
+Depends on: PR179.
+
+Scope: Reuse an identical succeeded quote-download run when a caller submits the same project selection
+without an idempotency key. Preserve a new run for changed selection membership or any nonterminal state
+other than `running`.
+
+Acceptance: A repeated identical request returns the existing succeeded run with no new worker task.
+Active run reuse and idempotency-key behavior remain covered by API-service tests.
+
+Security: Reuse remains scoped to the owned project, user, selection membership hash, and provider
+credential status; no run becomes visible across tenants.
+
+Determinism: The stable request hash resolves the same project/selection/member set to the same run id.
+
+Idempotency: Equivalent active or succeeded requests produce no duplicate provider task.
 
 ### PR168. Production Cron Installation And First Scheduled Run Evidence
 
