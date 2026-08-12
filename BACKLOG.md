@@ -1495,7 +1495,7 @@ merge, satisfy the current `merge-gate` requirements in `GATES.md`.
 
 Branch: `docs/polars-dataframes`.
 
-Git status: in progress. PR: TBD.
+Git status: pushed. PR: TBD.
 
 Priority: P2 data-processing consistency.
 
