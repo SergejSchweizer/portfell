@@ -193,6 +193,8 @@ def test_multivariate_service_resolves_pinned_project_dependencies_and_persists_
     detail = service.candidate_detail("user-a", str(started["run_id"]), candidate_id)
     assert detail["candidate_id"] == candidate_id
     assert "total_return" in detail
+    assert "average_monthly_return" in detail
+    assert "average_annual_return" in detail
     assert "max_drawdown" in detail
     assert service.risk_contributions("user-a", str(started["run_id"]), candidate_id)["items"]
     assert service.income_evidence("user-a", str(started["run_id"]))["items"]
@@ -362,7 +364,7 @@ def test_multivariate_service_covers_idempotency_stale_and_error_boundaries() ->
             "selection_id": "univariate-selection-a",
             "settings": {},
             "income_contract": INCOME_CONTRACT.qualified_name,
-            "execution_contract": "multivariate_execution.v9",
+            "execution_contract": "multivariate_execution.v10",
         }
     )
     assert service.start("user-a", project_id, bivariate_run_id, {})["run_id"] == first["run_id"]

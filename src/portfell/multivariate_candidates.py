@@ -37,7 +37,7 @@ from portfell.portfolio_parts.solvers import (
     solve_minimum_variance,
 )
 
-CANDIDATE_CONTRACT = ContractVersion("multivariate.candidates", 2)
+CANDIDATE_CONTRACT = ContractVersion("multivariate.candidates", 3)
 MAX_WALK_FORWARD_SOLVER_ITERATIONS = 500
 METHODS = (
     "equal_weight",
@@ -106,6 +106,8 @@ class PortfolioCandidate:
     gross_ttm_distribution_yield: float | None
     gross_monthly_distribution: float | None
     total_return: float | None = None
+    average_monthly_return: float | None = None
+    average_annual_return: float | None = None
     max_drawdown: float | None = None
     diversification_ratio: float | None = None
     risk_contributions: tuple[RiskContribution, ...] = ()
@@ -134,6 +136,8 @@ class CandidateMetrics:
     gross_ttm_distribution_yield: float | None
     gross_monthly_distribution: float | None
     total_return: float | None
+    average_monthly_return: float | None
+    average_annual_return: float | None
     max_drawdown: float | None
     diversification_ratio: float | None
     risk_contributions: tuple[RiskContribution, ...]
@@ -251,6 +255,8 @@ def _candidate(
         gross_ttm_distribution_yield=metrics.gross_ttm_distribution_yield,
         gross_monthly_distribution=metrics.gross_monthly_distribution,
         total_return=metrics.total_return,
+        average_monthly_return=metrics.average_monthly_return,
+        average_annual_return=metrics.average_annual_return,
         max_drawdown=metrics.max_drawdown,
         diversification_ratio=metrics.diversification_ratio,
         risk_contributions=metrics.risk_contributions,
@@ -375,7 +381,7 @@ def _metrics(
 ) -> CandidateMetrics:
     keys = tuple(item.as_tuple() for item in listings)
     variance = portfolio_variance(keys, weights, covariances)
-    matrix = _aligned_matrix(keys, rows)
+    dates, matrix = _aligned_dates_and_matrix(keys, rows)
     portfolio_log_returns = [
         sum(weight * value for weight, value in zip(weights, row, strict=True)) for row in matrix
     ]
@@ -392,6 +398,9 @@ def _metrics(
     gross_yield = _weighted_optional(weights, yields)
     gross_monthly = _weighted_optional(weights, monthly)
     portfolio_total_return, max_drawdown = _return_and_drawdown(portfolio_log_returns)
+    average_monthly_return, average_annual_return = _average_calendar_returns(
+        dates, portfolio_log_returns
+    )
     diversification_ratio = _diversification_ratio(keys, weights, covariances, variance)
     return CandidateMetrics(
         variance=variance,
@@ -404,6 +413,8 @@ def _metrics(
         gross_ttm_distribution_yield=gross_yield,
         gross_monthly_distribution=gross_monthly,
         total_return=portfolio_total_return,
+        average_monthly_return=average_monthly_return,
+        average_annual_return=average_annual_return,
         max_drawdown=max_drawdown,
         diversification_ratio=diversification_ratio,
         risk_contributions=_risk_contributions(listings, weights, covariances, variance),
@@ -467,6 +478,13 @@ def _covariance_map(
 def _aligned_matrix(
     keys: tuple[tuple[str, str, str], ...], rows: Sequence[Mapping[str, Any]]
 ) -> list[list[float]]:
+    _dates, matrix = _aligned_dates_and_matrix(keys, rows)
+    return matrix
+
+
+def _aligned_dates_and_matrix(
+    keys: tuple[tuple[str, str, str], ...], rows: Sequence[Mapping[str, Any]]
+) -> tuple[list[str], list[list[float]]]:
     indexed: dict[tuple[str, str, str], dict[str, float]] = {}
     for row in rows:
         key = (str(row["isin"]), str(row["exchange"]), str(row["code"]))
@@ -479,7 +497,23 @@ def _aligned_matrix(
     dates = sorted(common_dates)
     if len(dates) < 2:
         raise ValueError("insufficient_aligned_return_history")
-    return [[indexed[key][date] for key in keys] for date in dates]
+    return dates, [[indexed[key][date] for key in keys] for date in dates]
+
+
+def _average_calendar_returns(
+    dates: Sequence[str], log_returns: Sequence[float]
+) -> tuple[float | None, float | None]:
+    if not dates:
+        return None, None
+    averages: list[float | None] = []
+    for width in (7, 4):
+        buckets: dict[str, float] = {}
+        for date, value in zip(dates, log_returns, strict=True):
+            bucket = date[:width]
+            buckets[bucket] = buckets.get(bucket, 0.0) + value
+        returns = [exp(value) - 1.0 for value in buckets.values()]
+        averages.append(sum(returns) / len(returns) if returns else None)
+    return averages[0], averages[1]
 
 
 def _risk_contributions(
