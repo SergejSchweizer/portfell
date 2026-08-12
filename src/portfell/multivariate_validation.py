@@ -113,6 +113,18 @@ class ValidationSplit:
     test_observation_count: int = 0
 
 
+def walk_forward_validation_row(item: ValidationSplit) -> dict[str, Any]:
+    """Return the JSON-safe persisted representation of a walk-forward split."""
+    return {
+        "kind": "walk_forward",
+        **item.__dict__,
+        "weights": [
+            {"isin": key.isin, "exchange": key.exchange, "code": key.code, "weight": weight}
+            for key, weight in item.weights
+        ],
+    }
+
+
 @dataclass(frozen=True)
 class ValidationScenario:
     """A deterministic historical or synthetic adverse scenario for one candidate."""

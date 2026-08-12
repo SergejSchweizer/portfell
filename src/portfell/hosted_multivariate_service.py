@@ -48,6 +48,7 @@ from portfell.multivariate_validation import (
     build_candidate_scorecards,
     validate_candidate_stress,
     validate_candidates,
+    walk_forward_validation_row,
 )
 from portfell.table_io import JsonRow
 
@@ -430,7 +431,7 @@ class MultivariateResearchService(MultivariateRunViews):
             for loading in structure.loadings
         )
         validation_rows = (
-            tuple({"kind": "walk_forward", **item.__dict__} for item in validation)
+            tuple(walk_forward_validation_row(item) for item in validation)
             + tuple({"kind": "stress", **item.__dict__} for item in scenarios)
             + tuple({"kind": "scorecard", **item.__dict__} for item in scorecards)
         )

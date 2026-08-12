@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass, replace
 from datetime import date, timedelta
@@ -478,3 +479,4 @@ def test_multivariate_service_refits_candidates_for_walk_forward_validation() ->
     service.complete("user-a", str(started["run_id"]))
     validation = service.validation("user-a", str(started["run_id"]))["items"]
     assert any(item["kind"] == "walk_forward" and item["risk_model_id"] for item in validation)
+    json.dumps(validation)
