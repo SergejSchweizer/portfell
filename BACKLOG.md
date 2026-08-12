@@ -1502,10 +1502,12 @@ Priority: P1 multivariate evidence availability.
 Depends on: PR203.
 
 Scope: Expose the strict `> 2 years` Univariate Duration filter needed to form a Bivariate selection
-with the 504 common daily returns required by the Multivariate production policy.
+with the 504 common daily returns required by the Multivariate production policy. Make deterministic
+PostgreSQL selection persistence and browser settings reloads safe under concurrent workflow refreshes.
 
 Acceptance: Selecting `> 2 years` persists a minimum of 505 observations and removes shorter-history
 ETFs from the Bivariate handoff, allowing an eligible shared-history universe to reach Multivariate.
+Concurrent reads never fail on an existing selection, and a saved filter remains selected after reload.
 
 Security: The server remains the sole authority for filter persistence and selected membership.
 

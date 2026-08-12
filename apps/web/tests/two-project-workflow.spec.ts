@@ -386,6 +386,9 @@ test("every workflow button completes its browser action for two isolated projec
   await expect.poll(() => fixture.projects.get("project-1")?.settings.statistic_ranges.quote_observation_count).toEqual([
     { minimum: 505, maximum: Number.MAX_SAFE_INTEGER },
   ]);
+  await page.reload();
+  await page.getByRole("tab", { name: "Duration" }).click();
+  await expect(selections).toHaveValues(["> 2 years"]);
   await expect.poll(() => fixture.settingsWrites.get("project-1") ?? 0).toBeGreaterThanOrEqual(9);
   await page.getByRole("tab", { name: "Dividends" }).click();
   await page.getByRole("img", { name: "Annual dividend yield distribution for 3 ISINs" }).locator("[tabindex=\"0\"]").first().hover();
