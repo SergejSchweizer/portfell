@@ -174,6 +174,27 @@ def test_refresh_rejects_invalid_settings_and_persists_partial_failure(tmp_path)
     assert completed == list(_LISTINGS)
 
 
+def test_refresh_persists_successful_fetch_before_interruption(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    store = SharedMarketDataStore(tmp_path)
+
+    def interrupted_fetch(request):  # type: ignore[no-untyped-def]
+        if request.dataset_type == "dividends":
+            raise KeyboardInterrupt
+        return _fetch(request)
+
+    with pytest.raises(KeyboardInterrupt):
+        refresh_shared_market_data(
+            store=store,
+            listings=_LISTINGS,
+            fetch=interrupted_fetch,
+            end_date=date(2026, 1, 1),
+            concurrency=1,
+        )
+
+    coverage = {record.dataset_type: record for record in store.coverage()}
+    assert coverage["quotes"].last_checked_date == "2026-01-01"
+
+
 def test_refresh_lock_and_cli_exit_codes(tmp_path, monkeypatch, capsys) -> None:  # type: ignore[no-untyped-def]
     _ = capsys
     monkeypatch.delenv("PORTFELL_SHARED_DATA_ROOT", raising=False)

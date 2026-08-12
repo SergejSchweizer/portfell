@@ -1139,6 +1139,30 @@ deterministic for a given response sequence.
 
 Idempotency: Retrying a provider request retains the existing retry and persistence semantics.
 
+### PR186. Per-Fetch Coverage Persistence
+
+Branch: `fix/per-fetch-coverage-persistence`.
+
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/346.
+
+Priority: P1 shared-market refresh resilience.
+
+Depends on: PR185.
+
+Scope: Persist shared market coverage immediately after each successful provider response rather than
+waiting for a refresh batch. This preserves check dates and data already fetched when a worker is
+interrupted during a larger refresh.
+
+Acceptance: A successful fetch remains covered after an interruption before the next request completes;
+failed or interrupted provider requests do not receive a check date.
+
+Security: The change does not expose or persist provider credentials.
+
+Determinism: Each successful provider response atomically produces the same coverage record.
+
+Idempotency: Replaying a persisted successful fetch updates no business data beyond its existing canonical
+revision and coverage marker.
+
 ### PR168. Production Cron Installation And First Scheduled Run Evidence
 
 Branch: `chore/install-production-market-refresh-cron`.
