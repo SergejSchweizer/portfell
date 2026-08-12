@@ -1495,7 +1495,7 @@ merge, satisfy the current `merge-gate` requirements in `GATES.md`.
 
 Branch: `fix/univariate-filter-feedback`.
 
-Git status: in progress. PR: TBD.
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/363.
 
 Priority: P1 research workflow correctness.
 
