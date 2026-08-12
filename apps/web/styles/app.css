@@ -165,7 +165,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 .univariate-compute .status-line { min-height: 16px; margin: 0; }
 .univariate-compute .portfell-button { min-height: 32px; }
 .bivariate-compute { gap: 6px; margin-bottom: var(--space-4); }
-.bivariate-compute progress { height: 8px; }
+.quote-fetch.bivariate-compute progress { height: 8px; min-height: 8px; }
 .bivariate-compute .status-line { min-height: 16px; margin: 0; }
 .bivariate-compute .portfell-button { min-height: 32px; }
 .bivariate-statistic { display: grid; grid-template-columns: minmax(260px, .9fr) minmax(420px, 1.6fr); gap: var(--space-6); padding: var(--space-4); border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--canvas); }

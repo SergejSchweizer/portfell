@@ -378,6 +378,10 @@ test("every workflow button completes its browser action for two isolated projec
   await expect(page).toHaveURL(/\/multivariate-statistics$/);
   await expect(page.getByRole("heading", { name: "Multivariate Statistics" })).toBeVisible();
   await expect(page.getByRole("tab", { name: "Overview" })).not.toBeVisible();
+  const multivariateCompute = page.locator(".multivariate-statistics-page .bivariate-compute");
+  await expect(multivariateCompute.getByLabel("Multivariate statistics progress")).toBeVisible();
+  await expect(multivariateCompute.locator("progress")).toHaveCSS("height", "8px");
+  await expect(multivariateCompute.locator(".quote-fetch__action")).toHaveCSS("justify-content", "flex-end");
   await page.getByRole("button", { name: "Compute multivariate statistics" }).click();
   await expect(page.getByText("Candidate ETFs")).toBeVisible();
   await expect(page.locator(".statistics-tabs")).toHaveCSS("display", "grid");
