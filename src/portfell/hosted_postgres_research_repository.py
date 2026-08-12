@@ -23,8 +23,10 @@ from portfell.hosted_research_workflow import (
     RunStatus,
     UnivariateSelection,
     bivariate_source_id,
+    create_full_univariate_selection,
 )
 from portfell.hosted_selection_repository import SelectionRepository, selection_record
+from portfell.hosted_univariate_selection_settings import apply_univariate_selection_settings
 from portfell.selection_filters import Predicate
 from portfell.table_io import JsonRow
 
@@ -75,7 +77,7 @@ class PostgresResearchRepository:
         return run
 
     def quote_rows(self, run_id: str) -> tuple[JsonRow, ...]:
-        return self._quote_rows(run_id)
+        return () if not run_id else self._quote_rows(run_id)
 
     def univariate_run(self, run_id: str, user_id: str) -> ResearchRun:
         return self._run(run_id=run_id, user_id=user_id, kind="univariate", required=True)
@@ -136,7 +138,7 @@ on conflict (research_run_id) do update set quote_run_id = excluded.quote_run_id
         if existing is not None:
             return existing
         self._connection.execute(
-            "insert into portfell_app.univariate_selections (selection_id, user_id, source_run_id, member_ids, predicates, input_count) values (%s, %s::uuid, %s, %s::jsonb, %s::jsonb, %s)",
+            "insert into portfell_app.univariate_selections (selection_id, user_id, source_run_id, member_ids, predicates, input_count) values (%s, %s::uuid, %s, %s::jsonb, %s::jsonb, %s) on conflict (selection_id) do nothing",
             (
                 selection.selection_id,
                 selection.user_id,
@@ -185,6 +187,16 @@ on conflict (research_run_id) do update set quote_run_id = excluded.quote_run_id
         if univariate is None:
             return WorkflowResearchState()
         selection = self._current_selection_for_run(user_id, univariate.run_id)
+        if univariate.status == "complete":
+            selected_rows = apply_univariate_selection_settings(
+                univariate.rows, self._univariate_selection_settings(project_id)
+            )
+            selection = self.save_univariate_selection(
+                create_full_univariate_selection(
+                    user_id=user_id, run=univariate, rows=selected_rows
+                )
+            )
+            self.set_current_univariate_selection(user_id, selection.selection_id)
         if selection is None:
             return WorkflowResearchState(
                 univariate_run_id=univariate.run_id,
@@ -340,6 +352,17 @@ where preference.user_id = %s::uuid and selection.source_run_id = %s
         if row is None or len(row) != 1 or not isinstance(row[0], str):
             return None
         return self._selection(row[0])
+
+    def _univariate_selection_settings(self, project_id: str) -> JsonRow:
+        row = self._connection.execute(
+            "select settings from portfell_app.project_univariate_settings where project_id = %s::uuid",
+            (project_id,),
+        ).fetchone()
+        if row is None:
+            return {}
+        if len(row) != 1 or not isinstance(row[0], dict):
+            raise RuntimeError("project_univariate_settings_projection_invalid")
+        return cast(JsonRow, row[0])
 
     def _current_multivariate(
         self, project_id: str, bivariate_run_id: str

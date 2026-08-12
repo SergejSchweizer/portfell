@@ -423,7 +423,7 @@ export function BivariateStatisticsPage() {
           </Button>
         </div>
       </div>
-      <section className="bivariate-statistic" aria-labelledby="pairwise-dependence-title">
+      {run?.status === "complete" && <section className="bivariate-statistic" aria-labelledby="pairwise-dependence-title">
         <div className="bivariate-statistic__tabs" role="tablist" aria-label="Pairwise dependence statistic">
           {pairwiseMatrixTabs.map((tab) => <button key={tab.metric} type="button" role="tab" aria-selected={activePairwiseMetric === tab.metric} className={activePairwiseMetric === tab.metric ? "is-active" : undefined} onClick={() => setActivePairwiseMetric(tab.metric)}>{tab.label}</button>)}
         </div>
@@ -501,7 +501,7 @@ export function BivariateStatisticsPage() {
           </>}
         </div>
         {activePairwiseMetric === "tail_risk_scatter" ? <TailRiskScatter scatter={tailRiskScatter} /> : <PairMatrix matrix={activeMatrix} title={activeMatrixTitle} hoveredCell={hoveredMatrixCell} setHoveredCell={setHoveredMatrixCell} />}
-      </section>
+      </section>}
     </Panel>
   );
 }

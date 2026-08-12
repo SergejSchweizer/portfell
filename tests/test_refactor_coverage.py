@@ -4,7 +4,6 @@ from pathlib import Path
 import pytest
 
 import portfell.architecture_checks as architecture_checks
-import portfell.table_io as table_io
 from portfell.architecture_checks import check_architecture
 from portfell.cli import build_parser
 from portfell.contract_versioning import (
@@ -286,24 +285,12 @@ def test_table_io_rejects_non_object_json_rows(tmp_path: Path) -> None:
 
 
 def test_table_io_skips_blank_json_lines_and_rejects_non_object_parquet(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
 ) -> None:
-    class FakeTable:
-        def to_pylist(self) -> list[object]:
-            return [1]
-
-    class FakeParquet:
-        def read_table(self, source: Path) -> FakeTable:
-            return FakeTable()
-
-        def write_table(self, table: object, where: Path) -> None:
-            return None
-
     jsonl_path = tmp_path / "rows.jsonl"
     jsonl_path.write_text('\n{"a": 1}\n', encoding="utf-8")
     parquet_path = tmp_path / "rows.parquet"
     parquet_path.write_text("not parquet", encoding="utf-8")
-    monkeypatch.setattr(table_io, "_PARQUET", FakeParquet())
 
     assert read_rows(jsonl_path) == [{"a": 1}]
     with pytest.raises(ValueError, match="expected Parquet object row"):

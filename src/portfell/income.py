@@ -1,8 +1,8 @@
 """Jurisdiction-neutral, gross historical distribution evidence.
 
 The income boundary deliberately only describes source-observed distributions.
-It never invents a payment for an unobserved month and never treats a market
-price as NAV.  All return and yield fields are gross historical quantities.
+It never invents a payment for an unobserved month. All return and yield fields
+are gross historical quantities.
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ from typing import Any
 from portfell.contract_versioning import ContractVersion, stable_contract_id
 from portfell.multivariate_inputs import MultivariateListingKey
 
-INCOME_CONTRACT = ContractVersion("multivariate.income", 2)
+INCOME_CONTRACT = ContractVersion("multivariate.income", 3)
 
 
 @dataclass(frozen=True)
@@ -84,7 +84,7 @@ class IncomeEvidence:
     price_return: float | None
     total_return: float | None
     distribution_to_total_return_gap: float | None
-    nav_erosion: float | None
+    market_price_capital_change: float | None
     availability_reasons: tuple[str, ...]
     warnings: tuple[str, ...]
 
@@ -157,8 +157,6 @@ def build_income_evidence(
     period_start: str | None = None,
     start_price: float | None = None,
     observed_coverage_months: int | None = None,
-    genuine_nav_start: float | None = None,
-    genuine_nav_end: float | None = None,
     policy: IncomePolicy = DEFAULT_INCOME_POLICY,
 ) -> IncomeEvidence:
     """Build immutable gross evidence from covered, normalized source events."""
@@ -219,13 +217,6 @@ def build_income_evidence(
         else None
     )
     distribution_yield = distribution_amount / price if price else None
-    nav_erosion = (
-        ((genuine_nav_end / genuine_nav_start) - 1.0)
-        if genuine_nav_start and genuine_nav_end and genuine_nav_start > 0 and genuine_nav_end > 0
-        else None
-    )
-    if genuine_nav_start is None or genuine_nav_end is None:
-        warnings.append("genuine_nav_unavailable")
     available = not reasons
     identity = stable_contract_id(
         "income_evidence",
@@ -268,7 +259,7 @@ def build_income_evidence(
         (distribution_amount / start_price - total_return)
         if available and total_return is not None and start_price
         else None,
-        nav_erosion,
+        price_return if available else None,
         tuple(sorted(set(reasons))),
         tuple(sorted(set(warnings))),
     )

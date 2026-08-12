@@ -26,7 +26,7 @@ def test_income_evidence_uses_trailing_events_not_latest_payment_annualization()
     )
     assert evidence.gross_ttm_distribution_amount == 12.0
     assert evidence.gross_ttm_distribution_yield == 0.12
-    assert evidence.nav_erosion is None
+    assert evidence.market_price_capital_change is None
 
 
 def test_income_evidence_keeps_missing_months_unknown_and_rejects_insufficient_history() -> None:
@@ -163,7 +163,7 @@ def test_income_evidence_uses_only_comparable_months_for_cuts_and_reconciles_ret
     assert len(evidence.monthly_distributions) == 2
 
 
-def test_genuine_nav_is_the_only_nav_input_and_currency_mismatch_is_unavailable() -> None:
+def test_market_price_proxy_and_currency_mismatch() -> None:
     listing = MultivariateListingKey("IE1", "X", "A")
     events = normalize_distribution_events(
         [
@@ -187,10 +187,8 @@ def test_genuine_nav_is_the_only_nav_input_and_currency_mismatch_is_unavailable(
         period_end="2025-12-31",
         denominator_price=110.0,
         start_price=100.0,
-        genuine_nav_start=100.0,
-        genuine_nav_end=98.0,
     )
-    assert evidence.nav_erosion == pytest.approx(-0.02)
+    assert evidence.market_price_capital_change == pytest.approx(0.1)
     assert evidence.total_return == pytest.approx(0.22)
     assert evidence.distribution_to_total_return_gap == pytest.approx(-0.1)
     mismatched = normalize_distribution_events(

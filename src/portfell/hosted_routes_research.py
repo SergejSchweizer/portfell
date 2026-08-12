@@ -121,11 +121,19 @@ def research_router(
             payload.univariate_selection_id,
         )
         if row["status"] == "running":
-            background_tasks.add_task(
-                service.complete_bivariate,
-                user.user_id,
-                payload.univariate_selection_id,
-            )
+            if request_scope is None:
+                background_tasks.add_task(
+                    service.complete_bivariate,
+                    user.user_id,
+                    payload.univariate_selection_id,
+                )
+            else:
+                request_scope.spawn_after_commit(
+                    user_id=user.user_id,
+                    operation=lambda: service.complete_bivariate(
+                        user.user_id, payload.univariate_selection_id
+                    ),
+                )
         return row
 
     @router.get("/bivariate-statistics/runs/{run_id}")
@@ -195,7 +203,15 @@ def research_router(
             payload.settings.model_dump(),
         )
         if row["status"] == "running":
-            background_tasks.add_task(service.complete_multivariate, user.user_id, row["run_id"])
+            if request_scope is None:
+                background_tasks.add_task(
+                    service.complete_multivariate, user.user_id, row["run_id"]
+                )
+            else:
+                request_scope.spawn_after_commit(
+                    user_id=user.user_id,
+                    operation=lambda: service.complete_multivariate(user.user_id, row["run_id"]),
+                )
         return row
 
     @router.get("/multivariate-statistics/runs/{run_id}")

@@ -37,9 +37,11 @@ immutable metadata selection and quote run ids, and loads bounded results from
 statistics without recomputing them in React.
 
 The univariate-statistics action owns only computation progress, status, and its right-aligned action.
-Its determinate progress bar uses processed listings as its scale, including terminal failed listings.
+Its determinate progress bar uses processed listings as its scale, including terminal failed listings;
+the server reports each completed listing for both shared-market and pinned quote-run computations.
+All workflow progress bars use the shared 14px height.
 The Dividends univariate-statistic block is not rendered before
-a completed computation has loaded its result payload, matching the result-driven bivariate
+the run is complete and its result payload has loaded, matching the result-driven bivariate
 statistic windows. It provides a payout-frequency selection and an accessible
 histogram that counts ISINs by none/unknown, monthly, quarterly, semiannual, annual, and
 irregular schedules. The selected schedules are saved per project.
@@ -68,9 +70,16 @@ The persistent project sidebar supplies the active project and its workflow
 status. A project with a persisted metadata selection remains pending until its
 shared-market coverage is complete; no project quote run is created. After a project switch, local run,
 result-table, and status-message state are cleared before the project-scoped
-workflow is reloaded. Once the univariate run completes, the server creates the automatic all-results
-selection and unlocks Bivariate Statistics directly. There is no standalone filter module or route in
-the browser workflow.
+workflow is reloaded. Once the univariate run completes, the server applies the project-persisted
+dividend-frequency and statistic-range filters to create the current deterministic Univariate
+selection. Bivariate Statistics receives that selection directly on its next workflow refresh. There
+is no standalone filter module or route in the browser workflow.
+
+Every frequency or quantitative filter labels its `Portfolio selection` control with the current
+server-owned selected-ISIN count after saving. Duration labels use strict minimum-history thresholds: `> 6 months` persists a minimum
+of 127 trading-day observations, so exactly 126 observations do not qualify. `> 2 years` persists
+505 observations. `> 6 months` is the minimum filter for a production-eligible Multivariate input,
+which requires at least 100 common daily returns across the Bivariate selection.
 
 ## Acceptance
 

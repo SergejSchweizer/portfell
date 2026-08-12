@@ -9,8 +9,9 @@ bisection along that order using inverse-variance intra-cluster weights
 
 Per the "Architecture Ownership" principle, this real implementation lives in
 a `portfolio_parts` module rather than being dynamically re-imported from the
-`portfell.portfolio` facade. The repository has no numerical runtime
-dependency (pyarrow only); this module hand-implements clustering rather than
+`portfell.portfolio` facade. The repository has no numerical optimization
+dependency (Polars is used only for tabular data); this module hand-implements
+clustering rather than
 depending on scipy, matching the precedent set by `portfell.risk_model`'s
 Jacobi eigenvalue solver and `portfell.portfolio_parts.solvers`'s projected
 gradient descent.

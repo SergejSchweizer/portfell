@@ -71,12 +71,23 @@ class MetadataProjectService:
         return self.state.all_isins_rows or self.runtime.all_isins_rows()
 
     def options(self) -> JsonRow:
-        rows = self._all_isins_rows()
+        values_by_field: dict[str, dict[str, set[str]]] = {
+            field: {} for field in ("exchange", "instrument_type", "country", "currency")
+        }
+        for row in self._all_isins_rows():
+            isin = str(row.get("isin", "")).strip()
+            if not isin:
+                continue
+            for field, values in values_by_field.items():
+                value = str(row.get(field, "")).strip()
+                if value:
+                    values.setdefault(value, set()).add(isin)
         return {
-            field: sorted(
-                {str(row.get(field, "")).strip() for row in rows if str(row.get(field, "")).strip()}
-            )
-            for field in ("exchange", "instrument_type", "country", "currency")
+            field: [
+                {"value": value, "isin_count": len(isins)}
+                for value, isins in sorted(values.items())
+            ]
+            for field, values in values_by_field.items()
         }
 
     def start_metadata_fetch(self, user_id: str) -> tuple[JsonRow, Callable[[], None]]:

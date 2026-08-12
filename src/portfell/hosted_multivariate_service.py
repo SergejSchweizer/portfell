@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping, Sequence
+import os
+from collections.abc import Callable
+from concurrent.futures import Executor, ProcessPoolExecutor
 from dataclasses import replace
 from time import time
-from typing import Any
 
 from portfell.gold import build_returns
 from portfell.hosted_api_errors import HostedApplicationError
@@ -27,17 +28,19 @@ from portfell.hosted_research_ports import (
 from portfell.hosted_research_workflow import UnivariateSelection, bivariate_source_id
 from portfell.hosted_selection_repository import SelectionRepository, selection_record
 from portfell.income import (
+    INCOME_CONTRACT,
     build_income_artifacts,
     build_income_evidence,
     normalize_distribution_events,
 )
-from portfell.multivariate_candidates import PortfolioCandidate, build_candidate_set
+from portfell.multivariate_candidates import build_candidate_set
 from portfell.multivariate_inputs import (
     MultivariateInputDependencies,
     MultivariateListingKey,
     build_multivariate_input_snapshot,
 )
 from portfell.multivariate_quote_views import common_dates, first_price, last_price
+from portfell.multivariate_refits import build_refitted_candidate_sets
 from portfell.multivariate_risk_model import build_multivariate_risk_model
 from portfell.multivariate_run_view import multivariate_run_row
 from portfell.multivariate_structure import build_multivariate_structure
@@ -45,11 +48,14 @@ from portfell.multivariate_validation import (
     build_candidate_scorecards,
     validate_candidate_stress,
     validate_candidates,
+    walk_forward_validation_row,
 )
 from portfell.table_io import JsonRow
 
 
 class MultivariateResearchService(MultivariateRunViews):
+    _EXECUTION_CONTRACT = "multivariate_execution.v6"
+    _MAX_RUNNING_SECONDS = 900
     _PHASES = (
         "resolve_inputs",
         "build_risk_model",
@@ -69,6 +75,7 @@ class MultivariateResearchService(MultivariateRunViews):
         selection_repository: SelectionRepository | None = None,
         run_repository: MultivariateRunRepository | None = None,
         metadata_rows: Callable[[], tuple[JsonRow, ...]] | None = None,
+        worker_count: Callable[[], int | None] = os.process_cpu_count,
     ) -> None:
         self._data = data
         self._persistence = persistence
@@ -77,6 +84,7 @@ class MultivariateResearchService(MultivariateRunViews):
         self._runs = run_repository or LocalMultivariateRunRepository(state)
         self._research = research_repository
         self._metadata_rows = metadata_rows or (lambda: state.all_isins_rows)
+        self._worker_count = worker_count
 
     def start(
         self, user_id: str, project_id: str, bivariate_run_id: str, settings: JsonRow
@@ -93,6 +101,8 @@ class MultivariateResearchService(MultivariateRunViews):
                 "bivariate_run_id": bivariate_run_id,
                 "selection_id": selection.selection_id,
                 "settings": settings,
+                "income_contract": INCOME_CONTRACT.qualified_name,
+                "execution_contract": self._EXECUTION_CONTRACT,
             }
         )
         run_id = opaque_id("multivariate-run", f"{user_id}:{logical_hash}")
@@ -157,13 +167,16 @@ class MultivariateResearchService(MultivariateRunViews):
         if run.status != "running":
             return
         try:
-            completed = self._compute(
-                run,
-                on_phase=lambda run_id, phase, completed_units: self._advance(
-                    user_id, run_id, phase, completed_units
-                ),
-            )
-        except (HostedApplicationError, ValueError) as error:
+            workers = max(1, self._worker_count() or 1)
+            with ProcessPoolExecutor(max_workers=workers) as executor:
+                completed = self._compute(
+                    run,
+                    executor=executor,
+                    on_phase=lambda run_id, phase, completed_units: self._advance(
+                        user_id, run_id, phase, completed_units
+                    ),
+                )
+        except Exception as error:
             completed = replace(run, status="failed", phase="failed", failure_reason=str(error))
         self._runs.save(completed)
         self._persistence.persist()
@@ -177,6 +190,10 @@ class MultivariateResearchService(MultivariateRunViews):
         run = self._runs.get(user_id=user_id, run_id=run_id)
         if run is None:
             raise HostedApplicationError(404, "not_found")
+        if run.status == "running" and time() - run.started_at_epoch > self._MAX_RUNNING_SECONDS:
+            run = replace(run, status="failed", phase="failed", failure_reason="compute_timeout")
+            self._runs.save(run)
+            self._persistence.persist()
         return run
 
     def update_settings(
@@ -231,6 +248,7 @@ class MultivariateResearchService(MultivariateRunViews):
         self,
         run: MultivariateRunRecord,
         *,
+        executor: Executor,
         on_phase: Callable[[str, str, int], None],
     ) -> MultivariateRunRecord:
         selection = self._selection_for_bivariate(run.user_id, run.bivariate_run_id)
@@ -303,27 +321,24 @@ class MultivariateResearchService(MultivariateRunViews):
         }
         on_phase(run.run_id, "build_candidates", 4)
         candidates = build_candidate_set(
-            snapshot=snapshot, risk_model=risk, return_rows=returns, income=income
+            snapshot=snapshot,
+            risk_model=risk,
+            return_rows=returns,
+            income=income,
+            executor=executor,
         )
         on_phase(run.run_id, "validate_candidates", 5)
-
-        def refit_candidates(
-            training_rows: Sequence[Mapping[str, Any]],
-        ) -> tuple[PortfolioCandidate, ...]:
-            training_risk = build_multivariate_risk_model(
-                snapshot=snapshot, return_rows=training_rows
-            )
-            return build_candidate_set(
-                snapshot=snapshot,
-                risk_model=training_risk,
-                return_rows=training_rows,
-                income=income,
-            )
-
+        refitted_candidates = build_refitted_candidate_sets(
+            executor=executor,
+            candidates=candidates,
+            snapshot=snapshot,
+            return_rows=returns,
+            income=income,
+        )
         validation = validate_candidates(
             candidates=candidates,
             return_rows=returns,
-            candidate_factory=refit_candidates,
+            precomputed_candidates=refitted_candidates,
             risk_model_id=risk.risk_model_id,
         )
         scenarios = validate_candidate_stress(candidates=candidates, return_rows=returns)
@@ -341,7 +356,11 @@ class MultivariateResearchService(MultivariateRunViews):
                 ],
                 "variance": item.variance,
                 "volatility": item.volatility,
+                "var": item.var,
                 "cvar": item.cvar,
+                "maximum_weight": item.maximum_weight,
+                "herfindahl_index": item.herfindahl_index,
+                "effective_holding_count": item.effective_holding_count,
                 "gross_ttm_distribution_yield": item.gross_ttm_distribution_yield,
                 "gross_monthly_distribution": item.gross_monthly_distribution,
                 "total_return": item.total_return,
@@ -391,7 +410,7 @@ class MultivariateResearchService(MultivariateRunViews):
                 "price_return": evidence.price_return,
                 "total_return": evidence.total_return,
                 "distribution_to_total_return_gap": evidence.distribution_to_total_return_gap,
-                "nav_erosion": evidence.nav_erosion,
+                "market_price_capital_change": evidence.market_price_capital_change,
                 "availability_reasons": list(evidence.availability_reasons),
                 "warnings": list(evidence.warnings),
             }
@@ -412,7 +431,7 @@ class MultivariateResearchService(MultivariateRunViews):
             for loading in structure.loadings
         )
         validation_rows = (
-            tuple({"kind": "walk_forward", **item.__dict__} for item in validation)
+            tuple(walk_forward_validation_row(item) for item in validation)
             + tuple({"kind": "stress", **item.__dict__} for item in scenarios)
             + tuple({"kind": "scorecard", **item.__dict__} for item in scorecards)
         )

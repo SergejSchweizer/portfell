@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import replace
 from math import isfinite
-from typing import cast
+from typing import Any, cast
 
 from portfell.entitlements import ProviderDownloadRun, RunStatus
 from portfell.hosted_api_state import (
@@ -16,6 +16,7 @@ from portfell.hosted_api_state import (
 )
 from portfell.hosted_research_workflow import ResearchRun
 from portfell.hosted_research_workflow import RunStatus as ResearchRunStatus
+from portfell.multivariate_inputs import MultivariateListingKey
 
 
 def persist_local_workspace(state: HostedApiState) -> None:
@@ -107,7 +108,7 @@ def persist_local_workspace(state: HostedApiState) -> None:
                     "summary": run.summary,
                     "structure": run.structure,
                     "candidates": list(run.candidates),
-                    "validation": list(run.validation),
+                    "validation": _persist_validation(run.validation),
                     "artifacts": run.artifacts,
                     "components": list(run.components),
                     "risk_contributions": list(run.risk_contributions),
@@ -129,6 +130,25 @@ def persist_local_workspace(state: HostedApiState) -> None:
             ],
         }
     )
+
+
+def _persist_validation(rows: tuple[dict[str, Any], ...]) -> list[dict[str, Any]]:
+    """Convert Walk-Forward listing keys into API-ready JSON rows."""
+
+    return [{name: _persist_validation_value(value) for name, value in row.items()} for row in rows]
+
+
+def _persist_validation_value(value: Any) -> Any:
+    if isinstance(value, MultivariateListingKey):
+        return {"isin": value.isin, "exchange": value.exchange, "code": value.code}
+    if isinstance(value, Mapping):
+        mapping = cast("Mapping[object, Any]", value)
+        return {str(name): _persist_validation_value(item) for name, item in mapping.items()}
+    if isinstance(value, list):
+        return [_persist_validation_value(item) for item in cast("list[Any]", value)]
+    if isinstance(value, tuple):
+        return [_persist_validation_value(item) for item in cast("tuple[Any, ...]", value)]
+    return value
 
 
 def restore_local_workspace(state: HostedApiState, payload: Mapping[str, object]) -> None:

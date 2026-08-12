@@ -1277,6 +1277,678 @@ Determinism: The existing deterministic run identity remains unchanged across re
 
 Idempotency: Re-submitting an active run reuses its identity and can safely resume its computation.
 
+### PR194. Bivariate Compute Lifecycle
+
+Branch: `fix/bivariate-compute-lifecycle`.
+
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/354.
+
+Priority: P1 research workflow reliability.
+
+Depends on: PR193.
+
+Scope: Commit Bivariate run creation before detached computation, persist terminal failures, and
+cover the browser Compute Bivariate Statistics action through a running-to-complete lifecycle.
+
+Acceptance: A runnable Bivariate selection returns an immediately pollable `running` run; progress
+and duplicate-submit prevention remain visible until the run completes or fails; the completed
+result window then loads from server-owned data.
+
+Security: Detached computation uses a fresh autocommit connection with the initiating user's RLS context.
+
+Determinism: Re-submitting the same selection retains its deterministic Bivariate run identity.
+
+Idempotency: Repeated active-run starts reuse the same running run without duplicate computation.
+
+### PR195. Sidebar Workflow Status Colors
+
+Branch: `fix/sidebar-workflow-status-colors`.
+
+Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/355.
+
+Priority: P2 workflow usability.
+
+Depends on: PR194.
+
+Scope: Color the server-owned Complete, Ready, and Locked sidebar workflow status labels while
+retaining their visible text.
+
+Acceptance: Complete is green, Ready is blue, and Locked is grey in both the desktop sidebar and
+mobile drawer; status words remain available without color perception.
+
+Security: The sidebar only renders existing server-owned workflow status values.
+
+Determinism: Equivalent workflow statuses always receive the same visual treatment.
+
+Idempotency: Refreshing or changing projects applies the same status color without mutation.
+
+### PR196. Shared Statistics Tab Layout
+
+Branch: `fix/statistics-tab-layout`.
+
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/356.
+
+Priority: P2 research workflow usability.
+
+Depends on: PR195.
+
+Scope: Apply the responsive multi-row statistics tab layout to Bivariate and Multivariate Statistics,
+matching Univariate Statistics.
+
+Acceptance: All tabs remain visible without horizontal scrolling and retain keyboard-operable,
+visually selected states across desktop, tablet, and mobile viewports.
+
+Security: The shared layout changes no API requests, server-owned values, or workflow state.
+
+Determinism: Each statistics page uses the same tab-layout rules for the same viewport and tab set.
+
+Idempotency: Revisiting a completed statistics result applies the same layout without mutation.
+
+### PR197. Bivariate Filtered Univariate Selection
+
+Branch: `fix/bivariate-filtered-selection`.
+
+Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/357.
+
+Priority: P1 research workflow correctness.
+
+Depends on: PR196.
+
+Scope: Apply project-persisted Univariate frequency and statistic-range filters when deriving the
+current durable selection supplied to Bivariate Statistics.
+
+Acceptance: Changing a Univariate filter persists its settings; the next workflow refresh exposes a
+selection containing exactly the matching ISINs; Bivariate pair planning and computation use that
+selection.
+
+Security: Selection derivation remains user-scoped under RLS and contains no provider credentials.
+
+Determinism: Equal completed Univariate rows and saved filters produce the same selection identity.
+
+Idempotency: Repeating a workflow read reuses the persisted deterministic selection without changing
+its members.
+
+### PR198. Desktop-Only UI Tests
+
+Branch: `chore/desktop-ui-tests`.
+
+Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/358.
+
+Priority: P2 test execution efficiency.
+
+Depends on: PR197.
+
+Scope: Run the Playwright UI and real-stack browser suites only with the desktop project.
+
+Acceptance: `npm run e2e` executes every UI scenario once using Desktop Chrome; tablet and mobile
+projects are absent from the Playwright configuration and browser-test quality-gate documentation.
+
+Security: Test fixture, browser artifact, and secret-handling boundaries are unchanged.
+
+Determinism: The fixed desktop viewport and browser remain unchanged across local and CI runs.
+
+Idempotency: Re-running the desktop suite creates no product-side mutations beyond its existing
+isolated test fixtures.
+
+### PR199. Bivariate Shared-Market Quote Fallback
+
+Branch: `fix/bivariate-shared-market-quotes`.
+
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/359.
+
+Priority: P1 research workflow reliability.
+
+Depends on: PR198.
+
+Scope: Let Bivariate Statistics use published Shared-Market quotes when its completed Univariate
+input has no project quote-run identifier.
+
+Acceptance: Clicking Compute Bivariate Statistics for a filtered Shared-Market Univariate selection
+reaches completed pairwise results without a PostgreSQL invalid-UUID failure or terminal UI error.
+
+Security: The fallback remains project-scoped and reads only server-published market data.
+
+Determinism: The same selection and Shared-Market revision resolve the same Bivariate input rows.
+
+Idempotency: Retrying a previously failed Bivariate run with unchanged inputs reuses its deterministic
+run identity and completes once the Shared-Market rows are available.
+
+### PR200. Multivariate Compute Layout
+
+Branch: `fix/multivariate-compute-layout`.
+
+Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/360.
+
+Priority: P2 research workflow usability.
+
+Depends on: PR199.
+
+Scope: Align the Multivariate Statistics progress bar and compute button layout with Bivariate
+Statistics.
+
+Acceptance: Multivariate renders the same labelled progress-panel structure, 8px progress bar,
+status line, right-aligned primary action, and `Computing…` running label as Bivariate.
+
+Security: The layout consumes existing server-owned run values without new client-side calculations.
+
+Determinism: Equivalent run states render the same compute-panel structure on both statistics pages.
+
+Idempotency: Re-rendering or revisiting a run changes no server state until the existing compute action
+is selected.
+
+### PR201. Multivariate Run Recovery
+
+Branch: `fix/multivariate-run-recovery`.
+
+Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/361.
+
+Priority: P1 research workflow reliability.
+
+Depends on: PR200.
+
+Scope: Run Multivariate background computation in a fresh post-commit PostgreSQL request scope and
+poll its server-owned status until it reaches a terminal state.
+
+Acceptance: A Multivariate run advances from `resolve_inputs` to persisted results without a closed
+database connection, and the compute button remains disabled only while the server reports `running`.
+
+Security: Background work retains its authenticated RLS context; browser polling reads only the
+project-owned run endpoint.
+
+Determinism: The same run id follows the same server-owned phases, independent of page reloads.
+
+Idempotency: Repeating the start request for a running deterministic run schedules its completion
+without creating a second run record.
+
+Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
+merge, satisfy the current `merge-gate` requirements in `GATES.md`.
+
+### PR202. Multivariate Statistics Completeness
+
+Branch: `feat/multivariate-statistics-completeness`.
+
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/362.
+
+Priority: P1 multivariate correctness and explainability.
+
+Depends on: PR201.
+
+Scope: Preserve all computed PR147 candidate risk and concentration facts in hosted responses and
+render the existing PR144–PR147 risk-model, structure, candidate, and income diagnostics.
+
+Acceptance: Candidate responses include VaR, maximum weight, Herfindahl concentration, and effective
+holding count. The browser visibly distinguishes unavailable evidence and shows covariance quality,
+component thresholds, redundancy, candidate concentration, and income coverage without recalculating
+financial values.
+
+Security: The page consumes only project-owned persisted API values and does not broaden artifact
+access or expose dense covariance data.
+
+Determinism: Existing versioned server artifacts remain the sole source for every displayed value.
+
+Idempotency: Rendering the additional facts is read-only and does not create or update runs.
+
+Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
+merge, satisfy the current `merge-gate` requirements in `GATES.md`.
+
+### PR219. Main Branch Consolidation
+
+Branch: `chore/reconcile-main-branches`.
+
+Git status: in progress. PR: TBD.
+
+Priority: P0 repository integration.
+
+Depends on: PR218.
+
+Scope: Merge the current stacked statistics, Polars, workflow, and feedback branches into one
+reviewed integration branch for `main`, preserving the current 100-observation Multivariate
+history policy when reconciling stale guidance.
+
+Acceptance: The integration branch contains every unmerged remote branch, passes the current
+`pr-quality` gate, and lands through one non-draft pull request to `main`.
+
+Security: Consolidation does not widen data access or alter authorization boundaries.
+
+Determinism: Conflict resolution retains the current versioned execution contracts and canonical
+history policy.
+
+Idempotency: The integration merge commits branch ancestry once and does not mutate persisted
+research artifacts.
+
+Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
+merge, satisfy the current `merge-gate` requirements in `GATES.md`.
+
+### PR218. Multivariate Validation Budget
+
+Branch: `fix/multivariate-validation-budget`.
+
+Git status: pushed. PR: TBD.
+
+Priority: P0 multivariate workflow liveness.
+
+Depends on: PR217.
+
+Scope: Bound deterministic Walk-Forward refits and their solver work so Multivariate Statistics
+completes within its server execution limit while retaining chronological turnover costs.
+
+Acceptance: At most 24 representative refit windows span the available history; their parallel
+results persist turnover-based transaction costs in chronological order; a shared return index avoids
+repeated full-history scans; a new execution contract allows recomputation after prior timed-out runs.
+
+Security: The bounded worker tasks retain the existing project-scoped, authorized inputs.
+
+Determinism: Window sampling includes the chronological endpoints and uses deterministic integer
+positions; the validation contract versions this changed evidence policy.
+
+Idempotency: The v5 execution contract produces one fresh deterministic run identity without
+mutating prior terminal artifacts.
+
+Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
+merge, satisfy the current `merge-gate` requirements in `GATES.md`.
+
+### PR217. Polars Statistics Pipelines
+
+Branch: `refactor/statistics-polars`.
+
+Git status: pushed. PR: TBD.
+
+Priority: P1 statistics data-processing performance.
+
+Depends on: PR216.
+
+Scope: Use Polars for Parquet I/O and tabular preparation in the Univariate, Bivariate, and
+Multivariate statistics pipelines.
+
+Acceptance: The three pipelines use Polars at their table boundaries, require no PyArrow runtime
+dependency, and preserve existing statistic and persisted Parquet contracts.
+
+Security: The conversion retains existing scoped inputs and does not change data-access boundaries.
+
+Determinism: Stable sorting and existing financial formulas retain deterministic result ordering and values.
+
+Idempotency: Existing cache keys and persisted artifact paths remain unchanged.
+
+Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
+merge, satisfy the current `merge-gate` requirements in `GATES.md`.
+
+### PR216. Polars Dataframe Preference
+
+Branch: `docs/polars-dataframes`.
+
+Git status: pushed. PR: TBD.
+
+Priority: P2 data-processing consistency.
+
+Depends on: PR215.
+
+Scope: Establish `polars` as the repository preference whenever a dataframe-library choice exists.
+
+Acceptance: The contributor workflow records the `polars` preference; no unused dataframe dependency
+is introduced while the repository has no dataframe-library runtime use.
+
+Security: Documentation-only policy change; no data access or execution boundary changes.
+
+Determinism: The policy does not alter existing computations or persisted artifacts.
+
+Idempotency: Reading or applying the policy does not create or mutate runtime data.
+
+Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
+merge, satisfy the current `merge-gate` requirements in `GATES.md`.
+
+### PR215. Parallel Walk-Forward Refits
+
+Branch: `refactor/multivariate-walk-forward-parallelism`.
+
+Git status: pushed. PR: TBD.
+
+Priority: P1 multivariate compute performance.
+
+Depends on: PR214.
+
+Scope: Distribute independent Walk-Forward risk-model and candidate refits across all runtime-visible
+CPUs while retaining chronological turnover evaluation.
+
+Acceptance: The API process pool receives one independent refit task per complete Walk-Forward window;
+the resulting validation splits retain chronological turnover and unchanged financial semantics.
+
+Security: Worker tasks consume only the already-authorized, project-scoped in-memory inputs.
+
+Determinism: Refits are associated with their chronological windows before sequential evaluation, so
+parallel completion order cannot affect persisted values.
+
+Idempotency: A run still persists one deterministic result for its versioned input identity.
+
+Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
+merge, satisfy the current `merge-gate` requirements in `GATES.md`.
+
+### PR214. Multivariate Stall Recovery
+
+Branch: `fix/multivariate-stall-recovery`.
+
+Git status: pushed. PR: TBD.
+
+Priority: P0 workflow liveness.
+
+Depends on: PR213.
+
+Scope: Bound Walk-Forward solver work and transition abandoned Multivariate runs from `running` to
+`failed` so users can recompute them.
+
+Acceptance: A Multivariate run never remains `running` after its execution limit; terminal failure
+exposes a reason, and the current project can start a new versioned run.
+
+Security: Timeout transitions expose only aggregate run state to the authorized project user.
+
+Determinism: Bounded solver iteration and the versioned execution contract preserve reproducible
+outputs for each run identity.
+
+Idempotency: The new execution contract yields one deterministic run identity and keeps prior runs
+read-only terminal artifacts.
+
+Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
+merge, satisfy the current `merge-gate` requirements in `GATES.md`.
+
+### PR213. Project-Scoped Statistics State
+
+Branch: `fix/project-statistics-state`.
+
+Git status: pushed. PR: TBD.
+
+Priority: P1 project-state correctness.
+
+Depends on: PR212.
+
+Scope: Clear stale client-side Multivariate run artifacts when switching projects and ignore late
+responses for the previous project.
+
+Acceptance: Each statistics page shows only the active project's Univariate, Bivariate, and
+Multivariate state after a project switch.
+
+Security: Client state remains bounded to server-authorized, project-scoped API responses.
+
+Determinism: Project switching does not alter persisted research runs or artifacts.
+
+Idempotency: Switching projects is read-only for research state.
+
+Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
+merge, satisfy the current `merge-gate` requirements in `GATES.md`.
+
+### PR212. Univariate Compute Progress
+
+Branch: `fix/univariate-compute-progress`.
+
+Git status: pushed. PR: TBD.
+
+Priority: P1 workflow feedback correctness.
+
+Depends on: PR211.
+
+Scope: Report every completed listing while Univariate Statistics computes from a pinned quote run.
+
+Acceptance: The determinate Univariate progress bar advances before the run completes for both
+shared-market and quote-run input paths.
+
+Security: Progress reports expose only aggregate listing counts for the authorized run.
+
+Determinism: Progress callbacks do not affect statistical result ordering or artifacts.
+
+Idempotency: Equal inputs retain the same logical run identity and completed-run reuse behavior.
+
+Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
+merge, satisfy the current `merge-gate` requirements in `GATES.md`.
+
+### PR211. Multivariate CPU Parallelism
+
+Branch: `feat/multivariate-cpu-parallelism`.
+
+Git status: pushed. PR: TBD.
+
+Priority: P1 multivariate execution performance.
+
+Depends on: PR210.
+
+Scope: Run independent Multivariate candidate optimizers and Walk-Forward refits in one process pool
+sized to every CPU available to the hosted runtime.
+
+Acceptance: A Multivariate compute provisions `runtime.process_cpu_count()` workers, reuses the pool
+for initial and refitted candidates, and preserves deterministic candidate and persisted-run outputs.
+
+Security: Worker processes receive only project-scoped, already-authorized immutable research inputs.
+
+Determinism: Parallel completion order does not affect the canonical method order or persisted artifacts.
+
+Idempotency: Equal inputs retain the same logical run identity and reuse existing completed runs.
+
+Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
+merge, satisfy the current `merge-gate` requirements in `GATES.md`.
+
+### PR210. Portfolio Selection Counts
+
+Branch: `fix/portfolio-selection-counts`.
+
+Git status: pushed. PR: TBD.
+
+Priority: P2 filter clarity.
+
+Depends on: PR209.
+
+Scope: Display the current selected-ISIN count in every Univariate `Portfolio selection` filter label.
+
+Acceptance: Dividend-frequency and every quantitative filter show `Portfolio selection (N ISINs)`;
+the value refreshes from the project-scoped server workflow after each saved selection.
+
+Security: The browser renders the server-owned selection count and does not compute portfolio eligibility.
+
+Determinism: Equal project settings expose the same selected-ISIN count in every filter label.
+
+Idempotency: Rendering the count does not mutate selection settings.
+
+Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
+merge, satisfy the current `merge-gate` requirements in `GATES.md`.
+
+### PR209. Metadata Option ISIN Counts
+
+Branch: `fix/metadata-option-counts`.
+
+Git status: pushed. PR: TBD.
+
+Priority: P2 metadata selection clarity.
+
+Depends on: PR208.
+
+Scope: Show the unique catalog ISIN count next to every Exchange, Instrument type, Country, and
+Currency dropdown value in Metadata Builder.
+
+Acceptance: The server returns value/count option rows; the browser renders each count, and duplicate
+listings for one ISIN contribute only once to its field-value count.
+
+Security: Counts derive from the server-owned catalog; the browser does not receive or filter listings.
+
+Determinism: Equal catalog rows produce ordered, identical option counts.
+
+Idempotency: Loading and rendering options makes no state mutation.
+
+Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
+merge, satisfy the current `merge-gate` requirements in `GATES.md`.
+
+### PR208. Statistics Progress Height
+
+Branch: `fix/statistics-progress-height`.
+
+Git status: pushed. PR: TBD.
+
+Priority: P2 workflow consistency.
+
+Depends on: PR207.
+
+Scope: Use the Univariate Statistics 14px progress-bar height for every workflow progress indicator.
+
+Acceptance: Metadata, historical-data, Univariate, Bivariate, and Multivariate progress bars render
+at the same 14px height without changing their progress semantics or actions.
+
+Security: Styling changes do not alter server-owned workflow state or requests.
+
+Determinism: The fixed shared CSS height renders consistently for every workflow state.
+
+Idempotency: Rendering the shared style makes no state mutation.
+
+Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
+merge, satisfy the current `merge-gate` requirements in `GATES.md`.
+
+### PR207. Market-Price NAV Proxy
+
+Branch: `fix/market-price-nav-proxy`.
+
+Git status: pushed. PR: TBD.
+
+Priority: P1 multivariate income evidence.
+
+Depends on: PR206.
+
+Scope: Replace unreachable genuine-NAV evidence with quoted market-price capital change, explicitly
+labeled as a NAV proxy in the Multivariate Income Evidence contract and UI.
+
+Acceptance: Income evidence uses the source-pinned start and end market prices to report capital
+change, does not emit `genuine_nav_unavailable`, and labels the result as a NAV proxy.
+
+Security: The server remains the authority for source-pinned quote and dividend evidence.
+
+Determinism: Contract v3 identifies the revised income artifact; identical quote inputs produce the
+same market-price capital-change result.
+
+Idempotency: Recomputing unchanged inputs under the proxy contract reuses its deterministic artifact.
+
+Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
+merge, satisfy the current `merge-gate` requirements in `GATES.md`.
+
+### PR206. Multivariate Minimum History Policy
+
+Branch: `fix/multivariate-minimum-history`.
+
+Git status: pushed. PR: TBD.
+
+Priority: P1 multivariate availability.
+
+Depends on: PR205.
+
+Scope: Lower the versioned Multivariate input and Walk-Forward production minimum history from 504
+to 100 daily observations, and align current recovery guidance and contracts.
+
+Acceptance: A Multivariate input with 100 common daily returns is eligible, 99 remains unavailable,
+and default Walk-Forward validation begins after 100 training observations plus its 21-day test window.
+
+Security: The server-owned versioned policies remain the sole authority for eligibility and validation.
+
+Determinism: Policy version changes invalidate prior logical artifacts; equal inputs under v2/v3 yield
+the same snapshot and validation identities.
+
+Idempotency: Recomputing unchanged inputs under the new policy reuses the deterministic new-policy run.
+
+Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
+merge, satisfy the current `merge-gate` requirements in `GATES.md`.
+
+### PR205. Multivariate History Guidance
+
+Branch: `fix/multivariate-history-guidance`.
+
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/365.
+
+Priority: P1 multivariate evidence usability.
+
+Depends on: PR204.
+
+Scope: Explain the mandatory shared-history recovery path when Multivariate evidence is unavailable.
+
+Acceptance: An `insufficient_common_history` result states that the policy requires 504 shared daily
+returns and directs the user to choose Univariate Duration `> 2 years`, recompute Bivariate, then
+recompute Multivariate.
+
+Security: The browser displays only server-produced availability reasons and does not calculate history.
+
+Determinism: The guidance appears only for the stable `insufficient_common_history` reason.
+
+Idempotency: Rendering the guidance does not change settings or run state.
+
+Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
+merge, satisfy the current `merge-gate` requirements in `GATES.md`.
+
+### PR204. Multivariate History Eligibility
+
+Branch: `fix/multivariate-history-eligibility`.
+
+Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/364.
+
+Priority: P1 multivariate evidence availability.
+
+Depends on: PR203.
+
+Scope: Expose the strict `> 2 years` Univariate Duration filter needed to form a Bivariate selection
+with the 504 common daily returns required by the Multivariate production policy. Make deterministic
+PostgreSQL selection persistence and browser settings reloads safe under concurrent workflow refreshes.
+
+Acceptance: Selecting `> 2 years` persists a minimum of 505 observations and removes shorter-history
+ETFs from the Bivariate handoff, allowing an eligible shared-history universe to reach Multivariate.
+Concurrent reads never fail on an existing selection, and a saved filter remains selected after reload.
+
+Security: The server remains the sole authority for filter persistence and selected membership.
+
+Determinism: The same persisted Duration range and completed Univariate run yield the same selection.
+
+Idempotency: Reapplying the same range refreshes the existing deterministic selection only.
+
+Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
+merge, satisfy the current `merge-gate` requirements in `GATES.md`.
+
+### PR203. Persisted Univariate Filter Feedback
+
+Branch: `fix/univariate-filter-feedback`.
+
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/363.
+
+Priority: P1 research workflow correctness.
+
+Depends on: PR202.
+
+Scope: Make Duration thresholds match their strict labels and expose the server-owned filtered
+Univariate count that Bivariate Statistics consumes after project settings save.
+
+Acceptance: Selecting `> 6 months` persists a minimum of 127 trading observations, excludes rows
+with 126 or fewer observations, and displays the exact Bivariate selection count after active
+filters are saved.
+
+Security: The count is derived by the server-owned workflow and does not expose rows outside the
+active project selection.
+
+Determinism: The same settings and run produce the same persisted filtered selection and count.
+
+Idempotency: Saving unchanged filters only refreshes the existing deterministic selection.
+
+Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
+merge, satisfy the current `merge-gate` requirements in `GATES.md`.
+
+### PR193. Statistics Result Completion Visibility
+
+Branch: `fix/statistics-completion-visibility`.
+
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/353.
+
+Priority: P1 research workflow usability.
+
+Depends on: PR192.
+
+Scope: Show each Univariate, Bivariate, and Multivariate statistics result window only after its
+particular server-owned research run has completed.
+
+Acceptance: Pending, running, failed, or unavailable research runs show only their progress and
+compute controls; every corresponding statistics window becomes visible after its own run is complete.
+
+Security: The browser renders only persisted run status and result artifacts; it does not infer completion.
+
+Determinism: Equivalent persisted run statuses render the same result-window visibility state.
+
+Idempotency: Refreshing or revisiting a completed run restores its visible result window without mutation.
+
 ### PR192. Visual Univariate Progress And Tab Layout
 
 Branch: `fix/univariate-progress-layout`.

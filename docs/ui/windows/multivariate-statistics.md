@@ -30,21 +30,42 @@ or calculates financial values in the browser.
 
 - Locked state: one `Multivariate Statistics` panel explains that Bivariate
   Statistics must complete first.
-- Ready state: compact server-owned progress header and a compute action.
+- Ready state: the Bivariate-style compact server-owned progress panel with a
+  labelled 14px determinate progress bar, status line, and right-aligned compute action.
+- Project switch: clear the prior project's run and result artifacts before loading
+  the active project's workflow state; ignore late responses for the prior project.
 - Complete state: Overview, Risk Structure, Portfolio Candidates, Risk
-  Contributions, Income Evidence, and Validation tabs.
+  Contributions, Income Evidence, and Validation tabs in the responsive multi-row
+  statistics tab grid, with no horizontal tab scrolling.
+- Overview includes candidate count, dominant-component share, and explicit input
+  availability reasons. Risk Structure includes component thresholds, strongest driver,
+  redundancy evidence, eigenvalue, condition-number, and PSD diagnostics.
+- Candidate cards compare VaR/CVaR, maximum weight, Herfindahl concentration, effective
+  holdings, diversification, return, drawdown, and gross historical income. Income Evidence
+  includes observed coverage, trend, cuts, total return, and quoted market-price capital change
+  as the NAV proxy.
 
 ## States
 
 - Loading: show the shared loading state.
 - Locked: Bivariate Statistics is incomplete, failed, running, or stale.
 - Ready: Bivariate Statistics is complete and its immutable run id is shown.
-- Running: the server-owned phase and completed/total units are displayed.
-- Complete: persisted result tabs load automatically after refresh or project
-  reactivation. Every tab renders a server-produced, project-owned artifact:
+- Running: the server-owned phase and completed/total units are displayed and polled every
+  750 milliseconds until the run reaches a terminal state. The action remains disabled while
+  the server reports `running`. Independent candidate optimizers and their Walk-Forward refits run
+  in a server-owned process pool sized to all CPUs available to the runtime container. A run that
+  exceeds the server execution limit transitions to `failed`, exposes its failure reason, and may
+  be recomputed rather than remaining indefinitely `running`. Walk-Forward validation uses at most
+  24 deterministic windows spanning the available history; refits run in parallel, while turnover
+  and transaction costs are evaluated in chronological order.
+- Complete: persisted result tabs load automatically only after the particular Multivariate run reaches
+  `complete`, after refresh or project reactivation. Every tab renders a server-produced, project-owned artifact:
   the immutable input snapshot, canonical risk model, empirical
   structure/loadings, candidate metrics and risk contributions, gross income
   evidence, and walk-forward/stress/scorecard evidence.
+- Insufficient common history: retain unavailable facts rather than rendering substitute values, and state
+  the required recovery path: select Univariate Duration `> 6 months`, recompute Bivariate Statistics,
+  then compute Multivariate Statistics again. The production risk model requires 100 shared daily returns.
 - Failure: workflow-state retrieval failed; show a concise alert.
 - Stale: later multivariate work must return to Locked/Ready according to the
   server-owned workflow contract after an upstream change.
@@ -68,7 +89,8 @@ or trade instruction.
 ## Tests
 
 Route and workflow-state tests prove that it remains locked until Bivariate
-Statistics is complete. API-contract tests cover the bounded artifact,
+Statistics is complete. The desktop two-project workflow test verifies that the
+compute action polls from `resolve_inputs` to persisted results. API-contract tests cover the bounded artifact,
 component, risk-contribution, income-evidence, validation, and candidate
 selection routes. Docker builds run TypeScript checking and the production web
 build after UI changes.

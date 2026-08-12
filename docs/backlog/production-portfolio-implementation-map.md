@@ -645,7 +645,7 @@ Calculate:
 - distribution trend;
 - price return and total return;
 - distribution-to-total-return gap;
-- NAV erosion from genuine NAV only;
+- quoted market-price capital change, explicitly labeled as a NAV proxy;
 - income per Expected Shortfall;
 - estimated gross and net income;
 - sustainable income;
@@ -693,7 +693,7 @@ tests/test_income_service.py
 Required invariants:
 
 - distribution frequency does not imply distribution quality;
-- market close is never substituted for genuine NAV;
+- market close provides the clearly labeled capital-change proxy when genuine NAV is unavailable;
 - the latest payment is never annualized as the sole sustainable-income estimate;
 - insufficient history produces an unavailable result;
 - high distributions with weak total return or NAV erosion produce warnings.

@@ -7,7 +7,7 @@ and confidence level `alpha`,
     CVaR_alpha(w) = min_zeta [ zeta + (1 / ((1-alpha)*T)) * sum_t max(0, -r_t.w - zeta) ]
 
 is convex and piecewise-linear (non-smooth) in `(w, zeta)` jointly. The
-repository has no numerical/LP dependency (pyarrow only), so this module
+repository has no numerical/LP dependency (Polars is used only for tabular data), so this module
 hand-implements a projected subgradient descent solver with a diminishing
 step size and best-iterate tracking -- the standard approach for non-smooth
 convex optimization when no closed-form or off-the-shelf LP solver is

@@ -19,7 +19,7 @@ selection, scans unpublished data, or starts bootstrap, Univariate, or Bivariate
 The initial `MonthlyDistributionEtfPolicy` is explicit and versioned. It
 requires typed `instrument_type=ETF`, typed `distribution_frequency=monthly`,
 production-eligible quote history, two or more distinct `(isin, exchange,
-code)` listing keys, and 504 shared daily return observations. Frequency is an
+code)` listing keys, and 100 shared daily return observations. Frequency is an
 eligibility criterion, not a claim about income quality or sustainability.
 
 ## Pinned Inputs

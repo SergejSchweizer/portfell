@@ -83,7 +83,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 }
 .metadata-fetch__credential-input { display: grid; gap: 5px; min-width: 0; justify-items: end; }
 .metadata-fetch label { display: grid; gap: 5px; color: #5f6368; }
-.metadata-fetch__progress { height: 4px; min-height: 4px; margin: 0; }
+.metadata-fetch__progress { height: 14px; min-height: 14px; margin: 0; }
 .metadata-fetch__status { grid-column: 1 / -1; min-height: 20px; color: #5f6368; }
 .metadata-fetch__action { display: grid; gap: var(--space-3); justify-items: start; }
 .project-sidebar { padding: var(--space-6) var(--space-4); background: var(--surface); border-right: 1px solid var(--border); }
@@ -100,6 +100,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 .project-sidebar__step { display: grid; place-items: center; flex: 0 0 26px; width: 26px; height: 26px; border-radius: 50%; background: #edf0f4; font-weight: 600; }
 .project-sidebar__stage { display: grid; gap: 1px; min-width: 0; }
 .project-sidebar__stage small { color: #5f6368; }
+.project-sidebar__workflow li[data-status="complete"] .project-sidebar__stage small { color: var(--success); }
+.project-sidebar__workflow li[data-status="ready"] .project-sidebar__stage small { color: var(--accent-hover); }
+.project-sidebar__workflow li[data-status="locked"] .project-sidebar__stage small { color: var(--disabled); }
 .project-sidebar__message { color: #5f6368; margin: 16px 0 0; }
 .page-content { width: min(100%, 1240px); padding: var(--space-6) var(--space-8) var(--space-12); }
 .metadata-builder-page, .univariate-statistics-page { display: grid; gap: var(--space-4); }
@@ -123,7 +126,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 .portfell-panel:has(.metadata-download), .portfell-panel:has(.metadata-builder-form) { padding: 12px 16px; }
 .portfell-panel:has(.metadata-download) h2, .portfell-panel:has(.metadata-builder-form) h2 { margin: 0 0 8px; font-size: 18px; line-height: 24px; }
 .metadata-download { gap: 6px; }
-.metadata-download progress { height: 8px; }
+.metadata-download progress { height: 14px; }
 .metadata-download .status-line, .portfell-panel:has(.metadata-builder-form) > .status-line { min-height: 16px; margin: 0; }
 .metadata-download .portfell-button, .metadata-builder-form .portfell-button { min-height: 32px; }
 .metadata-builder-form { gap: 8px; }
@@ -137,11 +140,11 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
   gap: 8px;
 }
 .quote-fetch--panel { margin-top: 0; padding-top: 0; border-top: 0; }
-.quote-fetch progress { width: 100%; height: 18px; }
+.quote-fetch progress { width: 100%; height: 14px; }
 .historical-data { gap: 6px; }
 .portfell-panel:has(.historical-data) { padding: 12px 16px; }
 .portfell-panel:has(.historical-data) h2 { margin: 0 0 8px; font-size: 18px; line-height: 24px; }
-.historical-data progress { height: 8px; }
+.historical-data progress { height: 14px; }
 .historical-data .status-line { min-height: 16px; margin: 0; }
 .historical-data .portfell-button { min-height: 32px; }
 .quote-fetch__action { display: flex; justify-content: flex-end; }
@@ -162,28 +165,30 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 .univariate-compute .status-line { min-height: 16px; margin: 0; }
 .univariate-compute .portfell-button { min-height: 32px; }
 .bivariate-compute { gap: 6px; margin-bottom: var(--space-4); }
-.bivariate-compute progress { height: 8px; }
+.quote-fetch.bivariate-compute progress { height: 14px; min-height: 14px; }
 .bivariate-compute .status-line { min-height: 16px; margin: 0; }
 .bivariate-compute .portfell-button { min-height: 32px; }
 .bivariate-statistic { display: grid; grid-template-columns: minmax(260px, .9fr) minmax(420px, 1.6fr); gap: var(--space-6); padding: var(--space-4); border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--canvas); }
-.bivariate-statistic__tabs, .univariate-statistic__tabs { grid-column: 1 / -1; display: flex; gap: 2px; overflow-x: auto; border-bottom: 1px solid var(--border); }
-.bivariate-statistic__tabs button, .univariate-statistic__tabs button { flex: 0 0 auto; padding: 7px 12px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--text-muted); font: inherit; cursor: pointer; }
-.bivariate-statistic__tabs button.is-active, .univariate-statistic__tabs button.is-active { border-bottom-color: var(--primary); color: var(--text); font-weight: 600; }
-.univariate-statistic__tabs {
+.bivariate-statistic__tabs, .univariate-statistic__tabs { grid-column: 1 / -1; }
+.bivariate-statistic__tabs, .univariate-statistic__tabs, .statistics-tabs {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 4px;
   overflow: visible;
   border-bottom: 0;
 }
-.univariate-statistic__tabs button {
+.bivariate-statistic__tabs button, .univariate-statistic__tabs button, .statistics-tabs button {
   min-height: 36px;
   padding: 7px 10px;
   border: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
   text-align: center;
+  cursor: pointer;
 }
-.univariate-statistic__tabs button.is-active { border-color: var(--primary); background: #e7efe9; }
+.bivariate-statistic__tabs button.is-active, .univariate-statistic__tabs button.is-active, .statistics-tabs button[aria-selected="true"] { border-color: var(--primary); background: #e7efe9; color: var(--text); font-weight: 600; }
 .bivariate-compute + .bivariate-statistic { margin-top: var(--space-4); }
 .bivariate-statistic + .bivariate-statistic { margin-top: var(--space-4); }
 .bivariate-statistic__facts { grid-column: 1 / -1; display: grid; align-content: start; gap: var(--space-2); }
@@ -315,7 +320,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
   align-items: end;
 }
 .predicate-row label { display: grid; gap: 5px; color: #5f6368; }
-progress { width: 100%; min-height: 18px; }
+progress { width: 100%; min-height: 14px; }
 table { width: 100%; border-collapse: collapse; }
 th, td { padding: 10px; border-bottom: 1px solid #e5e8ec; text-align: left; }
 @media (max-width: 900px) {

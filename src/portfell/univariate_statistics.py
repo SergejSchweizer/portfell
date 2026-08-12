@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import os
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from concurrent.futures import ProcessPoolExecutor
 from datetime import date
 from math import exp, log, sqrt
 from typing import Any
+
+import polars as pl
 
 from portfell.paths import LakePaths
 from portfell.return_quality import evaluate_quote_quality, filter_valid_price_points
@@ -20,14 +22,17 @@ DEFAULT_CONFIDENCE_LEVEL = 0.975
 
 def build_quote_returns(quote_rows: Sequence[Mapping[str, Any]]) -> list[JsonRow]:
     """Build per-listing daily adjusted-close return transformations from quote rows."""
-    by_listing: dict[tuple[str, str, str], list[Mapping[str, Any]]] = {}
-    for row in quote_rows:
-        key = (str(row["isin"]), str(row["exchange"]), str(row["code"]))
-        by_listing.setdefault(key, []).append(row)
-
     returns: list[JsonRow] = []
-    for (isin, exchange, code), rows in sorted(by_listing.items()):
-        ordered = sorted(rows, key=lambda row: str(row["date"]))
+    frame = pl.DataFrame([dict(row) for row in quote_rows], infer_schema_length=None)
+    if frame.is_empty():
+        return returns
+    grouped = frame.sort(  # pyright: ignore[reportUnknownMemberType]
+        "isin", "exchange", "code", "date"
+    ).partition_by("isin", "exchange", "code", maintain_order=True)
+    for listing_rows in grouped:
+        rows = listing_rows.to_dicts()
+        isin, exchange, code = (str(rows[0][field]) for field in ("isin", "exchange", "code"))
+        ordered = rows
         valid_quotes, _quarantined = filter_valid_price_points(ordered)
         for previous, current in zip(valid_quotes, valid_quotes[1:], strict=False):
             previous_close = float(previous["adjusted_close"])
@@ -54,6 +59,7 @@ def build_univariate_statistics(
     dividend_rows: Sequence[Mapping[str, Any]] = (),
     confidence_level: float = DEFAULT_CONFIDENCE_LEVEL,
     concurrency: int | None = None,
+    on_progress: Callable[[int], None] | None = None,
 ) -> list[JsonRow]:
     """Compute only one-ISIN/listing statistics from quote rows.
 
@@ -69,26 +75,39 @@ def build_univariate_statistics(
     for row in dividend_rows:
         key = (str(row["isin"]), str(row["exchange"]), str(row["code"]))
         dividends_by_listing.setdefault(key, []).append(row)
-    quotes_by_listing: dict[tuple[str, str, str], list[Mapping[str, Any]]] = {}
-    for row in quote_rows:
-        key = (str(row["isin"]), str(row["exchange"]), str(row["code"]))
-        quotes_by_listing.setdefault(key, []).append(row)
-
+    quote_frame = pl.DataFrame([dict(row) for row in quote_rows], infer_schema_length=None)
+    if quote_frame.is_empty():
+        return []
     tasks = [
         (
-            key,
-            tuple(dict(row) for row in quotes),
+            (str(rows[0]["isin"]), str(rows[0]["exchange"]), str(rows[0]["code"])),
+            tuple(rows),
             distributions_by_listing.get(key, ()),
             tuple(dict(row) for row in dividends_by_listing.get(key, ())),
             confidence_level,
         )
-        for key, quotes in sorted(quotes_by_listing.items())
+        for listing_rows in quote_frame.sort(  # pyright: ignore[reportUnknownMemberType]
+            "isin", "exchange", "code", "date"
+        ).partition_by("isin", "exchange", "code", maintain_order=True)
+        if (rows := listing_rows.to_dicts())
+        and (key := (str(rows[0]["isin"]), str(rows[0]["exchange"]), str(rows[0]["code"])))
     ]
     workers = _worker_count(concurrency)
     if workers == 1 or len(tasks) <= 1:
-        return [_build_univariate_listing_statistics(task) for task in tasks]
+        rows: list[JsonRow] = []
+        for completed, task in enumerate(tasks, start=1):
+            rows.append(_build_univariate_listing_statistics(task))
+            if on_progress is not None:
+                on_progress(completed)
+        return rows
     with ProcessPoolExecutor(max_workers=workers) as executor:
-        return list(executor.map(_build_univariate_listing_statistics, tasks))
+        rows: list[JsonRow] = []
+        computed_rows = executor.map(_build_univariate_listing_statistics, tasks)
+        for completed, row in enumerate(computed_rows, start=1):
+            rows.append(row)
+            if on_progress is not None:
+                on_progress(completed)
+        return rows
 
 
 def write_univariate_statistics(

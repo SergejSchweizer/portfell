@@ -239,7 +239,7 @@ def test_metadata_panel_uses_the_historical_data_progress_status_action_layout()
     assert page.index(status_output, metadata_panel) < action
     assert "loadMetadataFetchRun" in context
     assert "exchanges completed" in context
-    assert ".metadata-fetch__progress { height: 4px;" in styles
+    assert ".metadata-fetch__progress { height: 14px;" in styles
 
 
 def test_bivariate_facts_show_the_universe_aligned_data_period() -> None:

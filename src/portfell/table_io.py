@@ -6,34 +6,11 @@ import csv
 import json
 from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
-from typing import Any, Protocol, cast
+from typing import Any, cast
 
-import pyarrow as pa  # type: ignore[import-untyped]
-import pyarrow.parquet as pq  # type: ignore[import-untyped]
+import polars as pl
 
 JsonRow = dict[str, Any]
-
-
-class _ArrowTable(Protocol):
-    def to_pylist(self) -> list[object]: ...
-
-
-class _ArrowTableFactory(Protocol):
-    def from_pylist(self, rows: list[JsonRow]) -> _ArrowTable: ...
-
-
-class _PyArrowModule(Protocol):
-    Table: _ArrowTableFactory
-
-
-class _ParquetModule(Protocol):
-    def write_table(self, table: object, where: Path) -> None: ...
-
-    def read_table(self, source: Path) -> _ArrowTable: ...
-
-
-_ARROW = cast(_PyArrowModule, pa)
-_PARQUET = cast(_ParquetModule, pq)
 
 
 def write_json(path: Path, payload: Mapping[str, Any]) -> None:
@@ -51,8 +28,7 @@ def read_json(path: Path) -> JsonRow:
 def write_rows(path: Path, rows: Iterable[Mapping[str, Any]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.suffix == ".parquet":
-        table = _ARROW.Table.from_pylist([dict(row) for row in rows])
-        _PARQUET.write_table(table, path)
+        pl.DataFrame([dict(row) for row in rows], infer_schema_length=None).write_parquet(path)
         return
     content = "".join(json.dumps(dict(row), sort_keys=True) + "\n" for row in rows)
     path.write_text(content, encoding="utf-8")
@@ -61,10 +37,8 @@ def write_rows(path: Path, rows: Iterable[Mapping[str, Any]]) -> None:
 def normalize_parquet_rows(rows: Iterable[Mapping[str, Any]]) -> list[JsonRow]:
     """Return rows using the same inferred scalar types persisted by Parquet."""
 
-    normalized = _ARROW.Table.from_pylist([dict(row) for row in rows]).to_pylist()
-    if not all(isinstance(row, dict) for row in normalized):
-        raise ValueError("expected Parquet object rows")
-    return cast(list[JsonRow], normalized)
+    frame = pl.DataFrame([dict(row) for row in rows], infer_schema_length=None)
+    return frame.to_dicts()
 
 
 def read_rows(path: Path) -> list[JsonRow]:
@@ -72,11 +46,10 @@ def read_rows(path: Path) -> list[JsonRow]:
     if not path.exists():
         return rows
     if path.suffix == ".parquet":
-        for row in _PARQUET.read_table(path).to_pylist():
-            if not isinstance(row, dict):
-                raise ValueError(f"expected Parquet object row in {path}")
-            rows.append(cast(JsonRow, row))
-        return rows
+        try:
+            return pl.read_parquet(path).to_dicts()
+        except pl.exceptions.PolarsError as error:
+            raise ValueError(f"expected Parquet object row in {path}") from error
     for line in path.read_text(encoding="utf-8").splitlines():
         if not line.strip():
             continue

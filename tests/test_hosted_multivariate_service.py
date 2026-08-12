@@ -1,9 +1,12 @@
 from __future__ import annotations
 
-from collections.abc import Callable
-from dataclasses import dataclass
+import json
+from collections.abc import Callable, Iterable, Iterator
+from dataclasses import dataclass, replace
 from datetime import date, timedelta
 from pathlib import Path
+
+import pytest
 
 from portfell.hosted_api_service_support import stable_hash
 from portfell.hosted_api_state import HostedApiState, ProjectRecord, SelectionRecord
@@ -22,6 +25,7 @@ from portfell.hosted_research_workflow import (
 from portfell.hosted_selection_repository import InMemorySelectionRepository
 from portfell.hosted_workspace import LocalWorkspaceStore
 from portfell.hosted_workspace_repository import persist_local_workspace, restore_local_workspace
+from portfell.income import INCOME_CONTRACT
 from portfell.table_io import JsonRow
 
 
@@ -56,9 +60,18 @@ class _Persistence:
 
 
 def _service(
-    state: HostedApiState, data: _Data, persistence: _Persistence
+    state: HostedApiState,
+    data: _Data,
+    persistence: _Persistence,
+    worker_count: Callable[[], int | None] | None = None,
 ) -> MultivariateResearchService:
-    return MultivariateResearchService(state, data, persistence, HostedResearchRepository(state))
+    return MultivariateResearchService(
+        state,
+        data,
+        persistence,
+        HostedResearchRepository(state),
+        worker_count=worker_count or (lambda: 1),
+    )
 
 
 def _fixtures() -> tuple[HostedApiState, _Data, str, str]:
@@ -171,6 +184,10 @@ def test_multivariate_service_resolves_pinned_project_dependencies_and_persists_
     assert service.summary("user-a", str(started["run_id"]))["candidate_etf_count"] == 5
     candidates = service.candidates("user-a", str(started["run_id"]))["items"]
     assert len(candidates) == 6
+    assert all(candidate["var"] is not None for candidate in candidates)
+    assert all(candidate["maximum_weight"] is not None for candidate in candidates)
+    assert all(candidate["herfindahl_index"] is not None for candidate in candidates)
+    assert all(candidate["effective_holding_count"] is not None for candidate in candidates)
     candidate_id = str(candidates[0]["candidate_id"])
     detail = service.candidate_detail("user-a", str(started["run_id"]), candidate_id)
     assert detail["candidate_id"] == candidate_id
@@ -199,6 +216,39 @@ def test_multivariate_service_resolves_pinned_project_dependencies_and_persists_
     ] == [candidate_id]
     assert state.current_multivariate_run_by_project[project_id] == started["run_id"]
     assert persistence.persisted >= 2
+
+
+def test_multivariate_service_uses_all_available_cpu_workers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import portfell.hosted_multivariate_service as service_module
+
+    worker_counts: list[int] = []
+
+    class InlineProcessPoolExecutor:
+        def __init__(self, *, max_workers: int) -> None:
+            worker_counts.append(max_workers)
+
+        def __enter__(self) -> InlineProcessPoolExecutor:
+            return self
+
+        def __exit__(self, *args: object) -> None:
+            del args
+
+        def map(
+            self, function: Callable[[object], object], values: Iterable[object]
+        ) -> Iterator[object]:
+            return map(function, values)
+
+    monkeypatch.setattr(service_module, "ProcessPoolExecutor", InlineProcessPoolExecutor)
+    state, data, project_id, bivariate_run_id = _fixtures()
+    service = _service(state, data, _Persistence(), worker_count=lambda: 7)
+    started = service.start("user-a", project_id, bivariate_run_id, {})
+
+    service.complete("user-a", str(started["run_id"]))
+
+    assert worker_counts == [7]
+    assert service.status("user-a", str(started["run_id"]))["status"] == "complete"
 
 
 def test_multivariate_service_rejects_bivariate_run_owned_by_another_user() -> None:
@@ -304,6 +354,16 @@ def test_multivariate_service_covers_idempotency_stale_and_error_boundaries() ->
         10,
     )
     first = service.start("user-a", project_id, bivariate_run_id, {})
+    assert state.multivariate_runs_by_id[str(first["run_id"])].logical_hash == stable_hash(
+        {
+            "project_id": project_id,
+            "bivariate_run_id": bivariate_run_id,
+            "selection_id": "univariate-selection-a",
+            "settings": {},
+            "income_contract": INCOME_CONTRACT.qualified_name,
+            "execution_contract": "multivariate_execution.v6",
+        }
+    )
     assert service.start("user-a", project_id, bivariate_run_id, {})["run_id"] == first["run_id"]
     second = service.start("user-a", project_id, bivariate_run_id, {"max_weight": 0.2})
     assert state.multivariate_runs_by_id[str(first["run_id"])].status == "stale"
@@ -325,6 +385,25 @@ def test_multivariate_service_covers_idempotency_stale_and_error_boundaries() ->
     else:
         raise AssertionError("unknown or duplicate candidate ids must be rejected")
     service.complete("user-a", str(second["run_id"]))
+
+
+def test_multivariate_service_expires_abandoned_running_runs() -> None:
+    state, data, project_id, bivariate_run_id = _fixtures()
+    persistence = _Persistence()
+    service = _service(state, data, persistence)
+    started = service.start("user-a", project_id, bivariate_run_id, {})
+    run_id = str(started["run_id"])
+    state.multivariate_runs_by_id[run_id] = replace(
+        state.multivariate_runs_by_id[run_id],
+        started_at_epoch=0,
+    )
+
+    status = service.status("user-a", run_id)
+
+    assert status["status"] == "failed"
+    assert status["failure_reason"] == "compute_timeout"
+    assert status["estimated_remaining_seconds"] == 0
+    assert persistence.persisted >= 2
 
 
 def test_multivariate_service_rejects_missing_dependency_closure_and_marks_failures() -> None:
@@ -400,3 +479,4 @@ def test_multivariate_service_refits_candidates_for_walk_forward_validation() ->
     service.complete("user-a", str(started["run_id"]))
     validation = service.validation("user-a", str(started["run_id"]))["items"]
     assert any(item["kind"] == "walk_forward" and item["risk_model_id"] for item in validation)
+    json.dumps(validation)

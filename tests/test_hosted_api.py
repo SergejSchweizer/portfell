@@ -374,10 +374,13 @@ def test_metadata_builder_options_and_project_creation_use_all_isins_reference()
     )
 
     assert options == {
-        "country": ["IE", "US"],
-        "currency": ["EUR", "USD"],
-        "exchange": ["NYSE", "XETRA"],
-        "instrument_type": ["Common Stock", "ETF"],
+        "country": [{"value": "IE", "isin_count": 1}, {"value": "US", "isin_count": 1}],
+        "currency": [{"value": "EUR", "isin_count": 1}, {"value": "USD", "isin_count": 1}],
+        "exchange": [{"value": "NYSE", "isin_count": 1}, {"value": "XETRA", "isin_count": 1}],
+        "instrument_type": [
+            {"value": "Common Stock", "isin_count": 1},
+            {"value": "ETF", "isin_count": 1},
+        ],
     }
     assert created == repeated
     assert created["project"]["name"] == "xetra_ucits_etf_etf_ie_eur"

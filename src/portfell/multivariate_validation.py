@@ -12,15 +12,16 @@ from portfell.contract_versioning import ContractVersion, stable_contract_id
 from portfell.multivariate_candidates import PortfolioCandidate
 from portfell.multivariate_inputs import MultivariateListingKey
 
-VALIDATION_CONTRACT = ContractVersion("multivariate.validation", 2)
+VALIDATION_CONTRACT = ContractVersion("multivariate.validation", 4)
 CandidateFactory = Callable[[Sequence[Mapping[str, Any]]], Sequence[PortfolioCandidate]]
 
 
 @dataclass(frozen=True)
 class WalkForwardPolicy:
     version: ContractVersion = VALIDATION_CONTRACT
-    minimum_training_observations: int = 504
+    minimum_training_observations: int = 100
     test_window_observations: int = 21
+    maximum_refit_count: int = 24
     minimum_completed_splits: int = 2
     transaction_cost_rate: float = 0.0005
     bootstrap_seed: int = 41
@@ -31,6 +32,7 @@ class WalkForwardPolicy:
             "version": self.version.qualified_name,
             "minimum_training_observations": self.minimum_training_observations,
             "test_window_observations": self.test_window_observations,
+            "maximum_refit_count": self.maximum_refit_count,
             "minimum_completed_splits": self.minimum_completed_splits,
             "transaction_cost_rate": self.transaction_cost_rate,
             "bootstrap_seed": self.bootstrap_seed,
@@ -46,6 +48,41 @@ _SCENARIO_NAMES = (
     "correlation_convergence",
     "distribution_cut",
 )
+
+
+def walk_forward_training_rows(
+    *,
+    candidates: Sequence[PortfolioCandidate],
+    return_rows: Sequence[Mapping[str, Any]],
+    policy: WalkForwardPolicy = DEFAULT_WALK_FORWARD_POLICY,
+) -> tuple[tuple[Mapping[str, Any], ...], ...]:
+    dates = _common_dates(candidates, return_rows)
+    if len(dates) < policy.minimum_training_observations + policy.test_window_observations:
+        return ()
+    return tuple(
+        tuple(row for row in return_rows if str(row.get("date", "")) in set(dates[:start]))
+        for start in _walk_forward_starts(dates, policy)
+    )
+
+
+def _walk_forward_starts(dates: Sequence[str], policy: WalkForwardPolicy) -> tuple[int, ...]:
+    starts = tuple(
+        start
+        for start in range(
+            policy.minimum_training_observations, len(dates), policy.test_window_observations
+        )
+        if len(dates[start : start + policy.test_window_observations])
+        == policy.test_window_observations
+    )
+    if policy.maximum_refit_count < 1:
+        raise ValueError("maximum_refit_count must be positive")
+    if len(starts) <= policy.maximum_refit_count:
+        return starts
+    last_index = len(starts) - 1
+    limit_index = policy.maximum_refit_count - 1
+    return tuple(
+        starts[index * last_index // limit_index] for index in range(policy.maximum_refit_count)
+    )
 
 
 @dataclass(frozen=True)
@@ -74,6 +111,18 @@ class ValidationSplit:
     herfindahl_index: float | None = None
     income_available: bool = False
     test_observation_count: int = 0
+
+
+def walk_forward_validation_row(item: ValidationSplit) -> dict[str, Any]:
+    """Return the JSON-safe persisted representation of a walk-forward split."""
+    return {
+        "kind": "walk_forward",
+        **item.__dict__,
+        "weights": [
+            {"isin": key.isin, "exchange": key.exchange, "code": key.code, "weight": weight}
+            for key, weight in item.weights
+        ],
+    }
 
 
 @dataclass(frozen=True)
@@ -112,6 +161,7 @@ def validate_candidates(
     return_rows: Sequence[Mapping[str, Any]],
     policy: WalkForwardPolicy = DEFAULT_WALK_FORWARD_POLICY,
     candidate_factory: CandidateFactory | None = None,
+    precomputed_candidates: Sequence[Sequence[PortfolioCandidate]] | None = None,
     risk_model_id: str | None = None,
 ) -> tuple[ValidationSplit, ...]:
     """Validate candidates on common out-of-sample slices.
@@ -122,6 +172,8 @@ def validate_candidates(
     this pure helper useful for explicit static-weight research fixtures.
     """
 
+    if candidate_factory is not None and precomputed_candidates is not None:
+        raise ValueError("candidate_factory_and_precomputed_candidates_are_exclusive")
     dates = _common_dates(candidates, return_rows)
     if len(dates) < policy.minimum_training_observations + policy.test_window_observations:
         return tuple(
@@ -129,30 +181,35 @@ def validate_candidates(
         )
     results: list[ValidationSplit] = []
     previous_weights: dict[str, tuple[tuple[MultivariateListingKey, float], ...]] = {}
-    for start in range(
-        policy.minimum_training_observations, len(dates), policy.test_window_observations
-    ):
+    indexed_returns = _index_return_rows(return_rows)
+    refit_index = 0
+    for start in _walk_forward_starts(dates, policy):
         test_dates = dates[start : start + policy.test_window_observations]
-        if len(test_dates) != policy.test_window_observations:
-            continue
-        training_rows = [row for row in return_rows if str(row.get("date", "")) in dates[:start]]
-        evaluated = (
-            tuple(candidate_factory(training_rows)) if candidate_factory else tuple(candidates)
+        training_rows = tuple(
+            row for row in return_rows if str(row.get("date", "")) in set(dates[:start])
         )
+        if precomputed_candidates is not None:
+            if refit_index >= len(precomputed_candidates):
+                raise ValueError("missing_precomputed_candidates")
+            evaluated = tuple(precomputed_candidates[refit_index])
+            refit_index += 1
+        else:
+            evaluated = (
+                tuple(candidate_factory(training_rows)) if candidate_factory else tuple(candidates)
+            )
         by_method = {candidate.method: candidate for candidate in evaluated}
         for requested in candidates:
             candidate = by_method.get(requested.method)
             if candidate is None or candidate.status != "feasible":
                 results.append(_unavailable(requested, "candidate_unavailable"))
                 continue
-            returns = _portfolio_returns_by_date((candidate,), return_rows)[candidate.method]
-            test = [returns[day] for day in test_dates]
+            test = _candidate_returns_for_dates(candidate, indexed_returns, test_dates)
             pre_cost = _compound(test)
             previous = previous_weights.get(candidate.method)
             turnover = _turnover(previous, candidate.weights)
             cost = (
                 turnover * policy.transaction_cost_rate
-                if candidate_factory is not None
+                if candidate_factory is not None or precomputed_candidates is not None
                 else policy.transaction_cost_rate
             )
             previous_weights[candidate.method] = candidate.weights
@@ -193,6 +250,8 @@ def validate_candidates(
                     test_observation_count=len(test),
                 )
             )
+    if precomputed_candidates is not None and refit_index != len(precomputed_candidates):
+        raise ValueError("unexpected_precomputed_candidates")
     return tuple(results)
 
 
@@ -269,10 +328,7 @@ def build_candidate_scorecards(
 def _portfolio_returns_by_date(
     candidates: Sequence[PortfolioCandidate], rows: Sequence[Mapping[str, Any]]
 ) -> dict[str, dict[str, float]]:
-    indexed: dict[tuple[str, str, str], dict[str, float]] = {}
-    for row in rows:
-        key = (str(row["isin"]), str(row["exchange"]), str(row["code"]))
-        indexed.setdefault(key, {})[str(row["date"])] = float(row.get("return", 0))
+    indexed = _index_return_rows(rows)
     output: dict[str, dict[str, float]] = {}
     for candidate in candidates:
         if candidate.status != "feasible":
@@ -291,6 +347,29 @@ def _portfolio_returns_by_date(
             for day in common
         }
     return output
+
+
+def _index_return_rows(
+    rows: Sequence[Mapping[str, Any]],
+) -> dict[tuple[str, str, str], dict[str, float]]:
+    indexed: dict[tuple[str, str, str], dict[str, float]] = {}
+    for row in rows:
+        key = (str(row["isin"]), str(row["exchange"]), str(row["code"]))
+        indexed.setdefault(key, {})[str(row["date"])] = float(row.get("return", 0))
+    return indexed
+
+
+def _candidate_returns_for_dates(
+    candidate: PortfolioCandidate,
+    indexed_returns: Mapping[tuple[str, str, str], Mapping[str, float]],
+    dates: Sequence[str],
+) -> list[float]:
+    weights = {key.as_tuple(): weight for key, weight in candidate.weights}
+    if any(key not in indexed_returns for key in weights):
+        raise ValueError("candidate_return_history_unavailable")
+    return [
+        sum(weight * indexed_returns[key][day] for key, weight in weights.items()) for day in dates
+    ]
 
 
 def _common_dates(

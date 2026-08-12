@@ -1,5 +1,5 @@
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { loadProjectContext, loadWorkflow } from "../api/client";
 import { univariateStatisticsApi } from "../api/univariate-statistics";
 import { Button } from "../components/button";
@@ -36,14 +36,15 @@ const metricDefinitions: readonly MetricDefinition[] = [
 ];
 
 const quoteDurationThresholds: readonly Readonly<{ label: string; minimum: number }>[] = [
-  { label: "> 1 month", minimum: 21 },
-  { label: "> 2 months", minimum: 42 },
-  { label: "> 3 months", minimum: 63 },
-  { label: "> 6 months", minimum: 126 },
-  { label: "> 12 months", minimum: 252 },
-  { label: "> 3 years", minimum: 756 },
-  { label: "> 5 years", minimum: 1_260 },
-  { label: "> 10 years", minimum: 2_520 },
+  { label: "> 1 month", minimum: 22 },
+  { label: "> 2 months", minimum: 43 },
+  { label: "> 3 months", minimum: 64 },
+  { label: "> 6 months", minimum: 127 },
+  { label: "> 12 months", minimum: 253 },
+  { label: "> 2 years", minimum: 505 },
+  { label: "> 3 years", minimum: 757 },
+  { label: "> 5 years", minimum: 1_261 },
+  { label: "> 10 years", minimum: 2_521 },
 ];
 
 
@@ -103,6 +104,7 @@ export function UnivariateStatisticsPage() {
   const [portfolioStatisticRanges, setPortfolioStatisticRanges] = useState<Record<string, SelectionRange[]>>({});
   const [activeStatisticTab, setActiveStatisticTab] = useState<UnivariateStatisticTab>("dividends");
   const [message, setMessage] = useState("");
+  const selectionSettingsVersion = useRef(0);
   const workflowUnivariateRunId = workflow.status === "ready"
     ? workflow.data.stages.univariate_statistics.univariate_run_id ?? null
     : null;
@@ -146,17 +148,18 @@ export function UnivariateStatisticsPage() {
 
   useEffect(() => {
     let cancelled = false;
+    const version = selectionSettingsVersion.current;
     void loadProjectContext().then(async (context) => {
       const projectId = context.current_project_id;
       if (!projectId || cancelled) return;
       try {
         const saved = await univariateStatisticsApi.loadSelectionSettings(projectId);
-        if (cancelled) return;
+        if (cancelled || version !== selectionSettingsVersion.current) return;
         setPortfolioDividendFrequencies(saved.dividend_frequencies.filter((value) => dividendFrequencyOptions.some((option) => option.value === value)));
         setPortfolioStatisticSelections(saved.statistic_labels);
         setPortfolioStatisticRanges(saved.statistic_ranges);
       } catch {
-        if (!cancelled) {
+        if (!cancelled && version === selectionSettingsVersion.current) {
           setPortfolioDividendFrequencies([]);
           setPortfolioStatisticSelections({});
           setPortfolioStatisticRanges({});
@@ -209,6 +212,11 @@ export function UnivariateStatisticsPage() {
   if (workflow.status === "error") return <p>Workflow state is unavailable.</p>;
   const stage = workflow.data.stages.univariate_statistics;
   const metadata = workflow.data.stages.metadata_builder;
+  const selectedForBivariate = workflow.data.process_overview?.univariate_statistics_isins;
+  const portfolioSelectionCount = selectedForBivariate ?? results?.length;
+  const portfolioSelectionLabel = portfolioSelectionCount === undefined
+    ? "Portfolio selection (Updating…)"
+    : `Portfolio selection (${portfolioSelectionCount.toLocaleString()} ${portfolioSelectionCount === 1 ? "ISIN" : "ISINs"})`;
   const progress = univariateProgress(run);
   const dividendFrequencyCounts = dividendFrequencyOptions.map((option) => ({
     ...option,
@@ -241,13 +249,18 @@ export function UnivariateStatisticsPage() {
     statisticLabels: Record<string, string[]>,
     statisticRanges: Record<string, SelectionRange[]>,
   ) {
+    selectionSettingsVersion.current += 1;
     const context = await loadProjectContext();
     if (!context.current_project_id) return;
-    await univariateStatisticsApi.saveSelectionSettings(context.current_project_id, {
+    const saved = await univariateStatisticsApi.saveSelectionSettings(context.current_project_id, {
       dividend_frequencies: dividendFrequencies,
       statistic_labels: statisticLabels,
       statistic_ranges: statisticRanges,
     });
+    setPortfolioDividendFrequencies(saved.dividend_frequencies.filter((value) => dividendFrequencyOptions.some((option) => option.value === value)));
+    setPortfolioStatisticSelections(saved.statistic_labels);
+    setPortfolioStatisticRanges(saved.statistic_ranges);
+    setWorkflowRevision((value) => value + 1);
     window.dispatchEvent(new Event("portfell:workflow-updated"));
   }
 
@@ -297,7 +310,7 @@ export function UnivariateStatisticsPage() {
               </Button>
             </div>
           </div>
-          {results !== null ? <section className="univariate-statistic" aria-labelledby="univariate-statistic-title">
+          {run?.status === "complete" && results !== null ? <section className="univariate-statistic" aria-labelledby="univariate-statistic-title">
             <div className="univariate-statistic__tabs" role="tablist" aria-label="Univariate statistic">
               <button type="button" role="tab" aria-selected={activeStatisticTab === "dividends"} className={activeStatisticTab === "dividends" ? "is-active" : undefined} onClick={() => setActiveStatisticTab("dividends")}>Dividends</button>
               {metricDefinitions.map((statistic) => <button key={statistic.metric} type="button" role="tab" aria-selected={activeStatisticTab === statistic.metric} className={activeStatisticTab === statistic.metric ? "is-active" : undefined} onClick={() => setActiveStatisticTab(statistic.metric)}>{statistic.label}</button>)}
@@ -318,7 +331,7 @@ export function UnivariateStatisticsPage() {
             </div>
             <div className="dividend-statistic__right">
               <label className="portfolio-selection">
-                Portfolio selection
+                {portfolioSelectionLabel}
                 <select multiple size={4} value={portfolioDividendFrequencies} onChange={(event) => {
                   const values = Array.from(event.currentTarget.selectedOptions, (option) => option.value as DividendFrequency);
                   setPortfolioDividendFrequencies(values);
@@ -422,7 +435,7 @@ export function UnivariateStatisticsPage() {
                     </div>
                     <div className="univariate-group-card__right">
                       <label className="portfolio-selection">
-                        Portfolio selection
+                        {portfolioSelectionLabel}
                         <select multiple size={4} value={portfolioStatisticSelections[statistic.metric] ?? []} onChange={(event) => {
                           const values = Array.from(event.currentTarget.selectedOptions, (option) => option.value);
                           saveStatisticSelection(

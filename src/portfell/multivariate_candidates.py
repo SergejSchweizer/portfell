@@ -9,6 +9,7 @@ Weight.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from concurrent.futures import Executor
 from dataclasses import dataclass
 from math import exp, sqrt
 from typing import Any
@@ -16,7 +17,10 @@ from typing import Any
 from portfell.contract_versioning import ContractVersion, stable_contract_id
 from portfell.income import IncomeEvidence
 from portfell.multivariate_inputs import MultivariateInputSnapshot, MultivariateListingKey
-from portfell.multivariate_risk_model import MultivariateRiskModelArtifact
+from portfell.multivariate_risk_model import (
+    MultivariateRiskModelArtifact,
+    build_multivariate_risk_model,
+)
 from portfell.portfolio import portfolio_variance
 from portfell.portfolio_parts.clustering import (
     correlation_distance_matrix,
@@ -34,6 +38,7 @@ from portfell.portfolio_parts.solvers import (
 )
 
 CANDIDATE_CONTRACT = ContractVersion("multivariate.candidates", 1)
+MAX_WALK_FORWARD_SOLVER_ITERATIONS = 500
 METHODS = (
     "equal_weight",
     "inverse_volatility",
@@ -70,6 +75,16 @@ class MonthlyDistributionEtfPortfolioPolicy:
 
 
 DEFAULT_MONTHLY_DISTRIBUTION_ETF_PORTFOLIO_POLICY = MonthlyDistributionEtfPortfolioPolicy()
+
+
+@dataclass(frozen=True)
+class CandidateRefitTask:
+    snapshot: MultivariateInputSnapshot
+    return_rows: tuple[Mapping[str, Any], ...]
+    income: Mapping[MultivariateListingKey, IncomeEvidence]
+    policy: MonthlyDistributionEtfPortfolioPolicy = (
+        DEFAULT_MONTHLY_DISTRIBUTION_ETF_PORTFOLIO_POLICY
+    )
 
 
 @dataclass(frozen=True)
@@ -132,14 +147,44 @@ def build_candidate_set(
     policy: MonthlyDistributionEtfPortfolioPolicy = (
         DEFAULT_MONTHLY_DISTRIBUTION_ETF_PORTFOLIO_POLICY
     ),
+    executor: Executor | None = None,
 ) -> tuple[PortfolioCandidate, ...]:
     """Build the six stable candidates from one input/risk-model pair."""
     infeasible_reason = _feasibility_reason(snapshot, risk_model, policy)
-    return tuple(
-        _unavailable(snapshot, risk_model, policy, method, infeasible_reason)
-        if infeasible_reason
-        else _candidate(snapshot, risk_model, return_rows, income, policy, method)
-        for method in METHODS
+    if infeasible_reason:
+        return tuple(
+            _unavailable(snapshot, risk_model, policy, method, infeasible_reason)
+            for method in METHODS
+        )
+    tasks = tuple((snapshot, risk_model, return_rows, income, policy, method) for method in METHODS)
+    return (
+        tuple(_build_candidate(task) for task in tasks)
+        if executor is None
+        else tuple(executor.map(_build_candidate, tasks))
+    )
+
+
+def _build_candidate(
+    task: tuple[
+        MultivariateInputSnapshot,
+        MultivariateRiskModelArtifact,
+        Sequence[Mapping[str, Any]],
+        Mapping[MultivariateListingKey, IncomeEvidence],
+        MonthlyDistributionEtfPortfolioPolicy,
+        str,
+    ],
+) -> PortfolioCandidate:
+    return _candidate(*task)
+
+
+def build_refit_candidate_set(task: CandidateRefitTask) -> tuple[PortfolioCandidate, ...]:
+    risk_model = build_multivariate_risk_model(snapshot=task.snapshot, return_rows=task.return_rows)
+    return build_candidate_set(
+        snapshot=task.snapshot,
+        risk_model=risk_model,
+        return_rows=task.return_rows,
+        income=task.income,
+        policy=task.policy,
     )
 
 
@@ -237,7 +282,7 @@ def _weights(
             covariances,
             min_weight=policy.min_weight,
             max_weight=policy.max_weight,
-            max_iterations=30_000,
+            max_iterations=MAX_WALK_FORWARD_SOLVER_ITERATIONS,
         )
         if not outcome.converged:
             raise ValueError("minimum_variance_solver_not_converged")
@@ -248,7 +293,7 @@ def _weights(
             covariances,
             min_weight=policy.min_weight,
             max_weight=policy.max_weight,
-            max_iterations=30_000,
+            max_iterations=MAX_WALK_FORWARD_SOLVER_ITERATIONS,
         )
         if not outcome.converged:
             raise ValueError("equal_risk_contribution_solver_not_converged")

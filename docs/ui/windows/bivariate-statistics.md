@@ -14,15 +14,15 @@
 
 ## Purpose
 
-Run and present server-computed pairwise statistics for the automatic all-results selection produced
-when univariate statistics complete. The server's automatic all-results selection is an internal
-persistence hand-off, not a separate browser filter module.
+Run and present server-computed pairwise statistics for the persisted filtered selection produced
+from completed Univariate Statistics. The server's selection is an internal persistence hand-off, not
+a separate browser filter module.
 
 ## Module boundary
 
-Bivariate Statistics consumes the persisted selected-ISIN set from Univariate Statistics and owns
-pairwise rows and matrices. It must not modify the metadata or univariate selections, and portfolio
-construction remains a later module.
+Bivariate Statistics consumes the persisted selected-ISIN set derived from Univariate Statistics'
+saved dividend-frequency and statistic-range filters, and owns pairwise rows and matrices. It must not
+modify the metadata or univariate selections, and portfolio construction remains a later module.
 
 ## Contract
 
@@ -30,17 +30,25 @@ The page preflights through `POST /api/bivariate-statistics/plan`, starts
 `POST /api/bivariate-statistics/runs`, reports server progress, and loads bounded results from
 `GET /api/bivariate-statistics/runs/{run_id}/results`. Pair construction, limits, calculations,
 storage, and ranking remain backend responsibilities.
+Its workflow progress bar uses the shared 14px height.
+
+The pairwise-dependence window is not rendered until its particular Bivariate run reaches
+`complete`; while it is pending, running, failed, or unavailable, the page shows only the progress
+and compute controls.
 
 Historical market data is refreshed centrally by the shared-market operations service. This page
 contains no provider-download action and renders pairwise computation only after the selected
-project's shared-market coverage is ready.
+project's shared-market coverage is ready. A completed Univariate run sourced from the shared market
+uses those published quote rows directly; it does not require a project quote-run identifier.
 
 Every pairwise metric and matrix in one run uses the same universe-wide date intersection. Summary
 and matrix contracts expose `date_start` and `date_end`; every facts table renders that aligned data
 period so values from different tabs and windows are directly comparable.
 
-The pairwise-dependence window presents Covariance, Pearson, Spearman, Downside Correlation, Tail
-Dependence, and Co-exceedance as tabs. Tail Dependence and Co-exceedance use the same
+The pairwise-dependence window presents its statistics in the same responsive multi-row tab grid as
+Univariate and Multivariate Statistics, so every tab remains visible without horizontal scrolling.
+It includes Covariance, Pearson, Spearman, Downside Correlation, Tail Dependence, and Co-exceedance.
+Tail Dependence and Co-exceedance use the same
 upper-triangular, colour-scaled, hoverable matrix treatment as the correlation tabs. Their facts
 tables show the aligned period, pair count, shared observations, and distribution summary. Tail
 Dependence additionally exposes its 90th percentile; ≥30% and ≥50% pair counts; worst pair; best
@@ -79,8 +87,13 @@ and status message before this page loads the replacement project workflow.
 ## Acceptance
 
 The page blocks execution when upstream filtering is incomplete, empty, stale, or over the configured
-pair limit. It prevents duplicate runs, represents empty and partial results explicitly, and provides
-accessible tabular output on desktop and a usable responsive representation on narrow screens.
+pair limit. It prevents duplicate runs, hides result windows before the run completes, represents empty
+and partial results explicitly, and provides accessible tabular output on desktop and a usable responsive
+representation on narrow screens.
+
+The browser workflow test covers the Compute Bivariate Statistics action with a server-owned
+`running` response followed by a polled `complete` response. It verifies progress, duplicate-submit
+prevention, terminal result rendering, and the plan/start/status API sequence.
 
 The stateful two-project browser journey computes the active project's pair
 statistics and selects every pairwise-dependence tab, including Tail Dependence and

@@ -62,6 +62,25 @@ def test_walk_forward_reports_insufficient_history_explicitly() -> None:
     assert splits[0].reason == "insufficient_walk_forward_history"
 
 
+def test_default_walk_forward_policy_starts_after_one_hundred_observations() -> None:
+    rows = [
+        {
+            "isin": "IE1",
+            "exchange": "X",
+            "code": "A",
+            "date": f"2025-{index // 28 + 1:02d}-{index % 28 + 1:02d}",
+            "return": 0.01,
+        }
+        for index in range(121)
+    ]
+
+    splits = validate_candidates(candidates=[_candidate()], return_rows=rows)
+
+    assert len(splits) == 1
+    assert splits[0].status == "complete"
+    assert splits[0].test_observation_count == 21
+
+
 def test_walk_forward_refits_only_on_each_training_slice_and_persists_turnover() -> None:
     rows = [
         {
@@ -89,6 +108,59 @@ def test_walk_forward_refits_only_on_each_training_slice_and_persists_turnover()
     assert len(training_ends) == len(splits)
     assert all(end < split.test_start for end, split in zip(training_ends, splits, strict=True))
     assert splits[0].turnover == 1.0
+
+
+def test_walk_forward_uses_precomputed_refits_in_chronological_turnover_order() -> None:
+    rows = [
+        {
+            "isin": "IE1",
+            "exchange": "X",
+            "code": "A",
+            "date": f"2025-01-{day:02d}",
+            "return": 0.01,
+        }
+        for day in range(1, 11)
+    ]
+    splits = validate_candidates(
+        candidates=[_candidate()],
+        return_rows=rows,
+        policy=WalkForwardPolicy(minimum_training_observations=4, test_window_observations=2),
+        precomputed_candidates=[[_candidate()], [_candidate()], [_candidate()]],
+    )
+
+    assert len(splits) == 3
+    assert [split.turnover for split in splits] == [1.0, 0.0, 0.0]
+    assert [split.transaction_cost for split in splits] == [0.0005, 0.0, 0.0]
+
+
+def test_walk_forward_caps_refits_across_the_full_history() -> None:
+    rows = [
+        {
+            "isin": "IE1",
+            "exchange": "X",
+            "code": "A",
+            "date": f"2025-01-{day:02d}",
+            "return": 0.01,
+        }
+        for day in range(1, 21)
+    ]
+    policy = WalkForwardPolicy(
+        minimum_training_observations=4,
+        test_window_observations=2,
+        maximum_refit_count=3,
+    )
+    training_ends: list[str] = []
+
+    def refit(training_rows: Sequence[Mapping[str, Any]]) -> list[PortfolioCandidate]:
+        training_ends.append(str(training_rows[-1]["date"]))
+        return [_candidate()]
+
+    splits = validate_candidates(
+        candidates=[_candidate()], return_rows=rows, policy=policy, candidate_factory=refit
+    )
+
+    assert len(splits) == 3
+    assert training_ends == ["2025-01-04", "2025-01-10", "2025-01-18"]
 
 
 def test_stress_and_scorecards_are_deterministic_and_do_not_select_a_winner() -> None:

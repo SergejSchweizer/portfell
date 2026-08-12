@@ -14,7 +14,7 @@ def _key(n: int) -> MultivariateListingKey:
 def _dependencies(
     *,
     keys: tuple[MultivariateListingKey, ...] = (_key(1), _key(2)),
-    observations: int = 504,
+    observations: int = 100,
     **changes: object,
 ) -> MultivariateInputDependencies:
     values: dict[str, object] = {
@@ -88,7 +88,7 @@ def test_snapshot_detects_dependency_membership_calendar_and_history_failures() 
             bivariate_status="running",
             bivariate_listing_keys=(_key(1),),
             bivariate_aligned_calendar_id="other",
-            observations=503,
+            observations=99,
         ),
         univariate_rows=[_row(_key(1)), _row(_key(2))],
     )
@@ -100,6 +100,16 @@ def test_snapshot_detects_dependency_membership_calendar_and_history_failures() 
     }
 
 
+def test_default_policy_accepts_exactly_one_hundred_common_observations() -> None:
+    snapshot = build_multivariate_input_snapshot(
+        dependencies=_dependencies(observations=100),
+        univariate_rows=[_row(_key(1)), _row(_key(2))],
+    )
+
+    assert snapshot.eligible
+    assert snapshot.policy.minimum_common_daily_return_observations == 100
+
+
 def test_snapshot_identity_changes_with_pinned_dependency_or_policy() -> None:
     rows = [_row(_key(1)), _row(_key(2))]
     base = build_multivariate_input_snapshot(dependencies=_dependencies(), univariate_rows=rows)
@@ -109,7 +119,7 @@ def test_snapshot_identity_changes_with_pinned_dependency_or_policy() -> None:
     policy_changed = build_multivariate_input_snapshot(
         dependencies=_dependencies(),
         univariate_rows=rows,
-        policy=MonthlyDistributionEtfPolicy(minimum_common_daily_return_observations=505),
+        policy=MonthlyDistributionEtfPolicy(minimum_common_daily_return_observations=101),
     )
     assert base.snapshot_id != changed.snapshot_id
     assert base.snapshot_id != policy_changed.snapshot_id

@@ -1,3 +1,5 @@
+Each non-empty exchange, instrument type, country, and currency option includes its server-computed
+count of unique catalog ISINs.
 # Metadata Builder page
 
 

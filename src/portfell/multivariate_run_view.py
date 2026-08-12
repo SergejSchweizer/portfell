@@ -24,7 +24,7 @@ def multivariate_run_row(run: MultivariateRunRecord) -> JsonRow:
         "total_units": run.total_units,
         "elapsed_seconds": elapsed,
         "estimated_remaining_seconds": 0
-        if run.status == "complete"
+        if run.status in {"complete", "failed", "stale"}
         else max(1, int(remaining_units * per_unit)),
         "settings": dict(run.settings),
         "warnings": list(run.warnings),
