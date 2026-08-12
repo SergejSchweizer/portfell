@@ -88,12 +88,26 @@ function multivariateComponents() { return { items: [{ component_id: "Component 
 function multivariateContributions() { return { items: [{ candidate_id: "candidate-equal", method: "equal_weight", isin: "IE00ALPHA01", exchange: "XETRA", code: "ALPHA", weight: 1 / 3, marginal_risk_contribution: 0.02, absolute_risk_contribution: 0.006, percent_risk_contribution: 0.34 }] }; }
 function multivariateIncome() { return { items: [{ isin: "IE00ALPHA01", exchange: "XETRA", code: "ALPHA", currency: "EUR", event_count: 12, observed_month_count: 12, gross_ttm_distribution_amount: 2.4, gross_ttm_distribution_yield: 0.03, mean_observed_monthly_distribution: 0.2, median_observed_monthly_distribution: 0.2, lower_percentile_monthly_distribution: 0.18, coefficient_of_variation: 0.1, cut_count: 0, largest_cut: null, longest_falling_sequence: 0, availability_reasons: [], warnings: [] }] }; }
 
-async function installTwoProjectApi(page: Page): Promise<WorkflowFixture> {
+async function installTwoProjectApi(
+  page: Page,
+  initialFillStatus: "ready" | "running" = "ready",
+): Promise<WorkflowFixture> {
   const projects = new Map<string, Project>();
   const settingsWrites = new Map<string, number>();
   const calls: string[] = [];
   let currentProjectId: string | null = null;
   let metadataPolls = 0;
+  const initialFillStartedAt = Math.floor(Date.now() / 1_000) - 60;
+  const initialFillRow = (projectId: string) => ({
+    bootstrap_id: `bootstrap-${projectId}`,
+    job_id: `job-${projectId}`,
+    status: initialFillStatus,
+    completed_units: initialFillStatus === "running" ? 1 : 3,
+    total_units: 3,
+    selected_listing_count: 3,
+    terminal_code: null,
+    started_at: initialFillStartedAt,
+  });
 
   const current = () => currentProjectId ? projects.get(currentProjectId) : undefined;
   const context = () => ({
@@ -133,7 +147,7 @@ async function installTwoProjectApi(page: Page): Promise<WorkflowFixture> {
     }
     const initialFill = path.match(/^\/api\/projects\/([^/]+)\/initial-fill$/);
     if (method === "GET" && initialFill) {
-      return response(route, { bootstrap_id: `bootstrap-${initialFill[1]}`, job_id: `job-${initialFill[1]}`, status: "ready", completed_units: 3, total_units: 3, selected_listing_count: 3, terminal_code: null });
+      return response(route, initialFillRow(initialFill[1]));
     }
     if (method === "POST" && path === "/api/metadata-builder") {
       const id = `project-${projects.size + 1}`;
@@ -145,7 +159,7 @@ async function installTwoProjectApi(page: Page): Promise<WorkflowFixture> {
       };
       projects.set(id, project);
       currentProjectId = id;
-      return response(route, { project: { project_id: id, name: project.name }, selection: { selection_id: `selection-${id}`, name: project.name }, selected_count: 3, initial_fill: { bootstrap_id: `bootstrap-${id}`, job_id: `job-${id}`, status: "ready", completed_units: 3, total_units: 3, selected_listing_count: 3, terminal_code: null } });
+      return response(route, { project: { project_id: id, name: project.name }, selection: { selection_id: `selection-${id}`, name: project.name }, selected_count: 3, initial_fill: initialFillRow(id) });
     }
     const selectionSettings = path.match(/^\/api\/projects\/([^/]+)\/univariate-selection-settings$/);
     if (selectionSettings) {
@@ -213,6 +227,7 @@ async function createProject(page: Page, filter: { exchange: string; instrumentT
   await page.getByLabel("Name contains").fill(filter.name);
   await page.getByRole("button", { name: "Create new project" }).click();
   await expect(page.getByText("3 unique ISINs selected.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Quotes ready - Create new project" })).toBeVisible();
 }
 
 async function computeUnivariate(page: Page) {
@@ -251,7 +266,6 @@ test("two dummy projects created through the UI preserve every research control 
   await expect(page.getByText("4 metadata rows from 1 exchanges loaded.")).toBeVisible();
 
   await createProject(page, { exchange: "XETRA", instrumentType: "ETF", country: "IE", currency: "EUR", name: "Alpha income" });
-  await expect(page.getByText("3 listings ready.")).toBeVisible();
   await page.goto("/univariate-statistics");
   await expectManifestControls(page, "/univariate-statistics", "ready");
   await computeUnivariate(page);
@@ -272,7 +286,6 @@ test("two dummy projects created through the UI preserve every research control 
 
   await page.goto("/metadata-builder");
   await createProject(page, { exchange: "LSE", instrumentType: "FUND", country: "LU", currency: "USD", name: "Beta growth" });
-  await expect(page.getByText("3 listings ready.")).toBeVisible();
   await page.goto("/univariate-statistics");
   await computeUnivariate(page);
 
@@ -335,4 +348,19 @@ test("two dummy projects created through the UI preserve every research control 
     "PUT /api/project-context/current-project",
   ]));
   expect(fixture.calls).not.toContain("POST /api/quote-runs");
+});
+
+test("Create new project displays running historical-data progress and ETA", async ({ page }) => {
+  await installTwoProjectApi(page, "running");
+  await page.goto("/metadata-builder");
+  await page.getByLabel("Exchange").selectOption("XETRA");
+  await page.getByLabel("Instrument type").selectOption("ETF");
+  await page.getByLabel("Country").selectOption("IE");
+  await page.getByLabel("Currency").selectOption("EUR");
+  await page.getByLabel("Name contains").fill("Progress");
+  await page.getByRole("button", { name: "Create new project" }).click();
+
+  const action = page.getByRole("button", { name: /Loading quotes: 1 \/ 3 - about .* remaining/ });
+  await expect(action).toBeDisabled();
+  await expect(page.getByRole("heading", { name: "Historical Data" })).toHaveCount(0);
 });

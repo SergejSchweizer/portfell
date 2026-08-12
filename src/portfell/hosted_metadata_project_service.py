@@ -272,6 +272,7 @@ class MetadataProjectService:
                 "total_units": bootstrap.bootstrap.selected_listing_count,
                 "selected_listing_count": bootstrap.bootstrap.selected_listing_count,
                 "terminal_code": None,
+                "started_at": None,
             }
         return result
 
@@ -324,6 +325,7 @@ class MetadataProjectService:
             "total_units": status.total_units,
             "selected_listing_count": status.bootstrap.bootstrap.selected_listing_count,
             "terminal_code": status.terminal_code,
+            "started_at": status.started_at_epoch,
         }
 
     @staticmethod

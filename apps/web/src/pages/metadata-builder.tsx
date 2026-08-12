@@ -21,7 +21,6 @@ export function MetadataBuilderPage() {
   const [name, setName] = useState("");
   const [selectionStatus, setSelectionStatus] = useState("Choose at least one Metadata Builder criterion.");
   const [initialFill, setInitialFill] = useState<ApiInitialFill | null>(null);
-  const [initialFillMessage, setInitialFillMessage] = useState("Create a project to schedule its initial data fill.");
 
   useEffect(() => {
     const refresh = () => setMetadataRevision((value) => value + 1);
@@ -35,7 +34,6 @@ export function MetadataBuilderPage() {
     const resetProjectState = () => {
       setSelectionStatus("Choose at least one Metadata Builder criterion.");
       setInitialFill(null);
-      setInitialFillMessage("Create a project to schedule its initial data fill.");
     };
 
     const loadProjectCriteria = async (project: ApiProjectSummary | null) => {
@@ -57,10 +55,9 @@ export function MetadataBuilderPage() {
           const fill = await metadataBuilderApi.loadInitialFill(project.project_id);
           if (cancelled) return;
           setInitialFill(fill);
-          setInitialFillMessage(initialFillLabel(fill));
         } catch (error) {
           if (!cancelled) {
-            setInitialFillMessage(error instanceof Error ? error.message : "Initial historical-data status could not be loaded.");
+            setSelectionStatus(error instanceof Error ? error.message : "Initial historical-data status could not be loaded.");
           }
         }
       } catch (error) {
@@ -98,7 +95,6 @@ export function MetadataBuilderPage() {
         const nextFill = await metadataBuilderApi.loadInitialFill(context.current_project.project_id);
         if (cancelled) return;
         setInitialFill(nextFill);
-        setInitialFillMessage(initialFillLabel(nextFill));
         if (["planning", "running"].includes(nextFill.status)) {
           timeoutId = window.setTimeout(() => void poll(), 750);
         } else {
@@ -106,7 +102,7 @@ export function MetadataBuilderPage() {
         }
       } catch (error) {
         if (!cancelled) {
-          setInitialFillMessage(error instanceof Error ? error.message : "Initial historical-data status could not be loaded.");
+          setSelectionStatus(error instanceof Error ? error.message : "Initial historical-data status could not be loaded.");
         }
       }
     };
@@ -131,7 +127,6 @@ export function MetadataBuilderPage() {
       });
       setSelectionStatus(`${result.selected_count.toLocaleString()} unique ISINs selected.`);
       setInitialFill(result.initial_fill ?? null);
-      setInitialFillMessage(result.initial_fill ? initialFillLabel(result.initial_fill) : "Initial data fill is not available for this project.");
       window.dispatchEvent(new Event("portfell:workflow-updated"));
     } catch (error) {
       setSelectionStatus(error instanceof Error ? error.message : "Metadata Builder could not create the project.");
@@ -200,29 +195,48 @@ export function MetadataBuilderPage() {
             <input value={name} onChange={(event) => setName(event.target.value)} placeholder="UCITS ETF" />
           </label>
           <div className="metadata-builder-form__apply">
-            <Button type="submit" variant="primary">Create new project</Button>
+            <Button
+              type="submit"
+              variant="primary"
+              disabled={initialFillIsActive(initialFill)}
+              aria-live="polite"
+            >
+              {initialFillButtonLabel(initialFill)}
+            </Button>
           </div>
         </form>
         <p className="status-line" aria-live="polite">{selectionStatus}</p>
-      </Panel>
-      <Panel title="Historical Data">
-        <div className="quote-fetch quote-fetch--panel metadata-download">
-          <label htmlFor="historical-data-progress">Initial fill progress</label>
-          <progress id="historical-data-progress" max={100} value={initialFillProgress(initialFill)} />
-          <output className="status-line" aria-live="polite">{initialFillMessage}</output>
-        </div>
       </Panel>
     </section>
   );
 }
 
-function initialFillProgress(fill: ApiInitialFill | null): number {
-  if (!fill || !fill.total_units) return fill?.status === "ready" ? 100 : 0;
-  return Math.min(100, Math.round((fill.completed_units / fill.total_units) * 100));
+function initialFillIsActive(fill: ApiInitialFill | null): boolean {
+  return fill !== null && ["not_started", "planning", "running"].includes(fill.status);
 }
 
-function initialFillLabel(fill: ApiInitialFill): string {
-  if (fill.status === "ready") return `${fill.selected_listing_count.toLocaleString()} listings ready.`;
-  if (fill.status === "partial" || fill.status === "failed") return fill.terminal_code ?? `Initial fill ${fill.status}.`;
-  return `${fill.completed_units.toLocaleString()} of ${fill.total_units.toLocaleString()} initial-fill tasks completed.`;
+function initialFillButtonLabel(fill: ApiInitialFill | null): string {
+  if (fill === null) return "Create new project";
+  if (fill.status === "not_started" || fill.status === "planning") {
+    return "Preparing historical data...";
+  }
+  if (fill.status === "running") {
+    return `Loading quotes: ${fill.completed_units.toLocaleString()} / ${fill.total_units.toLocaleString()}${initialFillRemainingTime(fill)}`;
+  }
+  if (fill.status === "ready") return "Quotes ready - Create new project";
+  if (fill.status === "partial") return "Quotes partially loaded - Create new project";
+  return "Quote load failed - Create new project";
+}
+
+function initialFillRemainingTime(fill: ApiInitialFill): string {
+  if (fill.started_at === null || fill.completed_units <= 0 || fill.total_units <= fill.completed_units) {
+    return " - estimating time...";
+  }
+  const elapsedSeconds = (Date.now() - fill.started_at * 1_000) / 1_000;
+  if (elapsedSeconds <= 0) return " - estimating time...";
+  const remainingSeconds = Math.ceil((elapsedSeconds / fill.completed_units) * (fill.total_units - fill.completed_units));
+  if (remainingSeconds < 60) return " - less than 1 min remaining";
+  const hours = Math.floor(remainingSeconds / 3_600);
+  const minutes = Math.ceil((remainingSeconds % 3_600) / 60);
+  return hours > 0 ? ` - about ${hours}h ${minutes}m remaining` : ` - about ${minutes} min remaining`;
 }

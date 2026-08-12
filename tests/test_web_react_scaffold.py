@@ -29,16 +29,16 @@ def test_workflow_pages_place_ingestion_actions_before_their_stage_controls() ->
         encoding="utf-8"
     )
     assert "Fetch all metadata" in metadata_page
-    assert (
-        metadata_page.index('<Panel title="Download Metadata">')
-        < metadata_page.index('<Panel title="Metadata Builder">')
-        < metadata_page.index('<Panel title="Historical Data">')
+    assert metadata_page.index('<Panel title="Download Metadata">') < metadata_page.index(
+        '<Panel title="Metadata Builder">'
     )
     assert "EODHD key" in frame
     assert "Fetch all metadata" not in frame
     assert '"/univariate-statistics"' not in metadata_page
     assert '"portfell:workflow-updated"' in metadata_page
-    assert "Initial fill progress" in metadata_page
+    assert "initialFillButtonLabel" in metadata_page
+    assert "Loading quotes:" in metadata_page
+    assert '<Panel title="Historical Data">' not in metadata_page
     assert "Download Historical Data" not in metadata_page
     assert "loadInitialFill" in metadata_page
     assert "startQuoteRun" not in metadata_page

@@ -59,7 +59,7 @@ class _Connection:
         if "insert into portfell_app.jobs" in sql:
             return _Cursor(row=(parameters[0],))
         if "from portfell_app.jobs" in sql:
-            return _Cursor(row=("queued", 0, 2, None))
+            return _Cursor(row=("queued", 0, 2, None, 1_786_000_000))
         if "insert into portfell_app.project_initial_fills" in sql:
             project_id, user_id, selection_id, membership_hash, count, job_id = parameters
             self.fill = (project_id, user_id, selection_id, membership_hash, count, job_id)
@@ -98,3 +98,4 @@ def test_postgres_bootstrap_freezes_membership_and_enqueues_one_job() -> None:
     assert status is not None
     assert status.status == "planning"
     assert (status.completed_units, status.total_units, status.terminal_code) == (0, 2, None)
+    assert status.started_at_epoch == 1_786_000_000

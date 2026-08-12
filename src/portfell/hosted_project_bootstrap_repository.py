@@ -43,6 +43,7 @@ class InitialFillStatus:
     completed_units: int
     total_units: int
     terminal_code: str | None
+    started_at_epoch: int | None = None
 
 
 class ProjectBootstrapRepository(Protocol):
@@ -136,17 +137,24 @@ on conflict (project_id) do nothing
             return None
         row = self._connection.execute(
             """
-select status, completed_units, total_units, terminal_code
-from portfell_app.jobs
-where job_id = %s::uuid
+select job.status, job.completed_units, job.total_units, job.terminal_code,
+       extract(epoch from (
+           select min(attempt.started_at)
+           from portfell_app.job_attempts as attempt
+           where attempt.job_id = job.job_id
+       ))::bigint
+from portfell_app.jobs as job
+where job.job_id = %s::uuid
 """,
             (bootstrap.job_id,),
         ).fetchone()
-        if row is None or len(row) != 4 or not isinstance(row[0], str):
+        if row is None or len(row) != 5 or not isinstance(row[0], str):
             raise BootstrapError("bootstrap_job_projection_invalid")
         if not isinstance(row[1], int) or not isinstance(row[2], int):
             raise BootstrapError("bootstrap_job_projection_invalid")
         if row[3] is not None and not isinstance(row[3], str):
+            raise BootstrapError("bootstrap_job_projection_invalid")
+        if row[4] is not None and not isinstance(row[4], int):
             raise BootstrapError("bootstrap_job_projection_invalid")
         return InitialFillStatus(
             bootstrap,
@@ -154,6 +162,7 @@ where job_id = %s::uuid
             row[1],
             row[2],
             row[3],
+            row[4],
         )
 
     def _existing(self, project_id: str) -> DurableProjectBootstrap | None:
