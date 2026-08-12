@@ -135,12 +135,25 @@ class ProjectBootstrapWorker:
                 completed_units=0,
                 total_units=len(listings),
             )
+            completed_listings = 0
+
+            def report_listing_completed(_: SharedListingKey) -> None:
+                nonlocal completed_listings
+                completed_listings += 1
+                self._jobs.update_progress(
+                    job_id=job.job_id,
+                    lease_token=job.lease_token,
+                    completed_units=completed_listings,
+                    total_units=len(listings),
+                )
+
             result = refresh_shared_market_data(
                 store=self._store,
                 listings=listings,
                 fetch=self._fetch,
                 end_date=self._end_date,
                 concurrency=self._concurrency,
+                on_listing_completed=report_listing_completed,
             )
             self._complete(job, result, len(listings))
         except Exception:
@@ -201,8 +214,9 @@ def main(argv: list[str] | None = None) -> int:
     # an implicit outer transaction for the lifetime of the polling process.
     connection = connect(database_url, autocommit=True)
     try:
+        jobs = PostgresDurableJobRepository(connection)
         worker = ProjectBootstrapWorker(
-            jobs=PostgresDurableJobRepository(connection),
+            jobs=jobs,
             members_for_selection=PostgresSelectionMembers(connection),
             store=SharedMarketDataStore(Path(root)),
             fetch=eodhd_fetch(EodhdClient(runtime_eodhd_config(token))),
@@ -210,6 +224,7 @@ def main(argv: list[str] | None = None) -> int:
             concurrency=args.concurrency,
         )
         while True:
+            jobs.recover_expired_leases()
             metadata_result = build_metadata_refresh_worker(
                 connection, shared_data_root=Path(root), operations_token=token
             ).run_once()

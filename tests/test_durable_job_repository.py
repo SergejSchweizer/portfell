@@ -147,6 +147,7 @@ def test_progress_is_bounded_and_requires_the_current_worker_lease() -> None:
     )
 
     assert "set completed_units = %s, total_units = %s" in connection.calls[0][0]
+    assert "lease_expires_at = now() + interval '5 minutes'" in connection.calls[0][0]
     with pytest.raises(DurableJobError, match="job_progress_invalid"):
         repository.update_progress(
             job_id="job-1", lease_token="lease-1", completed_units=4, total_units=3
