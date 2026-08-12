@@ -1491,6 +1491,34 @@ Idempotency: Rendering the additional facts is read-only and does not create or 
 Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
 merge, satisfy the current `merge-gate` requirements in `GATES.md`.
 
+### PR219. Main Branch Consolidation
+
+Branch: `chore/reconcile-main-branches`.
+
+Git status: in progress. PR: TBD.
+
+Priority: P0 repository integration.
+
+Depends on: PR218.
+
+Scope: Merge the current stacked statistics, Polars, workflow, and feedback branches into one
+reviewed integration branch for `main`, preserving the current 100-observation Multivariate
+history policy when reconciling stale guidance.
+
+Acceptance: The integration branch contains every unmerged remote branch, passes the current
+`pr-quality` gate, and lands through one non-draft pull request to `main`.
+
+Security: Consolidation does not widen data access or alter authorization boundaries.
+
+Determinism: Conflict resolution retains the current versioned execution contracts and canonical
+history policy.
+
+Idempotency: The integration merge commits branch ancestry once and does not mutate persisted
+research artifacts.
+
+Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
+merge, satisfy the current `merge-gate` requirements in `GATES.md`.
+
 ### PR218. Multivariate Validation Budget
 
 Branch: `fix/multivariate-validation-budget`.
