@@ -1691,6 +1691,40 @@ selections.
 Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
 merge, satisfy the current `merge-gate` requirements in `GATES.md`.
 
+### PR226. Project-Scoped Canonical Workflow URLs
+
+Branch: `feat/project-scoped-urls`.
+
+Git status: in progress. PR: TBD.
+
+Priority: P1 workspace shareability.
+
+Depends on: PR225.
+
+Scope: Give every workflow page (Metadata Builder, Univariate Statistics, Bivariate Statistics,
+Multivariate Statistics) a persistent, bookmarkable URL of the form
+`/projects/{project_id}/{project-name-slug}/{workflow-page}` instead of only a bare workflow path
+tied to whichever project the server session currently has selected.
+
+Acceptance: Creating, switching to, or reloading any workflow page updates the address bar to the
+canonical project URL. Opening a canonical project URL for a different, existing project activates
+that project before rendering. Legacy bare workflow URLs remain valid and are replaced with the
+canonical project URL after context loads. Renaming a project changes only the readable slug; the
+project id in the URL remains authoritative.
+
+Security: The browser only reads the already-authorized project list and current-project context;
+project identity and authorization continue to come from the server-owned project id, never the
+readable slug.
+
+Determinism: The canonicalization from a project id and name to its slug and path is a pure
+function of persisted project data.
+
+Idempotency: Rewriting the address bar to the canonical URL is read-only browser history state and
+does not mutate project or workflow state.
+
+Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
+merge, satisfy the current `merge-gate` requirements in `GATES.md`.
+
 ### PR218. Multivariate Validation Budget
 
 Branch: `fix/multivariate-validation-budget`.
