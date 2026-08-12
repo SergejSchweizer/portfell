@@ -1277,6 +1277,28 @@ Determinism: The existing deterministic run identity remains unchanged across re
 
 Idempotency: Re-submitting an active run reuses its identity and can safely resume its computation.
 
+### PR193. Statistics Result Completion Visibility
+
+Branch: `fix/statistics-completion-visibility`.
+
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/353.
+
+Priority: P1 research workflow usability.
+
+Depends on: PR192.
+
+Scope: Show each Univariate, Bivariate, and Multivariate statistics result window only after its
+particular server-owned research run has completed.
+
+Acceptance: Pending, running, failed, or unavailable research runs show only their progress and
+compute controls; every corresponding statistics window becomes visible after its own run is complete.
+
+Security: The browser renders only persisted run status and result artifacts; it does not infer completion.
+
+Determinism: Equivalent persisted run statuses render the same result-window visibility state.
+
+Idempotency: Refreshing or revisiting a completed run restores its visible result window without mutation.
+
 ### PR192. Visual Univariate Progress And Tab Layout
 
 Branch: `fix/univariate-progress-layout`.

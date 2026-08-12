@@ -39,7 +39,7 @@ statistics without recomputing them in React.
 The univariate-statistics action owns only computation progress, status, and its right-aligned action.
 Its determinate progress bar uses processed listings as its scale, including terminal failed listings.
 The Dividends univariate-statistic block is not rendered before
-a completed computation has loaded its result payload, matching the result-driven bivariate
+the run is complete and its result payload has loaded, matching the result-driven bivariate
 statistic windows. It provides a payout-frequency selection and an accessible
 histogram that counts ISINs by none/unknown, monthly, quarterly, semiannual, annual, and
 irregular schedules. The selected schedules are saved per project.

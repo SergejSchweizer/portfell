@@ -40,8 +40,8 @@ or calculates financial values in the browser.
 - Locked: Bivariate Statistics is incomplete, failed, running, or stale.
 - Ready: Bivariate Statistics is complete and its immutable run id is shown.
 - Running: the server-owned phase and completed/total units are displayed.
-- Complete: persisted result tabs load automatically after refresh or project
-  reactivation. Every tab renders a server-produced, project-owned artifact:
+- Complete: persisted result tabs load automatically only after the particular Multivariate run reaches
+  `complete`, after refresh or project reactivation. Every tab renders a server-produced, project-owned artifact:
   the immutable input snapshot, canonical risk model, empirical
   structure/loadings, candidate metrics and risk contributions, gross income
   evidence, and walk-forward/stress/scorecard evidence.

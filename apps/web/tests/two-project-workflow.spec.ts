@@ -311,6 +311,7 @@ test("every workflow button completes its browser action for two isolated projec
 
   await switchProject(page, "project-2");
   await page.goto("/bivariate-statistics");
+  await expect(page.getByRole("tab", { name: "Covariance" })).not.toBeVisible();
   await page.getByRole("button", { name: "Compute Bivariate Statistics" }).click();
   await expect(page.getByText("1 pair statistics computed.")).toBeVisible();
   for (const tab of ["Covariance", "Pearson", "Spearman", "Downside", "Tail Dependence", "Co-exceedance", "Rolling-Correlation", "Drawdown Overlap", "Tail-Risk Scatter"]) {
@@ -331,6 +332,7 @@ test("every workflow button completes its browser action for two isolated projec
   await page.getByRole("link", { name: /Multivariate Statistics/ }).click();
   await expect(page).toHaveURL(/\/multivariate-statistics$/);
   await expect(page.getByRole("heading", { name: "Multivariate Statistics" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Overview" })).not.toBeVisible();
   await page.getByRole("button", { name: "Compute multivariate statistics" }).click();
   await expect(page.getByText("Candidate ETFs")).toBeVisible();
   for (const tab of ["Overview", "Risk Structure", "Portfolio Candidates", "Risk Contributions", "Income Evidence", "Validation"]) {

@@ -297,7 +297,7 @@ export function UnivariateStatisticsPage() {
               </Button>
             </div>
           </div>
-          {results !== null ? <section className="univariate-statistic" aria-labelledby="univariate-statistic-title">
+          {run?.status === "complete" && results !== null ? <section className="univariate-statistic" aria-labelledby="univariate-statistic-title">
             <div className="univariate-statistic__tabs" role="tablist" aria-label="Univariate statistic">
               <button type="button" role="tab" aria-selected={activeStatisticTab === "dividends"} className={activeStatisticTab === "dividends" ? "is-active" : undefined} onClick={() => setActiveStatisticTab("dividends")}>Dividends</button>
               {metricDefinitions.map((statistic) => <button key={statistic.metric} type="button" role="tab" aria-selected={activeStatisticTab === statistic.metric} className={activeStatisticTab === statistic.metric ? "is-active" : undefined} onClick={() => setActiveStatisticTab(statistic.metric)}>{statistic.label}</button>)}
