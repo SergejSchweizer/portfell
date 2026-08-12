@@ -69,7 +69,7 @@ class EodhdConfig:
     base_url: str = "https://eodhd.com/api"
     timeout_seconds: float = 30.0
     max_retries: int = 2
-    min_request_interval_seconds: float = 0.05
+    min_request_interval_seconds: float = 0.0
     retry_backoff_seconds: float = 0.5
 
     def __post_init__(self) -> None:
@@ -119,7 +119,7 @@ def load_eodhd_config(
         min_request_interval_seconds=_float_setting(
             source,
             "EODHD_MIN_REQUEST_INTERVAL_SECONDS",
-            0.05,
+            0.0,
         ),
         retry_backoff_seconds=_float_setting(source, "EODHD_RETRY_BACKOFF_SECONDS", 0.5),
     )
@@ -139,7 +139,7 @@ def runtime_eodhd_config(api_token: str, *, env: Mapping[str, str] | None = None
         timeout_seconds=_float_setting(source, "EODHD_TIMEOUT_SECONDS", 30.0),
         max_retries=_int_setting(source, "EODHD_MAX_RETRIES", 2),
         min_request_interval_seconds=_float_setting(
-            source, "EODHD_MIN_REQUEST_INTERVAL_SECONDS", 0.05
+            source, "EODHD_MIN_REQUEST_INTERVAL_SECONDS", 0.0
         ),
         retry_backoff_seconds=_float_setting(source, "EODHD_RETRY_BACKOFF_SECONDS", 0.5),
     )

@@ -1115,6 +1115,30 @@ Determinism: Given the same configured interval, request pacing remains globally
 
 Idempotency: Retrying a provider request retains the existing retry and persistence semantics.
 
+### PR185. Remove Default EODHD Client Pacing
+
+Branch: `perf/remove-eodhd-pacing`.
+
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/345.
+
+Priority: P1 shared-market refresh performance.
+
+Depends on: PR184.
+
+Scope: Remove the default client-side EODHD request delay so worker throughput is controlled by its
+concurrency and provider response times. Retain an explicit environment override and provider-directed
+`Retry-After` backoff.
+
+Acceptance: The default request interval is zero; a positive environment override remains effective;
+and `429` responses preserve the existing retry behavior.
+
+Security: The change does not expose or persist provider credentials.
+
+Determinism: Explicit positive pacing remains globally serialized; provider-directed retries remain
+deterministic for a given response sequence.
+
+Idempotency: Retrying a provider request retains the existing retry and persistence semantics.
+
 ### PR168. Production Cron Installation And First Scheduled Run Evidence
 
 Branch: `chore/install-production-market-refresh-cron`.
