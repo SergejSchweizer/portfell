@@ -85,7 +85,7 @@ function multivariateStructure() { return { risk_cluster_count: 2, dominant_comp
 function multivariateCandidates() { return { items: [{ candidate_id: "candidate-equal", method: "equal_weight", baseline: true, status: "feasible", reasons: [], weights: [{ isin: "IE00ALPHA01", exchange: "XETRA", code: "ALPHA", weight: 1 / 3 }, { isin: "IE00ALPHA02", exchange: "XETRA", code: "BETA", weight: 1 / 3 }, { isin: "IE00ALPHA03", exchange: "XETRA", code: "GAMMA", weight: 1 / 3 }], variance: 0.02, volatility: 0.14, var: 0.03, cvar: 0.04, maximum_weight: 1 / 3, herfindahl_index: 1 / 3, effective_holding_count: 3, gross_ttm_distribution_yield: 0.03, gross_monthly_distribution: 0.2, total_return: 0.1, max_drawdown: -0.12, diversification_ratio: 1.2 }] }; }
 function multivariateComponents() { return { items: [{ component_id: "Component 1", isin: "IE00ALPHA01", exchange: "XETRA", code: "ALPHA", loading: 0.7, explained_variance: 0.6, cluster: "Cluster 1" }], total: 1, limit: 25, offset: 0 }; }
 function multivariateContributions() { return { items: [{ candidate_id: "candidate-equal", method: "equal_weight", isin: "IE00ALPHA01", exchange: "XETRA", code: "ALPHA", weight: 1 / 3, marginal_risk_contribution: 0.02, absolute_risk_contribution: 0.006, percent_risk_contribution: 0.34 }] }; }
-function multivariateIncome() { return { items: [{ isin: "IE00ALPHA01", exchange: "XETRA", code: "ALPHA", currency: "EUR", event_count: 12, observed_month_count: 12, observed_payment_coverage: 1, gross_ttm_distribution_amount: 2.4, gross_ttm_distribution_yield: 0.03, mean_observed_monthly_distribution: 0.2, median_observed_monthly_distribution: 0.2, lower_percentile_monthly_distribution: 0.18, coefficient_of_variation: 0.1, cut_count: 0, largest_cut: null, longest_falling_sequence: 0, distribution_trend: 0.01, price_return: 0.08, total_return: 0.1, distribution_to_total_return_gap: 0.02, nav_erosion: null, availability_reasons: ["genuine_nav_unavailable"], warnings: [] }] }; }
+function multivariateIncome() { return { items: [{ isin: "IE00ALPHA01", exchange: "XETRA", code: "ALPHA", currency: "EUR", event_count: 12, observed_month_count: 12, observed_payment_coverage: 1, gross_ttm_distribution_amount: 2.4, gross_ttm_distribution_yield: 0.03, mean_observed_monthly_distribution: 0.2, median_observed_monthly_distribution: 0.2, lower_percentile_monthly_distribution: 0.18, coefficient_of_variation: 0.1, cut_count: 0, largest_cut: null, longest_falling_sequence: 0, distribution_trend: 0.01, price_return: 0.08, total_return: 0.1, distribution_to_total_return_gap: 0.02, market_price_capital_change: 0.08, availability_reasons: [], warnings: [] }] }; }
 
 async function installTwoProjectApi(
   page: Page,
@@ -464,7 +464,7 @@ test("every workflow button completes its browser action for two isolated projec
   await expect.poll(() => fixture.projects.get("project-2")?.selectedCandidateIds).toEqual(["candidate-equal"]);
   await page.getByRole("tab", { name: "Income Evidence" }).click();
   await expect(page.getByRole("cell", { name: "100.00%" })).toBeVisible();
-  await expect(page.getByRole("cell", { name: "genuine_nav_unavailable" })).toBeVisible();
+  await expect(page.getByRole("cell", { name: "8.00%" })).toBeVisible();
 
   expect([...fixture.projects.values()].map((project) => project.name)).toEqual(["Alpha income", "Beta growth"]);
   expect(fixture.calls).toEqual(expect.arrayContaining([

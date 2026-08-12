@@ -243,7 +243,7 @@ export type ApiMultivariateIncomeEvidence = Readonly<{
   price_return: number | null;
   total_return: number | null;
   distribution_to_total_return_gap: number | null;
-  nav_erosion: number | null;
+  market_price_capital_change: number | null;
   availability_reasons: readonly string[];
   warnings: readonly string[];
 }>;

@@ -395,7 +395,7 @@ class MultivariateResearchService(MultivariateRunViews):
                 "price_return": evidence.price_return,
                 "total_return": evidence.total_return,
                 "distribution_to_total_return_gap": evidence.distribution_to_total_return_gap,
-                "nav_erosion": evidence.nav_erosion,
+                "market_price_capital_change": evidence.market_price_capital_change,
                 "availability_reasons": list(evidence.availability_reasons),
                 "warnings": list(evidence.warnings),
             }

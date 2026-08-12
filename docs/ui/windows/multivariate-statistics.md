@@ -40,7 +40,8 @@ or calculates financial values in the browser.
   redundancy evidence, eigenvalue, condition-number, and PSD diagnostics.
 - Candidate cards compare VaR/CVaR, maximum weight, Herfindahl concentration, effective
   holdings, diversification, return, drawdown, and gross historical income. Income Evidence
-  includes observed coverage, trend, cuts, total return, and genuine-NAV availability.
+  includes observed coverage, trend, cuts, total return, and quoted market-price capital change
+  as the NAV proxy.
 
 ## States
 

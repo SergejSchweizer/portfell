@@ -1491,6 +1491,32 @@ Idempotency: Rendering the additional facts is read-only and does not create or 
 Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
 merge, satisfy the current `merge-gate` requirements in `GATES.md`.
 
+### PR207. Market-Price NAV Proxy
+
+Branch: `fix/market-price-nav-proxy`.
+
+Git status: in progress. PR: TBD.
+
+Priority: P1 multivariate income evidence.
+
+Depends on: PR206.
+
+Scope: Replace unreachable genuine-NAV evidence with quoted market-price capital change, explicitly
+labeled as a NAV proxy in the Multivariate Income Evidence contract and UI.
+
+Acceptance: Income evidence uses the source-pinned start and end market prices to report capital
+change, does not emit `genuine_nav_unavailable`, and labels the result as a NAV proxy.
+
+Security: The server remains the authority for source-pinned quote and dividend evidence.
+
+Determinism: Contract v3 identifies the revised income artifact; identical quote inputs produce the
+same market-price capital-change result.
+
+Idempotency: Recomputing unchanged inputs under the proxy contract reuses its deterministic artifact.
+
+Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
+merge, satisfy the current `merge-gate` requirements in `GATES.md`.
+
 ### PR206. Multivariate Minimum History Policy
 
 Branch: `fix/multivariate-minimum-history`.
