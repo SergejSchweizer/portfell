@@ -130,7 +130,16 @@ with claimable as (
 update portfell_app.jobs as job
 set status = 'running', lease_owner = %s, lease_token = %s::uuid,
     lease_expires_at = now() + interval '5 minutes', heartbeat_at = now(),
-    attempt_count = job.attempt_count + 1, updated_at = now()
+    attempt_count = greatest(
+        job.attempt_count,
+        coalesce(
+            (select max(attempt.attempt_number)
+             from portfell_app.job_attempts as attempt
+             where attempt.job_id = job.job_id),
+            0
+        )
+    ) + 1,
+    updated_at = now()
 from claimable
 where job.job_id = claimable.job_id
 returning job.job_id::text, job.user_id::text, job.project_id::text, job.job_kind,
@@ -236,6 +245,24 @@ returning job_id
             ).fetchone()
             if updated is None:
                 raise DurableJobError("job_lease_lost")
+
+    def set_initial_fill_failed_listing_count(
+        self, *, job_id: str, user_id: str, failed_listing_count: int
+    ) -> None:
+        """Persist a redacted listing-level failure summary for an owned initial fill."""
+
+        if failed_listing_count < 0:
+            raise DurableJobError("initial_fill_failed_listing_count_invalid")
+        with self._connection.transaction():
+            self._connection.execute(*set_authenticated_user_sql(user_id))
+            self._connection.execute(
+                """
+update portfell_app.project_initial_fills
+set failed_listing_count = %s, updated_at = now()
+where bootstrap_job_id = %s::uuid
+""",
+                (failed_listing_count, job_id),
+            )
 
     def recover_expired_leases(self) -> tuple[str, ...]:
         """Return expired running jobs to the queue and close their attempts."""

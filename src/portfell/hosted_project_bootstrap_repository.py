@@ -43,6 +43,7 @@ class InitialFillStatus:
     completed_units: int
     total_units: int
     terminal_code: str | None
+    failed_listing_count: int = 0
     started_at_epoch: int | None = None
     last_progress_at_epoch: int | None = None
 
@@ -144,6 +145,7 @@ on conflict (project_id) do nothing
         row = self._connection.execute(
             """
 select job.status, job.completed_units, job.total_units, job.terminal_code,
+       fill.failed_listing_count,
        extract(epoch from (
                      select attempt.started_at
            from portfell_app.job_attempts as attempt
@@ -154,19 +156,22 @@ select job.status, job.completed_units, job.total_units, job.terminal_code,
              ))::bigint,
              extract(epoch from job.updated_at)::bigint
 from portfell_app.jobs as job
+join portfell_app.project_initial_fills as fill on fill.bootstrap_job_id = job.job_id
 where job.job_id = %s::uuid
 """,
             (bootstrap.job_id,),
         ).fetchone()
-        if row is None or len(row) != 6 or not isinstance(row[0], str):
+        if row is None or len(row) != 7 or not isinstance(row[0], str):
             raise BootstrapError("bootstrap_job_projection_invalid")
         if not isinstance(row[1], int) or not isinstance(row[2], int):
             raise BootstrapError("bootstrap_job_projection_invalid")
         if row[3] is not None and not isinstance(row[3], str):
             raise BootstrapError("bootstrap_job_projection_invalid")
-        if row[4] is not None and not isinstance(row[4], int):
+        if not isinstance(row[4], int) or row[4] < 0:
             raise BootstrapError("bootstrap_job_projection_invalid")
         if row[5] is not None and not isinstance(row[5], int):
+            raise BootstrapError("bootstrap_job_projection_invalid")
+        if row[6] is not None and not isinstance(row[6], int):
             raise BootstrapError("bootstrap_job_projection_invalid")
         return InitialFillStatus(
             bootstrap,
@@ -176,6 +181,7 @@ where job.job_id = %s::uuid
             row[3],
             row[4],
             row[5],
+            row[6],
         )
 
     def _existing(self, project_id: str) -> DurableProjectBootstrap | None:
@@ -234,7 +240,7 @@ where job_id = %s::uuid and status in ('failed', 'cancelled')
         self._connection.execute(
             """
 update portfell_app.project_initial_fills
-set status = 'not_started', updated_at = now()
+set status = 'not_started', failed_listing_count = 0, updated_at = now()
 where bootstrap_job_id = %s::uuid
 """,
             (existing.job_id,),

@@ -278,6 +278,7 @@ class MetadataProjectService:
                 "completed_units": 0,
                 "total_units": bootstrap.bootstrap.selected_listing_count,
                 "selected_listing_count": bootstrap.bootstrap.selected_listing_count,
+                "failed_listing_count": 0,
                 "terminal_code": None,
                 "started_at": None,
             }
@@ -331,6 +332,7 @@ class MetadataProjectService:
             "completed_units": status.completed_units,
             "total_units": status.total_units,
             "selected_listing_count": status.bootstrap.bootstrap.selected_listing_count,
+            "failed_listing_count": status.failed_listing_count,
             "terminal_code": status.terminal_code,
             "started_at": status.started_at_epoch,
             "last_progress_at": status.last_progress_at_epoch,

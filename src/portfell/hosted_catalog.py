@@ -8,6 +8,7 @@ import hashlib
 from dataclasses import dataclass
 from typing import Protocol
 
+from portfell import project_bootstrap_schema as bootstrap_schema
 from portfell.analysis_lifecycle_schema import ANALYSIS_LIFECYCLE_SCHEMA_SQL
 from portfell.catalog_contract_validation import validate_catalog_contracts
 from portfell.hosted_download_run_schema import DOWNLOAD_RUN_PARTIAL_STATUS_SQL
@@ -16,9 +17,9 @@ from portfell.metadata_builder_criteria_schema import METADATA_BUILDER_CRITERIA_
 from portfell.metadata_lifecycle_schema import METADATA_LIFECYCLE_SCHEMA_SQL
 from portfell.metadata_refresh_job_schema import METADATA_REFRESH_JOB_SCHEMA_SQL
 from portfell.multivariate_lifecycle_schema import MULTIVARIATE_LIFECYCLE_SCHEMA_SQL
-from portfell.project_bootstrap_schema import PROJECT_BOOTSTRAP_SCHEMA_SQL
 from portfell.project_membership_trigger_schema import PROJECT_MEMBERSHIP_TRIGGER_REPAIR_SQL
 from portfell.project_settings_schema import PROJECT_SETTINGS_SCHEMA_SQL
+from portfell.provider_credential_schema import PROVIDER_CREDENTIAL_WRAP_NONCE_SCHEMA_SQL
 from portfell.research_lifecycle_schema import RESEARCH_LIFECYCLE_SCHEMA_SQL
 from portfell.tenant_control_schema import (
     D017_DURABLE_JOB_SCHEMA_SQL,
@@ -455,38 +456,12 @@ grant select, insert, update on portfell_app.current_project_preferences to port
 grant select on portfell_app.current_project_preferences to portfell_readonly;
 """
 
-_CREDENTIAL_WRAP_NONCE_SQL = """
-alter table portfell_app.provider_credentials
-    add column if not exists wrap_nonce bytea;
-
-do $$
-begin
-    if exists (
-        select 1
-        from portfell_app.provider_credentials
-        where wrap_nonce is null
-    ) then
-        raise exception 'provider credential rows require a wrap nonce migration';
-    end if;
-end $$;
-
-alter table portfell_app.provider_credentials
-    alter column wrap_nonce set not null;
-
-alter table portfell_app.provider_credentials
-    drop constraint if exists provider_credentials_user_id_provider_status_key;
-
-create unique index if not exists provider_credentials_one_active_user_provider_idx
-    on portfell_app.provider_credentials (user_id, provider)
-    where status = 'active';
-"""
-
 MIGRATIONS: tuple[HostedMigration, ...] = (
     HostedMigration(1, "hosted_catalog_base_schema", _BASE_SCHEMA_SQL),
     HostedMigration(2, "hosted_catalog_rls_and_grants", _RLS_POLICY_SQL),
     HostedMigration(3, "remove_google_authentication", _REMOVE_GOOGLE_AUTH_SQL),
     HostedMigration(4, "current_project_preference", _CURRENT_PROJECT_PREFERENCE_SQL),
-    HostedMigration(5, "provider_credential_wrap_nonce", _CREDENTIAL_WRAP_NONCE_SQL),
+    HostedMigration(5, "provider_credential_wrap_nonce", PROVIDER_CREDENTIAL_WRAP_NONCE_SCHEMA_SQL),
     HostedMigration(6, "d017_tenant_control_schema", D017_TENANT_CONTROL_SCHEMA_SQL),
     HostedMigration(7, "d017_durable_job_queue", D017_DURABLE_JOB_SCHEMA_SQL),
     HostedMigration(8, "legacy_import_ledger", LEGACY_IMPORT_LEDGER_SQL),
@@ -496,11 +471,16 @@ MIGRATIONS: tuple[HostedMigration, ...] = (
     HostedMigration(12, "durable_project_settings", PROJECT_SETTINGS_SCHEMA_SQL),
     HostedMigration(13, "durable_multivariate_lifecycle", MULTIVARIATE_LIFECYCLE_SCHEMA_SQL),
     HostedMigration(14, "durable_analysis_records", ANALYSIS_LIFECYCLE_SCHEMA_SQL),
-    HostedMigration(15, "durable_project_initial_fills", PROJECT_BOOTSTRAP_SCHEMA_SQL),
+    HostedMigration(
+        15, "durable_project_initial_fills", bootstrap_schema.PROJECT_BOOTSTRAP_SCHEMA_SQL
+    ),
     HostedMigration(16, "durable_shared_metadata_refresh_jobs", METADATA_REFRESH_JOB_SCHEMA_SQL),
     HostedMigration(17, "repair_project_membership_trigger", PROJECT_MEMBERSHIP_TRIGGER_REPAIR_SQL),
     HostedMigration(
         18, "metadata_builder_selection_criteria", METADATA_BUILDER_CRITERIA_SCHEMA_SQL
+    ),
+    HostedMigration(
+        19, "initial_fill_failure_count", bootstrap_schema.PROJECT_INITIAL_FILL_FAILURE_SCHEMA_SQL
     ),
 )
 

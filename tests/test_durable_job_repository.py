@@ -103,6 +103,7 @@ def test_claim_uses_skip_locked_and_creates_one_attempt_per_claim() -> None:
     assert claimed[0].lease_token
     statements = "\n".join(statement for statement, _ in connection.calls)
     assert "for update skip locked" in statements
+    assert "select max(attempt.attempt_number)" in statements
     assert "insert into portfell_app.job_attempts" in statements
 
 

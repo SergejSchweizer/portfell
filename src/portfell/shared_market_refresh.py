@@ -35,6 +35,10 @@ LOGGER = get_logger(__name__)
 class SharedMarketRefreshError(RuntimeError):
     """Raised for refresh preflight, lock, provider, or storage failures."""
 
+    def __init__(self, message: str, *, failed_listings: Iterable[SharedListingKey] = ()) -> None:
+        super().__init__(message)
+        self.failed_listings = frozenset(failed_listings)
+
 
 @dataclass(frozen=True)
 class RefreshRequest:
@@ -153,6 +157,7 @@ def refresh_shared_market_data(
         updated = 0
         unchanged = 0
         errors: list[str] = []
+        failed_listings: set[SharedListingKey] = set()
         requests_per_listing = {
             listing: sum(1 for request in requests if request.listing == listing)
             for listing in resolved_listings
@@ -200,6 +205,7 @@ def refresh_shared_market_data(
                 )
                 errors.extend("provider_or_storage_failure" for _ in batch)
                 for request, _ in batch:
+                    failed_listings.add(request.listing)
                     mark_request_completed(request)
                 return
             for (request, _), item_changed in zip(batch, changed, strict=True):
@@ -229,6 +235,7 @@ def refresh_shared_market_data(
                         error=error,
                     )
                     errors.append("provider_or_storage_failure")
+                    failed_listings.add(request.listing)
                     mark_request_completed(request)
                 else:
                     publish_batch([(request, rows)])
@@ -257,7 +264,9 @@ def refresh_shared_market_data(
             },
         )
         if errors:
-            raise SharedMarketRefreshError("shared_market_refresh_partial_failure")
+            raise SharedMarketRefreshError(
+                "shared_market_refresh_partial_failure", failed_listings=failed_listings
+            )
         return result
 
 

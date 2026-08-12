@@ -33,3 +33,9 @@ grant select, insert, update on portfell_app.project_initial_fills to portfell_a
 grant select on portfell_app.project_initial_fills to portfell_readonly;
 revoke delete on portfell_app.project_initial_fills from portfell_app, portfell_worker;
 """
+
+PROJECT_INITIAL_FILL_FAILURE_SCHEMA_SQL = """
+alter table portfell_app.project_initial_fills
+    add column if not exists failed_listing_count integer not null default 0
+    check (failed_listing_count >= 0);
+"""

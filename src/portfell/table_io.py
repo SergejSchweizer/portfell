@@ -19,7 +19,7 @@ class _ArrowTable(Protocol):
 
 
 class _ArrowTableFactory(Protocol):
-    def from_pylist(self, rows: list[JsonRow]) -> object: ...
+    def from_pylist(self, rows: list[JsonRow]) -> _ArrowTable: ...
 
 
 class _PyArrowModule(Protocol):
@@ -56,6 +56,15 @@ def write_rows(path: Path, rows: Iterable[Mapping[str, Any]]) -> None:
         return
     content = "".join(json.dumps(dict(row), sort_keys=True) + "\n" for row in rows)
     path.write_text(content, encoding="utf-8")
+
+
+def normalize_parquet_rows(rows: Iterable[Mapping[str, Any]]) -> list[JsonRow]:
+    """Return rows using the same inferred scalar types persisted by Parquet."""
+
+    normalized = _ARROW.Table.from_pylist([dict(row) for row in rows]).to_pylist()
+    if not all(isinstance(row, dict) for row in normalized):
+        raise ValueError("expected Parquet object rows")
+    return cast(list[JsonRow], normalized)
 
 
 def read_rows(path: Path) -> list[JsonRow]:
