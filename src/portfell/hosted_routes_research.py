@@ -19,6 +19,7 @@ from portfell.hosted_api_contracts import (
     UnivariateSelectionRequest,
 )
 from portfell.hosted_api_state import ApiUser
+from portfell.hosted_postgres_request_scope import RequestScopedPostgresConnection
 from portfell.hosted_research_service import ResearchService
 from portfell.hosted_routes_common import JsonRow, call
 
@@ -28,6 +29,7 @@ def research_router(
     *,
     current_user: Callable[[], ApiUser],
     workspace_user: Callable[[], ApiUser],
+    request_scope: RequestScopedPostgresConnection | None = None,
 ) -> APIRouter:
     """Build research routes around the research application service."""
 
@@ -46,12 +48,20 @@ def research_router(
             payload.quote_run_id,
         )
         if row["status"] == "running":
-            background_tasks.add_task(
-                service.complete_univariate,
-                user.user_id,
-                payload.metadata_selection_id,
-                payload.quote_run_id,
-            )
+            if request_scope is None:
+                background_tasks.add_task(
+                    service.complete_univariate,
+                    user.user_id,
+                    payload.metadata_selection_id,
+                    payload.quote_run_id,
+                )
+            else:
+                request_scope.spawn_after_commit(
+                    user_id=user.user_id,
+                    operation=lambda: service.complete_univariate(
+                        user.user_id, payload.metadata_selection_id, payload.quote_run_id
+                    ),
+                )
         return row
 
     @router.get("/univariate-statistics/runs/{run_id}")

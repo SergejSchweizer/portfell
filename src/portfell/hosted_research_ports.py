@@ -17,6 +17,10 @@ UnivariateProgress = Callable[[int], None]
 class ResearchDataPort(Protocol):
     """Read and derive project-scoped market data without exposing storage details."""
 
+    def has_selected_rows(
+        self, member_ids: tuple[str, ...], *, dataset: ResearchDataset
+    ) -> bool: ...
+
     def selected_rows(
         self, member_ids: tuple[str, ...], *, dataset: ResearchDataset
     ) -> tuple[JsonRow, ...]: ...

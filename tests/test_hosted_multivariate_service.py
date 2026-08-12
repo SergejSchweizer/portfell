@@ -34,6 +34,9 @@ class _Data:
         del member_ids
         return self.quotes if dataset == "quotes" else self.dividends
 
+    def has_selected_rows(self, member_ids: tuple[str, ...], *, dataset: str) -> bool:
+        return bool(self.selected_rows(member_ids, dataset=dataset))
+
     def build_univariate_rows(
         self,
         member_ids: tuple[str, ...],

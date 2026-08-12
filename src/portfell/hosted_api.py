@@ -159,7 +159,12 @@ def create_app(
             quote_run_router(quotes, current_user=current_user, workspace_user=workspace_user)
         )
     application.include_router(
-        research_router(research, current_user=current_user, workspace_user=workspace_user)
+        research_router(
+            research,
+            current_user=current_user,
+            workspace_user=workspace_user,
+            request_scope=request_scope,
+        )
     )
     return application
 

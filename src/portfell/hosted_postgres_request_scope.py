@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from contextvars import ContextVar, Token
+from threading import Thread
 from typing import Any, Protocol
 
 from portfell.hosted_catalog import set_authenticated_user_sql
@@ -15,6 +16,8 @@ class ScopedConnectionError(RuntimeError):
 
 
 class ScopedConnection(Protocol):
+    autocommit: bool
+
     def execute(self, sql: str, parameters: tuple[object, ...] = ()) -> Any: ...
 
     def commit(self) -> None: ...
@@ -34,6 +37,9 @@ class RequestScopedPostgresConnection:
         self._connect = connect
         self._current: ContextVar[ScopedConnection | None] = ContextVar(
             "portfell_postgres_connection", default=None
+        )
+        self._after_commit: ContextVar[list[Callable[[], None]] | None] = ContextVar(
+            "portfell_postgres_after_commit", default=None
         )
 
     def execute(self, sql: str, parameters: tuple[object, ...] = ()) -> Any:
@@ -68,6 +74,9 @@ class RequestScopedPostgresConnection:
 
         connection = self._connect()
         token: Token[ScopedConnection | None] = self._current.set(connection)
+        callbacks: list[Callable[[], None]] = []
+        after_commit_token = self._after_commit.set(callbacks)
+        committed = False
         try:
             connection.execute(*set_authenticated_user_sql(user_id))
             yield
@@ -76,6 +85,41 @@ class RequestScopedPostgresConnection:
             raise
         else:
             connection.commit()
+            committed = True
+        finally:
+            self._current.reset(token)
+            self._after_commit.reset(after_commit_token)
+            connection.close()
+        if committed:
+            for callback in callbacks:
+                callback()
+
+    def spawn_after_commit(self, *, user_id: str, operation: Callable[[], None]) -> None:
+        """Start an operation with visible incremental RLS updates after the request commits."""
+
+        callbacks = self._after_commit.get()
+        if callbacks is None:
+            raise ScopedConnectionError("postgres_request_scope_required")
+
+        def run() -> None:
+            with self.background_request(user_id):
+                operation()
+
+        callbacks.append(lambda: Thread(target=run, name="portfell-research", daemon=True).start())
+
+    @contextmanager
+    def background_request(self, user_id: str) -> Generator[None]:
+        """Bind one user to an autocommit connection for long-running background work."""
+
+        connection = self._connect()
+        connection.autocommit = True
+        token: Token[ScopedConnection | None] = self._current.set(connection)
+        try:
+            connection.execute(
+                "select set_config(%s, %s, false)",
+                ("portfell.current_user_id", user_id),
+            )
+            yield
         finally:
             self._current.reset(token)
             connection.close()
