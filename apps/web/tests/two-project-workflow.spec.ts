@@ -351,6 +351,7 @@ test("Multivariate state resets when switching to another project", async ({ pag
   await computeUnivariate(page);
   await page.goto("/bivariate-statistics");
   await page.getByRole("button", { name: "Compute Bivariate Statistics" }).click();
+  await expect(page.getByRole("tab", { name: "Covariance" })).toBeVisible();
   await page.goto("/multivariate-statistics");
   await page.getByRole("button", { name: "Compute multivariate statistics" }).click();
   await expect(page.getByText("Candidate ETFs")).toBeVisible();
@@ -377,6 +378,7 @@ test("Multivariate unavailable statistics never render as zero or failed diagnos
   await computeUnivariate(page);
   await page.goto("/bivariate-statistics");
   await page.getByRole("button", { name: "Compute Bivariate Statistics" }).click();
+  await expect(page.getByRole("tab", { name: "Covariance" })).toBeVisible();
   await page.goto("/multivariate-statistics");
   await page.getByRole("button", { name: "Compute multivariate statistics" }).click();
 
