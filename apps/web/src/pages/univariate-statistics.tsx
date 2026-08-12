@@ -87,6 +87,11 @@ function estimatedRemainingTime(startedAt: number | undefined, completed: number
   return hours > 0 ? ` (about ${hours}h ${minutes}m remaining)` : ` (about ${minutes} min remaining)`;
 }
 
+export function univariateProgress(run: ApiResearchRun | null): Readonly<{ max: number; value: number }> {
+  if (run === null || run.total <= 0) return { max: 1, value: 0 };
+  return { max: run.total, value: Math.min(run.total, run.completed + run.failed) };
+}
+
 export function UnivariateStatisticsPage() {
   const [workflowRevision, setWorkflowRevision] = useState(0);
   const workflow = useResource(loadWorkflow, [workflowRevision]);
@@ -204,6 +209,7 @@ export function UnivariateStatisticsPage() {
   if (workflow.status === "error") return <p>Workflow state is unavailable.</p>;
   const stage = workflow.data.stages.univariate_statistics;
   const metadata = workflow.data.stages.metadata_builder;
+  const progress = univariateProgress(run);
   const dividendFrequencyCounts = dividendFrequencyOptions.map((option) => ({
     ...option,
     count: results?.filter((row) => dividendFrequency(row) === option.value).length ?? 0,
@@ -277,7 +283,13 @@ export function UnivariateStatisticsPage() {
         {stage.status === "locked" ? <p>Historical data is refreshed automatically by the shared-data service. Statistics unlock when coverage is available.</p> : <>
           <div className="quote-fetch quote-fetch--panel univariate-compute">
             <label htmlFor="univariate-progress">Univariate statistics progress</label>
-            <progress id="univariate-progress" max={100} value={run?.percent ?? 0} />
+            <progress
+              id="univariate-progress"
+              className="univariate-compute__progress"
+              max={progress.max}
+              value={progress.value}
+              aria-valuetext={run === null ? "No univariate computation is active." : `${progress.value.toLocaleString()} of ${progress.max.toLocaleString()} listings processed.`}
+            />
             <p className="status-line" aria-live="polite">{message || "Compute statistics for the downloaded historical data."}</p>
             <div className="quote-fetch__action">
               <Button type="button" variant="primary" disabled={!metadata.metadata_selection_id || run?.status === "running"} onClick={() => void compute()}>

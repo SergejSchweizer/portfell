@@ -1277,6 +1277,28 @@ Determinism: The existing deterministic run identity remains unchanged across re
 
 Idempotency: Re-submitting an active run reuses its identity and can safely resume its computation.
 
+### PR192. Visual Univariate Progress And Tab Layout
+
+Branch: `fix/univariate-progress-layout`.
+
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/352.
+
+Priority: P1 research workflow usability.
+
+Depends on: PR191.
+
+Scope: Render univariate computation progress from processed listing counts and arrange all statistic
+tabs in a responsive multi-row grid.
+
+Acceptance: The progress bar visibly advances for every processed listing, including failures, and all
+univariate statistic tabs are visible without horizontal scrolling at standard desktop widths.
+
+Security: The browser renders only existing run-count values and does not expose listing-level data.
+
+Determinism: Equivalent run totals and processed counts always render the same progress state.
+
+Idempotency: Revisiting the page preserves the progress state returned by the current persisted run.
+
 ### PR168. Production Cron Installation And First Scheduled Run Evidence
 
 Branch: `chore/install-production-market-refresh-cron`.

@@ -37,6 +37,7 @@ immutable metadata selection and quote run ids, and loads bounded results from
 statistics without recomputing them in React.
 
 The univariate-statistics action owns only computation progress, status, and its right-aligned action.
+Its determinate progress bar uses processed listings as its scale, including terminal failed listings.
 The Dividends univariate-statistic block is not rendered before
 a completed computation has loaded its result payload, matching the result-driven bivariate
 statistic windows. It provides a payout-frequency selection and an accessible
@@ -44,7 +45,7 @@ histogram that counts ISINs by none/unknown, monthly, quarterly, semiannual, ann
 irregular schedules. The selected schedules are saved per project.
 
 After a completed run, the page presents Dividends and all quantitative statistics in one shared
-statistics window. Its horizontal tab list selects exactly one statistic at a time; the active tab
+statistics window. Its responsive multi-row tab grid selects exactly one statistic at a time; the active tab
 contains that statistic's formula, notation, dividend-type facts, project-persisted multi-selection,
 and histogram derived from completed server-returned rows:
 
