@@ -1436,6 +1436,33 @@ Determinism: Equivalent run states render the same compute-panel structure on bo
 Idempotency: Re-rendering or revisiting a run changes no server state until the existing compute action
 is selected.
 
+### PR201. Multivariate Run Recovery
+
+Branch: `fix/multivariate-run-recovery`.
+
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/361.
+
+Priority: P1 research workflow reliability.
+
+Depends on: PR200.
+
+Scope: Run Multivariate background computation in a fresh post-commit PostgreSQL request scope and
+poll its server-owned status until it reaches a terminal state.
+
+Acceptance: A Multivariate run advances from `resolve_inputs` to persisted results without a closed
+database connection, and the compute button remains disabled only while the server reports `running`.
+
+Security: Background work retains its authenticated RLS context; browser polling reads only the
+project-owned run endpoint.
+
+Determinism: The same run id follows the same server-owned phases, independent of page reloads.
+
+Idempotency: Repeating the start request for a running deterministic run schedules its completion
+without creating a second run record.
+
+Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
+merge, satisfy the current `merge-gate` requirements in `GATES.md`.
+
 ### PR193. Statistics Result Completion Visibility
 
 Branch: `fix/statistics-completion-visibility`.
