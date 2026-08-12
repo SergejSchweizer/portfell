@@ -430,6 +430,44 @@ def test_metadata_builder_project_can_use_an_injected_project_repository() -> No
     assert repository.current_project_id(user_id) == created["project"]["project_id"]
 
 
+def test_metadata_builder_options_count_unique_isins_per_value() -> None:
+    state = HostedApiState(
+        all_isins_rows=(
+            {
+                "isin": "IE1",
+                "exchange": "XETRA",
+                "instrument_type": "ETF",
+                "country": "IE",
+                "currency": "EUR",
+            },
+            {
+                "isin": "IE1",
+                "exchange": "XETRA",
+                "instrument_type": "ETF",
+                "country": "IE",
+                "currency": "EUR",
+            },
+            {
+                "isin": "IE2",
+                "exchange": "LSE",
+                "instrument_type": "FUND",
+                "country": "LU",
+                "currency": "USD",
+            },
+        )
+    )
+    runtime = LocalHostedRuntime(
+        quote_workflow=_empty_workflow,
+        metadata_workflow=_empty_workflow,
+        cpu_count=lambda: 1,
+    )
+
+    assert MetadataProjectService(state, runtime).options()["exchange"] == [
+        {"value": "LSE", "isin_count": 1},
+        {"value": "XETRA", "isin_count": 1},
+    ]
+
+
 def test_project_context_can_use_durable_data_loaded_projection() -> None:
     state = HostedApiState()
     user_id = "00000000-0000-5000-8000-000000000001"

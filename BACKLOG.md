@@ -1491,6 +1491,31 @@ Idempotency: Rendering the additional facts is read-only and does not create or 
 Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
 merge, satisfy the current `merge-gate` requirements in `GATES.md`.
 
+### PR209. Metadata Option ISIN Counts
+
+Branch: `fix/metadata-option-counts`.
+
+Git status: in progress. PR: TBD.
+
+Priority: P2 metadata selection clarity.
+
+Depends on: PR208.
+
+Scope: Show the unique catalog ISIN count next to every Exchange, Instrument type, Country, and
+Currency dropdown value in Metadata Builder.
+
+Acceptance: The server returns value/count option rows; the browser renders each count, and duplicate
+listings for one ISIN contribute only once to its field-value count.
+
+Security: Counts derive from the server-owned catalog; the browser does not receive or filter listings.
+
+Determinism: Equal catalog rows produce ordered, identical option counts.
+
+Idempotency: Loading and rendering options makes no state mutation.
+
+Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
+merge, satisfy the current `merge-gate` requirements in `GATES.md`.
+
 ### PR208. Statistics Progress Height
 
 Branch: `fix/statistics-progress-height`.

@@ -144,7 +144,7 @@ async function installTwoProjectApi(
       metadataPolls += 1;
       return response(route, { metadata_run_id: "metadata-run", status: metadataPolls === 1 ? "running" : "succeeded", total: 1, completed: metadataPolls === 1 ? 0 : 1, percent: metadataPolls === 1 ? 0 : 100, row_count: 4, exchange_count: 1, requested_exchange_count: 1, skipped_exchange_count: 0, skipped_exchanges: [] });
     }
-    if (method === "GET" && path === "/api/metadata-builder/options") return response(route, { exchange: ["XETRA", "LSE"], instrument_type: ["ETF", "FUND"], country: ["IE", "LU"], currency: ["EUR", "USD"] });
+    if (method === "GET" && path === "/api/metadata-builder/options") return response(route, { exchange: [{ value: "XETRA", isin_count: 3 }, { value: "LSE", isin_count: 1 }], instrument_type: [{ value: "ETF", isin_count: 3 }, { value: "FUND", isin_count: 1 }], country: [{ value: "IE", isin_count: 3 }, { value: "LU", isin_count: 1 }], currency: [{ value: "EUR", isin_count: 3 }, { value: "USD", isin_count: 1 }] });
     if (method === "GET" && path === "/api/project-context") return response(route, context());
     if (method === "PUT" && path === "/api/project-context/current-project") {
       currentProjectId = String(body.project_id);
@@ -362,6 +362,7 @@ test("every workflow button completes its browser action for two isolated projec
   await page.goto("/metadata-builder");
   await expect(page).toHaveURL(/\/metadata-builder$/);
   await expect(page.getByText("2 · Metadata Builder")).toBeVisible();
+  await expect(page.getByLabel("Exchange").locator("option", { hasText: "XETRA (3 ISINs)" })).toHaveCount(1);
 
   await page.getByRole("button", { name: "Fetch all metadata" }).click();
   await expect(page.getByText("4 metadata rows from 1 exchanges loaded.")).toBeVisible();

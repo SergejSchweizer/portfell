@@ -1,9 +1,14 @@
 
+export type ApiFieldOption = Readonly<{
+  value: string;
+  isin_count: number;
+}>;
+
 export type ApiFieldOptions = Readonly<{
-  exchange: readonly string[];
-  instrument_type: readonly string[];
-  country: readonly string[];
-  currency: readonly string[];
+  exchange: readonly ApiFieldOption[];
+  instrument_type: readonly ApiFieldOption[];
+  country: readonly ApiFieldOption[];
+  currency: readonly ApiFieldOption[];
 }>;
 
 export type WorkflowStageId =

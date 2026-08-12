@@ -166,28 +166,28 @@ export function MetadataBuilderPage() {
             Exchange
             <select value={exchange} onChange={(event) => setExchange(event.target.value)}>
               <option value="">Any</option>
-              {options.data.exchange.map((value) => <option key={value}>{value}</option>)}
+              {options.data.exchange.map((option) => <option key={option.value} value={option.value}>{fieldOptionLabel(option.value, option.isin_count)}</option>)}
             </select>
           </label>
           <label>
             Instrument type
             <select value={instrumentType} onChange={(event) => setInstrumentType(event.target.value)}>
               <option value="">Any</option>
-              {options.data.instrument_type.map((value) => <option key={value}>{value}</option>)}
+              {options.data.instrument_type.map((option) => <option key={option.value} value={option.value}>{fieldOptionLabel(option.value, option.isin_count)}</option>)}
             </select>
           </label>
           <label>
             Country
             <select value={country} onChange={(event) => setCountry(event.target.value)}>
               <option value="">Any</option>
-              {options.data.country.map((value) => <option key={value}>{value}</option>)}
+              {options.data.country.map((option) => <option key={option.value} value={option.value}>{fieldOptionLabel(option.value, option.isin_count)}</option>)}
             </select>
           </label>
           <label>
             Currency
             <select value={currency} onChange={(event) => setCurrency(event.target.value)}>
               <option value="">Any</option>
-              {options.data.currency.map((value) => <option key={value}>{value}</option>)}
+              {options.data.currency.map((option) => <option key={option.value} value={option.value}>{fieldOptionLabel(option.value, option.isin_count)}</option>)}
             </select>
           </label>
           <label className="metadata-builder-form__name">
@@ -211,6 +211,10 @@ export function MetadataBuilderPage() {
       </Panel>
     </section>
   );
+}
+
+function fieldOptionLabel(value: string, isinCount: number): string {
+  return `${value} (${isinCount.toLocaleString()} ${isinCount === 1 ? "ISIN" : "ISINs"})`;
 }
 
 function initialFillIsActive(fill: ApiInitialFill | null): boolean {
