@@ -29,7 +29,6 @@ from portfell.table_io import JsonRow
 
 DATASETS = ("quotes", "dividends", "splits")
 DEFAULT_CORRECTION_OVERLAP_DAYS = 7
-_WRITE_BATCH_SIZE = 128
 LOGGER = get_logger(__name__)
 
 
@@ -210,7 +209,6 @@ def refresh_shared_market_data(
             futures = {
                 executor.submit(_fetch_rows, fetch, request): request for request in requests
             }
-            batch: list[tuple[RefreshRequest, tuple[Mapping[str, Any], ...]]] = []
             for future in as_completed(futures):
                 request = futures[future]
                 try:
@@ -233,11 +231,7 @@ def refresh_shared_market_data(
                     errors.append("provider_or_storage_failure")
                     mark_request_completed(request)
                 else:
-                    batch.append((request, rows))
-                    if len(batch) == _WRITE_BATCH_SIZE:
-                        publish_batch(batch)
-                        batch = []
-            publish_batch(batch)
+                    publish_batch([(request, rows)])
         result = RefreshResult(
             result_hash,
             end_date.isoformat(),
