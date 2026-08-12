@@ -162,6 +162,24 @@ export type ApiMultivariateStructure = Readonly<{
   effective_rank?: number;
   effective_independent_drivers?: number;
   period?: Readonly<{ date_start: string; date_end: string; observation_count: number }>;
+  thresholds?: Readonly<{
+    components_for_80pct?: number | null;
+    components_for_90pct?: number | null;
+    components_for_95pct?: number | null;
+  }>;
+  strongest_common_driver?: ApiMultivariateListing | null;
+  largest_redundancy_warning?: Readonly<{
+    left: ApiMultivariateListing;
+    right: ApiMultivariateListing;
+    correlation: number;
+  }> | null;
+  availability_reasons?: readonly string[];
+}>;
+
+export type ApiMultivariateListing = Readonly<{
+  isin: string;
+  exchange: string;
+  code: string;
 }>;
 
 export type ApiMultivariateCandidate = Readonly<{
@@ -173,7 +191,11 @@ export type ApiMultivariateCandidate = Readonly<{
   weights: readonly Readonly<{ isin: string; exchange: string; code: string; weight: number }>[];
   variance: number | null;
   volatility: number | null;
+  var: number | null;
   cvar: number | null;
+  maximum_weight: number | null;
+  herfindahl_index: number | null;
+  effective_holding_count: number | null;
   gross_ttm_distribution_yield: number | null;
   gross_monthly_distribution: number | null;
   total_return: number | null;
@@ -207,6 +229,7 @@ export type ApiMultivariateIncomeEvidence = Readonly<{
   currency: string | null;
   event_count: number;
   observed_month_count: number;
+  observed_payment_coverage: number | null;
   gross_ttm_distribution_amount: number | null;
   gross_ttm_distribution_yield: number | null;
   mean_observed_monthly_distribution: number | null;
@@ -216,6 +239,11 @@ export type ApiMultivariateIncomeEvidence = Readonly<{
   cut_count: number | null;
   largest_cut: number | null;
   longest_falling_sequence: number | null;
+  distribution_trend: number | null;
+  price_return: number | null;
+  total_return: number | null;
+  distribution_to_total_return_gap: number | null;
+  nav_erosion: number | null;
   availability_reasons: readonly string[];
   warnings: readonly string[];
 }>;
@@ -241,7 +269,18 @@ export type ApiMultivariateComponents = Readonly<{
   offset: number;
 }>;
 
-export type ApiMultivariateArtifacts = Readonly<Record<string, unknown>>;
+export type ApiMultivariateArtifacts = Readonly<{
+  risk_model?: Readonly<{
+    estimator?: string;
+    shrinkage_intensity?: number | null;
+    minimum_eigenvalue?: number | null;
+    condition_number?: number | null;
+    is_positive_semidefinite?: boolean;
+    observation_count?: number;
+    availability_reasons?: readonly string[];
+  }>;
+  [key: string]: unknown;
+}>;
 
 export type ApiPage<T> = Readonly<{
   items: readonly T[];

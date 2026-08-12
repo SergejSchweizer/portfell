@@ -81,11 +81,11 @@ function multivariateRun(project: Project, status: "running" | "complete") {
 }
 
 function multivariateSummary() { return { input_snapshot_id: "snapshot", risk_model_id: "risk", candidate_etf_count: 3, aligned_period: { date_start: "2024-01-01", date_end: "2025-01-01", observation_count: 252 }, availability_reasons: [] }; }
-function multivariateStructure() { return { risk_cluster_count: 2, dominant_component_share: 0.6, effective_rank: 1.8, effective_independent_drivers: 1.8, period: { date_start: "2024-01-01", date_end: "2025-01-01", observation_count: 252 } }; }
-function multivariateCandidates() { return { items: [{ candidate_id: "candidate-equal", method: "equal_weight", baseline: true, status: "feasible", reasons: [], weights: [{ isin: "IE00ALPHA01", exchange: "XETRA", code: "ALPHA", weight: 1 / 3 }, { isin: "IE00ALPHA02", exchange: "XETRA", code: "BETA", weight: 1 / 3 }, { isin: "IE00ALPHA03", exchange: "XETRA", code: "GAMMA", weight: 1 / 3 }], variance: 0.02, volatility: 0.14, cvar: 0.04, gross_ttm_distribution_yield: 0.03, gross_monthly_distribution: 0.2, total_return: 0.1, max_drawdown: -0.12, diversification_ratio: 1.2 }] }; }
+function multivariateStructure() { return { risk_cluster_count: 2, dominant_component_share: 0.6, effective_rank: 1.8, effective_independent_drivers: 1.8, period: { date_start: "2024-01-01", date_end: "2025-01-01", observation_count: 252 }, thresholds: { components_for_80pct: 2, components_for_90pct: 2, components_for_95pct: 3 }, strongest_common_driver: { isin: "IE00ALPHA01", exchange: "XETRA", code: "ALPHA" }, largest_redundancy_warning: { left: { isin: "IE00ALPHA01", exchange: "XETRA", code: "ALPHA" }, right: { isin: "IE00ALPHA02", exchange: "XETRA", code: "BETA" }, correlation: 0.7 }, availability_reasons: [] }; }
+function multivariateCandidates() { return { items: [{ candidate_id: "candidate-equal", method: "equal_weight", baseline: true, status: "feasible", reasons: [], weights: [{ isin: "IE00ALPHA01", exchange: "XETRA", code: "ALPHA", weight: 1 / 3 }, { isin: "IE00ALPHA02", exchange: "XETRA", code: "BETA", weight: 1 / 3 }, { isin: "IE00ALPHA03", exchange: "XETRA", code: "GAMMA", weight: 1 / 3 }], variance: 0.02, volatility: 0.14, var: 0.03, cvar: 0.04, maximum_weight: 1 / 3, herfindahl_index: 1 / 3, effective_holding_count: 3, gross_ttm_distribution_yield: 0.03, gross_monthly_distribution: 0.2, total_return: 0.1, max_drawdown: -0.12, diversification_ratio: 1.2 }] }; }
 function multivariateComponents() { return { items: [{ component_id: "Component 1", isin: "IE00ALPHA01", exchange: "XETRA", code: "ALPHA", loading: 0.7, explained_variance: 0.6, cluster: "Cluster 1" }], total: 1, limit: 25, offset: 0 }; }
 function multivariateContributions() { return { items: [{ candidate_id: "candidate-equal", method: "equal_weight", isin: "IE00ALPHA01", exchange: "XETRA", code: "ALPHA", weight: 1 / 3, marginal_risk_contribution: 0.02, absolute_risk_contribution: 0.006, percent_risk_contribution: 0.34 }] }; }
-function multivariateIncome() { return { items: [{ isin: "IE00ALPHA01", exchange: "XETRA", code: "ALPHA", currency: "EUR", event_count: 12, observed_month_count: 12, gross_ttm_distribution_amount: 2.4, gross_ttm_distribution_yield: 0.03, mean_observed_monthly_distribution: 0.2, median_observed_monthly_distribution: 0.2, lower_percentile_monthly_distribution: 0.18, coefficient_of_variation: 0.1, cut_count: 0, largest_cut: null, longest_falling_sequence: 0, availability_reasons: [], warnings: [] }] }; }
+function multivariateIncome() { return { items: [{ isin: "IE00ALPHA01", exchange: "XETRA", code: "ALPHA", currency: "EUR", event_count: 12, observed_month_count: 12, observed_payment_coverage: 1, gross_ttm_distribution_amount: 2.4, gross_ttm_distribution_yield: 0.03, mean_observed_monthly_distribution: 0.2, median_observed_monthly_distribution: 0.2, lower_percentile_monthly_distribution: 0.18, coefficient_of_variation: 0.1, cut_count: 0, largest_cut: null, longest_falling_sequence: 0, distribution_trend: 0.01, price_return: 0.08, total_return: 0.1, distribution_to_total_return_gap: 0.02, nav_erosion: null, availability_reasons: ["genuine_nav_unavailable"], warnings: [] }] }; }
 
 async function installTwoProjectApi(
   page: Page,
@@ -93,6 +93,7 @@ async function installTwoProjectApi(
   omitSelectionIdFromContext = false,
   bivariateCompletesAfterPoll = false,
   multivariateCompletesAfterPoll = false,
+  unavailableMultivariateEvidence = false,
 ): Promise<WorkflowFixture> {
   const projects = new Map<string, Project>();
   const settingsWrites = new Map<string, number>();
@@ -216,14 +217,14 @@ async function installTwoProjectApi(
       const running = multivariateCompletesAfterPoll && multivariatePolls <= 5;
       return response(route, multivariateRun(current()!, running ? "running" : "complete"));
     }
-    if (method === "GET" && path.endsWith("/summary")) return response(route, multivariateSummary());
-    if (method === "GET" && path.endsWith("/structure")) return response(route, multivariateStructure());
+    if (method === "GET" && path.endsWith("/summary")) return response(route, unavailableMultivariateEvidence ? { ...multivariateSummary(), availability_reasons: ["insufficient_common_history"] } : multivariateSummary());
+    if (method === "GET" && path.endsWith("/structure")) return response(route, unavailableMultivariateEvidence ? { ...multivariateStructure(), effective_rank: 0, effective_independent_drivers: 0, risk_cluster_count: 0, availability_reasons: ["risk_model_unavailable"] } : multivariateStructure());
     if (method === "GET" && path.endsWith("/candidates")) return response(route, multivariateCandidates());
     if (method === "GET" && path.endsWith("/components")) return response(route, multivariateComponents());
     if (method === "GET" && path.endsWith("/risk-contributions")) return response(route, multivariateContributions());
     if (method === "GET" && path.endsWith("/income-evidence")) return response(route, multivariateIncome());
     if (method === "GET" && path.endsWith("/validation")) return response(route, { items: [{ kind: "scorecard", method: "equal_weight", status: "available", reason: null }] });
-    if (method === "GET" && path.endsWith("/artifacts")) return response(route, { risk_model: { estimator: "ledoit_wolf", shrinkage_intensity: 0.2 } });
+    if (method === "GET" && path.endsWith("/artifacts")) return response(route, { risk_model: unavailableMultivariateEvidence ? { estimator: "ledoit_wolf", shrinkage_intensity: null, minimum_eigenvalue: null, condition_number: null, is_positive_semidefinite: false, observation_count: 100, availability_reasons: ["insufficient_common_history"] } : { estimator: "ledoit_wolf", shrinkage_intensity: 0.2, minimum_eigenvalue: 0.01, condition_number: 12.5, is_positive_semidefinite: true, observation_count: 252, availability_reasons: [] } });
     if (method === "PATCH" && path.endsWith("/settings")) {
       const project = current()!;
       project.selectedCandidateIds = body.selected_candidate_ids as string[];
@@ -335,6 +336,26 @@ test("Multivariate compute button polls resolve_inputs through completion", asyn
   ]));
 });
 
+test("Multivariate unavailable statistics never render as zero or failed diagnostics", async ({ page }) => {
+  await installTwoProjectApi(page, "ready", false, false, false, true);
+  await page.goto("/metadata-builder");
+  await createProject(page, { exchange: "XETRA", instrumentType: "ETF", country: "IE", currency: "EUR", name: "Unavailable multivariate evidence" });
+  await page.goto("/univariate-statistics");
+  await computeUnivariate(page);
+  await page.goto("/bivariate-statistics");
+  await page.getByRole("button", { name: "Compute Bivariate Statistics" }).click();
+  await page.goto("/multivariate-statistics");
+  await page.getByRole("button", { name: "Compute multivariate statistics" }).click();
+
+  await expect(page.getByText("Unavailable evidence: insufficient_common_history")).toBeVisible();
+  await page.getByRole("tab", { name: "Risk Structure" }).click();
+  for (const label of ["Effective rank", "Minimum eigenvalue", "Condition number", "Positive semidefinite"]) {
+    const fact = page.locator(".multivariate-facts div").filter({ has: page.getByText(label, { exact: true }) });
+    await expect(fact.getByRole("definition")).toHaveText("Unavailable");
+  }
+  await expect(page.getByText("Structure unavailable: risk_model_unavailable")).toBeVisible();
+});
+
 test("every workflow button completes its browser action for two isolated projects", async ({ page }) => {
   const fixture = await installTwoProjectApi(page);
   await page.goto("/metadata-builder");
@@ -412,15 +433,28 @@ test("every workflow button completes its browser action for two isolated projec
   await expect(multivariateCompute.locator(".quote-fetch__action")).toHaveCSS("justify-content", "flex-end");
   await page.getByRole("button", { name: "Compute multivariate statistics" }).click();
   await expect(page.getByText("Candidate ETFs")).toBeVisible();
+  await expect(page.getByText("Portfolio candidates", { exact: true })).toBeVisible();
+  await expect(page.getByText("60.00%")).toBeVisible();
   await expect(page.locator(".statistics-tabs")).toHaveCSS("display", "grid");
   await expect(page.locator(".statistics-tabs")).toHaveCSS("overflow-x", "visible");
   for (const tab of ["Overview", "Risk Structure", "Portfolio Candidates", "Risk Contributions", "Income Evidence", "Validation"]) {
     await page.getByRole("tab", { name: tab }).click();
     await expect(page.getByRole("tab", { name: tab })).toHaveAttribute("aria-selected", "true");
   }
+  await page.getByRole("tab", { name: "Risk Structure" }).click();
+  await expect(page.getByRole("definition").filter({ hasText: "ALPHA.XETRA" })).toBeVisible();
+  await expect(page.getByText("12.50", { exact: true })).toBeVisible();
+  await expect(page.getByText("Yes", { exact: true })).toBeVisible();
   await page.getByRole("tab", { name: "Portfolio Candidates" }).click();
+  await expect(page.getByText(/VaR: 3.00%/)).toBeVisible();
+  await expect(page.getByText(/Maximum weight: 33.33%/)).toBeVisible();
+  await expect(page.getByText(/Effective holdings: 3.00/)).toBeVisible();
+  await expect(page.getByText(/Herfindahl concentration: 0.33/)).toBeVisible();
   await page.getByLabel("Portfolio selection").click();
   await expect.poll(() => fixture.projects.get("project-2")?.selectedCandidateIds).toEqual(["candidate-equal"]);
+  await page.getByRole("tab", { name: "Income Evidence" }).click();
+  await expect(page.getByRole("cell", { name: "100.00%" })).toBeVisible();
+  await expect(page.getByRole("cell", { name: "genuine_nav_unavailable" })).toBeVisible();
 
   expect([...fixture.projects.values()].map((project) => project.name)).toEqual(["Alpha income", "Beta growth"]);
   expect(fixture.calls).toEqual(expect.arrayContaining([

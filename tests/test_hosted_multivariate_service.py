@@ -171,6 +171,10 @@ def test_multivariate_service_resolves_pinned_project_dependencies_and_persists_
     assert service.summary("user-a", str(started["run_id"]))["candidate_etf_count"] == 5
     candidates = service.candidates("user-a", str(started["run_id"]))["items"]
     assert len(candidates) == 6
+    assert all(candidate["var"] is not None for candidate in candidates)
+    assert all(candidate["maximum_weight"] is not None for candidate in candidates)
+    assert all(candidate["herfindahl_index"] is not None for candidate in candidates)
+    assert all(candidate["effective_holding_count"] is not None for candidate in candidates)
     candidate_id = str(candidates[0]["candidate_id"])
     detail = service.candidate_detail("user-a", str(started["run_id"]), candidate_id)
     assert detail["candidate_id"] == candidate_id

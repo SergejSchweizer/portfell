@@ -1463,6 +1463,34 @@ without creating a second run record.
 Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
 merge, satisfy the current `merge-gate` requirements in `GATES.md`.
 
+### PR202. Multivariate Statistics Completeness
+
+Branch: `feat/multivariate-statistics-completeness`.
+
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/362.
+
+Priority: P1 multivariate correctness and explainability.
+
+Depends on: PR201.
+
+Scope: Preserve all computed PR147 candidate risk and concentration facts in hosted responses and
+render the existing PR144–PR147 risk-model, structure, candidate, and income diagnostics.
+
+Acceptance: Candidate responses include VaR, maximum weight, Herfindahl concentration, and effective
+holding count. The browser visibly distinguishes unavailable evidence and shows covariance quality,
+component thresholds, redundancy, candidate concentration, and income coverage without recalculating
+financial values.
+
+Security: The page consumes only project-owned persisted API values and does not broaden artifact
+access or expose dense covariance data.
+
+Determinism: Existing versioned server artifacts remain the sole source for every displayed value.
+
+Idempotency: Rendering the additional facts is read-only and does not create or update runs.
+
+Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
+merge, satisfy the current `merge-gate` requirements in `GATES.md`.
+
 ### PR193. Statistics Result Completion Visibility
 
 Branch: `fix/statistics-completion-visibility`.

@@ -35,6 +35,12 @@ or calculates financial values in the browser.
 - Complete state: Overview, Risk Structure, Portfolio Candidates, Risk
   Contributions, Income Evidence, and Validation tabs in the responsive multi-row
   statistics tab grid, with no horizontal tab scrolling.
+- Overview includes candidate count, dominant-component share, and explicit input
+  availability reasons. Risk Structure includes component thresholds, strongest driver,
+  redundancy evidence, eigenvalue, condition-number, and PSD diagnostics.
+- Candidate cards compare VaR/CVaR, maximum weight, Herfindahl concentration, effective
+  holdings, diversification, return, drawdown, and gross historical income. Income Evidence
+  includes observed coverage, trend, cuts, total return, and genuine-NAV availability.
 
 ## States
 
