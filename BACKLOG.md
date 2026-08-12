@@ -911,6 +911,33 @@ Python and Node runtimes.
 
 Idempotency: Re-resolving an unchanged manifest produces no lockfile changes.
 
+### PR177. Node 26 Runtime Update
+
+Branch: `chore/node-26-runtime`.
+
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/337.
+
+Priority: P1 maintenance.
+
+Depends on: PR176.
+
+Scope: Update the Web production Dockerfile and the Web unit-quality containers in both quality workflows
+from Node 24 to Node 26 Alpine. Keep the runtime version consistent across build, runtime, PR, and merge
+quality environments.
+
+Acceptance: A clean Node 26 install completes the Web TypeScript check, production build, and coverage
+suite. The Node 26 Web Docker image builds successfully, and no controlled Dockerfile or workflow retains
+a `node:24` reference.
+
+Security: Continue using the official minimal Alpine image and preserve the existing non-root Web runtime
+user and CI dependency-installation checks.
+
+Determinism: The declared Node 26 image tag determines the Web build and runtime major version in local and
+CI containers.
+
+Idempotency: Rebuilding the unchanged Dockerfile with the same Node 26 image produces the same application
+artifact contract.
+
 ### PR168. Production Cron Installation And First Scheduled Run Evidence
 
 Branch: `chore/install-production-market-refresh-cron`.

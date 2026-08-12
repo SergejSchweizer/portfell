@@ -1,5 +1,5 @@
 
-FROM node:24-alpine AS build
+FROM node:26-alpine AS build
 
 WORKDIR /app
 COPY apps/web/package.json apps/web/package-lock.json ./
@@ -10,7 +10,7 @@ COPY apps/web/src ./src
 COPY apps/web/styles ./styles
 RUN npm run typecheck && npm run build
 
-FROM node:24-alpine AS runtime
+FROM node:26-alpine AS runtime
 WORKDIR /app
 COPY apps/web/server.js ./server.js
 COPY --from=build /app/dist ./dist
