@@ -1491,6 +1491,30 @@ Idempotency: Rendering the additional facts is read-only and does not create or 
 Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
 merge, satisfy the current `merge-gate` requirements in `GATES.md`.
 
+### PR216. Polars Dataframe Preference
+
+Branch: `docs/polars-dataframes`.
+
+Git status: in progress. PR: TBD.
+
+Priority: P2 data-processing consistency.
+
+Depends on: PR215.
+
+Scope: Establish `polars` as the repository preference whenever a dataframe-library choice exists.
+
+Acceptance: The contributor workflow records the `polars` preference; no unused dataframe dependency
+is introduced while the repository has no dataframe-library runtime use.
+
+Security: Documentation-only policy change; no data access or execution boundary changes.
+
+Determinism: The policy does not alter existing computations or persisted artifacts.
+
+Idempotency: Reading or applying the policy does not create or mutate runtime data.
+
+Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
+merge, satisfy the current `merge-gate` requirements in `GATES.md`.
+
 ### PR215. Parallel Walk-Forward Refits
 
 Branch: `refactor/multivariate-walk-forward-parallelism`.

@@ -32,6 +32,7 @@ This file is the workflow reference for coding agents and maintainers. It should
 - Update the Git status as work moves through planned, in progress, pushed, merged, or blocked.
 - PR approval, required checks, auto-merge, shard layout, coverage threshold, and squash-subject validation are documented in [GATES.md](GATES.md).
 - PR titles must follow `type(optional-scope): subject` because the title becomes the squash-merge commit subject.
+- When a dataframe library is needed and there is a choice, use `polars` rather than `pandas`.
 
 ## Generated Risk Context
 
