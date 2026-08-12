@@ -138,6 +138,9 @@ class LocalHostedRuntime:
                 rows.extend(row for row in read_rows(path) if str(row.get("code", "")) == code)
         return tuple(rows)
 
+    def has_selected_rows(self, member_ids: tuple[str, ...], *, dataset: ResearchDataset) -> bool:
+        return bool(self.selected_rows(member_ids, dataset=dataset))
+
     def build_univariate_rows(
         self,
         member_ids: tuple[str, ...],

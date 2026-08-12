@@ -44,6 +44,10 @@ class FakeResearchData:
         self.selected_calls.append((member_ids, dataset))
         return self.selected_result
 
+    def has_selected_rows(self, member_ids: tuple[str, ...], *, dataset: ResearchDataset) -> bool:
+        self.selected_calls.append((member_ids, dataset))
+        return bool(self.selected_result)
+
     def build_univariate_rows(
         self,
         member_ids: tuple[str, ...],
@@ -165,6 +169,31 @@ def test_univariate_service_rejects_incomplete_quote_run() -> None:
 
     with pytest.raises(HostedApplicationError, match="quote_run_incomplete"):
         service.start("user-a", selection.selection_id, quote_run.download_run_id)
+
+
+def test_univariate_service_marks_the_run_failed_when_computation_raises() -> None:
+    class FailingResearchData(FakeResearchData):
+        def build_univariate_rows(
+            self,
+            member_ids: tuple[str, ...],
+            *,
+            on_progress: UnivariateProgress | None = None,
+        ) -> tuple[JsonRow, ...]:
+            _ = member_ids, on_progress
+            raise RuntimeError("lake unavailable")
+
+    selection = SelectionRecord("selection-1", "user-a", "project-1", "UCITS", ("IE1:XETRA:AAA",))
+    state = HostedApiState(selections_by_id={selection.selection_id: selection})
+    data = FailingResearchData((), [], selected_result=({"isin": "IE1"},))
+    persistence = RecordingPersistence()
+    service = UnivariateResearchService(HostedResearchRepository(state), data, persistence)
+
+    started = service.start("user-a", selection.selection_id, None)
+    with pytest.raises(RuntimeError, match="lake unavailable"):
+        service.complete("user-a", selection.selection_id, None)
+
+    assert state.univariate_runs_by_id[str(started["run_id"])].status == "failed"
+    assert persistence.calls == 1
 
 
 def test_univariate_service_uses_published_shared_rows_without_a_quote_run() -> None:

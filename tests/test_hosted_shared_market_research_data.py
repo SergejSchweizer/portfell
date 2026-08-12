@@ -25,3 +25,7 @@ def test_reads_only_exact_selected_listing_revisions(tmp_path) -> None:  # type:
     rows = SharedMarketResearchData(store).selected_rows(("IE1:XETRA:ABC",), dataset="quotes")
 
     assert rows == (_quote("2026-01-01", 10.0),)
+    assert SharedMarketResearchData(store).has_selected_rows(("IE1:XETRA:ABC",), dataset="quotes")
+    assert not SharedMarketResearchData(store).has_selected_rows(
+        ("IE1:XETRA:ABC",), dataset="dividends"
+    )

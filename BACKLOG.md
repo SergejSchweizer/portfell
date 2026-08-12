@@ -1254,6 +1254,29 @@ Determinism: Equivalent canonical rows retain the same revision hash after Parqu
 Idempotency: Replaying a failed fill updates the same project-owned summary; a retry clears the summary
 before its next worker claim.
 
+### PR191. Commit Univariate Progress
+
+Branch: `fix/univariate-progress-commit`.
+
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/351.
+
+Priority: P1 research workflow reliability.
+
+Depends on: PR190.
+
+Scope: Commit the univariate-run start before background computation, persist listing-level progress as
+it completes, and mark unexpected background-computation failures as terminal failed runs.
+
+Acceptance: Starting Univariate Statistics returns a pollable `running` run immediately; completed
+listing counts increase during the calculation, and the run reaches `complete` or `failed` rather than
+remaining `running`.
+
+Security: Detached computation uses a fresh autocommit connection with the initiating user's RLS context.
+
+Determinism: The existing deterministic run identity remains unchanged across repeated starts.
+
+Idempotency: Re-submitting an active run reuses its identity and can safely resume its computation.
+
 ### PR168. Production Cron Installation And First Scheduled Run Evidence
 
 Branch: `chore/install-production-market-refresh-cron`.

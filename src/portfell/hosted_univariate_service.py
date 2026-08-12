@@ -49,7 +49,7 @@ class UnivariateResearchService:
             if quote_run.status != "succeeded":
                 raise HostedApplicationError(409, "quote_run_incomplete")
             source_quote_id = quote_run.download_run_id
-        elif not self._data.selected_rows(selection.member_ids, dataset="quotes"):
+        elif not self._data.has_selected_rows(selection.member_ids, dataset="quotes"):
             raise HostedApplicationError(409, "shared_market_data_incomplete")
         source_id = _source_id(selection.selection_id, source_quote_id)
         run_id = opaque_id("univariate-run", f"{user_id}:{source_id}")
@@ -76,50 +76,61 @@ class UnivariateResearchService:
     def complete(self, user_id: str, selection_id: str, quote_run_id: str | None) -> None:
         """Compute a previously created run outside the request-response lifecycle."""
 
-        selection = self._repository.metadata_selection(selection_id, user_id)
-        source_quote_id = "shared-market" if quote_run_id is None else quote_run_id
-        if quote_run_id is not None:
-            source_quote_id = self._repository.quote_run(quote_run_id, user_id).download_run_id
-        run_id = opaque_id(
-            "univariate-run",
-            f"{user_id}:{_source_id(selection.selection_id, source_quote_id)}",
-        )
-        run = self._repository.univariate_run(run_id, user_id)
-        if run.status != "running":
-            return
-        quote_rows = () if quote_run_id is None else self._repository.quote_rows(source_quote_id)
-        if quote_rows:
-            computed = create_univariate_run(
-                user_id=user_id,
-                selection_id=selection.selection_id,
-                quote_run_id=source_quote_id,
-                quote_rows=quote_rows,
-                dividend_rows=self._data.selected_rows(selection.member_ids, dataset="dividends"),
+        run: ResearchRun | None = None
+        try:
+            selection = self._repository.metadata_selection(selection_id, user_id)
+            source_quote_id = "shared-market" if quote_run_id is None else quote_run_id
+            if quote_run_id is not None:
+                source_quote_id = self._repository.quote_run(quote_run_id, user_id).download_run_id
+            run_id = opaque_id(
+                "univariate-run",
+                f"{user_id}:{_source_id(selection.selection_id, source_quote_id)}",
             )
-        else:
-            rows = self._data.build_univariate_rows(
-                selection.member_ids,
-                on_progress=lambda completed: self._update_progress(user_id, run_id, completed),
-            )
-            if not rows:
-                self._repository.save_univariate_run(
-                    replace(run, status="failed", failed=run.total)
-                )
-                self._repository.audit(user_id, "univariate_statistics.failed")
-                self._persistence.persist()
+            run = self._repository.univariate_run(run_id, user_id)
+            if run.status != "running":
                 return
-            computed = create_univariate_run_from_statistics(
-                user_id=user_id,
-                selection_id=selection.selection_id,
-                quote_run_id=source_quote_id,
-                rows=rows,
+            quote_rows = (
+                () if quote_run_id is None else self._repository.quote_rows(source_quote_id)
             )
-        completed = replace(computed, run_id=run_id, total=run.total, completed=run.total)
-        self._repository.save_univariate_run(completed)
-        full_selection = create_full_univariate_selection(user_id=user_id, run=completed)
-        saved_selection = self._repository.save_univariate_selection(full_selection)
-        self._repository.set_current_univariate_selection(user_id, saved_selection.selection_id)
-        self._repository.audit(user_id, "univariate_statistics.compute")
+            if quote_rows:
+                computed = create_univariate_run(
+                    user_id=user_id,
+                    selection_id=selection.selection_id,
+                    quote_run_id=source_quote_id,
+                    quote_rows=quote_rows,
+                    dividend_rows=self._data.selected_rows(
+                        selection.member_ids, dataset="dividends"
+                    ),
+                )
+            else:
+                rows = self._data.build_univariate_rows(
+                    selection.member_ids,
+                    on_progress=lambda completed: self._update_progress(user_id, run_id, completed),
+                )
+                if not rows:
+                    self._fail(run)
+                    return
+                computed = create_univariate_run_from_statistics(
+                    user_id=user_id,
+                    selection_id=selection.selection_id,
+                    quote_run_id=source_quote_id,
+                    rows=rows,
+                )
+            completed = replace(computed, run_id=run_id, total=run.total, completed=run.total)
+            self._repository.save_univariate_run(completed)
+            full_selection = create_full_univariate_selection(user_id=user_id, run=completed)
+            saved_selection = self._repository.save_univariate_selection(full_selection)
+            self._repository.set_current_univariate_selection(user_id, saved_selection.selection_id)
+            self._repository.audit(user_id, "univariate_statistics.compute")
+            self._persistence.persist()
+        except Exception:
+            if run is not None:
+                self._fail(run)
+            raise
+
+    def _fail(self, run: ResearchRun) -> None:
+        self._repository.save_univariate_run(replace(run, status="failed", failed=run.total))
+        self._repository.audit(run.user_id, "univariate_statistics.failed")
         self._persistence.persist()
 
     def status(self, user_id: str, run_id: str) -> JsonRow:
