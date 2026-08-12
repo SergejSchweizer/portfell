@@ -87,6 +87,10 @@ pair limit. It prevents duplicate runs, hides result windows before the run comp
 and partial results explicitly, and provides accessible tabular output on desktop and a usable responsive
 representation on narrow screens.
 
+The browser workflow test covers the Compute Bivariate Statistics action with a server-owned
+`running` response followed by a polled `complete` response. It verifies progress, duplicate-submit
+prevention, terminal result rendering, and the plan/start/status API sequence.
+
 The stateful two-project browser journey computes the active project's pair
 statistics and selects every pairwise-dependence tab, including Tail Dependence and
 Co-exceedance.
