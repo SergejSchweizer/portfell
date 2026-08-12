@@ -1495,7 +1495,7 @@ merge, satisfy the current `merge-gate` requirements in `GATES.md`.
 
 Branch: `fix/multivariate-minimum-history`.
 
-Git status: in progress. PR: TBD.
+Git status: pushed. PR: TBD.
 
 Priority: P1 multivariate availability.
 
