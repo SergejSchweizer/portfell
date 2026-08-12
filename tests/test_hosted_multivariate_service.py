@@ -22,6 +22,7 @@ from portfell.hosted_research_workflow import (
 from portfell.hosted_selection_repository import InMemorySelectionRepository
 from portfell.hosted_workspace import LocalWorkspaceStore
 from portfell.hosted_workspace_repository import persist_local_workspace, restore_local_workspace
+from portfell.income import INCOME_CONTRACT
 from portfell.table_io import JsonRow
 
 
@@ -308,6 +309,15 @@ def test_multivariate_service_covers_idempotency_stale_and_error_boundaries() ->
         10,
     )
     first = service.start("user-a", project_id, bivariate_run_id, {})
+    assert state.multivariate_runs_by_id[str(first["run_id"])].logical_hash == stable_hash(
+        {
+            "project_id": project_id,
+            "bivariate_run_id": bivariate_run_id,
+            "selection_id": "univariate-selection-a",
+            "settings": {},
+            "income_contract": INCOME_CONTRACT.qualified_name,
+        }
+    )
     assert service.start("user-a", project_id, bivariate_run_id, {})["run_id"] == first["run_id"]
     second = service.start("user-a", project_id, bivariate_run_id, {"max_weight": 0.2})
     assert state.multivariate_runs_by_id[str(first["run_id"])].status == "stale"

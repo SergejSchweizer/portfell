@@ -27,6 +27,7 @@ from portfell.hosted_research_ports import (
 from portfell.hosted_research_workflow import UnivariateSelection, bivariate_source_id
 from portfell.hosted_selection_repository import SelectionRepository, selection_record
 from portfell.income import (
+    INCOME_CONTRACT,
     build_income_artifacts,
     build_income_evidence,
     normalize_distribution_events,
@@ -93,6 +94,7 @@ class MultivariateResearchService(MultivariateRunViews):
                 "bivariate_run_id": bivariate_run_id,
                 "selection_id": selection.selection_id,
                 "settings": settings,
+                "income_contract": INCOME_CONTRACT.qualified_name,
             }
         )
         run_id = opaque_id("multivariate-run", f"{user_id}:{logical_hash}")
