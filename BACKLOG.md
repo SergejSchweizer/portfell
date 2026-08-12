@@ -1612,7 +1612,7 @@ merge, satisfy the current `merge-gate` requirements in `GATES.md`.
 
 Branch: `feat/multivariate-all-portfolio-performance`.
 
-Git status: in progress. PR: TBD.
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/370.
 
 Priority: P1 multivariate explainability.
 
