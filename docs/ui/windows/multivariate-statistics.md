@@ -32,7 +32,8 @@ or calculates financial values in the browser.
   Statistics must complete first.
 - Ready state: compact server-owned progress header and a compute action.
 - Complete state: Overview, Risk Structure, Portfolio Candidates, Risk
-  Contributions, Income Evidence, and Validation tabs.
+  Contributions, Income Evidence, and Validation tabs in the responsive multi-row
+  statistics tab grid, with no horizontal tab scrolling.
 
 ## States
 

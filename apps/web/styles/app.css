@@ -169,24 +169,26 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 .bivariate-compute .status-line { min-height: 16px; margin: 0; }
 .bivariate-compute .portfell-button { min-height: 32px; }
 .bivariate-statistic { display: grid; grid-template-columns: minmax(260px, .9fr) minmax(420px, 1.6fr); gap: var(--space-6); padding: var(--space-4); border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--canvas); }
-.bivariate-statistic__tabs, .univariate-statistic__tabs { grid-column: 1 / -1; display: flex; gap: 2px; overflow-x: auto; border-bottom: 1px solid var(--border); }
-.bivariate-statistic__tabs button, .univariate-statistic__tabs button { flex: 0 0 auto; padding: 7px 12px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--text-muted); font: inherit; cursor: pointer; }
-.bivariate-statistic__tabs button.is-active, .univariate-statistic__tabs button.is-active { border-bottom-color: var(--primary); color: var(--text); font-weight: 600; }
-.univariate-statistic__tabs {
+.bivariate-statistic__tabs, .univariate-statistic__tabs { grid-column: 1 / -1; }
+.bivariate-statistic__tabs, .univariate-statistic__tabs, .statistics-tabs {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 4px;
   overflow: visible;
   border-bottom: 0;
 }
-.univariate-statistic__tabs button {
+.bivariate-statistic__tabs button, .univariate-statistic__tabs button, .statistics-tabs button {
   min-height: 36px;
   padding: 7px 10px;
   border: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
   text-align: center;
+  cursor: pointer;
 }
-.univariate-statistic__tabs button.is-active { border-color: var(--primary); background: #e7efe9; }
+.bivariate-statistic__tabs button.is-active, .univariate-statistic__tabs button.is-active, .statistics-tabs button[aria-selected="true"] { border-color: var(--primary); background: #e7efe9; color: var(--text); font-weight: 600; }
 .bivariate-compute + .bivariate-statistic { margin-top: var(--space-4); }
 .bivariate-statistic + .bivariate-statistic { margin-top: var(--space-4); }
 .bivariate-statistic__facts { grid-column: 1 / -1; display: grid; align-content: start; gap: var(--space-2); }

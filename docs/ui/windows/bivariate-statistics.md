@@ -43,8 +43,10 @@ Every pairwise metric and matrix in one run uses the same universe-wide date int
 and matrix contracts expose `date_start` and `date_end`; every facts table renders that aligned data
 period so values from different tabs and windows are directly comparable.
 
-The pairwise-dependence window presents Covariance, Pearson, Spearman, Downside Correlation, Tail
-Dependence, and Co-exceedance as tabs. Tail Dependence and Co-exceedance use the same
+The pairwise-dependence window presents its statistics in the same responsive multi-row tab grid as
+Univariate and Multivariate Statistics, so every tab remains visible without horizontal scrolling.
+It includes Covariance, Pearson, Spearman, Downside Correlation, Tail Dependence, and Co-exceedance.
+Tail Dependence and Co-exceedance use the same
 upper-triangular, colour-scaled, hoverable matrix treatment as the correlation tabs. Their facts
 tables show the aligned period, pair count, shared observations, and distribution summary. Tail
 Dependence additionally exposes its 90th percentile; ≥30% and ≥50% pair counts; worst pair; best

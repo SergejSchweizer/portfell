@@ -319,6 +319,9 @@ test("every workflow button completes its browser action for two isolated projec
   await page.goto("/univariate-statistics");
   await computeUnivariate(page);
 
+  await expect(page.locator(".univariate-statistic__tabs")).toHaveCSS("display", "grid");
+  await expect(page.locator(".univariate-statistic__tabs")).toHaveCSS("overflow-x", "visible");
+
   const selections = page.locator(".univariate-statistics-page .portfolio-selection select");
   await expect(selections).toHaveCount(1);
   await selections.selectOption(["monthly", "annual"]);
@@ -353,6 +356,8 @@ test("every workflow button completes its browser action for two isolated projec
   await expect(page.getByRole("tab", { name: "Covariance" })).not.toBeVisible();
   await page.getByRole("button", { name: "Compute Bivariate Statistics" }).click();
   await expect(page.getByText("1 pair statistics computed.")).toBeVisible();
+  await expect(page.locator(".bivariate-statistic__tabs")).toHaveCSS("display", "grid");
+  await expect(page.locator(".bivariate-statistic__tabs")).toHaveCSS("overflow-x", "visible");
   for (const tab of ["Covariance", "Pearson", "Spearman", "Downside", "Tail Dependence", "Co-exceedance", "Rolling-Correlation", "Drawdown Overlap", "Tail-Risk Scatter"]) {
     await page.getByRole("tab", { name: tab }).click();
     await expect(page.getByRole("tab", { name: tab })).toHaveAttribute("aria-selected", "true");
@@ -374,6 +379,8 @@ test("every workflow button completes its browser action for two isolated projec
   await expect(page.getByRole("tab", { name: "Overview" })).not.toBeVisible();
   await page.getByRole("button", { name: "Compute multivariate statistics" }).click();
   await expect(page.getByText("Candidate ETFs")).toBeVisible();
+  await expect(page.locator(".statistics-tabs")).toHaveCSS("display", "grid");
+  await expect(page.locator(".statistics-tabs")).toHaveCSS("overflow-x", "visible");
   for (const tab of ["Overview", "Risk Structure", "Portfolio Candidates", "Risk Contributions", "Income Evidence", "Validation"]) {
     await page.getByRole("tab", { name: tab }).click();
     await expect(page.getByRole("tab", { name: tab })).toHaveAttribute("aria-selected", "true");
