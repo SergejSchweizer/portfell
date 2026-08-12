@@ -204,6 +204,8 @@ export type ApiMultivariateCandidate = Readonly<{
   gross_ttm_distribution_yield: number | null;
   gross_monthly_distribution: number | null;
   total_return: number | null;
+  average_monthly_return: number | null;
+  average_annual_return: number | null;
   max_drawdown: number | null;
   diversification_ratio: number | null;
 }>;

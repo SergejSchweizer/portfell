@@ -1553,7 +1553,7 @@ merge, satisfy the current `merge-gate` requirements in `GATES.md`.
 
 Branch: `feat/multivariate-performance-inspection`.
 
-Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/368.
+Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/368.
 
 Priority: P1 multivariate explainability.
 
@@ -1575,6 +1575,35 @@ are deterministic for identical aligned returns and user interaction coordinates
 
 Idempotency: The v9 execution identity yields one fresh candidate artifact set without altering prior
 terminal artifacts. Chart inspection is read-only.
+
+Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
+merge, satisfy the current `merge-gate` requirements in `GATES.md`.
+
+### PR222. Multivariate Portfolio Return Averages
+
+Branch: `feat/multivariate-return-averages`.
+
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/369.
+
+Priority: P1 multivariate explainability.
+
+Depends on: PR221.
+
+Scope: Persist and display each feasible candidate's average compounded calendar-month and
+calendar-year total return alongside its existing portfolio statistics.
+
+Acceptance: Every feasible Candidate card shows average monthly and annual return values derived
+server-side from the aligned historical return period; unavailable candidates retain unavailable
+metrics without fallback values.
+
+Security: The browser displays only project-owned persisted candidate metrics and performs no
+financial aggregation.
+
+Determinism: Calendar bucket compounding and arithmetic averaging are deterministic for identical
+aligned return inputs.
+
+Idempotency: Execution contract v10 produces fresh deterministic candidate artifacts without
+mutating prior terminal artifacts.
 
 Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
 merge, satisfy the current `merge-gate` requirements in `GATES.md`.

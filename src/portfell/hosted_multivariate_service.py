@@ -55,7 +55,7 @@ from portfell.table_io import JsonRow
 
 
 class MultivariateResearchService(MultivariateRunViews):
-    _EXECUTION_CONTRACT = "multivariate_execution.v9"
+    _EXECUTION_CONTRACT = "multivariate_execution.v10"
     _MAX_RUNNING_SECONDS = 900
     _PHASES = (
         "resolve_inputs",
@@ -365,6 +365,8 @@ class MultivariateResearchService(MultivariateRunViews):
                 "gross_ttm_distribution_yield": item.gross_ttm_distribution_yield,
                 "gross_monthly_distribution": item.gross_monthly_distribution,
                 "total_return": item.total_return,
+                "average_monthly_return": item.average_monthly_return,
+                "average_annual_return": item.average_annual_return,
                 "max_drawdown": item.max_drawdown,
                 "diversification_ratio": item.diversification_ratio,
             }

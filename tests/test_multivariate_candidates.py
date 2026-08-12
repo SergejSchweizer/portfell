@@ -1,4 +1,5 @@
 from dataclasses import replace
+from math import exp
 from types import SimpleNamespace
 from typing import Any
 
@@ -8,6 +9,7 @@ from portfell.multivariate_candidates import (
     METHODS,
     MonthlyDistributionEtfPortfolioPolicy,
     _aligned_matrix,  # pyright: ignore[reportPrivateUsage]
+    _average_calendar_returns,  # pyright: ignore[reportPrivateUsage]
     _diversification_ratio,  # pyright: ignore[reportPrivateUsage]
     _highest_monthly_return_weights,  # pyright: ignore[reportPrivateUsage]
     _return_and_drawdown,  # pyright: ignore[reportPrivateUsage]
@@ -116,6 +118,8 @@ def test_candidate_set_has_stable_methods_and_no_silent_fallbacks() -> None:
             assert abs(sum(weight for _, weight in candidate.weights) - 1) < 1e-9
             assert all(0 <= weight <= 0.2 for _, weight in candidate.weights)
             assert candidate.total_return is not None
+            assert candidate.average_monthly_return is not None
+            assert candidate.average_annual_return is not None
             assert candidate.max_drawdown is not None
             assert candidate.diversification_ratio is not None
             assert len(candidate.risk_contributions) == len(candidate.weights)
@@ -171,6 +175,15 @@ def test_highest_monthly_return_weights_maximize_mean_compounded_monthly_return(
     )
 
     assert weights == pytest.approx((0.6, 0.4))
+
+
+def test_average_calendar_returns_compound_before_averaging() -> None:
+    monthly, annual = _average_calendar_returns(
+        ("2024-01-02", "2024-02-01", "2025-01-02"), (0.1, 0.2, 0.3)
+    )
+
+    assert monthly == pytest.approx((exp(0.1) - 1 + exp(0.2) - 1 + exp(0.3) - 1) / 3)
+    assert annual == pytest.approx(exp(0.3) - 1)
 
 
 def test_infeasible_bounds_remain_explicit_for_every_candidate() -> None:

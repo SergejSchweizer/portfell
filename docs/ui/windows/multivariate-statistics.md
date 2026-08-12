@@ -41,13 +41,17 @@ or calculates financial values in the browser.
   availability reasons. Risk Structure includes component thresholds, strongest driver,
   redundancy evidence, eigenvalue, condition-number, and PSD diagnostics.
 - Candidate cards compare VaR/CVaR, maximum weight, Herfindahl concentration, effective
-  holdings, diversification, return, drawdown, and gross historical income. Income Evidence
+  holdings, diversification, total return, average compounded calendar-month and calendar-year
+  returns, drawdown, and gross historical income. Income Evidence
   includes observed coverage, trend, cuts, total return, and quoted market-price capital change
   as the NAV proxy.
 - Portfolio Candidates includes `highest_monthly_return`, a server-owned portfolio that maximizes
   mean historical compounded calendar-month total return under the same long-only minimum and
   maximum weights as every other candidate. It is descriptive historical evidence, not a forecast
   or recommendation.
+- Average monthly and annual returns are arithmetic means of each candidate's compounded
+  calendar-month and calendar-year total returns over the aligned historical period. They are
+  descriptive historical metrics, not annualized forecasts.
 - Performance renders persisted cumulative daily returns for every input instrument and the
   selected feasible portfolio on one chart, with the portfolio line in red. It also presents
   persisted compounded monthly and calendar-year returns for every feasible portfolio.
