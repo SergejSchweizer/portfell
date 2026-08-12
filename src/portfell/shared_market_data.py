@@ -76,6 +76,7 @@ class CoverageRecord:
     content_hash: str
     published_at_epoch: int
     schema_version: int = 1
+    last_checked_date: str | None = None
 
     def row(self) -> JsonRow:
         return {
@@ -87,6 +88,7 @@ class CoverageRecord:
             "content_hash": self.content_hash,
             "schema_version": self.schema_version,
             "published_at_epoch": self.published_at_epoch,
+            "last_checked_date": self.last_checked_date,
         }
 
 
@@ -126,15 +128,21 @@ class SharedMarketDataStore:
 
     def upsert_many(
         self,
-        values: Iterable[tuple[str, SharedListingKey, Iterable[Mapping[str, Any]]]],
+        values: Iterable[tuple[str, SharedListingKey, Iterable[Mapping[str, Any]], str]],
     ) -> tuple[bool, ...]:
         """Publish a batch while reading and replacing the coverage catalogue once."""
 
         with self._catalog_lock:
             catalog = self._read_catalog()
             changed: list[bool] = []
-            for dataset_type, listing, rows in values:
-                _, item_changed = self._upsert_with_catalog(catalog, dataset_type, listing, rows)
+            for dataset_type, listing, rows, last_checked_date in values:
+                _, item_changed = self._upsert_with_catalog(
+                    catalog,
+                    dataset_type,
+                    listing,
+                    rows,
+                    last_checked_date=last_checked_date,
+                )
                 changed.append(item_changed)
             if changed:
                 _atomic_write_json(
@@ -149,6 +157,8 @@ class SharedMarketDataStore:
         dataset_type: str,
         listing: SharedListingKey,
         rows: Iterable[Mapping[str, Any]],
+        *,
+        last_checked_date: str | None = None,
     ) -> tuple[CoverageRecord, bool]:
         self._validate_dataset(dataset_type)
         key = _coverage_key_for(dataset_type, listing)
@@ -170,12 +180,14 @@ class SharedMarketDataStore:
             listing,
             canonical,
             published_at_epoch=0,
+            last_checked_date=last_checked_date
+            or (None if existing_record is None else existing_record.last_checked_date),
         )
         path = self.revision_path(dataset_type, listing, record.content_hash)
         if not path.exists():
             _atomic_write(path, canonical, self._before_replace)
         catalog[key] = record.row()
-        changed = existing_record is None or record.content_hash != existing_record.content_hash
+        changed = existing_record is None or record != existing_record
         return record, changed
 
     def read(self, dataset_type: str, listing: SharedListingKey) -> list[JsonRow]:
@@ -223,8 +235,14 @@ class SharedMarketDataStore:
                 if not rows:
                     continue
                 listing = SharedListingKey.from_row(rows[0])
-                record = _coverage(dataset, listing, rows, published_at_epoch=0)
                 active = current.get((dataset, listing))
+                record = _coverage(
+                    dataset,
+                    listing,
+                    rows,
+                    published_at_epoch=0,
+                    last_checked_date=None if active is None else active.last_checked_date,
+                )
                 if active is None or active.content_hash == record.content_hash:
                     records.append(record)
         _atomic_write_json(
@@ -289,6 +307,7 @@ def _coverage(
     rows: list[JsonRow],
     *,
     published_at_epoch: int,
+    last_checked_date: str | None = None,
 ) -> CoverageRecord:
     dates = sorted(str(row.get("date") or row.get("payment_date") or "") for row in rows)
     dates = [value for value in dates if value]
@@ -300,6 +319,7 @@ def _coverage(
         len(rows),
         _hash(rows),
         published_at_epoch,
+        last_checked_date=last_checked_date,
     )
 
 
@@ -313,6 +333,7 @@ def _record(row: Mapping[str, Any]) -> CoverageRecord:
         str(row["content_hash"]),
         int(row.get("published_at_epoch", 0)),
         int(row.get("schema_version", 1)),
+        _optional(row.get("last_checked_date")),
     )
 
 
