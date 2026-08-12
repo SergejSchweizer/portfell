@@ -8,22 +8,6 @@ services:
     volumes:
       - portfell-e2e-postgres:/var/lib/postgresql/data
 
-  migrate:
-    build:
-      context: .
-      dockerfile: apps/api/Dockerfile
-    command: ["python", "-m", "portfell.hosted_catalog_migration"]
-    environment:
-      PORTFELL_DATABASE_URL: postgresql://portfell_app@postgres:5432/portfell
-      PORTFELL_DATABASE_PASSWORD_FILE: /run/secrets/postgres_password
-    secrets:
-      - postgres_password
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - portfell-internal
-
   eodhd-stub:
     image: python:3.14-alpine
     command: ["python", "/srv/eodhd_stub.py"]
@@ -50,7 +34,7 @@ services:
     secrets:
       - postgres_password
     depends_on:
-      migrate:
+      catalog-migrate:
         condition: service_completed_successfully
     networks:
       - portfell-internal
@@ -65,7 +49,7 @@ services:
     environment:
       EODHD_BASE_URL: http://eodhd-stub:8080/api
     depends_on:
-      migrate:
+      catalog-migrate:
         condition: service_completed_successfully
       seed-user:
         condition: service_completed_successfully
@@ -96,7 +80,7 @@ services:
       EODHD_BASE_URL: http://eodhd-stub:8080/api
       PORTFELL_WORKER_POLL_SECONDS: "0.1"
     depends_on:
-      migrate:
+      catalog-migrate:
         condition: service_completed_successfully
       seed-user:
         condition: service_completed_successfully

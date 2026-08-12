@@ -1,5 +1,4 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
-import { buttonInteractionManifest } from "./button-interaction-manifest";
 
 type Project = {
   id: string;
