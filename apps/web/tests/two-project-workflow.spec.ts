@@ -348,7 +348,7 @@ test("Multivariate unavailable statistics never render as zero or failed diagnos
   await page.getByRole("button", { name: "Compute multivariate statistics" }).click();
 
   await expect(page.getByText("Unavailable evidence: insufficient_common_history")).toBeVisible();
-  await expect(page.getByText("This analysis needs at least 504 shared daily returns. In Univariate Statistics, select Duration > 2 years, recompute Bivariate Statistics, then compute this run again.")).toBeVisible();
+  await expect(page.getByText("This analysis needs at least 100 shared daily returns. In Univariate Statistics, select Duration > 6 months, recompute Bivariate Statistics, then compute this run again.")).toBeVisible();
   await page.getByRole("tab", { name: "Risk Structure" }).click();
   for (const label of ["Effective rank", "Minimum eigenvalue", "Condition number", "Positive semidefinite"]) {
     const fact = page.locator(".multivariate-facts div").filter({ has: page.getByText(label, { exact: true }) });

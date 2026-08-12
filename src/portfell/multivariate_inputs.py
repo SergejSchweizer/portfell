@@ -16,7 +16,7 @@ from portfell.contract_versioning import ContractVersion, stable_contract_id
 ListingKey = tuple[str, str, str]
 
 INPUT_SNAPSHOT_CONTRACT = ContractVersion("multivariate.input_snapshot", 1)
-MONTHLY_DISTRIBUTION_ETF_POLICY = ContractVersion("multivariate.monthly_etf_policy", 1)
+MONTHLY_DISTRIBUTION_ETF_POLICY = ContractVersion("multivariate.monthly_etf_policy", 2)
 
 REASON_NON_ETF = "non_etf"
 REASON_NOT_MONTHLY = "distribution_not_monthly"
@@ -56,7 +56,7 @@ class MonthlyDistributionEtfPolicy:
     required_instrument_type: str = "ETF"
     required_distribution_frequency: str = "monthly"
     minimum_listing_count: int = 2
-    minimum_common_daily_return_observations: int = 504
+    minimum_common_daily_return_observations: int = 100
     require_production_eligible_quotes: bool = True
 
     def __post_init__(self) -> None:

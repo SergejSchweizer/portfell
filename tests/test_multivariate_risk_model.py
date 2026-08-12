@@ -98,7 +98,7 @@ def test_estimator_and_snapshot_changes_produce_distinct_artifact_ids() -> None:
 
 def test_unavailable_snapshot_never_provides_covariance_to_a_solver() -> None:
     snapshot = build_multivariate_input_snapshot(
-        dependencies=_dependencies(observations=503), univariate_rows=[_row(_key(1)), _row(_key(2))]
+        dependencies=_dependencies(observations=99), univariate_rows=[_row(_key(1)), _row(_key(2))]
     )
     artifact = build_multivariate_risk_model(snapshot=snapshot, return_rows=_returns())
     assert not artifact.available

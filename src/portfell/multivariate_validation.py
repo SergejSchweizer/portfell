@@ -12,14 +12,14 @@ from portfell.contract_versioning import ContractVersion, stable_contract_id
 from portfell.multivariate_candidates import PortfolioCandidate
 from portfell.multivariate_inputs import MultivariateListingKey
 
-VALIDATION_CONTRACT = ContractVersion("multivariate.validation", 2)
+VALIDATION_CONTRACT = ContractVersion("multivariate.validation", 3)
 CandidateFactory = Callable[[Sequence[Mapping[str, Any]]], Sequence[PortfolioCandidate]]
 
 
 @dataclass(frozen=True)
 class WalkForwardPolicy:
     version: ContractVersion = VALIDATION_CONTRACT
-    minimum_training_observations: int = 504
+    minimum_training_observations: int = 100
     test_window_observations: int = 21
     minimum_completed_splits: int = 2
     transaction_cost_rate: float = 0.0005

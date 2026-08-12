@@ -42,7 +42,7 @@ function listing(value: Readonly<{ code: string; exchange: string }> | null | un
 
 function historyRequirement(reasons: readonly string[] | undefined): string | null {
   return reasons?.includes("insufficient_common_history")
-    ? "This analysis needs at least 504 shared daily returns. In Univariate Statistics, select Duration > 2 years, recompute Bivariate Statistics, then compute this run again."
+    ? "This analysis needs at least 100 shared daily returns. In Univariate Statistics, select Duration > 6 months, recompute Bivariate Statistics, then compute this run again."
     : null;
 }
 

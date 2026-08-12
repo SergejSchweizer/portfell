@@ -76,8 +76,8 @@ is no standalone filter module or route in the browser workflow.
 Every active frequency or quantitative filter shows the server-owned `Bivariate selection` ISIN count
 after saving. Duration labels use strict minimum-history thresholds: `> 6 months` persists a minimum
 of 127 trading-day observations, so exactly 126 observations do not qualify. `> 2 years` persists
-505 observations and is the minimum filter for a production-eligible Multivariate input, which
-requires at least 504 common daily returns across the Bivariate selection.
+505 observations. `> 6 months` is the minimum filter for a production-eligible Multivariate input,
+which requires at least 100 common daily returns across the Bivariate selection.
 
 ## Acceptance
 

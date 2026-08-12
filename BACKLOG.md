@@ -1491,6 +1491,32 @@ Idempotency: Rendering the additional facts is read-only and does not create or 
 Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
 merge, satisfy the current `merge-gate` requirements in `GATES.md`.
 
+### PR206. Multivariate Minimum History Policy
+
+Branch: `fix/multivariate-minimum-history`.
+
+Git status: in progress. PR: TBD.
+
+Priority: P1 multivariate availability.
+
+Depends on: PR205.
+
+Scope: Lower the versioned Multivariate input and Walk-Forward production minimum history from 504
+to 100 daily observations, and align current recovery guidance and contracts.
+
+Acceptance: A Multivariate input with 100 common daily returns is eligible, 99 remains unavailable,
+and default Walk-Forward validation begins after 100 training observations plus its 21-day test window.
+
+Security: The server-owned versioned policies remain the sole authority for eligibility and validation.
+
+Determinism: Policy version changes invalidate prior logical artifacts; equal inputs under v2/v3 yield
+the same snapshot and validation identities.
+
+Idempotency: Recomputing unchanged inputs under the new policy reuses the deterministic new-policy run.
+
+Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
+merge, satisfy the current `merge-gate` requirements in `GATES.md`.
+
 ### PR205. Multivariate History Guidance
 
 Branch: `fix/multivariate-history-guidance`.

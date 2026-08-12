@@ -62,6 +62,25 @@ def test_walk_forward_reports_insufficient_history_explicitly() -> None:
     assert splits[0].reason == "insufficient_walk_forward_history"
 
 
+def test_default_walk_forward_policy_starts_after_one_hundred_observations() -> None:
+    rows = [
+        {
+            "isin": "IE1",
+            "exchange": "X",
+            "code": "A",
+            "date": f"2025-{index // 28 + 1:02d}-{index % 28 + 1:02d}",
+            "return": 0.01,
+        }
+        for index in range(121)
+    ]
+
+    splits = validate_candidates(candidates=[_candidate()], return_rows=rows)
+
+    assert len(splits) == 1
+    assert splits[0].status == "complete"
+    assert splits[0].test_observation_count == 21
+
+
 def test_walk_forward_refits_only_on_each_training_slice_and_persists_turnover() -> None:
     rows = [
         {
