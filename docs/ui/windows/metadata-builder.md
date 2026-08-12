@@ -29,6 +29,10 @@ unchanged selection requeues that project's failed server-owned job, resets visi
 the normal planning and running states. It does not create a second project or duplicate the frozen
 selection.
 
+For terminal partial and failed fills, the status line below the form also states the count of failed
+ISINs. The count represents unique listings with at least one failed market-data request, rather than the
+number of failed requests.
+
 ## States
 
 Idle, metadata-fetching, metadata-fetch-failed, filtering, selection-ready, historical-download-running, historical-download-failed, metadata-empty, and metadata-unavailable states must be explicit. A metadata refresh invalidates and reloads the available filter options.

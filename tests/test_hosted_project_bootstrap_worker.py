@@ -17,6 +17,7 @@ class _Jobs:
     def __init__(self, jobs: tuple[ClaimedJob, ...]) -> None:
         self._jobs = jobs
         self.progress: list[tuple[int, int]] = []
+        self.failed_listing_counts: list[int] = []
         self.completed: list[tuple[str, str | None]] = []
         self.heartbeats: list[tuple[str, str]] = []
 
@@ -33,6 +34,12 @@ class _Jobs:
 
     def heartbeat(self, *, job_id: str, lease_token: str) -> None:
         self.heartbeats.append((job_id, lease_token))
+
+    def set_initial_fill_failed_listing_count(
+        self, *, job_id: str, user_id: str, failed_listing_count: int
+    ) -> None:
+        assert (job_id, user_id) == ("job-1", "user-1")
+        self.failed_listing_counts.append(failed_listing_count)
 
     def complete(
         self, *, job_id: str, lease_token: str, status: str, terminal_code: str | None = None
@@ -110,6 +117,24 @@ def test_worker_marks_the_claimed_bootstrap_failed_without_provider_access(tmp_p
 
     assert (result.claimed_count, result.succeeded_count, result.failed_count) == (1, 0, 1)
     assert jobs.completed == [("failed", "initial_fill_failed")]
+    assert jobs.failed_listing_counts == [0]
+
+
+def test_worker_records_failed_isin_count_for_partial_refresh(tmp_path: Any) -> None:
+    jobs = _Jobs((_job(),))
+    worker = ProjectBootstrapWorker(
+        jobs=jobs,
+        members_for_selection=lambda _user_id, _selection_id: ("IE0000000001:XETRA:ONE",),
+        store=SharedMarketDataStore(tmp_path),
+        fetch=lambda _request: (_ for _ in ()).throw(RuntimeError("provider unavailable")),
+        end_date=date(2026, 8, 11),
+        concurrency=1,
+    )
+
+    result = worker.run_once(worker_id="worker-1")
+
+    assert result.failed_count == 1
+    assert jobs.failed_listing_counts == [1]
 
 
 def test_worker_renews_the_lease_while_a_provider_request_is_slow(tmp_path: Any) -> None:

@@ -1231,6 +1231,29 @@ Determinism: Retries retain a stable job identity and monotonically increasing a
 
 Idempotency: Repeated retries preserve one job and one unique attempt row per claim.
 
+### PR190. Initial-Fill Failed ISIN Status
+
+Branch: `fix/initial-fill-failure-status`.
+
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/350.
+
+Priority: P1 project data-loading resilience.
+
+Depends on: PR189.
+
+Scope: Preserve Parquet-normalized shared-market revision hashes and report the unique count of failed
+initial-fill ISINs in the Metadata Builder terminal status.
+
+Acceptance: A partial or failed initial fill persists a non-negative unique failed-listing count; the
+Metadata Builder status displays that count, and retrying the fill resets it to zero.
+
+Security: The projection stores only a count, never provider credentials, error payloads, or listing IDs.
+
+Determinism: Equivalent canonical rows retain the same revision hash after Parquet persistence.
+
+Idempotency: Replaying a failed fill updates the same project-owned summary; a retry clears the summary
+before its next worker claim.
+
 ### PR168. Production Cron Installation And First Scheduled Run Evidence
 
 Branch: `chore/install-production-market-refresh-cron`.

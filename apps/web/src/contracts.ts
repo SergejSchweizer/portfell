@@ -72,6 +72,7 @@ export type ApiInitialFill = Readonly<{
   completed_units: number;
   total_units: number;
   selected_listing_count: number;
+  failed_listing_count: number;
   terminal_code: string | null;
   started_at: number | null;
   last_progress_at: number | null;

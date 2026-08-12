@@ -187,7 +187,7 @@ def test_refresh_rejects_invalid_settings_and_persists_partial_failure(tmp_path)
         return _fetch(request)
 
     completed: list[SharedListingKey] = []
-    with pytest.raises(SharedMarketRefreshError, match="partial_failure"):
+    with pytest.raises(SharedMarketRefreshError, match="partial_failure") as error:
         refresh_shared_market_data(
             store=store,
             listings=_LISTINGS,
@@ -198,6 +198,7 @@ def test_refresh_rejects_invalid_settings_and_persists_partial_failure(tmp_path)
     manifest = (store.root / "refresh-runs" / "2026-01-01.json").read_text(encoding="utf-8")
     assert '"failed": 1' in manifest
     assert completed == list(_LISTINGS)
+    assert error.value.failed_listings == {_LISTINGS[0]}
 
 
 def test_refresh_persists_successful_fetch_before_interruption(tmp_path) -> None:  # type: ignore[no-untyped-def]

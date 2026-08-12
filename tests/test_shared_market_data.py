@@ -46,6 +46,18 @@ def test_canonical_store_deduplicates_business_keys_and_replaces_corrections(tmp
     assert store.rebuild_coverage() == (corrected,)
 
 
+def test_shared_store_hashes_parquet_normalized_numeric_values(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    store = SharedMarketDataStore(tmp_path)
+    listing = _listing()
+
+    revision = store.upsert("quotes", listing, [_row("2025-01-01", 10), _row("2025-01-02", 11.5)])
+
+    assert [
+        row["adjusted_close"]
+        for row in store.read_revision("quotes", listing, revision.content_hash)
+    ] == [10.0, 11.5]
+
+
 def test_shared_store_fails_closed_without_partial_publication(tmp_path) -> None:  # type: ignore[no-untyped-def]
     listing = _listing()
     initial = SharedMarketDataStore(tmp_path)

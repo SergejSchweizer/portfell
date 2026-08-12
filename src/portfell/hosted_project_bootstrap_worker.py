@@ -25,6 +25,7 @@ from portfell.shared_market_data import SharedListingKey, SharedMarketDataStore
 from portfell.shared_market_refresh import (
     ProviderFetch,
     RefreshResult,
+    SharedMarketRefreshError,
     eodhd_fetch,
     operations_token_from_environment,
     refresh_shared_market_data,
@@ -38,6 +39,10 @@ class BootstrapJobQueue(Protocol):
 
     def update_progress(
         self, *, job_id: str, lease_token: str, completed_units: int, total_units: int
+    ) -> None: ...
+
+    def set_initial_fill_failed_listing_count(
+        self, *, job_id: str, user_id: str, failed_listing_count: int
     ) -> None: ...
 
     def heartbeat(self, *, job_id: str, lease_token: str) -> None: ...
@@ -176,6 +181,14 @@ class ProjectBootstrapWorker:
                 )
             self._complete(job, result, len(listings))
         except Exception as error:
+            failed_listing_count = len(
+                error.failed_listings if isinstance(error, SharedMarketRefreshError) else ()
+            )
+            self._jobs.set_initial_fill_failed_listing_count(
+                job_id=job.job_id,
+                user_id=job.user_id,
+                failed_listing_count=failed_listing_count,
+            )
             log_event(
                 LOGGER,
                 logging.ERROR,

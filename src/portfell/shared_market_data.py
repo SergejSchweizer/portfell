@@ -17,7 +17,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
-from portfell.table_io import JsonRow, read_json, read_rows, write_json, write_rows
+from portfell.table_io import (
+    JsonRow,
+    normalize_parquet_rows,
+    read_json,
+    read_rows,
+    write_json,
+    write_rows,
+)
 
 _FORBIDDEN_FIELDS = frozenset(
     {"user_id", "project_id", "credential_id", "session_token", "run_id", "authorization"}
@@ -174,7 +181,7 @@ class SharedMarketDataStore:
         for row in rows:
             normalized = _normalized_row(row, listing)
             merged[_business_key(dataset_type, normalized)] = normalized
-        canonical = [merged[key] for key in sorted(merged)]
+        canonical = normalize_parquet_rows(merged[key] for key in sorted(merged))
         record = _coverage(
             dataset_type,
             listing,

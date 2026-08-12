@@ -205,7 +205,9 @@ export function MetadataBuilderPage() {
             </Button>
           </div>
         </form>
-        <p className="status-line" aria-live="polite">{selectionStatus}</p>
+        <p className="status-line" aria-live="polite">
+          {initialFillStatusMessage(selectionStatus, initialFill)}
+        </p>
       </Panel>
     </section>
   );
@@ -226,6 +228,12 @@ function initialFillButtonLabel(fill: ApiInitialFill | null): string {
   if (fill.status === "ready") return "Quotes ready - Create new project";
   if (fill.status === "partial") return "Quotes partially loaded - Create new project";
   return "Quote load failed - Retry quote load";
+}
+
+export function initialFillStatusMessage(selectionStatus: string, fill: ApiInitialFill | null): string {
+  if (fill === null || !["partial", "failed"].includes(fill.status)) return selectionStatus;
+  const failedIsins = `${fill.failed_listing_count.toLocaleString()} ${fill.failed_listing_count === 1 ? "ISIN" : "ISINs"}`;
+  return `${selectionStatus} ${failedIsins} failed to load.`;
 }
 
 function initialFillRemainingTime(fill: ApiInitialFill): string {

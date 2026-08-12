@@ -595,6 +595,7 @@ def test_metadata_builder_enqueues_the_exact_initial_fill_when_configured() -> N
         "completed_units": 0,
         "total_units": 1,
         "selected_listing_count": 1,
+        "failed_listing_count": 0,
         "terminal_code": None,
         "started_at": None,
     }
