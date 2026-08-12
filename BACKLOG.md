@@ -1300,6 +1300,28 @@ Determinism: Re-submitting the same selection retains its deterministic Bivariat
 
 Idempotency: Repeated active-run starts reuse the same running run without duplicate computation.
 
+### PR195. Sidebar Workflow Status Colors
+
+Branch: `fix/sidebar-workflow-status-colors`.
+
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/355.
+
+Priority: P2 workflow usability.
+
+Depends on: PR194.
+
+Scope: Color the server-owned Complete, Ready, and Locked sidebar workflow status labels while
+retaining their visible text.
+
+Acceptance: Complete is green, Ready is blue, and Locked is grey in both the desktop sidebar and
+mobile drawer; status words remain available without color perception.
+
+Security: The sidebar only renders existing server-owned workflow status values.
+
+Determinism: Equivalent workflow statuses always receive the same visual treatment.
+
+Idempotency: Refreshing or changing projects applies the same status color without mutation.
+
 ### PR193. Statistics Result Completion Visibility
 
 Branch: `fix/statistics-completion-visibility`.

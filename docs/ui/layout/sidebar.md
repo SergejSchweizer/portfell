@@ -57,6 +57,9 @@ Statistics. The active stage uses `aria-current="page"`; locked
 stages remain visible, include text status, and are non-links with
 `aria-disabled="true"`.
 
+Workflow status text uses consistent visual cues: `Complete` is green, `Ready` is blue, and `Locked`
+is grey. The status words remain visible text so their meaning does not depend on color alone.
+
 The sidebar remains a flat `272px` surface separated from main content by one
 border. Long project names truncate in the selector without changing its width;
 the native control exposes the complete name through its title.
