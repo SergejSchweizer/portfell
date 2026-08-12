@@ -1417,7 +1417,7 @@ run identity and completes once the Shared-Market rows are available.
 
 Branch: `fix/multivariate-compute-layout`.
 
-Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/360.
+Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/360.
 
 Priority: P2 research workflow usability.
 
@@ -1440,7 +1440,7 @@ is selected.
 
 Branch: `fix/multivariate-run-recovery`.
 
-Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/361.
+Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/361.
 
 Priority: P1 research workflow reliability.
 
