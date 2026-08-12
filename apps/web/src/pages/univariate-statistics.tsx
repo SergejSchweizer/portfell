@@ -1,5 +1,5 @@
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { loadProjectContext, loadWorkflow } from "../api/client";
 import { univariateStatisticsApi } from "../api/univariate-statistics";
 import { Button } from "../components/button";
@@ -41,6 +41,7 @@ const quoteDurationThresholds: readonly Readonly<{ label: string; minimum: numbe
   { label: "> 3 months", minimum: 64 },
   { label: "> 6 months", minimum: 127 },
   { label: "> 12 months", minimum: 253 },
+  { label: "> 2 years", minimum: 505 },
   { label: "> 3 years", minimum: 757 },
   { label: "> 5 years", minimum: 1_261 },
   { label: "> 10 years", minimum: 2_521 },
@@ -103,6 +104,7 @@ export function UnivariateStatisticsPage() {
   const [portfolioStatisticRanges, setPortfolioStatisticRanges] = useState<Record<string, SelectionRange[]>>({});
   const [activeStatisticTab, setActiveStatisticTab] = useState<UnivariateStatisticTab>("dividends");
   const [message, setMessage] = useState("");
+  const selectionSettingsVersion = useRef(0);
   const workflowUnivariateRunId = workflow.status === "ready"
     ? workflow.data.stages.univariate_statistics.univariate_run_id ?? null
     : null;
@@ -146,17 +148,18 @@ export function UnivariateStatisticsPage() {
 
   useEffect(() => {
     let cancelled = false;
+    const version = selectionSettingsVersion.current;
     void loadProjectContext().then(async (context) => {
       const projectId = context.current_project_id;
       if (!projectId || cancelled) return;
       try {
         const saved = await univariateStatisticsApi.loadSelectionSettings(projectId);
-        if (cancelled) return;
+        if (cancelled || version !== selectionSettingsVersion.current) return;
         setPortfolioDividendFrequencies(saved.dividend_frequencies.filter((value) => dividendFrequencyOptions.some((option) => option.value === value)));
         setPortfolioStatisticSelections(saved.statistic_labels);
         setPortfolioStatisticRanges(saved.statistic_ranges);
       } catch {
-        if (!cancelled) {
+        if (!cancelled && version === selectionSettingsVersion.current) {
           setPortfolioDividendFrequencies([]);
           setPortfolioStatisticSelections({});
           setPortfolioStatisticRanges({});
@@ -244,13 +247,17 @@ export function UnivariateStatisticsPage() {
     statisticLabels: Record<string, string[]>,
     statisticRanges: Record<string, SelectionRange[]>,
   ) {
+    selectionSettingsVersion.current += 1;
     const context = await loadProjectContext();
     if (!context.current_project_id) return;
-    await univariateStatisticsApi.saveSelectionSettings(context.current_project_id, {
+    const saved = await univariateStatisticsApi.saveSelectionSettings(context.current_project_id, {
       dividend_frequencies: dividendFrequencies,
       statistic_labels: statisticLabels,
       statistic_ranges: statisticRanges,
     });
+    setPortfolioDividendFrequencies(saved.dividend_frequencies.filter((value) => dividendFrequencyOptions.some((option) => option.value === value)));
+    setPortfolioStatisticSelections(saved.statistic_labels);
+    setPortfolioStatisticRanges(saved.statistic_ranges);
     setWorkflowRevision((value) => value + 1);
     window.dispatchEvent(new Event("portfell:workflow-updated"));
   }

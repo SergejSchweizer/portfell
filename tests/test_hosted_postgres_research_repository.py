@@ -187,6 +187,7 @@ def test_postgres_research_repository_persists_selection_rows_and_preferences() 
 
     statements = "\n".join(statement for statement, _ in connection.calls)
     assert "insert into portfell_app.univariate_selections" in statements
+    assert "on conflict (selection_id) do nothing" in statements
     assert "insert into portfell_app.univariate_selection_rows" in statements
     assert "current_univariate_selection_preferences" in statements
     assert all(

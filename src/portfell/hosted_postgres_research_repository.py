@@ -138,7 +138,7 @@ on conflict (research_run_id) do update set quote_run_id = excluded.quote_run_id
         if existing is not None:
             return existing
         self._connection.execute(
-            "insert into portfell_app.univariate_selections (selection_id, user_id, source_run_id, member_ids, predicates, input_count) values (%s, %s::uuid, %s, %s::jsonb, %s::jsonb, %s)",
+            "insert into portfell_app.univariate_selections (selection_id, user_id, source_run_id, member_ids, predicates, input_count) values (%s, %s::uuid, %s, %s::jsonb, %s::jsonb, %s) on conflict (selection_id) do nothing",
             (
                 selection.selection_id,
                 selection.user_id,
