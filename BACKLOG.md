@@ -1163,6 +1163,28 @@ Determinism: Each successful provider response atomically produces the same cove
 Idempotency: Replaying a persisted successful fetch updates no business data beyond its existing canonical
 revision and coverage marker.
 
+### PR187. EODHD Event Business Keys
+
+Branch: `fix/eodhd-event-business-keys`.
+
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/347.
+
+Priority: P1 shared-market refresh resilience.
+
+Depends on: PR186.
+
+Scope: Accept native EODHD dividend and split fields when deriving canonical event business keys, so
+successful provider responses without an event ID, `split_factor`, or `ratio` persist correctly.
+
+Acceptance: Native EODHD dividend rows without an event ID and split rows with `split` persist through
+the shared refresh; malformed rows without a required date remain rejected.
+
+Security: The change does not expose or persist provider credentials.
+
+Determinism: Equivalent provider event payloads derive the same canonical business key.
+
+Idempotency: Repeating a provider response replaces the existing event under its stable business key.
+
 ### PR168. Production Cron Installation And First Scheduled Run Evidence
 
 Branch: `chore/install-production-market-refresh-cron`.

@@ -100,6 +100,32 @@ def test_refresh_skips_empty_dividend_and_split_responses_after_they_are_checked
     assert coverage["splits"].last_checked_date == "2026-01-10"
 
 
+def test_refresh_accepts_native_eodhd_dividend_and_split_rows(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    store = SharedMarketDataStore(tmp_path)
+
+    def fetch(request):  # type: ignore[no-untyped-def]
+        if request.dataset_type == "quotes":
+            return _fetch(request)
+        if request.dataset_type == "dividends":
+            return [
+                {
+                    **request.listing.as_row(),
+                    "date": request.end_date,
+                    "paymentDate": request.end_date,
+                    "period": "Quarterly",
+                    "unadjustedValue": 0.5,
+                }
+            ]
+        return [{**request.listing.as_row(), "date": request.end_date, "split": "2:1"}]
+
+    result = refresh_shared_market_data(
+        store=store, listings=_LISTINGS, fetch=fetch, end_date=date(2026, 1, 10)
+    )
+
+    assert result.updated == 3
+    assert len(store.coverage()) == 3
+
+
 def test_batch_publish_reads_and_replaces_coverage_once(tmp_path, monkeypatch) -> None:  # type: ignore[no-untyped-def]
     store = SharedMarketDataStore(tmp_path)
     reads = 0
