@@ -79,6 +79,27 @@ def test_delta_plan_skips_fully_covered_data_and_backfills_only_new_listings(tmp
     ]
 
 
+def test_refresh_skips_empty_dividend_and_split_responses_after_they_are_checked(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    store = SharedMarketDataStore(tmp_path)
+
+    def fetch(request):  # type: ignore[no-untyped-def]
+        return _fetch(request) if request.dataset_type == "quotes" else ()
+
+    first = refresh_shared_market_data(
+        store=store, listings=_LISTINGS, fetch=fetch, end_date=date(2026, 1, 10)
+    )
+    second = refresh_shared_market_data(
+        store=store, listings=_LISTINGS, fetch=fetch, end_date=date(2026, 1, 10)
+    )
+    coverage = {record.dataset_type: record for record in store.coverage()}
+
+    assert first.requested == 3
+    assert second.requested == 0
+    assert coverage["dividends"].last_business_date is None
+    assert coverage["dividends"].last_checked_date == "2026-01-10"
+    assert coverage["splits"].last_checked_date == "2026-01-10"
+
+
 def test_batch_publish_reads_and_replaces_coverage_once(tmp_path, monkeypatch) -> None:  # type: ignore[no-untyped-def]
     store = SharedMarketDataStore(tmp_path)
     reads = 0
@@ -104,6 +125,7 @@ def test_batch_publish_reads_and_replaces_coverage_once(tmp_path, monkeypatch) -
                     end_date="2026-01-10",
                 )
             ),
+            "2026-01-10",
         )
         for listing in listings
     )

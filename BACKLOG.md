@@ -1046,7 +1046,7 @@ not create work or duplicate log handlers.
 
 Branch: `chore/checkout-node24-runtime`.
 
-Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/342.
+Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/342.
 
 Priority: P1 CI maintenance.
 
@@ -1065,6 +1065,32 @@ Determinism: Each workflow resolves the same immutable Checkout action revision.
 
 Idempotency: Re-running an unchanged workflow does not alter repository state beyond its existing CI
 artifacts.
+
+### PR183. Empty Market-Response Coverage
+
+Branch: `fix/empty-market-coverage`.
+
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/343.
+
+Priority: P1 shared-market refresh efficiency.
+
+Depends on: PR182.
+
+Scope: Persist the successful requested end date separately from the last observed business date for
+each shared quote, dividend, and split listing/dataset record. Use that check date when planning deltas
+so empty provider responses do not re-fetch full history on every run.
+
+Acceptance: A successful empty dividend or split response is skipped for the same target date on the
+next refresh; dated coverage remains backward-compatible; and rebuilding the coverage catalogue preserves
+known check dates.
+
+Security: The new marker is tenant-neutral operational metadata and never stores credentials, users,
+projects, or provider request secrets.
+
+Determinism: Identical provider results and requested end dates yield the same coverage marker and plan.
+
+Idempotency: Repeating a refresh already checked through its target date creates no provider request or
+new market revision.
 
 ### PR168. Production Cron Installation And First Scheduled Run Evidence
 

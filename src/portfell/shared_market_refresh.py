@@ -102,11 +102,10 @@ def plan_refresh(
     for listing in sorted(set(listings)):
         for dataset_type in DATASETS:
             record = coverage.get((dataset_type, listing))
-            if (
-                record is not None
-                and record.last_business_date is not None
-                and date.fromisoformat(record.last_business_date) >= end_date
-            ):
+            last_checked_date = None if record is None else record.last_checked_date
+            if last_checked_date is None and record is not None:
+                last_checked_date = record.last_business_date
+            if last_checked_date is not None and date.fromisoformat(last_checked_date) >= end_date:
                 continue
             start = None
             if record is not None and record.last_business_date is not None:
@@ -188,7 +187,8 @@ def refresh_shared_market_data(
                 return
             try:
                 changed = store.upsert_many(
-                    (request.dataset_type, request.listing, rows) for request, rows in batch
+                    (request.dataset_type, request.listing, rows, request.end_date)
+                    for request, rows in batch
                 )
             except Exception as error:
                 log_event(
