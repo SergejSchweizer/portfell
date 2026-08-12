@@ -1583,7 +1583,7 @@ merge, satisfy the current `merge-gate` requirements in `GATES.md`.
 
 Branch: `feat/multivariate-return-averages`.
 
-Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/369.
+Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/369.
 
 Priority: P1 multivariate explainability.
 
@@ -1604,6 +1604,34 @@ aligned return inputs.
 
 Idempotency: Execution contract v10 produces fresh deterministic candidate artifacts without
 mutating prior terminal artifacts.
+
+Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
+merge, satisfy the current `merge-gate` requirements in `GATES.md`.
+
+### PR223. Multivariate All-Portfolio Performance Plot
+
+Branch: `feat/multivariate-all-portfolio-performance`.
+
+Git status: in progress. PR: TBD.
+
+Priority: P1 multivariate explainability.
+
+Depends on: PR222.
+
+Scope: Render every feasible persisted portfolio return series with every input instrument in the
+Multivariate Performance chart, without using an explicit chart portfolio selection.
+
+Acceptance: The Performance chart legend and nearest-date tooltip expose every feasible portfolio
+method and every instrument. The independent risk-contribution selection remains unchanged.
+
+Security: The browser displays only project-owned persisted performance artifacts and performs no
+financial calculations.
+
+Determinism: The complete persisted series set, chart geometry, and nearest-date tooltip lookup are
+deterministic for identical artifacts and user interaction coordinates.
+
+Idempotency: Performance rendering and inspection are read-only and do not mutate run state or
+candidate selections.
 
 Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
 merge, satisfy the current `merge-gate` requirements in `GATES.md`.

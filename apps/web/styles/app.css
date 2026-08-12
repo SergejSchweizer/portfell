@@ -163,7 +163,12 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 .performance-chart__instrument--2 { stroke: var(--series-3); background: var(--series-3); }
 .performance-chart__instrument--3 { stroke: var(--series-4); background: var(--series-4); }
 .performance-chart__instrument--4 { stroke: var(--series-5); background: var(--series-5); }
-.performance-chart__portfolio { stroke: var(--danger); stroke-width: 3; background: var(--danger); }
+.performance-chart__portfolio { stroke-width: 3; stroke-dasharray: 5 3; }
+.performance-chart__portfolio--0 { stroke: var(--series-1); background: var(--series-1); }
+.performance-chart__portfolio--1 { stroke: var(--series-2); background: var(--series-2); }
+.performance-chart__portfolio--2 { stroke: var(--series-3); background: var(--series-3); }
+.performance-chart__portfolio--3 { stroke: var(--series-4); background: var(--series-4); }
+.performance-chart__portfolio--4 { stroke: var(--series-5); background: var(--series-5); }
 .performance-chart__legend { color: var(--text-muted); }
 .performance-chart__series { display: flex; flex-wrap: wrap; gap: var(--space-3); padding: 0; list-style: none; }
 .performance-chart__series li { display: inline-flex; align-items: center; gap: var(--space-1); }

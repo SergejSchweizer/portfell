@@ -52,12 +52,12 @@ or calculates financial values in the browser.
 - Average monthly and annual returns are arithmetic means of each candidate's compounded
   calendar-month and calendar-year total returns over the aligned historical period. They are
   descriptive historical metrics, not annualized forecasts.
-- Performance renders persisted cumulative daily returns for every input instrument and the
-  selected feasible portfolio on one chart, with the portfolio line in red. It also presents
-  persisted compounded monthly and calendar-year returns for every feasible portfolio.
+- Performance renders persisted cumulative daily returns for every input instrument and every
+  feasible portfolio on one chart. Portfolio lines are dashed and labelled by method; the chart
+  does not require a portfolio selection. It also presents persisted compounded monthly and
+  calendar-year returns for every feasible portfolio.
 - Hovering the Performance chart, or using its arrow keys after focus, opens an inspection tooltip
-  for the nearest date with cumulative returns for every visible instrument and the selected
-  portfolio. The selected portfolio remains visually distinguished in red.
+  for the nearest date with cumulative returns for every visible instrument and portfolio method.
 
 ## States
 
