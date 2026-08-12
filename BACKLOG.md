@@ -1491,6 +1491,31 @@ Idempotency: Rendering the additional facts is read-only and does not create or 
 Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
 merge, satisfy the current `merge-gate` requirements in `GATES.md`.
 
+### PR204. Multivariate History Eligibility
+
+Branch: `fix/multivariate-history-eligibility`.
+
+Git status: in progress. PR: TBD.
+
+Priority: P1 multivariate evidence availability.
+
+Depends on: PR203.
+
+Scope: Expose the strict `> 2 years` Univariate Duration filter needed to form a Bivariate selection
+with the 504 common daily returns required by the Multivariate production policy.
+
+Acceptance: Selecting `> 2 years` persists a minimum of 505 observations and removes shorter-history
+ETFs from the Bivariate handoff, allowing an eligible shared-history universe to reach Multivariate.
+
+Security: The server remains the sole authority for filter persistence and selected membership.
+
+Determinism: The same persisted Duration range and completed Univariate run yield the same selection.
+
+Idempotency: Reapplying the same range refreshes the existing deterministic selection only.
+
+Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
+merge, satisfy the current `merge-gate` requirements in `GATES.md`.
+
 ### PR203. Persisted Univariate Filter Feedback
 
 Branch: `fix/univariate-filter-feedback`.

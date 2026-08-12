@@ -41,6 +41,7 @@ const quoteDurationThresholds: readonly Readonly<{ label: string; minimum: numbe
   { label: "> 3 months", minimum: 64 },
   { label: "> 6 months", minimum: 127 },
   { label: "> 12 months", minimum: 253 },
+  { label: "> 2 years", minimum: 505 },
   { label: "> 3 years", minimum: 757 },
   { label: "> 5 years", minimum: 1_261 },
   { label: "> 10 years", minimum: 2_521 },
