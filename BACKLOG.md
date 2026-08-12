@@ -890,7 +890,7 @@ only declared immutable evidence.
 
 Branch: `chore/dependency-upgrades`.
 
-Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/336.
+Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/336.
 
 Priority: P1 maintenance.
 
@@ -915,7 +915,7 @@ Idempotency: Re-resolving an unchanged manifest produces no lockfile changes.
 
 Branch: `chore/node-26-runtime`.
 
-Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/337.
+Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/337.
 
 Priority: P1 maintenance.
 
@@ -1017,7 +1017,7 @@ Idempotency: Equivalent active or succeeded requests produce no duplicate provid
 
 Branch: `fix/initial-fill-observability`.
 
-Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/341.
+Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/341.
 
 Priority: P1 durable worker reliability.
 
@@ -1041,6 +1041,30 @@ job and progress timestamps, independent of browser polling cadence.
 
 Idempotency: Lease renewal changes only its existing job lease; repeated status reads and logger setup do
 not create work or duplicate log handlers.
+
+### PR182. GitHub Actions Node 24 Runtime
+
+Branch: `chore/checkout-node24-runtime`.
+
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/342.
+
+Priority: P1 CI maintenance.
+
+Depends on: PR181.
+
+Scope: Upgrade every SHA-pinned `actions/checkout` workflow reference from v4's Node 20 action runtime
+to v5's Node 24 runtime. Preserve immutable action pins, checkout inputs, and the Node 26 application
+containers used by Web build and test jobs.
+
+Acceptance: Both PR and merge workflows use only the pinned Checkout v5 commit; no Checkout v4 pin
+remains; and the workflow security and governance tests pass.
+
+Security: Workflow actions remain immutable SHA-pinned with unchanged least-privilege permissions.
+
+Determinism: Each workflow resolves the same immutable Checkout action revision.
+
+Idempotency: Re-running an unchanged workflow does not alter repository state beyond its existing CI
+artifacts.
 
 ### PR168. Production Cron Installation And First Scheduled Run Evidence
 
