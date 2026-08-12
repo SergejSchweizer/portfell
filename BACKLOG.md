@@ -1304,7 +1304,7 @@ Idempotency: Repeated active-run starts reuse the same running run without dupli
 
 Branch: `fix/sidebar-workflow-status-colors`.
 
-Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/355.
+Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/355.
 
 Priority: P2 workflow usability.
 
@@ -1321,6 +1321,28 @@ Security: The sidebar only renders existing server-owned workflow status values.
 Determinism: Equivalent workflow statuses always receive the same visual treatment.
 
 Idempotency: Refreshing or changing projects applies the same status color without mutation.
+
+### PR196. Shared Statistics Tab Layout
+
+Branch: `fix/statistics-tab-layout`.
+
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/356.
+
+Priority: P2 research workflow usability.
+
+Depends on: PR195.
+
+Scope: Apply the responsive multi-row statistics tab layout to Bivariate and Multivariate Statistics,
+matching Univariate Statistics.
+
+Acceptance: All tabs remain visible without horizontal scrolling and retain keyboard-operable,
+visually selected states across desktop, tablet, and mobile viewports.
+
+Security: The shared layout changes no API requests, server-owned values, or workflow state.
+
+Determinism: Each statistics page uses the same tab-layout rules for the same viewport and tab set.
+
+Idempotency: Revisiting a completed statistics result applies the same layout without mutation.
 
 ### PR193. Statistics Result Completion Visibility
 
