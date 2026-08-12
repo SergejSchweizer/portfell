@@ -30,6 +30,7 @@ class _Connection:
     def __init__(self) -> None:
         self.statements: list[tuple[str, tuple[object, ...]]] = []
         self.fill: tuple[object, ...] | None = None
+        self.fill_status = "not_started"
         self.members = (("DE0000000001", "XETRA", "AAA"), ("US0000000002", "NYSE", "BBB"))
 
     def transaction(self) -> Any:
@@ -49,7 +50,7 @@ class _Connection:
                         selection_id,
                         membership_hash,
                         count,
-                        "not_started",
+                        self.fill_status,
                         job_id,
                         *member,
                     )
@@ -100,3 +101,27 @@ def test_postgres_bootstrap_freezes_membership_and_enqueues_one_job() -> None:
     assert (status.completed_units, status.total_units, status.terminal_code) == (0, 2, None)
     assert status.started_at_epoch == 1_786_000_000
     assert status.last_progress_at_epoch == 1_786_000_001
+
+
+def test_postgres_bootstrap_requeues_failed_initial_fill() -> None:
+    connection = _Connection()
+    repository = PostgresProjectBootstrapRepository(connection)
+    members = ("DE0000000001:XETRA:AAA", "US0000000002:NYSE:BBB")
+    repository.start(
+        user_id=USER_ID,
+        project_id=PROJECT_ID,
+        selection_id=SELECTION_ID,
+        member_ids=members,
+    )
+    connection.fill_status = "failed"
+
+    retried = repository.start(
+        user_id=USER_ID,
+        project_id=PROJECT_ID,
+        selection_id=SELECTION_ID,
+        member_ids=members,
+    )
+
+    assert retried.bootstrap.status == "not_started"
+    assert sum("set status = 'queued'" in sql for sql, _ in connection.statements) == 1
+    assert sum("set status = 'not_started'" in sql for sql, _ in connection.statements) == 1

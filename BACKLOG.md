@@ -1185,6 +1185,30 @@ Determinism: Equivalent provider event payloads derive the same canonical busine
 
 Idempotency: Repeating a provider response replaces the existing event under its stable business key.
 
+### PR188. Retry Failed Initial Fill
+
+Branch: `fix/retry-failed-initial-fill`.
+
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/348.
+
+Priority: P1 project data-loading resilience.
+
+Depends on: PR187.
+
+Scope: Requeue a failed or cancelled project initial-fill job when the user resubmits the unchanged
+Metadata Builder selection. Reset its progress and terminal state while preserving the project and frozen
+selection; label the action as a quote-load retry.
+
+Acceptance: Retrying a failed initial fill returns `not_started`, is claimed by the worker, and resumes
+progress polling. Running, partial, and ready fills remain unchanged by duplicate submissions.
+
+Security: Retry remains project-owned and uses no browser-held provider credential.
+
+Determinism: A retry preserves the existing deterministic job and selection identity.
+
+Idempotency: Duplicate submissions during active or successful fills remain no-ops; repeated failed-fill
+submissions leave one queued job.
+
 ### PR168. Production Cron Installation And First Scheduled Run Evidence
 
 Branch: `chore/install-production-market-refresh-cron`.
