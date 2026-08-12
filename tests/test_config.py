@@ -65,8 +65,8 @@ def test_load_eodhd_config_reads_http_rate_limit_settings() -> None:
     assert config.retry_backoff_seconds == 2.5
 
 
-def test_runtime_eodhd_config_uses_fast_default_and_allows_override() -> None:
-    assert runtime_eodhd_config("token", env={}).min_request_interval_seconds == 0.05
+def test_runtime_eodhd_config_disables_default_pacing_and_allows_override() -> None:
+    assert runtime_eodhd_config("token", env={}).min_request_interval_seconds == 0.0
     assert (
         runtime_eodhd_config(
             "token",

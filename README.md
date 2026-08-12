@@ -486,7 +486,7 @@ initial backfill, verification, recovery, log rotation, and uninstall instructio
 
 ## EODHD Request Safety
 
-Portfell spaces EODHD requests by default and retries transient failures so large loads do not hammer the API. Bronze is safe for unattended cron execution with bounded EODHD parallelism capped at a default concurrency of `2`. Cron runs preserve request pacing, respect `Retry-After`, use stable run ids, resume safely after partial failures, and avoid overlapping writes for the same lake root.
+Portfell sends EODHD requests without a default client-side delay and retries transient failures. Bronze is safe for unattended cron execution with bounded EODHD parallelism capped at a default concurrency of `2`. Cron runs respect provider `Retry-After` responses, use stable run ids, resume safely after partial failures, and avoid overlapping writes for the same lake root.
 
 Prefer `.secrets/eodhd.yaml` for the API token:
 
@@ -500,11 +500,11 @@ eodhd:
 ```text
 EODHD_TIMEOUT_SECONDS=30
 EODHD_MAX_RETRIES=2
-EODHD_MIN_REQUEST_INTERVAL_SECONDS=0.25
+EODHD_MIN_REQUEST_INTERVAL_SECONDS=0
 EODHD_RETRY_BACKOFF_SECONDS=0.5
 ```
 
-HTTP `429` responses are retried when retries remain. If EODHD sends `Retry-After`, Portfell waits for that duration before retrying; otherwise it uses incremental backoff.
+Set `EODHD_MIN_REQUEST_INTERVAL_SECONDS` to a positive value only when an EODHD subscription requires client-side pacing. HTTP `429` responses are retried when retries remain. If EODHD sends `Retry-After`, Portfell waits for that duration before retrying; otherwise it uses incremental backoff.
 
 ## Logging And Debugging
 
