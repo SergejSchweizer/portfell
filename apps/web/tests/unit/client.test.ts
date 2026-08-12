@@ -105,7 +105,7 @@ describe("API client", () => {
       multivariateStatisticsApi.startRun(multivariateRequest), multivariateStatisticsApi.loadRun("run/a"),
       multivariateStatisticsApi.loadSummary("run/a"), multivariateStatisticsApi.loadStructure("run/a"),
       multivariateStatisticsApi.loadCandidates("run/a"), multivariateStatisticsApi.loadValidation("run/a"),
-      multivariateStatisticsApi.loadArtifacts("run/a"), multivariateStatisticsApi.loadComponents("run/a", 10, 5),
+      multivariateStatisticsApi.loadArtifacts("run/a"), multivariateStatisticsApi.loadPerformance("run/a"), multivariateStatisticsApi.loadComponents("run/a", 10, 5),
       multivariateStatisticsApi.loadRiskContributions("run/a"), multivariateStatisticsApi.loadRiskContributions("run/a", "candidate/a"),
       multivariateStatisticsApi.loadIncomeEvidence("run/a"), multivariateStatisticsApi.saveSelectedCandidates("run/a", ["candidate/a"]),
     ]);
@@ -127,6 +127,7 @@ describe("API client", () => {
       "/api/multivariate-statistics/runs/run%2Fa/candidates",
       "/api/multivariate-statistics/runs/run%2Fa/validation",
       "/api/multivariate-statistics/runs/run%2Fa/artifacts",
+      "/api/multivariate-statistics/runs/run%2Fa/performance",
       "/api/multivariate-statistics/runs/run%2Fa/components?limit=10&offset=5",
       "/api/multivariate-statistics/runs/run%2Fa/risk-contributions",
       "/api/multivariate-statistics/runs/run%2Fa/risk-contributions?candidate_id=candidate%2Fa",

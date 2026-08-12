@@ -94,6 +94,9 @@ class ResearchService:
     def complete_multivariate(self, user_id: str, run_id: str) -> None:
         self._multivariate.complete(user_id, run_id)
 
+    def multivariate_performance(self, user_id: str, run_id: str) -> JsonRow:
+        return self._multivariate.performance(user_id, run_id)
+
     def multivariate_status(self, user_id: str, run_id: str) -> JsonRow:
         return self._multivariate.status(user_id, run_id)
 

@@ -1495,7 +1495,7 @@ merge, satisfy the current `merge-gate` requirements in `GATES.md`.
 
 Branch: `chore/reconcile-main-branches`.
 
-Git status: in progress. PR: TBD.
+Git status: merged. PR: https://github.com/SergejSchweizer/portfell/pull/366.
 
 Priority: P0 repository integration.
 
@@ -1515,6 +1515,36 @@ history policy.
 
 Idempotency: The integration merge commits branch ancestry once and does not mutate persisted
 research artifacts.
+
+Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
+merge, satisfy the current `merge-gate` requirements in `GATES.md`.
+
+### PR220. Multivariate Performance And CVaR Recovery
+
+Branch: `fix/multivariate-performance-cvar`.
+
+Git status: in progress. PR: TBD.
+
+Priority: P0 multivariate result availability.
+
+Depends on: current `main`.
+
+Scope: Persist server-owned instrument and portfolio performance series with monthly and annual
+portfolio returns, render them in Multivariate Statistics, and accept projected-stationary bounded
+Minimum CVaR solutions instead of discarding valid portfolios solely on tail-set stall detection.
+
+Acceptance: A completed Multivariate run exposes cumulative instrument and selected-portfolio
+returns, monthly and annual returns for every feasible candidate, and a feasible Minimum CVaR
+candidate on the active 14-instrument project.
+
+Security: Performance and candidate data remain project-owned persisted artifacts; the browser
+does not calculate portfolio returns or access raw storage.
+
+Determinism: Performance compounding, calendar aggregation, and projected-stationarity detection
+are deterministic for identical aligned return inputs and constraints.
+
+Idempotency: Execution contract v8 creates one fresh deterministic run identity without mutating
+prior terminal artifacts.
 
 Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
 merge, satisfy the current `merge-gate` requirements in `GATES.md`.

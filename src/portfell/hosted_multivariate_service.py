@@ -39,6 +39,7 @@ from portfell.multivariate_inputs import (
     MultivariateListingKey,
     build_multivariate_input_snapshot,
 )
+from portfell.multivariate_performance import build_multivariate_performance
 from portfell.multivariate_quote_views import common_dates, first_price, last_price
 from portfell.multivariate_refits import build_refitted_candidate_sets
 from portfell.multivariate_risk_model import build_multivariate_risk_model
@@ -54,7 +55,7 @@ from portfell.table_io import JsonRow
 
 
 class MultivariateResearchService(MultivariateRunViews):
-    _EXECUTION_CONTRACT = "multivariate_execution.v6"
+    _EXECUTION_CONTRACT = "multivariate_execution.v8"
     _MAX_RUNNING_SECONDS = 900
     _PHASES = (
         "resolve_inputs",
@@ -488,6 +489,10 @@ class MultivariateResearchService(MultivariateRunViews):
                 evidence_by_listing=income,
                 dividend_rows=dividends,
                 income_metrics=income_rows,
+            ),
+            "performance": build_multivariate_performance(
+                candidates=candidates,
+                return_rows=returns,
             ),
         }
         return replace(

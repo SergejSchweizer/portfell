@@ -274,6 +274,31 @@ export type ApiMultivariateComponents = Readonly<{
   offset: number;
 }>;
 
+export type ApiMultivariatePerformanceValue = Readonly<{ date: string; return: number }>;
+
+export type ApiMultivariatePerformanceSeries = Readonly<{
+  isin?: string;
+  exchange?: string;
+  code?: string;
+  candidate_id?: string;
+  method?: string;
+  values: readonly ApiMultivariatePerformanceValue[];
+}>;
+
+export type ApiMultivariatePeriodReturn = Readonly<{
+  candidate_id: string;
+  method: string;
+  period: "monthly" | "annual";
+  label: string;
+  return: number;
+}>;
+
+export type ApiMultivariatePerformance = Readonly<{
+  instrument_series: readonly ApiMultivariatePerformanceSeries[];
+  portfolio_series: readonly ApiMultivariatePerformanceSeries[];
+  period_returns: readonly ApiMultivariatePeriodReturn[];
+}>;
+
 export type ApiMultivariateArtifacts = Readonly<{
   risk_model?: Readonly<{
     estimator?: string;

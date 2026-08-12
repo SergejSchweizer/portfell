@@ -32,6 +32,7 @@
   {"method":"GET","path":"/api/multivariate-statistics/runs/{run_id}/candidates","responseType":"ApiMultivariateCandidates"},
   {"method":"GET","path":"/api/multivariate-statistics/runs/{run_id}/validation","responseType":"ApiMultivariateValidation"},
   {"method":"GET","path":"/api/multivariate-statistics/runs/{run_id}/artifacts","responseType":"ApiMultivariateArtifacts"},
+  {"method":"GET","path":"/api/multivariate-statistics/runs/{run_id}/performance","responseType":"ApiMultivariatePerformance"},
   {"method":"GET","path":"/api/multivariate-statistics/runs/{run_id}/components","query":["limit","offset"],"responseType":"ApiMultivariateComponents"},
   {"method":"GET","path":"/api/multivariate-statistics/runs/{run_id}/risk-contributions","query":["candidate_id"],"responseType":"ApiMultivariateRiskContributions"},
   {"method":"GET","path":"/api/multivariate-statistics/runs/{run_id}/income-evidence","responseType":"ApiMultivariateIncomeEvidenceList"},

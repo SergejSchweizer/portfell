@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import cast
+
 from portfell.hosted_api_errors import HostedApplicationError
 from portfell.hosted_api_state import MultivariateRunRecord
 from portfell.multivariate_run_view import candidate_row, multivariate_run_row
@@ -59,3 +61,8 @@ class MultivariateRunViews:
 
     def artifacts(self, user_id: str, run_id: str) -> JsonRow:
         return dict(self._require_run(user_id, run_id).artifacts)
+
+    def performance(self, user_id: str, run_id: str) -> JsonRow:
+        run = self._require_run(user_id, run_id)
+        performance = run.artifacts.get("performance", {})
+        return cast(JsonRow, performance) if isinstance(performance, dict) else {}
