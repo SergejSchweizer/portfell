@@ -91,6 +91,7 @@ function multivariateIncome() { return { items: [{ isin: "IE00ALPHA01", exchange
 async function installTwoProjectApi(
   page: Page,
   initialFillStatus: "ready" | "running" = "ready",
+  omitSelectionIdFromContext = false,
 ): Promise<WorkflowFixture> {
   const projects = new Map<string, Project>();
   const settingsWrites = new Map<string, number>();
@@ -110,11 +111,19 @@ async function installTwoProjectApi(
   });
 
   const current = () => currentProjectId ? projects.get(currentProjectId) : undefined;
-  const context = () => ({
-    current_project_id: currentProjectId,
-    current_project: currentProjectId ? projectSummary(projects.get(currentProjectId)!) : null,
-    projects: [...projects.values()].map(projectSummary),
-  });
+  const context = () => {
+    const summary = (project: Project) => {
+      const value = projectSummary(project);
+      if (!omitSelectionIdFromContext) return value;
+      const { selection_id: _selectionId, ...withoutSelectionId } = value;
+      return withoutSelectionId;
+    };
+    return {
+      current_project_id: currentProjectId,
+      current_project: currentProjectId ? summary(projects.get(currentProjectId)!) : null,
+      projects: [...projects.values()].map(summary),
+    };
+  };
 
   await page.route("**/api/**", async (route) => {
     const request = route.request();
@@ -332,7 +341,7 @@ test("every workflow button completes its browser action for two isolated projec
 });
 
 test("Create new project displays running historical-data progress and ETA", async ({ page }) => {
-  await installTwoProjectApi(page, "running");
+  await installTwoProjectApi(page, "running", true);
   await page.goto("/metadata-builder");
   await page.getByLabel("Exchange").selectOption("XETRA");
   await page.getByLabel("Instrument type").selectOption("ETF");
@@ -342,6 +351,13 @@ test("Create new project displays running historical-data progress and ETA", asy
   await page.getByRole("button", { name: "Create new project" }).click();
 
   const action = page.getByRole("button", { name: /Loading quotes: 1 \/ 3 - about .* remaining/ });
+  await expect(action).toBeDisabled();
+  await page.reload();
+  await expect(page.getByLabel("Exchange")).toHaveValue("XETRA");
+  await expect(page.getByLabel("Instrument type")).toHaveValue("ETF");
+  await expect(page.getByLabel("Country")).toHaveValue("IE");
+  await expect(page.getByLabel("Currency")).toHaveValue("EUR");
+  await expect(page.getByLabel("Name contains")).toHaveValue("Progress");
   await expect(action).toBeDisabled();
   await expect(page.getByRole("heading", { name: "Historical Data" })).toHaveCount(0);
 });

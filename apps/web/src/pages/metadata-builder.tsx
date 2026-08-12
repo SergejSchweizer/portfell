@@ -37,7 +37,7 @@ export function MetadataBuilderPage() {
     };
 
     const loadProjectCriteria = async (project: ApiProjectSummary | null) => {
-      if (!project?.selection_id) {
+      if (!project) {
         resetProjectState();
         return;
       }
