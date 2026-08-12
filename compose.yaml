@@ -138,7 +138,7 @@ services:
       api:
         condition: service_healthy
     ports:
-      - "0.0.0.0:${PORTFELL_WEB_PORT:-3000}:3000"
+      - "0.0.0.0:${PORTFELL_WEB_PORT:-333}:3000"
     healthcheck:
       test: ["CMD", "node", "server.js", "--health"]
       interval: 10s
