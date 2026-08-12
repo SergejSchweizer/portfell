@@ -100,6 +100,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 .project-sidebar__step { display: grid; place-items: center; flex: 0 0 26px; width: 26px; height: 26px; border-radius: 50%; background: #edf0f4; font-weight: 600; }
 .project-sidebar__stage { display: grid; gap: 1px; min-width: 0; }
 .project-sidebar__stage small { color: #5f6368; }
+.project-sidebar__workflow li[data-status="complete"] .project-sidebar__stage small { color: var(--success); }
+.project-sidebar__workflow li[data-status="ready"] .project-sidebar__stage small { color: var(--accent-hover); }
+.project-sidebar__workflow li[data-status="locked"] .project-sidebar__stage small { color: var(--disabled); }
 .project-sidebar__message { color: #5f6368; margin: 16px 0 0; }
 .page-content { width: min(100%, 1240px); padding: var(--space-6) var(--space-8) var(--space-12); }
 .metadata-builder-page, .univariate-statistics-page { display: grid; gap: var(--space-4); }

@@ -273,6 +273,17 @@ test("selecting a project restores its Metadata Builder fields", async ({ page }
   await expect(page.getByLabel("Name contains")).toHaveValue("Alpha income");
 });
 
+test("workflow sidebar colors complete, ready, and locked statuses", async ({ page }) => {
+  await installTwoProjectApi(page);
+  await page.goto("/metadata-builder");
+  await createProject(page, { exchange: "XETRA", instrumentType: "ETF", country: "IE", currency: "EUR", name: "Workflow status colors" });
+
+  const sidebar = page.locator(".project-sidebar__workflow");
+  await expect(sidebar.locator('li[data-status="complete"] small')).toHaveCSS("color", "rgb(19, 115, 51)");
+  await expect(sidebar.locator('li[data-status="ready"] small')).toHaveCSS("color", "rgb(11, 87, 208)");
+  await expect(sidebar.locator('li[data-status="locked"] small').first()).toHaveCSS("color", "rgb(109, 114, 120)");
+});
+
 test("Bivariate compute polls a running server run through completion", async ({ page }) => {
   const fixture = await installTwoProjectApi(page, "ready", false, true);
   await page.goto("/metadata-builder");
