@@ -43,6 +43,10 @@ or calculates financial values in the browser.
   count, dominant-component share, and explicit input availability reasons. Risk Structure includes
   effective rank, component thresholds, strongest driver, redundancy evidence, eigenvalue,
   condition-number, and PSD diagnostics.
+- Every Overview-chart series has a native checkbox that is enabled by default. Users may show or
+  hide any combination of instrument and portfolio series; the plot and inspection tooltip include
+  only enabled series. Hiding every series leaves the controls available and shows an empty-state
+  prompt rather than calculating replacement values in the browser.
 - Candidate cards compare every evaluated portfolio variant's VaR/CVaR, maximum weight,
   Herfindahl concentration, effective holdings, diversification, total return, average compounded
   calendar-month and calendar-year returns, drawdown, and gross historical income. Risk

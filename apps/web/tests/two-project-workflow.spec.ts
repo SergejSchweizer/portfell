@@ -372,6 +372,18 @@ test("Multivariate compute button polls resolve_inputs through completion", asyn
   await expect(page.locator(".performance-chart__tooltip-instrument")).toHaveCount(2);
   await expect(page.locator(".performance-chart__tooltip-portfolio--0")).toContainText("Equal weight: 2.50%");
   await expect(page.locator(".performance-chart__tooltip-portfolio--1")).toContainText("Minimum variance: 2.70%");
+  await page.getByRole("checkbox", { name: "ALPHA.XETRA" }).uncheck();
+  await expect(performanceChart.locator(".performance-chart__instrument")).toHaveCount(1);
+  await performanceChart.hover();
+  await expect(page.getByRole("tooltip")).not.toContainText("ALPHA.XETRA");
+  await page.getByRole("checkbox", { name: "ALPHA.XETRA" }).check();
+  await expect(performanceChart.locator(".performance-chart__instrument")).toHaveCount(2);
+  await page.getByRole("checkbox", { name: "ALPHA.XETRA" }).uncheck();
+  await page.getByRole("checkbox", { name: "BETA.XETRA" }).uncheck();
+  await page.getByRole("checkbox", { name: "Equal weight" }).uncheck();
+  await page.getByRole("checkbox", { name: "Minimum variance" }).uncheck();
+  await expect(page.getByText("Select at least one series to show the performance chart.")).toBeVisible();
+  await page.getByRole("checkbox", { name: "ALPHA.XETRA" }).check();
   await performanceChart.focus();
   await page.keyboard.press("Home");
   await expect(page.getByRole("tooltip")).toContainText("2024-01-02");

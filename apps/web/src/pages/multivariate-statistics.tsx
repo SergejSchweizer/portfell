@@ -70,17 +70,32 @@ function performancePoints(values: ApiMultivariatePerformance["instrument_series
 
 function PerformanceChart({ performance, alignedPeriod }: Readonly<{ performance: ApiMultivariatePerformance; alignedPeriod?: Readonly<{ date_start: string; date_end: string }> }>) {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
-  const portfolios = performance.portfolio_series;
-  const series = [...performance.instrument_series, ...portfolios];
-  const values = series.flatMap((item) => item.values);
-  if (values.length === 0) return <p role="status">Performance data is unavailable for this run.</p>;
+  const [hiddenSeriesIds, setHiddenSeriesIds] = useState<ReadonlySet<string>>(new Set());
+  const instruments = performance.instrument_series.map((item, index) => ({
+    id: `instrument:${item.isin}:${item.exchange}:${item.code}`,
+    item,
+    index,
+    label: `${item.code}.${item.exchange}`,
+  }));
+  const portfolios = performance.portfolio_series.map((item, index) => ({
+    id: `portfolio:${item.candidate_id ?? index}`,
+    item,
+    index,
+    label: portfolioMethod(item.method),
+  }));
+  const allValues = [...instruments, ...portfolios].flatMap(({ item }) => item.values);
+  if (allValues.length === 0) return <p role="status">Performance data is unavailable for this run.</p>;
+  const visibleInstruments = instruments.filter(({ id }) => !hiddenSeriesIds.has(id));
+  const visiblePortfolios = portfolios.filter(({ id }) => !hiddenSeriesIds.has(id));
+  const values = [...visibleInstruments, ...visiblePortfolios].flatMap(({ item }) => item.values);
+  const hasVisibleSeries = values.length > 0;
   const minimum = Math.min(0, ...values.map((item) => item.return));
   const maximum = Math.max(0, ...values.map((item) => item.return));
-  const times = values.map((item) => Date.parse(item.date));
+  const times = allValues.map((item) => Date.parse(item.date));
   // The x-axis shows only the server-aligned analysis period, not each instrument's full individual history.
   const start = alignedPeriod ? Date.parse(alignedPeriod.date_start) : Math.min(...times);
   const end = alignedPeriod ? Date.parse(alignedPeriod.date_end) : Math.max(...times);
-  const timeline = (portfolios[0]?.values ?? performance.instrument_series[0]?.values ?? []).filter((item) => {
+  const timeline = (portfolios[0]?.item.values ?? instruments[0]?.item.values ?? []).filter((item) => {
     const time = Date.parse(item.date);
     return time >= start && time <= end;
   });
@@ -95,15 +110,24 @@ function PerformanceChart({ performance, alignedPeriod }: Readonly<{ performance
   const hoveredDate = hoveredIndex == null ? undefined : timeline[hoveredIndex]?.date;
   const hoverPosition = hoveredIndex == null || timeline.length < 2 ? 20 : 20 + hoveredIndex / (timeline.length - 1) * 760;
   const hoveredValues = hoveredDate == null ? [] : [
-    ...performance.instrument_series.flatMap((item) => {
+    ...visibleInstruments.flatMap(({ item }) => {
       const value = item.values.find((point) => point.date === hoveredDate);
       return value ? [{ label: `${item.code}.${item.exchange}`, value: value.return, className: "performance-chart__tooltip-instrument" }] : [];
     }),
-    ...portfolios.flatMap((item, index) => {
+    ...visiblePortfolios.flatMap(({ item, index }) => {
       const value = item.values.find((point) => point.date === hoveredDate);
       return value ? [{ label: portfolioMethod(item.method), value: value.return, className: `performance-chart__tooltip-portfolio performance-chart__tooltip-portfolio--${index % 5}` }] : [];
     }),
   ];
+
+  function toggleSeries(id: string) {
+    setHiddenSeriesIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   function inspectAt(clientX: number, bounds: DOMRect) {
     const chartX = Math.max(20, Math.min(780, (clientX - bounds.left) / bounds.width * 800));
@@ -113,7 +137,8 @@ function PerformanceChart({ performance, alignedPeriod }: Readonly<{ performance
 
   return <>
     <p className="performance-chart__legend">Relative cumulative monthly returns for every input instrument and feasible portfolio method.</p>
-    <div className="performance-chart" role="group" aria-label="Relative cumulative monthly return comparison for all instruments and feasible portfolios. Hover or use arrow keys to inspect a month." tabIndex={0} onMouseLeave={() => setHoveredIndex(null)} onMouseMove={(event) => inspectAt(event.clientX, event.currentTarget.getBoundingClientRect())} onKeyDown={(event) => {
+    <fieldset className="performance-chart__controls"><legend>Visible performance series</legend><ul className="performance-chart__series" aria-label="Performance series">{instruments.map(({ id, item, index, label }) => <li key={id}><label><input type="checkbox" checked={!hiddenSeriesIds.has(id)} onChange={() => toggleSeries(id)} /><span className={`performance-chart__swatch performance-chart__instrument performance-chart__instrument--${index % 5}`} />{label}</label></li>)}{portfolios.map(({ id, index, label }) => <li key={id}><label><input type="checkbox" checked={!hiddenSeriesIds.has(id)} onChange={() => toggleSeries(id)} /><span className={`performance-chart__swatch performance-chart__portfolio performance-chart__portfolio--${index % 5}`} />{label}</label></li>)}</ul></fieldset>
+    {hasVisibleSeries ? <div className="performance-chart" role="group" aria-label="Relative cumulative monthly return comparison for visible instruments and feasible portfolios. Hover or use arrow keys to inspect a month." tabIndex={0} onMouseLeave={() => setHoveredIndex(null)} onMouseMove={(event) => inspectAt(event.clientX, event.currentTarget.getBoundingClientRect())} onKeyDown={(event) => {
       if (timeline.length === 0) return;
       if (event.key === "Home") setHoveredIndex(0);
       else if (event.key === "End") setHoveredIndex(timeline.length - 1);
@@ -124,14 +149,13 @@ function PerformanceChart({ performance, alignedPeriod }: Readonly<{ performance
     }}>
       <svg viewBox="0 0 800 280" preserveAspectRatio="none" aria-hidden="true">
         <line className="performance-chart__zero" x1="20" x2="780" y1={20 + (maximum - 0) / Math.max(0.000001, maximum - minimum) * 220} y2={20 + (maximum - 0) / Math.max(0.000001, maximum - minimum) * 220} />
-        {performance.instrument_series.map((item, index) => <polyline key={`${item.isin}:${item.exchange}:${item.code}`} className={`performance-chart__instrument performance-chart__instrument--${index % 5}`} points={performancePoints(item.values, minimum, maximum, start, end)} />)}
-        {portfolios.map((item, index) => <polyline key={item.candidate_id} className={`performance-chart__portfolio performance-chart__portfolio--${index % 5}`} points={performancePoints(item.values, minimum, maximum, start, end)} />)}
+        {visibleInstruments.map(({ id, item, index }) => <polyline key={id} className={`performance-chart__instrument performance-chart__instrument--${index % 5}`} points={performancePoints(item.values, minimum, maximum, start, end)} />)}
+        {visiblePortfolios.map(({ id, item, index }) => <polyline key={id} className={`performance-chart__portfolio performance-chart__portfolio--${index % 5}`} points={performancePoints(item.values, minimum, maximum, start, end)} />)}
         {axisLabels.map((item) => <text className="performance-chart__axis-label" key={`${item.label}:${item.x}`} x={item.x} y="265" textAnchor="middle">{item.label}</text>)}
         {hoveredDate && <line className="performance-chart__cursor" x1={hoverPosition} x2={hoverPosition} y1="20" y2="240" />}
       </svg>
       {hoveredDate && <div className="performance-chart__tooltip" role="tooltip"><strong>{hoveredDate}</strong>{hoveredValues.map((item) => <span className={item.className} key={item.label}>{item.label}: {percent(item.value)}</span>)}</div>}
-    </div>
-    <ul className="performance-chart__series" aria-label="Performance series">{performance.instrument_series.map((item, index) => <li key={`${item.isin}:${item.exchange}:${item.code}`}><span className={`performance-chart__swatch performance-chart__instrument--${index % 5}`} />{item.code}.{item.exchange}</li>)}{portfolios.map((item, index) => <li key={item.candidate_id}><span className={`performance-chart__swatch performance-chart__portfolio performance-chart__portfolio--${index % 5}`} />{portfolioMethod(item.method)}</li>)}</ul>
+    </div> : <p role="status">Select at least one series to show the performance chart.</p>}
   </>;
 }
 
