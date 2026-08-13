@@ -27,6 +27,7 @@ from portfell.hosted_research_workflow import (
     HostedResearchError,
     ResearchRun,
     UnivariateSelection,
+    bivariate_source_id,
 )
 from portfell.hosted_univariate_service import UnivariateResearchService
 from portfell.paths import LakePaths
@@ -233,6 +234,26 @@ def test_univariate_service_versions_the_calculation_run_identity() -> None:
             "selection_id": selection.selection_id,
             "quote_run_id": "shared-market",
             "calculation_contract": "univariate.statistics.v2",
+        }
+    )
+
+
+def test_bivariate_source_identity_versions_the_algorithm() -> None:
+    selection = UnivariateSelection(
+        "selection-a",
+        "user-a",
+        "univariate-a",
+        ("IE1:XETRA:AAA", "IE2:XETRA:BBB"),
+        (),
+        (),
+        2,
+    )
+
+    assert bivariate_source_id(selection) == stable_hash(
+        {
+            "selection_id": selection.selection_id,
+            "members": list(selection.member_ids),
+            "algorithm_version": "v10",
         }
     )
 

@@ -45,6 +45,12 @@ Every pairwise metric and matrix in one run uses the same universe-wide date int
 and matrix contracts expose `date_start` and `date_end`; every facts table renders that aligned data
 period so values from different tabs and windows are directly comparable.
 
+The server computes algorithm version `v10`. Pearson correlation and sample covariance use the
+aligned log returns directly; Spearman correlation is Pearson correlation over exact average ranks,
+including tied observations. Every persisted pair carries a deterministic identity of its aligned
+dates and both return vectors. Formula-version or return-content changes invalidate local cache rows
+and Hosted run identities even when the date range and observation count are unchanged.
+
 The pairwise-dependence window presents its statistics in the same responsive multi-row tab grid as
 Univariate and Multivariate Statistics, so every tab remains visible without horizontal scrolling.
 It includes Covariance, Pearson, Spearman, Downside Correlation, Tail Dependence, and Co-exceedance.
