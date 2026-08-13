@@ -66,6 +66,10 @@ and histogram derived from completed server-returned rows:
 Other cached Gold fields remain technical implementation data and are not presented as univariate
 statistics in the UI at this time.
 
+The Dividends and quantitative-statistic histograms render their stacked columns at 84% of each
+bucket width and center them in the bucket. This keeps the values and histogram scale unchanged
+while giving adjacent columns clearer separation.
+
 The persistent project sidebar supplies the active project and its workflow
 status. A project with a persisted metadata selection remains pending until its
 shared-market coverage is complete; no project quote run is created. After a project switch, local run,

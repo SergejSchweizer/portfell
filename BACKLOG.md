@@ -1,6 +1,7 @@
 ## Table Of Contents
 
 - [Backlog Policy](#backlog-policy)
+- [Active Univariate Overview Narrow Bars Work](#active-univariate-overview-narrow-bars-work)
 - [Active Multivariate Minimum Variance Convergence Work](#active-multivariate-minimum-variance-convergence-work)
 - [Active Multivariate Overview Metric Labels Work](#active-multivariate-overview-metric-labels-work)
 - [Active Multivariate Overview Portfolio Controls Work](#active-multivariate-overview-portfolio-controls-work)
@@ -32,6 +33,34 @@ This file is ordered by execution relevance:
 Every active item must contain `Branch`, `Git status`, `PR`, `Priority`, `Depends on`, `Scope`, `Acceptance`, `Security`, `Determinism`, and `Idempotency`. A PR is atomic only when it can merge independently with all repository gates green. A PR is complete only when its acceptance criteria are machine-verifiable and no assigned scope is deferred silently.
 
 Completed entries are never deleted. Superseded plans are moved to the historical section and explicitly marked non-active. Backlog identifiers are never reused.
+
+## Active Univariate Overview Narrow Bars Work
+
+### PR241. Univariate Overview Narrow Bars
+
+Branch: `feat/univariate-overview-narrow-bars`.
+
+Git status: in progress.
+
+PR: TBD.
+
+Priority: P2 univariate visual clarity.
+
+Depends on: PR240.
+
+Scope: Slightly narrow and center the Univariate Overview histogram columns without changing
+their values, scales, labels, selections, or interactions.
+
+Acceptance: Dividend and quantitative statistic histogram columns use 84% of each bucket width.
+
+Security: The browser continues to render only server-produced values.
+
+Determinism: Identical persisted statistic rows render the same column geometry.
+
+Idempotency: Viewing or interacting with the charts creates no writes beyond existing selection
+updates.
+
+Series Completion Gate: Before merge, satisfy the applicable validation gates in `GATES.md`.
 
 ## Active Multivariate Minimum Variance Convergence Work
 
