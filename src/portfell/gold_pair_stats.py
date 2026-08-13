@@ -22,7 +22,7 @@ ReturnsByListing = dict[ListingKey, dict[str, float]]
 # CPU core for statistics jobs; callers can still pass --concurrency to cap it.
 DEFAULT_MAX_PAIR_COUNT = 500_000
 DEFAULT_MAX_WORKERS = max(1, os.cpu_count() or 1)
-DEFAULT_PAIR_CHUNK_SIZE = 5_000
+DEFAULT_PAIR_CHUNK_SIZE = 500
 DEFAULT_BUCKET_COUNT = 128
 DEFAULT_BYTES_PER_PAIR = 200
 

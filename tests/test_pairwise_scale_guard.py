@@ -9,6 +9,7 @@ from portfell.gold import build_correlation_and_covariance, build_correlation_ed
 from portfell.gold_pair_stats import (
     DEFAULT_BYTES_PER_PAIR,
     DEFAULT_MAX_WORKERS,
+    DEFAULT_PAIR_CHUNK_SIZE,
     build_pair_plan,
     chunked_pairs,
     index_returns,
@@ -43,6 +44,7 @@ def test_build_pair_plan_accepts_universe_within_limit() -> None:
     assert plan.theoretical_pair_count == 100 * 99 // 2
     assert plan.accepted is True
     assert plan.rejection_reason is None
+    assert plan.chunk_size == DEFAULT_PAIR_CHUNK_SIZE == 500
     assert plan.expected_bucket_count == 8
     assert plan.estimated_memory_bytes == plan.theoretical_pair_count * DEFAULT_BYTES_PER_PAIR
 
