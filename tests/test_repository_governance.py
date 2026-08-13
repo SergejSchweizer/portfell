@@ -118,52 +118,35 @@ def test_hosted_api_uses_a_current_user_provider_boundary() -> None:
     assert "current_user_provider: CurrentUserProvider | None" in hosted_api
 
 
-def test_monthly_distribution_multivariate_stack_is_the_only_active_series() -> None:
+def test_active_backlog_contains_only_unfinished_records() -> None:
     backlog = (REPOSITORY_ROOT / "BACKLOG.md").read_text(encoding="utf-8")
     active_start = backlog.index("## Active Monthly-Distribution ETF Multivariate PR Stack")
     completed_start = backlog.index("## Completed PR History")
-    detailed_start = backlog.index("## Completed And Superseded Detailed Records")
     active = backlog[active_start:completed_start]
 
-    assert active_start < completed_start < detailed_start
     assert "## Active Three-Module Portfell UI PR Stack" not in backlog
     assert "## Active Hosted Multi-Tenant Portfell PR Stack" not in backlog
+    assert not re.search(
+        r"^Git status: (merged|complete|pushed|closed|superseded)\b", active, re.MULTILINE
+    )
 
-    positions: list[int] = []
     for pr_number in range(143, 151):
-        section = _pr_section(backlog, pr_number)
-        positions.append(backlog.index(f"### PR{pr_number}."))
-        assert (
-            "Git status: complete. Delivered by the stacked Multivariate implementation "
-            "PRs #255–#265." in section
-        )
-        for required_field in (
-            "Branch:",
-            "Priority:",
-            "Depends on:",
-            "Scope:",
-            "Acceptance:",
-            "Security:",
-            "Determinism:",
-            "Idempotency:",
-        ):
-            assert required_field in section
-        branch_match = re.search(r"^Branch: `([^`]+)`\.$", section, flags=re.MULTILINE)
-        assert branch_match is not None
-        assert TYPED_BRANCH_PATTERN.fullmatch(branch_match.group(1))
+        assert f"| PR{pr_number} |" in backlog[completed_start:]
 
-    assert positions == sorted(positions)
+    assert "### PR143." not in active
     assert "### Monthly-Distribution ETF Multivariate Series Completion Gate" in active
 
 
 def test_backlog_places_only_completed_records_after_the_active_series() -> None:
     backlog = (REPOSITORY_ROOT / "BACKLOG.md").read_text(encoding="utf-8")
     completed = backlog.index("## Completed PR History")
-    detailed = backlog.index("## Completed And Superseded Detailed Records")
 
-    assert completed < detailed
-    assert "### Completed Hosted Stack Records" in backlog[detailed:]
-    assert "### Completed UI Foundation Record" in backlog[detailed:]
+    assert "## Completed And Superseded Detailed Records" not in backlog
+    history = backlog[completed:]
+    assert "### Completed Hosted Stack Records" not in history
+    assert "### Completed UI Foundation Record" not in history
+    assert "| PR92 |" in history
+    assert "| PR229 |" in history
 
 
 def test_quality_gates_are_documented_centrally() -> None:
