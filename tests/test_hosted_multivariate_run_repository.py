@@ -61,6 +61,7 @@ def test_postgres_multivariate_run_repository_writes_owned_document_and_current_
     )
     statement, parameters = connection.calls[1]
     assert "insert into portfell_app.multivariate_runs" in statement
+    assert "started_at_epoch = excluded.started_at_epoch" in statement
     assert parameters[:11] == (
         run.run_id,
         run.user_id,
