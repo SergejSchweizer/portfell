@@ -217,6 +217,40 @@ def test_multivariate_service_resolves_pinned_project_dependencies_and_persists_
     assert persistence.persisted >= 1
 
 
+def test_multivariate_service_completes_a_mixed_distribution_frequency_portfolio() -> None:
+    state, data, project_id, bivariate_run_id = _fixtures()
+    selection = state.univariate_selections_by_id["univariate-selection-a"]
+    frequencies = ("monthly", "quarterly", "semiannual", "monthly", "quarterly")
+    state.univariate_selections_by_id[selection.selection_id] = replace(
+        selection,
+        rows=tuple(
+            {**row, "distribution_frequency": frequency}
+            for row, frequency in zip(selection.rows, frequencies, strict=True)
+        ),
+    )
+    service = _service(state, data, _Persistence())
+
+    started = service.start("user-a", project_id, bivariate_run_id, {})
+    service.complete("user-a", str(started["run_id"]))
+
+    assert service.status("user-a", str(started["run_id"]))["status"] == "complete"
+    artifacts = service.artifacts("user-a", str(started["run_id"]))
+    snapshot = artifacts["input_snapshot"]
+    assert snapshot["availability_reasons"] == []
+    assert len(snapshot["listing_keys"]) == 5
+    assert snapshot["policy"]["allowed_distribution_frequencies"] == [
+        "monthly",
+        "quarterly",
+        "semiannual",
+    ]
+    candidates = service.candidates("user-a", str(started["run_id"]))["items"]
+    assert all("input_snapshot_unavailable" not in candidate["reasons"] for candidate in candidates)
+    baselines = [candidate for candidate in candidates if candidate["baseline"]]
+    assert baselines
+    assert all(candidate["status"] == "feasible" for candidate in baselines)
+    assert all(len(candidate["weights"]) == 5 for candidate in baselines)
+
+
 def test_multivariate_service_uses_all_available_cpu_workers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
