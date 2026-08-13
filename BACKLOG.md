@@ -41,9 +41,9 @@ Completed entries are never deleted. Superseded plans are moved to the historica
 
 Branch: `fix/univariate-calculation-correctness`.
 
-Git status: in progress.
+Git status: pushed.
 
-PR: TBD.
+PR: https://github.com/SergejSchweizer/portfell/pull/392.
 
 Priority: P0 analytical correctness.
 
