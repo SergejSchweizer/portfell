@@ -5,6 +5,7 @@ Last reviewed: 2026-08-11
 ## Table Of Contents
 
 - [Backlog Policy](#backlog-policy)
+- [Active Branch Reconciliation](#active-branch-reconciliation)
 - [Active Multivariate Presentation Work](#active-multivariate-presentation-work)
 - [Active PostgreSQL Tenant Plane And Shared Data PR Stack](#active-postgresql-tenant-plane-and-shared-data-pr-stack)
 - [Active Monthly-Distribution ETF Multivariate PR Stack](#active-monthly-distribution-etf-multivariate-pr-stack)
@@ -26,6 +27,34 @@ This file is ordered by execution relevance:
 Every active item must contain `Branch`, `Git status`, `PR`, `Priority`, `Depends on`, `Scope`, `Acceptance`, `Security`, `Determinism`, and `Idempotency`. A PR is atomic only when it can merge independently with all repository gates green. A PR is complete only when its acceptance criteria are machine-verifiable and no assigned scope is deferred silently.
 
 Completed entries are never deleted. Superseded plans are moved to the historical section and explicitly marked non-active. Backlog identifiers are never reused.
+
+## Active Branch Reconciliation
+
+### PR227. All Branch Historical Reconciliation
+
+Branch: `chore/merge-all-branches`.
+
+Git status: in progress.
+
+PR: TBD.
+
+Priority: P1 repository maintenance.
+
+Depends on: current `main`.
+
+Scope: Integrate every remaining local and remote branch history while retaining the current `main`
+resolution at overlapping paths.
+
+Acceptance: Every listed local and remote branch is an ancestor of the reconciliation branch; the
+full Python suite, web typecheck, and browser workflow suite pass.
+
+Security: Reconciliation does not expose secrets or alter secret-file configuration.
+
+Determinism: The integrated parent set is explicit in Git history and repeatable from the branch refs.
+
+Idempotency: Re-running reconciliation recognizes every already-integrated branch as an ancestor.
+
+Series Completion Gate: Before merge, satisfy the applicable validation gates in `GATES.md`.
 
 ## Active Multivariate Presentation Work
 
