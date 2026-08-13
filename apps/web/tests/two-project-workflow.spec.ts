@@ -363,7 +363,7 @@ test("Multivariate compute button polls resolve_inputs through completion", asyn
   const performanceChart = page.getByRole("group", { name: /Relative cumulative monthly return comparison/ });
   await expect(performanceChart).toBeVisible();
   await expect(page.getByRole("table", { name: "Multivariate overview facts" })).toHaveCount(0);
-  await expect(page.getByRole("table", { name: "Portfolio overview metrics" })).toHaveText(/Average monthly relative gain/);
+  await expect(page.getByRole("table", { name: "Portfolio overview metrics" })).toHaveText(/MD.*Monthly Return.*Annual Return.*Holdings.*Deversifikaton/);
   await expect(page.getByRole("table", { name: "Portfolio overview metrics" })).toHaveText(/Equal weight.*1\.00%.*12\.00%/);
   await expect(page.locator(".performance-chart__axis-label").first()).toHaveText("Jan 2024");
   await expect(page.locator(".performance-chart__axis-title")).toHaveText("Cumulative relative gain (%)");

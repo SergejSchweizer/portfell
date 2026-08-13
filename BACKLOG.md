@@ -1,6 +1,7 @@
 ## Table Of Contents
 
 - [Backlog Policy](#backlog-policy)
+- [Active Multivariate Overview Metric Labels Work](#active-multivariate-overview-metric-labels-work)
 - [Active Multivariate Overview Portfolio Controls Work](#active-multivariate-overview-portfolio-controls-work)
 - [Active Multivariate Overview Cumulative Axis Work](#active-multivariate-overview-cumulative-axis-work)
 - [Active Multivariate Overview Portfolio Colors Work](#active-multivariate-overview-portfolio-colors-work)
@@ -30,6 +31,34 @@ This file is ordered by execution relevance:
 Every active item must contain `Branch`, `Git status`, `PR`, `Priority`, `Depends on`, `Scope`, `Acceptance`, `Security`, `Determinism`, and `Idempotency`. A PR is atomic only when it can merge independently with all repository gates green. A PR is complete only when its acceptance criteria are machine-verifiable and no assigned scope is deferred silently.
 
 Completed entries are never deleted. Superseded plans are moved to the historical section and explicitly marked non-active. Backlog identifiers are never reused.
+
+## Active Multivariate Overview Metric Labels Work
+
+### PR239. Multivariate Overview Metric Labels
+
+Branch: `feat/multivariate-overview-metric-labels`.
+
+Git status: pushed.
+
+PR: https://github.com/SergejSchweizer/portfell/pull/389.
+
+Priority: P1 multivariate analytical clarity.
+
+Depends on: PR238.
+
+Scope: Shorten the requested Multivariate Overview portfolio-metrics table headers without
+changing the underlying server-provided values.
+
+Acceptance: The headers read `MD`, `Monthly Return`, `Annual Return`, `Holdings`, and
+`Deversifikaton`.
+
+Security: This presentation-only change does not alter analytical values or browser calculations.
+
+Determinism: An unchanged candidate artifact renders the same values under the renamed headers.
+
+Idempotency: Viewing Overview creates no writes or analytical work.
+
+Series Completion Gate: Before merge, satisfy the applicable validation gates in `GATES.md`.
 
 ## Active Multivariate Overview Portfolio Controls Work
 
