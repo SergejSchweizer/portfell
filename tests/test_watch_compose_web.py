@@ -46,4 +46,4 @@ def test_once_dry_run_prints_compose_rebuild_command(tmp_path: Path, capsys: Any
     assert result == 0
     assert " ".join(DEFAULT_COMMAND) in captured.out
     assert ".env.local" in captured.out
-    assert "up --build -d web" in captured.out
+    assert "up --build -d\n" in captured.out
