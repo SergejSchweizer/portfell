@@ -5,6 +5,7 @@ Last reviewed: 2026-08-11
 ## Table Of Contents
 
 - [Backlog Policy](#backlog-policy)
+- [Active Multivariate Overview Cumulative Axis Work](#active-multivariate-overview-cumulative-axis-work)
 - [Active Multivariate Overview Portfolio Colors Work](#active-multivariate-overview-portfolio-colors-work)
 - [Active Multivariate Overview Facts Removal Work](#active-multivariate-overview-facts-removal-work)
 - [Active Multivariate Overview Portfolio Summary Work](#active-multivariate-overview-portfolio-summary-work)
@@ -35,6 +36,33 @@ This file is ordered by execution relevance:
 Every active item must contain `Branch`, `Git status`, `PR`, `Priority`, `Depends on`, `Scope`, `Acceptance`, `Security`, `Determinism`, and `Idempotency`. A PR is atomic only when it can merge independently with all repository gates green. A PR is complete only when its acceptance criteria are machine-verifiable and no assigned scope is deferred silently.
 
 Completed entries are never deleted. Superseded plans are moved to the historical section and explicitly marked non-active. Backlog identifiers are never reused.
+
+## Active Multivariate Overview Cumulative Axis Work
+
+### PR237. Multivariate Overview Cumulative Axis
+
+Branch: `docs/multivariate-overview-cumulative-axis`.
+
+Git status: in progress.
+
+PR: TBD.
+
+Priority: P1 multivariate analytical clarity.
+
+Depends on: PR236.
+
+Scope: Clarify the Multivariate Overview chart y-axis as compounded cumulative relative gain.
+
+Acceptance: The y-axis states `Cumulative relative gain (%)`, matching the server-produced
+cumulative monthly performance artifact.
+
+Security: The label adds no client-side analytical calculation or state.
+
+Determinism: An unchanged performance artifact retains the same axis values and label.
+
+Idempotency: Viewing the chart creates no writes or analytical work.
+
+Series Completion Gate: Before merge, satisfy the applicable validation gates in `GATES.md`.
 
 ## Active Multivariate Overview Portfolio Colors Work
 

@@ -137,7 +137,7 @@ function PerformanceChart({ performance, alignedPeriod }: Readonly<{ performance
       event.preventDefault();
     }}>
       <svg viewBox="0 0 800 280" preserveAspectRatio="none" aria-hidden="true">
-        <text className="performance-chart__axis-title" x="12" y="130" textAnchor="middle" transform="rotate(-90 12 130)">Relative gain (%)</text>
+        <text className="performance-chart__axis-title" x="12" y="130" textAnchor="middle" transform="rotate(-90 12 130)">Cumulative relative gain (%)</text>
         <line className="performance-chart__zero" x1="20" x2="780" y1={20 + (maximum - 0) / Math.max(0.000001, maximum - minimum) * 220} y2={20 + (maximum - 0) / Math.max(0.000001, maximum - minimum) * 220} />
         {visibleInstruments.map(({ id, item, index }) => <polyline key={id} className={`performance-chart__instrument performance-chart__instrument--${index % 5}`} points={performancePoints(item.values, minimum, maximum, start, end)} />)}
         {visiblePortfolios.map(({ id, item, index }) => <polyline key={id} className={`performance-chart__portfolio performance-chart__portfolio--${index % 5}`} points={performancePoints(item.values, minimum, maximum, start, end)} />)}

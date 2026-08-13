@@ -37,7 +37,7 @@ or calculates financial values in the browser.
 - Complete state: Overview and Portfolio Candidates tabs in the responsive statistics tab grid,
   with no horizontal tab scrolling.
 - Overview renders the persisted relative cumulative monthly-return chart before a portfolio-metrics
-  table. The chart includes a visible `Relative gain (%)`
+  table. The chart includes a visible `Cumulative relative gain (%)`
   y-axis title, calendar-time labels, and renders all instruments in
   light gray and every feasible portfolio as a solid method-specific color. Explicit input
   availability reasons remain visible when supplied by the server.
