@@ -55,6 +55,9 @@ or calculates financial values in the browser.
   mean historical compounded calendar-month total return under the same long-only minimum and
   maximum weights as every other candidate. It is descriptive historical evidence, not a forecast
   or recommendation.
+- Minimum Variance uses the server solver's complete default convergence budget. It remains an
+  explicitly unavailable candidate only when that full solve cannot converge or its inputs are
+  infeasible.
 - Average monthly and annual returns are arithmetic means of each candidate's compounded
   calendar-month and calendar-year total returns over the aligned historical period. They are
   descriptive historical metrics, not annualized forecasts.

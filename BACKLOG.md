@@ -1,6 +1,7 @@
 ## Table Of Contents
 
 - [Backlog Policy](#backlog-policy)
+- [Active Multivariate Minimum Variance Convergence Work](#active-multivariate-minimum-variance-convergence-work)
 - [Active Multivariate Overview Metric Labels Work](#active-multivariate-overview-metric-labels-work)
 - [Active Multivariate Overview Portfolio Controls Work](#active-multivariate-overview-portfolio-controls-work)
 - [Active Multivariate Overview Cumulative Axis Work](#active-multivariate-overview-cumulative-axis-work)
@@ -31,6 +32,34 @@ This file is ordered by execution relevance:
 Every active item must contain `Branch`, `Git status`, `PR`, `Priority`, `Depends on`, `Scope`, `Acceptance`, `Security`, `Determinism`, and `Idempotency`. A PR is atomic only when it can merge independently with all repository gates green. A PR is complete only when its acceptance criteria are machine-verifiable and no assigned scope is deferred silently.
 
 Completed entries are never deleted. Superseded plans are moved to the historical section and explicitly marked non-active. Backlog identifiers are never reused.
+
+## Active Multivariate Minimum Variance Convergence Work
+
+### PR240. Multivariate Minimum Variance Convergence
+
+Branch: `feat/multivariate-minimum-variance-convergence`.
+
+Git status: in progress.
+
+PR: TBD.
+
+Priority: P1 multivariate analytical completeness.
+
+Depends on: PR239.
+
+Scope: Allow the Multivariate Minimum Variance candidate to use the solver's full default
+convergence budget and invalidate runs calculated under the former short solver limit.
+
+Acceptance: Minimum Variance does not receive the former 500-iteration cap. A changed execution
+contract creates a fresh Multivariate run rather than reusing a result computed with that cap.
+
+Security: The server continues to own all solver execution and persisted candidate artifacts.
+
+Determinism: Identical inputs and the versioned solver budget produce the same candidate result.
+
+Idempotency: Repeating a request with the same v11 execution contract resolves the same run.
+
+Series Completion Gate: Before merge, satisfy the applicable validation gates in `GATES.md`.
 
 ## Active Multivariate Overview Metric Labels Work
 

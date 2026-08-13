@@ -354,7 +354,7 @@ def test_multivariate_service_covers_idempotency_stale_and_error_boundaries() ->
             "selection_id": "univariate-selection-a",
             "settings": {},
             "income_contract": INCOME_CONTRACT.qualified_name,
-            "execution_contract": "multivariate_execution.v10",
+            "execution_contract": "multivariate_execution.v11",
         }
     )
     assert service.start("user-a", project_id, bivariate_run_id, {})["run_id"] == first["run_id"]

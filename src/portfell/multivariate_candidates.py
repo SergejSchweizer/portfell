@@ -37,7 +37,7 @@ from portfell.portfolio_parts.solvers import (
     solve_minimum_variance,
 )
 
-CANDIDATE_CONTRACT = ContractVersion("multivariate.candidates", 3)
+CANDIDATE_CONTRACT = ContractVersion("multivariate.candidates", 4)
 MAX_WALK_FORWARD_SOLVER_ITERATIONS = 500
 METHODS = (
     "equal_weight",
@@ -289,7 +289,6 @@ def _weights(
             covariances,
             min_weight=policy.min_weight,
             max_weight=policy.max_weight,
-            max_iterations=MAX_WALK_FORWARD_SOLVER_ITERATIONS,
         )
         if not outcome.converged:
             raise ValueError("minimum_variance_solver_not_converged")
