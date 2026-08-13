@@ -49,7 +49,9 @@ The server computes algorithm version `v10`. Pearson correlation and sample cova
 aligned log returns directly; Spearman correlation is Pearson correlation over exact average ranks,
 including tied observations. Every persisted pair carries a deterministic identity of its aligned
 dates and both return vectors. Formula-version or return-content changes invalidate local cache rows
-and Hosted run identities even when the date range and observation count are unchanged.
+and Hosted run identities even when the date range and observation count are unchanged. Pair work is
+streamed in bounded 500-pair chunks so full aligned return vectors remain within the runtime memory
+budget while all available worker CPUs calculate independent pairs.
 
 The pairwise-dependence window presents its statistics in the same responsive multi-row tab grid as
 Univariate and Multivariate Statistics, so every tab remains visible without horizontal scrolling.
