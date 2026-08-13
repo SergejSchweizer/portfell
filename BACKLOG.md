@@ -32,9 +32,9 @@ Completed entries are never deleted. Superseded plans are moved to the historica
 
 Branch: `feat/multivariate-overview-tabs`.
 
-Git status: in progress.
+Git status: pushed.
 
-PR: TBD.
+PR: https://github.com/SergejSchweizer/portfell/pull/383.
 
 Priority: P1 multivariate analytical clarity.
 
