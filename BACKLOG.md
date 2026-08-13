@@ -5,6 +5,7 @@ Last reviewed: 2026-08-11
 ## Table Of Contents
 
 - [Backlog Policy](#backlog-policy)
+- [Active Multivariate Performance Controls Work](#active-multivariate-performance-controls-work)
 - [Active Multivariate Overview Performance Work](#active-multivariate-overview-performance-work)
 - [Active Multivariate Candidate Evaluation Work](#active-multivariate-candidate-evaluation-work)
 - [Active Branch Reconciliation](#active-branch-reconciliation)
@@ -29,6 +30,34 @@ This file is ordered by execution relevance:
 Every active item must contain `Branch`, `Git status`, `PR`, `Priority`, `Depends on`, `Scope`, `Acceptance`, `Security`, `Determinism`, and `Idempotency`. A PR is atomic only when it can merge independently with all repository gates green. A PR is complete only when its acceptance criteria are machine-verifiable and no assigned scope is deferred silently.
 
 Completed entries are never deleted. Superseded plans are moved to the historical section and explicitly marked non-active. Backlog identifiers are never reused.
+
+## Active Multivariate Performance Controls Work
+
+### PR231. Multivariate Performance Series Controls
+
+Branch: `feat/multivariate-performance-series-controls`.
+
+Git status: in progress.
+
+PR: TBD.
+
+Priority: P1 multivariate analytical clarity.
+
+Depends on: current `main`.
+
+Scope: Add local visibility controls for every Overview performance-chart instrument and portfolio
+series while preserving the server-owned monthly return artifact.
+
+Acceptance: Every chart series has an enabled-by-default checkbox. Any combination of enabled
+series controls the SVG and tooltip; hiding all series leaves controls available with an empty state.
+
+Security: The browser changes only local display state and does not calculate or persist returns.
+
+Determinism: An unchanged artifact and visible-series selection produce the same chart and tooltip.
+
+Idempotency: Toggling visibility creates no writes or analytical work.
+
+Series Completion Gate: Before merge, satisfy the applicable validation gates in `GATES.md`.
 
 ## Active Multivariate Overview Performance Work
 
