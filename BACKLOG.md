@@ -53,7 +53,8 @@ Depends on: PR243.
 
 Scope: Aggregate realized portfolios from weighted simple daily returns across candidate metrics,
 Minimum CVaR, Walk-Forward validation, stress evidence, and performance; make monthly performance
-dates independent of input row order; invalidate prior candidate, validation, and Hosted runs.
+dates independent of input row order; invalidate prior candidate, validation, and Hosted runs; and
+accept canonical v2 Univariate dependencies while allowing failed v12 runs to restart.
 
 Acceptance: Candidate totals reconcile with Performance, Minimum CVaR receives simple-return
 scenarios, Walk-Forward compounds weighted simple returns, and shuffled source rows produce the same

@@ -63,7 +63,9 @@ or calculates financial values in the browser.
   exact daily simple return `sum(weight × asset simple return)`. Candidate return/drawdown and
   VaR/CVaR metrics, Minimum CVaR scenarios, Walk-Forward validation, stress evidence, and the
   Performance chart therefore reconcile to the same daily portfolio path. Monthly performance uses
-  chronological observations and labels each point with the actual final date in that month.
+  chronological observations and labels each point with the actual final date in that month. The
+  dependency guard resolves the canonical versioned Univariate source identity; a failed v12 run may
+  be restarted with the same deterministic run id after its underlying failure is corrected.
 - Average monthly and annual returns are arithmetic means of each candidate's compounded
   calendar-month and calendar-year total returns over the aligned historical period. They are
   descriptive historical metrics, not annualized forecasts.
