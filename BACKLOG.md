@@ -1,6 +1,7 @@
 ## Table Of Contents
 
 - [Backlog Policy](#backlog-policy)
+- [Active Multivariate Calculation Correctness Work](#active-multivariate-calculation-correctness-work)
 - [Active Bivariate Calculation Correctness Work](#active-bivariate-calculation-correctness-work)
 - [Active Univariate Calculation Correctness Work](#active-univariate-calculation-correctness-work)
 - [Active Univariate Overview Narrow Bars Work](#active-univariate-overview-narrow-bars-work)
@@ -35,6 +36,40 @@ This file is ordered by execution relevance:
 Every active item must contain `Branch`, `Git status`, `PR`, `Priority`, `Depends on`, `Scope`, `Acceptance`, `Security`, `Determinism`, and `Idempotency`. A PR is atomic only when it can merge independently with all repository gates green. A PR is complete only when its acceptance criteria are machine-verifiable and no assigned scope is deferred silently.
 
 Completed entries are never deleted. Superseded plans are moved to the historical section and explicitly marked non-active. Backlog identifiers are never reused.
+
+## Active Multivariate Calculation Correctness Work
+
+### PR244. Multivariate Calculation Correctness
+
+Branch: `fix/multivariate-calculation-correctness`.
+
+Git status: pushed.
+
+PR: https://github.com/SergejSchweizer/portfell/pull/394.
+
+Priority: P0 analytical correctness.
+
+Depends on: PR243.
+
+Scope: Aggregate realized portfolios from weighted simple daily returns across candidate metrics,
+Minimum CVaR, Walk-Forward validation, stress evidence, and performance; make monthly performance
+dates independent of input row order; invalidate prior candidate, validation, and Hosted runs; and
+accept canonical v2 Univariate dependencies while allowing failed v12 runs to restart.
+
+Acceptance: Candidate totals reconcile with Performance, Minimum CVaR receives simple-return
+scenarios, Walk-Forward compounds weighted simple returns, and shuffled source rows produce the same
+performance artifact. Minimum Variance receives its 100,000-iteration production budget. Contracts
+advance to candidate v6, validation v5, and execution v13.
+
+Security: Portfolio calculations remain server-owned and consume only the completed project-scoped
+Bivariate hand-off and shared-market revisions.
+
+Determinism: Identical aligned source revisions, constraints, and v12 contracts produce identical
+candidate, validation, stress, and performance artifacts.
+
+Idempotency: Repeating v13 with unchanged inputs resolves the same Hosted run and artifacts.
+
+Series Completion Gate: Before merge, satisfy the applicable validation gates in `GATES.md`.
 
 ## Active Bivariate Calculation Correctness Work
 
