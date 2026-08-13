@@ -34,9 +34,8 @@ or calculates financial values in the browser.
   labelled 14px determinate progress bar, status line, and right-aligned compute action.
 - Project switch: clear the prior project's run and result artifacts before loading
   the active project's workflow state; ignore late responses for the prior project.
-- Complete state: Overview, Risk Structure, Portfolio Candidates, Risk
-  Contributions, Income Evidence, Performance, and Validation tabs in the responsive multi-row
-  statistics tab grid, with no horizontal tab scrolling.
+- Complete state: Overview and Portfolio Candidates tabs in the responsive statistics tab grid,
+  with no horizontal tab scrolling.
 - Overview renders the persisted relative cumulative monthly-return chart before its two-column
   Fact/Value table. The chart includes visible calendar-time labels and renders all instruments in
   light gray and every feasible portfolio in a method-specific color. Overview facts include candidate
@@ -60,8 +59,6 @@ or calculates financial values in the browser.
 - Average monthly and annual returns are arithmetic means of each candidate's compounded
   calendar-month and calendar-year total returns over the aligned historical period. They are
   descriptive historical metrics, not annualized forecasts.
-- Performance presents persisted compounded monthly and calendar-year returns for every feasible
-  portfolio.
 - Hovering the Overview chart, or using its arrow keys after focus, opens an inspection tooltip for
   the nearest month with relative cumulative returns for every visible instrument and portfolio
   method. Tooltip values use the same light-gray instrument and method-specific portfolio colors as
@@ -80,11 +77,10 @@ or calculates financial values in the browser.
   be recomputed rather than remaining indefinitely `running`. Walk-Forward validation uses at most
   24 deterministic windows spanning the available history; refits run in parallel, while turnover
   and transaction costs are evaluated in chronological order.
-- Complete: persisted result tabs load automatically only after the particular Multivariate run reaches
-  `complete`, after refresh or project reactivation. Every tab renders a server-produced, project-owned artifact:
-  the immutable input snapshot, canonical risk model, empirical
-  structure/loadings, candidate metrics and risk contributions, gross income
-  evidence, cumulative and calendar-period performance, and walk-forward/stress/scorecard evidence.
+- Complete: Overview and Portfolio Candidates load automatically only after the particular
+  Multivariate run reaches `complete`, after refresh or project reactivation. They render the
+  server-produced, project-owned summary, canonical risk-model facts, candidate metrics, and
+  cumulative monthly performance artifact.
 - Insufficient common history: retain unavailable facts rather than rendering substitute values, and state
   the required recovery path: select Univariate Duration `> 6 months`, recompute Bivariate Statistics,
   then compute Multivariate Statistics again. The production risk model requires 100 shared daily returns.
@@ -96,9 +92,8 @@ or calculates financial values in the browser.
 
 The page uses semantic panels, native progress, keyboard-operable tabs, a
 keyboard-operable Performance-chart inspection surface, and captioned tables.
-Candidate weights, risk contributions, component loadings, income evidence, and
-validation evidence all have textual alternatives. The sidebar remains the
-workflow navigation at every viewport width.
+Candidate weights and metrics have textual alternatives. The sidebar remains
+the workflow navigation at every viewport width.
 
 ## Security and boundaries
 
