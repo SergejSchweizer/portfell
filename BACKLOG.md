@@ -36,9 +36,9 @@ Completed entries are never deleted. Superseded plans are moved to the historica
 
 Branch: `docs/multivariate-overview-cumulative-axis`.
 
-Git status: in progress.
+Git status: pushed.
 
-PR: TBD.
+PR: https://github.com/SergejSchweizer/portfell/pull/387.
 
 Priority: P1 multivariate analytical clarity.
 
