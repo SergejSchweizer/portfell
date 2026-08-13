@@ -43,9 +43,9 @@ Completed entries are never deleted. Superseded plans are moved to the historica
 
 Branch: `fix/multivariate-calculation-correctness`.
 
-Git status: in progress.
+Git status: pushed.
 
-PR: TBD.
+PR: https://github.com/SergejSchweizer/portfell/pull/394.
 
 Priority: P0 analytical correctness.
 
