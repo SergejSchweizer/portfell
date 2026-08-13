@@ -340,6 +340,8 @@ test("Multivariate compute button polls resolve_inputs through completion", asyn
   await expect(page.getByRole("button", { name: "Compute multivariate statistics" })).toBeEnabled();
   await expect(page.getByText("Candidate ETFs")).toBeVisible();
   await expect(page.getByRole("table", { name: "Multivariate overview facts" })).toHaveText(/Candidate ETFs/);
+  await page.getByRole("tab", { name: "Risk Structure" }).click();
+  await expect(page.getByRole("table", { name: "Multivariate risk structure facts" })).toHaveText(/Largest redundancy/);
   await page.getByRole("tab", { name: "Portfolio Candidates" }).click();
   await expect(page.getByText("Average monthly return: 1.00% · Average annual return: 12.00%")).toBeVisible();
   await page.getByRole("tab", { name: "Performance" }).click();
@@ -408,8 +410,8 @@ test("Multivariate unavailable statistics never render as zero or failed diagnos
   await expect(page.getByText("This analysis needs at least 100 shared daily returns. In Univariate Statistics, select Duration > 6 months, recompute Bivariate Statistics, then compute this run again.")).toBeVisible();
   await page.getByRole("tab", { name: "Risk Structure" }).click();
   for (const label of ["Effective rank", "Minimum eigenvalue", "Condition number", "Positive semidefinite"]) {
-    const fact = page.locator(".multivariate-facts div").filter({ has: page.getByText(label, { exact: true }) });
-    await expect(fact.getByRole("definition")).toHaveText("Unavailable");
+    const fact = page.getByRole("table", { name: "Multivariate risk structure facts" }).getByRole("row").filter({ has: page.getByRole("rowheader", { name: label, exact: true }) });
+    await expect(fact.getByRole("cell")).toHaveText("Unavailable");
   }
   await expect(page.getByText("Structure unavailable: risk_model_unavailable")).toBeVisible();
 });
@@ -512,7 +514,7 @@ test("every workflow button completes its browser action for two isolated projec
     await expect(page.getByRole("tab", { name: tab })).toHaveAttribute("aria-selected", "true");
   }
   await page.getByRole("tab", { name: "Risk Structure" }).click();
-  await expect(page.getByRole("definition").filter({ hasText: "ALPHA.XETRA" })).toBeVisible();
+  await expect(page.getByRole("table", { name: "Multivariate risk structure facts" })).toHaveText(/ALPHA\.XETRA/);
   await expect(page.getByText("12.50", { exact: true })).toBeVisible();
   await expect(page.getByText("Yes", { exact: true })).toBeVisible();
   await page.getByRole("tab", { name: "Portfolio Candidates" }).click();
