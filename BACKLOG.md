@@ -1,6 +1,7 @@
 ## Table Of Contents
 
 - [Backlog Policy](#backlog-policy)
+- [Active Univariate Calculation Correctness Work](#active-univariate-calculation-correctness-work)
 - [Active Univariate Overview Narrow Bars Work](#active-univariate-overview-narrow-bars-work)
 - [Active Multivariate Minimum Variance Convergence Work](#active-multivariate-minimum-variance-convergence-work)
 - [Active Multivariate Overview Metric Labels Work](#active-multivariate-overview-metric-labels-work)
@@ -33,6 +34,37 @@ This file is ordered by execution relevance:
 Every active item must contain `Branch`, `Git status`, `PR`, `Priority`, `Depends on`, `Scope`, `Acceptance`, `Security`, `Determinism`, and `Idempotency`. A PR is atomic only when it can merge independently with all repository gates green. A PR is complete only when its acceptance criteria are machine-verifiable and no assigned scope is deferred silently.
 
 Completed entries are never deleted. Superseded plans are moved to the historical section and explicitly marked non-active. Backlog identifiers are never reused.
+
+## Active Univariate Calculation Correctness Work
+
+### PR242. Univariate Calculation Correctness
+
+Branch: `fix/univariate-calculation-correctness`.
+
+Git status: pushed.
+
+PR: https://github.com/SergejSchweizer/portfell/pull/392.
+
+Priority: P0 analytical correctness.
+
+Depends on: current `main`.
+
+Scope: Use one quarantined valid-price series for every Univariate price metric, version the
+calculation contract, and invalidate cached or Hosted results when formulas or relevant source
+content change.
+
+Acceptance: Invalid edge prices cannot affect return, CAGR, drawdown, trend, or dividend yield.
+Legacy and content-mismatched artifacts are recomputed under `univariate.statistics.v2`; independent
+formula regressions and the repository quality gate pass.
+
+Security: Recalculation remains server-owned and reads only project-selected or local lake inputs.
+
+Determinism: Identical validated quote/dividend content and confidence level produce identical v2
+statistics and content identities.
+
+Idempotency: Repeating v2 with unchanged source identities reuses the same artifact and Hosted run.
+
+Series Completion Gate: Before merge, satisfy the applicable validation gates in `GATES.md`.
 
 ## Active Univariate Overview Narrow Bars Work
 

@@ -18,6 +18,7 @@ from portfell.bivariate_views import build_bivariate_summary, build_covariance_m
 from portfell.entitlements import ProviderDownloadRun
 from portfell.hosted_api_errors import HostedApplicationError
 from portfell.hosted_api_local_runtime import LocalHostedRuntime
+from portfell.hosted_api_service_support import stable_hash
 from portfell.hosted_api_state import HostedApiState, SelectionRecord
 from portfell.hosted_bivariate_service import BivariateResearchService
 from portfell.hosted_research_ports import ResearchDataset, UnivariateProgress
@@ -216,6 +217,26 @@ def test_univariate_service_uses_published_shared_rows_without_a_quote_run() -> 
     assert data.selected_calls[0] == (selection.member_ids, "quotes")
 
 
+def test_univariate_service_versions_the_calculation_run_identity() -> None:
+    selection = SelectionRecord("selection-1", "user-a", "project-1", "UCITS", ("IE1:XETRA:AAA",))
+    state = HostedApiState(selections_by_id={selection.selection_id: selection})
+    data = FakeResearchData((), [], selected_result=({"isin": "IE1"},))
+    service = UnivariateResearchService(
+        HostedResearchRepository(state), data, RecordingPersistence()
+    )
+
+    started = service.start("user-a", selection.selection_id, None)
+    run = state.univariate_runs_by_id[str(started["run_id"])]
+
+    assert run.source_id == stable_hash(
+        {
+            "selection_id": selection.selection_id,
+            "quote_run_id": "shared-market",
+            "calculation_contract": "univariate.statistics.v2",
+        }
+    )
+
+
 def test_bivariate_service_covers_plan_reuse_and_failure_transitions(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -374,6 +395,26 @@ def test_local_univariate_worker_handles_missing_computed_and_cached_rows(tmp_pa
     assert cached is not None
     assert cached["distribution_frequency"] == "accumulating"
     assert read_rows(paths.gold_univariate_statistics("XETRA", "IE1")) == [cached]
+
+    legacy = {key: value for key, value in cached.items() if key != "calculation_contract"}
+    legacy["total_return"] = -1.0
+    write_rows(paths.gold_univariate_statistics("XETRA", "IE1"), [legacy])
+
+    recomputed = local_runtime_module._build_scoped_univariate_listing(tmp_path, member_id)
+
+    assert recomputed is not None
+    assert recomputed["calculation_contract"] == "univariate.statistics.v2"
+    assert recomputed["total_return"] != -1.0
+
+    revised_quotes = [
+        {**row, "adjusted_close": float(row["adjusted_close"]) + 10.0} for row in quote_rows
+    ]
+    write_rows(paths.silver_quote_file("XETRA", "IE1"), revised_quotes)
+
+    revised = local_runtime_module._build_scoped_univariate_listing(tmp_path, member_id)
+
+    assert revised is not None
+    assert revised["quote_input_id"] != recomputed["quote_input_id"]
 
 
 def test_bivariate_read_models_cover_empty_and_constant_inputs() -> None:

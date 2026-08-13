@@ -11,6 +11,7 @@ from typing import Any
 
 import polars as pl
 
+from portfell.contract_versioning import stable_contract_id
 from portfell.paths import LakePaths
 from portfell.return_quality import evaluate_quote_quality, filter_valid_price_points
 from portfell.schemas import validate_rows
@@ -18,6 +19,7 @@ from portfell.table_io import JsonRow, read_rows, write_rows
 
 ANNUAL_TRADING_DAYS = 252
 DEFAULT_CONFIDENCE_LEVEL = 0.975
+UNIVARIATE_CALCULATION_CONTRACT = "univariate.statistics.v2"
 
 
 def build_quote_returns(quote_rows: Sequence[Mapping[str, Any]]) -> list[JsonRow]:
@@ -187,6 +189,9 @@ def _cached_univariate_row(
         str(row.get("isin")) == isin
         and str(row.get("exchange")) == exchange
         and str(row.get("code")) == code
+        and str(row.get("calculation_contract")) == UNIVARIATE_CALCULATION_CONTRACT
+        and str(row.get("quote_input_id")) == univariate_quote_input_id(ordered_quotes)
+        and str(row.get("dividend_input_id")) == univariate_dividend_input_id(valid_dividends)
         and float(row.get("confidence_level", -1.0)) == confidence_level
         and int(row.get("quote_observation_count", -1)) == len(ordered_quotes)
         and str(row.get("first_quote_date")) == str(ordered_quotes[0]["date"])
@@ -204,6 +209,28 @@ def _worker_count(concurrency: int | None) -> int:
     return max(1, os.cpu_count() or 1)
 
 
+def univariate_quote_input_id(rows: Sequence[Mapping[str, Any]]) -> str:
+    return stable_contract_id(
+        "univariate_quotes",
+        sorted((str(row["date"]), float(row["adjusted_close"])) for row in rows),
+    )
+
+
+def univariate_dividend_input_id(rows: Sequence[Mapping[str, Any]]) -> str:
+    return stable_contract_id(
+        "univariate_dividends",
+        sorted(
+            (
+                str(row["date"]),
+                float(row.get("value", row.get("unadjustedValue", 0.0)) or 0.0),
+            )
+            for row in rows
+            if row.get("date")
+            and float(row.get("value", row.get("unadjustedValue", 0.0)) or 0.0) > 0
+        ),
+    )
+
+
 def _build_univariate_listing_statistics(
     task: tuple[
         tuple[str, str, str],
@@ -215,14 +242,17 @@ def _build_univariate_listing_statistics(
 ) -> JsonRow:
     (isin, exchange, code), quotes, distribution_dates, dividend_rows, confidence_level = task
     ordered_quotes = sorted(quotes, key=lambda row: str(row["date"]))
+    valid_quotes, _quarantined = filter_valid_price_points(ordered_quotes)
     ordered_returns = build_quote_returns(ordered_quotes)
     returns = [float(row["return"]) for row in ordered_returns]
     simple_returns = [float(row["simple_return"]) for row in ordered_returns]
-    adjusted_closes = [float(row["adjusted_close"]) for row in ordered_quotes]
-    first_close = adjusted_closes[0]
-    last_close = adjusted_closes[-1]
+    adjusted_closes = [float(row["adjusted_close"]) for row in valid_quotes]
+    first_close = adjusted_closes[0] if adjusted_closes else 0.0
+    last_close = adjusted_closes[-1] if adjusted_closes else 0.0
     first_quote_date = str(ordered_quotes[0]["date"])
     last_quote_date = str(ordered_quotes[-1]["date"])
+    first_valid_quote_date = str(valid_quotes[0]["date"]) if valid_quotes else ""
+    last_valid_quote_date = str(valid_quotes[-1]["date"]) if valid_quotes else ""
     total_return = 0.0 if first_close <= 0 else (last_close / first_close) - 1.0
     cumulative_log_return = sum(returns)
     mean_log_return = _mean(returns)
@@ -237,12 +267,15 @@ def _build_univariate_listing_statistics(
     tail_risk = _tail_risk(returns, confidence_level)
     log_price_trend = _log_price_trend(adjusted_closes)
     distribution = distribution_features(distribution_dates)
-    annual_dividend = annual_dividend_features(dividend_rows, last_quote_date, last_close)
+    annual_dividend = annual_dividend_features(dividend_rows, last_valid_quote_date, last_close)
     quality = evaluate_quote_quality(ordered_quotes)
     return {
         "isin": isin,
         "exchange": exchange,
         "code": code,
+        "calculation_contract": UNIVARIATE_CALCULATION_CONTRACT,
+        "quote_input_id": univariate_quote_input_id(ordered_quotes),
+        "dividend_input_id": univariate_dividend_input_id(dividend_rows),
         "confidence_level": confidence_level,
         "first_quote_date": first_quote_date,
         "last_quote_date": last_quote_date,
@@ -253,7 +286,7 @@ def _build_univariate_listing_statistics(
         "start_adjusted_close": first_close,
         "end_adjusted_close": last_close,
         "total_return": total_return,
-        "cagr": _cagr(total_return, first_quote_date, last_quote_date),
+        "cagr": _cagr(total_return, first_valid_quote_date, last_valid_quote_date),
         "cumulative_log_return": cumulative_log_return,
         "mean_log_return": mean_log_return,
         "median_log_return": _median(returns),
@@ -359,6 +392,8 @@ def annual_dividend_features(
 ) -> JsonRow:
     """Return trailing-twelve-month cash dividends and yield for one listing."""
 
+    if not last_quote_date or last_close <= 0:
+        return {"annual_dividend_amount": 0.0, "annual_dividend_yield": 0.0}
     end_date = date.fromisoformat(last_quote_date)
     start_ordinal = end_date.toordinal() - 365
     amount = sum(
@@ -370,7 +405,7 @@ def annual_dividend_features(
     )
     return {
         "annual_dividend_amount": amount,
-        "annual_dividend_yield": 0.0 if last_close <= 0 else amount / last_close,
+        "annual_dividend_yield": amount / last_close,
     }
 
 
@@ -454,6 +489,8 @@ def _positive_day_ratio(returns: Sequence[float]) -> float:
 
 
 def _cagr(total_return: float, first_date: str, last_date: str) -> float:
+    if not first_date or not last_date:
+        return 0.0
     elapsed_days = (date.fromisoformat(last_date) - date.fromisoformat(first_date)).days
     if elapsed_days <= 0 or total_return <= -1.0:
         return 0.0
@@ -490,7 +527,10 @@ def _log_price_trend(adjusted_closes: Sequence[float]) -> tuple[float, float]:
 
 __all__ = [
     "DEFAULT_CONFIDENCE_LEVEL",
+    "UNIVARIATE_CALCULATION_CONTRACT",
     "build_quote_returns",
     "build_univariate_statistics",
+    "univariate_dividend_input_id",
+    "univariate_quote_input_id",
     "write_univariate_statistics",
 ]

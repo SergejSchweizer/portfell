@@ -10,7 +10,7 @@ from portfell.hosted_api_serializers import (
     univariate_metric_rows,
     univariate_selection_row,
 )
-from portfell.hosted_api_service_support import opaque_id, stable_hash
+from portfell.hosted_api_service_support import opaque_id
 from portfell.hosted_research_ports import (
     ResearchDataPort,
     ResearchPersistencePort,
@@ -24,6 +24,7 @@ from portfell.hosted_research_workflow import (
     create_univariate_run_from_statistics,
     create_univariate_selection,
     page_rows,
+    univariate_source_id,
 )
 from portfell.table_io import JsonRow
 
@@ -172,4 +173,4 @@ class UnivariateResearchService:
 
 
 def _source_id(selection_id: str, quote_run_id: str) -> str:
-    return stable_hash({"selection_id": selection_id, "quote_run_id": quote_run_id})
+    return univariate_source_id(selection_id, quote_run_id)
