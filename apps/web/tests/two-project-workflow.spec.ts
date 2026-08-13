@@ -375,6 +375,9 @@ test("Multivariate compute button polls resolve_inputs through completion", asyn
   await expect(page.locator(".performance-chart__tooltip-instrument")).toHaveCount(0);
   await expect(page.locator(".performance-chart__tooltip-portfolio--0")).toContainText("Equal weight: 2.50%");
   await expect(page.locator(".performance-chart__tooltip-portfolio--1")).toContainText("Minimum variance: 2.70%");
+  await expect(performanceChart.locator(".performance-chart__portfolio--0").first()).toHaveCSS("stroke", "rgb(23, 105, 224)");
+  await expect(performanceChart.locator(".performance-chart__portfolio--1").first()).toHaveCSS("stroke", "rgb(19, 115, 51)");
+  await expect(performanceChart.locator(".performance-chart__portfolio--0").first()).toHaveCSS("stroke-dasharray", "none");
   await page.getByRole("checkbox", { name: "ALPHA.XETRA" }).uncheck();
   await expect(performanceChart.locator(".performance-chart__instrument")).toHaveCount(1);
   await performanceChart.hover();

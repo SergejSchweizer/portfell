@@ -5,6 +5,7 @@ Last reviewed: 2026-08-11
 ## Table Of Contents
 
 - [Backlog Policy](#backlog-policy)
+- [Active Multivariate Overview Portfolio Colors Work](#active-multivariate-overview-portfolio-colors-work)
 - [Active Multivariate Overview Facts Removal Work](#active-multivariate-overview-facts-removal-work)
 - [Active Multivariate Overview Portfolio Summary Work](#active-multivariate-overview-portfolio-summary-work)
 - [Active Multivariate Overview Tabs Work](#active-multivariate-overview-tabs-work)
@@ -34,6 +35,34 @@ This file is ordered by execution relevance:
 Every active item must contain `Branch`, `Git status`, `PR`, `Priority`, `Depends on`, `Scope`, `Acceptance`, `Security`, `Determinism`, and `Idempotency`. A PR is atomic only when it can merge independently with all repository gates green. A PR is complete only when its acceptance criteria are machine-verifiable and no assigned scope is deferred silently.
 
 Completed entries are never deleted. Superseded plans are moved to the historical section and explicitly marked non-active. Backlog identifiers are never reused.
+
+## Active Multivariate Overview Portfolio Colors Work
+
+### PR236. Multivariate Overview Portfolio Colors
+
+Branch: `feat/multivariate-overview-portfolio-colors`.
+
+Git status: in progress.
+
+PR: TBD.
+
+Priority: P1 multivariate analytical clarity.
+
+Depends on: PR235.
+
+Scope: Render each Multivariate Overview portfolio series as a distinct solid color rather than a
+dashed line.
+
+Acceptance: Portfolio series use distinct computed colors and no `stroke-dasharray`; instrument
+series retain their light-gray treatment.
+
+Security: The browser changes only presentation of server-produced performance values.
+
+Determinism: An unchanged performance artifact renders the same series colors and paths.
+
+Idempotency: Rendering the chart creates no writes or analytical work.
+
+Series Completion Gate: Before merge, satisfy the applicable validation gates in `GATES.md`.
 
 ## Active Multivariate Overview Facts Removal Work
 
