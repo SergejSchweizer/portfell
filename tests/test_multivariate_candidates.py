@@ -349,7 +349,7 @@ def test_minimum_cvar_optimizes_weighted_simple_return_scenarios(
     assert received_matrix[1] == pytest.approx([-0.10, 0.04, 0.01, -0.02, 0.00])
 
 
-def test_minimum_variance_uses_the_solver_default_convergence_limit(
+def test_minimum_variance_uses_the_production_convergence_budget(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import portfell.multivariate_candidates as candidates_module
@@ -378,4 +378,5 @@ def test_minimum_variance_uses_the_solver_default_convergence_limit(
         )
         == outcome.weights
     )
-    assert "max_iterations" not in received_kwargs
+    assert received_kwargs["max_iterations"] == 100_000
+    assert received_kwargs["tolerance"] == 1e-7
