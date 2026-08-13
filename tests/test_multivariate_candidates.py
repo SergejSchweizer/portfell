@@ -1,5 +1,5 @@
 from dataclasses import replace
-from math import exp
+from math import log
 from types import SimpleNamespace
 from typing import Any
 
@@ -21,6 +21,7 @@ from portfell.multivariate_inputs import (
     MultivariateListingKey,
     build_multivariate_input_snapshot,
 )
+from portfell.multivariate_performance import build_multivariate_performance
 from portfell.multivariate_risk_model import (
     RISK_MODEL_ARTIFACT_CONTRACT,
     MultivariateRiskModelArtifact,
@@ -137,6 +138,33 @@ def test_candidate_set_has_stable_methods_and_no_silent_fallbacks() -> None:
             )
 
 
+def test_candidate_realized_returns_match_weighted_simple_return_performance() -> None:
+    rows = [
+        {
+            "isin": key.isin,
+            "exchange": key.exchange,
+            "code": key.code,
+            "date": date,
+            "return": log(1.0 + simple_return),
+            "simple_return": simple_return,
+        }
+        for date, first_return in (("2025-01-02", 1.0), ("2025-01-03", 0.0))
+        for index, key in enumerate(_keys())
+        for simple_return in (first_return if index == 0 else 0.0,)
+    ]
+    candidates = build_candidate_set(
+        snapshot=_snapshot(), risk_model=_risk_model(), return_rows=rows, income={}
+    )
+    equal_weight = next(candidate for candidate in candidates if candidate.method == "equal_weight")
+    performance = build_multivariate_performance(candidates=(equal_weight,), return_rows=rows)[
+        "portfolio_series"
+    ][0]["values"]
+
+    assert equal_weight.total_return == pytest.approx(0.20)
+    assert equal_weight.average_monthly_return == pytest.approx(0.20)
+    assert equal_weight.total_return == pytest.approx(performance[-1]["return"])
+
+
 def test_highest_monthly_return_weights_maximize_mean_compounded_monthly_return() -> None:
     keys = tuple(key.as_tuple() for key in _keys()[:2])
     rows = [
@@ -182,8 +210,8 @@ def test_average_calendar_returns_compound_before_averaging() -> None:
         ("2024-01-02", "2024-02-01", "2025-01-02"), (0.1, 0.2, 0.3)
     )
 
-    assert monthly == pytest.approx((exp(0.1) - 1 + exp(0.2) - 1 + exp(0.3) - 1) / 3)
-    assert annual == pytest.approx(exp(0.3) - 1)
+    assert monthly == pytest.approx((0.1 + 0.2 + 0.3) / 3)
+    assert annual == pytest.approx(((1.1 * 1.2) - 1 + 0.3) / 2)
 
 
 def test_infeasible_bounds_remain_explicit_for_every_candidate() -> None:
@@ -280,6 +308,45 @@ def test_candidate_solver_failures_and_unknown_method_are_explicit(
         _weights("minimum_cvar", _keys(), covariance, _returns(), policy)
     with pytest.raises(ValueError, match="unsupported_candidate_method"):
         _weights("unsupported", _keys(), covariance, _returns(), policy)
+
+
+def test_minimum_cvar_optimizes_weighted_simple_return_scenarios(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import portfell.multivariate_candidates as candidates_module
+
+    keys = tuple(key.as_tuple() for key in _keys())
+    covariance = {
+        (left, right): 0.01 if left == right else 0.001 for left in keys for right in keys
+    }
+    rows = [
+        {
+            "isin": key.isin,
+            "exchange": key.exchange,
+            "code": key.code,
+            "date": date,
+            "return": log(1.0 + simple_return),
+            "simple_return": simple_return,
+        }
+        for date, values in (
+            ("2025-01-02", (0.10, 0.00, -0.05, 0.02, 0.03)),
+            ("2025-01-03", (-0.10, 0.04, 0.01, -0.02, 0.00)),
+        )
+        for key, simple_return in zip(_keys(), values, strict=True)
+    ]
+    received_matrix: list[list[float]] = []
+
+    def solver(matrix: list[list[float]], **kwargs: object) -> Any:
+        del kwargs
+        received_matrix.extend(matrix)
+        return SimpleNamespace(converged=True, weights=(0.2,) * len(keys))
+
+    monkeypatch.setattr(candidates_module, "solve_minimum_cvar", solver)
+
+    _weights("minimum_cvar", _keys(), covariance, rows, MonthlyDistributionEtfPortfolioPolicy())
+
+    assert received_matrix[0] == pytest.approx([0.10, 0.00, -0.05, 0.02, 0.03])
+    assert received_matrix[1] == pytest.approx([-0.10, 0.04, 0.01, -0.02, 0.00])
 
 
 def test_minimum_variance_uses_the_solver_default_convergence_limit(

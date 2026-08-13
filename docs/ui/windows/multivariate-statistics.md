@@ -58,6 +58,12 @@ or calculates financial values in the browser.
 - Minimum Variance uses the server solver's complete default convergence budget. It remains an
   explicitly unavailable candidate only when that full solve cannot converge or its inputs are
   infeasible.
+- Execution contract `multivariate_execution.v12` keeps the joint risk model and covariance-based
+  optimizers on aligned asset log returns, while all realized portfolio paths use the financially
+  exact daily simple return `sum(weight × asset simple return)`. Candidate return/drawdown and
+  VaR/CVaR metrics, Minimum CVaR scenarios, Walk-Forward validation, stress evidence, and the
+  Performance chart therefore reconcile to the same daily portfolio path. Monthly performance uses
+  chronological observations and labels each point with the actual final date in that month.
 - Average monthly and annual returns are arithmetic means of each candidate's compounded
   calendar-month and calendar-year total returns over the aligned historical period. They are
   descriptive historical metrics, not annualized forecasts.

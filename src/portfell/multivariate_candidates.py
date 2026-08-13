@@ -11,7 +11,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from concurrent.futures import Executor
 from dataclasses import dataclass
-from math import exp, sqrt
+from math import exp, log1p, sqrt
 from typing import Any
 
 from portfell.contract_versioning import ContractVersion, stable_contract_id
@@ -37,7 +37,7 @@ from portfell.portfolio_parts.solvers import (
     solve_minimum_variance,
 )
 
-CANDIDATE_CONTRACT = ContractVersion("multivariate.candidates", 4)
+CANDIDATE_CONTRACT = ContractVersion("multivariate.candidates", 5)
 MAX_WALK_FORWARD_SOLVER_ITERATIONS = 500
 METHODS = (
     "equal_weight",
@@ -339,7 +339,7 @@ def _highest_monthly_return_weights(
     indexed: dict[tuple[str, str, str], dict[str, float]] = {}
     for row in rows:
         key = (str(row["isin"]), str(row["exchange"]), str(row["code"]))
-        indexed.setdefault(key, {})[str(row["date"])] = float(row.get("return", 0))
+        indexed.setdefault(key, {})[str(row["date"])] = _log_return(row)
     if not keys or any(key not in indexed for key in keys):
         raise ValueError("incomplete_aligned_return_history")
     common_dates = set(indexed[keys[0]])
@@ -381,10 +381,10 @@ def _metrics(
     keys = tuple(item.as_tuple() for item in listings)
     variance = portfolio_variance(keys, weights, covariances)
     dates, matrix = _aligned_dates_and_matrix(keys, rows)
-    portfolio_log_returns = [
+    portfolio_returns = [
         sum(weight * value for weight, value in zip(weights, row, strict=True)) for row in matrix
     ]
-    losses = [-value for value in portfolio_log_returns]
+    losses = [-value for value in portfolio_returns]
     var, cvar, _ = historical_var_and_cvar(losses, policy.cvar_confidence_level)
     yields = [
         evidence.gross_ttm_distribution_yield if (evidence := income.get(listing)) else None
@@ -396,9 +396,9 @@ def _metrics(
     ]
     gross_yield = _weighted_optional(weights, yields)
     gross_monthly = _weighted_optional(weights, monthly)
-    portfolio_total_return, max_drawdown = _return_and_drawdown(portfolio_log_returns)
+    portfolio_total_return, max_drawdown = _return_and_drawdown(portfolio_returns)
     average_monthly_return, average_annual_return = _average_calendar_returns(
-        dates, portfolio_log_returns
+        dates, portfolio_returns
     )
     diversification_ratio = _diversification_ratio(keys, weights, covariances, variance)
     return CandidateMetrics(
@@ -487,7 +487,7 @@ def _aligned_dates_and_matrix(
     indexed: dict[tuple[str, str, str], dict[str, float]] = {}
     for row in rows:
         key = (str(row["isin"]), str(row["exchange"]), str(row["code"]))
-        indexed.setdefault(key, {})[str(row["date"])] = float(row.get("return", 0))
+        indexed.setdefault(key, {})[str(row["date"])] = _simple_return(row)
     if not keys or any(key not in indexed for key in keys):
         raise ValueError("incomplete_aligned_return_history")
     common_dates: set[str] = set(indexed[keys[0]])
@@ -499,18 +499,31 @@ def _aligned_dates_and_matrix(
     return dates, [[indexed[key][date] for key in keys] for date in dates]
 
 
+def _simple_return(row: Mapping[str, Any]) -> float:
+    value = row.get("simple_return")
+    return float(value) if value is not None else exp(float(row.get("return", 0))) - 1.0
+
+
+def _log_return(row: Mapping[str, Any]) -> float:
+    value = row.get("return")
+    if value is not None:
+        return float(value)
+    simple_return = float(row.get("simple_return", 0))
+    return log1p(simple_return)
+
+
 def _average_calendar_returns(
-    dates: Sequence[str], log_returns: Sequence[float]
+    dates: Sequence[str], simple_returns: Sequence[float]
 ) -> tuple[float | None, float | None]:
     if not dates:
         return None, None
     averages: list[float | None] = []
     for width in (7, 4):
         buckets: dict[str, float] = {}
-        for date, value in zip(dates, log_returns, strict=True):
+        for date, value in zip(dates, simple_returns, strict=True):
             bucket = date[:width]
-            buckets[bucket] = buckets.get(bucket, 0.0) + value
-        returns = [exp(value) - 1.0 for value in buckets.values()]
+            buckets[bucket] = buckets.get(bucket, 1.0) * (1.0 + value)
+        returns = [value - 1.0 for value in buckets.values()]
         averages.append(sum(returns) / len(returns) if returns else None)
     return averages[0], averages[1]
 
@@ -551,14 +564,14 @@ def _diversification_ratio(
     return weighted_volatility / sqrt(variance)
 
 
-def _return_and_drawdown(log_returns: Sequence[float]) -> tuple[float | None, float | None]:
-    if not log_returns:
+def _return_and_drawdown(simple_returns: Sequence[float]) -> tuple[float | None, float | None]:
+    if not simple_returns:
         return None, None
     wealth = 1.0
     peak = 1.0
     maximum_drawdown = 0.0
-    for value in log_returns:
-        wealth *= exp(value)
+    for value in simple_returns:
+        wealth *= 1.0 + value
         peak = max(peak, wealth)
         maximum_drawdown = min(maximum_drawdown, wealth / peak - 1.0)
     return wealth - 1.0, maximum_drawdown

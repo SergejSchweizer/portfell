@@ -68,11 +68,12 @@ def _monthly_cumulative_values(daily: Mapping[str, float]) -> list[JsonRow]:
     value = 1.0
     values: list[JsonRow] = []
     for observations in (monthly[month] for month in sorted(monthly)):
+        ordered = sorted(observations)
         monthly_return = 1.0
-        for _, daily_return in sorted(observations):
+        for _, daily_return in ordered:
             monthly_return *= 1.0 + daily_return
         value *= monthly_return
-        values.append({"date": observations[-1][0], "return": value - 1.0})
+        values.append({"date": ordered[-1][0], "return": value - 1.0})
     return values
 
 
