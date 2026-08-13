@@ -41,6 +41,20 @@ services:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
+    develop:
+      watch:
+        - action: rebuild
+          path: ./apps/api/Dockerfile
+        - action: rebuild
+          path: ./src
+        - action: rebuild
+          path: ./pyproject.toml
+        - action: rebuild
+          path: ./README.md
+        - action: rebuild
+          path: ./compose.yaml
+        - action: rebuild
+          path: ./.dockerignore
     restart: "no"
     command: ["python", "-m", "portfell.hosted_catalog_migration"]
     environment:
@@ -73,6 +87,20 @@ services:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
+    develop:
+      watch:
+        - action: rebuild
+          path: ./apps/api/Dockerfile
+        - action: rebuild
+          path: ./src
+        - action: rebuild
+          path: ./pyproject.toml
+        - action: rebuild
+          path: ./README.md
+        - action: rebuild
+          path: ./compose.yaml
+        - action: rebuild
+          path: ./.dockerignore
     restart: unless-stopped
     environment:
       PORTFELL_ENV: development
@@ -165,6 +193,20 @@ services:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
+    develop:
+      watch:
+        - action: rebuild
+          path: ./apps/api/Dockerfile
+        - action: rebuild
+          path: ./src
+        - action: rebuild
+          path: ./pyproject.toml
+        - action: rebuild
+          path: ./README.md
+        - action: rebuild
+          path: ./compose.yaml
+        - action: rebuild
+          path: ./.dockerignore
     restart: unless-stopped
     command: ["python", "-m", "portfell.hosted_project_bootstrap_worker"]
     environment:

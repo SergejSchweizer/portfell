@@ -1,4 +1,4 @@
-"""Rebuild the local Compose Web service when UI-relevant files change."""
+"""Rebuild the local Compose stack when runtime-relevant files change."""
 
 from __future__ import annotations
 
@@ -28,7 +28,6 @@ DEFAULT_COMMAND = (
     "up",
     "--build",
     "-d",
-    "web",
 )
 
 
@@ -100,8 +99,8 @@ def snapshot_paths(root: Path, relative_paths: tuple[str, ...]) -> WatchSnapshot
     return WatchSnapshot(digest=digest.hexdigest(), file_count=len(files))
 
 
-def rebuild_web(root: Path, *, dry_run: bool) -> int:
-    """Run or print the local Compose Web rebuild command."""
+def rebuild_compose_stack(root: Path, *, dry_run: bool) -> int:
+    """Run or print the local Compose stack rebuild command."""
 
     command = list(DEFAULT_COMMAND)
     if dry_run:
@@ -118,15 +117,15 @@ def watch_and_rebuild(
     dry_run: bool,
     once: bool,
 ) -> int:
-    """Watch files and rebuild Web when their content changes."""
+    """Watch files and rebuild the Compose stack when their content changes."""
 
     root = root.resolve()
     if once:
-        return rebuild_web(root, dry_run=dry_run)
+        return rebuild_compose_stack(root, dry_run=dry_run)
 
     current = snapshot_paths(root, relative_paths)
     print(
-        f"Watching {current.file_count} files; rebuilding Web when UI/runtime files change.",
+        f"Watching {current.file_count} files; rebuilding Compose when runtime files change.",
         flush=True,
     )
     while True:
@@ -135,8 +134,8 @@ def watch_and_rebuild(
         if next_snapshot.digest == current.digest:
             continue
         current = next_snapshot
-        print("Change detected; rebuilding local Compose Web service.", flush=True)
-        result = rebuild_web(root, dry_run=dry_run)
+        print("Change detected; rebuilding the local Compose stack.", flush=True)
+        result = rebuild_compose_stack(root, dry_run=dry_run)
         if result != 0:
             print(f"Compose rebuild failed with exit code {result}.", file=sys.stderr, flush=True)
 

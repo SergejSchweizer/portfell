@@ -1,6 +1,8 @@
 ## Table Of Contents
 
 - [Backlog Policy](#backlog-policy)
+- [Active Multivariate Overview Tabs Work](#active-multivariate-overview-tabs-work)
+- [Active Compose Stack Rebuild Work](#active-compose-stack-rebuild-work)
 - [Active Multivariate Performance Controls Work](#active-multivariate-performance-controls-work)
 - [Active Backlog Maintenance Work](#active-backlog-maintenance-work)
 - [Active PostgreSQL Tenant Plane And Shared Data PR Stack](#active-postgresql-tenant-plane-and-shared-data-pr-stack)
@@ -23,6 +25,63 @@ This file is ordered by execution relevance:
 Every active item must contain `Branch`, `Git status`, `PR`, `Priority`, `Depends on`, `Scope`, `Acceptance`, `Security`, `Determinism`, and `Idempotency`. A PR is atomic only when it can merge independently with all repository gates green. A PR is complete only when its acceptance criteria are machine-verifiable and no assigned scope is deferred silently.
 
 Completed entries are never deleted. Superseded plans are moved to the historical section and explicitly marked non-active. Backlog identifiers are never reused.
+
+## Active Multivariate Overview Tabs Work
+
+### PR233. Multivariate Overview Tabs
+
+Branch: `feat/multivariate-overview-tabs`.
+
+Git status: pushed.
+
+PR: https://github.com/SergejSchweizer/portfell/pull/383.
+
+Priority: P1 multivariate analytical clarity.
+
+Depends on: PR232.
+
+Scope: Limit the Multivariate Statistics result navigation to Overview and Portfolio Candidates.
+
+Acceptance: Completed Multivariate runs expose exactly Overview and Portfolio Candidates tabs.
+The retained Overview performance chart and candidate cards remain available.
+
+Security: The browser continues to render only server-owned analytical artifacts.
+
+Determinism: An unchanged completed run exposes the same retained result views and values.
+
+Idempotency: Tab selection creates no writes or analytical work.
+
+Series Completion Gate: Before merge, satisfy the applicable validation gates in `GATES.md`.
+
+## Active Compose Stack Rebuild Work
+
+### PR232. Automatic Compose Stack Rebuilds
+
+Branch: `chore/compose-stack-rebuild-watch`.
+
+Git status: pushed.
+
+PR: https://github.com/SergejSchweizer/portfell/pull/382.
+
+Priority: P1 local runtime correctness.
+
+Depends on: PR231.
+
+Scope: Rebuild every locally built Compose service when its image inputs change, and make the
+fallback watcher rebuild the complete local application stack.
+
+Acceptance: Compose watch rebuilds Web for Web image inputs and API, migration, and worker
+services for shared Python image inputs. The fallback command rebuilds all Compose services.
+
+Security: Rebuild automation uses existing external secret-file configuration and does not expose
+or create secrets.
+
+Determinism: An unchanged watched input set causes no rebuild; a changed input invokes the same
+Compose rebuild command.
+
+Idempotency: Repeating a rebuild replaces service images without changing persistent volumes.
+
+Series Completion Gate: Before merge, satisfy the applicable validation gates in `GATES.md`.
 
 ## Active Multivariate Performance Controls Work
 
