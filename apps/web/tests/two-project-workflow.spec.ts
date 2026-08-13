@@ -363,13 +363,16 @@ test("Multivariate compute button polls resolve_inputs through completion", asyn
   const performanceChart = page.getByRole("group", { name: /Relative cumulative monthly return comparison/ });
   await expect(performanceChart).toBeVisible();
   await expect(page.getByRole("table", { name: "Multivariate overview facts" })).toBeVisible();
+  await expect(page.getByRole("table", { name: "Portfolio overview metrics" })).toHaveText(/Average monthly relative gain/);
+  await expect(page.getByRole("table", { name: "Portfolio overview metrics" })).toHaveText(/Equal weight.*1\.00%.*12\.00%/);
   await expect(page.locator(".performance-chart__axis-label").first()).toHaveText("Jan 2024");
+  await expect(page.locator(".performance-chart__axis-title")).toHaveText("Relative gain (%)");
   await expect(page.getByRole("list", { name: "Performance series" })).toContainText("Minimum variance");
   await performanceChart.hover();
-  await expect(page.getByRole("tooltip")).toContainText("ALPHA.XETRA: 3.00%");
+  await expect(page.getByRole("tooltip")).not.toContainText("ALPHA.XETRA");
   await expect(page.getByRole("tooltip")).toContainText("Equal weight: 2.50%");
   await expect(page.getByRole("tooltip")).toContainText("Minimum variance: 2.70%");
-  await expect(page.locator(".performance-chart__tooltip-instrument")).toHaveCount(2);
+  await expect(page.locator(".performance-chart__tooltip-instrument")).toHaveCount(0);
   await expect(page.locator(".performance-chart__tooltip-portfolio--0")).toContainText("Equal weight: 2.50%");
   await expect(page.locator(".performance-chart__tooltip-portfolio--1")).toContainText("Minimum variance: 2.70%");
   await page.getByRole("checkbox", { name: "ALPHA.XETRA" }).uncheck();

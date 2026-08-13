@@ -1,6 +1,7 @@
 ## Table Of Contents
 
 - [Backlog Policy](#backlog-policy)
+- [Active Multivariate Overview Portfolio Summary Work](#active-multivariate-overview-portfolio-summary-work)
 - [Active Multivariate Overview Tabs Work](#active-multivariate-overview-tabs-work)
 - [Active Compose Stack Rebuild Work](#active-compose-stack-rebuild-work)
 - [Active Multivariate Performance Controls Work](#active-multivariate-performance-controls-work)
@@ -25,6 +26,34 @@ This file is ordered by execution relevance:
 Every active item must contain `Branch`, `Git status`, `PR`, `Priority`, `Depends on`, `Scope`, `Acceptance`, `Security`, `Determinism`, and `Idempotency`. A PR is atomic only when it can merge independently with all repository gates green. A PR is complete only when its acceptance criteria are machine-verifiable and no assigned scope is deferred silently.
 
 Completed entries are never deleted. Superseded plans are moved to the historical section and explicitly marked non-active. Backlog identifiers are never reused.
+
+## Active Multivariate Overview Portfolio Summary Work
+
+### PR234. Multivariate Overview Portfolio Summary
+
+Branch: `feat/multivariate-overview-portfolio-summary`.
+
+Git status: in progress.
+
+PR: TBD.
+
+Priority: P1 multivariate analytical clarity.
+
+Depends on: PR233.
+
+Scope: Show only portfolio values in Overview-chart inspection tooltips, label the relative-gain
+axis in percent, and add each portfolio's persisted primary metrics below the chart.
+
+Acceptance: The chart tooltip omits instruments, the y-axis title states `Relative gain (%)`, and
+the Overview portfolio table includes each portfolio's average monthly and annual relative gain.
+
+Security: The browser renders server-owned candidate and performance values without calculating returns.
+
+Determinism: An unchanged run produces the same chart, tooltip, and portfolio metrics table.
+
+Idempotency: Viewing or inspecting the Overview creates no writes or analytical work.
+
+Series Completion Gate: Before merge, satisfy the applicable validation gates in `GATES.md`.
 
 ## Active Multivariate Overview Tabs Work
 
