@@ -41,10 +41,10 @@ or calculates financial values in the browser.
   y-axis title, calendar-time labels, and renders all instruments in
   light gray and every feasible portfolio as a solid method-specific color. Explicit input
   availability reasons remain visible when supplied by the server.
-- Every Overview-chart series has a native checkbox that is enabled by default. Users may show or
-  hide any combination of instrument and portfolio series; the plot and inspection tooltip include
-  only enabled series. Hiding every series leaves the controls available and shows an empty-state
-  prompt rather than calculating replacement values in the browser.
+- The Overview chart keeps all input-instrument reference lines visible in light gray. Every
+  portfolio series has an enabled-by-default native checkbox; users may show or hide any combination
+  of portfolios. The plot scale and inspection tooltip include only enabled portfolios alongside the
+  fixed instrument references.
 - Candidate cards compare every evaluated portfolio variant's VaR/CVaR, maximum weight,
   Herfindahl concentration, effective holdings, diversification, total return, average compounded
   calendar-month and calendar-year returns, drawdown, and gross historical income. Risk
