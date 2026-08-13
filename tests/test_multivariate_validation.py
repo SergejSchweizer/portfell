@@ -1,6 +1,10 @@
 from collections.abc import Mapping, Sequence
+from dataclasses import replace
+from math import log
 from random import Random
 from typing import Any
+
+import pytest
 
 from portfell.multivariate_candidates import PortfolioCandidate
 from portfell.multivariate_inputs import MultivariateListingKey
@@ -52,6 +56,42 @@ def test_walk_forward_uses_only_dates_before_each_test_window() -> None:
     assert splits[0].weights
     assert splits[0].conditional_value_at_risk is not None
     assert splits[0].test_observation_count == 2
+
+
+def test_walk_forward_compounds_weighted_simple_portfolio_returns() -> None:
+    alpha = MultivariateListingKey("IE1", "X", "A")
+    beta = MultivariateListingKey("IE2", "X", "B")
+    candidate = replace(
+        _candidate(),
+        weights=((alpha, 0.5), (beta, 0.5)),
+        herfindahl_index=0.5,
+        effective_holding_count=2.0,
+    )
+    rows = [
+        {
+            "isin": key.isin,
+            "exchange": key.exchange,
+            "code": key.code,
+            "date": date,
+            "return": log(1.0 + simple_return),
+            "simple_return": simple_return,
+        }
+        for date, values in (
+            ("2025-01-01", (0.0, 0.0)),
+            ("2025-01-02", (0.0, 0.0)),
+            ("2025-01-03", (1.0, 0.0)),
+            ("2025-01-04", (0.0, 0.0)),
+        )
+        for key, simple_return in zip((alpha, beta), values, strict=True)
+    ]
+
+    splits = validate_candidates(
+        candidates=[candidate],
+        return_rows=rows,
+        policy=WalkForwardPolicy(minimum_training_observations=2, test_window_observations=2),
+    )
+
+    assert splits[0].pre_cost_return == pytest.approx(0.50)
 
 
 def test_walk_forward_reports_insufficient_history_explicitly() -> None:

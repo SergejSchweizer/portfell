@@ -12,7 +12,7 @@ from portfell.contract_versioning import ContractVersion, stable_contract_id
 from portfell.multivariate_candidates import PortfolioCandidate
 from portfell.multivariate_inputs import MultivariateListingKey
 
-VALIDATION_CONTRACT = ContractVersion("multivariate.validation", 4)
+VALIDATION_CONTRACT = ContractVersion("multivariate.validation", 5)
 CandidateFactory = Callable[[Sequence[Mapping[str, Any]]], Sequence[PortfolioCandidate]]
 
 
@@ -355,7 +355,10 @@ def _index_return_rows(
     indexed: dict[tuple[str, str, str], dict[str, float]] = {}
     for row in rows:
         key = (str(row["isin"]), str(row["exchange"]), str(row["code"]))
-        indexed.setdefault(key, {})[str(row["date"])] = float(row.get("return", 0))
+        raw = row.get("simple_return")
+        indexed.setdefault(key, {})[str(row["date"])] = (
+            float(raw) if raw is not None else exp(float(row.get("return", 0))) - 1.0
+        )
     return indexed
 
 
@@ -495,7 +498,7 @@ def _compound_and_drawdown(values: Sequence[float]) -> tuple[float | None, float
     wealth = peak = 1.0
     drawdown = 0.0
     for value in values:
-        wealth *= exp(value)
+        wealth *= 1.0 + value
         peak = max(peak, wealth)
         drawdown = min(drawdown, wealth / peak - 1.0)
     return wealth - 1.0, drawdown
@@ -538,8 +541,11 @@ def _unavailable(candidate: PortfolioCandidate, reason: str) -> ValidationSplit:
 
 
 def _compound(values: Sequence[float]) -> float:
-    """Compound the canonical log-return series into simple-return wealth."""
-    return exp(sum(values)) - 1.0
+    """Compound canonical simple portfolio returns into wealth."""
+    wealth = 1.0
+    for value in values:
+        wealth *= 1.0 + value
+    return wealth - 1.0
 
 
 def _volatility(values: Sequence[float]) -> float | None:
