@@ -21,6 +21,7 @@ from portfell.hosted_research_workflow import (
     ResearchRun,
     UnivariateSelection,
     bivariate_source_id,
+    univariate_source_id,
 )
 from portfell.hosted_selection_repository import InMemorySelectionRepository
 from portfell.hosted_workspace import LocalWorkspaceStore
@@ -115,7 +116,7 @@ def _fixtures() -> tuple[HostedApiState, _Data, str, str]:
             univariate_run_id: ResearchRun(
                 univariate_run_id,
                 user_id,
-                stable_hash({"selection_id": "metadata-selection-a", "quote_run_id": "quote-a"}),
+                univariate_source_id("metadata-selection-a", "quote-a"),
                 "complete",
                 rows,
                 5,
@@ -354,7 +355,7 @@ def test_multivariate_service_covers_idempotency_stale_and_error_boundaries() ->
             "selection_id": "univariate-selection-a",
             "settings": {},
             "income_contract": INCOME_CONTRACT.qualified_name,
-            "execution_contract": "multivariate_execution.v11",
+            "execution_contract": "multivariate_execution.v13",
         }
     )
     assert service.start("user-a", project_id, bivariate_run_id, {})["run_id"] == first["run_id"]
@@ -393,6 +394,26 @@ def test_multivariate_service_expires_abandoned_running_runs() -> None:
     assert persistence.persisted >= 2
 
 
+def test_multivariate_service_restarts_a_failed_logical_run() -> None:
+    state, data, project_id, bivariate_run_id = _fixtures()
+    service = _service(state, data, _Persistence())
+    started = service.start("user-a", project_id, bivariate_run_id, {})
+    run_id = str(started["run_id"])
+    state.multivariate_runs_by_id[run_id] = replace(
+        state.multivariate_runs_by_id[run_id],
+        status="failed",
+        phase="failed",
+        failure_reason="temporary_failure",
+    )
+
+    restarted = service.start("user-a", project_id, bivariate_run_id, {})
+
+    assert restarted["run_id"] == run_id
+    assert restarted["status"] == "running"
+    assert restarted["phase"] == "resolve_inputs"
+    assert restarted["failure_reason"] is None
+
+
 def test_multivariate_service_rejects_missing_dependency_closure_and_marks_failures() -> None:
     state, data, project_id, bivariate_run_id = _fixtures()
     service = _service(state, data, _Persistence())
@@ -428,7 +449,7 @@ def test_multivariate_service_rejects_missing_dependency_closure_and_marks_failu
 def test_multivariate_service_accepts_a_published_shared_market_univariate_run() -> None:
     state, data, project_id, bivariate_run_id = _fixtures()
     state.quote_run_by_univariate_run_id.clear()
-    source = stable_hash({"selection_id": "metadata-selection-a", "quote_run_id": "shared-market"})
+    source = univariate_source_id("metadata-selection-a", "shared-market")
     existing = state.univariate_runs_by_id["univariate-a"]
     state.univariate_runs_by_id["univariate-a"] = ResearchRun(
         "univariate-a", "user-a", source, "complete", existing.rows, 5, 5

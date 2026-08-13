@@ -8,7 +8,7 @@ import json
 import logging
 import os
 from collections.abc import Callable, Generator, Iterable, Mapping, Sequence
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import date, timedelta
@@ -215,8 +215,7 @@ def refresh_shared_market_data(
             futures = {
                 executor.submit(_fetch_rows, fetch, request): request for request in requests
             }
-            for future in as_completed(futures):
-                request = futures[future]
+            for future, request in futures.items():
                 try:
                     rows = future.result()
                 except Exception as error:
