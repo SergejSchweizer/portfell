@@ -366,7 +366,7 @@ test("Multivariate compute button polls resolve_inputs through completion", asyn
   await expect(page.getByRole("table", { name: "Portfolio overview metrics" })).toHaveText(/Average monthly relative gain/);
   await expect(page.getByRole("table", { name: "Portfolio overview metrics" })).toHaveText(/Equal weight.*1\.00%.*12\.00%/);
   await expect(page.locator(".performance-chart__axis-label").first()).toHaveText("Jan 2024");
-  await expect(page.locator(".performance-chart__axis-title")).toHaveText("Relative gain (%)");
+  await expect(page.locator(".performance-chart__axis-title")).toHaveText("Cumulative relative gain (%)");
   await expect(page.getByRole("list", { name: "Performance series" })).toContainText("Minimum variance");
   await performanceChart.hover();
   await expect(page.getByRole("tooltip")).not.toContainText("ALPHA.XETRA");
@@ -375,6 +375,9 @@ test("Multivariate compute button polls resolve_inputs through completion", asyn
   await expect(page.locator(".performance-chart__tooltip-instrument")).toHaveCount(0);
   await expect(page.locator(".performance-chart__tooltip-portfolio--0")).toContainText("Equal weight: 2.50%");
   await expect(page.locator(".performance-chart__tooltip-portfolio--1")).toContainText("Minimum variance: 2.70%");
+  await expect(performanceChart.locator(".performance-chart__portfolio--0").first()).toHaveCSS("stroke", "rgb(23, 105, 224)");
+  await expect(performanceChart.locator(".performance-chart__portfolio--1").first()).toHaveCSS("stroke", "rgb(19, 115, 51)");
+  await expect(performanceChart.locator(".performance-chart__portfolio--0").first()).toHaveCSS("stroke-dasharray", "none");
   await page.getByRole("checkbox", { name: "ALPHA.XETRA" }).uncheck();
   await expect(performanceChart.locator(".performance-chart__instrument")).toHaveCount(1);
   await performanceChart.hover();
