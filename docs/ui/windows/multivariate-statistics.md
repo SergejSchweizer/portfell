@@ -39,8 +39,8 @@ or calculates financial values in the browser.
 - Overview renders the persisted relative cumulative monthly-return chart before a portfolio-metrics
   table. The chart includes a visible `Relative gain (%)`
   y-axis title, calendar-time labels, and renders all instruments in
-  light gray and every feasible portfolio in a method-specific color. Explicit input availability
-  reasons remain visible when supplied by the server.
+  light gray and every feasible portfolio as a solid method-specific color. Explicit input
+  availability reasons remain visible when supplied by the server.
 - Every Overview-chart series has a native checkbox that is enabled by default. Users may show or
   hide any combination of instrument and portfolio series; the plot and inspection tooltip include
   only enabled series. Hiding every series leaves the controls available and shows an empty-state
