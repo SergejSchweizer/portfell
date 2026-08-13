@@ -5,6 +5,7 @@ Last reviewed: 2026-08-11
 ## Table Of Contents
 
 - [Backlog Policy](#backlog-policy)
+- [Active Multivariate Overview Performance Work](#active-multivariate-overview-performance-work)
 - [Active Multivariate Candidate Evaluation Work](#active-multivariate-candidate-evaluation-work)
 - [Active Branch Reconciliation](#active-branch-reconciliation)
 - [Active Multivariate Presentation Work](#active-multivariate-presentation-work)
@@ -28,6 +29,38 @@ This file is ordered by execution relevance:
 Every active item must contain `Branch`, `Git status`, `PR`, `Priority`, `Depends on`, `Scope`, `Acceptance`, `Security`, `Determinism`, and `Idempotency`. A PR is atomic only when it can merge independently with all repository gates green. A PR is complete only when its acceptance criteria are machine-verifiable and no assigned scope is deferred silently.
 
 Completed entries are never deleted. Superseded plans are moved to the historical section and explicitly marked non-active. Backlog identifiers are never reused.
+
+## Active Multivariate Overview Performance Work
+
+### PR229. Multivariate Overview Monthly Performance
+
+Branch: `feat/multivariate-overview-performance`.
+
+Git status: pushed.
+
+PR: https://github.com/SergejSchweizer/portfell/pull/379.
+
+Priority: P1 multivariate analytical clarity.
+
+Depends on: current `main`.
+
+Scope: Persist relative cumulative monthly returns for every input instrument and feasible
+portfolio. Render the performance chart before Overview facts with calendar-time labels and a
+consistent light-gray instrument and colored-portfolio tooltip scheme.
+
+Acceptance: The persisted performance artifact contains only calendar-month cumulative points.
+Overview renders the chart before its facts, with time labels and every instrument/portfolio series.
+The browser regression verifies the Overview chart, labels, tooltip, and detailed Performance tables.
+
+Security: The browser renders only server-owned persisted analytical evidence and performs no
+return aggregation.
+
+Determinism: An unchanged input artifact produces the same ordered monthly return points, series,
+and tooltip colors.
+
+Idempotency: Viewing Overview or Performance creates no writes or analytical work.
+
+Series Completion Gate: Before merge, satisfy the applicable validation gates in `GATES.md`.
 
 ## Active Multivariate Candidate Evaluation Work
 

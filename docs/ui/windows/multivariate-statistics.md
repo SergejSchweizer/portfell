@@ -37,9 +37,11 @@ or calculates financial values in the browser.
 - Complete state: Overview, Risk Structure, Portfolio Candidates, Risk
   Contributions, Income Evidence, Performance, and Validation tabs in the responsive multi-row
   statistics tab grid, with no horizontal tab scrolling.
-- Overview and Risk Structure present their facts in two-column Fact/Value tables. Overview includes
-  candidate count, dominant-component share, and explicit input availability reasons. Risk Structure
-  includes effective rank, component thresholds, strongest driver, redundancy evidence, eigenvalue,
+- Overview renders the persisted relative cumulative monthly-return chart before its two-column
+  Fact/Value table. The chart includes visible calendar-time labels and renders all instruments in
+  light gray and every feasible portfolio in a method-specific color. Overview facts include candidate
+  count, dominant-component share, and explicit input availability reasons. Risk Structure includes
+  effective rank, component thresholds, strongest driver, redundancy evidence, eigenvalue,
   condition-number, and PSD diagnostics.
 - Candidate cards compare every evaluated portfolio variant's VaR/CVaR, maximum weight,
   Herfindahl concentration, effective holdings, diversification, total return, average compounded
@@ -54,17 +56,12 @@ or calculates financial values in the browser.
 - Average monthly and annual returns are arithmetic means of each candidate's compounded
   calendar-month and calendar-year total returns over the aligned historical period. They are
   descriptive historical metrics, not annualized forecasts.
-- Performance renders persisted cumulative daily returns for every input instrument and every
-  feasible portfolio on one chart. Instrument adjusted-price return lines are gray; portfolio lines
-  are dashed, coloured, and labelled by method. The chart does not require a portfolio selection.
-  Its x-axis is bounded to the server-owned aligned historical period from the summary artifact, the
-  same common-history window Univariate Statistics' Duration selection ultimately produces, rather
-  than each instrument's full individual price history.
-  It also presents persisted compounded monthly and calendar-year returns for every feasible
+- Performance presents persisted compounded monthly and calendar-year returns for every feasible
   portfolio.
-- Hovering the Performance chart, or using its arrow keys after focus, opens an inspection tooltip
-  for the nearest date with cumulative returns for every visible instrument and portfolio method.
-  Tooltip values use the same gray instrument and method-specific portfolio colors as the chart.
+- Hovering the Overview chart, or using its arrow keys after focus, opens an inspection tooltip for
+  the nearest month with relative cumulative returns for every visible instrument and portfolio
+  method. Tooltip values use the same light-gray instrument and method-specific portfolio colors as
+  the chart.
 
 ## States
 

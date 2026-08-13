@@ -359,10 +359,11 @@ test("Multivariate compute button polls resolve_inputs through completion", asyn
   await expect(page.getByRole("table", { name: "Multivariate risk structure facts" })).toHaveText(/Largest redundancy/);
   await page.getByRole("tab", { name: "Portfolio Candidates" }).click();
   await expect(page.getByText("Average monthly return: 1.00% · Average annual return: 12.00%")).toBeVisible();
-  await page.getByRole("tab", { name: "Performance" }).click();
-  await expect(page.getByText("Monthly portfolio returns")).toBeVisible();
-  const performanceChart = page.getByRole("group", { name: /Cumulative return comparison/ });
+  await page.getByRole("tab", { name: "Overview" }).click();
+  const performanceChart = page.getByRole("group", { name: /Relative cumulative monthly return comparison/ });
   await expect(performanceChart).toBeVisible();
+  await expect(page.getByRole("table", { name: "Multivariate overview facts" })).toBeVisible();
+  await expect(page.locator(".performance-chart__axis-label").first()).toHaveText("Jan 2024");
   await expect(page.getByRole("list", { name: "Performance series" })).toContainText("Minimum variance");
   await performanceChart.hover();
   await expect(page.getByRole("tooltip")).toContainText("ALPHA.XETRA: 3.00%");
@@ -375,6 +376,8 @@ test("Multivariate compute button polls resolve_inputs through completion", asyn
   await page.keyboard.press("Home");
   await expect(page.getByRole("tooltip")).toContainText("2024-01-02");
   await expect(page.getByRole("tooltip")).not.toContainText("2023-06-01");
+  await page.getByRole("tab", { name: "Performance" }).click();
+  await expect(page.getByText("Monthly portfolio returns")).toBeVisible();
   expect(fixture.calls).toEqual(expect.arrayContaining([
     "POST /api/multivariate-statistics/runs",
     "GET /api/multivariate-statistics/runs/multivariate-project-1",
