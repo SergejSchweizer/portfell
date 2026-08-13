@@ -44,7 +44,7 @@ Completed entries are never deleted. Superseded plans are moved to the historica
 
 Branch: `feat/mixed-distribution-frequency-portfolios`.
 
-Git status: pushed.
+Git status: merged.
 
 PR: https://github.com/SergejSchweizer/portfell/pull/398.
 
