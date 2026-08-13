@@ -15,7 +15,7 @@ from portfell.table_io import JsonRow
 def build_multivariate_performance(
     *, candidates: Sequence[PortfolioCandidate], return_rows: Sequence[Mapping[str, Any]]
 ) -> JsonRow:
-    """Build JSON-safe cumulative daily and compounded calendar-period returns."""
+    """Build JSON-safe cumulative monthly and compounded calendar-period returns."""
     indexed = _indexed_simple_returns(return_rows)
     instrument_series = tuple(_series_row(key, indexed.get(key, {})) for key in sorted(indexed))
     portfolio_series: list[JsonRow] = []
@@ -28,7 +28,7 @@ def build_multivariate_performance(
             {
                 "candidate_id": candidate.candidate_id,
                 "method": candidate.method,
-                "values": _cumulative_values(daily),
+                "values": _monthly_cumulative_values(daily),
             }
         )
         period_returns.extend(_period_returns(candidate, daily))
@@ -57,16 +57,22 @@ def _series_row(key: MultivariateListingKey, daily: Mapping[str, float]) -> Json
         "isin": key.isin,
         "exchange": key.exchange,
         "code": key.code,
-        "values": _cumulative_values(daily),
+        "values": _monthly_cumulative_values(daily),
     }
 
 
-def _cumulative_values(daily: Mapping[str, float]) -> list[JsonRow]:
+def _monthly_cumulative_values(daily: Mapping[str, float]) -> list[JsonRow]:
+    monthly: dict[str, list[tuple[str, float]]] = defaultdict(list)
+    for date, value in daily.items():
+        monthly[date[:7]].append((date, value))
     value = 1.0
     values: list[JsonRow] = []
-    for date in sorted(daily):
-        value *= 1.0 + daily[date]
-        values.append({"date": date, "return": value - 1.0})
+    for observations in (monthly[month] for month in sorted(monthly)):
+        monthly_return = 1.0
+        for _, daily_return in sorted(observations):
+            monthly_return *= 1.0 + daily_return
+        value *= monthly_return
+        values.append({"date": observations[-1][0], "return": value - 1.0})
     return values
 
 

@@ -45,6 +45,13 @@ def test_performance_compounds_instrument_and_portfolio_calendar_returns() -> No
             "simple_return": -0.10,
         },
         {
+            "isin": "IE00ALPHA",
+            "exchange": "XETRA",
+            "code": "ALPHA",
+            "date": "2024-02-01",
+            "simple_return": 0.10,
+        },
+        {
             "isin": "IE00BETA",
             "exchange": "XETRA",
             "code": "BETA",
@@ -58,12 +65,25 @@ def test_performance_compounds_instrument_and_portfolio_calendar_returns() -> No
             "date": "2024-01-03",
             "simple_return": 0.20,
         },
+        {
+            "isin": "IE00BETA",
+            "exchange": "XETRA",
+            "code": "BETA",
+            "date": "2024-02-01",
+            "simple_return": 0.00,
+        },
     )
 
     performance = build_multivariate_performance(candidates=(candidate,), return_rows=rows)
 
-    assert performance["instrument_series"][0]["values"][-1]["return"] == pytest.approx(-0.01)
-    assert performance["portfolio_series"][0]["values"][-1]["return"] == pytest.approx(0.1025)
+    assert performance["instrument_series"][0]["values"] == [
+        {"date": "2024-01-03", "return": pytest.approx(-0.01)},
+        {"date": "2024-02-01", "return": pytest.approx(0.089)},
+    ]
+    assert performance["portfolio_series"][0]["values"] == [
+        {"date": "2024-01-03", "return": pytest.approx(0.1025)},
+        {"date": "2024-02-01", "return": pytest.approx(0.157625)},
+    ]
     assert performance["period_returns"] == [
         {
             "candidate_id": "equal",
@@ -75,8 +95,15 @@ def test_performance_compounds_instrument_and_portfolio_calendar_returns() -> No
         {
             "candidate_id": "equal",
             "method": "equal_weight",
+            "period": "monthly",
+            "label": "2024-02",
+            "return": pytest.approx(0.05),
+        },
+        {
+            "candidate_id": "equal",
+            "method": "equal_weight",
             "period": "annual",
             "label": "2024",
-            "return": pytest.approx(0.1025),
+            "return": pytest.approx(0.157625),
         },
     ]
