@@ -104,6 +104,7 @@ on conflict (multivariate_run_id) do update set
     phase = excluded.phase,
     completed_units = excluded.completed_units,
     total_units = excluded.total_units,
+    started_at_epoch = excluded.started_at_epoch,
     document = excluded.document,
     updated_at = now()
 """,
