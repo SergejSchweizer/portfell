@@ -1,4 +1,6 @@
+import os
 from pathlib import Path
+from statistics import correlation, covariance, variance
 
 import pytest
 
@@ -12,6 +14,7 @@ from portfell.bivariate_views import (
     build_correlation_matrix,
     build_tail_risk_scatter,
 )
+from portfell.gold_pair_stats import correlation_value
 from portfell.paths import LakePaths
 from portfell.run_state import read_job_manifest
 from portfell.table_io import read_rows, write_rows
@@ -136,6 +139,79 @@ def test_bivariate_statistics_reuses_cached_buckets_and_writes_delta(tmp_path: P
     assert any(row["pair_key"] == new_pair["pair_key"] for row in read_rows(new_bucket_path))
 
 
+def test_bivariate_statistics_invalidates_cache_when_return_content_changes(
+    tmp_path: Path,
+) -> None:
+    paths = LakePaths(root=tmp_path / "lake")
+    returns = [
+        _return("IE1", "XETRA", "AAA", "2026-01-01", 0.01),
+        _return("IE1", "XETRA", "AAA", "2026-01-02", 0.02),
+        _return("IE1", "XETRA", "AAA", "2026-01-03", 0.03),
+        _return("IE2", "AS", "BBB", "2026-01-01", 0.03),
+        _return("IE2", "AS", "BBB", "2026-01-02", 0.02),
+        _return("IE2", "AS", "BBB", "2026-01-03", 0.01),
+    ]
+    first = write_bivariate_statistics(paths, returns, version="test", concurrency=1)[0]
+    revised_returns = [
+        {**row, "return": -0.03} if row["isin"] == "IE2" and row["date"] == "2026-01-03" else row
+        for row in returns
+    ]
+
+    revised = write_bivariate_statistics(paths, revised_returns, version="test", concurrency=1)[0]
+
+    assert revised["pair_input_id"] != first["pair_input_id"]
+    assert revised["covariance"] != first["covariance"]
+
+
+def test_spearman_correlation_uses_exact_average_ranks_for_ties() -> None:
+    assert correlation_value([1, 2, 3, 4, 5], [1, 4, 9, 16, 25], "spearman") == pytest.approx(1.0)
+    assert correlation_value([1, 2, 2, 4, 5], [10, 20, 20, 30, 40], "spearman") == pytest.approx(
+        1.0
+    )
+    assert correlation_value([1, 2, 3, 4, 5], [25, 16, 9, 4, 1], "spearman") == pytest.approx(-1.0)
+
+
+def test_bivariate_pair_formulas_match_independent_reference() -> None:
+    left = [-0.08, -0.04, 0.01, 0.03, -0.02, 0.05]
+    right = [-0.06, -0.03, 0.02, -0.01, -0.04, 0.04]
+    returns = [
+        _return(isin, exchange, code, f"2026-01-{index:02d}", value)
+        for isin, exchange, code, values in (
+            ("IE1", "XETRA", "AAA", left),
+            ("IE2", "AS", "BBB", right),
+        )
+        for index, value in enumerate(values, start=1)
+    ]
+    left_ranks = [1.0, 2.0, 4.0, 5.0, 3.0, 6.0]
+    right_ranks = [1.0, 3.0, 5.0, 4.0, 2.0, 6.0]
+    downside_pairs = [(a, b) for a, b in zip(left, right, strict=True) if a < 0 and b < 0]
+    left_cutoff = sorted(left)[round((len(left) - 1) * 0.05)]
+    right_cutoff = sorted(right)[round((len(right) - 1) * 0.05)]
+    joint_tail = [
+        (a, b) for a, b in zip(left, right, strict=True) if a <= left_cutoff and b <= right_cutoff
+    ]
+
+    row = build_bivariate_statistics(returns, concurrency=1)[0]
+
+    assert row["pearson_correlation"] == pytest.approx(correlation(left, right))
+    assert row["spearman_correlation"] == pytest.approx(correlation(left_ranks, right_ranks))
+    assert row["covariance"] == pytest.approx(covariance(left, right))
+    assert row["left_variance"] == pytest.approx(variance(left))
+    assert row["right_variance"] == pytest.approx(variance(right))
+    assert row["left_beta_to_right"] == pytest.approx(covariance(left, right) / variance(right))
+    assert row["right_beta_to_left"] == pytest.approx(covariance(left, right) / variance(left))
+    assert row["downside_observation_count"] == len(downside_pairs)
+    assert row["downside_correlation"] == pytest.approx(
+        correlation([item[0] for item in downside_pairs], [item[1] for item in downside_pairs])
+    )
+    assert row["lower_tail_dependence"] == pytest.approx(1.0)
+    assert row["tail_coexceedance_rate"] == pytest.approx(len(joint_tail) / len(left))
+    assert row["tail_joint_event_count"] == len(joint_tail)
+    assert row["tail_joint_loss_severity"] == pytest.approx(
+        sum(-(a + b) / 2 for a, b in joint_tail) / len(joint_tail)
+    )
+
+
 def test_bivariate_statistics_rejects_universes_above_max_pair_count(tmp_path: Path) -> None:
     paths = LakePaths(root=tmp_path / "lake")
     returns = [_return(f"IE{i}", "XETRA", "AAA", "2026-01-01", 0.01) for i in range(40)]
@@ -202,5 +278,5 @@ def test_bivariate_statistics_parallel_matches_serial() -> None:
 
 def test_resolve_worker_count_caps_default_and_honors_explicit_concurrency() -> None:
     assert resolve_worker_count(1) == 1
-    assert resolve_worker_count(None, max_workers=4) == 4
+    assert resolve_worker_count(None, max_workers=4) == min(4, os.cpu_count() or 1)
     assert resolve_worker_count(None, max_workers=1) == 1

@@ -22,7 +22,7 @@ ReturnsByListing = dict[ListingKey, dict[str, float]]
 # CPU core for statistics jobs; callers can still pass --concurrency to cap it.
 DEFAULT_MAX_PAIR_COUNT = 500_000
 DEFAULT_MAX_WORKERS = max(1, os.cpu_count() or 1)
-DEFAULT_PAIR_CHUNK_SIZE = 5_000
+DEFAULT_PAIR_CHUNK_SIZE = 500
 DEFAULT_BUCKET_COUNT = 128
 DEFAULT_BYTES_PER_PAIR = 200
 
@@ -224,46 +224,33 @@ def incremental_pearson(left_values: Sequence[float], right_values: Sequence[flo
     return state.value()
 
 
-def approximate_online_spearman(
-    left_values: Sequence[float], right_values: Sequence[float]
-) -> float:
+def spearman_correlation(left_values: Sequence[float], right_values: Sequence[float]) -> float:
     if len(left_values) < 2 or len(left_values) != len(right_values):
         return 0.0
-    left_state = OnlineMoments()
-    right_state = OnlineMoments()
-    correlation = OnlineCorrelation()
-    for left, right in zip(left_values, right_values, strict=True):
-        correlation.update(left_state.score(left), right_state.score(right))
-        left_state.update(left)
-        right_state.update(right)
-    return correlation.value()
+    return incremental_pearson(_average_ranks(left_values), _average_ranks(right_values))
+
+
+def _average_ranks(values: Sequence[float]) -> tuple[float, ...]:
+    ordered = sorted(enumerate(values), key=lambda item: (item[1], item[0]))
+    ranks = [0.0] * len(values)
+    start = 0
+    while start < len(ordered):
+        end = start + 1
+        while end < len(ordered) and ordered[end][1] == ordered[start][1]:
+            end += 1
+        average_rank = (start + 1 + end) / 2.0
+        for index, _value in ordered[start:end]:
+            ranks[index] = average_rank
+        start = end
+    return tuple(ranks)
 
 
 def correlation_value(
     left_values: Sequence[float], right_values: Sequence[float], metric: str
 ) -> float:
     if metric == "spearman":
-        return approximate_online_spearman(left_values, right_values)
+        return spearman_correlation(left_values, right_values)
     return incremental_pearson(left_values, right_values)
-
-
-@dataclass
-class OnlineMoments:
-    count: int = 0
-    mean: float = 0.0
-    m2: float = 0.0
-
-    def score(self, value: float) -> float:
-        if self.count < 2 or self.m2 == 0:
-            return 0.0
-        variance = self.m2 / (self.count - 1)
-        return 0.0 if variance <= 0 else (value - self.mean) / sqrt(variance)
-
-    def update(self, value: float) -> None:
-        self.count += 1
-        delta = value - self.mean
-        self.mean += delta / self.count
-        self.m2 += delta * (value - self.mean)
 
 
 @dataclass

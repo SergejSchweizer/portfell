@@ -1,6 +1,7 @@
 ## Table Of Contents
 
 - [Backlog Policy](#backlog-policy)
+- [Active Bivariate Calculation Correctness Work](#active-bivariate-calculation-correctness-work)
 - [Active Univariate Calculation Correctness Work](#active-univariate-calculation-correctness-work)
 - [Active Univariate Overview Narrow Bars Work](#active-univariate-overview-narrow-bars-work)
 - [Active Multivariate Minimum Variance Convergence Work](#active-multivariate-minimum-variance-convergence-work)
@@ -34,6 +35,37 @@ This file is ordered by execution relevance:
 Every active item must contain `Branch`, `Git status`, `PR`, `Priority`, `Depends on`, `Scope`, `Acceptance`, `Security`, `Determinism`, and `Idempotency`. A PR is atomic only when it can merge independently with all repository gates green. A PR is complete only when its acceptance criteria are machine-verifiable and no assigned scope is deferred silently.
 
 Completed entries are never deleted. Superseded plans are moved to the historical section and explicitly marked non-active. Backlog identifiers are never reused.
+
+## Active Bivariate Calculation Correctness Work
+
+### PR243. Bivariate Calculation Correctness
+
+Branch: `fix/bivariate-calculation-correctness`.
+
+Git status: pushed.
+
+PR: https://github.com/SergejSchweizer/portfell/pull/393.
+
+Priority: P0 analytical correctness.
+
+Depends on: PR242.
+
+Scope: Replace the approximate Spearman metric with exact average-rank correlation, add aligned
+pair-content identities, and invalidate cached or Hosted results under algorithm version `v10`.
+
+Acceptance: Perfect monotonic rank relationships, including ties, return exact Spearman values.
+Return-value changes at an unchanged calendar invalidate cached pairs. Independent formula,
+downstream, and repository quality tests pass.
+
+Security: Pair calculation remains server-owned and consumes only the persisted selected return
+universe.
+
+Determinism: Identical aligned dates and return vectors produce identical v10 rows and input IDs.
+
+Idempotency: Repeating v10 with unchanged pair-content identities reuses the same artifact and
+Hosted run.
+
+Series Completion Gate: Before merge, satisfy the applicable validation gates in `GATES.md`.
 
 ## Active Univariate Calculation Correctness Work
 
