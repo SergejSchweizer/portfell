@@ -355,8 +355,8 @@ test("Multivariate compute button polls resolve_inputs through completion", asyn
   await expect(page.getByRole("button", { name: "Compute multivariate statistics" })).toBeEnabled();
   await expect(page.getByText("Candidate ETFs")).toBeVisible();
   await expect(page.getByRole("table", { name: "Multivariate overview facts" })).toHaveText(/Candidate ETFs/);
-  await page.getByRole("tab", { name: "Risk Structure" }).click();
-  await expect(page.getByRole("table", { name: "Multivariate risk structure facts" })).toHaveText(/Largest redundancy/);
+  await expect(page.getByRole("tablist", { name: "Multivariate statistics views" }).getByRole("tab")).toHaveCount(2);
+  await expect(page.getByRole("tab", { name: "Risk Structure" })).toHaveCount(0);
   await page.getByRole("tab", { name: "Portfolio Candidates" }).click();
   await expect(page.getByText("Average monthly return: 1.00% · Average annual return: 12.00%")).toBeVisible();
   await page.getByRole("tab", { name: "Overview" }).click();
@@ -388,8 +388,6 @@ test("Multivariate compute button polls resolve_inputs through completion", asyn
   await page.keyboard.press("Home");
   await expect(page.getByRole("tooltip")).toContainText("2024-01-02");
   await expect(page.getByRole("tooltip")).not.toContainText("2023-06-01");
-  await page.getByRole("tab", { name: "Performance" }).click();
-  await expect(page.getByText("Monthly portfolio returns")).toBeVisible();
   expect(fixture.calls).toEqual(expect.arrayContaining([
     "POST /api/multivariate-statistics/runs",
     "GET /api/multivariate-statistics/runs/multivariate-project-1",
@@ -438,12 +436,7 @@ test("Multivariate unavailable statistics never render as zero or failed diagnos
 
   await expect(page.getByText("Unavailable evidence: insufficient_common_history")).toBeVisible();
   await expect(page.getByText("This analysis needs at least 100 shared daily returns. In Univariate Statistics, select Duration > 6 months, recompute Bivariate Statistics, then compute this run again.")).toBeVisible();
-  await page.getByRole("tab", { name: "Risk Structure" }).click();
-  for (const label of ["Effective rank", "Minimum eigenvalue", "Condition number", "Positive semidefinite"]) {
-    const fact = page.getByRole("table", { name: "Multivariate risk structure facts" }).getByRole("row").filter({ has: page.getByRole("rowheader", { name: label, exact: true }) });
-    await expect(fact.getByRole("cell")).toHaveText("Unavailable");
-  }
-  await expect(page.getByText("Structure unavailable: risk_model_unavailable")).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Risk Structure" })).toHaveCount(0);
 });
 
 test("every workflow button completes its browser action for two isolated projects", async ({ page }) => {
@@ -539,27 +532,16 @@ test("every workflow button completes its browser action for two isolated projec
   await expect(page.getByText("60.00%")).toBeVisible();
   await expect(page.locator(".statistics-tabs")).toHaveCSS("display", "grid");
   await expect(page.locator(".statistics-tabs")).toHaveCSS("overflow-x", "visible");
-  for (const tab of ["Overview", "Risk Structure", "Portfolio Candidates", "Risk Contributions", "Income Evidence", "Validation"]) {
+  for (const tab of ["Overview", "Portfolio Candidates"]) {
     await page.getByRole("tab", { name: tab }).click();
     await expect(page.getByRole("tab", { name: tab })).toHaveAttribute("aria-selected", "true");
   }
-  await page.getByRole("tab", { name: "Risk Structure" }).click();
-  await expect(page.getByRole("table", { name: "Multivariate risk structure facts" })).toHaveText(/ALPHA\.XETRA/);
-  await expect(page.getByText("12.50", { exact: true })).toBeVisible();
-  await expect(page.getByText("Yes", { exact: true })).toBeVisible();
   await page.getByRole("tab", { name: "Portfolio Candidates" }).click();
   await expect(page.getByText(/VaR: 3.00%/)).toBeVisible();
   await expect(page.getByText(/Maximum weight: 33.33%/)).toBeVisible();
   await expect(page.getByText(/Effective holdings: 3.00/)).toBeVisible();
   await expect(page.getByText(/Herfindahl concentration: 0.33/)).toBeVisible();
   await expect(page.getByLabel("Portfolio selection")).toHaveCount(0);
-  await page.getByRole("tab", { name: "Risk Contributions" }).click();
-  const contributionTable = page.getByRole("table", { name: "Capital weights and percent risk contributions for every portfolio candidate" });
-  await expect(contributionTable).toHaveText(/Equal weight/);
-  await expect(contributionTable).toHaveText(/Minimum variance/);
-  await page.getByRole("tab", { name: "Income Evidence" }).click();
-  await expect(page.getByRole("cell", { name: "100.00%" })).toBeVisible();
-  await expect(page.getByRole("cell", { name: "8.00%" })).toBeVisible();
 
   expect([...fixture.projects.values()].map((project) => project.name)).toEqual(["Alpha income", "Beta growth"]);
   expect(fixture.calls).toEqual(expect.arrayContaining([
