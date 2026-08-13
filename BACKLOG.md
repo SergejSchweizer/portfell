@@ -38,9 +38,9 @@ Completed entries are never deleted. Superseded plans are moved to the historica
 
 Branch: `chore/compose-stack-rebuild-watch`.
 
-Git status: in progress.
+Git status: pushed.
 
-PR: TBD.
+PR: https://github.com/SergejSchweizer/portfell/pull/382.
 
 Priority: P1 local runtime correctness.
 
