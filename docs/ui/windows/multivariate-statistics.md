@@ -37,7 +37,8 @@ or calculates financial values in the browser.
 - Complete state: Overview and Portfolio Candidates tabs in the responsive statistics tab grid,
   with no horizontal tab scrolling.
 - Overview renders the persisted relative cumulative monthly-return chart before its two-column
-  Fact/Value table. The chart includes visible calendar-time labels and renders all instruments in
+  Fact/Value table and a portfolio-metrics table. The chart includes a visible `Relative gain (%)`
+  y-axis title, calendar-time labels, and renders all instruments in
   light gray and every feasible portfolio in a method-specific color. Overview facts include candidate
   count, dominant-component share, and explicit input availability reasons. Risk Structure includes
   effective rank, component thresholds, strongest driver, redundancy evidence, eigenvalue,
@@ -59,10 +60,11 @@ or calculates financial values in the browser.
 - Average monthly and annual returns are arithmetic means of each candidate's compounded
   calendar-month and calendar-year total returns over the aligned historical period. They are
   descriptive historical metrics, not annualized forecasts.
+- The Overview portfolio-metrics table lists every portfolio's persisted risk, return, drawdown,
+  concentration, diversification, average monthly relative gain, and average annual relative gain.
 - Hovering the Overview chart, or using its arrow keys after focus, opens an inspection tooltip for
-  the nearest month with relative cumulative returns for every visible instrument and portfolio
-  method. Tooltip values use the same light-gray instrument and method-specific portfolio colors as
-  the chart.
+  the nearest month with relative cumulative returns for every visible portfolio method. Tooltip
+  values use the same method-specific colors as the chart.
 
 ## States
 
