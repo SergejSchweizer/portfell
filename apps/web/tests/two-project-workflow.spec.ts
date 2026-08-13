@@ -353,8 +353,8 @@ test("Multivariate compute button polls resolve_inputs through completion", asyn
   await expect(page.getByRole("button", { name: "Computing…" })).toBeDisabled();
   await expect(page.getByText("resolve_inputs · 0 of 6 phases complete · 0s elapsed · about 10s remaining")).toBeVisible();
   await expect(page.getByRole("button", { name: "Compute multivariate statistics" })).toBeEnabled();
-  await expect(page.getByText("Candidate ETFs")).toBeVisible();
-  await expect(page.getByRole("table", { name: "Multivariate overview facts" })).toHaveText(/Candidate ETFs/);
+  await expect(page.getByRole("table", { name: "Portfolio overview metrics" })).toBeVisible();
+  await expect(page.getByRole("table", { name: "Multivariate overview facts" })).toHaveCount(0);
   await expect(page.getByRole("tablist", { name: "Multivariate statistics views" }).getByRole("tab")).toHaveCount(2);
   await expect(page.getByRole("tab", { name: "Risk Structure" })).toHaveCount(0);
   await page.getByRole("tab", { name: "Portfolio Candidates" }).click();
@@ -362,14 +362,17 @@ test("Multivariate compute button polls resolve_inputs through completion", asyn
   await page.getByRole("tab", { name: "Overview" }).click();
   const performanceChart = page.getByRole("group", { name: /Relative cumulative monthly return comparison/ });
   await expect(performanceChart).toBeVisible();
-  await expect(page.getByRole("table", { name: "Multivariate overview facts" })).toBeVisible();
+  await expect(page.getByRole("table", { name: "Multivariate overview facts" })).toHaveCount(0);
+  await expect(page.getByRole("table", { name: "Portfolio overview metrics" })).toHaveText(/Average monthly relative gain/);
+  await expect(page.getByRole("table", { name: "Portfolio overview metrics" })).toHaveText(/Equal weight.*1\.00%.*12\.00%/);
   await expect(page.locator(".performance-chart__axis-label").first()).toHaveText("Jan 2024");
+  await expect(page.locator(".performance-chart__axis-title")).toHaveText("Relative gain (%)");
   await expect(page.getByRole("list", { name: "Performance series" })).toContainText("Minimum variance");
   await performanceChart.hover();
-  await expect(page.getByRole("tooltip")).toContainText("ALPHA.XETRA: 3.00%");
+  await expect(page.getByRole("tooltip")).not.toContainText("ALPHA.XETRA");
   await expect(page.getByRole("tooltip")).toContainText("Equal weight: 2.50%");
   await expect(page.getByRole("tooltip")).toContainText("Minimum variance: 2.70%");
-  await expect(page.locator(".performance-chart__tooltip-instrument")).toHaveCount(2);
+  await expect(page.locator(".performance-chart__tooltip-instrument")).toHaveCount(0);
   await expect(page.locator(".performance-chart__tooltip-portfolio--0")).toContainText("Equal weight: 2.50%");
   await expect(page.locator(".performance-chart__tooltip-portfolio--1")).toContainText("Minimum variance: 2.70%");
   await page.getByRole("checkbox", { name: "ALPHA.XETRA" }).uncheck();
@@ -406,7 +409,7 @@ test("Multivariate state resets when switching to another project", async ({ pag
   await expect(page.getByRole("tab", { name: "Covariance" })).toBeVisible();
   await page.goto("/multivariate-statistics");
   await page.getByRole("button", { name: "Compute multivariate statistics" }).click();
-  await expect(page.getByText("Candidate ETFs")).toBeVisible();
+  await expect(page.getByRole("table", { name: "Portfolio overview metrics" })).toBeVisible();
 
   await page.goto("/metadata-builder");
   await createProject(page, { exchange: "LSE", instrumentType: "FUND", country: "LU", currency: "USD", name: "Second multivariate project" });
@@ -418,7 +421,7 @@ test("Multivariate state resets when switching to another project", async ({ pag
   await page.goto("/multivariate-statistics");
 
   await expect(page.getByText("Ready to compute.")).toBeVisible();
-  await expect(page.getByText("Candidate ETFs")).not.toBeVisible();
+  await expect(page.getByRole("table", { name: "Portfolio overview metrics" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Compute multivariate statistics" })).toBeEnabled();
 });
 
@@ -527,9 +530,7 @@ test("every workflow button completes its browser action for two isolated projec
   await expect(multivariateCompute.locator("progress")).toHaveCSS("height", "14px");
   await expect(multivariateCompute.locator(".quote-fetch__action")).toHaveCSS("justify-content", "flex-end");
   await page.getByRole("button", { name: "Compute multivariate statistics" }).click();
-  await expect(page.getByText("Candidate ETFs")).toBeVisible();
-  await expect(page.getByText("Portfolio candidates", { exact: true })).toBeVisible();
-  await expect(page.getByText("60.00%")).toBeVisible();
+  await expect(page.getByRole("table", { name: "Portfolio overview metrics" })).toBeVisible();
   await expect(page.locator(".statistics-tabs")).toHaveCSS("display", "grid");
   await expect(page.locator(".statistics-tabs")).toHaveCSS("overflow-x", "visible");
   for (const tab of ["Overview", "Portfolio Candidates"]) {
