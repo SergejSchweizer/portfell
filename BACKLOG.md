@@ -34,9 +34,9 @@ Completed entries are never deleted. Superseded plans are moved to the historica
 
 Branch: `chore/merge-all-branches`.
 
-Git status: in progress.
+Git status: pushed.
 
-PR: TBD.
+PR: https://github.com/SergejSchweizer/portfell/pull/377.
 
 Priority: P1 repository maintenance.
 
