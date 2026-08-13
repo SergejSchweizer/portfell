@@ -36,13 +36,11 @@ or calculates financial values in the browser.
   the active project's workflow state; ignore late responses for the prior project.
 - Complete state: Overview and Portfolio Candidates tabs in the responsive statistics tab grid,
   with no horizontal tab scrolling.
-- Overview renders the persisted relative cumulative monthly-return chart before its two-column
-  Fact/Value table and a portfolio-metrics table. The chart includes a visible `Relative gain (%)`
+- Overview renders the persisted relative cumulative monthly-return chart before a portfolio-metrics
+  table. The chart includes a visible `Relative gain (%)`
   y-axis title, calendar-time labels, and renders all instruments in
-  light gray and every feasible portfolio in a method-specific color. Overview facts include candidate
-  count, dominant-component share, and explicit input availability reasons. Risk Structure includes
-  effective rank, component thresholds, strongest driver, redundancy evidence, eigenvalue,
-  condition-number, and PSD diagnostics.
+  light gray and every feasible portfolio in a method-specific color. Explicit input availability
+  reasons remain visible when supplied by the server.
 - Every Overview-chart series has a native checkbox that is enabled by default. Users may show or
   hide any combination of instrument and portfolio series; the plot and inspection tooltip include
   only enabled series. Hiding every series leaves the controls available and shows an empty-state
