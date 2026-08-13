@@ -25,7 +25,11 @@ from portfell.hosted_research_ports import (
     ResearchPersistencePort,
     ResearchRunRepository,
 )
-from portfell.hosted_research_workflow import UnivariateSelection, bivariate_source_id
+from portfell.hosted_research_workflow import (
+    UnivariateSelection,
+    bivariate_source_id,
+    univariate_source_id,
+)
 from portfell.hosted_selection_repository import SelectionRepository, selection_record
 from portfell.income import (
     INCOME_CONTRACT,
@@ -108,7 +112,7 @@ class MultivariateResearchService(MultivariateRunViews):
         )
         run_id = opaque_id("multivariate-run", f"{user_id}:{logical_hash}")
         existing = self._runs.by_logical_hash(user_id=user_id, logical_hash=logical_hash)
-        if existing is not None:
+        if existing is not None and existing.status != "failed":
             return multivariate_run_row(existing)
         previous = self._runs.current(user_id=user_id, project_id=project_id)
         if previous is not None and previous.status in {"ready", "running", "complete"}:
@@ -239,9 +243,7 @@ class MultivariateResearchService(MultivariateRunViews):
         metadata_selection = self._metadata_selection_for_project(run.user_id, run.project_id)
         quote_run_id = self._research.quote_run_id(source_run.run_id)
         source_quote_id = quote_run_id or "shared-market"
-        expected_source_id = stable_hash(
-            {"selection_id": metadata_selection.selection_id, "quote_run_id": source_quote_id}
-        )
+        expected_source_id = univariate_source_id(metadata_selection.selection_id, source_quote_id)
         if source_run.source_id != expected_source_id:
             raise HostedApplicationError(422, "project_univariate_dependency_mismatch")
         quotes = self._research.quote_rows(quote_run_id) or self._data.selected_rows(
