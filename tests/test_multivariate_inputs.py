@@ -1,4 +1,5 @@
 from portfell.multivariate_inputs import (
+    DistributionEtfPolicy,
     ExplicitMultivariateInputAdapter,
     MonthlyDistributionEtfPolicy,
     MultivariateInputDependencies,
@@ -66,20 +67,41 @@ def test_snapshot_is_canonical_and_adapter_equivalent() -> None:
     assert direct.dependency_hash == adapter.dependency_hash
 
 
-def test_snapshot_rejects_typed_non_monthly_and_non_etf_values() -> None:
+def test_snapshot_accepts_mixed_regular_distribution_frequencies() -> None:
     keys = (_key(1), _key(2), _key(3))
     snapshot = build_multivariate_input_snapshot(
-        dependencies=_dependencies(keys=(_key(1),)),
+        dependencies=_dependencies(keys=keys),
         univariate_rows=[
-            _row(keys[0]),
-            _row(keys[1], instrument_type="Fund"),
-            _row(keys[2], distribution_frequency="annual"),
+            _row(keys[0], distribution_frequency="monthly"),
+            _row(keys[1], distribution_frequency="quarterly"),
+            _row(keys[2], distribution_frequency="semiannual"),
         ],
     )
-    assert snapshot.listing_keys == (_key(1),)
-    assert "fewer_than_two_eligible_listings" in snapshot.availability_reasons
-    assert "non_etf" in snapshot.eligibility[1].reasons
-    assert "distribution_not_monthly" in snapshot.eligibility[2].reasons
+
+    assert snapshot.eligible
+    assert snapshot.listing_keys == keys
+    assert snapshot.policy.allowed_distribution_frequencies == (
+        "monthly",
+        "quarterly",
+        "semiannual",
+    )
+
+
+def test_snapshot_rejects_unsupported_frequency_and_non_etf_values() -> None:
+    keys = (_key(1), _key(2), _key(3), _key(4))
+    snapshot = build_multivariate_input_snapshot(
+        dependencies=_dependencies(keys=(keys[0], keys[1])),
+        univariate_rows=[
+            _row(keys[0]),
+            _row(keys[1], distribution_frequency="quarterly"),
+            _row(keys[2], instrument_type="Fund"),
+            _row(keys[3], distribution_frequency="annual"),
+        ],
+    )
+    assert snapshot.eligible
+    assert snapshot.listing_keys == (keys[0], keys[1])
+    assert "non_etf" in snapshot.eligibility[2].reasons
+    assert "distribution_frequency_not_allowed" in snapshot.eligibility[3].reasons
 
 
 def test_snapshot_detects_dependency_membership_calendar_and_history_failures() -> None:
@@ -123,6 +145,13 @@ def test_snapshot_identity_changes_with_pinned_dependency_or_policy() -> None:
     )
     assert base.snapshot_id != changed.snapshot_id
     assert base.snapshot_id != policy_changed.snapshot_id
+
+    frequencies_changed = build_multivariate_input_snapshot(
+        dependencies=_dependencies(),
+        univariate_rows=rows,
+        policy=DistributionEtfPolicy(allowed_distribution_frequencies=("monthly",)),
+    )
+    assert base.snapshot_id != frequencies_changed.snapshot_id
 
 
 def test_same_isin_different_listing_key_remains_distinct() -> None:

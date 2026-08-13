@@ -16,11 +16,14 @@ selection, scans unpublished data, or starts bootstrap, Univariate, or Bivariate
 
 ## Eligibility Policy
 
-The initial `MonthlyDistributionEtfPolicy` is explicit and versioned. It
-requires typed `instrument_type=ETF`, typed `distribution_frequency=monthly`,
-production-eligible quote history, two or more distinct `(isin, exchange,
-code)` listing keys, and 100 shared daily return observations. Frequency is an
-eligibility criterion, not a claim about income quality or sustainability.
+The `DistributionEtfPolicy` is explicit and versioned. It requires typed
+`instrument_type=ETF`, a typed regular `distribution_frequency` of `monthly`,
+`quarterly`, or `semiannual`, production-eligible quote history, two or more
+distinct `(isin, exchange, code)` listing keys, and 100 shared daily return
+observations. Mixed supported frequencies remain in one exact Bivariate and
+Multivariate universe. Annual, irregular, accumulating, and unknown frequencies
+remain ineligible. Frequency is an eligibility criterion, not a claim about
+income quality or sustainability.
 
 ## Pinned Inputs
 

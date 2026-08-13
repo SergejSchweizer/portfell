@@ -2,6 +2,7 @@
 
 - [Backlog Policy](#backlog-policy)
 - [Active Multivariate Calculation Correctness Work](#active-multivariate-calculation-correctness-work)
+- [Active Mixed Distribution Frequency Portfolio Work](#active-mixed-distribution-frequency-portfolio-work)
 - [Active Bivariate Calculation Correctness Work](#active-bivariate-calculation-correctness-work)
 - [Active Univariate Calculation Correctness Work](#active-univariate-calculation-correctness-work)
 - [Active Univariate Overview Narrow Bars Work](#active-univariate-overview-narrow-bars-work)
@@ -36,6 +37,37 @@ This file is ordered by execution relevance:
 Every active item must contain `Branch`, `Git status`, `PR`, `Priority`, `Depends on`, `Scope`, `Acceptance`, `Security`, `Determinism`, and `Idempotency`. A PR is atomic only when it can merge independently with all repository gates green. A PR is complete only when its acceptance criteria are machine-verifiable and no assigned scope is deferred silently.
 
 Completed entries are never deleted. Superseded plans are moved to the historical section and explicitly marked non-active. Backlog identifiers are never reused.
+
+## Active Mixed Distribution Frequency Portfolio Work
+
+### PR245. Mixed Distribution Frequency Portfolios
+
+Branch: `feat/mixed-distribution-frequency-portfolios`.
+
+Git status: in progress.
+
+PR: TBD.
+
+Priority: P1 portfolio universe correctness.
+
+Depends on: PR244.
+
+Scope: Evolve the versioned Multivariate ETF eligibility policy so one exact portfolio universe may
+contain monthly, quarterly, and semiannual distributing ETFs without dropping valid Bivariate members.
+
+Acceptance: A mixed monthly, quarterly, and semiannual Bivariate universe produces one eligible
+Multivariate snapshot with unchanged membership. Annual, irregular, accumulating, and unknown
+frequencies remain explicitly unavailable, and frequency-policy changes alter snapshot identity.
+
+Security: The policy consumes only typed, authorized Univariate rows and cannot broaden project or
+artifact access.
+
+Determinism: Supported frequencies are normalized and serialized in stable sorted order as part of
+the policy and snapshot identities.
+
+Idempotency: Recomputing the same mixed-frequency universe and policy resolves the same snapshot.
+
+Series Completion Gate: Before merge, satisfy the applicable validation gates in `GATES.md`.
 
 ## Active Multivariate Calculation Correctness Work
 

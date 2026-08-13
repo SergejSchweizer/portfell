@@ -16,10 +16,10 @@ from portfell.contract_versioning import ContractVersion, stable_contract_id
 ListingKey = tuple[str, str, str]
 
 INPUT_SNAPSHOT_CONTRACT = ContractVersion("multivariate.input_snapshot", 1)
-MONTHLY_DISTRIBUTION_ETF_POLICY = ContractVersion("multivariate.monthly_etf_policy", 2)
+DISTRIBUTION_ETF_POLICY = ContractVersion("multivariate.distribution_etf_policy", 1)
 
 REASON_NON_ETF = "non_etf"
-REASON_NOT_MONTHLY = "distribution_not_monthly"
+REASON_FREQUENCY_NOT_ALLOWED = "distribution_frequency_not_allowed"
 REASON_DUPLICATE_LISTING_KEY = "duplicate_listing_key"
 REASON_MISSING_QUOTE_ARTIFACT = "missing_quote_artifact"
 REASON_MISSING_DIVIDEND_ARTIFACT = "missing_dividend_artifact"
@@ -49,17 +49,29 @@ class MultivariateListingKey:
 
 
 @dataclass(frozen=True)
-class MonthlyDistributionEtfPolicy:
-    """Explicit and serialisable eligibility policy for the first portfolio universe."""
+class DistributionEtfPolicy:
+    """Explicit and serialisable eligibility policy for regular-distribution ETFs."""
 
-    version: ContractVersion = MONTHLY_DISTRIBUTION_ETF_POLICY
+    version: ContractVersion = DISTRIBUTION_ETF_POLICY
     required_instrument_type: str = "ETF"
-    required_distribution_frequency: str = "monthly"
+    allowed_distribution_frequencies: tuple[str, ...] = (
+        "monthly",
+        "quarterly",
+        "semiannual",
+    )
     minimum_listing_count: int = 2
     minimum_common_daily_return_observations: int = 100
     require_production_eligible_quotes: bool = True
 
     def __post_init__(self) -> None:
+        normalized_frequencies = tuple(
+            sorted(
+                {frequency.strip().lower() for frequency in self.allowed_distribution_frequencies}
+            )
+        )
+        if not normalized_frequencies or any(not frequency for frequency in normalized_frequencies):
+            raise ValueError("allowed_distribution_frequencies must not be empty")
+        object.__setattr__(self, "allowed_distribution_frequencies", normalized_frequencies)
         if self.minimum_listing_count < 2:
             raise ValueError("minimum_listing_count must be at least two")
         if self.minimum_common_daily_return_observations < 2:
@@ -70,14 +82,17 @@ class MonthlyDistributionEtfPolicy:
         return {
             "version": self.version.qualified_name,
             "required_instrument_type": self.required_instrument_type,
-            "required_distribution_frequency": self.required_distribution_frequency,
+            "allowed_distribution_frequencies": list(self.allowed_distribution_frequencies),
             "minimum_listing_count": self.minimum_listing_count,
             "minimum_common_daily_return_observations": observations,
             "require_production_eligible_quotes": self.require_production_eligible_quotes,
         }
 
 
-DEFAULT_MONTHLY_DISTRIBUTION_ETF_POLICY = MonthlyDistributionEtfPolicy()
+DEFAULT_DISTRIBUTION_ETF_POLICY = DistributionEtfPolicy()
+MONTHLY_DISTRIBUTION_ETF_POLICY = DISTRIBUTION_ETF_POLICY
+MonthlyDistributionEtfPolicy = DistributionEtfPolicy
+DEFAULT_MONTHLY_DISTRIBUTION_ETF_POLICY = DEFAULT_DISTRIBUTION_ETF_POLICY
 
 
 @dataclass(frozen=True)
@@ -139,7 +154,7 @@ class MultivariateInputSnapshot:
     date_start: str
     date_end: str
     observation_count: int
-    policy: MonthlyDistributionEtfPolicy
+    policy: DistributionEtfPolicy
     dependency_hash: str
     eligibility: tuple[EligibilityResult, ...]
     availability_reasons: tuple[str, ...]
@@ -184,7 +199,7 @@ class MultivariateInputAdapter(Protocol):
         *,
         dependencies: MultivariateInputDependencies,
         univariate_rows: Sequence[Mapping[str, Any]],
-        policy: MonthlyDistributionEtfPolicy = DEFAULT_MONTHLY_DISTRIBUTION_ETF_POLICY,
+        policy: DistributionEtfPolicy = DEFAULT_DISTRIBUTION_ETF_POLICY,
     ) -> MultivariateInputSnapshot: ...
 
 
@@ -196,7 +211,7 @@ class ExplicitMultivariateInputAdapter:
         *,
         dependencies: MultivariateInputDependencies,
         univariate_rows: Sequence[Mapping[str, Any]],
-        policy: MonthlyDistributionEtfPolicy = DEFAULT_MONTHLY_DISTRIBUTION_ETF_POLICY,
+        policy: DistributionEtfPolicy = DEFAULT_DISTRIBUTION_ETF_POLICY,
     ) -> MultivariateInputSnapshot:
         return build_multivariate_input_snapshot(
             dependencies=dependencies, univariate_rows=univariate_rows, policy=policy
@@ -207,7 +222,7 @@ def build_multivariate_input_snapshot(
     *,
     dependencies: MultivariateInputDependencies,
     univariate_rows: Sequence[Mapping[str, Any]],
-    policy: MonthlyDistributionEtfPolicy = DEFAULT_MONTHLY_DISTRIBUTION_ETF_POLICY,
+    policy: DistributionEtfPolicy = DEFAULT_DISTRIBUTION_ETF_POLICY,
 ) -> MultivariateInputSnapshot:
     """Build an immutable snapshot without mutating or resolving upstream state."""
 
@@ -278,14 +293,17 @@ def build_multivariate_input_snapshot(
 def _eligibility(
     row: Mapping[str, Any],
     dependencies: MultivariateInputDependencies,
-    policy: MonthlyDistributionEtfPolicy,
+    policy: DistributionEtfPolicy,
 ) -> EligibilityResult:
     key = MultivariateListingKey.from_row(row)
     reasons: list[str] = []
     if str(row.get("instrument_type", "")).upper() != policy.required_instrument_type.upper():
         reasons.append(REASON_NON_ETF)
-    if str(row.get("distribution_frequency", "")).lower() != policy.required_distribution_frequency:
-        reasons.append(REASON_NOT_MONTHLY)
+    if (
+        str(row.get("distribution_frequency", "")).strip().lower()
+        not in policy.allowed_distribution_frequencies
+    ):
+        reasons.append(REASON_FREQUENCY_NOT_ALLOWED)
     if policy.require_production_eligible_quotes and not bool(
         row.get("quote_history_production_eligible", True)
     ):
@@ -299,7 +317,7 @@ def _eligibility(
 
 def _global_reasons(
     dependencies: MultivariateInputDependencies,
-    policy: MonthlyDistributionEtfPolicy,
+    policy: DistributionEtfPolicy,
     keys: tuple[MultivariateListingKey, ...],
 ) -> tuple[str, ...]:
     reasons: list[str] = []
@@ -326,8 +344,11 @@ def _global_reasons(
 
 
 __all__ = [
+    "DEFAULT_DISTRIBUTION_ETF_POLICY",
+    "DISTRIBUTION_ETF_POLICY",
     "ExplicitMultivariateInputAdapter",
     "EligibilityResult",
+    "DistributionEtfPolicy",
     "INPUT_SNAPSHOT_CONTRACT",
     "ListingKey",
     "MONTHLY_DISTRIBUTION_ETF_POLICY",
