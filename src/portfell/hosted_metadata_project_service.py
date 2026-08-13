@@ -70,7 +70,7 @@ class MetadataProjectService:
     def _all_isins_rows(self) -> tuple[JsonRow, ...]:
         return self.state.all_isins_rows or self.runtime.all_isins_rows()
 
-    def options(self) -> JsonRow:
+    def options(self, user_id: str) -> JsonRow:
         values_by_field: dict[str, dict[str, set[str]]] = {
             field: {} for field in ("exchange", "instrument_type", "country", "currency")
         }
@@ -83,11 +83,14 @@ class MetadataProjectService:
                 if value:
                     values.setdefault(value, set()).add(isin)
         return {
-            field: [
-                {"value": value, "isin_count": len(isins)}
-                for value, isins in sorted(values.items())
-            ]
-            for field, values in values_by_field.items()
+            "metadata_ready": self._metadata.revision(user_id=user_id) is not None,
+            **{
+                field: [
+                    {"value": value, "isin_count": len(isins)}
+                    for value, isins in sorted(values.items())
+                ]
+                for field, values in values_by_field.items()
+            },
         }
 
     def start_metadata_fetch(self, user_id: str) -> tuple[JsonRow, Callable[[], None]]:
@@ -195,6 +198,8 @@ class MetadataProjectService:
         currency: str,
         idempotency_key: str | None,
     ) -> JsonRow:
+        if self._metadata.revision(user_id=user_id) is None:
+            raise HostedApplicationError(422, "metadata_required")
         values = (
             ("exchange", "=", exchange),
             ("name", "~", name),
@@ -237,6 +242,16 @@ class MetadataProjectService:
         project_id = str(
             uuid.uuid5(uuid.NAMESPACE_URL, f"portfell:project:{user_id}:{project_name}")
         )
+        try:
+            existing_project = self._project(user_id, project_id)
+        except HostedApplicationError as error:
+            if error.status_code != 404 or error.code != "not_found":
+                raise
+            existing_project = None
+        if existing_project is not None:
+            selection = self._selection_for_project(user_id, project_id)
+            self._projects.set_current_project(user_id=user_id, project_id=project_id)
+            return self._project_selection_row(existing_project, selection)
         project = self._record(
             self._projects.create_project(TenantProject(project_id, user_id, project_name))
         )

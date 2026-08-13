@@ -5,6 +5,7 @@ export type ApiFieldOption = Readonly<{
 }>;
 
 export type ApiFieldOptions = Readonly<{
+  metadata_ready: boolean;
   exchange: readonly ApiFieldOption[];
   instrument_type: readonly ApiFieldOption[];
   country: readonly ApiFieldOption[];
@@ -59,10 +60,6 @@ export type ApiCredentialStatus = Readonly<{
   masked_label: string;
 }>;
 
-export type ApiCredentialValue = Readonly<{
-  provider_key: string;
-}>;
-
 export type ApiMetadataProject = Readonly<{
   project: Readonly<{ project_id: string; name: string }>;
   selection: Readonly<{ selection_id: string; name: string }>;
@@ -103,12 +100,17 @@ export type ApiProjects = Readonly<{
   items: readonly ApiProjectSummary[];
 }>;
 
+export type ApiProjectActiveRun = Readonly<{
+  status: "running" | "waiting";
+}>;
+
 export type ApiProjectSummary = Readonly<{
   project_id: string;
   name: string;
   selection_id?: string;
   selected_count: number;
   data_loaded: boolean;
+  active_run?: ApiProjectActiveRun | null;
 }>;
 
 export type ApiProjectContext = Readonly<{
@@ -148,7 +150,7 @@ export type ApiMultivariateRun = Readonly<{
   total_units: number;
   elapsed_seconds: number;
   estimated_remaining_seconds: number | null;
-  settings: Readonly<Record<string, unknown>>;
+  settings: Readonly<{ selected_candidate_ids?: readonly string[] }>;
   warnings: readonly string[];
   failure_reason: string | null;
 }>;

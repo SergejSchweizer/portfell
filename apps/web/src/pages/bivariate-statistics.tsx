@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { loadWorkflow } from "../api/client";
 import { bivariateStatisticsApi, type BivariateRunData } from "../api/bivariate-statistics";
 import { Button } from "../components/button";
+import { nextProgressSnapshot, type ProgressSnapshot } from "../computation-progress";
 import { LoadingState } from "../components/loading-state";
 import { Panel } from "../components/panel";
 import type { ApiBivariateMetricSummary, ApiBivariateRow, ApiBivariateSummary, ApiCovarianceMatrix, ApiPage, ApiPairMetricMatrix, ApiPairPlan, ApiResearchRun, ApiTailRiskScatter } from "../contracts";
@@ -240,6 +241,8 @@ export function BivariateStatisticsPage() {
   const [hoveredMatrixCell, setHoveredMatrixCell] = useState<{ row: number; column: number } | null>(null);
   const [activePairwiseMetric, setActivePairwiseMetric] = useState<PairwiseMatrixMetric>("covariance");
   const [message, setMessage] = useState("");
+  const [starting, setStarting] = useState(false);
+  const progressSnapshot = useRef<ProgressSnapshot | null>(null);
   const persistedRunId = workflow.status === "ready"
     ? workflow.data.stages.bivariate_statistics.bivariate_run_id
     : undefined;
@@ -261,6 +264,7 @@ export function BivariateStatisticsPage() {
   useEffect(() => {
     const resetProjectState = () => {
       setRun(null);
+      progressSnapshot.current = null;
       setResults(null);
       setCovarianceMatrix(null);
       setPearsonMatrix(null);
@@ -272,6 +276,7 @@ export function BivariateStatisticsPage() {
       setDrawdownOverlapMatrix(null);
       setTailRiskScatter(null);
       setSummary(null);
+      setStarting(false);
       setMessage("");
       setWorkflowRevision((value) => value + 1);
     };
@@ -288,6 +293,7 @@ export function BivariateStatisticsPage() {
       try {
         const current = await bivariateStatisticsApi.loadRun(activeRunId);
         if (cancelled) return;
+        progressSnapshot.current = nextProgressSnapshot(progressSnapshot.current, current.run_id, current.percent);
         setRun(current);
         if (current.status === "running") {
           setMessage(`${current.completed.toLocaleString()} of ${current.total.toLocaleString()} pair statistics computed.`);
@@ -327,6 +333,7 @@ export function BivariateStatisticsPage() {
           bivariateStatisticsApi.loadRunData(restoredRunId),
         ]);
         if (cancelled) return;
+        progressSnapshot.current = nextProgressSnapshot(progressSnapshot.current, savedRun.run_id, savedRun.percent);
         setRun(savedRun);
         applyRunData(data);
         setMessage(`${data.results.total.toLocaleString()} saved pair statistics restored.`);
@@ -347,7 +354,8 @@ export function BivariateStatisticsPage() {
 
   async function compute() {
     const univariateSelectionId = selectionId;
-    if (!univariateSelectionId) return;
+    if (!univariateSelectionId || starting || run?.status === "running") return;
+    setStarting(true);
     setMessage("Planning bivariate statistics…");
     try {
       const nextPlan = await bivariateStatisticsApi.plan({ univariate_selection_id: univariateSelectionId });
@@ -357,6 +365,7 @@ export function BivariateStatisticsPage() {
       }
       setMessage("Computing bivariate statistics…");
       const nextRun = await bivariateStatisticsApi.startRun({ univariate_selection_id: univariateSelectionId });
+      progressSnapshot.current = nextProgressSnapshot(progressSnapshot.current, nextRun.run_id, nextRun.percent);
       setRun(nextRun);
       if (nextRun.status === "complete") {
         const data = await bivariateStatisticsApi.loadRunData(nextRun.run_id);
@@ -365,6 +374,8 @@ export function BivariateStatisticsPage() {
       }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Bivariate computation failed.");
+    } finally {
+      setStarting(false);
     }
   }
 
@@ -415,11 +426,11 @@ export function BivariateStatisticsPage() {
     <Panel title="Bivariate Statistics">
       <div className="quote-fetch quote-fetch--panel bivariate-compute">
         <label htmlFor="bivariate-progress">Bivariate statistics progress</label>
-        <progress id="bivariate-progress" max={100} value={run?.percent ?? 0} />
+        <progress id="bivariate-progress" max={100} value={run === null ? 0 : nextProgressSnapshot(progressSnapshot.current, run.run_id, run.percent).percent} />
         <p className="status-line" aria-live="polite">{message || "Compute statistics for the ISINs selected in univariate statistics."}</p>
         <div className="quote-fetch__action">
-          <Button type="button" variant="primary" disabled={run?.status === "running"} onClick={() => void compute()}>
-            {run?.status === "running" ? "Computing…" : "Compute Bivariate Statistics"}
+          <Button type="button" variant="primary" disabled={starting || run?.status === "running"} aria-busy={starting || run?.status === "running"} onClick={() => void compute()}>
+            {starting ? "Planning computation…" : run?.status === "running" ? "Computing…" : "Compute Bivariate Statistics"}
           </Button>
         </div>
       </div>

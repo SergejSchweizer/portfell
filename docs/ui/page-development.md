@@ -59,9 +59,10 @@ visual contract changes.
 1. Read its specification in `docs/ui/windows/<route-slug>.md` before changing code.
 2. Update the page component and specification together. The specification describes the final behavior, not a historical changelog.
 3. Keep server-owned business rules on the server. The page may collect inputs, call an endpoint, render progress, and display results; it must not reproduce portfolio, filtering, ingestion, authentication, or authorization logic.
-4. When changing API data, update `apps/web/src/contracts.ts`, backend response tests, and page tests in the same pull request.
-5. When changing the persistent header, footer, shell, or workflow navigation, update the corresponding file under `docs/ui/layout/` and regression-test every affected page.
-6. Remove replaced UI code. Do not leave compatibility renderers, duplicate route registries, hidden legacy controls, or unused page components.
+4. Persisted filters must update local controls optimistically and use `useDebouncedSave` for a last-value-wins background request. A filter save must not invalidate the page workflow or replace rendered results.
+5. When changing API data, update `apps/web/src/contracts.ts`, backend response tests, and page tests in the same pull request.
+6. When changing the persistent header, footer, shell, or workflow navigation, update the corresponding file under `docs/ui/layout/` and regression-test every affected page.
+7. Remove replaced UI code. Do not leave compatibility renderers, duplicate route registries, hidden legacy controls, or unused page components.
 
 ## Required page states
 
@@ -73,6 +74,21 @@ Every asynchronous page operation must define:
 - success state with a concise result summary;
 - failure state with an actionable message;
 - stale-state behavior when upstream selections or metadata change.
+
+Every button that starts a server calculation or ingestion job must own a visible local status
+surface and remain disabled from the initial request through planning, polling, and terminal
+publication. Its label must distinguish starting/planning from running work, and the adjacent
+`aria-live` status must expose server progress or the current phase. Duplicate submission must be
+blocked both in the click handler and through the native `disabled` attribute. The action may become
+available again only after success, partial completion, or failure has been rendered.
+
+After the first successful load, refreshes must run in the background and retain the last rendered
+resource data until its replacement arrives. Do not replace a complete page with a loading state for
+polling, saves, workflow refreshes, navigation, or other revalidation. Update only the dependent
+field, control, panel, chart, or table and expose local progress or errors beside that surface. A
+page-level loading state is reserved for the initial load when no renderable data exists. Project
+switches must still clear project-owned results before loading the next project to prevent cross-project
+data leakage.
 
 Progress indicators must appear before the action that starts or repeats the operation when that ordering is part of the page specification. Actions should remain spatially stable while labels change between idle and running states.
 

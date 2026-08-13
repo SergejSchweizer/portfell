@@ -1,11 +1,11 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import {
   loadEodhdCredentialStatus,
-  loadEodhdCredentialValue,
   loadMetadataFetchRun,
   postJson,
 } from "../api/client";
-import type { ApiMetadataFetch } from "../contracts";
+import { nextProgressSnapshot } from "../computation-progress";
+import type { ApiCredentialStatus, ApiMetadataFetch } from "../contracts";
 import { useResource } from "../hooks/use-resource";
 
 type MetadataFetchContextValue = Readonly<{
@@ -15,6 +15,7 @@ type MetadataFetchContextValue = Readonly<{
   metadataProgress: number;
   metadataStatus: string;
   hasSavedCredential: boolean;
+  canFetchMetadata: boolean;
   maskedCredentialLabel: string | null;
   fetchMetadata: () => Promise<void>;
 }>;
@@ -23,17 +24,15 @@ const MetadataFetchContext = createContext<MetadataFetchContextValue | null>(nul
 
 export function MetadataFetchProvider({ children }: Readonly<{ children: ReactNode }>) {
   const credential = useResource(loadEodhdCredentialStatus, []);
-  const savedProviderKey = useResource(loadEodhdCredentialValue, []);
   const [providerKey, setProviderKey] = useState("");
+  const [savedCredential, setSavedCredential] = useState<ApiCredentialStatus | null>(null);
   const [fetching, setFetching] = useState(false);
   const [metadataRunId, setMetadataRunId] = useState<string | null>(null);
   const [metadataProgress, setMetadataProgress] = useState(0);
   const [metadataStatus, setMetadataStatus] = useState("Refresh listing metadata with the operations provider credential.");
-  const hasSavedCredential = credential.status === "ready" && credential.data.status === "active";
-
-  useEffect(() => {
-    if (savedProviderKey.status === "ready") setProviderKey(savedProviderKey.data.provider_key);
-  }, [savedProviderKey.status]);
+  const credentialStatus = savedCredential ?? (credential.status === "ready" ? credential.data : null);
+  const hasSavedCredential = credentialStatus?.status === "active";
+  const canFetchMetadata = hasSavedCredential || providerKey.trim().length > 0;
 
   useEffect(() => {
     if (!metadataRunId || !fetching) return;
@@ -45,7 +44,9 @@ export function MetadataFetchProvider({ children }: Readonly<{ children: ReactNo
       try {
         const result = await loadMetadataFetchRun(activeRunId);
         if (cancelled) return;
-        setMetadataProgress(result.percent);
+        setMetadataProgress((previous) => nextProgressSnapshot(
+          { runId: activeRunId, percent: previous }, activeRunId, result.percent,
+        ).percent);
         if (result.status === "running") {
           setMetadataStatus(`Fetching metadata: ${result.completed.toLocaleString()} of ${result.total.toLocaleString()} exchanges completed.`);
           timeoutId = window.setTimeout(() => void pollMetadataRun(), 750);
@@ -76,11 +77,19 @@ export function MetadataFetchProvider({ children }: Readonly<{ children: ReactNo
   }, [fetching, metadataRunId]);
 
   async function fetchMetadata() {
-    if (fetching) return;
+    if (fetching || !canFetchMetadata) return;
     setFetching(true);
     setMetadataProgress(0);
     setMetadataStatus("Fetching metadata...");
     try {
+      const pendingKey = providerKey.trim();
+      if (pendingKey) {
+        const status = await postJson<ApiCredentialStatus>("/api/credentials/eodhd", {
+          provider_key: pendingKey,
+        });
+        setSavedCredential(status);
+        setProviderKey("");
+      }
       const result = await postJson<ApiMetadataFetch>("/api/metadata/fetch-all", {});
       setMetadataRunId(result.metadata_run_id);
       setMetadataProgress(result.percent);
@@ -98,7 +107,8 @@ export function MetadataFetchProvider({ children }: Readonly<{ children: ReactNo
       metadataProgress,
       metadataStatus,
       hasSavedCredential,
-      maskedCredentialLabel: credential.status === "ready" ? credential.data.masked_label : null,
+      canFetchMetadata,
+      maskedCredentialLabel: credentialStatus?.masked_label ?? null,
       fetchMetadata,
     }}>
       {children}

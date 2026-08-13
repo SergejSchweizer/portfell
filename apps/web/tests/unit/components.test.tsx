@@ -1,13 +1,15 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 import { EmptyState } from "../../src/components/empty-state";
 import { Field } from "../../src/components/field";
 import { InlineNotice } from "../../src/components/inline-notice";
 import { LoadingState } from "../../src/components/loading-state";
 import { Panel } from "../../src/components/panel";
 import { StatusBadge } from "../../src/components/status-badge";
+import { nextProgressSnapshot, progressPercent } from "../../src/computation-progress";
 import { initialFillStatusMessage } from "../../src/pages/metadata-builder";
 import { univariateProgress } from "../../src/pages/univariate-statistics";
+import { ProjectSidebar } from "../../src/shell/project-sidebar";
 
 describe("shared React components", () => {
   it("renders optional empty-state, panel, loading, and field content", () => {
@@ -69,5 +71,46 @@ describe("shared React components", () => {
       percent: 1,
     })).toEqual({ max: 1_752, value: 20 });
     expect(univariateProgress(null)).toEqual({ max: 1, value: 0 });
+  });
+
+  it("keeps each computation progress display monotonic within a run", () => {
+    const first = nextProgressSnapshot(null, "run-1", progressPercent(3, 10));
+    const stale = nextProgressSnapshot(first, "run-1", progressPercent(2, 10));
+    const nextRun = nextProgressSnapshot(stale, "run-2", progressPercent(1, 4));
+
+    expect(first.percent).toBe(30);
+    expect(stale.percent).toBe(30);
+    expect(nextRun).toEqual({ runId: "run-2", percent: 25 });
+    expect(progressPercent(12, 10)).toBe(100);
+  });
+
+  it("navigates workflow stages without a browser reload", () => {
+    const onWorkflowPageChange = vi.fn();
+    const onCloseDrawer = vi.fn();
+    render(<ProjectSidebar
+      currentPage="metadata_builder"
+      context={{
+        current_project_id: "project-1",
+        current_project: { project_id: "project-1", name: "Income", selection_id: "selection-1", selected_count: 3, data_loaded: true },
+        projects: [{ project_id: "project-1", name: "Income", selection_id: "selection-1", selected_count: 3, data_loaded: true }],
+      }}
+      workflow={{ stages: {
+        metadata_builder: { status: "complete" },
+        univariate_statistics: { status: "ready" },
+        bivariate_statistics: { status: "locked" },
+        multivariate_statistics: { status: "locked" },
+      } }}
+      loading={false}
+      switching={false}
+      error={null}
+      drawerOpen={false}
+      onCloseDrawer={onCloseDrawer}
+      onProjectChange={async () => false}
+      onWorkflowPageChange={onWorkflowPageChange}
+    />);
+
+    expect(fireEvent.click(screen.getByRole("link", { name: /Univariate Statistics/ }))).toBe(false);
+    expect(onWorkflowPageChange).toHaveBeenCalledWith("/projects/income/univariate-statistics");
+    expect(onCloseDrawer).toHaveBeenCalledOnce();
   });
 });

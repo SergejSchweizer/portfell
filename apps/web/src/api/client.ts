@@ -1,5 +1,5 @@
 
-import type { ApiCredentialStatus, ApiCredentialValue, ApiInitialFill, ApiMetadataFetch, ApiProjectContext, ApiProjectMetadataBuilder, ApiWorkflow } from "../contracts";
+import type { ApiCredentialStatus, ApiInitialFill, ApiMetadataFetch, ApiProjectContext, ApiProjectMetadataBuilder, ApiWorkflow } from "../contracts";
 
 export class ApiError extends Error {
   constructor(
@@ -64,10 +64,6 @@ export function loadWorkflow(): Promise<ApiWorkflow> {
 
 export function loadEodhdCredentialStatus(): Promise<ApiCredentialStatus> {
   return requestJson<ApiCredentialStatus>("/api/credentials/eodhd");
-}
-
-export function loadEodhdCredentialValue(): Promise<ApiCredentialValue> {
-  return requestJson<ApiCredentialValue>("/api/credentials/eodhd/value");
 }
 
 export function loadMetadataFetchRun(metadataRunId: string): Promise<ApiMetadataFetch> {

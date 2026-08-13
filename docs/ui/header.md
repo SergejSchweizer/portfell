@@ -20,6 +20,8 @@ without entering the plaintext key again.
 ## Shell Layout
 
 Below the header, the desktop shell has a persistent project sidebar and one
-main-content region constrained to `1240px` from the sidebar edge. Project navigation, the selected project, and workflow
-stage status belong to the sidebar, not the header. Mobile drawer behavior is
-defined in `docs/ui/layout/sidebar.md`.
+main-content region constrained to `1240px` from the sidebar edge. At `900px`
+and below, the header also exposes a native `Current project` selector so users
+can switch among every server-returned project without opening navigation. The
+workflow stages remain in the mobile drawer; its behavior is defined in
+`docs/ui/layout/sidebar.md`.

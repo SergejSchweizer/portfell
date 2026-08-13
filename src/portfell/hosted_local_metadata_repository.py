@@ -38,6 +38,9 @@ class LocalMetadataLifecycleRepository:
     def set_revision(self, *, user_id: str, revision_id: str) -> None:
         self._state.metadata_revisions_by_user[user_id] = revision_id
 
+    def revision(self, *, user_id: str) -> str | None:
+        return self._state.metadata_revisions_by_user.get(user_id)
+
     def idempotent_response(
         self, *, user_id: str, operation: str, key: str, request_hash: str
     ) -> str | None:

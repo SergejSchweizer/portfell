@@ -178,17 +178,14 @@ def test_metadata_builder_restores_saved_project_criteria() -> None:
     assert "setName(criteria.name)" in page
 
 
-def test_metadata_refresh_uses_the_operations_credential_not_a_browser_key() -> None:
+def test_metadata_refresh_saves_a_typed_key_before_starting() -> None:
     context = (WEB_ROOT / "src" / "shell" / "metadata-fetch-context.tsx").read_text(
         encoding="utf-8"
     )
 
     assert 'postJson<ApiMetadataFetch>("/api/metadata/fetch-all", {})' in context
-    assert (
-        'await postJson("/api/credentials/eodhd", { provider_key: providerKey.trim() })'
-        not in context
-    )
-    assert 'setProviderKey("")' not in context
+    assert 'postJson<ApiCredentialStatus>("/api/credentials/eodhd", {' in context
+    assert 'setProviderKey("")' in context
 
 
 def test_metadata_header_uses_masked_saved_credential_without_browser_secret_persistence() -> None:
@@ -199,14 +196,13 @@ def test_metadata_header_uses_masked_saved_credential_without_browser_secret_per
     client = (WEB_ROOT / "src" / "api" / "client.ts").read_text(encoding="utf-8")
 
     assert "loadEodhdCredentialStatus" in context
-    assert "loadEodhdCredentialValue" in context
-    assert "setProviderKey(savedProviderKey.data.provider_key)" in context
-    assert "Saved: {maskedCredentialLabel}" in frame
-    assert "if (fetching) return;" in context
-    assert 'setProviderKey("")' not in context
-    assert 'type="text"' in frame
+    assert "loadEodhdCredentialValue" not in context
+    assert "Encrypted: {maskedCredentialLabel}" in frame
+    assert "if (fetching || !canFetchMetadata) return;" in context
+    assert 'setProviderKey("")' in context
+    assert 'type="password"' in frame
     assert 'requestJson<ApiCredentialStatus>("/api/credentials/eodhd")' in client
-    assert 'requestJson<ApiCredentialValue>("/api/credentials/eodhd/value")' in client
+    assert "credentials/eodhd/value" not in client
 
 
 def test_post_requests_support_browsers_without_crypto_random_uuid() -> None:
@@ -239,7 +235,8 @@ def test_metadata_panel_uses_the_historical_data_progress_status_action_layout()
     assert page.index(status_output, metadata_panel) < action
     assert "loadMetadataFetchRun" in context
     assert "exchanges completed" in context
-    assert ".metadata-fetch__progress { height: 14px;" in styles
+    assert "--progress-height: 10px;" in styles
+    assert ".metadata-fetch__progress { height: var(--progress-height);" in styles
 
 
 def test_bivariate_facts_show_the_universe_aligned_data_period() -> None:

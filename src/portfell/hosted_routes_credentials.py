@@ -29,10 +29,6 @@ def credential_router(
     def credential_status(user: ApiUser = Depends(current_user)) -> JsonRow:
         return call(service.credential_status, user.user_id)
 
-    @router.get("/credentials/eodhd/value")
-    def credential_value(user: ApiUser = Depends(workspace_user)) -> JsonRow:
-        return call(service.credential_value, user.user_id)
-
     @router.post("/credentials/eodhd")
     def set_credential(
         payload: CredentialSetRequest,

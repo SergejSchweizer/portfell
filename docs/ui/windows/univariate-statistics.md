@@ -26,7 +26,7 @@ pairwise relationships.
 
 ## Contract
 
-The browser never starts an EODHD download. The central `shared-market-refresh` operations service
+The browser never starts an EODHD download. The central `project-bootstrap-worker`
 updates the canonical quotes, dividends, and splits store for the de-duplicated active-project
 inventory. Before coverage is available, the page explains that historical data is refreshed
 automatically and offers no manual workaround.
@@ -36,15 +36,18 @@ immutable metadata selection and quote run ids, and loads bounded results from
 `GET /api/univariate-statistics/runs/{run_id}/results`. It renders server progress and returned
 statistics without recomputing them in React.
 
-The univariate-statistics action owns only computation progress, status, and its right-aligned action.
+The univariate-statistics action owns only computation progress, status, and its right-aligned action. The action reports the starting and running states and remains disabled from the initial request until the persisted run reaches a terminal state.
 Its determinate progress bar uses processed listings as its scale, including terminal failed listings;
 the server reports each completed listing for both shared-market and pinned quote-run computations.
+React keeps the displayed percentage monotonic for the active run so delayed polling responses cannot move the bar backward; starting or switching to another run resets that display.
 All workflow progress bars use the shared 14px height.
 The Dividends univariate-statistic block is not rendered before
 the run is complete and its result payload has loaded, matching the result-driven bivariate
 statistic windows. It provides a payout-frequency selection and an accessible
 histogram that counts ISINs by none/unknown, monthly, quarterly, semiannual, annual, and
-irregular schedules. The selected schedules are saved per project.
+irregular schedules. The selected schedules and statistic filters update locally immediately and
+persist the latest value per project through one debounced background request; they do not reload
+the workflow or replace completed result rows.
 
 After a completed run, the page presents Dividends and all quantitative statistics in one shared
 statistics window. Its responsive multi-row tab grid selects exactly one statistic at a time; the active tab

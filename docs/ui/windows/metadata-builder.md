@@ -39,12 +39,14 @@ number of failed requests.
 
 Idle, metadata-fetching, metadata-fetch-failed, filtering, selection-ready, historical-download-running, historical-download-failed, metadata-empty, and metadata-unavailable states must be explicit. A metadata refresh invalidates and reloads the available filter options.
 
+The determinate metadata bar never moves backward for one metadata run: React retains the highest server-reported percentage while polling, so a delayed or retried response cannot regress the visible progress. A newly requested run resets the display to zero.
+
 The selected project is shown in the persistent sidebar. A project switch, or
 opening this page after a switch, loads the saved server-owned filter values and listing count.
 
 ## Acceptance
 
-The metadata action panel precedes the filter dropdowns. Metadata refresh remains disabled without an entered or saved header key; the project action is disabled while its initial historical-data fill is active. All fields have visible labels, status changes use `aria-live`, and no filtering or ingestion business logic is implemented in the browser.
+The metadata action panel precedes the filter dropdowns. Metadata refresh displays its exchange progress and remains disabled from the initial request until the fetch reaches a terminal state. The project action shows project creation, planning, and quote-loading status and remains disabled from submission through the initial historical-data fill. All fields have visible labels, status changes use `aria-live`, and no filtering or ingestion business logic is implemented in the browser.
 
 The stateful two-project browser journey creates two selections through this
 form and verifies that their saved metadata builders are restored after a

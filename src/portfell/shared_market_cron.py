@@ -1,4 +1,4 @@
-"""Install and operate the local nightly shared-market refresh cron job."""
+"""Install and operate the local weekly shared-market refresh cron job."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from portfell.ugreen_nas_data_root_preflight import validate_data_root
 
 BEGIN_MARKER = "# BEGIN PORTFELL SHARED MARKET REFRESH"
 END_MARKER = "# END PORTFELL SHARED MARKET REFRESH"
-SCHEDULE = "15 20 * * *"
+SCHEDULE = "0 9 * * 0"
 TIMEZONE = "Europe/Amsterdam"
 PRODUCTION_DATA_ROOT = Path("/volume2/docker/portfell")
 PRODUCTION_LOG_NAME = "shared-market-refresh.log"
@@ -28,7 +28,7 @@ def cron_block(project_root: Path, log_path: Path) -> str:
         (
             f"/usr/bin/flock -n {lock_path}",
             *_compose_command(root),
-            "--profile operations run --rm --no-deps shared-market-refresh",
+            "exec -T project-bootstrap-worker python -m portfell.shared_market_refresh",
             f">> {log} 2>&1",
         )
     )
@@ -107,12 +107,12 @@ def _run_once(project_root: Path, log_path: Path, *, dry_run: bool = False) -> i
         command.append("--dry-run")
     command.extend(
         (
-            "--profile",
-            "operations",
-            "run",
-            "--rm",
-            "--no-deps",
-            "shared-market-refresh",
+            "exec",
+            "-T",
+            "project-bootstrap-worker",
+            "python",
+            "-m",
+            "portfell.shared_market_refresh",
         )
     )
     if dry_run:

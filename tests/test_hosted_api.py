@@ -215,9 +215,9 @@ def test_persistent_local_workspace_restores_credential_and_projects_after_resta
         create_persistent_local_workspace_state(tmp_path, key_encryption_key=key)
     )
 
-    assert _json(restored_client.get("/credentials/eodhd/value")) == {
-        "provider_key": "secret-provider-token"
-    }
+    restored_credential = _json(restored_client.get("/credentials/eodhd"))
+    assert restored_credential["status"] == "active"
+    assert restored_credential["masked_label"] != "secret-provider-token"
     context = _json(restored_client.get("/project-context"))
     assert context["current_project_id"] == project["project_id"]
     assert context["projects"] == [
@@ -346,6 +346,19 @@ def test_metadata_builder_options_and_project_creation_use_all_isins_reference()
     client = _client(state)
 
     options = _json(client.get("/metadata-builder/options", headers=_headers(csrf=False)))
+    rejected = client.post(
+        "/metadata-builder",
+        headers=_headers(idempotency="metadata-project-1"),
+        json={
+            "exchange": "XETRA",
+            "name": "UCITS ETF",
+            "instrument_type": "ETF",
+            "country": "IE",
+            "currency": "EUR",
+        },
+    )
+    state.metadata_revisions_by_user["00000000-0000-5000-8000-000000000001"] = "revision-1"
+    ready_options = _json(client.get("/metadata-builder/options", headers=_headers(csrf=False)))
     created = _json(
         client.post(
             "/metadata-builder",
@@ -374,6 +387,7 @@ def test_metadata_builder_options_and_project_creation_use_all_isins_reference()
     )
 
     assert options == {
+        "metadata_ready": False,
         "country": [{"value": "IE", "isin_count": 1}, {"value": "US", "isin_count": 1}],
         "currency": [{"value": "EUR", "isin_count": 1}, {"value": "USD", "isin_count": 1}],
         "exchange": [{"value": "NYSE", "isin_count": 1}, {"value": "XETRA", "isin_count": 1}],
@@ -382,6 +396,9 @@ def test_metadata_builder_options_and_project_creation_use_all_isins_reference()
             {"value": "ETF", "isin_count": 1},
         ],
     }
+    assert rejected.status_code == 422
+    assert _json(rejected)["detail"]["code"] == "metadata_required"
+    assert ready_options == {**options, "metadata_ready": True}
     assert created == repeated
     assert created["project"]["name"] == "xetra_ucits_etf_etf_ie_eur"
     assert "name_" not in created["project"]["name"]
@@ -568,6 +585,7 @@ def test_quote_run_mutation_reuses_a_running_run(
             },
         )
     )
+    state.metadata_revisions_by_user["00000000-0000-5000-8000-000000000001"] = "revision-1"
 
     def fake_fetch_all_quotes_workflow(**kwargs: Any) -> dict[str, Any]:
         calls.append(kwargs)
@@ -734,6 +752,13 @@ def test_fetch_all_metadata_rejects_an_invalid_eodhd_key_without_a_server_error(
     assert response.status_code == 200
     assert _json(response)["status"] == "failed"
     assert _json(response)["error_code"] == "eodhd_key_rejected"
+
+
+def test_metadata_fetch_status_rejects_a_malformed_run_id_without_a_server_error() -> None:
+    response = _client().get("/metadata/fetch-all/not-a-uuid", headers=_headers(csrf=False))
+
+    assert response.status_code == 404
+    assert _json(response)["detail"]["code"] == "metadata_run_not_found"
 
 
 def test_fetch_all_metadata_rejects_an_invalid_eodhd_payload_without_a_server_error(
@@ -936,6 +961,7 @@ def test_project_metadata_builder_restores_saved_field_values(
             },
         )
     )
+    state.metadata_revisions_by_user["00000000-0000-5000-8000-000000000001"] = "revision-1"
     client = _client(state)
     created = _json(
         client.post(

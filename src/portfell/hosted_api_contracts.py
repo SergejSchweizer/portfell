@@ -119,6 +119,14 @@ class MultivariateRunRequest(BaseModel):
     settings: MultivariateRunSettings = Field(default_factory=MultivariateRunSettings)
 
 
+class MultivariateSettingsRequest(BaseModel):
+    """User presentation choices over already-computed owned candidates only."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    selected_candidate_ids: list[str] = Field(default_factory=list, max_length=6)
+
+
 class LoadSelectedIsinsRequest(BaseModel):
     """Request to load quote data for one user-owned project selection."""
 

@@ -7,11 +7,12 @@ import logging
 import os
 import time
 from collections.abc import Callable, Generator
+from concurrent.futures import Future, ThreadPoolExecutor
 from contextlib import AbstractContextManager, contextmanager
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
-from threading import Event, Thread
+from threading import Event, Lock, Thread
 from typing import Protocol
 
 from portfell.config import runtime_eodhd_config
@@ -123,6 +124,7 @@ class ProjectBootstrapWorker:
         if heartbeat_interval_seconds <= 0:
             raise ValueError("heartbeat_interval_seconds_must_be_positive")
         self._heartbeat_interval_seconds = heartbeat_interval_seconds
+        self._job_writes = Lock()
 
     def run_once(self, *, worker_id: str, batch_size: int = 1) -> BootstrapWorkerResult:
         """Claim and execute a bounded batch without using active-project inventory."""
@@ -152,22 +154,14 @@ class ProjectBootstrapWorker:
             listings = tuple(SharedListingKey.from_member_id(member) for member in members)
             if not listings:
                 raise ValueError("bootstrap_members_required")
-            self._jobs.update_progress(
-                job_id=job.job_id,
-                lease_token=job.lease_token,
-                completed_units=0,
-                total_units=len(listings),
-            )
+            self._update_progress(job=job, completed_units=0, total_units=len(listings))
             completed_listings = 0
 
             def report_listing_completed(_: SharedListingKey) -> None:
                 nonlocal completed_listings
                 completed_listings += 1
-                self._jobs.update_progress(
-                    job_id=job.job_id,
-                    lease_token=job.lease_token,
-                    completed_units=completed_listings,
-                    total_units=len(listings),
+                self._update_progress(
+                    job=job, completed_units=completed_listings, total_units=len(listings)
                 )
 
             with self._lease_heartbeat(job):
@@ -218,7 +212,8 @@ class ProjectBootstrapWorker:
         def renew_lease() -> None:
             while not stopped.wait(self._heartbeat_interval_seconds):
                 try:
-                    self._jobs.heartbeat(job_id=job.job_id, lease_token=job.lease_token)
+                    with self._job_writes:
+                        self._jobs.heartbeat(job_id=job.job_id, lease_token=job.lease_token)
                 except Exception as error:
                     log_event(
                         LOGGER,
@@ -238,13 +233,17 @@ class ProjectBootstrapWorker:
             stopped.set()
             heartbeat.join()
 
+    def _update_progress(self, *, job: ClaimedJob, completed_units: int, total_units: int) -> None:
+        with self._job_writes:
+            self._jobs.update_progress(
+                job_id=job.job_id,
+                lease_token=job.lease_token,
+                completed_units=completed_units,
+                total_units=total_units,
+            )
+
     def _complete(self, job: ClaimedJob, result: RefreshResult, listing_count: int) -> None:
-        self._jobs.update_progress(
-            job_id=job.job_id,
-            lease_token=job.lease_token,
-            completed_units=listing_count,
-            total_units=listing_count,
-        )
+        self._update_progress(job=job, completed_units=listing_count, total_units=listing_count)
         self._jobs.complete(
             job_id=job.job_id,
             lease_token=job.lease_token,
@@ -280,7 +279,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Run worker-owned initial fills using only the operations market credential."""
+    """Run worker-owned initial fills and metadata refreshes with the operations credential."""
 
     args = build_parser().parse_args(argv)
     setup_logging(debug=os.environ.get("PORTFELL_LOG_LEVEL", "").upper() == "DEBUG")
@@ -299,30 +298,47 @@ def main(argv: list[str] | None = None) -> int:
     # Repositories explicitly delimit each claim/update with ``transaction()``.
     # Autocommit keeps those worker transactions short-lived instead of retaining
     # an implicit outer transaction for the lifetime of the polling process.
-    connection = connect(database_url, autocommit=True)
+    bootstrap_connection = connect(database_url, autocommit=True)
+    metadata_connection = connect(database_url, autocommit=True)
     try:
-        jobs = PostgresDurableJobRepository(connection)
+        bootstrap_jobs = PostgresDurableJobRepository(bootstrap_connection)
+        recovery_jobs = PostgresDurableJobRepository(metadata_connection)
         worker = ProjectBootstrapWorker(
-            jobs=jobs,
-            members_for_selection=PostgresSelectionMembers(connection),
+            jobs=bootstrap_jobs,
+            members_for_selection=PostgresSelectionMembers(bootstrap_connection),
             store=SharedMarketDataStore(Path(root)),
             fetch=eodhd_fetch(EodhdClient(runtime_eodhd_config(token))),
             end_date=date.today(),
             concurrency=args.concurrency,
         )
-        while True:
-            jobs.recover_expired_leases()
-            metadata_result = build_metadata_refresh_worker(
-                connection, shared_data_root=Path(root), operations_token=token
-            ).run_once()
-            result = worker.run_once(worker_id=args.worker_id, batch_size=args.batch_size)
-            if args.once:
-                metadata_succeeded = not metadata_result.claimed or metadata_result.succeeded
-                return 0 if result.failed_count == 0 and metadata_succeeded else 5
-            if result.claimed_count == 0 and not metadata_result.claimed:
-                time.sleep(args.poll_seconds)
+        metadata_worker = build_metadata_refresh_worker(
+            metadata_connection, shared_data_root=Path(root), operations_token=token
+        )
+        with ThreadPoolExecutor(
+            max_workers=1, thread_name_prefix="project-initial-fill"
+        ) as executor:
+            initial_fill: Future[BootstrapWorkerResult] | None = None
+            while True:
+                recovery_jobs.recover_expired_leases()
+                metadata_result = metadata_worker.run_once()
+                if initial_fill is None:
+                    initial_fill = executor.submit(
+                        worker.run_once, worker_id=args.worker_id, batch_size=args.batch_size
+                    )
+                if args.once:
+                    result = initial_fill.result()
+                    metadata_succeeded = not metadata_result.claimed or metadata_result.succeeded
+                    return 0 if result.failed_count == 0 and metadata_succeeded else 5
+                if initial_fill.done():
+                    result = initial_fill.result()
+                    initial_fill = None
+                else:
+                    result = BootstrapWorkerResult(0, 0, 0)
+                if result.claimed_count == 0 and not metadata_result.claimed:
+                    time.sleep(args.poll_seconds)
     finally:
-        connection.close()
+        bootstrap_connection.close()
+        metadata_connection.close()
 
 
 if __name__ == "__main__":

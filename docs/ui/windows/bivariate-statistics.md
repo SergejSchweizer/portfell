@@ -30,7 +30,8 @@ The page preflights through `POST /api/bivariate-statistics/plan`, starts
 `POST /api/bivariate-statistics/runs`, reports server progress, and loads bounded results from
 `GET /api/bivariate-statistics/runs/{run_id}/results`. Pair construction, limits, calculations,
 storage, and ranking remain backend responsibilities.
-Its workflow progress bar uses the shared 14px height.
+Its workflow progress bar uses the shared 14px height. The action reports planning separately from running and remains disabled from the plan request until the persisted run reaches a terminal state.
+For an active run, React retains the highest server-reported percentage so delayed polling responses cannot move the determinate bar backward; a different run starts with its own progress.
 
 The pairwise-dependence window is not rendered until its particular Bivariate run reaches
 `complete`; while it is pending, running, failed, or unavailable, the page shows only the progress

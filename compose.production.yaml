@@ -12,9 +12,5 @@ services:
     volumes:
       - ${PORTFELL_DATA_ROOT:?set an absolute production Portfell data root}/lake:/srv/portfell/shared-data
 
-  shared-market-refresh:
-    volumes:
-      - ${PORTFELL_DATA_ROOT:?set an absolute production Portfell data root}/lake:/srv/portfell/shared-data
-
 # Production has no Compose-managed durable storage authority.
 volumes: !reset {}

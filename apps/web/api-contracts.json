@@ -1,7 +1,6 @@
 [
   {"method":"GET","path":"/api/workflow","responseType":"ApiWorkflow"},
   {"method":"GET","path":"/api/credentials/eodhd","responseType":"ApiCredentialStatus"},
-  {"method":"GET","path":"/api/credentials/eodhd/value","responseType":"ApiCredentialValue"},
   {"method":"POST","path":"/api/credentials/eodhd","requestSchema":"CredentialSetRequest","requestFields":["provider_key"],"responseType":"ApiCredentialStatus"},
   {"method":"POST","path":"/api/metadata/fetch-all","responseType":"ApiMetadataFetch"},
   {"method":"GET","path":"/api/metadata/fetch-all/{metadata_run_id}","responseType":"ApiMetadataFetch"},
@@ -35,5 +34,6 @@
   {"method":"GET","path":"/api/multivariate-statistics/runs/{run_id}/performance","responseType":"ApiMultivariatePerformance"},
   {"method":"GET","path":"/api/multivariate-statistics/runs/{run_id}/components","query":["limit","offset"],"responseType":"ApiMultivariateComponents"},
   {"method":"GET","path":"/api/multivariate-statistics/runs/{run_id}/risk-contributions","query":["candidate_id"],"responseType":"ApiMultivariateRiskContributions"},
-  {"method":"GET","path":"/api/multivariate-statistics/runs/{run_id}/income-evidence","responseType":"ApiMultivariateIncomeEvidenceList"}
+  {"method":"GET","path":"/api/multivariate-statistics/runs/{run_id}/income-evidence","responseType":"ApiMultivariateIncomeEvidenceList"},
+  {"method":"PATCH","path":"/api/multivariate-statistics/runs/{run_id}/settings","requestSchema":"MultivariateSettingsRequest","requestFields":["selected_candidate_ids"],"responseType":"ApiMultivariateRun"}
 ]

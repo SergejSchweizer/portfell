@@ -29,6 +29,7 @@ All production values are declared once in `apps/web/styles/app.css`.
 | `focus` | Keyboard focus outline | At least 2px with separation from the control edge. |
 | `success`, `warning`, `danger` | Matching status and destructive action | Always paired with visible text or shape. |
 | `disabled` | Disabled controls | Never used for readable locked status text. |
+| `progress-height` | Native computation progress thickness | Fixed at 10px; progress tracks remain full width. |
 
 Typography uses the platform UI stack, sizes 12, 14, 16, 20, and 28px, line
 heights of at least 1.35, zero letter spacing, and weights 400, 500, 600, or

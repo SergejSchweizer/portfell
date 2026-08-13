@@ -1,5 +1,5 @@
-import type { ChangeEvent } from "react";
-import type { ApiProjectContext, ApiWorkflow, WorkflowStatus } from "../contracts";
+import type { ChangeEvent, MouseEvent } from "react";
+import type { ApiProjectActiveRun, ApiProjectContext, ApiWorkflow, WorkflowStatus } from "../contracts";
 import { projectWorkflowPath, workflowPages, type WorkflowPageId } from "../routes";
 
 export type ProjectSidebarProps = Readonly<{
@@ -12,6 +12,7 @@ export type ProjectSidebarProps = Readonly<{
   drawerOpen: boolean;
   onCloseDrawer: () => void;
   onProjectChange: (projectId: string) => Promise<boolean>;
+  onWorkflowPageChange: (path: string) => void;
 }>;
 
 const workflowStatusLabel: Readonly<Record<WorkflowStatus, string>> = {
@@ -33,6 +34,7 @@ export function ProjectSidebar({
   drawerOpen,
   onCloseDrawer,
   onProjectChange,
+  onWorkflowPageChange,
 }: ProjectSidebarProps) {
   const currentProjectId = context?.current_project_id ?? "";
   const currentProject = context?.current_project ?? null;
@@ -42,6 +44,13 @@ export function ProjectSidebar({
     if (event.target.value && await onProjectChange(event.target.value)) onCloseDrawer();
   }
 
+  function navigateWorkflowPage(event: MouseEvent<HTMLAnchorElement>, path: string) {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    onWorkflowPageChange(path);
+    onCloseDrawer();
+  }
+
   return (
     <aside id="project-navigation-drawer" className="project-sidebar" data-open={drawerOpen} aria-label="Project navigation">
       <div className="project-sidebar__project">
@@ -49,13 +58,18 @@ export function ProjectSidebar({
         <select
           id="current-project"
           value={currentProjectId}
+          data-run-status={currentProject?.active_run?.status ?? "idle"}
           title={context?.current_project?.name}
           disabled={loading || switching || noProjects}
           onChange={changeProject}
         >
           {noProjects ? <option value="">No projects yet</option> : null}
           {context?.projects.map((project) => (
-            <option key={project.project_id} value={project.project_id}>
+            <option
+              key={project.project_id}
+              value={project.project_id}
+              style={{ color: projectActiveRunColor(project.active_run) }}
+            >
               {project.name}
             </option>
           ))}
@@ -69,9 +83,10 @@ export function ProjectSidebar({
             const status = workflow?.stages[page.stageId].status ?? (index === 0 ? "ready" : "locked");
             const locked = status === "locked";
             const contents = <><span className="project-sidebar__step">{index + 1}</span><span className="project-sidebar__stage"><span>{page.title}</span><small>{workflowStatusLabel[status]}</small></span></>;
+            const path = currentProject ? projectWorkflowPath(currentProject, page) : page.path;
             return (
               <li key={page.id} data-status={status}>
-                {locked ? <span aria-disabled="true">{contents}</span> : <a href={currentProject ? projectWorkflowPath(currentProject, page) : page.path} aria-current={page.id === currentPage ? "page" : undefined} onClick={onCloseDrawer}>{contents}</a>}
+                {locked ? <span aria-disabled="true">{contents}</span> : <a href={path} aria-current={page.id === currentPage ? "page" : undefined} onClick={(event) => navigateWorkflowPage(event, path)}>{contents}</a>}
               </li>
             );
           })}
@@ -82,4 +97,9 @@ export function ProjectSidebar({
       {error ? <p className="project-sidebar__message" role="alert">{error}</p> : null}
     </aside>
   );
+}
+
+function projectActiveRunColor(run: ApiProjectActiveRun | null | undefined): string | undefined {
+  if (!run) return undefined;
+  return run.status === "running" ? "var(--success)" : "var(--danger)";
 }

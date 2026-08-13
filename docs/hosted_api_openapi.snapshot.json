@@ -18,7 +18,7 @@
     "quote_run_incomplete",
     "scoped_quote_rows_unavailable"
   ],
-  "normalized_sha256": "82dbd8f533492ff4f60ebbb47ec9c4878a11c72b30ada76d136066ab444df4e3",
+  "normalized_sha256": "8e354bcce7fe4f97ddbc889b53ba9de762e4560eadb93e7623902668b5509090",
   "operations": [
     "DELETE /account 200",
     "POST /analyses 200/422",
@@ -38,7 +38,6 @@
     "DELETE /credentials/eodhd 200",
     "GET /credentials/eodhd 200",
     "POST /credentials/eodhd 200/422",
-    "GET /credentials/eodhd/value 200",
     "GET /datasets 200",
     "POST /downloads/plan 200/422",
     "POST /downloads/run 200/422",
@@ -58,6 +57,7 @@
     "GET /multivariate-statistics/runs/{run_id}/income-evidence 200/422",
     "GET /multivariate-statistics/runs/{run_id}/performance 200/422",
     "GET /multivariate-statistics/runs/{run_id}/risk-contributions 200/422",
+    "PATCH /multivariate-statistics/runs/{run_id}/settings 200/422",
     "GET /multivariate-statistics/runs/{run_id}/structure 200/422",
     "GET /multivariate-statistics/runs/{run_id}/summary 200/422",
     "GET /multivariate-statistics/runs/{run_id}/validation 200/422",

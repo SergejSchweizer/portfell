@@ -16,17 +16,17 @@ from portfell.shared_market_cron import (
 )
 
 
-def test_cron_block_uses_the_operations_service_without_secret_values(tmp_path: Path) -> None:
+def test_cron_block_uses_the_existing_worker_without_secret_values(tmp_path: Path) -> None:
     block = cron_block(tmp_path / "project", tmp_path / "logs" / "refresh.log")
 
-    assert SCHEDULE == "15 20 * * *"
+    assert SCHEDULE == "0 9 * * 0"
     assert BEGIN_MARKER in block and END_MARKER in block
     assert f"CRON_TZ={TIMEZONE}" in block
     assert block.count(SCHEDULE) == 1
     assert "/usr/bin/flock -n" in block
     assert "-f /" in block
     assert "compose.production.yaml" in block
-    assert "--profile operations run --rm --no-deps shared-market-refresh" in block
+    assert "exec -T project-bootstrap-worker python -m portfell.shared_market_refresh" in block
     assert "EODHD" not in block and "KEK" not in block
 
 
@@ -97,7 +97,7 @@ def test_cron_subprocess_helpers_and_missing_project_are_safe(
     assert cron._run_once(root, log_path, dry_run=True) == 0
     cron._compose_config(root)
     assert commands[0][0][len(cron._compose_command(root))] == "--dry-run"
-    assert commands[0][0][-1] == "shared-market-refresh"
+    assert commands[0][0][-1] == "portfell.shared_market_refresh"
     assert commands[0][1]["stdout"] is cron.subprocess.DEVNULL
     assert commands[1][0][-1] == "config"
     assert cron._read_crontab() == "existing"

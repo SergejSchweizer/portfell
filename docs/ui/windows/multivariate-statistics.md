@@ -31,16 +31,20 @@ or calculates financial values in the browser.
 - Locked state: one `Multivariate Statistics` panel explains that Bivariate
   Statistics must complete first.
 - Ready state: the Bivariate-style compact server-owned progress panel with a
-  labelled 14px determinate progress bar, status line, and right-aligned compute action.
+  labelled 14px determinate progress bar, status line, and right-aligned compute action. The action
+  reports starting and server-owned phase progress and remains disabled until the run is complete or failed.
 - Project switch: clear the prior project's run and result artifacts before loading
   the active project's workflow state; ignore late responses for the prior project.
-- Complete state: Overview and Portfolio Candidates tabs in the responsive statistics tab grid,
-  with no horizontal tab scrolling.
+- Complete state: Overview, Risk Structure, Portfolio Candidates, Risk Contributions,
+  Income Evidence, and Validation tabs in the responsive statistics tab grid, with no horizontal
+  tab scrolling.
 - Overview renders the persisted relative cumulative monthly-return chart before a portfolio-metrics
   table. The chart includes a visible `Cumulative relative gain (%)`
   y-axis title, calendar-time labels, and renders all instruments in
   light gray and every feasible portfolio as a solid method-specific color. Explicit input
-  availability reasons remain visible when supplied by the server.
+  availability reasons remain visible when supplied by the server. Each visible series is rebased
+  to zero at its first observation in the selected portfolio-evaluation period, so the chart shows
+  relative gain from that period rather than any earlier accumulated return.
 - The Overview chart keeps all input-instrument reference lines visible in light gray. Every
   portfolio series has an enabled-by-default native checkbox; users may show or hide any combination
   of portfolios. The plot scale and inspection tooltip include only enabled portfolios alongside the
@@ -51,6 +55,9 @@ or calculates financial values in the browser.
   Contributions shows every evaluated variant's capital weights and risk contributions. Income Evidence
   includes observed coverage, trend, cuts, total return, and quoted market-price capital change
   as the NAV proxy.
+- Portfolio-candidate selection checkboxes update immediately and persist the latest selection through
+  one debounced background request. Saving a selection does not reload the workflow or replace the
+  displayed Multivariate results. Risk Contributions displays the selected candidate.
 - Portfolio Candidates includes `highest_monthly_return`, a server-owned portfolio that maximizes
   mean historical compounded calendar-month total return under the same long-only minimum and
   maximum weights as every other candidate. It is descriptive historical evidence, not a forecast
@@ -89,7 +96,7 @@ or calculates financial values in the browser.
   be recomputed rather than remaining indefinitely `running`. Walk-Forward validation uses at most
   24 deterministic windows spanning the available history; refits run in parallel, while turnover
   and transaction costs are evaluated in chronological order.
-- Complete: Overview and Portfolio Candidates load automatically only after the particular
+- Complete: Multivariate result tabs load automatically only after the particular
   Multivariate run reaches `complete`, after refresh or project reactivation. They render the
   server-produced, project-owned summary, canonical risk-model facts, candidate metrics, and
   cumulative monthly performance artifact.

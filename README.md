@@ -466,8 +466,8 @@ Statistic paths deliberately do not include a selection id. Later metadata or un
 
 ## Scheduled Portfell Cron
 
-The hosted/local-app runtime refreshes canonical shared market data through the
-`shared-market-refresh` Compose operations service. The Metadata Builder can request the initial
+The hosted/local-app runtime refreshes canonical shared market data inside the
+`project-bootstrap-worker` container. The Metadata Builder can request the initial
 historical download for a new project's selected listings; server-side workflow code calls EODHD
 and reuses an active run. Install the idempotent managed cron block from the absolute repository
 root:
@@ -478,9 +478,8 @@ portfell-shared-market-cron install --project-root "$(pwd)"
 portfell-shared-market-cron status --project-root "$(pwd)"
 ```
 
-The job runs at `20:15 Europe/Amsterdam`, uses `/usr/bin/flock -n`, and appends output to
-`/var/log/portfell/shared-market-refresh.log`. It invokes only
-`shared-market-refresh`, which refreshes the de-duplicated active-project inventory with bounded
+The job runs weekly on Sunday at `09:00 Europe/Amsterdam`, uses `/usr/bin/flock -n`, and appends output to
+`/var/log/portfell/shared-market-refresh.log`. It executes inside the existing worker, which refreshes the de-duplicated active-project inventory with bounded
 correction overlap. See [Shared Market Refresh Operations](docs/shared-market-refresh.md) for
 initial backfill, verification, recovery, log rotation, and uninstall instructions.
 

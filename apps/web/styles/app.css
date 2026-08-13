@@ -19,6 +19,7 @@
   --series-4: #6b4fbb;
   --series-5: #007c91;
   --disabled: #6d7278;
+  --progress-height: 10px;
   --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-6: 24px; --space-8: 32px; --space-12: 48px;
   --radius-sm: 4px; --radius-md: 6px; --radius-lg: 8px;
   color: var(--text);
@@ -69,6 +70,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
   border-bottom: 1px solid var(--border);
 }
 .app-header__metadata { display: grid; grid-column: 2; justify-items: end; justify-self: end; width: min(720px, 100%); min-width: 0; text-align: right; }
+.app-header__project { display: none; }
 .project-navigation-toggle { display: none; width: 44px; min-width: 44px; padding: 0; place-items: center; }
 .project-navigation-toggle svg { width: 20px; height: 20px; }
 .project-navigation-backdrop { display: none; }
@@ -88,12 +90,14 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 }
 .metadata-fetch__credential-input { display: grid; gap: 5px; min-width: 0; justify-items: end; }
 .metadata-fetch label { display: grid; gap: 5px; color: #5f6368; }
-.metadata-fetch__progress { height: 14px; min-height: 14px; margin: 0; }
+.metadata-fetch__progress { height: var(--progress-height); min-height: var(--progress-height); margin: 0; }
 .metadata-fetch__status { grid-column: 1 / -1; min-height: 20px; color: #5f6368; }
 .metadata-fetch__action { display: grid; gap: var(--space-3); justify-items: start; }
 .project-sidebar { padding: var(--space-6) var(--space-4); background: var(--surface); border-right: 1px solid var(--border); }
 .project-sidebar__project { display: grid; gap: 5px; }
 .project-sidebar__project select { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.project-sidebar__project select[data-run-status="running"] { color: var(--success); }
+.project-sidebar__project select[data-run-status="waiting"] { color: var(--danger); }
 .project-sidebar__project label, .project-sidebar__workflow > p { color: var(--text-muted); font-weight: 600; margin: 0; }
 .project-sidebar__workflow { margin-top: 28px; }
 .project-sidebar__workflow ol { list-style: none; margin: 12px 0 0; padding: 0; }
@@ -131,7 +135,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 .portfell-panel:has(.metadata-download), .portfell-panel:has(.metadata-builder-form) { padding: 12px 16px; }
 .portfell-panel:has(.metadata-download) h2, .portfell-panel:has(.metadata-builder-form) h2 { margin: 0 0 8px; font-size: 18px; line-height: 24px; }
 .metadata-download { gap: 6px; }
-.metadata-download progress { height: 14px; }
+.metadata-download progress { height: var(--progress-height); }
 .metadata-download .status-line, .portfell-panel:has(.metadata-builder-form) > .status-line { min-height: 16px; margin: 0; }
 .metadata-download .portfell-button, .metadata-builder-form .portfell-button { min-height: 32px; }
 .metadata-builder-form { gap: 8px; }
@@ -145,11 +149,11 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
   gap: 8px;
 }
 .quote-fetch--panel { margin-top: 0; padding-top: 0; border-top: 0; }
-.quote-fetch progress { width: 100%; height: 14px; }
+.quote-fetch progress { width: 100%; height: var(--progress-height); }
 .historical-data { gap: 6px; }
 .portfell-panel:has(.historical-data) { padding: 12px 16px; }
 .portfell-panel:has(.historical-data) h2 { margin: 0 0 8px; font-size: 18px; line-height: 24px; }
-.historical-data progress { height: 14px; }
+.historical-data progress { height: var(--progress-height); }
 .historical-data .status-line { min-height: 16px; margin: 0; }
 .historical-data .portfell-button { min-height: 32px; }
 .quote-fetch__action { display: flex; justify-content: flex-end; }
@@ -192,7 +196,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 .performance-chart__tooltip-portfolio--4 { color: var(--series-5); }
 .quote-fetch__action--dual { gap: var(--space-2); }
 .univariate-compute { gap: 6px; margin-bottom: var(--space-4); }
-.univariate-compute progress { height: 14px; }
+.univariate-compute progress { height: var(--progress-height); }
 .univariate-compute__progress {
   appearance: none;
   overflow: hidden;
@@ -207,7 +211,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 .univariate-compute .status-line { min-height: 16px; margin: 0; }
 .univariate-compute .portfell-button { min-height: 32px; }
 .bivariate-compute { gap: 6px; margin-bottom: var(--space-4); }
-.quote-fetch.bivariate-compute progress { height: 14px; min-height: 14px; }
+.quote-fetch.bivariate-compute progress { height: var(--progress-height); min-height: var(--progress-height); }
 .bivariate-compute .status-line { min-height: 16px; margin: 0; }
 .bivariate-compute .portfell-button { min-height: 32px; }
 .bivariate-statistic { display: grid; grid-template-columns: minmax(260px, .9fr) minmax(420px, 1.6fr); gap: var(--space-6); padding: var(--space-4); border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--canvas); }
@@ -362,12 +366,14 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
   align-items: end;
 }
 .predicate-row label { display: grid; gap: 5px; color: #5f6368; }
-progress { width: 100%; min-height: 14px; }
+progress { width: 100%; height: var(--progress-height); min-height: var(--progress-height); }
 table { width: 100%; border-collapse: collapse; }
 th, td { padding: 10px; border-bottom: 1px solid #e5e8ec; text-align: left; }
 @media (max-width: 900px) {
   .app-header { grid-template-columns: auto 1fr; align-items: center; }
-  .app-header__metadata { grid-column: 1 / -1; grid-row: 2; justify-self: end; width: 100%; max-width: 100%; }
+  .app-header__project { display: grid; grid-column: 1 / -1; grid-row: 2; gap: var(--space-1); color: var(--text-muted); font-weight: 600; min-width: 0; }
+  .app-header__project select { width: 100%; min-width: 0; }
+  .app-header__metadata { grid-column: 1 / -1; grid-row: 3; justify-self: end; width: 100%; max-width: 100%; }
   .project-navigation-toggle { display: grid; order: -1; }
   .metadata-fetch { width: 100%; }
   .process-overview { flex-wrap: wrap; }

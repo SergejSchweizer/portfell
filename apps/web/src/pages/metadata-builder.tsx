@@ -14,7 +14,7 @@ import { useMetadataFetch } from "../shell/metadata-fetch-context";
 export function MetadataBuilderPage() {
   const [metadataRevision, setMetadataRevision] = useState(0);
   const options = useResource(metadataBuilderApi.loadFieldOptions, [metadataRevision]);
-  const { fetchMetadata, fetching, metadataProgress, metadataStatus } = useMetadataFetch();
+  const { fetchMetadata, fetching, canFetchMetadata, metadataProgress, metadataStatus } = useMetadataFetch();
   const [exchange, setExchange] = useState("");
   const [instrumentType, setInstrumentType] = useState("");
   const [country, setCountry] = useState("");
@@ -22,6 +22,7 @@ export function MetadataBuilderPage() {
   const [name, setName] = useState("");
   const [selectionStatus, setSelectionStatus] = useState("Choose at least one Metadata Builder criterion.");
   const [initialFill, setInitialFill] = useState<ApiInitialFill | null>(null);
+  const [creatingProject, setCreatingProject] = useState(false);
 
   useEffect(() => {
     const refresh = () => setMetadataRevision((value) => value + 1);
@@ -35,6 +36,7 @@ export function MetadataBuilderPage() {
     const resetProjectState = () => {
       setSelectionStatus("Choose at least one Metadata Builder criterion.");
       setInitialFill(null);
+      setCreatingProject(false);
     };
 
     const loadProjectCriteria = async (project: ApiProjectSummary | null) => {
@@ -117,6 +119,8 @@ export function MetadataBuilderPage() {
 
   async function createProject(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (creatingProject || initialFillIsActive(initialFill)) return;
+    setCreatingProject(true);
     setSelectionStatus("Building the project selection…");
     try {
       const result = await metadataBuilderApi.createProject({
@@ -133,6 +137,8 @@ export function MetadataBuilderPage() {
       window.dispatchEvent(new Event("portfell:workflow-updated"));
     } catch (error) {
       setSelectionStatus(error instanceof Error ? error.message : "Metadata Builder could not create the project.");
+    } finally {
+      setCreatingProject(false);
     }
   }
 
@@ -157,7 +163,7 @@ export function MetadataBuilderPage() {
           <progress id="metadata-progress" max={100} value={metadataProgress} />
           <output className="status-line" aria-live="polite">{metadataStatus}</output>
           <div className="quote-fetch__action">
-          <Button type="button" variant="primary" disabled={fetching} onClick={() => void fetchMetadata()}>
+          <Button type="button" variant="primary" disabled={fetching || !canFetchMetadata} onClick={() => void fetchMetadata()}>
             {fetching ? "Fetching…" : "Fetch all metadata"}
           </Button>
           </div>
@@ -201,15 +207,18 @@ export function MetadataBuilderPage() {
             <Button
               type="submit"
               variant="primary"
-              disabled={initialFillIsActive(initialFill)}
+              disabled={!options.data.metadata_ready || creatingProject || initialFillIsActive(initialFill)}
+              aria-busy={creatingProject || initialFillIsActive(initialFill)}
               aria-live="polite"
             >
-              {initialFillButtonLabel(initialFill)}
+              {creatingProject ? "Creating project..." : initialFillButtonLabel(initialFill)}
             </Button>
           </div>
         </form>
         <p className="status-line" aria-live="polite">
-          {initialFillStatusMessage(selectionStatus, initialFill)}
+          {options.data.metadata_ready
+            ? initialFillStatusMessage(selectionStatus, initialFill)
+            : "Download metadata successfully before building a project."}
         </p>
       </Panel>
     </section>

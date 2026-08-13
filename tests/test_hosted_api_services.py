@@ -262,8 +262,6 @@ def test_services_fail_closed_without_credentials_or_quote_selection() -> None:
 
     with pytest.raises(HostedApplicationError, match="credential_not_found"):
         credentials.credential_status("user-a")
-    with pytest.raises(HostedApplicationError, match="credential_not_found"):
-        credentials.credential_value("user-a")
     with pytest.raises(HostedApplicationError, match="metadata_selection_required"):
         QuoteRunService(state, runtime).start(
             "user-a", project_id=None, selection_id=None, idempotency_key=None
@@ -283,7 +281,7 @@ def test_credential_commands_can_use_an_injected_vault_without_state_authority()
     status = service.set_credential(user_id, "test-key", idempotency_key=None)
 
     assert status["key_version"] == "test-v1"
-    assert service.credential_value(user_id) == {"provider_key": "test-key"}
+    assert service.credential_status(user_id)["masked_label"] == status["masked_label"]
     with pytest.raises(Exception, match="credential not found"):
         state.credential_vault().status(user_id=user_id)
 
@@ -408,6 +406,7 @@ def test_metadata_builder_project_can_use_an_injected_project_repository() -> No
         )
     )
     user_id = "00000000-0000-5000-8000-000000000001"
+    state.metadata_revisions_by_user[user_id] = "revision-1"
     runtime = LocalHostedRuntime(
         quote_workflow=_empty_workflow,
         metadata_workflow=_empty_workflow,
@@ -462,7 +461,7 @@ def test_metadata_builder_options_count_unique_isins_per_value() -> None:
         cpu_count=lambda: 1,
     )
 
-    assert MetadataProjectService(state, runtime).options()["exchange"] == [
+    assert MetadataProjectService(state, runtime).options("user-a")["exchange"] == [
         {"value": "LSE", "isin_count": 1},
         {"value": "XETRA", "isin_count": 1},
     ]
@@ -494,6 +493,32 @@ def test_project_context_can_use_durable_data_loaded_projection() -> None:
     assert context["projects"][0]["data_loaded"] is True
 
 
+def test_project_context_includes_an_active_project_run() -> None:
+    state = HostedApiState()
+    user_id = "00000000-0000-5000-8000-000000000001"
+    project_id = "00000000-0000-5000-8000-000000000002"
+    projects = InMemoryProjectRepository()
+    projects.create_project(TenantProject(project_id, user_id, "Income"))
+    selections = InMemorySelectionRepository()
+    selections.create(TenantSelection("selection-1", project_id, user_id, "Income", ("IE1",)))
+    service = CredentialProjectService(
+        state,
+        project_repository=projects,
+        selection_repository=selections,
+        project_active_run_reader=lambda reader_user_id, reader_project_id: (
+            {"status": "waiting"}
+            if (reader_user_id, reader_project_id) == (user_id, project_id)
+            else None
+        ),
+    )
+
+    context = service.project_context(user_id)
+
+    assert context["projects"][0]["active_run"] == {
+        "status": "waiting",
+    }
+
+
 def test_metadata_builder_can_use_an_injected_selection_repository() -> None:
     state = HostedApiState(
         all_isins_rows=(
@@ -509,6 +534,7 @@ def test_metadata_builder_can_use_an_injected_selection_repository() -> None:
         )
     )
     user_id = "00000000-0000-5000-8000-000000000001"
+    state.metadata_revisions_by_user[user_id] = "revision-1"
     runtime = LocalHostedRuntime(
         quote_workflow=_empty_workflow,
         metadata_workflow=_empty_workflow,
@@ -599,6 +625,7 @@ def test_metadata_builder_enqueues_the_exact_initial_fill_when_configured() -> N
             },
         )
     )
+    state.metadata_revisions_by_user["00000000-0000-5000-8000-000000000001"] = "revision-1"
     recorder = BootstrapRecorder()
     service = MetadataProjectService(
         state,
@@ -637,6 +664,64 @@ def test_metadata_builder_enqueues_the_exact_initial_fill_when_configured() -> N
         "terminal_code": None,
         "started_at": None,
     }
+
+
+def test_metadata_builder_reuses_an_immutable_selection_after_catalog_changes() -> None:
+    user_id = "00000000-0000-5000-8000-000000000001"
+    state = HostedApiState(
+        all_isins_rows=(
+            {
+                "isin": "IE1",
+                "exchange": "XETRA",
+                "code": "AAA",
+                "name": "Example",
+                "instrument_type": "ETF",
+                "country": "IE",
+                "currency": "EUR",
+            },
+        )
+    )
+    state.metadata_revisions_by_user[user_id] = "revision-1"
+    service = MetadataProjectService(
+        state,
+        LocalHostedRuntime(
+            quote_workflow=_empty_workflow, metadata_workflow=_empty_workflow, cpu_count=lambda: 1
+        ),
+    )
+
+    created = service.create_project_from_criteria(
+        user_id,
+        exchange="XETRA",
+        name="Example",
+        instrument_type="ETF",
+        country="IE",
+        currency="EUR",
+        idempotency_key=None,
+    )
+    state.all_isins_rows = (
+        *state.all_isins_rows,
+        {
+            "isin": "IE2",
+            "exchange": "XETRA",
+            "code": "BBB",
+            "name": "Example",
+            "instrument_type": "ETF",
+            "country": "IE",
+            "currency": "EUR",
+        },
+    )
+
+    repeated = service.create_project_from_criteria(
+        user_id,
+        exchange="XETRA",
+        name="Example",
+        instrument_type="ETF",
+        country="IE",
+        currency="EUR",
+        idempotency_key=None,
+    )
+
+    assert repeated == created
 
 
 def test_quote_run_can_use_injected_project_repository_and_credential_vault() -> None:

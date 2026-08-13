@@ -68,6 +68,7 @@ class CredentialProjectService:
         idempotency_repository: IdempotencyRepository | None = None,
         workflow_reader: Callable[[str, str | None], JsonRow] | None = None,
         project_data_loaded_reader: Callable[[str, str], bool] | None = None,
+        project_active_run_reader: Callable[[str, str], JsonRow | None] | None = None,
     ) -> None:
         self.state = state
         self.runtime = runtime
@@ -82,6 +83,7 @@ class CredentialProjectService:
         self._idempotency = idempotency_repository or LocalIdempotencyRepository(state)
         self._workflow_reader = workflow_reader
         self._project_data_loaded_reader = project_data_loaded_reader
+        self._project_active_run_reader = project_active_run_reader
 
     def workflow(self, user_id: str, project_id: str | None = None) -> JsonRow:
         if project_id is None:
@@ -113,13 +115,6 @@ class CredentialProjectService:
             return credential_status_row(self._credentials.status(user_id=user_id))
         except Exception as error:
             raise HostedApplicationError(404, "credential_not_found") from error
-
-    def credential_value(self, user_id: str) -> JsonRow:
-        try:
-            value = self._credentials.unwrap_for_provider_call(user_id=user_id)
-        except Exception as error:
-            raise HostedApplicationError(404, "credential_not_found") from error
-        return {"provider_key": value}
 
     def set_credential(
         self, user_id: str, provider_key: str, idempotency_key: str | None
@@ -416,5 +411,10 @@ class CredentialProjectService:
                 project_data_loaded(self.state, project.project_id, user_id)
                 if self._project_data_loaded_reader is None
                 else self._project_data_loaded_reader(user_id, project.project_id)
+            ),
+            **(
+                {}
+                if self._project_active_run_reader is None
+                else {"active_run": self._project_active_run_reader(user_id, project.project_id)}
             ),
         }

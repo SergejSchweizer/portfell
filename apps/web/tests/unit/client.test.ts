@@ -2,7 +2,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   ApiError,
   loadEodhdCredentialStatus,
-  loadEodhdCredentialValue,
   loadMetadataFetchRun,
   loadProjectContext,
   loadProjectInitialFill,
@@ -76,11 +75,11 @@ describe("API client", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await Promise.all([
-      loadWorkflow(), loadEodhdCredentialStatus(), loadEodhdCredentialValue(), loadMetadataFetchRun("run/a"), loadProjectContext(), loadProjectMetadataBuilder("project/a"), loadProjectInitialFill("project/a"), selectCurrentProject("project/a"), loadProjectWorkflow("project/a"),
+      loadWorkflow(), loadEodhdCredentialStatus(), loadMetadataFetchRun("run/a"), loadProjectContext(), loadProjectMetadataBuilder("project/a"), loadProjectInitialFill("project/a"), selectCurrentProject("project/a"), loadProjectWorkflow("project/a"),
     ]);
 
     expect(fetchMock.mock.calls.map(([path]) => path)).toEqual([
-      "/api/workflow", "/api/credentials/eodhd", "/api/credentials/eodhd/value", "/api/metadata/fetch-all/run%2Fa", "/api/project-context", "/api/projects/project%2Fa/metadata-builder", "/api/projects/project%2Fa/initial-fill", "/api/project-context/current-project", "/api/projects/project%2Fa/workflow",
+      "/api/workflow", "/api/credentials/eodhd", "/api/metadata/fetch-all/run%2Fa", "/api/project-context", "/api/projects/project%2Fa/metadata-builder", "/api/projects/project%2Fa/initial-fill", "/api/project-context/current-project", "/api/projects/project%2Fa/workflow",
     ]);
   });
 
@@ -94,7 +93,7 @@ describe("API client", () => {
     const multivariateRequest = { project_id: "project/a", bivariate_run_id: "run/a", settings: { target: "monthly-income" } };
 
     await Promise.all([
-      metadataBuilderApi.loadCredentialStatus(), metadataBuilderApi.loadCredentialValue(), metadataBuilderApi.loadFetchRun("run/a"),
+      metadataBuilderApi.loadCredentialStatus(), metadataBuilderApi.loadFetchRun("run/a"),
       metadataBuilderApi.loadProjectCriteria("project/a"), metadataBuilderApi.loadFieldOptions(), metadataBuilderApi.saveCredential("key"),
       metadataBuilderApi.fetchAll(), metadataBuilderApi.createProject(metadataRequest), metadataBuilderApi.loadInitialFill("project/a"),
       univariateStatisticsApi.startRun(univariateRequest), univariateStatisticsApi.loadRun("run/a"), univariateStatisticsApi.loadResults("run/a", 10, 5),

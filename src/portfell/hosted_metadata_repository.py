@@ -7,6 +7,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from typing import Protocol, cast
+from uuid import UUID
 
 from portfell.hosted_catalog import set_authenticated_user_sql
 from portfell.table_io import JsonRow
@@ -47,6 +48,8 @@ class MetadataLifecycleRepository(Protocol):
 
     def set_revision(self, *, user_id: str, revision_id: str) -> None: ...
 
+    def revision(self, *, user_id: str) -> str | None: ...
+
     def idempotent_response(
         self, *, user_id: str, operation: str, key: str, request_hash: str
     ) -> str | None: ...
@@ -71,6 +74,10 @@ class PostgresMetadataLifecycleRepository:
         return run
 
     def status(self, *, user_id: str, run_id: str) -> MetadataRun | None:
+        try:
+            UUID(run_id)
+        except ValueError:
+            return None
         self._bind(user_id)
         row = self._connection.execute(
             "select metadata_run_id::text, user_id::text, status, total, completed, skipped_exchange_count, percent, summary from portfell_app.metadata_runs where metadata_run_id = %s::uuid",
@@ -92,6 +99,18 @@ class PostgresMetadataLifecycleRepository:
             "insert into portfell_app.metadata_revision_pointers (user_id, revision_id) values (%s::uuid, %s) on conflict (user_id) do update set revision_id = excluded.revision_id, updated_at = now()",
             (user_id, revision_id),
         )
+
+    def revision(self, *, user_id: str) -> str | None:
+        self._bind(user_id)
+        row = self._connection.execute(
+            "select revision_id from portfell_app.metadata_revision_pointers where user_id = %s::uuid",
+            (user_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        if len(row) != 1 or not isinstance(row[0], str):
+            raise MetadataRepositoryError("metadata_revision_projection_invalid")
+        return row[0]
 
     def idempotent_response(
         self, *, user_id: str, operation: str, key: str, request_hash: str

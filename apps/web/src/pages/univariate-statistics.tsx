@@ -3,9 +3,11 @@ import { useEffect, useRef, useState } from "react";
 import { loadProjectContext, loadWorkflow } from "../api/client";
 import { univariateStatisticsApi } from "../api/univariate-statistics";
 import { Button } from "../components/button";
+import { nextProgressSnapshot, progressPercent, type ProgressSnapshot } from "../computation-progress";
 import { LoadingState } from "../components/loading-state";
 import { Panel } from "../components/panel";
 import type { ApiDividendFrequency, ApiResearchRun, ApiUnivariateRow, ApiUnivariateSelectionSettings } from "../contracts";
+import { useDebouncedSave } from "../hooks/use-debounced-save";
 import { useResource } from "../hooks/use-resource";
 
 type MetricDefinition = Readonly<{ group: string; metric: string; label: string; description: string; equation: string; notation: string; unit?: string }>;
@@ -13,6 +15,7 @@ type UnivariateStatisticTab = "dividends" | MetricDefinition["metric"];
 type DividendFrequency = ApiDividendFrequency;
 type SelectionRange = Readonly<{ minimum: number; maximum: number }>;
 type UnivariateSelectionSettings = ApiUnivariateSelectionSettings;
+type SelectionSave = Readonly<{ projectId: string; settings: UnivariateSelectionSettings }>;
 
 const dividendFrequencyOptions: readonly Readonly<{ value: DividendFrequency; label: string }>[] = [
   { value: "accumulating", label: "None / unknown" },
@@ -104,16 +107,32 @@ export function UnivariateStatisticsPage() {
   const [portfolioStatisticRanges, setPortfolioStatisticRanges] = useState<Record<string, SelectionRange[]>>({});
   const [activeStatisticTab, setActiveStatisticTab] = useState<UnivariateStatisticTab>("dividends");
   const [message, setMessage] = useState("");
+  const [starting, setStarting] = useState(false);
   const selectionSettingsVersion = useRef(0);
+  const selectionProjectId = useRef<string | null>(null);
+  const selectionSave = useDebouncedSave<SelectionSave>(
+    async ({ projectId, settings }) => {
+      await univariateStatisticsApi.saveSelectionSettings(projectId, settings);
+      setWorkflowRevision((value) => value + 1);
+      window.dispatchEvent(new Event("portfell:workflow-updated"));
+    },
+    (error) => setMessage(error instanceof Error ? error.message : "Could not save the project selection."),
+  );
+  const progressSnapshot = useRef<ProgressSnapshot | null>(null);
   const workflowUnivariateRunId = workflow.status === "ready"
     ? workflow.data.stages.univariate_statistics.univariate_run_id ?? null
     : null;
 
   useEffect(() => {
     const resetProjectState = () => {
+      selectionSettingsVersion.current += 1;
+      selectionProjectId.current = null;
+      selectionSave.cancel();
       setRun(null);
+      progressSnapshot.current = null;
       setUnivariateStartedAt(undefined);
       setResults(null);
+      setStarting(false);
       setMessage("");
       setWorkflowRevision((value) => value + 1);
     };
@@ -133,6 +152,9 @@ export function UnivariateStatisticsPage() {
           loadUnivariateResults(restoredRunId),
         ]);
         if (cancelled) return;
+        progressSnapshot.current = nextProgressSnapshot(
+          progressSnapshot.current, restoredRun.run_id, progressPercent(restoredRun.completed + restoredRun.failed, restoredRun.total),
+        );
         setRun(restoredRun);
         setResults(restoredResults);
         setMessage(`${restoredResults.length.toLocaleString()} listings restored.`);
@@ -155,6 +177,7 @@ export function UnivariateStatisticsPage() {
       try {
         const saved = await univariateStatisticsApi.loadSelectionSettings(projectId);
         if (cancelled || version !== selectionSettingsVersion.current) return;
+        selectionProjectId.current = projectId;
         setPortfolioDividendFrequencies(saved.dividend_frequencies.filter((value) => dividendFrequencyOptions.some((option) => option.value === value)));
         setPortfolioStatisticSelections(saved.statistic_labels);
         setPortfolioStatisticRanges(saved.statistic_ranges);
@@ -178,6 +201,9 @@ export function UnivariateStatisticsPage() {
       try {
         const current = await univariateStatisticsApi.loadRun(activeRunId);
         if (cancelled) return;
+        progressSnapshot.current = nextProgressSnapshot(
+          progressSnapshot.current, current.run_id, progressPercent(current.completed + current.failed, current.total),
+        );
         setRun(current);
         if (current.status === "running") {
           setMessage(`${current.completed.toLocaleString()} of ${current.total.toLocaleString()} listings computed${estimatedRemainingTime(univariateStartedAt, current.completed, current.total)}.`);
@@ -244,24 +270,19 @@ export function UnivariateStatisticsPage() {
   });
   const annualDividendHistogramMaximum = Math.max(...annualDividendHistogram.map(({ count }) => count), 1);
 
-  async function saveProjectSelections(
+  function saveProjectSelections(
     dividendFrequencies: DividendFrequency[],
     statisticLabels: Record<string, string[]>,
     statisticRanges: Record<string, SelectionRange[]>,
   ) {
     selectionSettingsVersion.current += 1;
-    const context = await loadProjectContext();
-    if (!context.current_project_id) return;
-    const saved = await univariateStatisticsApi.saveSelectionSettings(context.current_project_id, {
+    const projectId = selectionProjectId.current;
+    if (!projectId) return;
+    selectionSave.schedule({ projectId, settings: {
       dividend_frequencies: dividendFrequencies,
       statistic_labels: statisticLabels,
       statistic_ranges: statisticRanges,
-    });
-    setPortfolioDividendFrequencies(saved.dividend_frequencies.filter((value) => dividendFrequencyOptions.some((option) => option.value === value)));
-    setPortfolioStatisticSelections(saved.statistic_labels);
-    setPortfolioStatisticRanges(saved.statistic_ranges);
-    setWorkflowRevision((value) => value + 1);
-    window.dispatchEvent(new Event("portfell:workflow-updated"));
+    } });
   }
 
   function saveStatisticSelection(metric: string, values: string[], ranges: SelectionRange[]) {
@@ -269,24 +290,28 @@ export function UnivariateStatisticsPage() {
     const nextRanges = { ...portfolioStatisticRanges, [metric]: ranges };
     setPortfolioStatisticSelections(nextLabels);
     setPortfolioStatisticRanges(nextRanges);
-    void saveProjectSelections(portfolioDividendFrequencies, nextLabels, nextRanges).catch((error) => {
-      setMessage(error instanceof Error ? error.message : "Could not save the project selection.");
-    });
+    saveProjectSelections(portfolioDividendFrequencies, nextLabels, nextRanges);
   }
 
   async function compute() {
-    if (!metadata.metadata_selection_id) return;
+    if (!metadata.metadata_selection_id || starting || run?.status === "running") return;
+    setStarting(true);
     setMessage("Computing univariate statistics…");
     try {
       const nextRun = await univariateStatisticsApi.startRun({
         metadata_selection_id: metadata.metadata_selection_id,
       });
+      progressSnapshot.current = nextProgressSnapshot(
+        progressSnapshot.current, nextRun.run_id, progressPercent(nextRun.completed + nextRun.failed, nextRun.total),
+      );
       setRun(nextRun);
       setUnivariateStartedAt(Date.now() / 1_000);
       setResults(null);
       setMessage(`${nextRun.completed.toLocaleString()} of ${nextRun.total.toLocaleString()} listings computed.`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Univariate computation failed.");
+    } finally {
+      setStarting(false);
     }
   }
 
@@ -300,13 +325,17 @@ export function UnivariateStatisticsPage() {
               id="univariate-progress"
               className="univariate-compute__progress"
               max={progress.max}
-              value={progress.value}
-              aria-valuetext={run === null ? "No univariate computation is active." : `${progress.value.toLocaleString()} of ${progress.max.toLocaleString()} listings processed.`}
+              value={Math.round(progress.max * (run === null ? 0 : nextProgressSnapshot(
+                progressSnapshot.current, run.run_id, progressPercent(progress.value, progress.max),
+              ).percent) / 100)}
+              aria-valuetext={run === null ? "No univariate computation is active." : `${Math.round(progress.max * nextProgressSnapshot(
+                progressSnapshot.current, run.run_id, progressPercent(progress.value, progress.max),
+              ).percent / 100).toLocaleString()} of ${progress.max.toLocaleString()} listings processed.`}
             />
             <p className="status-line" aria-live="polite">{message || "Compute statistics for the downloaded historical data."}</p>
             <div className="quote-fetch__action">
-              <Button type="button" variant="primary" disabled={!metadata.metadata_selection_id || run?.status === "running"} onClick={() => void compute()}>
-                {run?.status === "running" ? "Computing…" : "Compute univariate statistics"}
+              <Button type="button" variant="primary" disabled={!metadata.metadata_selection_id || starting || run?.status === "running"} aria-busy={starting || run?.status === "running"} onClick={() => void compute()}>
+                {starting ? "Starting computation…" : run?.status === "running" ? "Computing…" : "Compute univariate statistics"}
               </Button>
             </div>
           </div>
@@ -335,9 +364,7 @@ export function UnivariateStatisticsPage() {
                 <select multiple size={4} value={portfolioDividendFrequencies} onChange={(event) => {
                   const values = Array.from(event.currentTarget.selectedOptions, (option) => option.value as DividendFrequency);
                   setPortfolioDividendFrequencies(values);
-                  void saveProjectSelections(values, portfolioStatisticSelections, portfolioStatisticRanges).catch((error) => {
-                    setMessage(error instanceof Error ? error.message : "Could not save the project selection.");
-                  });
+                  saveProjectSelections(values, portfolioStatisticSelections, portfolioStatisticRanges);
                 }}>
                   {dividendFrequencyOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                 </select>

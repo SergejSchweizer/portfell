@@ -59,7 +59,7 @@ Historical migrations remain immutable so existing migration checksums stay vali
 
 ## Operations Boundary
 
-The operations credential is mounted only into `project-bootstrap-worker` and the one-shot `shared-market-refresh` operations service. Both are on the internal Compose network and publish atomically to the shared store. API and Web containers never receive the operations token.
+The operations credential is mounted only into `project-bootstrap-worker`, which handles initial fills, metadata refreshes, and scheduled shared-market refreshes. API and Web containers never receive the operations token.
 
 ## Historical Hosted PR Evidence
 

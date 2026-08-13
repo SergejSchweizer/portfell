@@ -4,14 +4,31 @@ import { useResource } from "../../src/hooks/use-resource";
 
 describe("useResource", () => {
   it("moves from loading to ready and reloads when dependencies change", async () => {
-    const load = vi.fn().mockResolvedValueOnce("first").mockResolvedValueOnce("second");
+    let resolveSecond!: (value: string) => void;
+    const second = new Promise<string>((resolve) => { resolveSecond = resolve; });
+    const load = vi.fn().mockResolvedValueOnce("first").mockReturnValueOnce(second);
     const { result, rerender } = renderHook(({ revision }) => useResource(load, [revision]), { initialProps: { revision: 1 } });
 
     expect(result.current.status).toBe("loading");
     await waitFor(() => expect(result.current).toEqual({ status: "ready", data: "first" }));
     rerender({ revision: 2 });
+    await waitFor(() => expect(result.current).toEqual({ status: "ready", data: "first", refreshing: true }));
+    resolveSecond("second");
     await waitFor(() => expect(result.current).toEqual({ status: "ready", data: "second" }));
     expect(load).toHaveBeenCalledTimes(2);
+  });
+
+  it("retains rendered data when a background refresh fails", async () => {
+    const load = vi.fn().mockResolvedValueOnce("current").mockRejectedValueOnce(new Error("refresh_failed"));
+    const { result, rerender } = renderHook(({ revision }) => useResource(load, [revision]), { initialProps: { revision: 1 } });
+
+    await waitFor(() => expect(result.current).toEqual({ status: "ready", data: "current" }));
+    rerender({ revision: 2 });
+    await waitFor(() => expect(result.current).toEqual({
+      status: "ready",
+      data: "current",
+      refreshError: new Error("refresh_failed"),
+    }));
   });
 
   it("normalizes rejected values, retains Error instances, and ignores cancelled loads", async () => {

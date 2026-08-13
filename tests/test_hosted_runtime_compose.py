@@ -27,9 +27,9 @@ def _production_compose_source() -> str:
 def test_production_override_uses_one_explicit_ugreen_nas_data_root() -> None:
     source = _production_compose_source()
 
-    assert source.count("${PORTFELL_DATA_ROOT:?set an absolute production Portfell data root}") == 4
+    assert source.count("${PORTFELL_DATA_ROOT:?set an absolute production Portfell data root}") == 3
     assert "}/postgres:/var/lib/postgresql/data" in source
-    assert source.count("}/lake:/srv/portfell/shared-data") == 3
+    assert source.count("}/lake:/srv/portfell/shared-data") == 2
     assert "portfell-postgres-data:" not in source
     assert "portfell-shared-data:" not in source
     assert "volumes: !reset {}" in source
@@ -40,7 +40,6 @@ def test_compose_defines_persistent_internal_postgres_and_shared_data() -> None:
     services = cast(ComposeMapping, compose["services"])
     volumes = cast(ComposeMapping, compose["volumes"])
     postgres = cast(ComposeMapping, services["postgres"])
-    migrate = cast(ComposeMapping, services["catalog-migrate"])
     api = cast(ComposeMapping, services["api"])
 
     assert "portfell-postgres-data" in volumes
@@ -50,9 +49,7 @@ def test_compose_defines_persistent_internal_postgres_and_shared_data() -> None:
     assert "ports" not in postgres
     assert "5432" in postgres["expose"]
     assert "portfell-postgres-data:/var/lib/postgresql/data" in postgres["volumes"]
-    assert migrate["command"] == ["python", "-m", "portfell.hosted_catalog_migration"]
-    assert migrate["secrets"] == ["postgres_password"]
-    assert migrate["networks"] == ["portfell-internal"]
+    assert set(services) == {"api", "postgres", "project-bootstrap-worker", "web"}
     assert "portfell-shared-data:/srv/portfell/shared-data" in api["volumes"]
     assert api["container_name"] == "portfell-api"
     assert "./lake:/srv/portfell/lake" not in api["volumes"]
@@ -86,32 +83,30 @@ def test_web_has_no_shared_data_mount_or_authentication_secret() -> None:
     assert "PORTFELL_API_BASE_URL" in web["environment"]
 
 
-def test_operations_refresh_is_profiled_and_has_only_the_required_secret_mount() -> None:
-    refresh = cast(
-        ComposeMapping, cast(ComposeMapping, _compose()["services"])["shared-market-refresh"]
-    )
-    assert refresh["profiles"] == ["operations"]
-    assert refresh["command"] == ["python", "-m", "portfell.shared_market_refresh"]
-    assert refresh["volumes"] == ["portfell-shared-data:/srv/portfell/shared-data"]
-    assert refresh["secrets"] == ["eodhd_kek", "operations_eodhd_token", "postgres_password"]
-    assert (
-        refresh["environment"]["PORTFELL_DATABASE_URL"]
-        == "postgresql://portfell_app@postgres:5432/portfell"
-    )
-    assert "ports" not in refresh
-
-
 def test_project_initial_fill_worker_is_internal_and_operations_credential_only() -> None:
     worker = cast(
         ComposeMapping, cast(ComposeMapping, _compose()["services"])["project-bootstrap-worker"]
     )
     assert worker["container_name"] == "portfell-worker"
-    assert worker["command"] == ["python", "-m", "portfell.hosted_project_bootstrap_worker"]
+    assert worker["command"] == [
+        "sh",
+        "-c",
+        "python -m portfell.hosted_catalog_migration && "
+        "touch /tmp/catalog-migrated && "
+        "exec python -m portfell.hosted_project_bootstrap_worker",
+    ]
+    assert worker["healthcheck"]["test"] == ["CMD-SHELL", "test -f /tmp/catalog-migrated"]
     assert worker["secrets"] == ["operations_eodhd_token", "postgres_password"]
     assert worker["volumes"] == ["portfell-shared-data:/srv/portfell/shared-data"]
     assert worker["networks"] == ["portfell-internal", "portfell-public"]
     assert worker["group_add"] == ["${PORTFELL_SECRET_GROUP_ID:-100}"]
     assert "ports" not in worker
+
+
+def test_compose_uses_one_combined_project_worker() -> None:
+    services = cast(ComposeMapping, _compose()["services"])
+
+    assert "metadata-refresh-worker" not in services
 
 
 def test_web_compose_develop_watch_rebuilds_local_ui_changes() -> None:
@@ -163,9 +158,8 @@ def test_compose_uses_health_checks_startup_order_and_hardening() -> None:
     api_depends = cast(ComposeMapping, cast(ComposeMapping, services["api"])["depends_on"])
     web_depends = cast(ComposeMapping, cast(ComposeMapping, services["web"])["depends_on"])
     assert cast(ComposeMapping, api_depends["postgres"])["condition"] == "service_healthy"
-    assert cast(ComposeMapping, api_depends["catalog-migrate"])["condition"] == (
-        "service_completed_successfully"
-    )
+    worker_dependency = cast(ComposeMapping, api_depends["project-bootstrap-worker"])
+    assert worker_dependency["condition"] == "service_healthy"
     assert cast(ComposeMapping, web_depends["api"])["condition"] == "service_healthy"
 
 

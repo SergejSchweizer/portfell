@@ -61,4 +61,10 @@ export const multivariateStatisticsApi = {
   loadIncomeEvidence: (runId: string): Promise<ApiMultivariateIncomeEvidenceList> => (
     requestJson<ApiMultivariateIncomeEvidenceList>(`/api/multivariate-statistics/runs/${encodeURIComponent(runId)}/income-evidence`)
   ),
+  saveSelectedCandidates: (runId: string, selectedCandidateIds: readonly string[]): Promise<ApiMultivariateRun> => (
+    requestJson<ApiMultivariateRun>(`/api/multivariate-statistics/runs/${encodeURIComponent(runId)}/settings`, {
+      method: "PATCH",
+      body: JSON.stringify({ selected_candidate_ids: selectedCandidateIds }),
+    })
+  ),
 };

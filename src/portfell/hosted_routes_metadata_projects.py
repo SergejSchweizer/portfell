@@ -106,8 +106,7 @@ def metadata_project_router(
 
     @router.get("/metadata-builder/options")
     def metadata_builder_options(user: ApiUser = Depends(current_user)) -> JsonRow:
-        _ = user
-        return call(metadata.options)
+        return call(metadata.options, user.user_id)
 
     @router.post("/metadata/fetch-all")
     def fetch_all_metadata(

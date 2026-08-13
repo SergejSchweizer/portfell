@@ -2,7 +2,6 @@
 
 import {
   loadEodhdCredentialStatus,
-  loadEodhdCredentialValue,
   loadMetadataFetchRun,
   loadProjectInitialFill,
   loadProjectMetadataBuilder,
@@ -11,7 +10,6 @@ import {
 } from "./client";
 import type {
   ApiCredentialStatus,
-  ApiCredentialValue,
   ApiFieldOptions,
   ApiInitialFill,
   ApiMetadataFetch,
@@ -29,7 +27,6 @@ export type MetadataBuilderCriteriaRequest = Readonly<{
 
 export const metadataBuilderApi = {
   loadCredentialStatus: (): Promise<ApiCredentialStatus> => loadEodhdCredentialStatus(),
-  loadCredentialValue: (): Promise<ApiCredentialValue> => loadEodhdCredentialValue(),
   loadFetchRun: (runId: string): Promise<ApiMetadataFetch> => loadMetadataFetchRun(runId),
   loadProjectCriteria: (projectId: string): Promise<ApiProjectMetadataBuilder> => (
     loadProjectMetadataBuilder(projectId)

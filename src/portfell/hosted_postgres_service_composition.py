@@ -53,6 +53,28 @@ def build_postgres_services(
         fill = bootstrap.status(user_id=user_id, project_id=project_id)
         return fill is not None and fill.status == "ready"
 
+    def project_active_run(user_id: str, project_id: str) -> dict[str, object] | None:
+        fill = bootstrap.status(user_id=user_id, project_id=project_id)
+        if fill is not None and fill.status in {"planning", "running"}:
+            return {"status": "waiting" if fill.status == "planning" else "running"}
+        if fill is None or fill.status != "ready":
+            return None
+        selection = repositories.selections.for_project(project_id=project_id, user_id=user_id)
+        if selection is None:
+            return None
+        research = research_repository.workflow_state(
+            user_id=user_id,
+            project_id=project_id,
+            metadata_selection_id=selection.selection_id,
+        )
+        if research.multivariate_status == "running":
+            return {"status": "running"}
+        if research.bivariate_status == "running":
+            return {"status": "running"}
+        if research.univariate_status == "running":
+            return {"status": "running"}
+        return None
+
     def quote_rows(run_id: str) -> tuple[dict[str, object], ...]:
         row = request_scope.execute(
             "select response_manifest from portfell_app.download_runs "
@@ -106,6 +128,7 @@ def build_postgres_services(
         repositories.idempotency,
         workflow_reader,
         project_data_loaded,
+        project_active_run,
     )
     metadata = MetadataProjectService(
         state,

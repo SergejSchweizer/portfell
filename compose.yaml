@@ -37,70 +37,11 @@ services:
           cpus: "2.0"
           memory: 1G
 
-  catalog-migrate:
-    build:
-      context: .
-      dockerfile: apps/api/Dockerfile
-    develop:
-      watch:
-        - action: rebuild
-          path: ./apps/api/Dockerfile
-        - action: rebuild
-          path: ./src
-        - action: rebuild
-          path: ./pyproject.toml
-        - action: rebuild
-          path: ./README.md
-        - action: rebuild
-          path: ./compose.yaml
-        - action: rebuild
-          path: ./.dockerignore
-    restart: "no"
-    command: ["python", "-m", "portfell.hosted_catalog_migration"]
-    environment:
-      PORTFELL_DATABASE_URL: postgresql://portfell_app@postgres:5432/portfell
-      PORTFELL_DATABASE_PASSWORD_FILE: /run/secrets/postgres_password
-    secrets:
-      - postgres_password
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - portfell-internal
-    group_add:
-      - "${PORTFELL_SECRET_GROUP_ID:-100}"
-    read_only: true
-    tmpfs:
-      - /tmp
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-    deploy:
-      resources:
-        limits:
-          cpus: "1.0"
-          memory: 256M
-
   api:
     container_name: portfell-api
     build:
       context: .
       dockerfile: apps/api/Dockerfile
-    develop:
-      watch:
-        - action: rebuild
-          path: ./apps/api/Dockerfile
-        - action: rebuild
-          path: ./src
-        - action: rebuild
-          path: ./pyproject.toml
-        - action: rebuild
-          path: ./README.md
-        - action: rebuild
-          path: ./compose.yaml
-        - action: rebuild
-          path: ./.dockerignore
     restart: unless-stopped
     environment:
       PORTFELL_ENV: development
@@ -117,8 +58,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      catalog-migrate:
-        condition: service_completed_successfully
+      project-bootstrap-worker:
+        condition: service_healthy
     ports:
       - "0.0.0.0:${PORTFELL_API_PORT:-8000}:8000"
     healthcheck:
@@ -193,22 +134,13 @@ services:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
-    develop:
-      watch:
-        - action: rebuild
-          path: ./apps/api/Dockerfile
-        - action: rebuild
-          path: ./src
-        - action: rebuild
-          path: ./pyproject.toml
-        - action: rebuild
-          path: ./README.md
-        - action: rebuild
-          path: ./compose.yaml
-        - action: rebuild
-          path: ./.dockerignore
     restart: unless-stopped
-    command: ["python", "-m", "portfell.hosted_project_bootstrap_worker"]
+    command:
+      - sh
+      - -c
+      - >-
+        python -m portfell.hosted_catalog_migration && touch /tmp/catalog-migrated
+        && exec python -m portfell.hosted_project_bootstrap_worker
     environment:
       PORTFELL_SHARED_DATA_ROOT: /srv/portfell/shared-data
       PORTFELL_DATABASE_URL: postgresql://portfell_app@postgres:5432/portfell
@@ -222,8 +154,12 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      catalog-migrate:
-        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /tmp/catalog-migrated"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+      start_period: 10s
     networks:
       - portfell-internal
       - portfell-public
@@ -241,35 +177,6 @@ services:
         limits:
           cpus: "6.0"
           memory: 1G
-
-  shared-market-refresh:
-    build:
-      context: .
-      dockerfile: apps/api/Dockerfile
-    profiles: ["operations"]
-    restart: "no"
-    command: ["python", "-m", "portfell.shared_market_refresh"]
-    environment:
-      PORTFELL_SHARED_DATA_ROOT: /srv/portfell/shared-data
-      PORTFELL_DATABASE_URL: postgresql://portfell_app@postgres:5432/portfell
-      PORTFELL_DATABASE_PASSWORD_FILE: /run/secrets/postgres_password
-      PORTFELL_EODHD_KEK_FILE: /run/secrets/eodhd_kek
-      PORTFELL_OPERATIONS_EODHD_TOKEN_FILE: /run/secrets/operations_eodhd_token
-    secrets:
-      - eodhd_kek
-      - operations_eodhd_token
-      - postgres_password
-    volumes:
-      - portfell-shared-data:/srv/portfell/shared-data
-    networks:
-      - portfell-internal
-    read_only: true
-    tmpfs:
-      - /tmp
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
 
 networks:
   portfell-internal:

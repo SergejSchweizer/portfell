@@ -34,10 +34,12 @@ services:
     secrets:
       - postgres_password
     depends_on:
-      catalog-migrate:
-        condition: service_completed_successfully
+      project-bootstrap-worker:
+        condition: service_healthy
     networks:
       - portfell-internal
+    group_add:
+      - "${PORTFELL_SECRET_GROUP_ID:-100}"
 
   api:
     container_name: portfell-e2e-api
@@ -49,8 +51,8 @@ services:
     environment:
       EODHD_BASE_URL: http://eodhd-stub:8080/api
     depends_on:
-      catalog-migrate:
-        condition: service_completed_successfully
+      project-bootstrap-worker:
+        condition: service_healthy
       seed-user:
         condition: service_completed_successfully
       eodhd-stub:
@@ -80,10 +82,6 @@ services:
       EODHD_BASE_URL: http://eodhd-stub:8080/api
       PORTFELL_WORKER_POLL_SECONDS: "0.1"
     depends_on:
-      catalog-migrate:
-        condition: service_completed_successfully
-      seed-user:
-        condition: service_completed_successfully
       eodhd-stub:
         condition: service_started
     volumes:

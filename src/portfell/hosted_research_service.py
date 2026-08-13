@@ -133,6 +133,11 @@ class ResearchService:
     def multivariate_artifacts(self, user_id: str, run_id: str) -> JsonRow:
         return self._multivariate.artifacts(user_id, run_id)
 
+    def update_multivariate_settings(
+        self, user_id: str, run_id: str, selected_candidate_ids: tuple[str, ...]
+    ) -> JsonRow:
+        return self._multivariate.update_settings(user_id, run_id, selected_candidate_ids)
+
     def create_analysis(
         self,
         user_id: str,

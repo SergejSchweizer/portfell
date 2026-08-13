@@ -33,6 +33,7 @@ This file is the workflow reference for coding agents and maintainers. It should
 - PR approval, required checks, auto-merge, shard layout, coverage threshold, and squash-subject validation are documented in [GATES.md](GATES.md).
 - PR titles must follow `type(optional-scope): subject` because the title becomes the squash-merge commit subject.
 - When a dataframe library is needed and there is a choice, use `polars` rather than `pandas`.
+- Runtime Compose topology is limited to `web`, `api`, `project-bootstrap-worker`, and `postgres`. New application or operations work must execute in one of those containers; do not add services or one-off `docker compose run` containers. Test-only Compose fixtures may add isolated dependencies.
 
 ## Generated Risk Context
 
