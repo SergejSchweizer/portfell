@@ -65,7 +65,7 @@ function performancePoints(values: ApiMultivariatePerformance["instrument_series
 
 function PerformanceChart({ performance, alignedPeriod }: Readonly<{ performance: ApiMultivariatePerformance; alignedPeriod?: Readonly<{ date_start: string; date_end: string }> }>) {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
-  const [hiddenSeriesIds, setHiddenSeriesIds] = useState<ReadonlySet<string>>(new Set());
+  const [hiddenPortfolioIds, setHiddenPortfolioIds] = useState<ReadonlySet<string>>(new Set());
   const instruments = performance.instrument_series.map((item, index) => ({
     id: `instrument:${item.isin}:${item.exchange}:${item.code}`,
     item,
@@ -80,8 +80,8 @@ function PerformanceChart({ performance, alignedPeriod }: Readonly<{ performance
   }));
   const allValues = [...instruments, ...portfolios].flatMap(({ item }) => item.values);
   if (allValues.length === 0) return <p role="status">Performance data is unavailable for this run.</p>;
-  const visibleInstruments = instruments.filter(({ id }) => !hiddenSeriesIds.has(id));
-  const visiblePortfolios = portfolios.filter(({ id }) => !hiddenSeriesIds.has(id));
+  const visibleInstruments = instruments;
+  const visiblePortfolios = portfolios.filter(({ id }) => !hiddenPortfolioIds.has(id));
   const values = [...visibleInstruments, ...visiblePortfolios].flatMap(({ item }) => item.values);
   const hasVisibleSeries = values.length > 0;
   const minimum = Math.min(0, ...values.map((item) => item.return));
@@ -109,8 +109,8 @@ function PerformanceChart({ performance, alignedPeriod }: Readonly<{ performance
       return value ? [{ label: portfolioMethod(item.method), value: value.return, className: `performance-chart__tooltip-portfolio performance-chart__tooltip-portfolio--${index % 5}` }] : [];
     });
 
-  function toggleSeries(id: string) {
-    setHiddenSeriesIds((current) => {
+  function togglePortfolio(id: string) {
+    setHiddenPortfolioIds((current) => {
       const next = new Set(current);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -126,7 +126,7 @@ function PerformanceChart({ performance, alignedPeriod }: Readonly<{ performance
 
   return <>
     <p className="performance-chart__legend">Relative cumulative monthly returns for every input instrument and feasible portfolio method.</p>
-    <fieldset className="performance-chart__controls"><legend>Visible performance series</legend><ul className="performance-chart__series" aria-label="Performance series">{instruments.map(({ id, item, index, label }) => <li key={id}><label><input type="checkbox" checked={!hiddenSeriesIds.has(id)} onChange={() => toggleSeries(id)} /><span className={`performance-chart__swatch performance-chart__instrument performance-chart__instrument--${index % 5}`} />{label}</label></li>)}{portfolios.map(({ id, index, label }) => <li key={id}><label><input type="checkbox" checked={!hiddenSeriesIds.has(id)} onChange={() => toggleSeries(id)} /><span className={`performance-chart__swatch performance-chart__portfolio performance-chart__portfolio--${index % 5}`} />{label}</label></li>)}</ul></fieldset>
+    <fieldset className="performance-chart__controls"><legend>Visible portfolio series</legend><ul className="performance-chart__series" aria-label="Portfolio series">{portfolios.map(({ id, index, label }) => <li key={id}><label><input type="checkbox" checked={!hiddenPortfolioIds.has(id)} onChange={() => togglePortfolio(id)} /><span className={`performance-chart__swatch performance-chart__portfolio performance-chart__portfolio--${index % 5}`} />{label}</label></li>)}</ul></fieldset>
     {hasVisibleSeries ? <div className="performance-chart" role="group" aria-label="Relative cumulative monthly return comparison for visible instruments and feasible portfolios. Hover or use arrow keys to inspect a month." tabIndex={0} onMouseLeave={() => setHoveredIndex(null)} onMouseMove={(event) => inspectAt(event.clientX, event.currentTarget.getBoundingClientRect())} onKeyDown={(event) => {
       if (timeline.length === 0) return;
       if (event.key === "Home") setHoveredIndex(0);
@@ -150,7 +150,7 @@ function PerformanceChart({ performance, alignedPeriod }: Readonly<{ performance
 }
 
 function PortfolioOverviewMetrics({ candidates }: Readonly<{ candidates: ApiMultivariateCandidates["items"] }>) {
-  return <table className="portfolio-overview-metrics"><caption>Portfolio overview metrics</caption><thead><tr><th>Portfolio</th><th>Status</th><th>Volatility</th><th>VaR</th><th>CVaR</th><th>Total return</th><th>Maximum drawdown</th><th>Average monthly relative gain</th><th>Average annual relative gain</th><th>Maximum weight</th><th>Effective holdings</th><th>Diversification ratio</th></tr></thead><tbody>{candidates.map((candidate) => <tr key={candidate.candidate_id}><th>{portfolioMethod(candidate.method)}</th><td>{candidate.status}</td><td>{percent(candidate.volatility)}</td><td>{percent(candidate.var)}</td><td>{percent(candidate.cvar)}</td><td>{percent(candidate.total_return)}</td><td>{percent(candidate.max_drawdown)}</td><td>{percent(candidate.average_monthly_return)}</td><td>{percent(candidate.average_annual_return)}</td><td>{percent(candidate.maximum_weight)}</td><td>{number(candidate.effective_holding_count)}</td><td>{number(candidate.diversification_ratio)}</td></tr>)}</tbody></table>;
+  return <table className="portfolio-overview-metrics"><caption>Portfolio overview metrics</caption><thead><tr><th>Portfolio</th><th>Status</th><th>Volatility</th><th>VaR</th><th>CVaR</th><th>Total return</th><th>MD</th><th>Monthly Return</th><th>Annual Return</th><th>Maximum weight</th><th>Holdings</th><th>Deversifikaton</th></tr></thead><tbody>{candidates.map((candidate) => <tr key={candidate.candidate_id}><th>{portfolioMethod(candidate.method)}</th><td>{candidate.status}</td><td>{percent(candidate.volatility)}</td><td>{percent(candidate.var)}</td><td>{percent(candidate.cvar)}</td><td>{percent(candidate.total_return)}</td><td>{percent(candidate.max_drawdown)}</td><td>{percent(candidate.average_monthly_return)}</td><td>{percent(candidate.average_annual_return)}</td><td>{percent(candidate.maximum_weight)}</td><td>{number(candidate.effective_holding_count)}</td><td>{number(candidate.diversification_ratio)}</td></tr>)}</tbody></table>;
 }
 
 export function MultivariateStatisticsPage() {

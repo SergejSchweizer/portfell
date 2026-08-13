@@ -41,10 +41,10 @@ or calculates financial values in the browser.
   y-axis title, calendar-time labels, and renders all instruments in
   light gray and every feasible portfolio as a solid method-specific color. Explicit input
   availability reasons remain visible when supplied by the server.
-- Every Overview-chart series has a native checkbox that is enabled by default. Users may show or
-  hide any combination of instrument and portfolio series; the plot and inspection tooltip include
-  only enabled series. Hiding every series leaves the controls available and shows an empty-state
-  prompt rather than calculating replacement values in the browser.
+- The Overview chart keeps all input-instrument reference lines visible in light gray. Every
+  portfolio series has an enabled-by-default native checkbox; users may show or hide any combination
+  of portfolios. The plot scale and inspection tooltip include only enabled portfolios alongside the
+  fixed instrument references.
 - Candidate cards compare every evaluated portfolio variant's VaR/CVaR, maximum weight,
   Herfindahl concentration, effective holdings, diversification, total return, average compounded
   calendar-month and calendar-year returns, drawdown, and gross historical income. Risk
@@ -55,11 +55,15 @@ or calculates financial values in the browser.
   mean historical compounded calendar-month total return under the same long-only minimum and
   maximum weights as every other candidate. It is descriptive historical evidence, not a forecast
   or recommendation.
+- Minimum Variance uses the server solver's complete default convergence budget. It remains an
+  explicitly unavailable candidate only when that full solve cannot converge or its inputs are
+  infeasible.
 - Average monthly and annual returns are arithmetic means of each candidate's compounded
   calendar-month and calendar-year total returns over the aligned historical period. They are
   descriptive historical metrics, not annualized forecasts.
-- The Overview portfolio-metrics table lists every portfolio's persisted risk, return, drawdown,
-  concentration, diversification, average monthly relative gain, and average annual relative gain.
+- The Overview portfolio-metrics table lists every portfolio's persisted risk and return metrics.
+  Its compact headers include `MD`, `Monthly Return`, `Annual Return`, `Holdings`, and
+  `Deversifikaton`.
 - Hovering the Overview chart, or using its arrow keys after focus, opens an inspection tooltip for
   the nearest month with relative cumulative returns for every visible portfolio method. Tooltip
   values use the same method-specific colors as the chart.

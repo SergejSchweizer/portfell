@@ -280,3 +280,35 @@ def test_candidate_solver_failures_and_unknown_method_are_explicit(
         _weights("minimum_cvar", _keys(), covariance, _returns(), policy)
     with pytest.raises(ValueError, match="unsupported_candidate_method"):
         _weights("unsupported", _keys(), covariance, _returns(), policy)
+
+
+def test_minimum_variance_uses_the_solver_default_convergence_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import portfell.multivariate_candidates as candidates_module
+
+    keys = tuple(key.as_tuple() for key in _keys())
+    covariance = {
+        (left, right): 0.01 if left == right else 0.001 for left in keys for right in keys
+    }
+    received_kwargs: dict[str, object] = {}
+    outcome = SimpleNamespace(converged=True, weights=(0.2,) * len(keys))
+
+    def solver(*args: object, **kwargs: object) -> Any:
+        del args
+        received_kwargs.update(kwargs)
+        return outcome
+
+    monkeypatch.setattr(candidates_module, "solve_minimum_variance", solver)
+
+    assert (
+        _weights(
+            "minimum_variance",
+            _keys(),
+            covariance,
+            _returns(),
+            MonthlyDistributionEtfPortfolioPolicy(),
+        )
+        == outcome.weights
+    )
+    assert "max_iterations" not in received_kwargs
