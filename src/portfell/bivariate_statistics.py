@@ -7,6 +7,7 @@ from concurrent.futures import ProcessPoolExecutor
 from math import exp, sqrt
 from typing import Any
 
+from portfell.contract_versioning import stable_contract_id
 from portfell.gold_pair_stats import (
     DEFAULT_BUCKET_COUNT,
     DEFAULT_MAX_PAIR_COUNT,
@@ -27,7 +28,7 @@ from portfell.run_state import build_job_manifest, write_job_manifest
 from portfell.schemas import validate_rows
 from portfell.table_io import JsonRow, read_rows, write_rows
 
-BIVARIATE_STATISTICS_VERSION = "v9"
+BIVARIATE_STATISTICS_VERSION = "v10"
 
 
 def build_bivariate_statistics(
@@ -235,6 +236,7 @@ def _cache_row_matches(cached: JsonRow, pair: PairObservation, version: str, buc
         and str(cached.get("date_start")) == date_start
         and str(cached.get("date_end")) == date_end
         and int(cached.get("n_observations", -1)) == len(pair.dates)
+        and str(cached.get("pair_input_id")) == _pair_input_id(pair)
     )
 
 
@@ -247,6 +249,7 @@ def _build_bivariate_pair_statistics(pair: PairObservation) -> JsonRow:
     )
     return {
         "pair_key": _pair_key(pair.left, pair.right),
+        "pair_input_id": _pair_input_id(pair),
         "left_listing_key": _listing_key(pair.left),
         "right_listing_key": _listing_key(pair.right),
         "left_id": pair.left_id,
@@ -546,6 +549,17 @@ def _listing_key(listing: tuple[str, str, str]) -> str:
 
 def _pair_key(left: tuple[str, str, str], right: tuple[str, str, str]) -> str:
     return f"{_listing_key(left)}___{_listing_key(right)}"
+
+
+def _pair_input_id(pair: PairObservation) -> str:
+    return stable_contract_id(
+        "bivariate_pair_input",
+        {
+            "left": pair.left,
+            "right": pair.right,
+            "observations": list(zip(pair.dates, pair.left_values, pair.right_values, strict=True)),
+        },
+    )
 
 
 def _ratio(numerator: float, denominator: float) -> float:
