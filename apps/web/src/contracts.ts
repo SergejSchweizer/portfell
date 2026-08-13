@@ -148,7 +148,7 @@ export type ApiMultivariateRun = Readonly<{
   total_units: number;
   elapsed_seconds: number;
   estimated_remaining_seconds: number | null;
-  settings: Readonly<{ selected_candidate_ids?: readonly string[] }>;
+  settings: Readonly<Record<string, unknown>>;
   warnings: readonly string[];
   failure_reason: string | null;
 }>;

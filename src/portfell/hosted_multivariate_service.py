@@ -197,24 +197,6 @@ class MultivariateResearchService(MultivariateRunViews):
             self._persistence.persist()
         return run
 
-    def update_settings(
-        self, user_id: str, run_id: str, selected_candidate_ids: tuple[str, ...]
-    ) -> JsonRow:
-        run = self._require_run(user_id, run_id)
-        known_ids = {str(candidate.get("candidate_id")) for candidate in run.candidates}
-        if (
-            len(set(selected_candidate_ids)) != len(selected_candidate_ids)
-            or not set(selected_candidate_ids) <= known_ids
-        ):
-            raise HostedApplicationError(422, "invalid_candidate_selection")
-        updated = replace(
-            run,
-            settings={**run.settings, "selected_candidate_ids": list(selected_candidate_ids)},
-        )
-        self._runs.save(updated)
-        self._persistence.persist()
-        return multivariate_run_row(updated)
-
     def _selection_for_bivariate(self, user_id: str, run_id: str) -> UnivariateSelection:
         bivariate = self._research.bivariate_run(run_id, user_id)
         matches = [

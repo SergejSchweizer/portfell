@@ -41,9 +41,10 @@ or calculates financial values in the browser.
   candidate count, dominant-component share, and explicit input availability reasons. Risk Structure
   includes effective rank, component thresholds, strongest driver, redundancy evidence, eigenvalue,
   condition-number, and PSD diagnostics.
-- Candidate cards compare VaR/CVaR, maximum weight, Herfindahl concentration, effective
-  holdings, diversification, total return, average compounded calendar-month and calendar-year
-  returns, drawdown, and gross historical income. Income Evidence
+- Candidate cards compare every evaluated portfolio variant's VaR/CVaR, maximum weight,
+  Herfindahl concentration, effective holdings, diversification, total return, average compounded
+  calendar-month and calendar-year returns, drawdown, and gross historical income. Risk
+  Contributions shows every evaluated variant's capital weights and risk contributions. Income Evidence
   includes observed coverage, trend, cuts, total return, and quoted market-price capital change
   as the NAV proxy.
 - Portfolio Candidates includes `highest_monthly_return`, a server-owned portfolio that maximizes
@@ -102,19 +103,17 @@ workflow navigation at every viewport width.
 
 The page uses the typed Multivariate API facade. It does not inspect local
 storage, render credentials or filesystem paths, infer authorization, or
-calculate financial values in React. Candidate checkboxes are presentation
-choices only: the selection is validated against persisted candidate ids and
-saved immediately with the project; it is never a recommendation, approval,
-or trade instruction.
+calculate financial values in React. Every persisted candidate is presented and
+evaluated; the browser does not select, approve, or issue trade instructions for
+portfolio variants.
 
 ## Tests
 
 Route and workflow-state tests prove that it remains locked until Bivariate
 Statistics is complete. The desktop two-project workflow test verifies that the
 compute action polls from `resolve_inputs` to persisted results. API-contract tests cover the bounded artifact,
-component, risk-contribution, income-evidence, validation, and candidate
-selection routes. Docker builds run TypeScript checking and the production web
-build after UI changes.
+component, risk-contribution, income-evidence, and validation routes. Docker
+builds run TypeScript checking and the production web build after UI changes.
 
 ## Out of scope
 
