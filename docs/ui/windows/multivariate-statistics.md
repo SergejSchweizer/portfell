@@ -58,8 +58,9 @@ or calculates financial values in the browser.
 - Average monthly and annual returns are arithmetic means of each candidate's compounded
   calendar-month and calendar-year total returns over the aligned historical period. They are
   descriptive historical metrics, not annualized forecasts.
-- The Overview portfolio-metrics table lists every portfolio's persisted risk, return, drawdown,
-  concentration, diversification, average monthly relative gain, and average annual relative gain.
+- The Overview portfolio-metrics table lists every portfolio's persisted risk and return metrics.
+  Its compact headers include `MD`, `Monthly Return`, `Annual Return`, `Holdings`, and
+  `Deversifikaton`.
 - Hovering the Overview chart, or using its arrow keys after focus, opens an inspection tooltip for
   the nearest month with relative cumulative returns for every visible portfolio method. Tooltip
   values use the same method-specific colors as the chart.
