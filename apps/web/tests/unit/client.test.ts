@@ -107,7 +107,7 @@ describe("API client", () => {
       multivariateStatisticsApi.loadCandidates("run/a"), multivariateStatisticsApi.loadValidation("run/a"),
       multivariateStatisticsApi.loadArtifacts("run/a"), multivariateStatisticsApi.loadPerformance("run/a"), multivariateStatisticsApi.loadComponents("run/a", 10, 5),
       multivariateStatisticsApi.loadRiskContributions("run/a"), multivariateStatisticsApi.loadRiskContributions("run/a", "candidate/a"),
-      multivariateStatisticsApi.loadIncomeEvidence("run/a"), multivariateStatisticsApi.saveSelectedCandidates("run/a", ["candidate/a"]),
+      multivariateStatisticsApi.loadIncomeEvidence("run/a"),
     ]);
 
     expect(fetchMock.mock.calls.map(([path]) => path)).toEqual(expect.arrayContaining([
@@ -132,7 +132,6 @@ describe("API client", () => {
       "/api/multivariate-statistics/runs/run%2Fa/risk-contributions",
       "/api/multivariate-statistics/runs/run%2Fa/risk-contributions?candidate_id=candidate%2Fa",
       "/api/multivariate-statistics/runs/run%2Fa/income-evidence",
-      "/api/multivariate-statistics/runs/run%2Fa/settings",
     ]));
   });
 });

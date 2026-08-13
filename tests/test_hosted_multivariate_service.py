@@ -212,13 +212,8 @@ def test_multivariate_service_resolves_pinned_project_dependencies_and_persists_
     components = service.components("user-a", str(started["run_id"]), limit=3, offset=0)
     assert components["total"] == 25
     assert len(components["items"]) == 3
-    updated = service.update_settings("user-a", str(started["run_id"]), (candidate_id,))
-    assert updated["run_id"] == started["run_id"]
-    assert state.multivariate_runs_by_id[str(started["run_id"])].settings[
-        "selected_candidate_ids"
-    ] == [candidate_id]
     assert state.current_multivariate_run_by_project[project_id] == started["run_id"]
-    assert persistence.persisted >= 2
+    assert persistence.persisted >= 1
 
 
 def test_multivariate_service_uses_all_available_cpu_workers(
@@ -300,7 +295,7 @@ def test_multivariate_plan_authorizes_an_injected_project_repository() -> None:
     assert service.plan("user-a", project_id, bivariate_run_id, {})["allowed"] is True
 
 
-def test_multivariate_artifacts_and_project_selection_survive_workspace_restart(
+def test_multivariate_artifacts_survive_workspace_restart(
     tmp_path: Path,
 ) -> None:
     state, data, project_id, bivariate_run_id = _fixtures()
@@ -309,10 +304,6 @@ def test_multivariate_artifacts_and_project_selection_survive_workspace_restart(
     service = _service(state, data, _Persistence())
     started = service.start("user-a", project_id, bivariate_run_id, {})
     service.complete("user-a", str(started["run_id"]))
-    candidate_id = str(
-        service.candidates("user-a", str(started["run_id"]))["items"][0]["candidate_id"]
-    )
-    service.update_settings("user-a", str(started["run_id"]), (candidate_id,))
     persist_local_workspace(state)
 
     restored = HostedApiState()
@@ -321,7 +312,6 @@ def test_multivariate_artifacts_and_project_selection_survive_workspace_restart(
 
     assert run.status == "complete"
     assert run.artifacts["input_snapshot"]["snapshot_id"] == run.input_snapshot_id
-    assert run.settings["selected_candidate_ids"] == [candidate_id]
     assert restored.current_multivariate_run_by_project[project_id] == started["run_id"]
 
 
@@ -381,12 +371,6 @@ def test_multivariate_service_covers_idempotency_stale_and_error_boundaries() ->
         assert "not_found" in str(error)
     else:
         raise AssertionError("unknown candidate ids must be rejected")
-    try:
-        service.update_settings("user-a", str(second["run_id"]), ("missing", "missing"))
-    except Exception as error:
-        assert "invalid_candidate_selection" in str(error)
-    else:
-        raise AssertionError("unknown or duplicate candidate ids must be rejected")
     service.complete("user-a", str(second["run_id"]))
 
 

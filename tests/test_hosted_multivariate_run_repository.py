@@ -36,7 +36,7 @@ def _run() -> MultivariateRunRecord:
         completed_units=6,
         total_units=6,
         started_at_epoch=1.0,
-        settings={"selected_candidate_ids": ["candidate-1"]},
+        settings={},
         summary={"portfolio_count": 1},
         structure={"effective_rank": 2.0},
         candidates=({"candidate_id": "candidate-1"},),

@@ -5,6 +5,7 @@ Last reviewed: 2026-08-11
 ## Table Of Contents
 
 - [Backlog Policy](#backlog-policy)
+- [Active Multivariate Candidate Evaluation Work](#active-multivariate-candidate-evaluation-work)
 - [Active Branch Reconciliation](#active-branch-reconciliation)
 - [Active Multivariate Presentation Work](#active-multivariate-presentation-work)
 - [Active PostgreSQL Tenant Plane And Shared Data PR Stack](#active-postgresql-tenant-plane-and-shared-data-pr-stack)
@@ -27,6 +28,36 @@ This file is ordered by execution relevance:
 Every active item must contain `Branch`, `Git status`, `PR`, `Priority`, `Depends on`, `Scope`, `Acceptance`, `Security`, `Determinism`, and `Idempotency`. A PR is atomic only when it can merge independently with all repository gates green. A PR is complete only when its acceptance criteria are machine-verifiable and no assigned scope is deferred silently.
 
 Completed entries are never deleted. Superseded plans are moved to the historical section and explicitly marked non-active. Backlog identifiers are never reused.
+
+## Active Multivariate Candidate Evaluation Work
+
+### PR228. Evaluate All Multivariate Portfolio Candidates
+
+Branch: `feat/multivariate-all-candidate-evaluation`.
+
+Git status: in progress.
+
+PR: TBD.
+
+Priority: P1 multivariate analytical clarity.
+
+Depends on: current `main`.
+
+Scope: Remove candidate selection controls and their persisted settings endpoint. Present every
+persisted portfolio candidate and every candidate's risk contributions as analysis evidence.
+
+Acceptance: Portfolio Candidates has no selection control or settings request. Risk Contributions
+includes a portfolio column and rows for every persisted candidate. Focused backend tests, web
+typecheck, and the stateful browser workflow pass.
+
+Security: The browser continues to render only server-owned persisted analytical evidence.
+
+Determinism: An unchanged completed Multivariate run renders the same ordered candidate and
+contribution evidence without a browser-owned selection state.
+
+Idempotency: Viewing candidate and contribution tabs creates no writes or analytical work.
+
+Series Completion Gate: Before merge, satisfy the applicable validation gates in `GATES.md`.
 
 ## Active Branch Reconciliation
 
