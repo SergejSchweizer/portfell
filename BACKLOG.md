@@ -1,6 +1,7 @@
 ## Table Of Contents
 
 - [Backlog Policy](#backlog-policy)
+- [Active Multivariate Overview Facts Removal Work](#active-multivariate-overview-facts-removal-work)
 - [Active Multivariate Overview Portfolio Summary Work](#active-multivariate-overview-portfolio-summary-work)
 - [Active Multivariate Overview Tabs Work](#active-multivariate-overview-tabs-work)
 - [Active Compose Stack Rebuild Work](#active-compose-stack-rebuild-work)
@@ -26,6 +27,34 @@ This file is ordered by execution relevance:
 Every active item must contain `Branch`, `Git status`, `PR`, `Priority`, `Depends on`, `Scope`, `Acceptance`, `Security`, `Determinism`, and `Idempotency`. A PR is atomic only when it can merge independently with all repository gates green. A PR is complete only when its acceptance criteria are machine-verifiable and no assigned scope is deferred silently.
 
 Completed entries are never deleted. Superseded plans are moved to the historical section and explicitly marked non-active. Backlog identifiers are never reused.
+
+## Active Multivariate Overview Facts Removal Work
+
+### PR235. Multivariate Overview Facts Removal
+
+Branch: `feat/multivariate-overview-remove-facts`.
+
+Git status: in progress.
+
+PR: TBD.
+
+Priority: P1 multivariate analytical clarity.
+
+Depends on: PR234.
+
+Scope: Remove the Multivariate Overview facts table while retaining the performance chart,
+portfolio metrics table, and server-provided availability messages.
+
+Acceptance: Overview does not render `Multivariate overview facts`; its performance chart and
+portfolio metrics table remain available after a completed Multivariate run.
+
+Security: The browser continues to display only server-provided analytical values.
+
+Determinism: An unchanged completed run produces the same retained Overview content.
+
+Idempotency: Viewing Overview creates no writes or analytical work.
+
+Series Completion Gate: Before merge, satisfy the applicable validation gates in `GATES.md`.
 
 ## Active Multivariate Overview Portfolio Summary Work
 
