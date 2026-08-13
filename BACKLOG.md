@@ -5,6 +5,7 @@ Last reviewed: 2026-08-11
 ## Table Of Contents
 
 - [Backlog Policy](#backlog-policy)
+- [Active Multivariate Presentation Work](#active-multivariate-presentation-work)
 - [Active PostgreSQL Tenant Plane And Shared Data PR Stack](#active-postgresql-tenant-plane-and-shared-data-pr-stack)
 - [Active Monthly-Distribution ETF Multivariate PR Stack](#active-monthly-distribution-etf-multivariate-pr-stack)
 - [Active Shared Market Data And Nightly Refresh PR Stack](#active-shared-market-data-and-nightly-refresh-pr-stack)
@@ -25,6 +26,43 @@ This file is ordered by execution relevance:
 Every active item must contain `Branch`, `Git status`, `PR`, `Priority`, `Depends on`, `Scope`, `Acceptance`, `Security`, `Determinism`, and `Idempotency`. A PR is atomic only when it can merge independently with all repository gates green. A PR is complete only when its acceptance criteria are machine-verifiable and no assigned scope is deferred silently.
 
 Completed entries are never deleted. Superseded plans are moved to the historical section and explicitly marked non-active. Backlog identifiers are never reused.
+
+## Active Multivariate Presentation Work
+
+### PR171. Multivariate Risk Structure Facts Table
+
+Branch: `feat/multivariate-risk-facts-table`.
+
+Git status: in progress.
+
+PR: TBD.
+
+Priority: P1 multivariate analytical clarity.
+
+Depends on: current `main`.
+
+Scope:
+
+- Present every Multivariate Risk Structure summary fact in one semantic two-column Fact/Value
+  table. Include effective rank, dominant-component share, 80/90/95% component thresholds,
+  strongest common driver, eigenvalue, condition-number, PSD result, and largest redundancy.
+- Keep all values server-owned and preserve unavailable-state evidence plus the component-loading
+  and cluster table.
+
+Acceptance:
+
+- The Risk Structure tab exposes a table named `Multivariate risk structure facts` with Fact and
+  Value headers and a Largest redundancy row.
+- A browser regression opens the tab and verifies the named table and redundancy fact without
+  hard-coding analytical values.
+
+Security: The browser renders only persisted API evidence and performs no financial calculation.
+
+Determinism: Fact labels and unavailable states are stable for an unchanged server artifact.
+
+Idempotency: Reopening the tab does not create analytical work or mutate persisted state.
+
+Series Completion Gate: Before merge, satisfy the applicable web validation gates in `GATES.md`.
 
 ## Active PostgreSQL Tenant Plane And Shared Data PR Stack
 
