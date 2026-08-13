@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { canSelectUiFixture, readPublicRuntimeEnv } from "../../src/env";
-import { currentWorkflowPage, projectIdFromPath, projectSlug, projectWorkflowPath, workflowModules, workflowPages } from "../../src/routes";
+import { currentWorkflowPage, projectSlug, projectSlugFromPath, projectWorkflowPath, workflowModules, workflowPages } from "../../src/routes";
 
 describe("runtime environment and routes", () => {
   afterEach(() => {
@@ -48,8 +48,8 @@ describe("runtime environment and routes", () => {
     ]);
     for (const page of workflowPages) expect(currentWorkflowPage(page.path)).toBe(page);
     const projectPath = projectWorkflowPath({ project_id: "project/a", name: "Income & Growth" }, workflowPages[2]);
-    expect(projectPath).toBe("/projects/project%2Fa/income-growth/bivariate-statistics");
-    expect(projectIdFromPath(projectPath)).toBe("project/a");
+    expect(projectPath).toBe("/projects/income-growth/bivariate-statistics");
+    expect(projectSlugFromPath(projectPath)).toBe("income-growth");
     expect(currentWorkflowPage(projectPath)).toBe(workflowPages[2]);
     expect(projectSlug("Änderung 2026")).toBe("anderung-2026");
     expect(currentWorkflowPage("/not-a-route")).toBe(workflowPages[0]);
