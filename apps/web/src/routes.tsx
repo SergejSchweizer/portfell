@@ -1,6 +1,6 @@
 
 import type { ComponentType } from "react";
-import type { WorkflowStageId } from "./contracts";
+import type { ApiProjectSummary, WorkflowStageId } from "./contracts";
 import { BivariateStatisticsPage } from "./pages/bivariate-statistics";
 import { MetadataBuilderPage } from "./pages/metadata-builder";
 import { MultivariateStatisticsPage } from "./pages/multivariate-statistics";
@@ -91,6 +91,33 @@ export const workflowPages: readonly WorkflowPage[] = [
   },
 ];
 
+const projectPathPattern = /^\/projects\/([^/]+)(\/[^/?#]+)$/;
+
+export function projectSlug(name: string): string {
+  const slug = name
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+  return slug || "project";
+}
+
+export function projectWorkflowPath(project: Pick<ApiProjectSummary, "project_id" | "name">, page: WorkflowPage): string {
+  return `/projects/${projectSlug(project.name)}${page.path}`;
+}
+
+export function projectSlugFromPath(pathname: string): string | null {
+  const match = pathname.match(projectPathPattern);
+  if (!match) return null;
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return null;
+  }
+}
+
 export function currentWorkflowPage(pathname: string): WorkflowPage {
-  return workflowPages.find((page) => page.path === pathname) ?? workflowPages[0];
+  const workflowPath = pathname.match(projectPathPattern)?.[2] ?? pathname;
+  return workflowPages.find((page) => page.path === workflowPath) ?? workflowPages[0];
 }

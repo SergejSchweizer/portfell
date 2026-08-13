@@ -273,6 +273,27 @@ async function switchProject(page: Page, projectId: string) {
   await page.getByLabel("Project", { exact: true }).selectOption(projectId);
 }
 
+test("workflow URLs are canonical, project-scoped, and persist across every page", async ({ page }) => {
+  await installTwoProjectApi(page);
+  await page.goto("/metadata-builder");
+  await createProject(page, { exchange: "XETRA", instrumentType: "ETF", country: "IE", currency: "EUR", name: "Alpha income" });
+  await expect(page).toHaveURL(/\/projects\/alpha-income\/metadata-builder$/);
+
+  await page.goto("/univariate-statistics");
+  await expect(page).toHaveURL(/\/projects\/alpha-income\/univariate-statistics$/);
+  await computeUnivariate(page);
+
+  await page.goto("/metadata-builder");
+  await expect(page).toHaveURL(/\/projects\/alpha-income\/metadata-builder$/);
+  await createProject(page, { exchange: "LSE", instrumentType: "FUND", country: "LU", currency: "USD", name: "Beta growth" });
+  await expect(page).toHaveURL(/\/projects\/beta-growth\/metadata-builder$/);
+
+  await page.goto("/projects/alpha-income/univariate-statistics");
+  await expect(page).toHaveURL(/\/projects\/alpha-income\/univariate-statistics$/);
+  await page.getByRole("tab", { name: "Dividends" }).click();
+  await expect(page.getByRole("img", { name: "Annual dividend yield distribution for 3 ISINs" })).toBeVisible();
+});
+
 test("selecting a project restores its Metadata Builder fields", async ({ page }) => {
   await installTwoProjectApi(page);
   await page.goto("/metadata-builder");

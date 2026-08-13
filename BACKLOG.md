@@ -1751,6 +1751,35 @@ Determinism: Identical persisted artifacts produce the same ordered fact rows an
 
 Idempotency: Overview rendering remains read-only and does not mutate run state or candidates.
 
+### PR226. Project-Scoped Canonical Workflow URLs
+
+Branch: `feat/project-scoped-urls`.
+
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/374.
+
+Priority: P1 workspace shareability.
+
+Depends on: PR225.
+
+Scope: Give every workflow page (Metadata Builder, Univariate Statistics, Bivariate Statistics,
+Multivariate Statistics) a persistent, bookmarkable URL of the form
+`/projects/{project-name-slug}/{workflow-page}` instead of only a bare workflow path tied to
+whichever project the server session currently has selected.
+
+Acceptance: Creating, switching to, or reloading any workflow page updates the address bar to the
+canonical project URL. Opening a canonical project URL for a different, existing project activates
+that project before rendering. Legacy bare workflow URLs remain valid and are replaced with the
+canonical project URL after context loads. Renaming a project changes the canonical readable slug.
+
+Security: The browser only reads the already-authorized project list and current-project context;
+it resolves the readable slug against that context, while authorization remains server-owned.
+
+Determinism: The canonicalization from a project name to its slug and path is a pure function of
+persisted project data.
+
+Idempotency: Rewriting the address bar to the canonical URL is read-only browser history state and
+does not mutate project or workflow state.
+
 Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
 merge, satisfy the current `merge-gate` requirements in `GATES.md`.
 

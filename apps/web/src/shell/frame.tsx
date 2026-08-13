@@ -8,7 +8,7 @@ import {
 } from "../api/client";
 import type { ApiProjectContext, ApiWorkflow } from "../contracts";
 import { useResource } from "../hooks/use-resource";
-import { workflowPages, type WorkflowPageId } from "../routes";
+import { projectSlug, projectSlugFromPath, projectWorkflowPath, workflowPages, type WorkflowPageId } from "../routes";
 import { MetadataFetchProvider, useMetadataFetch } from "./metadata-fetch-context";
 import { ProjectSidebar } from "./project-sidebar";
 
@@ -108,6 +108,31 @@ function ShellFrameContent({ currentPage, children }: ShellFrameProps) {
     setDrawerOpen(false);
   }, [currentPage]);
 
+  useEffect(() => {
+    if (context.status !== "ready" || switching) return;
+    const requestedProjectSlug = projectSlugFromPath(window.location.pathname);
+    const requestedProject = context.data.projects.find((project) => projectSlug(project.name) === requestedProjectSlug);
+    const currentProject = context.data.current_project;
+    if (requestedProject && requestedProject.project_id !== currentProject?.project_id) {
+      setSwitching(true);
+      setSwitchError(null);
+      void selectCurrentProject(requestedProject.project_id)
+        .then((nextContext) => {
+          window.dispatchEvent(new CustomEvent<ApiProjectContext>("portfell:project-updated", { detail: nextContext }));
+          window.history.replaceState({}, "", projectWorkflowPath(requestedProject, workflowPages.find((page) => page.id === currentPage)!));
+          setContextRevision((value) => value + 1);
+          setWorkflowRevision((value) => value + 1);
+        })
+        .catch((error: unknown) => setSwitchError(error instanceof Error ? error.message : "Project switch failed."))
+        .finally(() => setSwitching(false));
+      return;
+    }
+    if (currentProject) {
+      const canonicalPath = projectWorkflowPath(currentProject, workflowPages.find((page) => page.id === currentPage)!);
+      if (window.location.pathname !== canonicalPath) window.history.replaceState({}, "", canonicalPath);
+    }
+  }, [context.status, context.status === "ready" ? context.data : null, currentPage, switching]);
+
   async function changeProject(nextProjectId: string): Promise<boolean> {
     if (!projectId || nextProjectId === projectId || switching) return false;
     setSwitching(true);
@@ -118,8 +143,10 @@ function ShellFrameContent({ currentPage, children }: ShellFrameProps) {
       const target = nextWorkflow.stages.univariate_statistics.status !== "locked"
         ? workflowPages.find((page) => page.id === "univariate_statistics")!
         : workflowPages[0];
+      const nextProject = nextContext.projects.find((project) => project.project_id === nextProjectId);
+      if (!nextProject) throw new Error("Selected project is unavailable.");
       window.dispatchEvent(new CustomEvent<ApiProjectContext>("portfell:project-updated", { detail: nextContext }));
-      window.history.pushState({}, "", target.path);
+      window.history.pushState({}, "", projectWorkflowPath(nextProject, target));
       window.dispatchEvent(new Event("portfell:navigation"));
       setContextRevision((value) => value + 1);
       setWorkflowRevision((value) => value + 1);

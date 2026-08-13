@@ -1,6 +1,6 @@
 import type { ChangeEvent } from "react";
 import type { ApiProjectContext, ApiWorkflow, WorkflowStatus } from "../contracts";
-import { workflowPages, type WorkflowPageId } from "../routes";
+import { projectWorkflowPath, workflowPages, type WorkflowPageId } from "../routes";
 
 export type ProjectSidebarProps = Readonly<{
   currentPage: WorkflowPageId;
@@ -35,6 +35,7 @@ export function ProjectSidebar({
   onProjectChange,
 }: ProjectSidebarProps) {
   const currentProjectId = context?.current_project_id ?? "";
+  const currentProject = context?.current_project ?? null;
   const noProjects = !loading && context?.projects.length === 0;
 
   async function changeProject(event: ChangeEvent<HTMLSelectElement>) {
@@ -70,7 +71,7 @@ export function ProjectSidebar({
             const contents = <><span className="project-sidebar__step">{index + 1}</span><span className="project-sidebar__stage"><span>{page.title}</span><small>{workflowStatusLabel[status]}</small></span></>;
             return (
               <li key={page.id} data-status={status}>
-                {locked ? <span aria-disabled="true">{contents}</span> : <a href={page.path} aria-current={page.id === currentPage ? "page" : undefined} onClick={onCloseDrawer}>{contents}</a>}
+                {locked ? <span aria-disabled="true">{contents}</span> : <a href={currentProject ? projectWorkflowPath(currentProject, page) : page.path} aria-current={page.id === currentPage ? "page" : undefined} onClick={onCloseDrawer}>{contents}</a>}
               </li>
             );
           })}

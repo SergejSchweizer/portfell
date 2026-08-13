@@ -8,6 +8,7 @@ import { LoadingState } from "../components/loading-state";
 import { Panel } from "../components/panel";
 import type { ApiInitialFill, ApiProjectSummary } from "../contracts";
 import { useResource } from "../hooks/use-resource";
+import { projectWorkflowPath, workflowPages } from "../routes";
 import { useMetadataFetch } from "../shell/metadata-fetch-context";
 
 export function MetadataBuilderPage() {
@@ -127,6 +128,8 @@ export function MetadataBuilderPage() {
       });
       setSelectionStatus(`${result.selected_count.toLocaleString()} unique ISINs selected.`);
       setInitialFill(result.initial_fill ?? null);
+      window.history.pushState({}, "", projectWorkflowPath(result.project, workflowPages[0]));
+      window.dispatchEvent(new Event("portfell:navigation"));
       window.dispatchEvent(new Event("portfell:workflow-updated"));
     } catch (error) {
       setSelectionStatus(error instanceof Error ? error.message : "Metadata Builder could not create the project.");
