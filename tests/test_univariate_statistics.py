@@ -1,6 +1,8 @@
 from datetime import date as _date
 from datetime import timedelta
+from math import exp, log, sqrt
 from pathlib import Path
+from statistics import mean, median, variance
 
 import pytest
 
@@ -85,6 +87,46 @@ def test_univariate_statistics_are_univariate_and_reference_one_listing(tmp_path
     assert row["distribution_observation_count"] == 0
     assert written == statistics
     assert read_rows(paths.gold_univariate_statistics("XETRA", "IE1")) == statistics
+
+
+def test_univariate_return_and_risk_formulas_match_independent_reference() -> None:
+    prices = [100.0, 110.0, 99.0, 120.0]
+    quotes = [_quote(f"2026-01-{index:02d}", price) for index, price in enumerate(prices, start=1)]
+    log_returns = [
+        log(current / previous) for previous, current in zip(prices, prices[1:], strict=False)
+    ]
+    simple_returns = [
+        current / previous - 1.0 for previous, current in zip(prices, prices[1:], strict=False)
+    ]
+    annualized_log_return = mean(log_returns) * 252
+    annualized_volatility = sqrt(variance(log_returns)) * sqrt(252)
+    downside_deviation = sqrt(
+        sum(min(0.0, value) ** 2 for value in log_returns) / len(log_returns)
+    ) * sqrt(252)
+    losses = sorted(-value for value in log_returns)
+    value_at_risk = losses[int(0.75 * len(losses))]
+    tail = [loss for loss in losses if loss >= value_at_risk]
+
+    row = build_univariate_statistics(quotes, confidence_level=0.75)[0]
+
+    assert row["total_return"] == pytest.approx(prices[-1] / prices[0] - 1.0)
+    assert row["cagr"] == pytest.approx((prices[-1] / prices[0]) ** (365.25 / 3) - 1.0)
+    assert row["cumulative_log_return"] == pytest.approx(sum(log_returns))
+    assert row["mean_log_return"] == pytest.approx(mean(log_returns))
+    assert row["median_log_return"] == pytest.approx(median(log_returns))
+    assert row["mean_simple_return"] == pytest.approx(mean(simple_returns))
+    assert row["annualized_log_return"] == pytest.approx(annualized_log_return)
+    assert row["annualized_simple_return"] == pytest.approx(mean(simple_returns) * 252)
+    assert row["annualized_geometric_return"] == pytest.approx(exp(annualized_log_return) - 1.0)
+    assert row["annualized_volatility"] == pytest.approx(annualized_volatility)
+    assert row["downside_deviation"] == pytest.approx(downside_deviation)
+    assert row["sharpe_ratio"] == pytest.approx(annualized_log_return / annualized_volatility)
+    assert row["sortino_ratio"] == pytest.approx(annualized_log_return / downside_deviation)
+    assert row["var"] == pytest.approx(value_at_risk)
+    assert row["expected_shortfall"] == pytest.approx(mean(tail))
+    assert row["tail_observation_count"] == len(tail)
+    assert row["max_drawdown"] == pytest.approx(-0.10)
+    assert row["positive_day_ratio"] == pytest.approx(2 / 3)
 
 
 @pytest.mark.parametrize("concurrency", [1, 2])
@@ -224,6 +266,67 @@ def test_univariate_statistics_quarantines_invalid_prices_instead_of_zero_return
     assert row["duplicate_date_detected"] is True
     assert row["production_eligible"] is False
     assert row["data_quality_reason"] == "non_positive_price"
+
+
+def test_univariate_statistics_use_only_valid_prices_for_every_price_metric() -> None:
+    quotes = [
+        _quote("2026-01-01", 0.0),
+        _quote("2026-01-02", 100.0),
+        _quote("2026-01-03", 90.0),
+        _quote("2026-01-04", 110.0),
+        _quote("2026-01-05", 0.0),
+    ]
+
+    row = build_univariate_statistics(
+        quotes,
+        dividend_rows=[_dividend("2026-01-03", value=2.2)],
+    )[0]
+
+    assert row["start_adjusted_close"] == 100.0
+    assert row["end_adjusted_close"] == 110.0
+    assert row["total_return"] == pytest.approx(0.10)
+    assert row["max_drawdown"] == pytest.approx(-0.10)
+    assert row["trend_r_squared"] > 0.0
+    assert row["annual_dividend_amount"] == pytest.approx(2.2)
+    assert row["annual_dividend_yield"] == pytest.approx(0.02)
+
+
+def test_univariate_statistics_keep_fully_invalid_price_metrics_unavailable() -> None:
+    row = build_univariate_statistics(
+        [
+            _quote("2026-01-01", 0.0),
+            _quote("2026-01-02", -1.0),
+        ]
+    )[0]
+
+    assert row["return_observation_count"] == 0
+    assert row["start_adjusted_close"] == 0.0
+    assert row["end_adjusted_close"] == 0.0
+    assert row["total_return"] == 0.0
+    assert row["cagr"] == 0.0
+    assert row["max_drawdown"] == 0.0
+    assert row["trend_r_squared"] == 0.0
+    assert row["availability_reason"] == "insufficient_returns"
+
+
+def test_univariate_statistics_invalidates_cache_when_price_content_changes(
+    tmp_path: Path,
+) -> None:
+    paths = LakePaths(root=tmp_path / "lake")
+    quotes = [
+        _quote("2026-01-01", 100.0),
+        _quote("2026-01-02", 110.0),
+    ]
+    first = write_univariate_statistics(paths, quotes, concurrency=1)[0]
+
+    revised = write_univariate_statistics(
+        paths,
+        [{**quotes[0], "adjusted_close": 120.0}, quotes[1]],
+        concurrency=1,
+    )[0]
+
+    assert first["total_return"] == pytest.approx(0.10)
+    assert revised["total_return"] == pytest.approx(110.0 / 120.0 - 1.0)
 
 
 def test_univariate_statistics_are_production_eligible_with_enough_clean_history() -> None:

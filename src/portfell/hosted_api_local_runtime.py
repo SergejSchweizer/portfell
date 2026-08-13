@@ -19,10 +19,13 @@ from portfell.paths import LakePaths
 from portfell.selection_filters import Predicate, parse_predicates
 from portfell.table_io import JsonRow, read_json, read_rows, write_rows
 from portfell.univariate_statistics import (
+    UNIVARIATE_CALCULATION_CONTRACT,
     annual_dividend_features,
     build_univariate_statistics,
     distribution_features,
     index_distribution_events,
+    univariate_dividend_input_id,
+    univariate_quote_input_id,
 )
 
 
@@ -175,8 +178,20 @@ def _build_scoped_univariate_listing(root: Path, member_id: str) -> JsonRow | No
         for row in read_rows(path)
         if str(row.get("code", "")) == code
     ]
+    quote_rows = [
+        row
+        for row in read_rows(paths.silver_quote_file(exchange, isin))
+        if str(row.get("code", "")) == code
+    ]
     cached_rows = read_rows(paths.gold_univariate_statistics(exchange, isin))
-    if len(cached_rows) == 1 and str(cached_rows[0].get("code", "")) == code:
+    if (
+        len(cached_rows) == 1
+        and str(cached_rows[0].get("code", "")) == code
+        and str(cached_rows[0].get("calculation_contract", "")) == UNIVARIATE_CALCULATION_CONTRACT
+        and str(cached_rows[0].get("quote_input_id", "")) == univariate_quote_input_id(quote_rows)
+        and str(cached_rows[0].get("dividend_input_id", ""))
+        == univariate_dividend_input_id(dividend_rows)
+    ):
         row = dict(cached_rows[0])
         dates = index_distribution_events(dividend_rows).get((isin, exchange, code), ())
         features = {
@@ -191,11 +206,6 @@ def _build_scoped_univariate_listing(root: Path, member_id: str) -> JsonRow | No
             row.update(features)
             write_rows(paths.gold_univariate_statistics(exchange, isin), [row])
         return row
-    quote_rows = [
-        row
-        for row in read_rows(paths.silver_quote_file(exchange, isin))
-        if str(row.get("code", "")) == code
-    ]
     if not quote_rows:
         return None
     return build_univariate_statistics(quote_rows, dividend_rows=dividend_rows, concurrency=None)[0]

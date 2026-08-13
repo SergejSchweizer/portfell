@@ -12,7 +12,7 @@ from typing import Literal, Protocol, cast
 from portfell.entitlements import ProviderDownloadRun
 from portfell.hosted_analysis_record_repository import AnalysisRecordRepository
 from portfell.hosted_api_errors import HostedApplicationError
-from portfell.hosted_api_service_support import opaque_id, stable_hash
+from portfell.hosted_api_service_support import opaque_id
 from portfell.hosted_api_state import AnalysisRecord, ProjectRecord, SelectionRecord
 from portfell.hosted_catalog import set_authenticated_user_sql
 from portfell.hosted_postgres_workflow import WorkflowResearchState
@@ -24,6 +24,7 @@ from portfell.hosted_research_workflow import (
     UnivariateSelection,
     bivariate_source_id,
     create_full_univariate_selection,
+    univariate_source_id,
 )
 from portfell.hosted_selection_repository import SelectionRepository, selection_record
 from portfell.hosted_univariate_selection_settings import apply_univariate_selection_settings
@@ -179,9 +180,7 @@ on conflict (research_run_id) do update set quote_run_id = excluded.quote_run_id
         """Read the current durable research chain for a shared-market project."""
 
         self._bind(user_id)
-        univariate_source = stable_hash(
-            {"selection_id": metadata_selection_id, "quote_run_id": "shared-market"}
-        )
+        univariate_source = univariate_source_id(metadata_selection_id, "shared-market")
         univariate_run_id = opaque_id("univariate-run", f"{user_id}:{univariate_source}")
         univariate = self._run_row(univariate_run_id, "univariate")
         if univariate is None:

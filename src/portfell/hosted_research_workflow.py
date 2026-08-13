@@ -14,7 +14,10 @@ from portfell.gold import build_returns
 from portfell.gold_pair_stats import DEFAULT_MAX_PAIR_COUNT
 from portfell.selection_filters import Predicate, filter_rows
 from portfell.table_io import JsonRow
-from portfell.univariate_statistics import build_univariate_statistics
+from portfell.univariate_statistics import (
+    UNIVARIATE_CALCULATION_CONTRACT,
+    build_univariate_statistics,
+)
 
 RunStatus = Literal["running", "complete", "failed"]
 _ALLOWED_OPERATORS = frozenset({"=", "!=", ">", ">=", "<", "<="})
@@ -87,7 +90,7 @@ def create_univariate_run_from_statistics(
 ) -> ResearchRun:
     """Create a deterministic run from already computed per-listing rows."""
 
-    source = _stable_hash({"selection_id": selection_id, "quote_run_id": quote_run_id})
+    source = univariate_source_id(selection_id, quote_run_id)
     return ResearchRun(
         run_id=_opaque_id("univariate-run", f"{user_id}:{source}"),
         user_id=user_id,
@@ -96,6 +99,16 @@ def create_univariate_run_from_statistics(
         rows=tuple(dict(row) for row in rows),
         total=len(rows),
         completed=len(rows),
+    )
+
+
+def univariate_source_id(selection_id: str, quote_run_id: str) -> str:
+    return _stable_hash(
+        {
+            "selection_id": selection_id,
+            "quote_run_id": quote_run_id,
+            "calculation_contract": UNIVARIATE_CALCULATION_CONTRACT,
+        }
     )
 
 

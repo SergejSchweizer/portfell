@@ -66,6 +66,13 @@ and histogram derived from completed server-returned rows:
 Other cached Gold fields remain technical implementation data and are not presented as univariate
 statistics in the UI at this time.
 
+The server computes contract `univariate.statistics.v2`. Every price-derived metric uses the same
+ordered, de-duplicated, positive adjusted-close series after invalid price points are quarantined.
+Persisted Gold rows carry the calculation contract plus quote and dividend content identities;
+formula changes or relevant source-value revisions force recomputation even when dates and row counts
+are unchanged. Hosted run identities include the calculation contract so legacy completed runs are
+not reused after a formula correction.
+
 The Dividends and quantitative-statistic histograms render their stacked columns at 84% of each
 bucket width and center them in the bucket. This keeps the values and histogram scale unchanged
 while giving adjacent columns clearer separation.
