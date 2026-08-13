@@ -538,25 +538,25 @@ The hosted development runtime is defined in [compose.yaml](compose.yaml). It st
 docker compose --env-file .env.local up --build
 ```
 
-During local UI development, start the Web service with Compose watch:
+During local development, start the complete application stack with Compose watch:
 
 ```bash
-docker compose --env-file .env.local up --build --watch web
+docker compose --env-file .env.local up --build --watch
 ```
 
-For stacked UI PR development, check out the active UI branch before starting Compose watch. The Web container rebuilds from that branch state, so each UI stack change is visible locally without landing the branch on `main`.
+For stacked UI PR development, check out the active UI branch before starting Compose watch. The application containers rebuild from that branch state, so each UI stack change is visible locally without landing the branch on `main`.
 
-The Compose watch contract rebuilds and reinstalls the local Web container when `apps/web`, `apps/web/Dockerfile`, or `compose.yaml` changes. If Compose watch is not available, keep a second terminal running:
+The Compose watch contract rebuilds the Web service when its inputs change and rebuilds API, migration, and worker services when their shared runtime inputs change. If Compose watch is not available, keep a second terminal running:
 
 ```bash
-uv run portfell-compose-web-watch
+uv run portfell-compose-watch
 ```
 
 The fallback watcher tracks `apps/web`, `apps/api`, `src`, `compose.yaml`, `.dockerignore`, `pyproject.toml`, and `uv.lock`.
-Whenever one of those inputs changes, it runs:
+Whenever one of those inputs changes, it rebuilds the complete Compose stack with:
 
 ```bash
-docker compose --env-file .env.local up --build -d web
+docker compose --env-file .env.local up --build -d
 ```
 
 The hosted API is exposed by `portfell.hosted_api` and uses PostgreSQL as its only control-plane authority. The API reads published market-data revisions from the named shared-data volume; it never mounts a repository `lake` or a user workspace. Metadata Builder creates an immutable selection and queues its exact initial fill. The internal `project-bootstrap-worker`, which alone receives the operations EODHD token, publishes shared revisions and updates the durable job status. Set `PORTFELL_OPERATIONS_EODHD_TOKEN_FILE` to an absolute, external secret-file path alongside the PostgreSQL password and EODHD KEK paths.

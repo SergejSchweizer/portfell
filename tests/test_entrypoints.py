@@ -28,6 +28,7 @@ def test_portfell_console_scripts_are_registered() -> None:
     names = {name for name, _value in PORTFELL_ENTRY_POINTS}
     assert names == {
         "portfell",
+        "portfell-compose-watch",
         "portfell-compose-web-watch",
         "portfell-docs-refresh",
         "portfell-fetch-all-quotes",
