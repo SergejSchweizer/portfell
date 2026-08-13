@@ -339,6 +339,7 @@ test("Multivariate compute button polls resolve_inputs through completion", asyn
   await expect(page.getByText("resolve_inputs · 0 of 6 phases complete · 0s elapsed · about 10s remaining")).toBeVisible();
   await expect(page.getByRole("button", { name: "Compute multivariate statistics" })).toBeEnabled();
   await expect(page.getByText("Candidate ETFs")).toBeVisible();
+  await expect(page.getByRole("table", { name: "Multivariate overview facts" })).toHaveText(/Candidate ETFs/);
   await page.getByRole("tab", { name: "Portfolio Candidates" }).click();
   await expect(page.getByText("Average monthly return: 1.00% · Average annual return: 12.00%")).toBeVisible();
   await page.getByRole("tab", { name: "Performance" }).click();

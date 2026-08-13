@@ -1691,6 +1691,31 @@ selections.
 Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
 merge, satisfy the current `merge-gate` requirements in `GATES.md`.
 
+### PR225. Multivariate Overview Facts Table
+
+Branch: `feat/multivariate-overview-facts-table`.
+
+Git status: pushed. PR: https://github.com/SergejSchweizer/portfell/pull/375.
+
+Priority: P1 multivariate explainability.
+
+Depends on: PR224.
+
+Scope: Organize the Multivariate Statistics Overview facts as a semantic two-column Fact/Value
+table without changing server-owned analytical values.
+
+Acceptance: The Overview renders every existing fact in a labelled table with exactly the Fact and
+Value columns, preserving unavailable-evidence messaging.
+
+Security: The browser displays only existing project-owned persisted analytical artifacts.
+
+Determinism: Identical persisted artifacts produce the same ordered fact rows and formatted values.
+
+Idempotency: Overview rendering remains read-only and does not mutate run state or candidates.
+
+Series Completion Gate: Before merge, satisfy the current `pr-quality` gates in `GATES.md`; after
+merge, satisfy the current `merge-gate` requirements in `GATES.md`.
+
 ### PR218. Multivariate Validation Budget
 
 Branch: `fix/multivariate-validation-budget`.
