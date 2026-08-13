@@ -58,7 +58,8 @@ accept canonical v2 Univariate dependencies while allowing failed v12 runs to re
 
 Acceptance: Candidate totals reconcile with Performance, Minimum CVaR receives simple-return
 scenarios, Walk-Forward compounds weighted simple returns, and shuffled source rows produce the same
-performance artifact. Contracts advance to candidate v5, validation v5, and execution v12.
+performance artifact. Minimum Variance receives its 100,000-iteration production budget. Contracts
+advance to candidate v6, validation v5, and execution v13.
 
 Security: Portfolio calculations remain server-owned and consume only the completed project-scoped
 Bivariate hand-off and shared-market revisions.
@@ -66,7 +67,7 @@ Bivariate hand-off and shared-market revisions.
 Determinism: Identical aligned source revisions, constraints, and v12 contracts produce identical
 candidate, validation, stress, and performance artifacts.
 
-Idempotency: Repeating v12 with unchanged inputs resolves the same Hosted run and artifacts.
+Idempotency: Repeating v13 with unchanged inputs resolves the same Hosted run and artifacts.
 
 Series Completion Gate: Before merge, satisfy the applicable validation gates in `GATES.md`.
 

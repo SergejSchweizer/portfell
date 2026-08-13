@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from statistics import correlation, covariance, variance
 
@@ -277,5 +278,5 @@ def test_bivariate_statistics_parallel_matches_serial() -> None:
 
 def test_resolve_worker_count_caps_default_and_honors_explicit_concurrency() -> None:
     assert resolve_worker_count(1) == 1
-    assert resolve_worker_count(None, max_workers=4) == 4
+    assert resolve_worker_count(None, max_workers=4) == min(4, os.cpu_count() or 1)
     assert resolve_worker_count(None, max_workers=1) == 1
