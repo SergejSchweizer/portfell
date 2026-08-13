@@ -39,9 +39,9 @@ Completed entries are never deleted. Superseded plans are moved to the historica
 
 Branch: `feat/multivariate-minimum-variance-convergence`.
 
-Git status: in progress.
+Git status: pushed.
 
-PR: TBD.
+PR: https://github.com/SergejSchweizer/portfell/pull/390.
 
 Priority: P1 multivariate analytical completeness.
 
@@ -67,7 +67,7 @@ Series Completion Gate: Before merge, satisfy the applicable validation gates in
 
 Branch: `feat/multivariate-overview-metric-labels`.
 
-Git status: pushed.
+Git status: merged.
 
 PR: https://github.com/SergejSchweizer/portfell/pull/389.
 
