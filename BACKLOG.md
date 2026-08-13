@@ -40,9 +40,9 @@ Completed entries are never deleted. Superseded plans are moved to the historica
 
 Branch: `feat/univariate-overview-narrow-bars`.
 
-Git status: in progress.
+Git status: pushed.
 
-PR: TBD.
+PR: https://github.com/SergejSchweizer/portfell/pull/391.
 
 Priority: P2 univariate visual clarity.
 
