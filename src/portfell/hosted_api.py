@@ -22,7 +22,6 @@ from portfell.hosted_api_contracts import (
     UnivariateRunRequest,
     UnivariateSelectionRequest,
 )
-from portfell.hosted_api_service_support import opaque_id
 from portfell.hosted_api_state import (
     DEFAULT_LOCAL_WORKSPACE_USER_ID,
     AnalysisRecord,
@@ -30,7 +29,6 @@ from portfell.hosted_api_state import (
     ConfiguredUserProvider,
     CurrentUserProvider,
     HostedApiState,
-    LocalWorkspaceUserProvider,
     ProjectRecord,
     SelectionRecord,
     UserOwnedRow,
@@ -63,7 +61,6 @@ __all__ = [
     "HostedApiError",
     "HostedApiState",
     "LoadSelectedIsinsRequest",
-    "LocalWorkspaceUserProvider",
     "MetadataBuilderProjectRequest",
     "MultivariateRunRequest",
     "ProjectCreateRequest",
@@ -75,7 +72,6 @@ __all__ = [
     "UserOwnedRow",
     "create_app",
     "create_runtime_app",
-    "_opaque_id",
 ]
 
 
@@ -166,41 +162,33 @@ def create_app(
 def create_runtime_app() -> FastAPI:
     """Create the persistent container application when secrets are configured."""
 
-    configured_authority = os.environ.get("PORTFELL_HOSTED_AUTHORITY")
-    if configured_authority is None and os.environ.get("PORTFELL_DATABASE_URL"):
-        raise HostedApiError("hosted_authority_must_be_explicit")
-    authority = configured_authority or "local"
-    if authority == "postgres":
-        database_url = os.environ.get("PORTFELL_DATABASE_URL")
-        shared_data_root = os.environ.get("PORTFELL_SHARED_DATA_ROOT")
-        key_path = os.environ.get("PORTFELL_EODHD_KEK_FILE")
-        if not database_url or not shared_data_root or not key_path:
-            raise HostedApiError("postgres_hosted_runtime_configuration_required")
-        key_encryption_key = load_key_encryption_key(
-            Path(key_path),
-            version=os.environ.get("PORTFELL_EODHD_KEK_VERSION", "hosted-v1"),
-        )
-        request_scope = RequestScopedPostgresConnection(
-            lambda: connect_database(database_url, autocommit=False)
-        )
-        state = HostedApiState()
-        return create_app(
+    if os.environ.get("PORTFELL_HOSTED_AUTHORITY") != "postgres":
+        raise HostedApiError("postgres_hosted_authority_required")
+    database_url = os.environ.get("PORTFELL_DATABASE_URL")
+    shared_data_root = os.environ.get("PORTFELL_SHARED_DATA_ROOT")
+    key_path = os.environ.get("PORTFELL_EODHD_KEK_FILE")
+    if not database_url or not shared_data_root or not key_path:
+        raise HostedApiError("postgres_hosted_runtime_configuration_required")
+    key_encryption_key = load_key_encryption_key(
+        Path(key_path),
+        version=os.environ.get("PORTFELL_EODHD_KEK_VERSION", "hosted-v1"),
+    )
+    request_scope = RequestScopedPostgresConnection(
+        lambda: connect_database(database_url, autocommit=False)
+    )
+    state = HostedApiState()
+    return create_app(
+        state,
+        services=build_postgres_services(
             state,
-            services=build_postgres_services(
-                state,
-                request_scope=request_scope,
-                shared_data_root=Path(shared_data_root),
-                key_encryption_key=key_encryption_key,
-            ),
             request_scope=request_scope,
-            ensure_user=PostgresHostedUserRepository(request_scope).create,
-            include_quote_routes=False,
-        )
-    raise HostedApiError("postgres_hosted_authority_required")
-
-
-def _opaque_id(kind: str, value: str) -> str:
-    return opaque_id(kind, value)
+            shared_data_root=Path(shared_data_root),
+            key_encryption_key=key_encryption_key,
+        ),
+        request_scope=request_scope,
+        ensure_user=PostgresHostedUserRepository(request_scope).create,
+        include_quote_routes=False,
+    )
 
 
 # The container entry point invokes ``create_runtime_app`` as a Uvicorn factory.
