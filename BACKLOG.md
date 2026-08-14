@@ -1244,7 +1244,7 @@ canonical content changes and never duplicates project or workflow rows.
 
 Branch: split into the atomic PR248a–PR248d sequence below.
 
-Git status: in progress; PR248a landed as #412, PR248b landed as #414, PR248c1 landed as #415, and PR248c2–PR248d remain queued.
+Git status: in progress; PR248a landed as #412, PR248b landed as #414, PR248c1 landed as #415, PR248c2 landed as #416, and PR248d remains queued.
 
 PR: TBD; each atomic step receives its own PR.
 
@@ -1325,6 +1325,8 @@ Acceptance for PR248c1:
 
 PR248c2 branch: `feat/hosted-lazy-matrix-and-detail-sections`.
 
+PR: https://github.com/SergejSchweizer/portfell/pull/416 (landed 2026-08-14).
+
 - Depend only on PR248c1's section revision and cursor envelope. Add authorized lazy routes for
   covariance/correlation matrices, tail-risk scatter, Bivariate summary, and Multivariate summary,
   structure, candidates, candidate detail, risk contributions, income evidence, validation, artifacts,
@@ -1341,22 +1343,40 @@ Acceptance for PR248c2:
 - Matrix and detail fixtures prove the 2 MiB measurement uses encoded response bytes and does not cut
   rows, labels, or values. API, contract, security, Ruff, format, Pyright, and real-stack gates pass.
 
-PR248d branch: `feat/web-page-view-adoption`.
+PR248d was split by module entry point. PR248d1 owns Metadata Builder's compact page-view read; PR248d2
+owns Univariate/Bivariate/Multivariate page entries and their lazy visible sections. Both retain only
+ephemeral controls/tabs locally, cancel obsolete requests, and introduce no second query cache.
 
-- Migrate page entry for Metadata Builder, Univariate, Bivariate, and Multivariate to the new initial
-  view and lazy-section routes; retain ephemeral controls/tabs locally. Cancel obsolete page/section
-  requests after project, run, metric, tab, or route changes.
-- Required handoff: remove the displaced page-entry fan-out code in the same PR; PR249 owns the shared
-  browser cache, not a second temporary cache.
+PR248d1 branch: `feat/web-metadata-page-view-adoption`.
 
-Acceptance for PR248d:
+- Replace the Metadata Builder project's independent criteria and initial-fill reads with exactly one
+  `GET /projects/{project_id}/views/metadata-builder` call. Field options and explicit job-progress
+  polling remain separate concerns; no statistics page, cache, or server contract changes are allowed.
+- On project-change and unmount, abort the obsolete page-view request and never apply its data to another
+  project. The view's unavailable initial-fill state renders the existing empty/status state rather than
+  throwing a request failure.
 
-- Playwright asserts one initial page-view request after a warm shell, at most two application-data
-  requests from a cold shell, and zero non-visible matrix/detail requests. Bivariate initial entry no
-  longer makes its former 11-request fan-out.
-- Rapid project switching, loading/empty/error/retry, back/forward, desktop/tablet/mobile, and browser
-  request cancellation tests pass without displaying a prior project's data. Web image build, API/UI,
-  OpenAPI, Playwright, and real-stack gates pass.
+Acceptance for PR248d1:
+
+- A project restore makes one Metadata Builder page-view request instead of the former criteria plus
+  initial-fill request pair. Project switching cannot display criteria or fill progress from the previous
+  project, and an unavailable fill state remains usable.
+- Vitest client/component tests, the Metadata Builder Playwright flow, TypeScript strict checks, Web
+  production build, Docker image build, and real-stack button gates pass.
+
+PR248d2 branch: `feat/web-statistics-page-view-adoption`.
+
+- Depend only on PR248d1 and PR248c1/c2. Replace statistics-page entry fan-out with each page's compact
+  view route and load only the visible tab/section. Preserve local control drafts and cancel requests on
+  project/run/tab/metric/route changes. Do not add TanStack Query; PR249 owns that cache migration.
+
+Acceptance for PR248d2:
+
+- Bivariate first entry makes no non-visible matrix/detail request, a visible tab makes exactly one
+  revision-bound lazy request, and rapid project/run changes cannot paint stale data. Univariate and
+  Multivariate satisfy the same project-isolation and cancellation contract.
+- TypeScript strict checks, Vitest, Playwright request-count coverage, Web build, Docker image build,
+  API/UI contract checks, and real-stack gates pass.
 
 Scope:
 
@@ -1682,6 +1702,7 @@ backlog identifiers.
 | PR248a | Hosted Page-View Contract Foundation | landed 2026-08-14. PR: https://github.com/SergejSchweizer/portfell/pull/412; versioned Metadata Builder page-view envelope, typed unavailable initial-fill state, conditional GET, and OpenAPI contract evidence. |
 | PR248b | Hosted Analysis Page-View Contracts | landed 2026-08-14. PR: https://github.com/SergejSchweizer/portfell/pull/414; compact conditional-GET views for Univariate, Bivariate, and Multivariate stage/section metadata. |
 | PR248c1 | Hosted Lazy Tabular Sections | landed 2026-08-14. PR: https://github.com/SergejSchweizer/portfell/pull/415; project-authorized 200-row pages with opaque revision-bound cursors. |
+| PR248c2 | Hosted Lazy Matrix And Detail Sections | landed 2026-08-14. PR: https://github.com/SergejSchweizer/portfell/pull/416; authorized analytical detail endpoints with immutable revisions and a 2 MiB encoded-response limit. |
 | PR01 | Project Package And Quality Baseline | merged. PR: https://github.com/SergejSchweizer/portfell/pull/1 |
 | PR02 | Shared Configuration, HTTP, And Contract Primitives | merged. PR: https://github.com/SergejSchweizer/portfell/pull/3 |
 | PR03 | Simple Bronze/Silver/Gold Lake Layout Contract | merged. PR: https://github.com/SergejSchweizer/portfell/pull/3 |

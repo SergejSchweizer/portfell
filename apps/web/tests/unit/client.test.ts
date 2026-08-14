@@ -94,7 +94,7 @@ describe("API client", () => {
 
     await Promise.all([
       metadataBuilderApi.loadCredentialStatus(), metadataBuilderApi.loadFetchRun("run/a"),
-      metadataBuilderApi.loadProjectCriteria("project/a"), metadataBuilderApi.loadFieldOptions(), metadataBuilderApi.saveCredential("key"),
+      metadataBuilderApi.loadProjectCriteria("project/a"), metadataBuilderApi.loadPageView("project/a"), metadataBuilderApi.loadFieldOptions(), metadataBuilderApi.saveCredential("key"),
       metadataBuilderApi.fetchAll(), metadataBuilderApi.createProject(metadataRequest), metadataBuilderApi.loadInitialFill("project/a"),
       univariateStatisticsApi.startRun(univariateRequest), univariateStatisticsApi.loadRun("run/a"), univariateStatisticsApi.loadResults("run/a", 10, 5),
       univariateStatisticsApi.loadSelectionSettings("project/a"),
@@ -110,7 +110,7 @@ describe("API client", () => {
     ]);
 
     expect(fetchMock.mock.calls.map(([path]) => path)).toEqual(expect.arrayContaining([
-      "/api/metadata-builder/options", "/api/metadata-builder", "/api/projects/project%2Fa/initial-fill", "/api/univariate-statistics/runs",
+      "/api/metadata-builder/options", "/api/metadata-builder", "/api/projects/project%2Fa/views/metadata-builder", "/api/projects/project%2Fa/initial-fill", "/api/univariate-statistics/runs",
       "/api/univariate-statistics/runs/run%2Fa/results?limit=10&offset=5", "/api/bivariate-statistics/plan",
       "/api/bivariate-statistics/runs/run%2Fa/covariance-matrix",
       "/api/bivariate-statistics/runs/run%2Fa/correlation-matrix?metric=downside",

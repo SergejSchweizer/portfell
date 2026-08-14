@@ -2,6 +2,7 @@
 
 import {
   loadEodhdCredentialStatus,
+  loadMetadataBuilderPageView,
   loadMetadataFetchRun,
   loadProjectInitialFill,
   loadProjectMetadataBuilder,
@@ -13,6 +14,7 @@ import type {
   ApiFieldOptions,
   ApiInitialFill,
   ApiMetadataFetch,
+  ApiMetadataBuilderPageView,
   ApiMetadataProject,
   ApiProjectMetadataBuilder,
 } from "../contracts";
@@ -32,6 +34,9 @@ export const metadataBuilderApi = {
     loadProjectMetadataBuilder(projectId)
   ),
   loadInitialFill: (projectId: string): Promise<ApiInitialFill> => loadProjectInitialFill(projectId),
+  loadPageView: (projectId: string): Promise<ApiMetadataBuilderPageView> => (
+    loadMetadataBuilderPageView(projectId)
+  ),
   loadFieldOptions: (): Promise<ApiFieldOptions> => requestJson<ApiFieldOptions>("/api/metadata-builder/options"),
   saveCredential: (providerKey: string): Promise<ApiCredentialStatus> => (
     postJson<ApiCredentialStatus>("/api/credentials/eodhd", { provider_key: providerKey })

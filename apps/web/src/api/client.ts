@@ -1,5 +1,13 @@
 
-import type { ApiCredentialStatus, ApiInitialFill, ApiMetadataFetch, ApiProjectContext, ApiProjectMetadataBuilder, ApiWorkflow } from "../contracts";
+import type {
+  ApiCredentialStatus,
+  ApiInitialFill,
+  ApiMetadataBuilderPageView,
+  ApiMetadataFetch,
+  ApiProjectContext,
+  ApiProjectMetadataBuilder,
+  ApiWorkflow,
+} from "../contracts";
 
 export class ApiError extends Error {
   constructor(
@@ -80,6 +88,10 @@ export function loadProjectMetadataBuilder(projectId: string): Promise<ApiProjec
 
 export function loadProjectInitialFill(projectId: string): Promise<ApiInitialFill> {
   return requestJson<ApiInitialFill>(`/api/projects/${encodeURIComponent(projectId)}/initial-fill`);
+}
+
+export function loadMetadataBuilderPageView(projectId: string): Promise<ApiMetadataBuilderPageView> {
+  return requestJson<ApiMetadataBuilderPageView>(`/api/projects/${encodeURIComponent(projectId)}/views/metadata-builder`);
 }
 
 export function selectCurrentProject(projectId: string): Promise<ApiProjectContext> {

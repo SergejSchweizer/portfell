@@ -46,23 +46,16 @@ export function MetadataBuilderPage() {
       }
       setSelectionStatus("Loading saved Metadata Builder criteria…");
       try {
-        const criteria = await metadataBuilderApi.loadProjectCriteria(project.project_id);
+        const pageView = await metadataBuilderApi.loadPageView(project.project_id);
         if (cancelled) return;
+        const criteria = pageView.summary.criteria;
         setExchange(criteria.exchange);
         setInstrumentType(criteria.instrument_type);
         setCountry(criteria.country);
         setCurrency(criteria.currency);
         setName(criteria.name);
         setSelectionStatus(`${criteria.selected_count.toLocaleString()} unique ISINs selected.`);
-        try {
-          const fill = await metadataBuilderApi.loadInitialFill(project.project_id);
-          if (cancelled) return;
-          setInitialFill(fill);
-        } catch (error) {
-          if (!cancelled) {
-            setSelectionStatus(error instanceof Error ? error.message : "Initial historical-data status could not be loaded.");
-          }
-        }
+        setInitialFill(pageView.summary.initial_fill);
       } catch (error) {
         if (cancelled) return;
         resetProjectState();
