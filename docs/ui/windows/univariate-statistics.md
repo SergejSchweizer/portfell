@@ -40,14 +40,12 @@ The univariate-statistics action owns only computation progress, status, and its
 Its determinate progress bar uses processed listings as its scale, including terminal failed listings;
 the server reports each completed listing for both shared-market and pinned quote-run computations.
 React keeps the displayed percentage monotonic for the active run so delayed polling responses cannot move the bar backward; starting or switching to another run resets that display.
-All workflow progress bars use the shared 14px height.
+All workflow progress bars use the shared 10px height.
 The Dividends univariate-statistic block is not rendered before
 the run is complete and its result payload has loaded, matching the result-driven bivariate
 statistic windows. It provides a payout-frequency selection and an accessible
 histogram that counts ISINs by none/unknown, monthly, quarterly, semiannual, annual, and
-irregular schedules. The selected schedules and statistic filters update locally immediately and
-persist the latest value per project through one debounced background request; they do not reload
-the workflow or replace completed result rows.
+irregular schedules. The selected schedules are saved per project.
 
 After a completed run, the page presents Dividends and all quantitative statistics in one shared
 statistics window. Its responsive multi-row tab grid selects exactly one statistic at a time; the active tab
@@ -78,8 +76,10 @@ dividend-frequency and statistic-range filters to create the current determinist
 selection. Bivariate Statistics receives that selection directly on its next workflow refresh. There
 is no standalone filter module or route in the browser workflow.
 
-Every frequency or quantitative filter labels its `Portfolio selection` control with the current
-server-owned selected-ISIN count after saving. Duration labels use strict minimum-history thresholds: `> 6 months` persists a minimum
+Every frequency or quantitative filter updates its local selection immediately and persists the
+latest value with one debounced background request. Saving does not reload the workflow or replace
+the rendered statistics window. The `Portfolio selection` control uses the current server-owned
+selected-ISIN count after the next workflow refresh. Duration labels use strict minimum-history thresholds: `> 6 months` persists a minimum
 of 127 trading-day observations, so exactly 126 observations do not qualify. `> 2 years` persists
 505 observations. `> 6 months` is the minimum filter for a production-eligible Multivariate input,
 which requires at least 100 common daily returns across the Bivariate selection.
