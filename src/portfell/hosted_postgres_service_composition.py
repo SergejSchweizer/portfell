@@ -128,7 +128,9 @@ def build_postgres_services(
         workflow_source, PostgresProjectWorkflowProjection(request_scope)
     )
     workflow_reader = PostgresProjectedWorkflowReader(
-        PostgresProjectWorkflowProjection(request_scope)
+        PostgresProjectWorkflowProjection(request_scope),
+        metrics=state.workflow_read_metrics,
+        statement_count=lambda: request_scope.statement_count,
     )
     persistence = PostgresResearchPersistence()
     credentials = CredentialProjectService(

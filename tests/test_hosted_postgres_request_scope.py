@@ -54,6 +54,21 @@ def test_request_scoped_connection_binds_rls_and_commits() -> None:
     assert connection.closed
 
 
+def test_request_scoped_connection_exposes_bound_principal_and_statement_count() -> None:
+    created: list[_Connection] = []
+    scope = RequestScopedPostgresConnection(lambda: created.append(_Connection()) or created[-1])
+    user_id = "00000000-0000-5000-8000-000000000001"
+
+    with scope.request(user_id):
+        assert scope.authenticated_user_id == user_id
+        assert scope.statement_count == 1
+        scope.execute("select 1")
+        assert scope.statement_count == 2
+
+    assert scope.authenticated_user_id is None
+    assert scope.statement_count is None
+
+
 def test_request_scoped_connection_starts_deferred_work_only_after_commit(monkeypatch) -> None:
     created: list[_Connection] = []
     scope = RequestScopedPostgresConnection(lambda: created.append(_Connection()) or created[-1])

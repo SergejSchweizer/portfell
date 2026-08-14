@@ -26,7 +26,7 @@ class PostgresProjectWorkflowProjection:
         self._connection = connection
 
     def read(self, *, user_id: str, project_id: str) -> tuple[JsonRow, str] | None:
-        self._connection.execute(*set_authenticated_user_sql(user_id))
+        self._bind(user_id)
         row = self._connection.execute(
             """
 select payload, projection_revision
@@ -42,7 +42,7 @@ where user_id = %s::uuid and project_id = %s::uuid
     def read_owned(self, *, user_id: str, project_id: str) -> tuple[JsonRow, str] | None | object:
         """Read one owned project, distinguishing an absent projection from an absent project."""
 
-        self._connection.execute(*set_authenticated_user_sql(user_id))
+        self._bind(user_id)
         row = self._connection.execute(
             """
 select projection.payload, projection.projection_revision
@@ -62,7 +62,7 @@ where project.user_id = %s::uuid and project.project_id = %s::uuid
     def read_current(self, *, user_id: str) -> tuple[JsonRow, str] | None:
         """Read the current project's workflow with one projection-only statement."""
 
-        self._connection.execute(*set_authenticated_user_sql(user_id))
+        self._bind(user_id)
         row = self._connection.execute(
             """
 select workflow.payload, workflow.projection_revision
@@ -77,7 +77,7 @@ where navigation.user_id = %s::uuid
         return None if row is None else _projection(row)
 
     def write(self, *, user_id: str, project_id: str, payload: JsonRow) -> tuple[JsonRow, str]:
-        self._connection.execute(*set_authenticated_user_sql(user_id))
+        self._bind(user_id)
         row = self._connection.execute(
             """
 insert into portfell_app.project_workflow_projections (
@@ -103,6 +103,11 @@ returning payload, projection_revision
         if row is None:
             raise ValueError("project_workflow_projection_not_owned")
         return _projection(row)
+
+    def _bind(self, user_id: str) -> None:
+        if getattr(self._connection, "authenticated_user_id", None) == user_id:
+            return
+        self._connection.execute(*set_authenticated_user_sql(user_id))
 
 
 def _projection(row: tuple[object, ...]) -> tuple[JsonRow, str]:

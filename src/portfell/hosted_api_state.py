@@ -14,6 +14,7 @@ from portfell.hosted_credentials import (
     KeyEncryptionKey,
 )
 from portfell.hosted_research_workflow import ResearchRun, UnivariateSelection
+from portfell.hosted_workflow_read_metrics import WorkflowReadMetrics
 from portfell.hosted_workspace import LocalWorkspaceStore
 from portfell.table_io import JsonRow
 
@@ -196,6 +197,7 @@ class HostedApiState:
         default_factory=lambda: dict[str, JsonRow]()
     )
     current_project_id_by_user: dict[str, str] = field(default_factory=lambda: dict[str, str]())
+    workflow_read_metrics: WorkflowReadMetrics = field(default_factory=WorkflowReadMetrics)
     workspace_store: LocalWorkspaceStore | None = None
     shared_market_data_store: SharedMarketDataStore | None = None
 
