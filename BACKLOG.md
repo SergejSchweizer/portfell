@@ -1123,7 +1123,10 @@ duplicate state or mutate analytical payloads outside declared commands.
 
 Branch: `test/exhaustive-user-interaction-merge-gate`.
 
-Git status: not started.
+Git status: in progress on `test/exhaustive-user-interaction-merge-gate`; the deterministic real-stack
+Metadata Builder → Univariate → Bivariate → Multivariate user journey is implemented as the first
+PR252 slice, including the persisted Monthly dividend selection. The remaining exhaustive manifest,
+viewport, failure/retry, and latency-budget scope below is not yet complete.
 
 PR: TBD.
 

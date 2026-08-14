@@ -89,31 +89,38 @@ export function MetadataBuilderPage() {
   }, []);
 
   useEffect(() => {
-    if (!initialFill || !["planning", "running"].includes(initialFill.status)) return;
+    if (!initialFill || !["not_started", "planning", "running"].includes(initialFill.status)) return;
     let cancelled = false;
+    let refreshInFlight = false;
 
     const refreshInitialFill = async () => {
+      if (refreshInFlight) return;
+      refreshInFlight = true;
       try {
         const context = await loadProjectContext();
         if (!context.current_project) return;
         const nextFill = await metadataBuilderApi.loadInitialFill(context.current_project.project_id);
         if (cancelled) return;
         setInitialFill(nextFill);
-        if (!["planning", "running"].includes(nextFill.status)) {
+        if (!["not_started", "planning", "running"].includes(nextFill.status)) {
           window.dispatchEvent(new Event("portfell:workflow-updated"));
         }
       } catch (error) {
         if (!cancelled) {
           setSelectionStatus(error instanceof Error ? error.message : "Initial historical-data status could not be loaded.");
         }
+      } finally {
+        refreshInFlight = false;
       }
     };
 
     void refreshInitialFill();
+    const fallbackPoll = window.setInterval(() => void refreshInitialFill(), 1_000);
     const onStatusEvent = () => void refreshInitialFill();
     window.addEventListener("portfell:status-event", onStatusEvent);
     return () => {
       cancelled = true;
+      window.clearInterval(fallbackPoll);
       window.removeEventListener("portfell:status-event", onStatusEvent);
     };
   }, [initialFill]);

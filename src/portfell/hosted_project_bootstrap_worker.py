@@ -21,6 +21,14 @@ from portfell.hosted_catalog import set_authenticated_user_sql
 from portfell.hosted_database_connection import connect
 from portfell.hosted_metadata_refresh_worker import build_metadata_refresh_worker
 from portfell.hosted_navigation_reconciler import PostgresNavigationReconciler
+from portfell.hosted_postgres_repository_bundle import PostgresHostedRepositoryBundle
+from portfell.hosted_postgres_runtime import PostgresHostedRuntime
+from portfell.hosted_postgres_workflow import PostgresWorkflowReader
+from portfell.hosted_project_bootstrap_repository import PostgresProjectBootstrapRepository
+from portfell.hosted_project_workflow_projection_repository import (
+    PostgresProjectWorkflowProjection,
+)
+from portfell.hosted_project_workflow_projector import PostgresProjectWorkflowProjector
 from portfell.hosted_status_event_repository import PostgresStatusEventRepository
 from portfell.hosted_worker_capacity import (
     resolve_worker_concurrency,
@@ -318,9 +326,24 @@ def main(argv: list[str] | None = None) -> int:
     bootstrap_connection = connect(database_url, autocommit=True)
     metadata_connection = connect(database_url, autocommit=True)
     try:
+        navigation_reconciler = PostgresNavigationReconciler(bootstrap_connection)
+        workflow_repositories = PostgresHostedRepositoryBundle.from_connection(
+            bootstrap_connection,
+            navigation_refresher=navigation_reconciler.reconcile,
+        )
+        workflow_projector = PostgresProjectWorkflowProjector(
+            PostgresWorkflowReader(
+                selections=workflow_repositories.selections,
+                bootstrap=PostgresProjectBootstrapRepository(bootstrap_connection),
+                metadata_rows=PostgresHostedRuntime(Path(root)).all_isins_rows,
+            ),
+            PostgresProjectWorkflowProjection(bootstrap_connection),
+            PostgresStatusEventRepository(bootstrap_connection),
+        )
         bootstrap_jobs = PostgresDurableJobRepository(
             bootstrap_connection,
-            navigation_refresher=PostgresNavigationReconciler(bootstrap_connection).reconcile,
+            navigation_refresher=navigation_reconciler.reconcile,
+            workflow_refresher=workflow_projector.reconcile,
             status_events=PostgresStatusEventRepository(bootstrap_connection),
         )
         recovery_jobs = PostgresDurableJobRepository(
@@ -349,9 +372,8 @@ def main(argv: list[str] | None = None) -> int:
             last_status_event_prune = 0.0
             while True:
                 recovery_jobs.recover_expired_leases()
-                if (
-                    time.monotonic() - last_status_event_prune >= 60
-                    and hasattr(metadata_connection, "execute")
+                if time.monotonic() - last_status_event_prune >= 60 and hasattr(
+                    metadata_connection, "execute"
                 ):
                     PostgresStatusEventRepository(metadata_connection).prune_expired()
                     last_status_event_prune = time.monotonic()
