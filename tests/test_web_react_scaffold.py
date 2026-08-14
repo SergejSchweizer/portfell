@@ -95,6 +95,7 @@ def test_statistics_result_panels_are_visible_before_results_load() -> None:
         not in multivariate_page
     )
 
+
 def test_multivariate_statistics_exposes_only_core_tabs() -> None:
     page = (WEB_ROOT / "src" / "pages" / "multivariate-statistics.tsx").read_text(encoding="utf-8")
     tab_registry = page[page.index("const tabs:") : page.index("function percent")]
@@ -108,6 +109,19 @@ def test_multivariate_statistics_exposes_only_core_tabs() -> None:
         "Validation",
     ):
         assert f'label: "{label}"' not in tab_registry
+
+
+def test_multivariate_performance_chart_uses_plotly_series_colors() -> None:
+    page = (WEB_ROOT / "src" / "pages" / "multivariate-statistics.tsx").read_text(encoding="utf-8")
+    package = json.loads((WEB_ROOT / "package.json").read_text(encoding="utf-8"))
+
+    assert 'import Plotly from "plotly.js-dist-min";' in page
+    assert "<PlotlyPerformanceChart" in page
+    assert "responsive: true" in page
+    assert 'hovermode: "x"' in page
+    for color in ("#1769e0", "#137333", "#b06000", "#6b4fbb", "#007c91"):
+        assert color in page
+    assert "plotly.js-dist-min" in package["dependencies"]
 
 
 def test_vite_build_is_the_canonical_web_runtime() -> None:

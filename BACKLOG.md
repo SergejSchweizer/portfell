@@ -1556,8 +1556,52 @@ creation idempotency behavior remains unchanged.
 Rollback: Revert the page, specification, and regression commit together to restore separate panels;
 no schema migration, data, cache, or server rollback is required.
 
-Series Completion Gate: Before merge, satisfy the current required checks in [GATES.md](GATES.md),
-including the focused scaffold regression, Web Docker image build, and `uv run portfell-quality pr`.
+### PR260. Responsive Multivariate Plotly Performance Chart
+
+Branch: `feat/multivariate-plotly-chart`.
+
+Git status: pushed.
+
+PR: https://github.com/SergejSchweizer/portfell/pull/453
+
+Priority: P1 responsive analytical-result inspection.
+
+Depends on: none; this is an independent UI-only change against the current `main` contract.
+
+Scope:
+
+- Replace only the custom SVG renderer in
+  `apps/web/src/pages/multivariate-statistics.tsx` with the responsive Plotly renderer.
+- Keep the five existing portfolio colors, portfolio visibility checkboxes, custom React hover window,
+  and keyboard inspection behavior. Add only the Plotly package, local module declaration, existing
+  UI specification, and focused scaffold and workflow regressions required for that renderer.
+- Do not change API contracts, calculation inputs, portfolio results, authentication, authorization,
+  persisted state, or routes.
+
+Acceptance:
+
+- The Plotly layout uses `autosize: true`, `responsive: true`, and `hovermode: "x"`; the graph fills
+  its existing 300 px chart region without a fixed SVG view box.
+- Portfolio traces preserve `#1769e0`, `#137333`, `#b06000`, `#6b4fbb`, and `#007c91`; instrument
+  traces remain gray, and a checkbox redraw changes only the visible portfolio series.
+- A Plotly hover event updates the existing custom tooltip with the selected date and visible portfolio
+  values; Home, End, and arrow-key inspection retain the same tooltip behavior.
+- `uv run pytest -q tests/test_web_react_scaffold.py`, the two-project Playwright workflow where a
+  compatible browser is available, `docker build --file apps/web/Dockerfile --tag portfell-web:latest .`,
+  and `uv run portfell-quality pr` pass. The implementation and
+  `docs/ui/windows/multivariate-statistics.md` remain synchronized.
+
+Security: The browser receives the already authorized performance payload only; Plotly runs locally and
+introduces no provider request, credential, tenant lookup, or new browser authority.
+
+Determinism: The renderer maps API series and dates directly to Plotly traces in source order; stable
+series IDs, colors, and date keys produce the same chart and tooltip for the same payload.
+
+Idempotency: Rendering, resizing, hovering, and toggling a series mutate only component-local display
+state and do not issue commands or write project, artifact, or market state.
+
+Rollback: Revert the Plotly package, component, style, specification, and regression changes together;
+the prior SVG renderer is restored without a data migration, API change, or retained state.
 
 ### Hosted Simplicity And Interactive Performance Series Completion Gate
 

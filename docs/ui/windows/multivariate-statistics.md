@@ -37,7 +37,7 @@ or calculates financial values in the browser.
   the active project's workflow state; ignore late responses for the prior project.
 - Complete state: Overview and Portfolio Candidates tabs in the responsive statistics tab grid, with
   no horizontal tab scrolling.
-- Overview renders the persisted relative cumulative monthly-return chart before a portfolio-metrics
+- Overview renders the persisted responsive Plotly relative cumulative monthly-return chart before a portfolio-metrics
   table. The chart includes a visible `Cumulative relative gain (%)`
   y-axis title, calendar-time labels, and renders all instruments in
   light gray and every feasible portfolio as a solid method-specific color. Explicit input
@@ -76,8 +76,8 @@ or calculates financial values in the browser.
 - The Overview portfolio-metrics table lists every portfolio's persisted risk and return metrics.
   Its compact headers include `MD`, `Monthly Return`, `Annual Return`, `Holdings`, and
   `Deversifikaton`.
-- Hovering the Overview chart, or using its arrow keys after focus, opens an inspection tooltip for
-  the nearest month with relative cumulative returns for every visible portfolio method. Tooltip
+- Hovering the Plotly Overview chart, or using its arrow keys after focus, opens an inspection tooltip
+  for the nearest month with relative cumulative returns for every visible portfolio method. Tooltip
   values use the same method-specific colors as the chart.
 
 ## States
