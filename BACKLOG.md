@@ -1244,7 +1244,7 @@ canonical content changes and never duplicates project or workflow rows.
 
 Branch: split into the atomic PR248a–PR248d sequence below.
 
-Git status: in progress; PR248a is being prepared.
+Git status: in progress; PR248a landed as #412 and PR248b–PR248d remain queued.
 
 PR: TBD; each atomic step receives its own PR.
 
@@ -1253,6 +1253,8 @@ Priority: P1 request fan-out and payload control.
 Depends on: PR247.
 
 PR248a branch: `feat/hosted-page-view-contract-foundation`.
+
+PR: https://github.com/SergejSchweizer/portfell/pull/412 (landed 2026-08-14).
 
 - Define the versioned Python and TypeScript-independent JSON contract envelope: `contract_version`,
   `project_id`, navigation/workflow projection ETags, compact module status, immutable section revision
@@ -1644,6 +1646,7 @@ backlog identifiers.
 | --- | --- | --- |
 | PR246 | Worker Admission Control And Interactive Capacity | merged 2026-08-14. PR: https://github.com/SergejSchweizer/portfell/pull/400; commit `2e2663299ae2e7806774176d8e7f261b6aefac60` |
 | PR247 | PostgreSQL Navigation Read Model | merged through atomic PRs #401–#410 on 2026-08-14; includes bounded projection reads, reconciliation, lifecycle repair, instrumentation, and deterministic budget evidence. |
+| PR248a | Hosted Page-View Contract Foundation | landed 2026-08-14. PR: https://github.com/SergejSchweizer/portfell/pull/412; versioned Metadata Builder page-view envelope, typed unavailable initial-fill state, conditional GET, and OpenAPI contract evidence. |
 | PR01 | Project Package And Quality Baseline | merged. PR: https://github.com/SergejSchweizer/portfell/pull/1 |
 | PR02 | Shared Configuration, HTTP, And Contract Primitives | merged. PR: https://github.com/SergejSchweizer/portfell/pull/3 |
 | PR03 | Simple Bronze/Silver/Gold Lake Layout Contract | merged. PR: https://github.com/SergejSchweizer/portfell/pull/3 |
