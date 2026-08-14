@@ -8,6 +8,7 @@ from portfell.hosted_status_event_stream import (
     StatusEventStreamError,
     event_frame,
     heartbeat_frame,
+    reset_frame,
     resume_cursor,
 )
 
@@ -21,6 +22,9 @@ def test_status_event_frames_are_compact_resumable_sse_messages() -> None:
     assert '"aggregate_ref":"project:p1"' in frame
     assert frame.endswith("\n\n")
     assert heartbeat_frame() == ": heartbeat\n\n"
+    assert reset_frame(cursor=7, reason="status_event_replay_reset") == (
+        'id: 7\nevent: reset\ndata: {"reason":"status_event_replay_reset"}\n\n'
+    )
 
 
 @pytest.mark.parametrize(("header", "expected"), [(None, 0), ("", 0), ("42", 42)])
