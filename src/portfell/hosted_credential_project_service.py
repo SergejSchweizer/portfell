@@ -346,6 +346,7 @@ class CredentialProjectService:
             key: row for key, row in self.state.analyses_by_id.items() if row.user_id != user_id
         }
         self._audit(user_id, "account.delete")
+        self._sync_navigation(user_id)
         return {"status": "deleted"}
 
     def _project_records(self, user_id: str) -> list[ProjectRecord]:
@@ -389,13 +390,9 @@ class CredentialProjectService:
 
     def _current_project(self, user_id: str) -> ProjectRecord | None:
         project_id = self._projects.current_project_id(user_id)
-        if project_id is not None:
-            return self._project(user_id, project_id)
-        projects = self._project_records(user_id)
-        if not projects:
+        if project_id is None:
             return None
-        self._set_current_project(user_id, projects[0].project_id)
-        return projects[0]
+        return self._project(user_id, project_id)
 
     def _set_current_project(self, user_id: str, project_id: str) -> None:
         try:

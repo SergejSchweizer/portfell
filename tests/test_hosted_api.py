@@ -900,7 +900,7 @@ def test_projects_selections_and_analyses_use_the_local_workspace() -> None:
     assert client.get("/projects?limit=0", headers=_headers(csrf=False)).status_code == 422
 
 
-def test_project_context_defaults_selects_and_clears_current_project() -> None:
+def test_project_context_requires_an_explicit_current_project_selection() -> None:
     alpha = ProjectRecord(
         project_id="00000000-0000-5000-8000-000000000021",
         user_id=DEFAULT_LOCAL_WORKSPACE_USER_ID,
@@ -923,7 +923,9 @@ def test_project_context_defaults_selects_and_clears_current_project() -> None:
     fallback_context = _json(client.get("/project-context"))
 
     assert [project["name"] for project in default_context["projects"]] == ["alpha", "Core"]
-    assert default_context["current_project_id"] == alpha.project_id
+    assert default_context["current_project_id"] is None
+    assert default_context["current_project"] is None
+    assert state.current_project_id_by_user == {}
     assert selected_context["current_project_id"] == core.project_id
     assert empty_workflow == {
         "stages": {
@@ -934,7 +936,7 @@ def test_project_context_defaults_selects_and_clears_current_project() -> None:
         }
     }
     assert deleted == {"project_id": core.project_id, "status": "deleted"}
-    assert fallback_context["current_project_id"] == alpha.project_id
+    assert fallback_context["current_project_id"] is None
     missing = client.put(
         "/project-context/current-project",
         json={"project_id": "00000000-0000-5000-8000-000000000023"},

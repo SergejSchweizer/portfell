@@ -546,6 +546,24 @@ def test_project_command_writes_navigation_projection() -> None:
     ]
 
 
+def test_account_deletion_refreshes_navigation_projection() -> None:
+    writes: list[JsonRow] = []
+    service = CredentialProjectService(
+        HostedApiState(),
+        navigation_writer=lambda _user_id, payload: writes.append(payload) or (payload, "etag"),
+    )
+    service.create_project("user-1", "Income", "request-1")
+
+    deleted = service.delete_account("user-1")
+
+    assert deleted == {"status": "deleted"}
+    assert writes[-1] == {
+        "current_project_id": None,
+        "current_project": None,
+        "projects": [],
+    }
+
+
 def test_navigation_read_model_binds_rls_and_derives_a_stable_etag() -> None:
     class Cursor:
         def fetchone(self) -> tuple[object, ...]:

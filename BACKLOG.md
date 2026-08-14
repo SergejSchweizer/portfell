@@ -1048,9 +1048,9 @@ Branch: `feat/hosted-navigation-read-model`.
 
 Git status: in progress; split into mergeable implementation steps.
 
-PR: steps 1–4: https://github.com/SergejSchweizer/portfell/pull/401 (schema, bounded reader,
-conditional GET, project-command writes, and Metadata Builder hand-off); subsequent steps add complete
-worker and research reconciliation.
+PR: steps 1–5: https://github.com/SergejSchweizer/portfell/pull/401 (schema, bounded reader,
+conditional GET, project-command writes, Metadata Builder hand-off, and side-effect-free absent-current
+project handling); subsequent steps add complete worker and research reconciliation.
 
 Priority: P0 page-entry latency and architectural simplicity.
 
