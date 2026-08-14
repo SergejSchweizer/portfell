@@ -257,8 +257,7 @@ export function MultivariateStatisticsPage() {
     if (!run || run.status !== "running") return;
     const activeRunId = run.run_id;
     let cancelled = false;
-    let timeoutId: number | undefined;
-    async function pollMultivariateRun() {
+    async function refreshMultivariateRun() {
       try {
         const current = await multivariateStatisticsApi.loadRun(activeRunId);
         if (cancelled) return;
@@ -267,7 +266,6 @@ export function MultivariateStatisticsPage() {
         );
         setRun(current);
         if (current.status === "running") {
-          timeoutId = window.setTimeout(() => void pollMultivariateRun(), 750);
           return;
         }
         if (current.status === "failed") {
@@ -282,10 +280,12 @@ export function MultivariateStatisticsPage() {
         if (!cancelled) setMessage(error instanceof Error ? error.message : "Could not retrieve multivariate calculation status.");
       }
     }
-    void pollMultivariateRun();
+    void refreshMultivariateRun();
+    const onStatusEvent = () => void refreshMultivariateRun();
+    window.addEventListener("portfell:status-event", onStatusEvent);
     return () => {
       cancelled = true;
-      if (timeoutId !== undefined) window.clearTimeout(timeoutId);
+      window.removeEventListener("portfell:status-event", onStatusEvent);
     };
   }, [run?.run_id]);
 

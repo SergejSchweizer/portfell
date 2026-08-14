@@ -2,8 +2,10 @@
 import { useEffect, useState, type MouseEvent, type ReactNode } from "react";
 import { currentWorkflowPage } from "./routes";
 import { ShellFrame } from "./shell/frame";
+import { useStatusEventStream } from "./query/use-status-event-stream";
 
 export function App(): ReactNode {
+  useStatusEventStream();
   const [pathname, setPathname] = useState(window.location.pathname);
   const page = currentWorkflowPage(pathname);
   const Page = page.component;

@@ -57,7 +57,7 @@ function ShellFrameContent({ currentPage, children }: ShellFrameProps) {
   useEffect(() => {
     const refresh = () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.projectContext() });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.workflow() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.workflowRoot() });
     };
     window.addEventListener("portfell:workflow-updated", refresh);
     return () => window.removeEventListener("portfell:workflow-updated", refresh);
