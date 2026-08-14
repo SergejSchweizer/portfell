@@ -1522,8 +1522,42 @@ saves remain last-value-wins through the established debounced endpoint.
 Rollback: Revert the UI, specification, and regression commit together to restore the prior tab list;
 no schema migration, data, cache, or server rollback is required.
 
+### PR259. Combined Metadata Download And Builder Window
+
+Branch: `feat/metadata-download-builder`.
+
+Git status: pushed.
+
+PR: https://github.com/SergejSchweizer/portfell/pull/452.
+
+Priority: P2 simpler metadata workflow.
+
+Depends on: The existing metadata fetch state, typed metadata options, and project-creation contracts.
+
+Scope: Place the Metadata Builder form inside the Download Metadata panel below the fetch action,
+progress, and status surface. Preserve all metadata filters, project creation, initial-fill status,
+actions, and their disabled states. Update the page specification and panel-structure regression. No
+API, ingestion, calculation, persistence, or authorization behavior changes.
+
+Acceptance: Exactly one Download Metadata panel contains both the fetch action and Metadata Builder
+form; the fetch action remains before the form; no standalone Metadata Builder panel remains; every
+existing form control and status surface remains present; the scaffold regression, Web Docker image
+build, and `uv run portfell-quality pr` pass.
+
+Security: Presentation-only composition does not alter credentials, tenant scope, authorization,
+metadata fetch requests, project creation, stored data, or logging.
+
+Determinism: Given the same server state, the fixed panel hierarchy renders the same controls and
+statuses in download-first order.
+
+Idempotency: Rendering the combined panel does not mutate state. Existing metadata fetch and project
+creation idempotency behavior remains unchanged.
+
+Rollback: Revert the page, specification, and regression commit together to restore separate panels;
+no schema migration, data, cache, or server rollback is required.
+
 Series Completion Gate: Before merge, satisfy the current required checks in [GATES.md](GATES.md),
-including the Web Docker image build and `uv run portfell-quality pr`.
+including the focused scaffold regression, Web Docker image build, and `uv run portfell-quality pr`.
 
 ### Hosted Simplicity And Interactive Performance Series Completion Gate
 
