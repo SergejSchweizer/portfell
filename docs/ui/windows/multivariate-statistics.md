@@ -25,6 +25,8 @@ or calculates financial values in the browser.
 - its completed Bivariate Statistics run id;
 - the Bivariate run's pinned Univariate selection id;
 - server-owned workflow status and invalidation state.
+- The production risk model accepts up to 250 selected listings. Larger universes fail closed before
+  portfolio construction.
 
 ## Layout
 
@@ -62,7 +64,7 @@ or calculates financial values in the browser.
 - Minimum Variance uses a dedicated production convergence budget of 100,000 iterations with a
   $10^{-7}$ weight-movement tolerance. It remains an explicitly unavailable candidate only when
   that full solve cannot converge or its inputs are infeasible.
-- Execution contract `multivariate_execution.v14` keeps the joint risk model and covariance-based
+- Execution contract `multivariate_execution.v15` keeps the joint risk model and covariance-based
   optimizers on aligned asset log returns, while all realized portfolio paths use the financially
   exact daily simple return `sum(weight × asset simple return)`. Candidate return/drawdown and
   VaR/CVaR metrics, Minimum CVaR scenarios, Walk-Forward validation, stress evidence, and the
