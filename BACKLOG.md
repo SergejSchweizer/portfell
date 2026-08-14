@@ -1568,11 +1568,11 @@ Acceptance:
   bounds fail with the typed validation error.
 - Focused Python tests, Ruff, Pyright, and the applicable `GATES.md` checks pass.
 
-### PR250c. Transactional Status-Event Publication
+### PR250c1. Transactional Workflow-Projection Event Publication
 
 Branch: `feat/hosted-status-event-publication`.
 
-Git status: not started.
+Git status: in progress.
 
 PR: TBD.
 
@@ -1580,12 +1580,34 @@ Priority: P1 live status with bounded request load.
 
 Depends on: PR250b.
 
-Scope: Publish exactly one durable compact event in the same PostgreSQL transaction as each project
-bootstrap, metadata publication, and Uni/Bi/Multivariate transition. Define logical transition
-uniqueness so retrying a command cannot duplicate an event.
+Scope: Make an upsert of the compact PR247 workflow projection report whether it changed under the
+same PostgreSQL statement. Publish exactly one event only for a changed projection, from the same
+request/worker transaction and with its returned revision. This covers all Uni/Bi/Multivariate
+transitions that already refresh this projection. A no-op reconciliation must publish nothing.
 
-Acceptance: Commit paths atomically persist source state, projection revision, and one event;
-rollback persists none; lifecycle tests cover every transition, retry, and tenant boundary.
+Acceptance: Repository and projector tests prove one changed projection produces one event carrying
+the revision, no-op/retry produces none, RLS binding precedes both writes, and a failed request rolls
+back projection and event together. Focused Python tests, Ruff, Pyright, and applicable gates pass.
+
+### PR250c2. Bootstrap And Metadata Lifecycle Event Publication
+
+Branch: `feat/hosted-lifecycle-status-event-publication`.
+
+Git status: not started.
+
+PR: TBD.
+
+Priority: P1 live status with bounded request load.
+
+Depends on: PR250c1.
+
+Scope: Publish compact queued, progress, terminal, and metadata-revision events within the existing
+bootstrap-job and metadata-lifecycle transaction boundaries. Define logical transition uniqueness so
+retries cannot duplicate a logical lifecycle event; refresh workflow projections where required.
+
+Acceptance: Commit paths atomically persist bootstrap/metadata source state and one event; rollback
+persists none; worker and repository tests cover queued, running, successful, partial, failed, retry,
+and tenant-isolation cases.
 
 ### PR250d. Authenticated SSE Replay Transport
 
@@ -1597,7 +1619,7 @@ PR: TBD.
 
 Priority: P1 live status with bounded request load.
 
-Depends on: PR250c.
+Depends on: PR250c1 and PR250c2.
 
 Scope: Add one authenticated FastAPI SSE endpoint over the durable repository with heartbeats,
 `Last-Event-ID` replay, typed reset events, tenant filtering, proxy-safe headers, cleanup, and the
@@ -1626,9 +1648,9 @@ status updates without polling, and no application-data requests during a 15-min
 
 ### PR250. Durable Server-Sent Job And Workflow Updates
 
-Branch: split into PR250a through PR250e above.
+Branch: split into PR250a, PR250b, PR250c1, PR250c2, PR250d, and PR250e above.
 
-Git status: in progress (PR250a merged; PR250b in progress).
+Git status: in progress (PR250a/b merged; PR250c1 in progress).
 
 PR: TBD.
 

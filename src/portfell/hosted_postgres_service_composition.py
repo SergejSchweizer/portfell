@@ -31,6 +31,7 @@ from portfell.hosted_research_persistence import PostgresResearchPersistence
 from portfell.hosted_research_service import ResearchService
 from portfell.hosted_shared_market_research_data import SharedMarketResearchData
 from portfell.hosted_shared_quote_publisher import SharedQuotePublisher
+from portfell.hosted_status_event_repository import PostgresStatusEventRepository
 from portfell.hosted_univariate_service import UnivariateResearchService
 from portfell.shared_market_data import SharedMarketDataStore
 
@@ -125,7 +126,9 @@ def build_postgres_services(
         ),
     )
     workflow_projector = PostgresProjectWorkflowProjector(
-        workflow_source, PostgresProjectWorkflowProjection(request_scope)
+        workflow_source,
+        PostgresProjectWorkflowProjection(request_scope),
+        PostgresStatusEventRepository(request_scope),
     )
     workflow_reader = PostgresProjectedWorkflowReader(
         PostgresProjectWorkflowProjection(request_scope),

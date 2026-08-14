@@ -20,7 +20,7 @@ class _Connection:
     def execute(self, sql: str, parameters: tuple[object, ...] = ()) -> _Cursor:
         self.calls.append((sql, parameters))
         if "insert into portfell_app.project_workflow_projections" in sql:
-            return _Cursor(({"stages": {}}, 3))
+            return _Cursor(({"stages": {}}, 3, True))
         return _Cursor(({"stages": {}}, 3))
 
 
