@@ -6,7 +6,9 @@ import {
 } from "../api/client";
 import { nextProgressSnapshot } from "../computation-progress";
 import type { ApiCredentialStatus, ApiMetadataFetch } from "../contracts";
-import { useResource } from "../hooks/use-resource";
+import { queryTiming } from "../query/client";
+import { queryKeys } from "../query/keys";
+import { useQueryResource } from "../query/use-query-resource";
 
 type MetadataFetchContextValue = Readonly<{
   providerKey: string;
@@ -23,7 +25,7 @@ type MetadataFetchContextValue = Readonly<{
 const MetadataFetchContext = createContext<MetadataFetchContextValue | null>(null);
 
 export function MetadataFetchProvider({ children }: Readonly<{ children: ReactNode }>) {
-  const credential = useResource(loadEodhdCredentialStatus, []);
+  const credential = useQueryResource(queryKeys.credential(), loadEodhdCredentialStatus, queryTiming.completed);
   const [providerKey, setProviderKey] = useState("");
   const [savedCredential, setSavedCredential] = useState<ApiCredentialStatus | null>(null);
   const [fetching, setFetching] = useState(false);

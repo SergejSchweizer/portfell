@@ -1,12 +1,16 @@
 import { useQuery, type QueryKey } from "@tanstack/react-query";
-import type { ResourceState } from "../hooks/use-resource";
+
+export type ResourceState<T> =
+  | Readonly<{ status: "idle" | "loading"; data?: undefined; error?: undefined; refreshing?: false }>
+  | Readonly<{ status: "ready"; data: T; error?: undefined; refreshing?: boolean; refreshError?: Error }>
+  | Readonly<{ status: "error"; data?: undefined; error: Error; refreshing?: false }>;
 
 export function useQueryResource<T>(
   queryKey: QueryKey,
-  queryFn: () => Promise<T>,
+  queryFn: (signal: AbortSignal) => Promise<T>,
   staleTime?: number,
 ): ResourceState<T> {
-  const query = useQuery({ queryKey, queryFn, staleTime });
+  const query = useQuery({ queryKey, queryFn: ({ signal }) => queryFn(signal), staleTime });
   if (query.data !== undefined) {
     return { status: "ready", data: query.data, refreshing: query.isFetching, refreshError: query.error ?? undefined };
   }

@@ -66,20 +66,20 @@ export function postJson<TResponse>(path: string, body: unknown): Promise<TRespo
   });
 }
 
-export function loadWorkflow(): Promise<ApiWorkflow> {
-  return requestJson<ApiWorkflow>("/api/workflow");
+export function loadWorkflow(signal?: AbortSignal): Promise<ApiWorkflow> {
+  return requestJson<ApiWorkflow>("/api/workflow", { signal });
 }
 
-export function loadEodhdCredentialStatus(): Promise<ApiCredentialStatus> {
-  return requestJson<ApiCredentialStatus>("/api/credentials/eodhd");
+export function loadEodhdCredentialStatus(signal?: AbortSignal): Promise<ApiCredentialStatus> {
+  return requestJson<ApiCredentialStatus>("/api/credentials/eodhd", { signal });
 }
 
 export function loadMetadataFetchRun(metadataRunId: string): Promise<ApiMetadataFetch> {
   return requestJson<ApiMetadataFetch>(`/api/metadata/fetch-all/${encodeURIComponent(metadataRunId)}`);
 }
 
-export function loadProjectContext(): Promise<ApiProjectContext> {
-  return requestJson<ApiProjectContext>("/api/project-context");
+export function loadProjectContext(signal?: AbortSignal): Promise<ApiProjectContext> {
+  return requestJson<ApiProjectContext>("/api/project-context", { signal });
 }
 
 export function loadProjectMetadataBuilder(projectId: string): Promise<ApiProjectMetadataBuilder> {
@@ -101,6 +101,6 @@ export function selectCurrentProject(projectId: string): Promise<ApiProjectConte
   });
 }
 
-export function loadProjectWorkflow(projectId: string): Promise<ApiWorkflow> {
-  return requestJson<ApiWorkflow>(`/api/projects/${encodeURIComponent(projectId)}/workflow`);
+export function loadProjectWorkflow(projectId: string, signal?: AbortSignal): Promise<ApiWorkflow> {
+  return requestJson<ApiWorkflow>(`/api/projects/${encodeURIComponent(projectId)}/workflow`, { signal });
 }

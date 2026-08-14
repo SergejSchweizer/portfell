@@ -3,6 +3,8 @@ type RunId = string;
 
 export const queryKeys = {
   projectContext: () => ["project-context"] as const,
+  credential: () => ["credential", "eodhd"] as const,
+  metadataOptions: () => ["metadata-builder", "field-options"] as const,
   workflowRoot: () => ["workflow"] as const,
   workflow: (projectId?: ProjectId) => ["workflow", projectId ?? "current"] as const,
   pageView: (projectId: ProjectId, module: string) => ["page-view", projectId, module] as const,

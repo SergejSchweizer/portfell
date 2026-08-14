@@ -1,13 +1,15 @@
 
 import { useEffect, useRef, useState } from "react";
-import { loadProjectContext, loadWorkflow } from "../api/client";
+import { loadProjectContext, loadProjectWorkflow } from "../api/client";
 import { bivariateStatisticsApi, type BivariateRunData } from "../api/bivariate-statistics";
 import { Button } from "../components/button";
 import { nextProgressSnapshot, type ProgressSnapshot } from "../computation-progress";
 import { LoadingState } from "../components/loading-state";
 import { Panel } from "../components/panel";
-import type { ApiBivariateMetricSummary, ApiBivariateRow, ApiBivariateSummary, ApiCovarianceMatrix, ApiPage, ApiPairMetricMatrix, ApiPairPlan, ApiResearchRun, ApiTailRiskScatter } from "../contracts";
-import { useResource } from "../hooks/use-resource";
+import type { ApiBivariateMetricSummary, ApiBivariateRow, ApiBivariateSummary, ApiCovarianceMatrix, ApiPage, ApiPairMetricMatrix, ApiPairPlan, ApiResearchRun, ApiTailRiskScatter, ApiWorkflow } from "../contracts";
+import { queryClient, queryTiming } from "../query/client";
+import { queryKeys } from "../query/keys";
+import { useQueryResource } from "../query/use-query-resource";
 
 type PairwiseMatrixMetric = "covariance" | "pearson" | "spearman" | "downside" | "lower_tail_dependence" | "tail_coexceedance_rate" | "rolling_stability" | "drawdown_overlap" | "tail_risk_scatter";
 
@@ -22,6 +24,15 @@ const pairwiseMatrixTabs: readonly Readonly<{ metric: PairwiseMatrixMetric; labe
   { metric: "drawdown_overlap", label: "Drawdown Overlap" },
   { metric: "tail_risk_scatter", label: "Tail-Risk Scatter" },
 ];
+
+const emptyWorkflow: ApiWorkflow = {
+  stages: {
+    metadata_builder: { status: "ready" },
+    univariate_statistics: { status: "locked" },
+    bivariate_statistics: { status: "locked" },
+    multivariate_statistics: { status: "locked" },
+  },
+};
 
 function metric(value: number | null | undefined): string {
   return value == null ? "—" : value.toFixed(4);
@@ -224,8 +235,13 @@ function TailRiskScatter({ scatter }: { scatter: ApiTailRiskScatter | null }) {
 }
 
 export function BivariateStatisticsPage() {
-  const [workflowRevision, setWorkflowRevision] = useState(0);
-  const workflow = useResource(loadWorkflow, [workflowRevision]);
+  const projectContext = useQueryResource(queryKeys.projectContext(), loadProjectContext, queryTiming.volatile);
+  const projectId = projectContext.status === "ready" ? projectContext.data.current_project_id : null;
+  const workflow = useQueryResource(
+    queryKeys.workflow(projectId ?? undefined),
+    (signal) => projectId ? loadProjectWorkflow(projectId, signal) : Promise.resolve(emptyWorkflow),
+    queryTiming.volatile,
+  );
   const [run, setRun] = useState<ApiResearchRun | null>(null);
   const [results, setResults] = useState<ApiPage<ApiBivariateRow> | null>(null);
   const [covarianceMatrix, setCovarianceMatrix] = useState<ApiCovarianceMatrix | null>(null);
@@ -267,8 +283,6 @@ export function BivariateStatisticsPage() {
     const metric = activePairwiseMetric;
     async function loadVisibleSection() {
       try {
-        const context = await loadProjectContext();
-        const projectId = context.current_project_id;
         if (!projectId) return;
         const summaryResponse = await bivariateStatisticsApi.loadSection<ApiBivariateSummary>(projectId, "summary");
         if (cancelled) return;
@@ -298,7 +312,7 @@ export function BivariateStatisticsPage() {
     }
     void loadVisibleSection();
     return () => { cancelled = true; };
-  }, [activePairwiseMetric, run?.run_id, run?.status]);
+  }, [activePairwiseMetric, projectId, run?.run_id, run?.status]);
 
   useEffect(() => {
     const resetProjectState = () => {
@@ -317,11 +331,11 @@ export function BivariateStatisticsPage() {
       setSummary(null);
       setStarting(false);
       setMessage("");
-      setWorkflowRevision((value) => value + 1);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.workflow(projectId ?? undefined) });
     };
     window.addEventListener("portfell:project-updated", resetProjectState);
     return () => window.removeEventListener("portfell:project-updated", resetProjectState);
-  }, []);
+  }, [projectId]);
 
   useEffect(() => {
     if (!run || run.status !== "running") return;
@@ -375,9 +389,13 @@ export function BivariateStatisticsPage() {
     return () => { cancelled = true; };
   }, [persistedRunId, run?.run_id]);
 
-  if (workflow.status === "loading" || workflow.status === "idle") return <LoadingState label="Loading bivariate statistics" />;
-  if (workflow.status === "error") return <p>Workflow state is unavailable.</p>;
-  const selectionId = workflow.data.stages.univariate_statistics.univariate_selection_id;
+  if (workflow.status !== "ready") {
+    return workflow.status === "error"
+      ? <p>Workflow state is unavailable.</p>
+      : <LoadingState label="Loading bivariate statistics" />;
+  }
+  const workflowData = workflow.data;
+  const selectionId = workflowData.stages.univariate_statistics.univariate_selection_id;
   if (!selectionId) {
     return <Panel title="Bivariate Statistics"><p>Complete univariate statistics and select at least two ISINs first.</p></Panel>;
   }

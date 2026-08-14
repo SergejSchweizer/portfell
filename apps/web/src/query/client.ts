@@ -9,7 +9,7 @@ export const queryClient = new QueryClient({
       gcTime: 15 * 60_000,
       retry: 2,
       retryDelay: (attempt) => Math.min(1_000 * 2 ** attempt, 8_000),
-      staleTime: fifteenMinutes,
+      staleTime: fiveMinutes,
       refetchOnWindowFocus: false,
     },
     mutations: { retry: false },

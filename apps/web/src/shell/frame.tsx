@@ -50,7 +50,7 @@ function ShellFrameContent({ currentPage, children }: ShellFrameProps) {
   const projectId = context.status === "ready" ? context.data.current_project_id : null;
   const workflow = useQueryResource(
     queryKeys.workflow(projectId ?? undefined),
-    () => projectId ? loadProjectWorkflow(projectId) : Promise.resolve(emptyWorkflow),
+    (signal) => projectId ? loadProjectWorkflow(projectId, signal) : Promise.resolve(emptyWorkflow),
     queryTiming.volatile,
   );
 
