@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import Callable
 from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from typing import Protocol
@@ -70,8 +71,14 @@ class DurableJobConnection(Protocol):
 class PostgresDurableJobRepository:
     """Atomically queue jobs and claim bounded worker batches."""
 
-    def __init__(self, connection: DurableJobConnection) -> None:
+    def __init__(
+        self,
+        connection: DurableJobConnection,
+        *,
+        navigation_refresher: Callable[[str], object] | None = None,
+    ) -> None:
         self._connection = connection
+        self._navigation_refresher = navigation_refresher
 
     def enqueue(self, *, job: DurableJob, event: OutboxEvent) -> DurableJob:
         """Insert one logical job and its outbox event in one transaction."""
@@ -108,6 +115,7 @@ on conflict (event_id) do nothing
 """,
                 (event.event_id, event.user_id, event.event_type, event.aggregate_ref),
             )
+            self._refresh_navigation(job.user_id)
         return job
 
     def claim(self, *, worker_id: str, batch_size: int) -> tuple[ClaimedJob, ...]:
@@ -164,6 +172,7 @@ where job_id = %s::uuid and lease_token = %s::uuid
 """,
                     (str(uuid.uuid4()), worker_id, row[0], lease_token),
                 )
+                self._refresh_navigation(claimed.user_id)
         return tuple(_claimed_job(row, lease_token) for row in rows)
 
     def complete(
@@ -208,6 +217,7 @@ where job_id = %s::uuid and attempt_number = (
 """,
                 (terminal_code, job_id, job_id),
             )
+            self._refresh_navigation(user_id)
 
     def heartbeat(self, *, job_id: str, lease_token: str) -> None:
         """Extend only the currently owned running-job lease."""
@@ -239,12 +249,16 @@ update portfell_app.jobs
 set completed_units = %s, total_units = %s, heartbeat_at = now(),
     lease_expires_at = now() + interval '5 minutes', updated_at = now()
 where job_id = %s::uuid and status = 'running' and lease_token = %s::uuid
-returning job_id
+returning job_id::text, user_id::text
 """,
                 (completed_units, total_units, job_id, lease_token),
             ).fetchone()
             if updated is None:
                 raise DurableJobError("job_lease_lost")
+            if self._navigation_refresher is not None:
+                if len(updated) != 2 or not isinstance(updated[1], str):
+                    raise DurableJobError("job_progress_projection_invalid")
+                self._refresh_navigation(updated[1])
 
     def set_initial_fill_failed_listing_count(
         self, *, job_id: str, user_id: str, failed_listing_count: int
@@ -263,6 +277,7 @@ where bootstrap_job_id = %s::uuid
 """,
                 (failed_listing_count, job_id),
             )
+            self._refresh_navigation(user_id)
 
     def recover_expired_leases(self) -> tuple[str, ...]:
         """Return expired running jobs to the queue and close their attempts."""
@@ -285,6 +300,7 @@ returning job_id::text, user_id::text, job_kind
                     job_kind=job_kind,
                     status="planning",
                 )
+                self._refresh_navigation(user_id)
             job_ids = tuple(job_id for job_id, _, _ in recovered)
             for job_id in job_ids:
                 self._connection.execute(
@@ -311,6 +327,10 @@ where bootstrap_job_id = %s::uuid
 """,
             (status, job_id),
         )
+
+    def _refresh_navigation(self, user_id: str) -> None:
+        if self._navigation_refresher is not None:
+            self._navigation_refresher(user_id)
 
 
 def _claimed_job(row: tuple[object, ...], lease_token: str) -> ClaimedJob:

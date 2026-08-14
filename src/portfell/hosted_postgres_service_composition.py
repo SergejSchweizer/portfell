@@ -14,6 +14,7 @@ from portfell.hosted_download_run_repository import PostgresDownloadRunRepositor
 from portfell.hosted_metadata_project_service import MetadataProjectService
 from portfell.hosted_metadata_refresh_job_repository import PostgresMetadataRefreshJobRepository
 from portfell.hosted_multivariate_service import MultivariateResearchService
+from portfell.hosted_navigation_reconciler import PostgresNavigationReconciler
 from portfell.hosted_postgres_repository_bundle import PostgresHostedRepositoryBundle
 from portfell.hosted_postgres_request_scope import RequestScopedPostgresConnection
 from portfell.hosted_postgres_research_repository import PostgresResearchRepository
@@ -116,6 +117,7 @@ def build_postgres_services(
         ),
     )
     persistence = PostgresResearchPersistence()
+    navigation_reconciler = PostgresNavigationReconciler(request_scope)
     credentials = CredentialProjectService(
         state,
         runtime,
@@ -131,6 +133,7 @@ def build_postgres_services(
         project_active_run,
         repositories.navigation.read,
         repositories.navigation.write,
+        navigation_reconciler.reconcile,
     )
     metadata = MetadataProjectService(
         state,

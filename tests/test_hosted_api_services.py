@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from contextlib import AbstractContextManager, nullcontext
 from pathlib import Path
 from typing import Any
 from uuid import UUID
@@ -44,6 +45,7 @@ from portfell.hosted_credentials import (
 from portfell.hosted_download_run_repository import DownloadRunRepository
 from portfell.hosted_metadata_project_service import MetadataProjectService
 from portfell.hosted_navigation_read_model_repository import PostgresNavigationReadModel
+from portfell.hosted_navigation_reconciler import PostgresNavigationReconciler
 from portfell.hosted_project_bootstrap_repository import DurableProjectBootstrap
 from portfell.hosted_quote_run_service import QuoteRunService
 from portfell.hosted_repository_importer import (
@@ -546,6 +548,18 @@ def test_project_command_writes_navigation_projection() -> None:
     ]
 
 
+def test_project_command_prefers_a_navigation_reconciler() -> None:
+    reconciled: list[str] = []
+    service = CredentialProjectService(
+        HostedApiState(),
+        navigation_reconciler=lambda user_id: reconciled.append(user_id) or ({}, "etag"),
+    )
+
+    service.create_project("user-1", "Income", "request-1")
+
+    assert reconciled == ["user-1"]
+
+
 def test_account_deletion_refreshes_navigation_projection() -> None:
     writes: list[JsonRow] = []
     service = CredentialProjectService(
@@ -585,6 +599,48 @@ def test_navigation_read_model_binds_rls_and_derives_a_stable_etag() -> None:
     assert first[1] == second[1]
     assert connection.calls[0][0] == "select set_config(%s, %s, true)"
     assert "navigation_projections" in connection.calls[1][0]
+
+
+def test_navigation_reconciler_rebuilds_one_canonical_projection() -> None:
+    payload: JsonRow = {
+        "current_project_id": "project-1",
+        "current_project": {"project_id": "project-1", "name": "Income"},
+        "projects": [{"project_id": "project-1", "name": "Income"}],
+    }
+
+    class Cursor:
+        def __init__(self, row: tuple[object, ...]) -> None:
+            self._row = row
+
+        def fetchone(self) -> tuple[object, ...]:
+            return self._row
+
+    class Connection:
+        calls: list[tuple[str, tuple[object, ...]]] = []
+
+        def transaction(self) -> AbstractContextManager[object]:
+            return nullcontext()
+
+        def execute(self, sql: str, parameters: tuple[object, ...] = ()) -> Cursor:
+            self.calls.append((sql, parameters))
+            if "with project_rows as" in sql:
+                return Cursor((payload,))
+            if "insert into portfell_app.navigation_projections" in sql:
+                return Cursor((payload, 4))
+            return Cursor(())
+
+    connection = Connection()
+    row, etag = PostgresNavigationReconciler(connection).reconcile(
+        "00000000-0000-5000-8000-000000000001"
+    )
+
+    assert row == payload
+    assert etag
+    assert len(connection.calls) == 4
+    assert connection.calls[0][0] == "select set_config(%s, %s, true)"
+    assert "with project_rows as" in connection.calls[1][0]
+    assert connection.calls[2][0] == "select set_config(%s, %s, true)"
+    assert "navigation_projections" in connection.calls[3][0]
 
 
 def test_project_context_includes_an_active_project_run() -> None:

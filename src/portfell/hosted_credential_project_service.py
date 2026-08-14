@@ -71,6 +71,7 @@ class CredentialProjectService:
         project_active_run_reader: Callable[[str, str], JsonRow | None] | None = None,
         navigation_reader: Callable[[str], tuple[JsonRow, str] | None] | None = None,
         navigation_writer: Callable[[str, JsonRow], tuple[JsonRow, str]] | None = None,
+        navigation_reconciler: Callable[[str], tuple[JsonRow, str]] | None = None,
     ) -> None:
         self.state = state
         self.runtime = runtime
@@ -88,6 +89,7 @@ class CredentialProjectService:
         self._project_active_run_reader = project_active_run_reader
         self._navigation_reader = navigation_reader
         self._navigation_writer = navigation_writer
+        self._navigation_reconciler = navigation_reconciler
 
     def workflow(self, user_id: str, project_id: str | None = None) -> JsonRow:
         if project_id is None:
@@ -321,6 +323,9 @@ class CredentialProjectService:
         return selection_row(self._selection_record(selection))
 
     def _sync_navigation(self, user_id: str) -> None:
+        if self._navigation_reconciler is not None:
+            self._navigation_reconciler(user_id)
+            return
         if self._navigation_writer is not None:
             self._navigation_writer(user_id, self._project_context_source(user_id))
 
