@@ -110,6 +110,24 @@ def test_hosted_services_do_not_hide_dependencies_or_disable_strict_typing() -> 
         assert all(value not in source for value in forbidden_type_suppressions), path
 
 
+def test_navigation_read_model_has_no_shared_store_or_command_dependencies() -> None:
+    source = (PACKAGE_ROOT / "hosted_navigation_read_model_repository.py").read_text(
+        encoding="utf-8"
+    )
+    forbidden = frozenset(
+        {
+            "portfell.table_io",
+            "portfell.shared_market_data",
+            "portfell.shared_metadata_catalog",
+            "portfell.hosted_credential_project_service",
+            "portfell.hosted_metadata_project_service",
+            "portfell.hosted_research_service",
+        }
+    )
+
+    assert _forbidden_imports(source, forbidden) == set()
+
+
 def test_research_implementation_is_split_and_covered_by_hosted_service_gates() -> None:
     service_names = {path.name for path in PACKAGE_ROOT.glob(SERVICE_GLOB)}
     assert service_names >= RESEARCH_SERVICE_MODULES

@@ -18,7 +18,7 @@
     "quote_run_incomplete",
     "scoped_quote_rows_unavailable"
   ],
-  "normalized_sha256": "8e354bcce7fe4f97ddbc889b53ba9de762e4560eadb93e7623902668b5509090",
+  "normalized_sha256": "b799306241568b3f05b2c3f64fcee5b5c96070e646db62ecc107a1bddae0981b",
   "operations": [
     "DELETE /account 200",
     "POST /analyses 200/422",
@@ -61,7 +61,7 @@
     "GET /multivariate-statistics/runs/{run_id}/structure 200/422",
     "GET /multivariate-statistics/runs/{run_id}/summary 200/422",
     "GET /multivariate-statistics/runs/{run_id}/validation 200/422",
-    "GET /project-context 200",
+    "GET /project-context 200/422",
     "PUT /project-context/current-project 200/422",
     "GET /projects 200/422",
     "POST /projects 200/422",

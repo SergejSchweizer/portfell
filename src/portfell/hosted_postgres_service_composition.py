@@ -129,6 +129,8 @@ def build_postgres_services(
         workflow_reader,
         project_data_loaded,
         project_active_run,
+        repositories.navigation.read,
+        repositories.navigation.write,
     )
     metadata = MetadataProjectService(
         state,
@@ -140,6 +142,7 @@ def build_postgres_services(
         repositories.audit,
         bootstrap,
         PostgresMetadataRefreshJobRepository(request_scope),
+        credentials.refresh_navigation,
     )
     quotes = QuoteRunService(
         state,
