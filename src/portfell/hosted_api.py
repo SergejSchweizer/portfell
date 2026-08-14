@@ -41,8 +41,6 @@ from portfell.hosted_credentials import load_key_encryption_key
 from portfell.hosted_database_connection import connect as connect_database
 from portfell.hosted_local_test_composition import (
     create_persistent_local_workspace_state,
-    local_research_service,
-    local_runtime,
     run_quote_fetch_for_test,
 )
 from portfell.hosted_metadata_project_service import MetadataProjectService
@@ -81,7 +79,6 @@ __all__ = [
     "UnivariateSelectionRequest",
     "UnivariateRunRequest",
     "UserOwnedRow",
-    "app",
     "create_app",
     "create_persistent_local_workspace_state",
     "create_runtime_app",
@@ -117,13 +114,8 @@ def create_app(
         user_id=os.environ.get("PORTFELL_LOCAL_WORKSPACE_USER_ID", DEFAULT_LOCAL_WORKSPACE_USER_ID)
     )
     if services is None:
-        runtime = local_runtime()
-        credentials = CredentialProjectService(resolved_state, runtime)
-        metadata = MetadataProjectService(resolved_state, runtime)
-        quotes = QuoteRunService(resolved_state, runtime)
-        research = local_research_service(resolved_state, runtime)
-    else:
-        credentials, metadata, quotes, research = services
+        raise HostedApiError("hosted_services_must_be_explicit")
+    credentials, metadata, quotes, research = services
 
     def current_user() -> ApiUser:
         return provider.current_user()
@@ -230,7 +222,5 @@ def _stable_hash(payload: dict[str, Any]) -> str:
     return stable_hash(payload)
 
 
-# Test clients and import-time tooling use an explicitly injected application.
-# The container entry point invokes ``create_runtime_app`` as a Uvicorn factory,
-# which accepts PostgreSQL as its only hosted authority.
-app = create_app()
+# The container entry point invokes ``create_runtime_app`` as a Uvicorn factory.
+# It accepts PostgreSQL as its only hosted authority.

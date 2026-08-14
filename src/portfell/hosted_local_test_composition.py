@@ -11,8 +11,11 @@ from portfell.hosted_api_local_runtime import LocalHostedRuntime
 from portfell.hosted_api_ports import Workflow
 from portfell.hosted_api_state import HostedApiState
 from portfell.hosted_bivariate_service import BivariateResearchService
+from portfell.hosted_credential_project_service import CredentialProjectService
 from portfell.hosted_credentials import FileCredentialStore, KeyEncryptionKey
+from portfell.hosted_metadata_project_service import MetadataProjectService
 from portfell.hosted_multivariate_service import MultivariateResearchService
+from portfell.hosted_quote_run_service import QuoteRunService
 from portfell.hosted_research_persistence import LocalResearchPersistence
 from portfell.hosted_research_ports import ResearchDataPort
 from portfell.hosted_research_repository import HostedResearchRepository
@@ -40,6 +43,20 @@ def local_research_service(state: HostedApiState, data: ResearchDataPort) -> Res
         BivariateResearchService(repository, data, persistence),
         MultivariateResearchService(state, data, persistence, repository),
         HostedAnalysisService(repository, persistence),
+    )
+
+
+def local_test_services(
+    state: HostedApiState,
+) -> tuple[CredentialProjectService, MetadataProjectService, QuoteRunService, ResearchService]:
+    """Compose non-production adapters for explicit API tests only."""
+
+    runtime = local_runtime()
+    return (
+        CredentialProjectService(state, runtime),
+        MetadataProjectService(state, runtime),
+        QuoteRunService(state, runtime),
+        local_research_service(state, runtime),
     )
 
 

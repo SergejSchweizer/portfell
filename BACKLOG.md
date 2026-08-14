@@ -1745,11 +1745,89 @@ projection revision mapping are versioned.
 Idempotency: Logical transition uniqueness prevents duplicate events, and replaying an event applies
 the same cache update/invalidation without duplicate commands or calculations.
 
-### PR251. Single Hosted Authority And Legacy Fallback Removal
+### PR251a. Explicit Hosted FastAPI Composition
 
-Branch: `refactor/hosted-single-authority`.
+Branch: `refactor/hosted-single-authority-composition`.
+
+Git status: in progress.
+
+PR: TBD.
+
+Priority: P1 final hosted simplification.
+
+Depends on: PR250.
+
+Scope: Remove the implicit local/In-Memory service fallback from `create_app`. Production FastAPI
+composition must receive an explicit PostgreSQL/shared-artifact service bundle; deterministic local
+test services live only in the local test-composition module. Remove the obsolete import-time ASGI
+application fallback because the container already invokes the explicit runtime factory.
+
+Acceptance: Hosted API construction without services fails closed; runtime construction uses only the
+PostgreSQL composition; tests explicitly opt into local test services; repository searches prove the
+production API module does not import local runtime or local research adapters.
+
+### PR251b. Hosted Dependency Boundary Tests
+
+Branch: `test/hosted-single-authority-boundaries`.
 
 Git status: not started.
+
+PR: TBD.
+
+Priority: P1 final hosted simplification.
+
+Depends on: PR251a.
+
+Scope: Add executable architecture tests prohibiting hosted route/service imports of local workspace,
+test composition, provider client, unrestricted lake, and in-memory authority modules. Keep local CLI
+and analytical-core imports explicitly outside the hosted graph.
+
+Acceptance: Tests fail for every prohibited edge and pass for the explicit PostgreSQL/shared-artifact
+composition and independent local CLI graph.
+
+### PR251c. Hosted Legacy Adapter And Configuration Removal
+
+Branch: `refactor/hosted-single-authority-removal`.
+
+Git status: not started.
+
+PR: TBD.
+
+Priority: P1 final hosted simplification.
+
+Depends on: PR251b.
+
+Scope: Delete unreachable hosted fallback adapters, obsolete environment switches, duplicate
+serializers/repositories, and migrated browser cache/polling code. Retain only explicit local CLI
+adapters and test factories.
+
+Acceptance: No production setting selects local/in-memory/workspace authority; all removed hosted
+paths have a named replacement or proof of being dead; API/Web composition is single-authority.
+
+### PR251d. Single-Authority Operations And Documentation
+
+Branch: `docs/hosted-single-authority-operations`.
+
+Git status: not started.
+
+PR: TBD.
+
+Priority: P1 final hosted simplification.
+
+Depends on: PR251c.
+
+Scope: Update architecture, Compose, OpenAPI, readiness, deployment, migration, rollback, and UI
+documentation to one PostgreSQL/shared-artifact authority, including exact deploy order and smoke
+checks.
+
+Acceptance: Every sidecar document has one current diagram/TOC-guided path with no fallback guidance;
+the documented preflight, deployment, and rollback commands are verified.
+
+### PR251. Single Hosted Authority And Legacy Fallback Removal
+
+Branch: split into PR251a through PR251d above.
+
+Git status: in progress (PR251a in progress).
 
 PR: TBD.
 

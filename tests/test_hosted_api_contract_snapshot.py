@@ -5,8 +5,9 @@ import json
 from pathlib import Path
 from typing import Any, cast
 
-from portfell.hosted_api import create_app
+from portfell.hosted_api import HostedApiState, create_app
 from portfell.hosted_api_errors import HOSTED_ERROR_CODES
+from portfell.hosted_local_test_composition import local_test_services
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 SNAPSHOT_PATH = REPOSITORY_ROOT / "docs" / "hosted_api_openapi.snapshot.json"
@@ -14,7 +15,8 @@ HTTP_METHODS = frozenset({"delete", "get", "patch", "post", "put"})
 
 
 def _normalized_openapi() -> dict[str, object]:
-    specification = create_app().openapi()
+    state = HostedApiState()
+    specification = create_app(state, services=local_test_services(state)).openapi()
     paths = cast("dict[str, dict[str, dict[str, Any]]]", specification["paths"])
     return {
         "components": {"schemas": specification.get("components", {}).get("schemas", {})},

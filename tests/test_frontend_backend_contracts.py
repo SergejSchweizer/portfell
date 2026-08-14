@@ -7,12 +7,23 @@ import re
 from pathlib import Path
 from typing import Any, cast
 
-from portfell.hosted_api import create_app
+from portfell.hosted_api import HostedApiState, create_app
+from portfell.hosted_local_test_composition import local_test_services
+from portfell.hosted_postgres_request_scope import RequestScopedPostgresConnection
 
 ROOT = Path(__file__).resolve().parents[1]
 WEB_ROOT = ROOT / "apps" / "web"
 MANIFEST_PATH = WEB_ROOT / "api-contracts.json"
 HTTP_METHODS = frozenset({"delete", "get", "patch", "post", "put"})
+
+
+def _app():
+    state = HostedApiState()
+    return create_app(
+        state,
+        services=local_test_services(state),
+        request_scope=RequestScopedPostgresConnection(lambda: object()),  # type: ignore[arg-type]
+    )
 
 
 def _normalize_path(path: str) -> str:
@@ -50,7 +61,7 @@ def test_every_react_api_path_is_catalogued_and_backed_by_fastapi() -> None:
 
     assert _frontend_api_paths() == documented_paths
 
-    specification = cast("dict[str, Any]", create_app().openapi())
+    specification = cast("dict[str, Any]", _app().openapi())
     backend_operations = {
         (method.upper(), _normalize_path(path))
         for path, operations in cast("dict[str, dict[str, Any]]", specification["paths"]).items()
@@ -74,7 +85,7 @@ def test_every_catalogued_response_has_a_named_react_contract() -> None:
 
 
 def test_react_write_contracts_match_backend_request_schemas_and_query_parameters() -> None:
-    specification = cast("dict[str, Any]", create_app().openapi())
+    specification = cast("dict[str, Any]", _app().openapi())
     paths = cast("dict[str, dict[str, dict[str, Any]]]", specification["paths"])
 
     for contract in _manifest():
