@@ -1,8 +1,9 @@
-Last reviewed: 2026-08-13
+Last reviewed: 2026-08-14
 
 ## Table Of Contents
 
 - [Backlog Policy](#backlog-policy)
+- [Parallel Weak-Agent PR Design](#parallel-weak-agent-pr-design)
 - [Active Multivariate Calculation Correctness Work](#active-multivariate-calculation-correctness-work)
 - [Active Mixed Distribution Frequency Portfolio Work](#active-mixed-distribution-frequency-portfolio-work)
 - [Active Bivariate Calculation Correctness Work](#active-bivariate-calculation-correctness-work)
@@ -40,6 +41,33 @@ This file is ordered by execution relevance:
 Every active item must contain `Branch`, `Git status`, `PR`, `Priority`, `Depends on`, `Scope`, `Acceptance`, `Security`, `Determinism`, and `Idempotency`. A PR is atomic only when it can merge independently with all repository gates green. A PR is complete only when its acceptance criteria are machine-verifiable and no assigned scope is deferred silently.
 
 Completed entries are never deleted. Superseded plans are moved to the historical section and explicitly marked non-active. Backlog identifiers are never reused.
+
+## Parallel Weak-Agent PR Design
+
+Every new backlog PR must be designed so that two independent agents can implement and review it in
+parallel. Assume either agent may have limited reasoning ability, incomplete conversation context, and
+no ability to infer unstated product or architectural decisions. The PR definition is therefore the
+complete executable work order, not a short reminder.
+
+Each PR must state:
+
+- one atomic business outcome and explicit non-goals;
+- stable ownership boundaries: exact modules, routes, schemas, contracts, fixtures, and documents each
+  parallel agent may change, plus files or abstractions that are shared and must be coordinated first;
+- ordered dependencies and concrete hand-off artifacts, including versioned schemas, typed interfaces,
+  fixture names, command examples, or committed contract snapshots;
+- an implementation sequence that permits independent work without duplicate migrations, conflicting
+  public contracts, or incompatible placeholder abstractions;
+- a complete acceptance list with observable inputs, expected outputs, error behavior, authorization,
+  persistence, restart, determinism, idempotency, performance limits, and exact tests/gates required;
+- explicit evidence commands for completion and a rollback or migration note whenever persistent state,
+  APIs, or deployment behavior changes.
+
+Acceptance criteria must be precise enough that one weak agent can implement the item and a second
+weak agent can verify it solely from the checked-in definition. Vague terms such as “fast”, “robust”,
+“update all callers”, or “test thoroughly” are prohibited unless accompanied by measurable limits,
+named callers, and exact test assertions. If two agents cannot work safely in parallel, split the item
+into smaller sequential PRs and record the dependency and hand-off in this file before implementation.
 
 ## Active Mixed Distribution Frequency Portfolio Work
 
@@ -1014,64 +1042,6 @@ authority for a hosted request. Every latency assertion must use a checked-in de
 and report request count, response bytes, database statement count, shared-file reads, and elapsed
 time; wall-clock thresholds alone are insufficient evidence.
 
-### PR246. Worker Admission Control And Interactive Capacity
-
-Branch: `feat/hosted-worker-admission-control`.
-
-Git status: merged 2026-08-14.
-
-PR: https://github.com/SergejSchweizer/portfell/pull/400 (merged as `2e2663299ae2e7806774176d8e7f261b6aefac60`).
-
-Priority: P0 interactive availability.
-
-Depends on: PR245 and the active PostgreSQL hosted runtime on `main`.
-
-Scope:
-
-- Add one typed worker-capacity configuration shared by project bootstrap, metadata refresh, and
-  analytical execution. Reserve two visible CPUs for API/PostgreSQL work; default worker concurrency
-  to `min(4, max(1, visible_cpus - 2))`, allow an operator override only in `1..8`, use batches of 250
-  canonical listings, and log only the effective worker count, batch size, and workload class.
-- Introduce process-local admission control for each worker process so one durable job owns a bounded
-  number of fetch, transform, and publication tasks. Split large listing sets into deterministic
-  batches, release executor resources between batches, and heartbeat durable leases throughout.
-- Keep API and worker processes separate in the existing Compose services. Configure relative CPU and
-  I/O priority where the host supports it, without introducing a fifth runtime service or restoring
-  hard CPU/RAM limits. Unsupported priority controls must be visible at startup, not silently assumed.
-- Add worker metrics for queued, active, completed, failed, and retried units; batch duration; provider
-  wait; transform CPU time; publication time; and lease age. Metrics and logs contain project/job IDs
-  only where already authorized and never include credentials or unrestricted listing inventories.
-- Add a deterministic real-stack contention scenario that runs a large synthetic bootstrap while
-  repeatedly requesting health, project context, and workflow. Record an idle baseline and the loaded
-  result using the same image, fixture, and request sequence.
-
-Out of scope: Changing provider semantics, adding a distributed scheduler, adding Redis, changing
-calculation formulas, or making API processes execute worker jobs.
-
-Acceptance:
-
-- One configured worker process never exceeds its declared task concurrency, executor/thread count,
-  or deterministic batch size, including retries and concurrent heartbeat activity.
-- A cancelled, failed, or restarted batch retains durable progress and resumes from the first
-  incomplete listing without repeating a completed publication or losing its lease terminal state.
-- In the real-stack contention fixture, health remains responsive, interactive requests complete
-  throughout the worker run, `/health` p95 stays below 250 ms, navigation-read p95 stays below 1 s,
-  the HTTP error rate is zero, and loaded median/p95 latency is no more than twice the idle baseline.
-  The gate emits machine-readable evidence and fails on timeout, connection starvation, or API OOM.
-- Worker throughput, provider-request count, and final immutable publication identity remain equal to
-  the pre-change deterministic fixture; only scheduling and resource occupancy may change.
-- Focused worker tests, PostgreSQL lease tests, Compose validation, real-stack contention coverage,
-  Ruff, Pyright, and the applicable gates in `GATES.md` pass.
-
-Security: Capacity settings are operator-owned and bounded server-side. Browser input cannot select
-concurrency, priority, batch size, lease tokens, credentials, or storage paths.
-
-Determinism: Canonically sorted listing identities and versioned batch size define stable batch
-boundaries; scheduling order cannot alter output manifests or terminal counts.
-
-Idempotency: Replayed claims, retries, heartbeats, and publications converge on one durable job and one
-immutable result per business key.
-
 ### PR247. PostgreSQL Navigation Read Model
 
 Branch: `feat/hosted-navigation-read-model`.
@@ -1464,6 +1434,7 @@ backlog identifiers.
 
 | ID | Title | Final status |
 | --- | --- | --- |
+| PR246 | Worker Admission Control And Interactive Capacity | merged 2026-08-14. PR: https://github.com/SergejSchweizer/portfell/pull/400; commit `2e2663299ae2e7806774176d8e7f261b6aefac60` |
 | PR01 | Project Package And Quality Baseline | merged. PR: https://github.com/SergejSchweizer/portfell/pull/1 |
 | PR02 | Shared Configuration, HTTP, And Contract Primitives | merged. PR: https://github.com/SergejSchweizer/portfell/pull/3 |
 | PR03 | Simple Bronze/Silver/Gold Lake Layout Contract | merged. PR: https://github.com/SergejSchweizer/portfell/pull/3 |
