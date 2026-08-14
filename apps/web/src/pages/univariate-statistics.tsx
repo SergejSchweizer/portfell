@@ -277,10 +277,10 @@ export function UnivariateStatisticsPage() {
     };
   }, [run?.run_id, univariateStartedAt]);
 
-  if (pageViewLoading) {
+  if (pageViewLoading && !pageView) {
     return <LoadingState label="Loading univariate statistics" />;
   }
-  if (pageViewError) return <p>{pageViewError}</p>;
+  if (pageViewError && !pageView) return <p>{pageViewError}</p>;
   if (!pageView) return <Panel title="Univariate Statistics"><p>Select a project to compute univariate statistics.</p></Panel>;
   const stage = pageView;
   const metadataSelectionId = pageView.input.metadata_selection_id;
@@ -362,6 +362,8 @@ export function UnivariateStatisticsPage() {
 
   return (
     <section className="univariate-statistics-page" data-route="univariate-statistics-page">
+      {pageViewLoading ? <LoadingIndicator label="Loading selected project" compact /> : null}
+      {pageViewError ? <p className="status-line" role="alert">Could not load the selected project. Showing the previous view.</p> : null}
       <Panel title="Univariate Statistics">
         {stage.status === "locked" ? <p>Historical data is refreshed automatically by the shared-data service. Statistics unlock when coverage is available.</p> : <>
           <div className="quote-fetch quote-fetch--panel univariate-compute">
@@ -379,7 +381,7 @@ export function UnivariateStatisticsPage() {
             />
             <p className="status-line" aria-live="polite">{message || "Compute statistics for the downloaded historical data."}</p>
             <div className="quote-fetch__action">
-              <Button type="button" variant="primary" disabled={!metadataSelectionId || starting || run?.status === "running"} aria-busy={starting || run?.status === "running"} onClick={() => void compute()}>
+              <Button type="button" variant="primary" disabled={pageViewLoading || !metadataSelectionId || starting || run?.status === "running"} aria-busy={pageViewLoading || starting || run?.status === "running"} onClick={() => void compute()}>
                 {starting ? "Starting computation…" : run?.status === "running" ? "Computing…" : "Compute univariate statistics"}
               </Button>
             </div>

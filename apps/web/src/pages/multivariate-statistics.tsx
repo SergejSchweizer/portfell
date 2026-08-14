@@ -386,8 +386,8 @@ export function MultivariateStatisticsPage() {
     candidateSelectionSave.schedule({ runId: run.run_id, selectedCandidateIds: next });
   }
 
-  if (pageViewLoading) return <LoadingState label="Loading multivariate statistics" />;
-  if (pageViewError) return <p role="alert">{pageViewError}</p>;
+  if (pageViewLoading && !pageView) return <LoadingState label="Loading multivariate statistics" />;
+  if (pageViewError && !pageView) return <p role="alert">{pageViewError}</p>;
   if (!pageView) return <Panel title="Multivariate Statistics"><p>Select a project to compute portfolio-level analysis.</p></Panel>;
   if (stage?.status === "locked") return <Panel title="Multivariate Statistics"><p>Complete the matching bivariate run before portfolio-level analysis.</p></Panel>;
 
@@ -398,13 +398,15 @@ export function MultivariateStatisticsPage() {
   const structureAvailable = !structure?.availability_reasons?.length;
   const riskModelAvailable = !artifactRisk?.availability_reasons?.length;
   return <section className="multivariate-statistics-page" data-route="multivariate-statistics-page">
+    {pageViewLoading ? <LoadingIndicator label="Loading selected project" compact /> : null}
+    {pageViewError ? <p className="status-line" role="alert">Could not load the selected project. Showing the previous view.</p> : null}
     <Panel title="Multivariate Statistics">
       <div className="quote-fetch quote-fetch--panel bivariate-compute">
         <label htmlFor="multivariate-progress">Multivariate statistics progress</label>
         <progress id="multivariate-progress" value={progress} max={100} />
         <p className="status-line" aria-live="polite">{run ? `${run.phase} · ${run.completed_units} of ${run.total_units} phases complete · ${run.elapsed_seconds}s elapsed${run.estimated_remaining_seconds == null ? "" : ` · about ${run.estimated_remaining_seconds}s remaining`}` : "Ready to compute."}</p>
         <div className="quote-fetch__action">
-          <Button type="button" variant="primary" onClick={() => void compute()} disabled={!projectId || !bivariateRunId || starting || run?.status === "running"} aria-busy={starting || run?.status === "running"}>
+          <Button type="button" variant="primary" onClick={() => void compute()} disabled={pageViewLoading || !projectId || !bivariateRunId || starting || run?.status === "running"} aria-busy={pageViewLoading || starting || run?.status === "running"}>
             {starting ? "Starting computation…" : run?.status === "running" ? "Computing…" : "Compute multivariate statistics"}
           </Button>
         </div>

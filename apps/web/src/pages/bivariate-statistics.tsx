@@ -234,6 +234,7 @@ export function BivariateStatisticsPage() {
       ? bivariateStatisticsApi.loadPageView(projectId, signal)
       : Promise.reject(new Error("project_not_selected")),
     queryTiming.volatile,
+    true,
   );
   const [run, setRun] = useState<ApiResearchRun | null>(null);
   const [results, setResults] = useState<ApiPage<ApiBivariateRow> | null>(null);
@@ -459,6 +460,7 @@ export function BivariateStatisticsPage() {
     ? "Covariance"
     : pairwiseMatrixTabs.find((tab) => tab.metric === activePairwiseMetric)!.label;
   return (<>
+    {pageView.refreshing ? <LoadingIndicator label="Loading selected project" compact /> : null}
     <Panel title="Bivariate Statistics">
       <div className="quote-fetch quote-fetch--panel bivariate-compute">
         <label htmlFor="bivariate-progress">Bivariate statistics progress</label>
