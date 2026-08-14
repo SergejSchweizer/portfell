@@ -54,6 +54,8 @@ from portfell.hosted_routes_credentials import credential_router
 from portfell.hosted_routes_metadata_projects import metadata_project_router
 from portfell.hosted_routes_quote_runs import quote_run_router
 from portfell.hosted_routes_research import research_router
+from portfell.hosted_routes_status_events import status_event_router
+from portfell.hosted_status_event_stream import StatusEventConnectionLimiter
 from portfell.hosted_user_repository import PostgresHostedUserRepository
 
 __all__ = [
@@ -167,6 +169,14 @@ def create_app(
             request_scope=request_scope,
         )
     )
+    if request_scope is not None:
+        application.include_router(
+            status_event_router(
+                request_scope=request_scope,
+                current_user=current_user,
+                limiter=StatusEventConnectionLimiter(),
+            )
+        )
     return application
 
 
