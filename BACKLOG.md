@@ -363,7 +363,7 @@ canonical content changes and never duplicates project or workflow rows.
 
 Branch: split into the atomic PR248a–PR248d sequence below.
 
-Git status: in progress; PR248a landed as #412, PR248b landed as #414, PR248c1 landed as #415, PR248c2 landed as #416, PR248d1 landed as #417, and the former PR248d2 is split below by remaining page entry point.
+Git status: merged; PR248a landed as #412, PR248b landed as #414, PR248c1 landed as #415, PR248c2 landed as #416, PR248d1 landed as #417, Bivariate adoption landed as #418, Univariate adoption landed as #441, and Multivariate adoption landed as #442.
 
 PR: TBD; each atomic step receives its own PR.
 
@@ -510,7 +510,9 @@ Acceptance for PR248d2a:
 
 PR248d2b branch: `feat/web-multivariate-page-view-adoption`.
 
-Git status: in progress.
+PR: https://github.com/SergejSchweizer/portfell/pull/442 (merged 2026-08-14).
+
+Git status: merged.
 
 - Depend on PR248d2a only for the page-entry convention. Own only the Multivariate page entry and its
   visible overview/candidate/detail sections. Abort obsolete project/run/tab/candidate requests and retain
@@ -576,8 +578,8 @@ return the same revision without starting calculations or ingestion.
 
 Branch: split into PR249a–PR249c below.
 
-Git status: in progress; PR249a landed as #419, the shell adoption landed as #420, PR249b landed as
-#443, and deliberate prefetch remains below.
+Git status: merged; PR249a landed as #419, the shell adoption landed as #420, consumer migration landed
+as #443, and deliberate prefetch landed as #444.
 
 PR: TBD.
 
@@ -615,7 +617,9 @@ Acceptance for PR249b:
 
 PR249c branch: `feat/web-query-cache-prefetch`.
 
-Git status: in progress.
+PR: https://github.com/SergejSchweizer/portfell/pull/444 (merged 2026-08-14).
+
+Git status: merged.
 
 - Depend only on PR249b. Prefetch at most one deliberate sidebar destination/page view after selection
   or hover intent, using the canonical project-specific key and ETag revalidation. Do not speculatively
@@ -1413,6 +1417,10 @@ backlog identifiers.
 | PR248c1 | Hosted Lazy Tabular Sections | landed 2026-08-14. PR: https://github.com/SergejSchweizer/portfell/pull/415; project-authorized 200-row pages with opaque revision-bound cursors. |
 | PR248c2 | Hosted Lazy Matrix And Detail Sections | landed 2026-08-14. PR: https://github.com/SergejSchweizer/portfell/pull/416; authorized analytical detail endpoints with immutable revisions and a 2 MiB encoded-response limit. |
 | PR248d1 | Web Metadata Page-View Adoption | landed 2026-08-14. PR: https://github.com/SergejSchweizer/portfell/pull/417; Metadata Builder restores criteria and initial-fill state from one compact page-view response. |
+| PR248d2 | Web Statistics Page-View Adoption | completed through PRs #418, #441, and #442; Bivariate, Univariate, and Multivariate page entries use compact views and visible lazy sections. |
+| PR249 | Shared Browser Query Cache And Navigation Prefetch | completed through PRs #419, #420, #443, and #444; one memory-only TanStack Query client, exact invalidation, cancellation, and one deliberate page-view prefetch. |
+| PR250 | Durable Server-Sent Job And Workflow Updates | completed through PRs #421–#428; durable status-event schema, repository, lifecycle publication, SSE replay/recovery, retention, and browser adoption. |
+| PR251 | Single Hosted Authority And Legacy Fallback Removal | completed through PRs #429, #431, and #433–#439; explicit production composition and no hosted local-authority fallback. |
 | PR01 | Project Package And Quality Baseline | merged. PR: https://github.com/SergejSchweizer/portfell/pull/1 |
 | PR02 | Shared Configuration, HTTP, And Contract Primitives | merged. PR: https://github.com/SergejSchweizer/portfell/pull/3 |
 | PR03 | Simple Bronze/Silver/Gold Lake Layout Contract | merged. PR: https://github.com/SergejSchweizer/portfell/pull/3 |
