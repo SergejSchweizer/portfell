@@ -1419,8 +1419,43 @@ API, database, worker, or lake state.
 Rollback: Revert this two-file commit to restore the prior compact loader height; no migration, cache,
 or data rollback is required.
 
+### PR256. Immediate Statistics Result Panels
+
+Branch: `feat/statistics-immediate-panels`.
+
+Git status: pushed.
+
+PR: https://github.com/SergejSchweizer/portfell/pull/449.
+
+Priority: P1 uninterrupted research workflow.
+
+Depends on: Existing typed analytical page-view and lazy-result-section contracts.
+
+Scope: Keep every Univariate, Bivariate, and Multivariate result panel, tab, table, chart region, and
+empty-state field visible when its route opens. Retain existing unavailable values until server results
+arrive, while preserving disabled compute actions when upstream inputs are absent. Update the three page
+specifications and a scaffold regression. No API, calculation, persistence, or authorization change.
+
+Acceptance: All three statistics routes render their result panels before a run reaches `complete`;
+empty fields use existing unavailable values or messages and never imply calculated results; Univariate
+uses a safe empty result collection; Bivariate computation remains disabled without a univariate
+selection; and the scaffold regression, Web Docker image build, and `uv run portfell-quality pr` pass.
+
+Security: Presentation-only work does not alter tenant boundaries, authorization, server requests,
+calculation inputs, stored data, or logging.
+
+Determinism: Given the same page view and result sections, each route renders the same panel hierarchy
+and empty fields before terminal result data arrives.
+
+Idempotency: Reopening or refreshing a route changes no server, browser-persisted, database, worker, or
+lake state until an existing explicit compute or selection action is invoked.
+
+Rollback: Revert the UI, specification, and regression commit together to restore result-gated panels;
+no migration, data, cache, or contract rollback is required.
+
 Series Completion Gate: Before merge, satisfy the current required checks in [GATES.md](GATES.md),
-including the focused scaffold regression, Web Docker image build, and `uv run portfell-quality pr`.
+including `uv run pytest -q tests/test_web_react_scaffold.py`, the Web Docker image build, and
+`uv run portfell-quality pr`.
 
 ### Hosted Simplicity And Interactive Performance Series Completion Gate
 
