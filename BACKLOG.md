@@ -1046,26 +1046,27 @@ time; wall-clock thresholds alone are insufficient evidence.
 
 Branch: `feat/hosted-navigation-read-model`.
 
-Git status: in progress; split into mergeable implementation steps.
+Git status: merged through atomic PRs #401, #402, #403, #404, #405, #406, #407, #408, #409, and #410.
 
 PR247a (navigation foundation): https://github.com/SergejSchweizer/portfell/pull/401 — schema,
 bounded reader/writer, conditional GET, project-command writes, Metadata Builder hand-off, and
-side-effect-free absent-current-project handling. PR247b will add worker/research reconciliation,
-projection-backed workflow reads, a deterministic repair command, and the performance evidence below.
+side-effect-free absent-current-project handling. The remaining reconciliation, lifecycle, projection,
+repair, read instrumentation, and deterministic budget evidence are merged in the linked atomic steps
+below.
 
-PR247b branch: `feat/hosted-navigation-reconciliation` (ready for PR). It provides a single-query,
+PR247b branch: `feat/hosted-navigation-reconciliation` (merged as #402). It provides a single-query,
 RLS-bound, idempotent reconciliation primitive and wires it into PostgreSQL project commands and every
 initial-fill job lifecycle transition in the same durable-job transaction.
 
-PR247c1 branch: `feat/hosted-navigation-workflow-projections` (ready for PR). It removes hidden
+PR247c1 branch: `feat/hosted-navigation-workflow-projections` (merged as #403). It removes hidden
 univariate-selection and preference writes from PostgreSQL workflow reads; completed worker commands
 remain the sole writers for those records.
 
-PR247c2a branch: `feat/hosted-navigation-lifecycle-projections` (ready for PR). It projects metadata
+PR247c2a branch: `feat/hosted-navigation-lifecycle-projections` (merged as #404). It projects metadata
 revision/run state and refreshes the navigation in every metadata lifecycle write under the same
 connection transaction.
 
-PR247c2b1 branch: `feat/hosted-project-workflow-projection` (ready for PR after PR247c2a). It adds a
+PR247c2b1 branch: `feat/hosted-project-workflow-projection` (merged as #405). It adds a
 project-scoped, RLS-bound workflow projection table and deterministic read/write adapter with revision
 ETags; no lifecycle command or route behavior changes in this foundational schema step.
 
@@ -1076,7 +1077,7 @@ pure projection readers and route composition. PR247c2b3 was split again: PR247c
 repair plus restart/RLS evidence; PR247c2b3b owns route instrumentation and large-fixture performance
 evidence.
 
-PR247c2b2a branch: `feat/hosted-project-workflow-lifecycle` (ready for PR).
+PR247c2b2a branch: `feat/hosted-project-workflow-lifecycle` (merged as #406).
 
 - Own exactly one migration and repository boundary for a forced-RLS, user-scoped mapping from each
   univariate, bivariate, or multivariate run to its owning project. The mapping must make a completed
@@ -1105,7 +1106,7 @@ Acceptance for PR247c2b2a:
   migration/catalog tests, architecture tests, Ruff, format, Pyright, and the applicable real-stack
   gate pass.
 
-PR247c2b2b branch: `feat/hosted-project-workflow-routes` (ready for PR after PR247c2b2a).
+PR247c2b2b branch: `feat/hosted-project-workflow-routes` (merged as #407).
 
 - Depend only on PR247c2b2a's typed projection read port. Replace `/workflow` and
   `/projects/{project_id}/workflow` with side-effect-free, bounded projection reads. The current
@@ -1127,7 +1128,7 @@ Acceptance for PR247c2b2b:
 - API-contract, PostgreSQL adapter, route, architecture, Ruff, format, Pyright, and real-stack
   button gates pass. The PR changes no lifecycle schema or writer.
 
-PR247c2b3a branch: `feat/hosted-project-workflow-repair` (ready for PR).
+PR247c2b3a branch: `feat/hosted-project-workflow-repair` (merged as #408).
 
 - Add an explicit deployment/maintenance callable that reconciles one authorized project's workflow
   projection from the existing canonical workflow source. It accepts exact `user_id` and `project_id`,
@@ -1152,7 +1153,7 @@ Acceptance for PR247c2b3a:
 PR247c2b3b was split for independent verification: PR247c2b3b1 owns only deterministic
 instrumentation; PR247c2b3b2 owns only the large-fixture performance evidence.
 
-PR247c2b3b1 branch: `feat/hosted-workflow-read-instrumentation` (ready for PR).
+PR247c2b3b1 branch: `feat/hosted-workflow-read-instrumentation` (merged as #409).
 
 - Instrument only `/workflow` and `/projects/{project_id}/workflow` with statement count, response
   bytes, shared-file-read count, and elapsed time; expose structured test hooks without leaking these
@@ -1169,7 +1170,7 @@ Acceptance for PR247c2b3b1:
   RLS-binding statement and that metrics are reset after each request/worker context.
 - API-contract, architecture, Ruff, format, Pyright, Playwright, and real-stack gates pass.
 
-PR247c2b3b2 branch: `feat/hosted-workflow-read-performance` (ready for PR after PR247c2b3b1).
+PR247c2b3b2 branch: `feat/hosted-workflow-read-performance` (merged as #410).
 
 - Depend only on PR247c2b3b1's structured metrics hook. Add deterministic 100-project/25,000-member
   projection fixtures and prove bounded statement counts, zero shared-file reads, no GET writes,
@@ -1241,15 +1242,86 @@ canonical content changes and never duplicates project or workflow rows.
 
 ### PR248. Page View Contracts And Lazy Analytical Sections
 
-Branch: `feat/hosted-page-view-contracts`.
+Branch: split into the atomic PR248a–PR248d sequence below.
 
-Git status: not started.
+Git status: in progress; PR248a is being prepared.
 
-PR: TBD.
+PR: TBD; each atomic step receives its own PR.
 
 Priority: P1 request fan-out and payload control.
 
 Depends on: PR247.
+
+PR248a branch: `feat/hosted-page-view-contract-foundation`.
+
+- Define the versioned Python and TypeScript-independent JSON contract envelope: `contract_version`,
+  `project_id`, navigation/workflow projection ETags, compact module status, immutable section revision
+  IDs, `sections` availability, and typed size/availability errors. The envelope must not contain
+  result rows, matrices, members, credentials, or storage paths.
+- Add only the Metadata Builder initial page-view route and its bounded PostgreSQL projection reader.
+  It authorizes the named project in one request, returns a byte-stable compact criteria/selection/
+  initial-fill summary, and exposes no file or analytical reads.
+- Required handoff: a typed route/service port and checked-in fixture builders for ready, filling, empty,
+  unauthorized, and deleted projects. Do not migrate React pages or create Univariate/Bivariate/
+  Multivariate routes in this PR.
+
+Acceptance for PR248a:
+
+- `GET /projects/{project_id}/views/metadata-builder` returns one versioned envelope with a project-
+  scoped ETag and private revalidation headers; `If-None-Match` returns `304` without a body.
+- The route uses at most two PostgreSQL statements including RLS binding, performs zero writes and zero
+  shared-file reads, and returns `404` for guessed/deleted/cross-user projects before exposing a view.
+- Fixtures assert ready, filling, empty, and unavailable sections; contract, route, RLS, ETag,
+  architecture, Ruff, format, Pyright, OpenAPI, and real-stack gates pass.
+
+PR248b branch: `feat/hosted-analysis-page-view-contracts`.
+
+- Depend only on PR248a's envelope and add Univariate, Bivariate, and Multivariate compact initial-view
+  routes. Each reads authorized workflow/run projections and compact persisted summaries only; large
+  result pages, pair rows, matrices, candidates, validation, and performance stay unavailable until a
+  later lazy-section route.
+- Required handoff: exact section keys and immutable revision IDs for every large section, plus fixtures
+  for absent, running, failed, stale, and complete runs. Do not modify React consumers.
+
+Acceptance for PR248b:
+
+- Each route has one compact response below 256 KiB, at most two PostgreSQL statements including RLS,
+  no file reads/writes, and deterministic ETags across repeated reads.
+- Two-project, stale-run, missing-run, and cross-user fixtures prove authorization and contract shape;
+  focused API, contract, architecture, Ruff, format, Pyright, OpenAPI, and real-stack gates pass.
+
+PR248c branch: `feat/hosted-lazy-analytical-sections`.
+
+- Add explicit authorized lazy-section routes for tabular result pages, matrices, components, candidate
+  detail, validation, and performance. Enforce 200-row pagination and 2 MiB section limits; return
+  `413 section_too_large` with typed section metadata for indivisible oversize matrices.
+- Required handoff: stable opaque pagination cursors and exact section-key/revision mapping consumed by
+  PR248d. Do not alter initial-view route shapes.
+
+Acceptance for PR248c:
+
+- A non-visible section is not read; each visible section receives exactly one request per immutable
+  revision. Pagination has no duplicate/omitted rows across cursor boundaries.
+- Oversize, unauthorized, stale-revision, missing-artifact, and retry fixtures return typed outcomes
+  without data leakage or recomputation. API, contract, security, Ruff, format, Pyright, and real-stack
+  gates pass.
+
+PR248d branch: `feat/web-page-view-adoption`.
+
+- Migrate page entry for Metadata Builder, Univariate, Bivariate, and Multivariate to the new initial
+  view and lazy-section routes; retain ephemeral controls/tabs locally. Cancel obsolete page/section
+  requests after project, run, metric, tab, or route changes.
+- Required handoff: remove the displaced page-entry fan-out code in the same PR; PR249 owns the shared
+  browser cache, not a second temporary cache.
+
+Acceptance for PR248d:
+
+- Playwright asserts one initial page-view request after a warm shell, at most two application-data
+  requests from a cold shell, and zero non-visible matrix/detail requests. Bivariate initial entry no
+  longer makes its former 11-request fan-out.
+- Rapid project switching, loading/empty/error/retry, back/forward, desktop/tablet/mobile, and browser
+  request cancellation tests pass without displaying a prior project's data. Web image build, API/UI,
+  OpenAPI, Playwright, and real-stack gates pass.
 
 Scope:
 
