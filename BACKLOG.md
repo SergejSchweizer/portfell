@@ -1545,9 +1545,9 @@ remaining PR250 work is deliberately split below so each change has one reviewab
 
 Branch: `feat/hosted-status-event-repository`.
 
-Git status: in progress.
+Git status: merged.
 
-PR: TBD.
+PR: https://github.com/SergejSchweizer/portfell/pull/422.
 
 Priority: P1 live status with bounded request load.
 
@@ -1572,9 +1572,9 @@ Acceptance:
 
 Branch: `feat/hosted-status-event-publication`.
 
-Git status: in progress.
+Git status: merged.
 
-PR: TBD.
+PR: https://github.com/SergejSchweizer/portfell/pull/423.
 
 Priority: P1 live status with bounded request load.
 
@@ -1593,9 +1593,9 @@ back projection and event together. Focused Python tests, Ruff, Pyright, and app
 
 Branch: `feat/hosted-lifecycle-status-event-publication`.
 
-Git status: in progress.
+Git status: merged.
 
-PR: TBD.
+PR: https://github.com/SergejSchweizer/portfell/pull/424.
 
 Priority: P1 live status with bounded request load.
 
@@ -1613,9 +1613,9 @@ and tenant-isolation cases.
 
 Branch: `feat/hosted-status-event-sse`.
 
-Git status: in progress.
+Git status: merged.
 
-PR: TBD.
+PR: https://github.com/SergejSchweizer/portfell/pull/425.
 
 Priority: P1 live status with bounded request load.
 
@@ -1633,9 +1633,9 @@ framing, heartbeat framing, two-stream enforcement/release, and production-only 
 
 Branch: `feat/hosted-status-event-sse-resilience`.
 
-Git status: in progress.
+Git status: merged.
 
-PR: TBD.
+PR: https://github.com/SergejSchweizer/portfell/pull/426.
 
 Priority: P1 live status with bounded request load.
 
@@ -1652,9 +1652,9 @@ typed reset framing, and no partial stale replay.
 
 Branch: `feat/hosted-status-event-sse-operations`.
 
-Git status: in progress.
+Git status: merged.
 
-PR: TBD.
+PR: https://github.com/SergejSchweizer/portfell/pull/428.
 
 Priority: P1 live status with bounded request load.
 
@@ -1670,9 +1670,9 @@ payloads, shutdown releases streams, and documented proxy behavior avoids buffer
 
 Branch: `feat/web-status-event-stream`.
 
-Git status: in progress.
+Git status: merged.
 
-PR: TBD.
+PR: https://github.com/SergejSchweizer/portfell/pull/427.
 
 Priority: P1 live status with bounded request load.
 
@@ -1688,7 +1688,7 @@ status updates without polling, and no application-data requests during a 15-min
 
 Branch: split into PR250a, PR250b, PR250c1, PR250c2, PR250d1, PR250d2, PR250d3, and PR250e above.
 
-Git status: in progress (PR250a/b/c1/c2/d1/d2/e merged; PR250d3 in progress).
+Git status: merged (PR250a/b/c1/c2/d1/d2/d3/e all merged).
 
 PR: TBD.
 
@@ -1749,9 +1749,9 @@ the same cache update/invalidation without duplicate commands or calculations.
 
 Branch: `refactor/hosted-single-authority-composition`.
 
-Git status: in progress.
+Git status: merged.
 
-PR: TBD.
+PR: https://github.com/SergejSchweizer/portfell/pull/429.
 
 Priority: P1 final hosted simplification.
 
@@ -1789,9 +1789,9 @@ composition and independent local CLI graph.
 
 Branch: `refactor/hosted-metadata-explicit-dependencies`.
 
-Git status: in progress.
+Git status: merged.
 
-PR: TBD.
+PR: https://github.com/SergejSchweizer/portfell/pull/431.
 
 Priority: P1 final hosted simplification.
 
@@ -1808,9 +1808,9 @@ repository ports, production composition remains PostgreSQL-only, and Metadata s
 
 Branch: `refactor/hosted-project-quote-explicit-dependencies`.
 
-Git status: in progress.
+Git status: merged.
 
-PR: TBD.
+PR: https://github.com/SergejSchweizer/portfell/pull/433.
 
 Priority: P1 final hosted simplification.
 
@@ -1831,7 +1831,7 @@ and focused hosted API/quote tests prove local adapters are opt-in.
 
 Branch: `refactor/hosted-credential-explicit-dependencies`.
 
-Git status: not started.
+Git status: in progress.
 
 PR: TBD.
 
@@ -1839,15 +1839,17 @@ Priority: P1 final hosted simplification.
 
 Depends on: PR251c2a.
 
-Scope: Remove local project, selection, audit, idempotency, settings, download, workspace-persistence,
-workflow, navigation, and credential defaults from `CredentialProjectService`. Move local adapter and
-workspace-persistence construction into `hosted_local_test_composition`; update all focused callers to
-pass every port explicitly.
+Scope: Remove local project, selection, audit, idempotency, settings, workspace-persistence,
+workflow, navigation, and credential defaults from `CredentialProjectService`. Remove the unreachable
+direct-download, dataset, and account endpoints that depend on in-memory entitlement authority. Move
+local adapter and workspace-persistence construction into `hosted_local_test_composition`; update all
+focused callers to pass every port explicitly.
 
-Acceptance: `CredentialProjectService` imports neither `hosted_local_*` nor a workspace repository;
-its constructor requires every repository, reader, writer, and persistence port it consumes;
-production composition passes PostgreSQL/shared-artifact adapters only; and focused credential/API
-tests prove all local adapters are opt-in.
+Acceptance: `CredentialProjectService` imports neither `hosted_local_*`, a workspace repository, nor
+`HostedApiState`; its constructor requires every repository, reader, reconciler, and persistence port
+it consumes; production composition passes PostgreSQL/shared-artifact adapters only; `/downloads/*`,
+`/datasets`, and `/account` are absent from OpenAPI; and focused credential/API/OpenAPI tests prove all
+local adapters are opt-in.
 
 ### PR251c3. Multivariate Service Explicit Dependencies
 

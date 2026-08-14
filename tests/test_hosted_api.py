@@ -33,9 +33,7 @@ def _client(state: HostedApiState | None = None) -> TestClient:
     return TestClient(create_app(resolved_state, services=local_test_services(resolved_state)))
 
 
-def _test_app(
-    state: HostedApiState | None = None, **kwargs: object
-) -> Any:
+def _test_app(state: HostedApiState | None = None, **kwargs: object) -> Any:
     resolved_state = state or HostedApiState()
     return create_app(resolved_state, services=local_test_services(resolved_state), **kwargs)
 
@@ -297,45 +295,17 @@ def test_credential_lifecycle_redacts_sensitive_material() -> None:
     assert "nonce" not in rendered
 
 
-def test_downloads_publish_visible_user_datasets_and_are_idempotent() -> None:
+def test_legacy_direct_download_routes_are_not_exposed() -> None:
     client = _client()
-    credential = client.post(
-        "/credentials/eodhd",
-        headers=_headers(idempotency="download-credential"),
-        json={"provider_key": "test-provider-token"},
+    plan_response = client.post(
+        "/downloads/plan", headers=_headers(), json={"symbols": ["AAA.XETRA"]}
     )
-    assert credential.status_code == 200
-
-    plan = _json(
-        client.post(
-            "/downloads/plan",
-            headers=_headers(),
-            json={"symbols": ["AAA.XETRA", "BBB.XETRA"]},
-        )
+    run_response = client.post(
+        "/downloads/run", headers=_headers(), json={"symbols": ["AAA.XETRA"]}
     )
-    run = _json(
-        client.post(
-            "/downloads/run",
-            headers=_headers(idempotency="download-1"),
-            json={"symbols": ["AAA.XETRA", "BBB.XETRA"]},
-        )
-    )
-    repeated = _json(
-        client.post(
-            "/downloads/run",
-            headers=_headers(idempotency="download-1"),
-            json={"symbols": ["CCC.XETRA"]},
-        )
-    )
-    datasets = _json(client.get("/datasets", headers=_headers(csrf=False)))
-    other_datasets = _json(client.get("/datasets", headers=_headers("user-b", csrf=False)))
-
-    assert plan["status"] == "planned"
-    assert run == repeated
-    assert run["status"] == "succeeded"
-    assert run["observation_count"] == 2
-    assert len(datasets["items"]) == 2
-    assert other_datasets == datasets
+    assert plan_response.status_code == 404
+    assert run_response.status_code == 404
+    assert client.get("/datasets", headers=_headers(csrf=False)).status_code == 404
 
 
 def test_metadata_builder_options_and_project_creation_use_all_isins_reference() -> None:
@@ -1085,9 +1055,10 @@ def test_analytical_page_views_are_compact_authorized_and_revalidate(
     )
     assert repeated.status_code == 304
     assert repeated.content == b""
-    assert client.get(
-        f"/projects/00000000-0000-5000-8000-000000000099/views/{path}"
-    ).status_code == 404
+    assert (
+        client.get(f"/projects/00000000-0000-5000-8000-000000000099/views/{path}").status_code
+        == 404
+    )
 
 
 def test_project_context_is_empty_without_projects() -> None:
@@ -1431,22 +1402,6 @@ def test_bivariate_statistics_restore_quotes_from_the_persistent_lake(
     assert isinstance(matrix["values"][0][1], float)
 
 
-def test_account_deletion_removes_user_owned_api_state() -> None:
+def test_legacy_account_deletion_route_is_not_exposed() -> None:
     client = _client()
-    project = _json(client.post("/projects", headers=_headers(), json={"name": "Delete Me"}))
-    selection = _json(
-        client.post(
-            "/selections",
-            headers=_headers(),
-            json={"project_id": project["project_id"], "name": "S", "member_ids": ["IE1"]},
-        )
-    )
-
-    assert client.delete("/account", headers=_headers()).json() == {"status": "deleted"}
-    assert client.get("/projects", headers=_headers(csrf=False)).json() == {"items": []}
-    assert (
-        client.get(
-            f"/selections/{selection['selection_id']}", headers=_headers(csrf=False)
-        ).status_code
-        == 404
-    )
+    assert client.delete("/account", headers=_headers()).status_code == 404

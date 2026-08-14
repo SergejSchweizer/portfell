@@ -36,13 +36,14 @@ from portfell.hosted_api_state import (
     SelectionRecord,
 )
 from portfell.hosted_audit_event_repository import HostedAuditEvent
-from portfell.hosted_credential_project_service import CredentialProjectService
+from portfell.hosted_credential_project_service import (
+    CredentialProjectService as _CredentialProjectService,
+)
 from portfell.hosted_credentials import (
     EodhdCredentialVault,
     InMemoryCredentialStore,
     KeyEncryptionKey,
 )
-from portfell.hosted_download_run_repository import DownloadRunRepository
 from portfell.hosted_idempotency_repository import LocalIdempotencyRepository
 from portfell.hosted_local_audit_event_repository import LocalAuditEventRepository
 from portfell.hosted_local_metadata_repository import LocalMetadataLifecycleRepository
@@ -54,6 +55,7 @@ from portfell.hosted_metadata_project_service import (
 from portfell.hosted_navigation_read_model_repository import PostgresNavigationReadModel
 from portfell.hosted_navigation_reconciler import PostgresNavigationReconciler
 from portfell.hosted_project_bootstrap_repository import DurableProjectBootstrap
+from portfell.hosted_project_settings_repository import LocalProjectSettingsRepository
 from portfell.hosted_quote_lifecycle_repository import LocalQuoteLifecycleRepository
 from portfell.hosted_quote_run_service import QuoteRunService as _QuoteRunService
 from portfell.hosted_repository_importer import (
@@ -91,6 +93,49 @@ def MetadataProjectService(
     )
 
 
+def CredentialProjectService(
+    state: HostedApiState, **dependencies: Any
+) -> _CredentialProjectService:
+    """Explicit local ports for legacy-focused credential tests only."""
+
+    def cleanup(user_id: str, project_id: str | None) -> None:
+        state.selections_by_id = {
+            key: row
+            for key, row in state.selections_by_id.items()
+            if row.user_id != user_id or (project_id is not None and row.project_id != project_id)
+        }
+        state.analyses_by_id = {
+            key: row
+            for key, row in state.analyses_by_id.items()
+            if row.user_id != user_id or (project_id is not None and row.project_id != project_id)
+        }
+
+    return _CredentialProjectService(
+        dependencies.pop("project_repository", LocalProjectRepository(state)),
+        dependencies.pop("selection_repository", LocalSelectionRepository(state)),
+        dependencies.pop("project_settings_repository", LocalProjectSettingsRepository(state)),
+        dependencies.pop("credential_vault", state.credential_vault()),
+        dependencies.pop("audit_repository", LocalAuditEventRepository(state)),
+        dependencies.pop("idempotency_repository", LocalIdempotencyRepository(state)),
+        dependencies.pop(
+            "workflow_reader", lambda user_id, project_id: workflow_row(state, user_id, project_id)
+        ),
+        dependencies.pop(
+            "project_data_loaded_reader",
+            lambda user_id, project_id: project_data_loaded(state, project_id, user_id),
+        ),
+        dependencies.pop("project_active_run_reader", None),
+        dependencies.pop("navigation_reader", lambda _user_id: None),
+        dependencies.pop("navigation_reconciler", lambda _user_id: ({}, "")),
+        dependencies.pop(
+            "workspace_persister",
+            lambda: persist_local_workspace(state) if state.workspace_store is not None else None,
+        ),
+        dependencies.pop("local_cache_cleanup", cleanup),
+        **dependencies,
+    )
+
+
 def QuoteRunService(
     state: HostedApiState, runtime: LocalHostedRuntime, **dependencies: Any
 ) -> _QuoteRunService:
@@ -113,12 +158,11 @@ def QuoteRunService(
         ),
         dependencies.pop(
             "workspace_persister",
-            lambda: persist_local_workspace(state)
-            if state.workspace_store is not None
-            else None,
+            lambda: persist_local_workspace(state) if state.workspace_store is not None else None,
         ),
         **dependencies,
     )
+
 
 INVALID_WORKSPACE_PAYLOADS: tuple[dict[str, object], ...] = (
     {"projects": {}},
@@ -345,41 +389,6 @@ def test_credential_commands_can_use_an_injected_vault_without_state_authority()
         state.credential_vault().status(user_id=user_id)
 
 
-def test_download_commands_can_use_an_injected_repository_without_state_authority() -> None:
-    class DownloadRepository(DownloadRunRepository):
-        def __init__(self) -> None:
-            self.runs: dict[str, ProviderDownloadRun] = {}
-
-        def create(self, run: ProviderDownloadRun) -> ProviderDownloadRun:
-            self.runs[run.download_run_id] = run
-            return run
-
-        def get(self, *, user_id: str, download_run_id: str) -> ProviderDownloadRun | None:
-            run = self.runs.get(download_run_id)
-            return run if run is not None and run.user_id == user_id else None
-
-    state = HostedApiState()
-    vault = EodhdCredentialVault(
-        store=InMemoryCredentialStore(),
-        key_encryption_key=KeyEncryptionKey("test-v1", b"1" * 32),
-        fingerprint_secret=b"test-fingerprint-secret",
-    )
-    user_id = "00000000-0000-5000-8000-000000000001"
-    credential = vault.set_credential(user_id=user_id, provider_key="test-key")
-    repository = DownloadRepository()
-    service = CredentialProjectService(
-        state,
-        credential_vault=vault,
-        download_run_repository=repository,
-    )
-
-    created = service.run_download(user_id, ["AAA"], idempotency_key=None)
-
-    assert state.downloads_by_id == {}
-    assert repository.runs[created["download_run_id"]].credential_id == credential.credential_id
-    assert service.download_status(user_id, created["download_run_id"]) == created
-
-
 def test_project_commands_can_use_an_injected_audit_repository_without_state_authority() -> None:
     class AuditRepository:
         def __init__(self) -> None:
@@ -568,40 +577,17 @@ def test_project_context_uses_an_injected_navigation_projection() -> None:
     assert service.project_context("user-1")["current_project_id"] == "project-1"
 
 
-def test_project_command_writes_navigation_projection() -> None:
-    writes: list[tuple[str, JsonRow]] = []
+def test_project_command_reconciles_navigation_projection() -> None:
+    reconciled: list[str] = []
     service = CredentialProjectService(
         HostedApiState(),
-        navigation_writer=lambda user_id, payload: (
-            writes.append((user_id, payload)) or (payload, "etag")
-        ),
+        navigation_reconciler=lambda user_id: reconciled.append(user_id) or ({}, "etag"),
     )
 
     created = service.create_project("user-1", "Income", "request-1")
 
     assert created["name"] == "Income"
-    assert writes == [
-        (
-            "user-1",
-            {
-                "current_project_id": created["project_id"],
-                "current_project": {
-                    "project_id": created["project_id"],
-                    "name": "Income",
-                    "selected_count": 0,
-                    "data_loaded": False,
-                },
-                "projects": [
-                    {
-                        "project_id": created["project_id"],
-                        "name": "Income",
-                        "selected_count": 0,
-                        "data_loaded": False,
-                    }
-                ],
-            },
-        )
-    ]
+    assert reconciled == ["user-1"]
 
 
 def test_project_command_prefers_a_navigation_reconciler() -> None:
@@ -614,24 +600,6 @@ def test_project_command_prefers_a_navigation_reconciler() -> None:
     service.create_project("user-1", "Income", "request-1")
 
     assert reconciled == ["user-1"]
-
-
-def test_account_deletion_refreshes_navigation_projection() -> None:
-    writes: list[JsonRow] = []
-    service = CredentialProjectService(
-        HostedApiState(),
-        navigation_writer=lambda _user_id, payload: writes.append(payload) or (payload, "etag"),
-    )
-    service.create_project("user-1", "Income", "request-1")
-
-    deleted = service.delete_account("user-1")
-
-    assert deleted == {"status": "deleted"}
-    assert writes[-1] == {
-        "current_project_id": None,
-        "current_project": None,
-        "projects": [],
-    }
 
 
 def test_navigation_read_model_binds_rls_and_derives_a_stable_etag() -> None:

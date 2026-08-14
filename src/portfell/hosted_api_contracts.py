@@ -15,12 +15,6 @@ class CredentialSetRequest(BaseModel):
     provider_key: str = Field(min_length=1, max_length=4096)
 
 
-class DownloadRequest(BaseModel):
-    """Request to plan or run a user-key-backed download."""
-
-    symbols: list[str] = Field(default_factory=list, max_length=1000)
-
-
 class ProjectCreateRequest(BaseModel):
     """Request to create one user-owned project."""
 
