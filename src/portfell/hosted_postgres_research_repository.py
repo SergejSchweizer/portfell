@@ -105,6 +105,26 @@ on conflict (research_run_id) do update set quote_run_id = excluded.quote_run_id
             (quote_run_id, univariate_run_id),
         )
 
+    def bind_project_run(self, *, user_id: str, project_id: str, run_id: str) -> None:
+        self._bind(user_id)
+        self._connection.execute(
+            """
+insert into portfell_app.project_research_run_mappings (research_run_id, user_id, project_id)
+values (%s, %s::uuid, %s::uuid)
+on conflict (research_run_id) do update set project_id = excluded.project_id
+where portfell_app.project_research_run_mappings.user_id = excluded.user_id
+""",
+            (run_id, user_id, project_id),
+        )
+
+    def project_id_for_run(self, *, user_id: str, run_id: str) -> str | None:
+        self._bind(user_id)
+        row = self._connection.execute(
+            "select project_id::text from portfell_app.project_research_run_mappings where research_run_id = %s",
+            (run_id,),
+        ).fetchone()
+        return None if row is None or len(row) != 1 or not isinstance(row[0], str) else row[0]
+
     def quote_run_id(self, univariate_run_id: str) -> str:
         row = self._connection.execute(
             "select quote_run_id::text from portfell_app.research_run_quote_bindings where research_run_id = %s",

@@ -78,6 +78,17 @@ class HostedResearchRepository:
     def bind_quote_run(self, univariate_run_id: str, quote_run_id: str) -> None:
         self._state.quote_run_by_univariate_run_id[univariate_run_id] = quote_run_id
 
+    def bind_project_run(self, *, user_id: str, project_id: str, run_id: str) -> None:
+        _ = user_id
+        self._state.project_id_by_research_run[run_id] = project_id
+
+    def project_id_for_run(self, *, user_id: str, run_id: str) -> str | None:
+        project_id = self._state.project_id_by_research_run.get(run_id)
+        if project_id is None:
+            return None
+        _ = user_id
+        return project_id
+
     def quote_run_id(self, univariate_run_id: str) -> str:
         return self._state.quote_run_by_univariate_run_id.get(univariate_run_id, "")
 

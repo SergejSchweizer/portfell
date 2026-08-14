@@ -1069,8 +1069,62 @@ PR247c2b1 branch: `feat/hosted-project-workflow-projection` (ready for PR after 
 project-scoped, RLS-bound workflow projection table and deterministic read/write adapter with revision
 ETags; no lifecycle command or route behavior changes in this foundational schema step.
 
-PR247c2b2 will add research lifecycle state and projection-backed workflow routes. PR247c2b3 will add
-the repair command, instrumentation, large-fixture performance evidence, and restart/RLS tests.
+PR247c2b2 was split because its prior combination of three analytical lifecycles, project association,
+and HTTP route replacement was not safely parallelizable for two weak agents. PR247c2b2a owns only
+the durable project-to-research mapping and command-side projection writes; PR247c2b2b owns only the
+pure projection readers and route composition. PR247c2b3 will add the repair command, instrumentation,
+large-fixture performance evidence, and restart/RLS tests.
+
+PR247c2b2a branch: `feat/hosted-project-workflow-lifecycle` (ready for PR).
+
+- Own exactly one migration and repository boundary for a forced-RLS, user-scoped mapping from each
+  univariate, bivariate, or multivariate run to its owning project. The mapping must make a completed
+  univariate selection's project explicit; it must not infer ownership from the mutable
+  user-wide `current_univariate_selection_preferences` record.
+- Add command-only projection reconciliation/writes for univariate start/progress/complete/failure,
+  bivariate start/progress/complete/failure, and multivariate start/progress/complete/failure. Each
+  write occurs in the same successful PostgreSQL transaction as its source lifecycle update and uses
+  the canonical `resolve_workflow` payload shape already exposed by the API.
+- The projection payload contains only workflow stages, process-overview counts, run IDs/statuses, and
+  a schema version; it must not contain member lists, result rows, credentials, or storage paths.
+- Required handoff: expose a typed `read(user_id, project_id)` projection port and a command-side
+  `reconcile(user_id, project_id)` callable. Do not modify `/workflow` routes in this PR.
+
+Acceptance for PR247c2b2a:
+
+- Two projects owned by one user can run the same lifecycle concurrently without a run, selection,
+  count, or projection becoming visible on the other project. Tests use distinct project IDs and
+  identical user IDs to prove this specific isolation case.
+- Each lifecycle transition has an exact source-row and projection-row test: start, one progress
+  update, completion, failure, retry after failure, and idempotent replay. Replaying unchanged state
+  keeps the projection revision and ETag byte-identical.
+- Tests force a transaction rollback after the source write and prove neither mapping nor projection
+  change is committed. RLS tests prove guessed project IDs and cross-user IDs read/write nothing.
+- The local repository implementation remains protocol-compatible; PostgreSQL focused unit tests,
+  migration/catalog tests, architecture tests, Ruff, format, Pyright, and the applicable real-stack
+  gate pass.
+
+PR247c2b2b branch: `feat/hosted-project-workflow-routes`.
+
+- Depend only on PR247c2b2a's typed projection read port. Replace `/workflow` and
+  `/projects/{project_id}/workflow` with side-effect-free, bounded projection reads. The current
+  project is resolved from the existing navigation projection without rebuilding a workflow from
+  selections, runs, or shared data.
+- Define explicit no-current-project and not-yet-projected responses in the same versioned contract;
+  they contain empty stages and no implied write. Do not add a GET fallback that reads lifecycle,
+  selections, Parquet, or shared-store files.
+- Required handoff: expose route-level statement-count/response-size instrumentation only; PR247c2b3
+  owns performance fixtures, repair, and the final budget assertions.
+
+Acceptance for PR247c2b2b:
+
+- Both routes make at most two statements including RLS binding, perform zero writes and zero shared
+  file/Parquet reads, and return the exact canonical payload/ETag written by PR247c2b2a.
+- Tests cover no current project, selected project, guessed/deleted/cross-user project, a `304`
+  conditional response where applicable, and prove a GET cannot call lifecycle, selection, research,
+  or reconciliation writers.
+- API-contract, PostgreSQL adapter, route, architecture, Ruff, format, Pyright, and real-stack
+  button gates pass. The PR changes no lifecycle schema or writer.
 
 Priority: P0 page-entry latency and architectural simplicity.
 

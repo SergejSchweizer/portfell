@@ -104,6 +104,7 @@ def test_hosted_migration_sql_defines_rls_and_immutable_catalog_shape() -> None:
         19,
         20,
         21,
+        22,
     ]
     assert len({migration.checksum for migration in migrations}) == len(migrations)
     assert "create table if not exists portfell_app.provider_credentials" in sql
