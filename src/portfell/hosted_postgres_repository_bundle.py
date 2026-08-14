@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from portfell.hosted_analysis_record_repository import PostgresAnalysisRecordRepository
@@ -36,7 +37,12 @@ class PostgresHostedRepositoryBundle:
     analyses: PostgresAnalysisRecordRepository
 
     @classmethod
-    def from_connection(cls, connection: object) -> PostgresHostedRepositoryBundle:
+    def from_connection(
+        cls,
+        connection: object,
+        *,
+        navigation_refresher: Callable[[str], object] | None = None,
+    ) -> PostgresHostedRepositoryBundle:
         """Compose adapters without opening a second connection or transaction."""
 
         return cls(
@@ -44,7 +50,10 @@ class PostgresHostedRepositoryBundle:
             credentials=PostgresCredentialStore(connection),  # type: ignore[arg-type]
             projects=PostgresProjectRepository(connection),  # type: ignore[arg-type]
             selections=PostgresSelectionRepository(connection),  # type: ignore[arg-type]
-            metadata=PostgresMetadataLifecycleRepository(connection),  # type: ignore[arg-type]
+            metadata=PostgresMetadataLifecycleRepository(
+                connection,  # type: ignore[arg-type]
+                navigation_refresher=navigation_refresher,
+            ),
             quotes=PostgresQuoteLifecycleRepository(connection),  # type: ignore[arg-type]
             idempotency=PostgresIdempotencyRepository(connection),  # type: ignore[arg-type]
             audit=PostgresAuditEventRepository(connection),  # type: ignore[arg-type]
