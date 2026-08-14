@@ -95,6 +95,7 @@ def test_statistics_result_panels_are_visible_before_results_load() -> None:
         not in multivariate_page
     )
 
+
 def test_multivariate_statistics_exposes_only_core_tabs() -> None:
     page = (WEB_ROOT / "src" / "pages" / "multivariate-statistics.tsx").read_text(encoding="utf-8")
     tab_registry = page[page.index("const tabs:") : page.index("function percent")]
@@ -108,6 +109,7 @@ def test_multivariate_statistics_exposes_only_core_tabs() -> None:
         "Validation",
     ):
         assert f'label: "{label}"' not in tab_registry
+
 
 def test_multivariate_performance_chart_uses_plotly_series_colors() -> None:
     page = (WEB_ROOT / "src" / "pages" / "multivariate-statistics.tsx").read_text(encoding="utf-8")
