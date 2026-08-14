@@ -29,8 +29,10 @@ def test_workflow_pages_place_ingestion_actions_before_their_stage_controls() ->
         encoding="utf-8"
     )
     assert "Fetch all metadata" in metadata_page
-    assert metadata_page.index('<Panel title="Download Metadata">') < metadata_page.index(
-        '<Panel title="Metadata Builder">'
+    assert metadata_page.count('<Panel title="Download Metadata">') == 1
+    assert '<Panel title="Metadata Builder">' not in metadata_page
+    assert metadata_page.index("Fetch all metadata") < metadata_page.index(
+        '<section className="metadata-builder"'
     )
     assert "EODHD key" in frame
     assert "Fetch all metadata" not in frame

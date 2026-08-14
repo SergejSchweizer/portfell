@@ -22,7 +22,13 @@ output is the persisted selection and completed quote run consumed by Univariate
 
 ## Inputs and actions
 
-The persistent header owns the EODHD key and saved-key state. The first white panel owns `Fetch all metadata`, its determinate exchange progress, and all metadata-fetch status messages. Metadata rows and completed-exchange coverage persist in the server-owned lake; later automatic refreshes query the exchange registry and download only exchange listings not yet covered. The Metadata Builder panel follows it and exposes exchange, instrument type, country, currency, and name filters. Its `Create new project` action starts the server-owned quotes, dividends, splits, and Silver-data run for the current project's selection.
+The persistent header owns the EODHD key and saved-key state. The `Download Metadata` panel owns
+`Fetch all metadata`, its determinate exchange progress, all metadata-fetch status messages, and the
+Metadata Builder form below the download action. Metadata rows and completed-exchange coverage persist
+in the server-owned lake; later automatic refreshes query the exchange registry and download only
+exchange listings not yet covered. The form exposes exchange, instrument type, country, currency, and
+name filters. Its `Create new project` action starts the server-owned quotes, dividends, splits, and
+Silver-data run for the current project's selection.
 
 After a successful `Create new project` response, that action button becomes the initial-fill status surface. It restores an existing run after reload or project switch, disables duplicate starts while running, and refreshes only that project's server-provided progress from status events. A 15-second fallback poll covers missed or disconnected events without repeatedly reloading project context or unrelated views. While running it shows completed listings and a client-side estimate derived from the server `started_at`, `last_progress_at`, `completed`, and `total` fields. When server-side listing progress is stale, it shows a stable provider-wait state instead of increasing the estimate. Statistical calculations belong to later modules.
 

@@ -186,9 +186,9 @@ export function MetadataBuilderPage() {
           </Button>
           </div>
         </div>
-      </Panel>
-      <Panel title="Metadata Builder">
-        <form className="metadata-builder-form" onSubmit={createProject}>
+        <section className="metadata-builder" aria-labelledby="metadata-builder-title">
+          <h3 id="metadata-builder-title">Metadata Builder</h3>
+          <form className="metadata-builder-form" onSubmit={createProject}>
           <label>
             Exchange
             <select value={exchange} onChange={(event) => setExchange(event.target.value)}>
@@ -232,12 +232,13 @@ export function MetadataBuilderPage() {
               {creatingProject ? "Creating project..." : initialFillButtonLabel(initialFill)}
             </Button>
           </div>
-        </form>
-        <p className="status-line" aria-live="polite">
-          {optionData.metadata_ready
-            ? initialFillStatusMessage(selectionStatus, initialFill)
-            : "Download metadata successfully before building a project."}
-        </p>
+          </form>
+          <p className="status-line" aria-live="polite">
+            {optionData.metadata_ready
+              ? initialFillStatusMessage(selectionStatus, initialFill)
+              : "Download metadata successfully before building a project."}
+          </p>
+        </section>
       </Panel>
     </section>
   );
