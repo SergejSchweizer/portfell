@@ -1388,8 +1388,39 @@ calendar invalidates only that pair's cache identity.
 Rollback: Revert the owned calculation, view, TypeScript, documentation, and regression files. No
 schema or persistent migration is introduced.
 
-Series Completion Gate: This PR may merge only after the current pre-merge and post-merge gates in
-[GATES.md](GATES.md) pass.
+### PR255. Unify Native Progress Bar Height
+
+Branch: `style/unify-progress-height`.
+
+Git status: pushed.
+
+PR: https://github.com/SergejSchweizer/portfell/pull/448.
+
+Priority: P2 UI consistency.
+
+Depends on: The existing 10px `--progress-height` design-system token and PR252 UI regression coverage.
+
+Scope: Replace the compact loading indicator's hardcoded 4px native `progress` height with the shared
+`--progress-height` token. Extend the scaffold regression to prevent a compact-loader exception from
+reappearing. No route, API, application state, data, or computation behavior changes.
+
+Acceptance: `--progress-height` is exactly `10px`; every native `progress` rule uses that token for
+its height; the compact loading indicator has no hardcoded height; the focused web scaffold test, Web
+Docker image build, and `uv run portfell-quality pr` pass.
+
+Security: CSS-only presentation work does not alter authorization, tenant scope, network requests,
+stored data, or logging.
+
+Determinism: The fixed 10px token yields the same native progress-bar height in every render.
+
+Idempotency: Rebuilding the Web image or rendering any loading state repeatedly does not mutate browser,
+API, database, worker, or lake state.
+
+Rollback: Revert this two-file commit to restore the prior compact loader height; no migration, cache,
+or data rollback is required.
+
+Series Completion Gate: Before merge, satisfy the current required checks in [GATES.md](GATES.md),
+including the focused scaffold regression, Web Docker image build, and `uv run portfell-quality pr`.
 
 ### Hosted Simplicity And Interactive Performance Series Completion Gate
 
