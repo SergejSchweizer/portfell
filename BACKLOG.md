@@ -1652,7 +1652,7 @@ typed reset framing, and no partial stale replay.
 
 Branch: `feat/hosted-status-event-sse-operations`.
 
-Git status: not started.
+Git status: in progress.
 
 PR: TBD.
 
@@ -1688,7 +1688,7 @@ status updates without polling, and no application-data requests during a 15-min
 
 Branch: split into PR250a, PR250b, PR250c1, PR250c2, PR250d1, PR250d2, PR250d3, and PR250e above.
 
-Git status: in progress (PR250a/b/c1/c2/d1/d2 merged; PR250e in progress).
+Git status: in progress (PR250a/b/c1/c2/d1/d2/e merged; PR250d3 in progress).
 
 PR: TBD.
 

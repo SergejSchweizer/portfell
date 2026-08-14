@@ -110,6 +110,20 @@ select exists(
             raise ValueError("status_event_bounds_invalid")
         return row[0]
 
+    def prune_expired(self) -> int:
+        """Delete only globally expired compact events under the retention RLS policy."""
+
+        rows = self._connection.execute(
+            """
+delete from portfell_app.status_events
+where occurred_at < now() - interval '24 hours'
+returning event_id
+"""
+        ).fetchall()
+        if any(len(row) != 1 or not isinstance(row[0], int) for row in rows):
+            raise ValueError("status_event_retention_invalid")
+        return len(rows)
+
     def _bind(self, user_id: str) -> None:
         if getattr(self._connection, "authenticated_user_id", None) != user_id:
             self._connection.execute(*set_authenticated_user_sql(user_id))
