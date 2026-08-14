@@ -27,7 +27,13 @@ def _app():
 
 
 def _normalize_path(path: str) -> str:
-    return re.sub(r"\{[^}]+\}", "{param}", path).split("?", maxsplit=1)[0]
+    normalized = re.sub(r"\{[^}]+\}", "{param}", path).split("?", maxsplit=1)[0]
+    normalized = re.sub(
+        r"(?<=/views/)(?:univariate|bivariate|multivariate)[_-]statistics(?=/|$)",
+        "{param}",
+        normalized,
+    )
+    return re.sub(r"(?<=/sections/)[^/]+$", "{param}", normalized)
 
 
 def _frontend_api_paths() -> set[str]:
@@ -35,7 +41,8 @@ def _frontend_api_paths() -> set[str]:
     for source_path in (WEB_ROOT / "src").rglob("*.ts*"):
         source = source_path.read_text(encoding="utf-8")
         for path in re.findall(r"[\"`](/api/.*?)[\"`]", source):
-            paths.add(_normalize_path(re.sub(r"\$\{[^}]+\}", "{param}", path)))
+            normalized = _normalize_path(re.sub(r"\$\{[^}]+\}", "{param}", path))
+            paths.add(re.sub(r"(?<=/sections/\{param\})\{param\}$", "", normalized))
     return paths
 
 

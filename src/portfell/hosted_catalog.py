@@ -6,11 +6,11 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass
-from typing import Protocol
 
 from portfell import project_bootstrap_schema as bootstrap_schema
 from portfell.analysis_lifecycle_schema import ANALYSIS_LIFECYCLE_SCHEMA_SQL
 from portfell.catalog_contract_validation import validate_catalog_contracts
+from portfell.hosted_catalog_ports import CatalogConnection
 from portfell.hosted_download_run_schema import DOWNLOAD_RUN_PARTIAL_STATUS_SQL
 from portfell.hosted_navigation_read_model_schema import NAVIGATION_READ_MODEL_SCHEMA_SQL
 from portfell.hosted_project_workflow_projection_schema import (
@@ -35,14 +35,6 @@ from portfell.tenant_control_schema import (
     D017_TABLE_SPECS,
     D017_TENANT_CONTROL_SCHEMA_SQL,
 )
-
-
-class CatalogConnection(Protocol):
-    def execute(self, sql: str, parameters: tuple[object, ...] = ()) -> CatalogResult: ...
-
-
-class CatalogResult(Protocol):
-    def fetchone(self) -> tuple[str] | None: ...
 
 
 @dataclass(frozen=True)

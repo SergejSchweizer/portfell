@@ -62,9 +62,7 @@ def test_analytical_page_view_defers_large_sections_until_the_stage_completes(
         "stages": {module: {"status": "running"}},
     }
 
-    page_view, etag = analytical_page_view(
-        module=module, project_id="project-1", workflow=workflow
-    )
+    page_view, etag = analytical_page_view(module=module, project_id="project-1", workflow=workflow)
 
     assert page_view["contract_version"] == 1
     assert page_view["workflow_etag"] == "workflow-revision"

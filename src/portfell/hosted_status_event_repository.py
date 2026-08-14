@@ -135,8 +135,10 @@ def _event(row: tuple[object, ...]) -> HostedStatusEvent:
         or not isinstance(row[0], int)
         or not isinstance(row[1], str)
         or not isinstance(row[2], str)
-        or row[3] is not None and not isinstance(row[3], str)
-        or row[4] is not None and not isinstance(row[4], str)
+        or row[3] is not None
+        and not isinstance(row[3], str)
+        or row[4] is not None
+        and not isinstance(row[4], str)
     ):
         raise ValueError("status_event_row_invalid")
     return HostedStatusEvent(row[0], row[1], row[2], row[3], row[4])

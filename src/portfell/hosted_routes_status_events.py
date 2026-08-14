@@ -63,9 +63,7 @@ def status_event_router(
                             cursor = newest or 0
                             events = None
                         else:
-                            events = repository.replay(
-                                user_id=user.user_id, after_event_id=cursor
-                            )
+                            events = repository.replay(user_id=user.user_id, after_event_id=cursor)
                             if len(events) == 1_000 and repository.has_more(
                                 user_id=user.user_id, after_event_id=events[-1].event_id
                             ):

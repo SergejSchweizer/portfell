@@ -9,7 +9,8 @@ import sys
 from collections.abc import Callable, Sequence
 from typing import Protocol, cast
 
-from portfell.hosted_catalog import CatalogResult, apply_hosted_catalog_migrations
+from portfell.hosted_catalog import apply_hosted_catalog_migrations
+from portfell.hosted_catalog_ports import CatalogResult
 from portfell.hosted_database_connection import connect as connect_database
 
 

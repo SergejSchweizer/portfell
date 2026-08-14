@@ -16,6 +16,10 @@ from portfell.bivariate_diagnostics import (
     spearman_diagnostics,
     tail_dependence_diagnostics,
 )
+from portfell.bivariate_view_helpers import labels as _labels
+from portfell.bivariate_view_helpers import listing as _listing
+from portfell.bivariate_view_helpers import member_id as _member_id
+from portfell.bivariate_view_helpers import pair_listings as _pair_listings
 from portfell.gold import build_returns
 from portfell.gold_pair_stats import sample_covariance
 from portfell.table_io import JsonRow
@@ -393,29 +397,6 @@ def build_covariance_matrix(
         "date_end": dates[-1] if dates else "",
         "diagnostics": covariance_diagnostics(listings, covariance_values, len(dates)),
     }
-
-
-def _pair_listings(rows: tuple[JsonRow, ...]) -> tuple[tuple[str, str, str], ...]:
-    return tuple(sorted({_listing(row, side) for row in rows for side in ("left", "right")}))
-
-
-def _listing(row: JsonRow, side: str) -> tuple[str, str, str]:
-    return (
-        str(row[side + "_isin"]),
-        str(row[side + "_exchange"]),
-        str(row[side + "_code"]),
-    )
-
-
-def _member_id(row: Mapping[str, Any]) -> str:
-    return f"{row.get('isin', '')}:{row.get('exchange', '')}:{row.get('code', '')}"
-
-
-def _labels(listings: tuple[tuple[str, str, str], ...]) -> list[JsonRow]:
-    return [
-        {"isin": isin, "exchange": exchange, "code": code, "label": f"{code}.{exchange}"}
-        for isin, exchange, code in listings
-    ]
 
 
 def _average_observations(rows: tuple[JsonRow, ...]) -> int:

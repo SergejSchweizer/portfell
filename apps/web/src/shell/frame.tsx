@@ -229,7 +229,7 @@ function ShellFrameContent({ currentPage, children }: ShellFrameProps) {
           <div className="metadata-fetch__credential-input">
             <label>
               EODHD key
-              <input type="text" autoComplete="off" value={providerKey} onChange={(event) => setProviderKey(event.target.value)} placeholder="Enter provider key" />
+              <input type="password" autoComplete="off" value={providerKey} onChange={(event) => setProviderKey(event.target.value)} placeholder="Enter provider key" />
             </label>
             {maskedCredentialLabel ? <span className="metadata-fetch__credential">Saved: {maskedCredentialLabel}</span> : null}
           </div>

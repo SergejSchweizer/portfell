@@ -26,7 +26,9 @@ class Events:
 def test_projector_publishes_one_event_only_for_a_workflow_transition() -> None:
     events = Events()
     projector = PostgresProjectWorkflowProjector(
-        lambda _user_id, _project_id: {"stages": {}}, Projection(changed=True), events  # type: ignore[arg-type]
+        lambda _user_id, _project_id: {"stages": {}},
+        Projection(changed=True),
+        events,  # type: ignore[arg-type]
     )
 
     payload, revision = projector.reconcile("u1", "p1")
@@ -47,7 +49,9 @@ def test_projector_publishes_one_event_only_for_a_workflow_transition() -> None:
 def test_projector_does_not_publish_when_the_projection_is_unchanged() -> None:
     events = Events()
     projector = PostgresProjectWorkflowProjector(
-        lambda _user_id, _project_id: {"stages": {}}, Projection(changed=False), events  # type: ignore[arg-type]
+        lambda _user_id, _project_id: {"stages": {}},
+        Projection(changed=False),
+        events,  # type: ignore[arg-type]
     )
 
     projector.reconcile("u1", "p1")

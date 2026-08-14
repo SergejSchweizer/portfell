@@ -80,9 +80,7 @@ def research_router(
             raise HTTPException(status_code=409, detail={"code": "section_not_available"})
         try:
             offset = (
-                0
-                if cursor is None
-                else decode_section_cursor(cursor=cursor, revision=revision)
+                0 if cursor is None else decode_section_cursor(cursor=cursor, revision=revision)
             )
         except ValueError as error:
             code = str(error)
@@ -193,9 +191,7 @@ def research_router(
     @router.get("/projects/{project_id}/views/{module}/sections/{section}")
     def analytical_tabular_section(
         project_id: str,
-        module: Literal[
-            "univariate_statistics", "bivariate_statistics", "multivariate_statistics"
-        ],
+        module: Literal["univariate_statistics", "bivariate_statistics", "multivariate_statistics"],
         section: str,
         cursor: str | None = None,
         metric: Literal[

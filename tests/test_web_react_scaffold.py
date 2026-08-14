@@ -197,11 +197,11 @@ def test_metadata_header_uses_masked_saved_credential_without_browser_secret_per
 
     assert "loadEodhdCredentialStatus" in context
     assert "loadEodhdCredentialValue" not in context
-    assert "Encrypted: {maskedCredentialLabel}" in frame
+    assert "Saved: {maskedCredentialLabel}" in frame
     assert "if (fetching || !canFetchMetadata) return;" in context
     assert 'setProviderKey("")' in context
     assert 'type="password"' in frame
-    assert 'requestJson<ApiCredentialStatus>("/api/credentials/eodhd")' in client
+    assert 'requestJson<ApiCredentialStatus>("/api/credentials/eodhd", { signal })' in client
     assert "credentials/eodhd/value" not in client
 
 
@@ -259,7 +259,7 @@ def test_metadata_builder_refreshes_the_sidebar_project_context_and_decodes_api_
     client = (WEB_ROOT / "src" / "api" / "client.ts").read_text(encoding="utf-8")
 
     assert 'window.dispatchEvent(new Event("portfell:workflow-updated"))' in page
-    assert 'window.addEventListener("portfell:workflow-updated", refresh)' in frame
+    assert 'window.addEventListener("portfell:workflow-updated", refreshWorkflow)' in frame
     assert 'typeof payload.detail === "string"' in client
     assert "payload.detail?.code" in client
 

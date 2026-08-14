@@ -65,7 +65,8 @@ def test_metadata_writes_refresh_navigation_in_the_same_connection_scope() -> No
 def test_metadata_lifecycle_publishes_compact_status_and_revision_events() -> None:
     events = _StatusEvents()
     repository = PostgresMetadataLifecycleRepository(
-        _Connection(), status_events=events  # type: ignore[arg-type]
+        _Connection(),
+        status_events=events,  # type: ignore[arg-type]
     )
     running = _run()
     completed = MetadataRun(

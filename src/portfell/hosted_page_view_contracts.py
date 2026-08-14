@@ -63,9 +63,7 @@ def metadata_builder_page_view(
     return payload, stable_hash(payload)
 
 
-def analytical_page_view(
-    *, module: str, project_id: str, workflow: JsonRow
-) -> tuple[JsonRow, str]:
+def analytical_page_view(*, module: str, project_id: str, workflow: JsonRow) -> tuple[JsonRow, str]:
     """Return a compact analytical entry view without reading result payloads."""
 
     if module not in _ANALYTICAL_SECTIONS:
