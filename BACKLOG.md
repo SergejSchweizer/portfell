@@ -1104,7 +1104,7 @@ Acceptance for PR247c2b2a:
   migration/catalog tests, architecture tests, Ruff, format, Pyright, and the applicable real-stack
   gate pass.
 
-PR247c2b2b branch: `feat/hosted-project-workflow-routes`.
+PR247c2b2b branch: `feat/hosted-project-workflow-routes` (ready for PR after PR247c2b2a).
 
 - Depend only on PR247c2b2a's typed projection read port. Replace `/workflow` and
   `/projects/{project_id}/workflow` with side-effect-free, bounded projection reads. The current

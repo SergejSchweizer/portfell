@@ -39,6 +39,43 @@ where user_id = %s::uuid and project_id = %s::uuid
             return None
         return _projection(row)
 
+    def read_owned(self, *, user_id: str, project_id: str) -> tuple[JsonRow, str] | None | object:
+        """Read one owned project, distinguishing an absent projection from an absent project."""
+
+        self._connection.execute(*set_authenticated_user_sql(user_id))
+        row = self._connection.execute(
+            """
+select projection.payload, projection.projection_revision
+from portfell_app.projects as project
+left join portfell_app.project_workflow_projections as projection
+    on projection.project_id = project.project_id and projection.user_id = project.user_id
+where project.user_id = %s::uuid and project.project_id = %s::uuid
+""",
+            (user_id, project_id),
+        ).fetchone()
+        if row is None:
+            return ABSENT_PROJECT
+        if len(row) != 2:
+            raise ValueError("project_workflow_projection_invalid")
+        return None if row[0] is None and row[1] is None else _projection(row)
+
+    def read_current(self, *, user_id: str) -> tuple[JsonRow, str] | None:
+        """Read the current project's workflow with one projection-only statement."""
+
+        self._connection.execute(*set_authenticated_user_sql(user_id))
+        row = self._connection.execute(
+            """
+select workflow.payload, workflow.projection_revision
+from portfell_app.navigation_projections as navigation
+join portfell_app.project_workflow_projections as workflow
+    on workflow.project_id = nullif(navigation.payload ->> 'current_project_id', '')::uuid
+    and workflow.user_id = navigation.user_id
+where navigation.user_id = %s::uuid
+""",
+            (user_id,),
+        ).fetchone()
+        return None if row is None else _projection(row)
+
     def write(self, *, user_id: str, project_id: str, payload: JsonRow) -> tuple[JsonRow, str]:
         self._connection.execute(*set_authenticated_user_sql(user_id))
         row = self._connection.execute(
@@ -76,3 +113,6 @@ def _projection(row: tuple[object, ...]) -> tuple[JsonRow, str]:
         {"payload": payload, "revision": row[1]}, sort_keys=True, separators=(",", ":")
     ).encode()
     return payload, hashlib.sha256(encoded).hexdigest()
+
+
+ABSENT_PROJECT = object()
