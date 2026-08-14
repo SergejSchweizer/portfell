@@ -1892,9 +1892,9 @@ paths have a named replacement or proof of being dead; API/Web composition is si
 
 Branch: `docs/hosted-single-authority-operations`.
 
-Git status: in progress.
+Git status: merged.
 
-PR: TBD.
+PR: https://github.com/SergejSchweizer/portfell/pull/438.
 
 Priority: P1 final hosted simplification.
 
@@ -1911,7 +1911,7 @@ the documented preflight, deployment, and rollback commands are verified.
 
 Branch: split into PR251a, PR251b, PR251c1, PR251c2a, PR251c2b, PR251c3, and PR251d above.
 
-Git status: in progress (PR251a/b/c1/c2a/c2b/c3 merged; PR251d in progress).
+Git status: merged (PR251a/b/c1/c2a/c2b/c3/d all merged).
 
 PR: TBD.
 
