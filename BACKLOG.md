@@ -1432,15 +1432,55 @@ return the same revision without starting calculations or ingestion.
 
 ### PR249. Shared Browser Query Cache And Navigation Prefetch
 
-Branch: `feat/web-query-cache`.
+Branch: split into PR249a–PR249c below.
 
-Git status: not started.
+Git status: in progress; PR249a is being prepared.
 
 PR: TBD.
 
 Priority: P1 instant repeat navigation and frontend simplification.
 
 Depends on: PR248.
+
+PR249a branch: `feat/web-query-cache`.
+
+- Add the exact `@tanstack/react-query` dependency, one memory-only application `QueryClient`, canonical
+  typed key factories, and the shared retry/stale/garbage-collection policy. Do not migrate consumers,
+  add prefetch, or retain persistent browser storage in this PR.
+- Required handoff: `queryClient`, `queryTiming`, and `queryKeys` are the only shared cache primitives;
+  PR249b must use them rather than constructing any alternate client or key.
+
+Acceptance for PR249a:
+
+- The root renders under exactly one `QueryClientProvider`; completed data defaults to five-minute
+  freshness, volatile page data to 15 seconds at consumer selection, unused entries are collected after
+  15 minutes, GET retries cap at two with bounded backoff, and mutations never retry automatically.
+- Package lockfile, TypeScript strict check, unit coverage of key identity/default policy, production Web
+  build, and storage-safety search prove no persistent tenant cache is introduced.
+
+PR249b branch: `refactor/web-query-cache-consumers`.
+
+- Depend only on PR249a. Migrate all production `useResource` server readers, revision counters, and
+  global refresh events to the single QueryClient and delete the superseded hook. Commands invalidate
+  only exact project/run keys after server success; logout/session invalidation clears memory.
+
+Acceptance for PR249b:
+
+- No production import of `use-resource` remains. Two concurrent consumers with one canonical key make
+  one request; project switching never shows another project's page/section; failed writes create no
+  optimistic cache state; focused Vitest assertions cover exact invalidations and cancellation.
+
+PR249c branch: `feat/web-query-cache-prefetch`.
+
+- Depend only on PR249b. Prefetch at most one deliberate sidebar destination/page view after selection
+  or hover intent, using the canonical project-specific key and ETag revalidation. Do not speculatively
+  fetch all workflow pages.
+
+Acceptance for PR249c:
+
+- Warm deliberate navigation uses fresh memory data without a blocking loader, while project/run changes
+  cancel obsolete prefetches and cannot expose old tenant data. Playwright request counts prove one
+  bounded destination prefetch only.
 
 Scope:
 
