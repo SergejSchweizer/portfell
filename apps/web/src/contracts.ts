@@ -604,15 +604,12 @@ export type ApiPairMetricMatrix = Readonly<{
 }>;
 
 export type ApiTailRiskScatter = Readonly<{
+  labels: readonly Readonly<{ isin: string; exchange: string; code: string; label: string }>[];
   points: readonly Readonly<{
-    left_isin: string;
-    left_exchange: string;
-    left_code: string;
-    right_isin: string;
-    right_exchange: string;
-    right_code: string;
-    tail_dependence: number;
-    coexceedance_rate: number;
+    left: number;
+    right: number;
+    tail: number;
+    coexceedance: number;
   }>[];
   pair_count: number;
   observation_count: number;
