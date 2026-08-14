@@ -13,6 +13,14 @@ import { useQueryResource } from "../query/use-query-resource";
 import { projectWorkflowPath, workflowPages } from "../routes";
 import { useMetadataFetch } from "../shell/metadata-fetch-context";
 
+export const initialFillFallbackPollMs = 15_000;
+
+export function shouldRefreshInitialFillForEvent(event: Event, projectId: string): boolean {
+  const detail = (event as CustomEvent<{ aggregate_ref?: unknown }>).detail;
+  if (detail === undefined || detail === null || typeof detail !== "object") return true;
+  return detail.aggregate_ref === `project:${projectId}`;
+}
+
 export function MetadataBuilderPage() {
   const options = useQueryResource(
     queryKeys.metadataOptions(),
@@ -27,6 +35,7 @@ export function MetadataBuilderPage() {
   const [name, setName] = useState("");
   const [selectionStatus, setSelectionStatus] = useState("Choose at least one Metadata Builder criterion.");
   const [initialFill, setInitialFill] = useState<ApiInitialFill | null>(null);
+  const [initialFillProjectId, setInitialFillProjectId] = useState<string | null>(null);
   const [creatingProject, setCreatingProject] = useState(false);
 
   useEffect(() => {
@@ -41,6 +50,7 @@ export function MetadataBuilderPage() {
     const resetProjectState = () => {
       setSelectionStatus("Choose at least one Metadata Builder criterion.");
       setInitialFill(null);
+      setInitialFillProjectId(null);
       setCreatingProject(false);
     };
 
@@ -65,6 +75,7 @@ export function MetadataBuilderPage() {
         setName(criteria.name);
         setSelectionStatus(`${criteria.selected_count.toLocaleString()} unique ISINs selected.`);
         setInitialFill(pageView.summary.initial_fill);
+        setInitialFillProjectId(project.project_id);
       } catch (error) {
         if (cancelled) return;
         resetProjectState();
@@ -89,7 +100,7 @@ export function MetadataBuilderPage() {
   }, []);
 
   useEffect(() => {
-    if (!initialFill || !["not_started", "planning", "running"].includes(initialFill.status)) return;
+    if (!initialFill || !initialFillProjectId || !["not_started", "planning", "running"].includes(initialFill.status)) return;
     let cancelled = false;
     let refreshInFlight = false;
 
@@ -97,9 +108,7 @@ export function MetadataBuilderPage() {
       if (refreshInFlight) return;
       refreshInFlight = true;
       try {
-        const context = await loadProjectContext();
-        if (!context.current_project) return;
-        const nextFill = await metadataBuilderApi.loadInitialFill(context.current_project.project_id);
+        const nextFill = await metadataBuilderApi.loadInitialFill(initialFillProjectId);
         if (cancelled) return;
         setInitialFill(nextFill);
         if (!["not_started", "planning", "running"].includes(nextFill.status)) {
@@ -115,15 +124,17 @@ export function MetadataBuilderPage() {
     };
 
     void refreshInitialFill();
-    const fallbackPoll = window.setInterval(() => void refreshInitialFill(), 1_000);
-    const onStatusEvent = () => void refreshInitialFill();
+    const fallbackPoll = window.setInterval(() => void refreshInitialFill(), initialFillFallbackPollMs);
+    const onStatusEvent = (event: Event) => {
+      if (shouldRefreshInitialFillForEvent(event, initialFillProjectId)) void refreshInitialFill();
+    };
     window.addEventListener("portfell:status-event", onStatusEvent);
     return () => {
       cancelled = true;
       window.clearInterval(fallbackPoll);
       window.removeEventListener("portfell:status-event", onStatusEvent);
     };
-  }, [initialFill]);
+  }, [initialFill, initialFillProjectId]);
 
   async function createProject(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -140,6 +151,7 @@ export function MetadataBuilderPage() {
       });
       setSelectionStatus(`${result.selected_count.toLocaleString()} unique ISINs selected.`);
       setInitialFill(result.initial_fill ?? null);
+      setInitialFillProjectId(result.project.project_id);
       window.history.pushState({}, "", projectWorkflowPath(result.project, workflowPages[0]));
       window.dispatchEvent(new Event("portfell:navigation"));
       window.dispatchEvent(new Event("portfell:workflow-updated"));

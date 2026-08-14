@@ -7,7 +7,11 @@ import { LoadingState } from "../../src/components/loading-state";
 import { Panel } from "../../src/components/panel";
 import { StatusBadge } from "../../src/components/status-badge";
 import { nextProgressSnapshot, progressPercent } from "../../src/computation-progress";
-import { initialFillStatusMessage } from "../../src/pages/metadata-builder";
+import {
+  initialFillFallbackPollMs,
+  initialFillStatusMessage,
+  shouldRefreshInitialFillForEvent,
+} from "../../src/pages/metadata-builder";
 import { univariateProgress } from "../../src/pages/univariate-statistics";
 import { ProjectSidebar } from "../../src/shell/project-sidebar";
 
@@ -61,6 +65,19 @@ describe("shared React components", () => {
     expect(initialFillStatusMessage("2 unique ISINs selected.", { ...fill, status: "running" })).toBe(
       "2 unique ISINs selected.",
     );
+  });
+
+  it("refreshes initial-fill progress only for its project and keeps a bounded fallback", () => {
+    expect(shouldRefreshInitialFillForEvent(
+      new CustomEvent("portfell:status-event", { detail: { aggregate_ref: "project:project-a" } }),
+      "project-a",
+    )).toBe(true);
+    expect(shouldRefreshInitialFillForEvent(
+      new CustomEvent("portfell:status-event", { detail: { aggregate_ref: "project:project-b" } }),
+      "project-a",
+    )).toBe(false);
+    expect(shouldRefreshInitialFillForEvent(new Event("portfell:status-event"), "project-a")).toBe(true);
+    expect(initialFillFallbackPollMs).toBe(15_000);
   });
 
   it("uses processed listings as the univariate progress bar scale", () => {
