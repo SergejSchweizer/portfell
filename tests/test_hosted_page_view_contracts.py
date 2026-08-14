@@ -2,7 +2,12 @@ from __future__ import annotations
 
 import pytest
 
-from portfell.hosted_page_view_contracts import analytical_page_view, metadata_builder_page_view
+from portfell.hosted_page_view_contracts import (
+    analytical_page_view,
+    decode_section_cursor,
+    encode_section_cursor,
+    metadata_builder_page_view,
+)
 
 
 def test_metadata_builder_page_view_is_versioned_compact_and_deterministic() -> None:
@@ -81,3 +86,13 @@ def test_analytical_page_view_exposes_section_revisions_after_completion() -> No
 
     assert page_view["run_id"] == "run-1"
     assert all(section["available"] is True for section in page_view["sections"].values())
+
+
+def test_section_cursor_is_opaque_and_bound_to_one_revision() -> None:
+    cursor = encode_section_cursor(revision="revision-1", offset=200)
+
+    assert decode_section_cursor(cursor=cursor, revision="revision-1") == 200
+    with pytest.raises(ValueError, match="section_revision_mismatch"):
+        decode_section_cursor(cursor=cursor, revision="revision-2")
+    with pytest.raises(ValueError, match="section_cursor_invalid"):
+        decode_section_cursor(cursor="not a cursor", revision="revision-1")

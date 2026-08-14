@@ -16,9 +16,13 @@
     "metadata_selection_required",
     "not_found",
     "quote_run_incomplete",
-    "scoped_quote_rows_unavailable"
+    "scoped_quote_rows_unavailable",
+    "section_cursor_invalid",
+    "section_not_available",
+    "section_revision_mismatch",
+    "section_too_large"
   ],
-  "normalized_sha256": "5cc8be1eb1ffadc3d81cf47fa282bba2ba816ec5978af46e1480c0da4d8e67ee",
+  "normalized_sha256": "a66d2b48c740671642463f92b0a501220f38416942bdbc5a8e8e56903a392411",
   "operations": [
     "DELETE /account 200",
     "POST /analyses 200/422",
@@ -74,6 +78,7 @@
     "GET /projects/{project_id}/views/metadata-builder 200/422",
     "GET /projects/{project_id}/views/multivariate-statistics 200/422",
     "GET /projects/{project_id}/views/univariate-statistics 200/422",
+    "GET /projects/{project_id}/views/{module}/sections/{section} 200/422",
     "GET /projects/{project_id}/workflow 200/422",
     "POST /quote-runs 200/422",
     "GET /quote-runs/{quote_run_id} 200/422",

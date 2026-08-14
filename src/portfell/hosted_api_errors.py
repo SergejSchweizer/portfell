@@ -21,6 +21,10 @@ HOSTED_ERROR_CODES = frozenset(
         "not_found",
         "quote_run_incomplete",
         "scoped_quote_rows_unavailable",
+        "section_cursor_invalid",
+        "section_not_available",
+        "section_revision_mismatch",
+        "section_too_large",
     }
 )
 

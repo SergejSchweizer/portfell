@@ -1171,6 +1171,10 @@ def test_scoped_research_runs_filter_and_build_unique_pairs() -> None:
         downloads_by_id={quote_run.download_run_id: quote_run},
         quote_rows_by_run_id={quote_run.download_run_id: quote_rows},
     )
+    state.metadata_revisions_by_user[DEFAULT_LOCAL_WORKSPACE_USER_ID] = "metadata-revision-a"
+    state.idempotency_refs[
+        (DEFAULT_LOCAL_WORKSPACE_USER_ID, f"fetch-all-quotes:{project.project_id}", "fixture")
+    ] = quote_run.download_run_id
     client = _client(state)
 
     request = {
@@ -1182,6 +1186,12 @@ def test_scoped_research_runs_filter_and_build_unique_pairs() -> None:
     univariate_status = _json(
         client.get(f"/univariate-statistics/runs/{univariate['run_id']}", headers=_headers())
     )
+    univariate_page_response = client.get(
+        f"/projects/{project.project_id}/views/univariate_statistics/sections/results",
+        headers=_headers(csrf=False),
+    )
+    assert univariate_page_response.status_code == 200
+    univariate_page = _json(univariate_page_response)
     filtered = _json(
         client.post(
             "/univariate-selection",
@@ -1246,6 +1256,9 @@ def test_scoped_research_runs_filter_and_build_unique_pairs() -> None:
 
     assert repeated["run_id"] == univariate["run_id"]
     assert univariate_status["status"] == "complete"
+    assert univariate_page["total"] == 3
+    assert len(univariate_page["items"]) == 3
+    assert univariate_page["next_cursor"] is None
     assert filtered["input_count"] == filtered["selected_count"] == 3
     assert filtered["excluded_count"] == 0
     assert plan["theoretical_pair_count"] == 3

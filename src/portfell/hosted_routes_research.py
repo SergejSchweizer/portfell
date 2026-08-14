@@ -5,10 +5,11 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable
-from typing import Literal
+from typing import Literal, cast
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Header, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Response
 from fastapi.responses import JSONResponse
 
 from portfell.hosted_api_contracts import (
@@ -21,7 +22,11 @@ from portfell.hosted_api_contracts import (
 )
 from portfell.hosted_api_state import ApiUser
 from portfell.hosted_credential_project_service import CredentialProjectService
-from portfell.hosted_page_view_contracts import analytical_page_view
+from portfell.hosted_page_view_contracts import (
+    analytical_page_view,
+    decode_section_cursor,
+    encode_section_cursor,
+)
 from portfell.hosted_postgres_request_scope import RequestScopedPostgresConnection
 from portfell.hosted_research_service import ResearchService
 from portfell.hosted_routes_common import JsonRow, call
@@ -48,6 +53,88 @@ def research_router(
         if if_none_match == headers["ETag"]:
             return Response(status_code=304, headers=headers)
         return JSONResponse(content=row, headers=headers)
+
+    def lazy_tabular_section(
+        *,
+        module: str,
+        section: str,
+        project_id: str,
+        user: ApiUser,
+        cursor: str | None,
+    ) -> JsonRow:
+        workflow = call(projects.workflow, user.user_id, project_id)
+        page_view, _ = analytical_page_view(module=module, project_id=project_id, workflow=workflow)
+        sections = cast(JsonRow, page_view["sections"])
+        section_row = sections.get(section)
+        if not isinstance(section_row, dict):
+            raise HTTPException(status_code=404, detail={"code": "not_found"})
+        typed_section = cast(JsonRow, section_row)
+        if typed_section.get("available") is not True:
+            raise HTTPException(status_code=409, detail={"code": "section_not_available"})
+        revision = typed_section.get("revision")
+        run_id = page_view.get("run_id")
+        if not isinstance(revision, str) or not isinstance(run_id, str):
+            raise HTTPException(status_code=409, detail={"code": "section_not_available"})
+        try:
+            offset = (
+                0
+                if cursor is None
+                else decode_section_cursor(cursor=cursor, revision=revision)
+            )
+        except ValueError as error:
+            code = str(error)
+            raise HTTPException(status_code=409, detail={"code": code}) from error
+        if module == "univariate_statistics" and section == "results":
+            result = call(service.univariate_results, user.user_id, run_id, 200, offset)
+        elif module == "univariate_statistics" and section == "selection_results":
+            stages = cast(JsonRow, workflow["stages"])
+            stage = cast(JsonRow, stages[module])
+            selection_id = stage.get("univariate_selection_id")
+            if not isinstance(selection_id, str):
+                raise HTTPException(status_code=409, detail={"code": "section_not_available"})
+            result = call(service.selection_results, user.user_id, selection_id, 200, offset)
+        elif module == "bivariate_statistics" and section == "results":
+            result = call(service.bivariate_results, user.user_id, run_id, 200, offset)
+        elif module == "multivariate_statistics" and section == "components":
+            result = call(service.multivariate_components, user.user_id, run_id, 200, offset)
+        else:
+            raise HTTPException(status_code=404, detail={"code": "not_found"})
+        raw_items = result.get("items")
+        total = result.get("total")
+        if not isinstance(raw_items, list) or not isinstance(total, int):
+            raise HTTPException(status_code=500, detail={"code": "section_response_invalid"})
+        items = cast(list[JsonRow], raw_items)
+        row: JsonRow = {"revision": revision, "items": items, "total": total, "limit": 200}
+        next_offset = offset + len(items)
+        row["next_cursor"] = (
+            None
+            if next_offset >= total
+            else encode_section_cursor(revision=revision, offset=next_offset)
+        )
+        if len(json.dumps(row, sort_keys=True, separators=(",", ":")).encode()) > 2 * 1024 * 1024:
+            raise HTTPException(
+                status_code=413,
+                detail={"code": "section_too_large", "section": section, "revision": revision},
+            )
+        return row
+
+    @router.get("/projects/{project_id}/views/{module}/sections/{section}")
+    def analytical_tabular_section(
+        project_id: str,
+        module: Literal[
+            "univariate_statistics", "bivariate_statistics", "multivariate_statistics"
+        ],
+        section: str,
+        cursor: str | None = None,
+        user: ApiUser = Depends(current_user),
+    ) -> JsonRow:
+        return lazy_tabular_section(
+            module=module,
+            section=section,
+            project_id=project_id,
+            user=user,
+            cursor=cursor,
+        )
 
     @router.get("/projects/{project_id}/views/univariate-statistics")
     def univariate_page_view(
