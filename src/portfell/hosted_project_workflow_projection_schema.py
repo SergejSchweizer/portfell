@@ -2,6 +2,15 @@
 
 from __future__ import annotations
 
+PROJECT_WORKFLOW_TABLE_SPECS = (
+    (
+        "portfell_app.project_research_run_mappings",
+        True,
+        False,
+        "Durable project ownership for univariate and bivariate research runs.",
+    ),
+)
+
 PROJECT_WORKFLOW_PROJECTION_SCHEMA_SQL = """
 create table if not exists portfell_app.project_workflow_projections (
     project_id uuid primary key references portfell_app.projects(project_id) on delete restrict,

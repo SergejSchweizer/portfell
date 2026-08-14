@@ -16,6 +16,7 @@ from portfell.hosted_navigation_read_model_schema import NAVIGATION_READ_MODEL_S
 from portfell.hosted_project_workflow_projection_schema import (
     PROJECT_RESEARCH_RUN_MAPPING_SCHEMA_SQL,
     PROJECT_WORKFLOW_PROJECTION_SCHEMA_SQL,
+    PROJECT_WORKFLOW_TABLE_SPECS,
 )
 from portfell.legacy_import_schema import LEGACY_IMPORT_LEDGER_SQL
 from portfell.metadata_builder_criteria_schema import METADATA_BUILDER_CRITERIA_SCHEMA_SQL
@@ -161,12 +162,7 @@ HOSTED_TABLES: tuple[HostedTable, ...] = (
         False,
         "Compact tenant-scoped project workflow read projections.",
     ),
-    HostedTable(
-        "portfell_app.project_research_run_mappings",
-        True,
-        False,
-        "Durable project ownership for univariate and bivariate research runs.",
-    ),
+    *(HostedTable(*spec) for spec in PROJECT_WORKFLOW_TABLE_SPECS),
     HostedTable(
         "portfell_app.univariate_selections", True, True, "Persisted univariate result selections."
     ),
