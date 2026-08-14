@@ -1053,6 +1053,10 @@ bounded reader/writer, conditional GET, project-command writes, Metadata Builder
 side-effect-free absent-current-project handling. PR247b will add worker/research reconciliation,
 projection-backed workflow reads, a deterministic repair command, and the performance evidence below.
 
+PR247b branch: `feat/hosted-navigation-reconciliation` (in progress). Its first atomic commit adds a
+single-query, RLS-bound, idempotent reconciliation primitive; later commits wire it into every worker
+and research lifecycle transition before any workflow read is switched to the projection.
+
 Priority: P0 page-entry latency and architectural simplicity.
 
 Depends on: PR246.
