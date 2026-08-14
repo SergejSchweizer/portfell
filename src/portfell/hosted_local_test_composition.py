@@ -13,6 +13,10 @@ from portfell.hosted_api_state import HostedApiState
 from portfell.hosted_bivariate_service import BivariateResearchService
 from portfell.hosted_credential_project_service import CredentialProjectService
 from portfell.hosted_credentials import FileCredentialStore, KeyEncryptionKey
+from portfell.hosted_local_audit_event_repository import LocalAuditEventRepository
+from portfell.hosted_local_metadata_repository import LocalMetadataLifecycleRepository
+from portfell.hosted_local_project_repository import LocalProjectRepository
+from portfell.hosted_local_selection_repository import LocalSelectionRepository
 from portfell.hosted_metadata_project_service import MetadataProjectService
 from portfell.hosted_multivariate_service import MultivariateResearchService
 from portfell.hosted_quote_run_service import QuoteRunService
@@ -54,7 +58,15 @@ def local_test_services(
     runtime = local_runtime()
     return (
         CredentialProjectService(state, runtime),
-        MetadataProjectService(state, runtime),
+        MetadataProjectService(
+            state,
+            runtime,
+            LocalProjectRepository(state),
+            LocalSelectionRepository(state),
+            LocalMetadataLifecycleRepository(state),
+            state.credential_vault(),
+            LocalAuditEventRepository(state),
+        ),
         QuoteRunService(state, runtime),
         local_research_service(state, runtime),
     )

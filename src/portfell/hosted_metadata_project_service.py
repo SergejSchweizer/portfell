@@ -20,10 +20,6 @@ from portfell.hosted_api_service_support import (
 from portfell.hosted_api_state import HostedApiState, ProjectRecord, SelectionRecord
 from portfell.hosted_audit_event_repository import AuditEventRepository, HostedAuditEvent
 from portfell.hosted_credentials import CredentialVaultError, EodhdCredentialVault
-from portfell.hosted_local_audit_event_repository import LocalAuditEventRepository
-from portfell.hosted_local_metadata_repository import LocalMetadataLifecycleRepository
-from portfell.hosted_local_project_repository import LocalProjectRepository
-from portfell.hosted_local_selection_repository import LocalSelectionRepository
 from portfell.hosted_metadata_repository import MetadataLifecycleRepository, MetadataRun
 from portfell.hosted_project_bootstrap_repository import ProjectBootstrapRepository
 from portfell.hosted_repository_importer import (
@@ -49,22 +45,22 @@ class MetadataProjectService:
         self,
         state: HostedApiState,
         runtime: HostedRuntimePort,
-        project_repository: ProjectRepository | None = None,
-        selection_repository: SelectionRepository | None = None,
-        metadata_repository: MetadataLifecycleRepository | None = None,
-        credential_vault: EodhdCredentialVault | None = None,
-        audit_repository: AuditEventRepository | None = None,
+        project_repository: ProjectRepository,
+        selection_repository: SelectionRepository,
+        metadata_repository: MetadataLifecycleRepository,
+        credential_vault: EodhdCredentialVault,
+        audit_repository: AuditEventRepository,
         bootstrap_repository: ProjectBootstrapRepository | None = None,
         metadata_refresh_queue: MetadataRefreshQueue | None = None,
         navigation_refresher: Callable[[str], None] | None = None,
     ) -> None:
         self.state = state
         self.runtime = runtime
-        self._projects = project_repository or LocalProjectRepository(state)
-        self._selections = selection_repository or LocalSelectionRepository(state)
-        self._metadata = metadata_repository or LocalMetadataLifecycleRepository(state)
-        self._credentials = credential_vault or state.credential_vault()
-        self._audit_events = audit_repository or LocalAuditEventRepository(state)
+        self._projects = project_repository
+        self._selections = selection_repository
+        self._metadata = metadata_repository
+        self._credentials = credential_vault
+        self._audit_events = audit_repository
         self._bootstrap = bootstrap_repository
         self._metadata_refresh_queue = metadata_refresh_queue
         self._navigation_refresher = navigation_refresher
