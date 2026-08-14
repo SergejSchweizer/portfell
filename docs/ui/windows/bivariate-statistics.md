@@ -89,7 +89,14 @@ Its facts table exposes all four quadrant counts, Pareto-best diversifier count 
 the highest combined tail-risk pair, average λᴸ and co-exceedance multiples over independence,
 the ISIN with the most upper-right links, upper-right cluster size, rolling stability for both
 axes, and the joint-tail-event evidence. It loads the complete persisted pair set rather than the
-bounded results page.
+bounded results page. The response sends the listing label table once and references each point by
+two listing indices, so all 20,100 pairs for a 201-listing universe remain below the 2 MiB lazy-section
+limit. Pareto selection uses a deterministic sorted frontier rather than pairwise point comparison.
+
+Every facts panel, matrix, and scatter reads from the active lazy section response. A run that becomes
+complete in the start response invalidates its compact page view immediately; a polled completion does
+the same. Neither path may leave a calculated section disabled or render an empty restore-state value
+over a loaded section.
 
 The persistent project sidebar identifies the active project and three-module
 workflow hierarchy. A project switch clears the local pair plan, run, results,

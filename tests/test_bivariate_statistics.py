@@ -1,3 +1,4 @@
+import json
 import os
 from pathlib import Path
 from statistics import correlation, covariance, variance
@@ -15,6 +16,7 @@ from portfell.bivariate_views import (
     build_tail_risk_scatter,
 )
 from portfell.gold_pair_stats import correlation_value
+from portfell.hosted_page_view_contracts import MAX_LAZY_SECTION_BYTES, bounded_detail_section
 from portfell.paths import LakePaths
 from portfell.run_state import read_job_manifest
 from portfell.table_io import read_rows, write_rows
@@ -108,8 +110,41 @@ def test_bivariate_statistics_use_pairwise_dates_and_metrics(tmp_path: Path) -> 
     rolling_matrix = build_correlation_matrix(tuple(statistics), "rolling_stability")
     assert rolling_matrix["values"][0][1] == statistics[0]["rolling_correlation_stability"]
     scatter = build_tail_risk_scatter(tuple(statistics))
+    assert len(scatter["labels"]) == 3
+    assert scatter["points"][0]["left"] == 0
+    assert scatter["points"][0]["right"] == 1
     assert scatter["observation_count_min"] == 2
     assert scatter["observation_count_max"] == 3
+
+
+def test_tail_risk_scatter_keeps_all_201_listing_pairs_bounded() -> None:
+    rows = tuple(
+        {
+            "left_isin": f"IE{left:010d}",
+            "left_exchange": "XETRA",
+            "left_code": f"ETF{left:03d}",
+            "right_isin": f"IE{right:010d}",
+            "right_exchange": "XETRA",
+            "right_code": f"ETF{right:03d}",
+            "date_start": "2025-01-01",
+            "date_end": "2026-01-01",
+            "n_observations": 252,
+            "lower_tail_dependence": 0.1234567890123456,
+            "tail_coexceedance_rate": 0.0098765432109876,
+        }
+        for left in range(201)
+        for right in range(left + 1, 201)
+    )
+
+    scatter = build_tail_risk_scatter(rows)
+    response = bounded_detail_section(revision="revision-201", payload=scatter)
+
+    assert len(scatter["labels"]) == 201
+    assert scatter["pair_count"] == 20_100
+    assert len(scatter["points"]) == 20_100
+    assert len(json.dumps(response, sort_keys=True, separators=(",", ":")).encode()) < (
+        MAX_LAZY_SECTION_BYTES
+    )
 
 
 def test_bivariate_statistics_keep_pairs_with_a_common_calendar() -> None:

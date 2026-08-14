@@ -20,6 +20,8 @@ from portfell.bivariate_view_helpers import labels as _labels
 from portfell.bivariate_view_helpers import listing as _listing
 from portfell.bivariate_view_helpers import member_id as _member_id
 from portfell.bivariate_view_helpers import pair_listings as _pair_listings
+from portfell.bivariate_view_helpers import pareto_points as _pareto_points
+from portfell.bivariate_view_helpers import tail_risk_score as _tail_risk_score
 from portfell.gold import build_returns
 from portfell.gold_pair_stats import sample_covariance
 from portfell.table_io import JsonRow
@@ -132,9 +134,9 @@ def build_covariance_matrix_from_rows(rows: tuple[JsonRow, ...]) -> JsonRow:
 
 
 def build_tail_risk_scatter(rows: tuple[JsonRow, ...]) -> JsonRow:
-    """Expose all persisted tail-risk pair values for a portfolio-selection scatterplot."""
-
-    points = [
+    listings = _pair_listings(rows)
+    listing_index = {listing: position for position, listing in enumerate(listings)}
+    diagnostic_points = [
         {
             "left_isin": row["left_isin"],
             "left_exchange": row["left_exchange"],
@@ -149,11 +151,25 @@ def build_tail_risk_scatter(rows: tuple[JsonRow, ...]) -> JsonRow:
         if row.get("lower_tail_dependence") is not None
         and row.get("tail_coexceedance_rate") is not None
     ]
-    tail_summary = bivariate_metric_summary([float(point["tail_dependence"]) for point in points])
+    points = [
+        {
+            "left": listing_index[_listing(row, "left")],
+            "right": listing_index[_listing(row, "right")],
+            "tail": float(row["lower_tail_dependence"]),
+            "coexceedance": float(row["tail_coexceedance_rate"]),
+        }
+        for row in rows
+        if row.get("lower_tail_dependence") is not None
+        and row.get("tail_coexceedance_rate") is not None
+    ]
+    tail_summary = bivariate_metric_summary(
+        [float(point["tail_dependence"]) for point in diagnostic_points]
+    )
     coexceedance_summary = bivariate_metric_summary(
-        [float(point["coexceedance_rate"]) for point in points]
+        [float(point["coexceedance_rate"]) for point in diagnostic_points]
     )
     return {
+        "labels": _labels(listings),
         "points": points,
         "pair_count": len(points),
         "observation_count": _average_observations(rows),
@@ -161,7 +177,7 @@ def build_tail_risk_scatter(rows: tuple[JsonRow, ...]) -> JsonRow:
         "tail_dependence_median": tail_summary["median"],
         "coexceedance_rate_median": coexceedance_summary["median"],
         "diagnostics": _tail_risk_scatter_diagnostics(
-            points,
+            diagnostic_points,
             rows,
             float(tail_summary["median"] or 0.0),
             float(coexceedance_summary["median"] or 0.0),
@@ -199,20 +215,7 @@ def _tail_risk_scatter_diagnostics(
             quadrants["high_tail_only"] += 1
         else:
             quadrants["high_coexceedance_only"] += 1
-    pareto = [
-        point
-        for point in points
-        if not any(
-            other is not point
-            and float(other["tail_dependence"]) <= float(point["tail_dependence"])
-            and float(other["coexceedance_rate"]) <= float(point["coexceedance_rate"])
-            and (
-                float(other["tail_dependence"]) < float(point["tail_dependence"])
-                or float(other["coexceedance_rate"]) < float(point["coexceedance_rate"])
-            )
-            for other in points
-        )
-    ]
+    pareto = _pareto_points(points)
     best_pareto = min(
         pareto,
         key=lambda point: _tail_risk_score(
@@ -314,12 +317,6 @@ def _empty_tail_risk_scatter_diagnostics() -> JsonRow:
         "median_joint_tail_events": None,
         "minimum_joint_tail_events": None,
     }
-
-
-def _tail_risk_score(
-    tail: float, coexceedance: float, tail_median: float, coexceedance_median: float
-) -> float:
-    return ((tail / max(tail_median, 0.05)) + (coexceedance / max(coexceedance_median, 0.0025))) / 2
 
 
 def _scatter_pair_labels(point: Mapping[str, Any]) -> tuple[str, str]:

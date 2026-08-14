@@ -1280,8 +1280,11 @@ def test_scoped_research_runs_filter_and_build_unique_pairs() -> None:
     assert isinstance(tail_dependence_matrix["values"][0][1], float)
     assert isinstance(coexceedance_matrix["values"][0][1], float)
     assert tail_scatter["pair_count"] == 3
-    assert tail_scatter["points"][0]["tail_dependence"] >= 0.0
-    assert tail_scatter["points"][0]["coexceedance_rate"] >= 0.0
+    assert len(tail_scatter["labels"]) == 3
+    assert tail_scatter["points"][0]["left"] in range(3)
+    assert tail_scatter["points"][0]["right"] in range(3)
+    assert tail_scatter["points"][0]["tail"] >= 0.0
+    assert tail_scatter["points"][0]["coexceedance"] >= 0.0
     assert tail_scatter["diagnostics"]["pareto_best_pair_count"] >= 1
     assert "tail_concentration" in tail_scatter["diagnostics"]
     assert set(summary["metrics"]) >= {

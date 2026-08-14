@@ -140,8 +140,8 @@ function TailRiskScatter({ scatter }: { scatter: ApiTailRiskScatter | null }) {
       const margin = Math.max(spread * 0.14, 0.01);
       return { minimum: Math.max(0, minimum - margin), maximum: Math.min(1, maximum + margin) };
     };
-    const xDomain = domain(scatter.points.map((point) => point.tail_dependence));
-    const yDomain = domain(scatter.points.map((point) => point.coexceedance_rate));
+    const xDomain = domain(scatter.points.map((point) => point.tail));
+    const yDomain = domain(scatter.points.map((point) => point.coexceedance));
     const x = (value: number) => padding.left + (value - xDomain.minimum) / (xDomain.maximum - xDomain.minimum) * plotWidth;
     const y = (value: number) => padding.top + (1 - (value - yDomain.minimum) / (yDomain.maximum - yDomain.minimum)) * plotHeight;
     layout.current = { x, y };
@@ -191,12 +191,12 @@ function TailRiskScatter({ scatter }: { scatter: ApiTailRiskScatter | null }) {
     context.fillStyle = "#b3261e";
     context.fillText("Tail-risk concentration", x(xMedian) + 8, padding.top + 16);
     for (const point of scatter.points) {
-      const isBestDiversifier = point.tail_dependence <= xMedian && point.coexceedance_rate <= yMedian;
-      const isDangerous = point.tail_dependence > xMedian && point.coexceedance_rate > yMedian;
+      const isBestDiversifier = point.tail <= xMedian && point.coexceedance <= yMedian;
+      const isDangerous = point.tail > xMedian && point.coexceedance > yMedian;
       const isHovered = hoveredPoint === point;
       context.fillStyle = isDangerous ? "rgba(211, 47, 47, .78)" : isBestDiversifier ? "rgba(19, 115, 51, .78)" : "rgba(23, 105, 224, .62)";
       context.beginPath();
-      context.arc(x(point.tail_dependence), y(point.coexceedance_rate), isHovered ? 6 : 4, 0, Math.PI * 2);
+      context.arc(x(point.tail), y(point.coexceedance), isHovered ? 6 : 4, 0, Math.PI * 2);
       context.fill();
       if (isHovered) {
         context.strokeStyle = "#101828";
@@ -215,6 +215,8 @@ function TailRiskScatter({ scatter }: { scatter: ApiTailRiskScatter | null }) {
   }, [hoveredPoint, scatter]);
 
   if (!scatter) return <div className="bivariate-statistic__results"><p className="status-line">Compute bivariate statistics to populate the tail-risk scatterplot.</p></div>;
+  const hoveredLeft = hoveredPoint ? scatter.labels[hoveredPoint.left] : null;
+  const hoveredRight = hoveredPoint ? scatter.labels[hoveredPoint.right] : null;
   return <div className="bivariate-statistic__results">
     <p className="bivariate-statistic__matrix-caption">One point per ISIN pair · pair coverage {dataPeriod(scatter.date_start, scatter.date_end)} · {observationRange(scatter.observation_count, scatter.observation_count_min, scatter.observation_count_max)} shared observations</p>
     <div className="tail-risk-scatter__frame">
@@ -225,12 +227,12 @@ function TailRiskScatter({ scatter }: { scatter: ApiTailRiskScatter | null }) {
         const pointerX = (event.clientX - bounds.left) * element.width / bounds.width;
         const pointerY = (event.clientY - bounds.top) * element.height / bounds.height;
         const nearest = scatter.points.reduce<{ point: ApiTailRiskScatter["points"][number] | null; distance: number }>((current, point) => {
-          const distance = Math.hypot(layout.current!.x(point.tail_dependence) - pointerX, layout.current!.y(point.coexceedance_rate) - pointerY);
+          const distance = Math.hypot(layout.current!.x(point.tail) - pointerX, layout.current!.y(point.coexceedance) - pointerY);
           return distance < current.distance ? { point, distance } : current;
         }, { point: null, distance: 14 });
         setHoveredPoint(nearest.point);
       }} />
-      {hoveredPoint && <div className="tail-risk-scatter__tooltip" role="tooltip"><strong>{hoveredPoint.left_code}.{hoveredPoint.left_exchange} ↔ {hoveredPoint.right_code}.{hoveredPoint.right_exchange}</strong><span>{hoveredPoint.left_isin} ↔ {hoveredPoint.right_isin}</span><span>Tail dependence: {(hoveredPoint.tail_dependence * 100).toFixed(2)}%</span><span>Co-exceedance rate: {(hoveredPoint.coexceedance_rate * 100).toFixed(2)}%</span></div>}
+      {hoveredPoint && hoveredLeft && hoveredRight && <div className="tail-risk-scatter__tooltip" role="tooltip"><strong>{hoveredLeft.code}.{hoveredLeft.exchange} ↔ {hoveredRight.code}.{hoveredRight.exchange}</strong><span>{hoveredLeft.isin} ↔ {hoveredRight.isin}</span><span>Tail dependence: {(hoveredPoint.tail * 100).toFixed(2)}%</span><span>Co-exceedance rate: {(hoveredPoint.coexceedance * 100).toFixed(2)}%</span></div>}
     </div>
     <p className="tail-risk-scatter__legend"><span className="tail-risk-scatter__legend-good" /> Best diversifiers <span className="tail-risk-scatter__legend-neutral" /> Mixed tail profile <span className="tail-risk-scatter__legend-bad" /> Tail-risk concentration</p>
   </div>;
@@ -249,7 +251,7 @@ export function BivariateStatisticsPage() {
   );
   const [run, setRun] = useState<ApiResearchRun | null>(null);
   const [results, setResults] = useState<ApiPage<ApiBivariateRow> | null>(null);
-  const [covarianceMatrix, setCovarianceMatrix] = useState<ApiCovarianceMatrix | null>(null);
+  const [restoredCovarianceMatrix, setCovarianceMatrix] = useState<ApiCovarianceMatrix | null>(null);
   const [pearsonMatrix, setPearsonMatrix] = useState<ApiPairMetricMatrix | null>(null);
   const [spearmanMatrix, setSpearmanMatrix] = useState<ApiPairMetricMatrix | null>(null);
   const [downsideMatrix, setDownsideMatrix] = useState<ApiPairMetricMatrix | null>(null);
@@ -257,8 +259,8 @@ export function BivariateStatisticsPage() {
   const [tailCoexceedanceRateMatrix, setTailCoexceedanceRateMatrix] = useState<ApiPairMetricMatrix | null>(null);
   const [rollingStabilityMatrix, setRollingStabilityMatrix] = useState<ApiPairMetricMatrix | null>(null);
   const [drawdownOverlapMatrix, setDrawdownOverlapMatrix] = useState<ApiPairMetricMatrix | null>(null);
-  const [tailRiskScatter, setTailRiskScatter] = useState<ApiTailRiskScatter | null>(null);
-  const [summary, setSummary] = useState<ApiBivariateSummary | null>(null);
+  const [restoredTailRiskScatter, setTailRiskScatter] = useState<ApiTailRiskScatter | null>(null);
+  const [restoredSummary, setSummary] = useState<ApiBivariateSummary | null>(null);
   const [hoveredMatrixCell, setHoveredMatrixCell] = useState<{ row: number; column: number } | null>(null);
   const [activePairwiseMetric, setActivePairwiseMetric] = useState<PairwiseMatrixMetric>("covariance");
   const [message, setMessage] = useState("");
@@ -400,6 +402,8 @@ export function BivariateStatisticsPage() {
       setRun(nextRun);
       if (nextRun.status === "complete") {
         setMessage("Bivariate statistics computed.");
+        void queryClient.invalidateQueries({ queryKey: queryKeys.pageView(projectId ?? "no-project", "bivariate_statistics") });
+        window.dispatchEvent(new Event("portfell:workflow-updated"));
       }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Bivariate computation failed.");
@@ -408,16 +412,19 @@ export function BivariateStatisticsPage() {
     }
   }
 
-  const loadedSummary = summarySection.data?.data ?? summary;
+  const loadedSummary = summarySection.data?.data ?? restoredSummary;
   const loadedCovarianceMatrix = activePairwiseMetric === "covariance"
     ? visibleSection.data?.data as ApiCovarianceMatrix | undefined
-    : covarianceMatrix ?? undefined;
+    : restoredCovarianceMatrix ?? undefined;
   const loadedTailRiskScatter = activePairwiseMetric === "tail_risk_scatter"
     ? visibleSection.data?.data as ApiTailRiskScatter | undefined
-    : tailRiskScatter ?? undefined;
+    : restoredTailRiskScatter ?? undefined;
   const loadedPairMetricMatrix = activePairwiseMetric !== "covariance" && activePairwiseMetric !== "tail_risk_scatter"
     ? visibleSection.data?.data as ApiPairMetricMatrix | undefined
     : undefined;
+  const summary = loadedSummary;
+  const covarianceMatrix = loadedCovarianceMatrix;
+  const tailRiskScatter = loadedTailRiskScatter ?? null;
   const diagnostics = loadedCovarianceMatrix?.diagnostics;
   const activeMetricSummary = activePairwiseMetric === "pearson"
     ? loadedSummary?.metrics.pearson_correlation

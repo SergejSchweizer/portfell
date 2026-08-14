@@ -1671,6 +1671,43 @@ commands or mutate server state beyond the existing explicit workflow action.
 Rollback: Revert the page class, shared CSS rule, specifications, and regression together. No schema,
 cache, image, or data migration is required.
 
+### PR263. Complete Bivariate Statistics Display
+
+Branch: `fix/bivariate-complete-display`.
+
+Git status: in progress.
+
+PR: TBD.
+
+Priority: P0 display every calculated Bivariate statistic for the full selected universe.
+
+Depends on: PR262 because this stacked branch uses its synchronized statistics-page baseline.
+
+Scope: Keep all persisted pair metrics and all nine Bivariate views. Render facts, matrices, and the
+Tail-Risk Scatter from project-scoped lazy sections, including immediate terminal start responses.
+Compact the scatter by sending one label table plus indexed points and replace quadratic Pareto
+selection with a deterministic sorted frontier. Update typed contracts, page specification, backend
+regressions, and the stateful browser fixture. Do not change formulas, pair membership, authorization,
+or the 2 MiB lazy-section limit.
+
+Acceptance: The current 201-listing universe persists exactly 20,100 rows and every row contains
+non-null covariance, Pearson, Spearman, Downside, Tail Dependence, Co-exceedance, Rolling-Correlation,
+and Drawdown Overlap values. All nine tabs render their loaded server results. The complete 20,100-point
+scatter passes `bounded_detail_section`; focused Bivariate tests, the isolated Playwright journey,
+Web/API Docker builds, and `uv run portfell-quality pr` pass.
+
+Security: Compact indices reference only labels already returned by the same authorized project/run
+section. No tenant, project, run, membership, or provider boundary changes.
+
+Determinism: Sorted listing labels, persisted pair order, metric values, and sorted Pareto traversal
+produce byte-stable point indices and diagnostics for identical run rows.
+
+Idempotency: Reading or switching sections performs no writes. Immediate and event-driven completion
+invalidate the same page-view query without starting or duplicating a run.
+
+Rollback: Restore repeated point labels and prior render fallbacks together. Existing pair rows need
+no migration; rollback may again exceed the Tail-Risk Scatter response limit for large universes.
+
 ### Hosted Simplicity And Interactive Performance Series Completion Gate
 
 This series is complete only after PR246 through PR252 merge in order and the current gates in

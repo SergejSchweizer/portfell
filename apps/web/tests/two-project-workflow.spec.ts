@@ -144,11 +144,15 @@ async function installTwoProjectApi(
 
   await page.route("**/api/**", async (route) => {
     const request = route.request();
-    const path = new URL(request.url()).pathname;
+    const url = new URL(request.url());
+    const path = url.pathname;
     const method = request.method();
     calls.push(`${method} ${path}`);
     const body = method === "GET" ? {} : request.postDataJSON() as Record<string, unknown>;
 
+    if (method === "GET" && path === "/api/status-events") {
+      return route.fulfill({ status: 200, contentType: "text/event-stream", body: ": connected\n\n" });
+    }
     if (method === "GET" && path === "/api/credentials/eodhd") return response(route, { credential_id: "credential-1", provider: "eodhd", status: credentialInitiallyActive ? "active" : "revoked", key_version: "1", masked_label: credentialInitiallyActive ? "dummy…key" : "" });
     if (method === "POST" && path === "/api/credentials/eodhd") return response(route, { credential_id: "credential-1", provider: "eodhd", status: "active", key_version: "1", masked_label: "dummy…key" });
     if (method === "POST" && path === "/api/metadata/fetch-all") return response(route, { metadata_run_id: "metadata-run", status: "running", total: 1, completed: 0, percent: 0 });
@@ -166,6 +170,38 @@ async function installTwoProjectApi(
     if (method === "GET" && path === "/api/workflow") return response(route, workflow(current()));
     const projectWorkflow = path.match(/^\/api\/projects\/([^/]+)\/workflow$/);
     if (method === "GET" && projectWorkflow) return response(route, workflow(projects.get(projectWorkflow[1])));
+    const univariatePageView = path.match(/^\/api\/projects\/([^/]+)\/views\/univariate-statistics$/);
+    if (method === "GET" && univariatePageView) {
+      const project = projects.get(univariatePageView[1])!;
+      const complete = Boolean(project.univariateRunId);
+      const section = { available: complete, revision: `univariate-revision-${project.id}` };
+      return response(route, {
+        contract_version: 1,
+        module: "univariate_statistics",
+        project_id: project.id,
+        workflow_etag: `workflow-${project.id}`,
+        run_id: project.univariateRunId ?? null,
+        status: complete ? "complete" : "ready",
+        input: { metadata_selection_id: `selection-${project.id}` },
+        sections: { results: section, selection_results: section },
+      });
+    }
+    const bivariatePageView = path.match(/^\/api\/projects\/([^/]+)\/views\/bivariate-statistics$/);
+    if (method === "GET" && bivariatePageView) {
+      const project = projects.get(bivariatePageView[1])!;
+      const complete = Boolean(project.bivariateRunId);
+      const section = { available: complete, revision: `bivariate-revision-${project.id}` };
+      return response(route, {
+        contract_version: 1,
+        module: "bivariate_statistics",
+        project_id: project.id,
+        workflow_etag: `workflow-${project.id}`,
+        run_id: project.bivariateRunId ?? null,
+        status: complete ? "complete" : project.univariateRunId ? "ready" : "locked",
+        input: { univariate_selection_id: project.univariateRunId ? `univariate-selection-${project.id}` : null },
+        sections: { results: section, summary: section, covariance_matrix: section, correlation_matrix: section, tail_risk_scatter: section },
+      });
+    }
     const projectCriteria = path.match(/^\/api\/projects\/([^/]+)\/metadata-builder$/);
     if (method === "GET" && projectCriteria) {
       const project = projects.get(projectCriteria[1])!;
@@ -212,6 +248,8 @@ async function installTwoProjectApi(
       const running = pollCount === 1;
       return response(route, { run_id: runId, status: running ? "running" : "complete", total: 3, completed: running ? 0 : 3, failed: 0, percent: running ? 0 : 100 });
     }
+    const univariateResultsSection = path.match(/^\/api\/projects\/([^/]+)\/views\/univariate_statistics\/sections\/results$/);
+    if (method === "GET" && univariateResultsSection) return response(route, { revision: `univariate-revision-${univariateResultsSection[1]}`, items: univariateRows, total: univariateRows.length, limit: 200, next_cursor: null });
     if (method === "GET" && path.includes("/univariate-statistics/runs/") && path.endsWith("/results")) return response(route, { items: univariateRows, total: univariateRows.length, limit: 200, offset: 0 });
     if (method === "POST" && path === "/api/bivariate-statistics/plan") return response(route, { selected_listing_count: 3, theoretical_pair_count: 3, pair_limit: 100, allowed: true });
     if (method === "POST" && path === "/api/bivariate-statistics/runs") {
@@ -223,6 +261,15 @@ async function installTwoProjectApi(
       bivariatePolls += 1;
       const running = bivariateCompletesAfterPoll && bivariatePolls === 1;
       return response(route, { run_id: path.split("/").at(-1), status: running ? "running" : "complete", total: 3, completed: running ? 0 : 3, failed: 0, percent: running ? 0 : 100 });
+    }
+    const bivariateSection = path.match(/^\/api\/projects\/([^/]+)\/views\/bivariate_statistics\/sections\/([^/]+)$/);
+    if (method === "GET" && bivariateSection) {
+      const section = bivariateSection[2];
+      const revision = `bivariate-revision-${bivariateSection[1]}`;
+      if (section === "summary") return response(route, { revision, data: { ...bivariateSummary(), date_start: "2024-01-02", date_end: "2024-12-31", observation_count_min: 240, observation_count_max: 252 } });
+      if (section === "covariance_matrix") return response(route, { revision, data: { labels, values: matrix, observation_count: 252, observation_count_min: 240, observation_count_max: 252, date_start: "2024-01-02", date_end: "2024-12-31", diagnostics: { listing_count: 3, pair_count: 3, observation_count: 252, average_pairwise_covariance: 0.09, average_pairwise_correlation: 0.4, equal_weight_volatility: 0.12, minimum_variance_volatility: 0.1, diversification_ratio: 1.2, effective_number_of_bets: 2.4, largest_equal_weight_risk_contribution: 0.4 } } });
+      if (section === "correlation_matrix") return response(route, { revision, data: { labels, values: matrix, observation_count: 252, observation_count_min: 240, observation_count_max: 252, date_start: "2024-01-02", date_end: "2024-12-31", metric: url.searchParams.get("metric") } });
+      if (section === "tail_risk_scatter") return response(route, { revision, data: { labels, points: [{ left: 0, right: 1, tail: 0.12, coexceedance: 0.08 }], pair_count: 1, observation_count: 252, observation_count_min: 240, observation_count_max: 252, date_start: "2024-01-02", date_end: "2024-12-31", tail_dependence_median: 0.12, coexceedance_rate_median: 0.08, diagnostics: { best_diversifiers: 1, tail_concentration: 0, high_tail_only: 0, high_coexceedance_only: 0, pareto_best_pair_count: 1, tail_independence_baseline: 0.05, coexceedance_independence_baseline: 0.0025, average_tail_independence_multiple: 2.4, average_coexceedance_independence_multiple: 32, upper_right_links: 0, upper_right_cluster_count: 0, largest_upper_right_cluster_size: 0 } } });
     }
     if (method === "GET" && path.includes("/bivariate-statistics/runs/") && path.endsWith("/results")) return response(route, { items: [{ left_isin: labels[0].isin, left_exchange: "XETRA", left_code: "ALPHA", right_isin: labels[1].isin, right_exchange: "XETRA", right_code: "BETA", n_observations: 252, covariance: 0.12, pearson_correlation: 0.6, spearman_correlation: 0.5, downside_correlation: 0.7, lower_tail_dependence: 0.12, tail_coexceedance_rate: 0.08 }], total: 1, limit: 50, offset: 0 });
     if (method === "GET" && path.endsWith("/covariance-matrix")) return response(route, { labels, values: matrix, observation_count: 252, diagnostics: { listing_count: 3, pair_count: 3, observation_count: 252, average_pairwise_covariance: 0.09, average_pairwise_correlation: 0.4, equal_weight_volatility: 0.12, minimum_variance_volatility: 0.1, diversification_ratio: 1.2, effective_number_of_bets: 2.4, largest_equal_weight_risk_contribution: 0.4 } });
@@ -282,10 +329,11 @@ async function createProject(page: Page, filter: { exchange: string; instrumentT
 }
 
 async function computeUnivariate(page: Page) {
-  await expect(page.getByRole("heading", { name: "Dividends" })).not.toBeVisible();
+  await expect(page.getByRole("heading", { name: "Dividends" })).toBeVisible();
   await page.getByRole("button", { name: "Compute univariate statistics" }).click();
   await expect(page.getByRole("button", { name: "Computing…" })).toBeDisabled();
   await expect(page.getByText("0 of 3 listings computed")).toBeVisible();
+  await page.evaluate(() => window.dispatchEvent(new Event("portfell:status-event")));
   await expect(page.getByText("3 listings computed.")).toBeVisible();
   await expect(page.getByRole("button", { name: "Compute univariate statistics" })).toBeEnabled();
   await expect(page.getByRole("img", { name: "Annual dividend yield distribution for 3 ISINs" })).toBeVisible();
@@ -424,9 +472,18 @@ test("Bivariate compute button polls through completion without a terminal failu
   await action.click();
   await expect(page.getByRole("button", { name: "Computing…" })).toBeDisabled();
   await expect(page.getByText("0 of 3 pair statistics computed.")).toBeVisible();
-  await expect(page.getByText("1 pair statistics computed.")).toBeVisible();
+  await page.evaluate(() => window.dispatchEvent(new Event("portfell:status-event")));
+  await expect(page.getByText("Bivariate statistics computed.")).toBeVisible();
   await expect(action).toBeEnabled();
   await expect(page.getByRole("tab", { name: "Covariance" })).toBeVisible();
+  for (const tab of ["Covariance", "Pearson", "Spearman", "Downside", "Tail Dependence", "Co-exceedance", "Rolling-Correlation", "Drawdown Overlap", "Tail-Risk Scatter"]) {
+    await page.getByRole("tab", { name: tab }).click();
+    if (tab === "Tail-Risk Scatter") {
+      await expect(page.getByRole("img", { name: "Tail dependence against co-exceedance rate for 1 ISIN pairs" })).toBeVisible();
+    } else {
+      await expect(page.getByText(new RegExp(`${tab} matrix`))).toBeVisible();
+    }
+  }
   await expect(page.getByText("Bivariate computation failed. Please try again.")).not.toBeVisible();
   expect(fixture.calls).toEqual(expect.arrayContaining([
     "POST /api/bivariate-statistics/plan",
@@ -603,7 +660,7 @@ test("every workflow button completes its browser action for two isolated projec
 
   await switchProject(page, "project-2");
   await page.goto("/bivariate-statistics");
-  await expect(page.getByRole("tab", { name: "Covariance" })).not.toBeVisible();
+  await expect(page.getByRole("tab", { name: "Covariance" })).toBeVisible();
   await page.getByRole("button", { name: "Compute Bivariate Statistics" }).click();
   await expect(page.getByText("1 pair statistics computed.")).toBeVisible();
   await expect(page.locator(".bivariate-statistic__tabs")).toHaveCSS("display", "grid");
@@ -611,6 +668,11 @@ test("every workflow button completes its browser action for two isolated projec
   for (const tab of ["Covariance", "Pearson", "Spearman", "Downside", "Tail Dependence", "Co-exceedance", "Rolling-Correlation", "Drawdown Overlap", "Tail-Risk Scatter"]) {
     await page.getByRole("tab", { name: tab }).click();
     await expect(page.getByRole("tab", { name: tab })).toHaveAttribute("aria-selected", "true");
+    if (tab === "Tail-Risk Scatter") {
+      await expect(page.getByRole("img", { name: "Tail dependence against co-exceedance rate for 1 ISIN pairs" })).toBeVisible();
+    } else {
+      await expect(page.getByText(new RegExp(`${tab} matrix`))).toBeVisible();
+    }
   }
   await page.reload();
   const viewport = page.viewportSize();
@@ -627,7 +689,7 @@ test("every workflow button completes its browser action for two isolated projec
   await expect(page).toHaveURL(/\/multivariate-statistics$/);
   await expect(page.getByRole("heading", { name: "Multivariate Statistics" })).toBeVisible();
   await expect(page.getByRole("tab", { name: "Overview" })).not.toBeVisible();
-  const multivariateCompute = page.locator(".multivariate-statistics-page .bivariate-compute");
+  const multivariateCompute = page.locator(".multivariate-statistics-page .multivariate-compute");
   await expect(multivariateCompute.getByLabel("Multivariate statistics progress")).toBeVisible();
   await expect(multivariateCompute.locator("progress")).toHaveCSS("height", "10px");
   await expect(multivariateCompute.locator(".quote-fetch__action")).toHaveCSS("justify-content", "flex-end");
