@@ -107,6 +107,7 @@ describe("shared React components", () => {
       onCloseDrawer={onCloseDrawer}
       onProjectChange={async () => false}
       onWorkflowPageChange={onWorkflowPageChange}
+      onWorkflowPageIntent={() => undefined}
     />);
 
     expect(fireEvent.click(screen.getByRole("link", { name: /Univariate Statistics/ }))).toBe(false);
