@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import AbstractContextManager
 from typing import Any, Protocol, cast
 
 from portfell.hosted_catalog import set_authenticated_user_sql
@@ -23,6 +24,8 @@ class NavigationReconciliationConnection(Protocol):
         self, sql: str, parameters: tuple[object, ...] = ()
     ) -> NavigationReconciliationCursor: ...
 
+    def transaction(self) -> AbstractContextManager[object]: ...
+
 
 class PostgresNavigationReconciler:
     """Rebuild one user's compact navigation projection from PostgreSQL control state."""
@@ -34,6 +37,10 @@ class PostgresNavigationReconciler:
     def reconcile(self, user_id: str) -> tuple[JsonRow, str]:
         """Return the canonical projection after an idempotent same-transaction upsert."""
 
+        with self._connection.transaction():
+            return self._reconcile_in_transaction(user_id)
+
+    def _reconcile_in_transaction(self, user_id: str) -> tuple[JsonRow, str]:
         self._connection.execute(*set_authenticated_user_sql(user_id))
         row = self._connection.execute(
             """
@@ -42,7 +49,11 @@ with project_rows as (
            project.name,
            selection.selection_version_id::text as selection_id,
            count(distinct member.isin)::integer as selected_count,
-           coalesce(fill.status = 'ready', false) as data_loaded
+           coalesce(fill.status = 'ready', false) as data_loaded,
+           fill.status as initial_fill_status,
+           fill.failed_listing_count,
+           job.completed_units,
+           job.total_units
     from portfell_app.projects as project
     left join portfell_app.project_selection_versions as selection
       on selection.project_id = project.project_id
@@ -51,9 +62,12 @@ with project_rows as (
       on member.selection_version_id = selection.selection_version_id
     left join portfell_app.project_initial_fills as fill
       on fill.project_id = project.project_id
+    left join portfell_app.jobs as job
+      on job.job_id = fill.bootstrap_job_id
     where project.user_id = %s::uuid
       and project.status = 'active'
-    group by project.project_id, project.name, selection.selection_version_id, fill.status
+    group by project.project_id, project.name, selection.selection_version_id, fill.status,
+             fill.failed_listing_count, job.completed_units, job.total_units
 ), navigation as (
     select coalesce(
         jsonb_agg(
@@ -63,7 +77,14 @@ with project_rows as (
                     'name', name,
                     'selection_id', selection_id,
                     'selected_count', selected_count,
-                    'data_loaded', data_loaded
+                    'data_loaded', data_loaded,
+                    'initial_fill', case when initial_fill_status is null then null else
+                        jsonb_build_object(
+                            'status', initial_fill_status,
+                            'completed_units', completed_units,
+                            'total_units', total_units,
+                            'failed_listing_count', failed_listing_count
+                        ) end
                 )
             ) order by lower(name), project_id
         ),
@@ -87,7 +108,14 @@ select jsonb_build_object(
                 'name', project.name,
                 'selection_id', project.selection_id,
                 'selected_count', project.selected_count,
-                'data_loaded', project.data_loaded
+                'data_loaded', project.data_loaded,
+                'initial_fill', case when project.initial_fill_status is null then null else
+                    jsonb_build_object(
+                        'status', project.initial_fill_status,
+                        'completed_units', project.completed_units,
+                        'total_units', project.total_units,
+                        'failed_listing_count', project.failed_listing_count
+                    ) end
             )
         )
         from project_rows as project

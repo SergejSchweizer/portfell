@@ -20,6 +20,7 @@ from portfell.durable_job_repository import ClaimedJob, PostgresDurableJobReposi
 from portfell.hosted_catalog import set_authenticated_user_sql
 from portfell.hosted_database_connection import connect
 from portfell.hosted_metadata_refresh_worker import build_metadata_refresh_worker
+from portfell.hosted_navigation_reconciler import PostgresNavigationReconciler
 from portfell.hosted_worker_capacity import (
     resolve_worker_concurrency,
     worker_concurrency_from_environment,
@@ -316,8 +317,14 @@ def main(argv: list[str] | None = None) -> int:
     bootstrap_connection = connect(database_url, autocommit=True)
     metadata_connection = connect(database_url, autocommit=True)
     try:
-        bootstrap_jobs = PostgresDurableJobRepository(bootstrap_connection)
-        recovery_jobs = PostgresDurableJobRepository(metadata_connection)
+        bootstrap_jobs = PostgresDurableJobRepository(
+            bootstrap_connection,
+            navigation_refresher=PostgresNavigationReconciler(bootstrap_connection).reconcile,
+        )
+        recovery_jobs = PostgresDurableJobRepository(
+            metadata_connection,
+            navigation_refresher=PostgresNavigationReconciler(metadata_connection).reconcile,
+        )
         worker = ProjectBootstrapWorker(
             jobs=bootstrap_jobs,
             members_for_selection=PostgresSelectionMembers(bootstrap_connection),

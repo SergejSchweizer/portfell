@@ -289,7 +289,9 @@ def test_worker_polls_metadata_while_an_initial_fill_is_running(
         bootstrap_worker_module, "connect", lambda *_args, **_kwargs: connections.pop(0)
     )
     monkeypatch.setattr(
-        bootstrap_worker_module, "PostgresDurableJobRepository", lambda _: RecoveryJobs()
+        bootstrap_worker_module,
+        "PostgresDurableJobRepository",
+        lambda _connection, **_kwargs: RecoveryJobs(),
     )
     monkeypatch.setattr(bootstrap_worker_module, "PostgresSelectionMembers", lambda _: object())
     monkeypatch.setattr(bootstrap_worker_module, "SharedMarketDataStore", lambda _: object())

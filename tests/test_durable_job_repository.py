@@ -127,6 +127,16 @@ def test_complete_uses_lease_compare_and_set_and_finishes_attempt() -> None:
     assert "update portfell_app.job_attempts" in statements
 
 
+def test_terminal_initial_fill_transition_refreshes_navigation_in_transaction() -> None:
+    refreshed: list[str] = []
+    connection = _Connection()
+    repository = PostgresDurableJobRepository(connection, navigation_refresher=refreshed.append)
+
+    repository.complete(job_id="job-1", lease_token="lease-1", status="succeeded")
+
+    assert refreshed == ["user-1"]
+
+
 def test_complete_rejects_stale_worker_lease() -> None:
     connection = _Connection()
     connection.completion_succeeds = False

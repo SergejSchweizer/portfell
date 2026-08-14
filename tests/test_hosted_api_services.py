@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from contextlib import AbstractContextManager, nullcontext
 from pathlib import Path
 from typing import Any
 from uuid import UUID
@@ -616,6 +617,9 @@ def test_navigation_reconciler_rebuilds_one_canonical_projection() -> None:
 
     class Connection:
         calls: list[tuple[str, tuple[object, ...]]] = []
+
+        def transaction(self) -> AbstractContextManager[object]:
+            return nullcontext()
 
         def execute(self, sql: str, parameters: tuple[object, ...] = ()) -> Cursor:
             self.calls.append((sql, parameters))
