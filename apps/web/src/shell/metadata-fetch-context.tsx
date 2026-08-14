@@ -38,9 +38,8 @@ export function MetadataFetchProvider({ children }: Readonly<{ children: ReactNo
     if (!metadataRunId || !fetching) return;
     const activeRunId = metadataRunId;
     let cancelled = false;
-    let timeoutId: number | undefined;
 
-    async function pollMetadataRun() {
+    async function refreshMetadataRun() {
       try {
         const result = await loadMetadataFetchRun(activeRunId);
         if (cancelled) return;
@@ -49,7 +48,6 @@ export function MetadataFetchProvider({ children }: Readonly<{ children: ReactNo
         ).percent);
         if (result.status === "running") {
           setMetadataStatus(`Fetching metadata: ${result.completed.toLocaleString()} of ${result.total.toLocaleString()} exchanges completed.`);
-          timeoutId = window.setTimeout(() => void pollMetadataRun(), 750);
           return;
         }
         setFetching(false);
@@ -69,10 +67,12 @@ export function MetadataFetchProvider({ children }: Readonly<{ children: ReactNo
       }
     }
 
-    void pollMetadataRun();
+    void refreshMetadataRun();
+    const onStatusEvent = () => void refreshMetadataRun();
+    window.addEventListener("portfell:status-event", onStatusEvent);
     return () => {
       cancelled = true;
-      if (timeoutId !== undefined) window.clearTimeout(timeoutId);
+      window.removeEventListener("portfell:status-event", onStatusEvent);
     };
   }, [fetching, metadataRunId]);
 

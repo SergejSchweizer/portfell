@@ -327,8 +327,7 @@ export function BivariateStatisticsPage() {
     if (!run || run.status !== "running") return;
     const activeRunId = run.run_id;
     let cancelled = false;
-    let timeoutId: number | undefined;
-    async function pollBivariateRun() {
+    async function refreshBivariateRun() {
       try {
         const current = await bivariateStatisticsApi.loadRun(activeRunId);
         if (cancelled) return;
@@ -336,7 +335,6 @@ export function BivariateStatisticsPage() {
         setRun(current);
         if (current.status === "running") {
           setMessage(`${current.completed.toLocaleString()} of ${current.total.toLocaleString()} pair statistics computed.`);
-          timeoutId = window.setTimeout(() => void pollBivariateRun(), 750);
           return;
         }
         if (current.status === "failed") {
@@ -349,13 +347,13 @@ export function BivariateStatisticsPage() {
         if (!cancelled) setMessage(error instanceof Error ? error.message : "Could not retrieve bivariate computation status.");
       }
     }
-    void pollBivariateRun();
+    void refreshBivariateRun();
+    const onStatusEvent = () => void refreshBivariateRun();
+    window.addEventListener("portfell:status-event", onStatusEvent);
     return () => {
       cancelled = true;
-      if (timeoutId !== undefined) window.clearTimeout(timeoutId);
+      window.removeEventListener("portfell:status-event", onStatusEvent);
     };
-  // Keep the active poll alive while the status changes to complete, otherwise
-  // its matrix requests are cancelled by the effect cleanup before they render.
   }, [run?.run_id]);
 
   useEffect(() => {

@@ -196,8 +196,7 @@ export function UnivariateStatisticsPage() {
     if (!run || run.status !== "running") return;
     const activeRunId = run.run_id;
     let cancelled = false;
-    let timeoutId: number | undefined;
-    async function pollUnivariateRun() {
+    async function refreshUnivariateRun() {
       try {
         const current = await univariateStatisticsApi.loadRun(activeRunId);
         if (cancelled) return;
@@ -207,7 +206,6 @@ export function UnivariateStatisticsPage() {
         setRun(current);
         if (current.status === "running") {
           setMessage(`${current.completed.toLocaleString()} of ${current.total.toLocaleString()} listings computed${estimatedRemainingTime(univariateStartedAt, current.completed, current.total)}.`);
-          timeoutId = window.setTimeout(() => void pollUnivariateRun(), 750);
           return;
         }
         if (current.status === "failed") {
@@ -223,13 +221,13 @@ export function UnivariateStatisticsPage() {
         if (!cancelled) setMessage(error instanceof Error ? error.message : "Could not retrieve univariate computation status.");
       }
     }
-    void pollUnivariateRun();
+    void refreshUnivariateRun();
+    const onStatusEvent = () => void refreshUnivariateRun();
+    window.addEventListener("portfell:status-event", onStatusEvent);
     return () => {
       cancelled = true;
-      if (timeoutId !== undefined) window.clearTimeout(timeoutId);
+      window.removeEventListener("portfell:status-event", onStatusEvent);
     };
-  // Keep the active poll alive while the status changes to complete, otherwise
-  // its result request is cancelled by the effect cleanup before cards render.
   }, [run?.run_id, univariateStartedAt]);
 
   if (workflow.status === "loading" || workflow.status === "idle") {

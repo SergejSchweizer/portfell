@@ -82,18 +82,15 @@ export function MetadataBuilderPage() {
   useEffect(() => {
     if (!initialFill || !["planning", "running"].includes(initialFill.status)) return;
     let cancelled = false;
-    let timeoutId: number | undefined;
 
-    const poll = async () => {
+    const refreshInitialFill = async () => {
       try {
         const context = await loadProjectContext();
         if (!context.current_project) return;
         const nextFill = await metadataBuilderApi.loadInitialFill(context.current_project.project_id);
         if (cancelled) return;
         setInitialFill(nextFill);
-        if (["planning", "running"].includes(nextFill.status)) {
-          timeoutId = window.setTimeout(() => void poll(), 750);
-        } else {
+        if (!["planning", "running"].includes(nextFill.status)) {
           window.dispatchEvent(new Event("portfell:workflow-updated"));
         }
       } catch (error) {
@@ -103,10 +100,12 @@ export function MetadataBuilderPage() {
       }
     };
 
-    void poll();
+    void refreshInitialFill();
+    const onStatusEvent = () => void refreshInitialFill();
+    window.addEventListener("portfell:status-event", onStatusEvent);
     return () => {
       cancelled = true;
-      if (timeoutId !== undefined) window.clearTimeout(timeoutId);
+      window.removeEventListener("portfell:status-event", onStatusEvent);
     };
   }, [initialFill]);
 
