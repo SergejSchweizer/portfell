@@ -13,20 +13,23 @@ from portfell.hosted_api_state import HostedApiState
 from portfell.hosted_bivariate_service import BivariateResearchService
 from portfell.hosted_credential_project_service import CredentialProjectService
 from portfell.hosted_credentials import FileCredentialStore, KeyEncryptionKey
+from portfell.hosted_idempotency_repository import LocalIdempotencyRepository
 from portfell.hosted_local_audit_event_repository import LocalAuditEventRepository
 from portfell.hosted_local_metadata_repository import LocalMetadataLifecycleRepository
 from portfell.hosted_local_project_repository import LocalProjectRepository
 from portfell.hosted_local_selection_repository import LocalSelectionRepository
 from portfell.hosted_metadata_project_service import MetadataProjectService
 from portfell.hosted_multivariate_service import MultivariateResearchService
+from portfell.hosted_quote_lifecycle_repository import LocalQuoteLifecycleRepository
 from portfell.hosted_quote_run_service import QuoteRunService
 from portfell.hosted_research_persistence import LocalResearchPersistence
 from portfell.hosted_research_ports import ResearchDataPort
 from portfell.hosted_research_repository import HostedResearchRepository
 from portfell.hosted_research_service import ResearchService
+from portfell.hosted_shared_quote_publisher import SharedQuotePublisher
 from portfell.hosted_univariate_service import UnivariateResearchService
 from portfell.hosted_workspace import LocalWorkspaceStore
-from portfell.hosted_workspace_repository import restore_local_workspace
+from portfell.hosted_workspace_repository import persist_local_workspace, restore_local_workspace
 from portfell.shared_market_data import SharedMarketDataStore
 from portfell.workflows import run_fetch_all_metadata_workflow, run_fetch_all_quotes_workflow
 
@@ -50,6 +53,17 @@ def local_research_service(state: HostedApiState, data: ResearchDataPort) -> Res
     )
 
 
+def _local_quote_publisher(state: HostedApiState) -> SharedQuotePublisher | None:
+    if state.shared_market_data_store is None:
+        return None
+    return SharedQuotePublisher(state.shared_market_data_store)
+
+
+def _persist_local_workspace_if_configured(state: HostedApiState) -> None:
+    if state.workspace_store is not None:
+        persist_local_workspace(state)
+
+
 def local_test_services(
     state: HostedApiState,
 ) -> tuple[CredentialProjectService, MetadataProjectService, QuoteRunService, ResearchService]:
@@ -67,7 +81,18 @@ def local_test_services(
             state.credential_vault(),
             LocalAuditEventRepository(state),
         ),
-        QuoteRunService(state, runtime),
+        QuoteRunService(
+            state,
+            runtime,
+            LocalProjectRepository(state),
+            LocalSelectionRepository(state),
+            state.credential_vault(),
+            LocalQuoteLifecycleRepository(state),
+            LocalAuditEventRepository(state),
+            LocalIdempotencyRepository(state),
+            _local_quote_publisher(state),
+            lambda: _persist_local_workspace_if_configured(state),
+        ),
         local_research_service(state, runtime),
     )
 
@@ -91,4 +116,15 @@ def run_quote_fetch_for_test(
 ) -> None:
     from portfell.hosted_quote_run_service import QuoteRunService
 
-    QuoteRunService(state, local_runtime()).run_quote_fetch(run, selection_id, provider_key)
+    QuoteRunService(
+        state,
+        local_runtime(),
+        LocalProjectRepository(state),
+        LocalSelectionRepository(state),
+        state.credential_vault(),
+        LocalQuoteLifecycleRepository(state),
+        LocalAuditEventRepository(state),
+        LocalIdempotencyRepository(state),
+        _local_quote_publisher(state),
+        lambda: _persist_local_workspace_if_configured(state),
+    ).run_quote_fetch(run, selection_id, provider_key)

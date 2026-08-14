@@ -175,6 +175,7 @@ def build_postgres_services(
         repositories.audit,
         repositories.idempotency,
         SharedQuotePublisher(shared_store),
+        None,
     )
     research = ResearchService(
         UnivariateResearchService(

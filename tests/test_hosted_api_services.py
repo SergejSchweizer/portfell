@@ -43,6 +43,7 @@ from portfell.hosted_credentials import (
     KeyEncryptionKey,
 )
 from portfell.hosted_download_run_repository import DownloadRunRepository
+from portfell.hosted_idempotency_repository import LocalIdempotencyRepository
 from portfell.hosted_local_audit_event_repository import LocalAuditEventRepository
 from portfell.hosted_local_metadata_repository import LocalMetadataLifecycleRepository
 from portfell.hosted_local_project_repository import LocalProjectRepository
@@ -53,7 +54,8 @@ from portfell.hosted_metadata_project_service import (
 from portfell.hosted_navigation_read_model_repository import PostgresNavigationReadModel
 from portfell.hosted_navigation_reconciler import PostgresNavigationReconciler
 from portfell.hosted_project_bootstrap_repository import DurableProjectBootstrap
-from portfell.hosted_quote_run_service import QuoteRunService
+from portfell.hosted_quote_lifecycle_repository import LocalQuoteLifecycleRepository
+from portfell.hosted_quote_run_service import QuoteRunService as _QuoteRunService
 from portfell.hosted_repository_importer import (
     InMemoryProjectRepository,
     TenantProject,
@@ -63,6 +65,7 @@ from portfell.hosted_research_persistence import LocalResearchPersistence
 from portfell.hosted_research_repository import HostedResearchRepository
 from portfell.hosted_research_workflow import ResearchRun, UnivariateSelection
 from portfell.hosted_selection_repository import InMemorySelectionRepository
+from portfell.hosted_shared_quote_publisher import SharedQuotePublisher
 from portfell.hosted_workspace import LocalWorkspaceStore
 from portfell.hosted_workspace_repository import persist_local_workspace, restore_local_workspace
 from portfell.paths import LakePaths
@@ -84,6 +87,36 @@ def MetadataProjectService(
         dependencies.pop("metadata_repository", LocalMetadataLifecycleRepository(state)),
         dependencies.pop("credential_vault", state.credential_vault()),
         dependencies.pop("audit_repository", LocalAuditEventRepository(state)),
+        **dependencies,
+    )
+
+
+def QuoteRunService(
+    state: HostedApiState, runtime: LocalHostedRuntime, **dependencies: Any
+) -> _QuoteRunService:
+    """Explicit local ports for legacy-focused quote tests only."""
+
+    return _QuoteRunService(
+        state,
+        runtime,
+        dependencies.pop("project_repository", LocalProjectRepository(state)),
+        dependencies.pop("selection_repository", LocalSelectionRepository(state)),
+        dependencies.pop("credential_vault", state.credential_vault()),
+        dependencies.pop("quote_repository", LocalQuoteLifecycleRepository(state)),
+        dependencies.pop("audit_repository", LocalAuditEventRepository(state)),
+        dependencies.pop("idempotency_repository", LocalIdempotencyRepository(state)),
+        dependencies.pop(
+            "quote_publisher",
+            None
+            if state.shared_market_data_store is None
+            else SharedQuotePublisher(state.shared_market_data_store),
+        ),
+        dependencies.pop(
+            "workspace_persister",
+            lambda: persist_local_workspace(state)
+            if state.workspace_store is not None
+            else None,
+        ),
         **dependencies,
     )
 

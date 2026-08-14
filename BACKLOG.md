@@ -1804,11 +1804,11 @@ focused caller to inject its dependencies explicitly.
 Acceptance: The service imports no `hosted_local_*` module, constructor calls cannot omit its
 repository ports, production composition remains PostgreSQL-only, and Metadata service/API tests pass.
 
-### PR251c2. Credential And Quote Service Explicit Dependencies
+### PR251c2a. Quote Service Explicit Dependencies
 
 Branch: `refactor/hosted-project-quote-explicit-dependencies`.
 
-Git status: ready.
+Git status: in progress.
 
 PR: TBD.
 
@@ -1816,12 +1816,38 @@ Priority: P1 final hosted simplification.
 
 Depends on: PR251c1.
 
-Scope: Remove local project, selection, audit, idempotency, settings, download, workspace, and quote
-defaults from `CredentialProjectService` and `QuoteRunService`; update local test composition and all
-focused callers.
+Scope: Remove local project, selection, audit, idempotency, quote, workspace-persistence, and
+shared-market publisher defaults from `QuoteRunService`. Move every local adapter, local workspace
+persister, and local shared-market publisher construction into `hosted_local_test_composition`; update
+every focused caller to pass an explicit port or an explicit `None` where publication/persistence is
+intentionally unavailable.
 
-Acceptance: Neither service imports a `hosted_local_*` or workspace repository; every constructor
-requires its ports; hosted API/quote tests prove explicit PostgreSQL composition and local tests opt in.
+Acceptance: `QuoteRunService` imports neither `hosted_local_*` nor a workspace repository; its
+constructor requires project, selection, credential, quote lifecycle, audit, idempotency, publisher,
+and workspace-persistence ports; production composition passes PostgreSQL/shared-market adapters only;
+and focused hosted API/quote tests prove local adapters are opt-in.
+
+### PR251c2b. Credential Service Explicit Dependencies
+
+Branch: `refactor/hosted-credential-explicit-dependencies`.
+
+Git status: not started.
+
+PR: TBD.
+
+Priority: P1 final hosted simplification.
+
+Depends on: PR251c2a.
+
+Scope: Remove local project, selection, audit, idempotency, settings, download, workspace-persistence,
+workflow, navigation, and credential defaults from `CredentialProjectService`. Move local adapter and
+workspace-persistence construction into `hosted_local_test_composition`; update all focused callers to
+pass every port explicitly.
+
+Acceptance: `CredentialProjectService` imports neither `hosted_local_*` nor a workspace repository;
+its constructor requires every repository, reader, writer, and persistence port it consumes;
+production composition passes PostgreSQL/shared-artifact adapters only; and focused credential/API
+tests prove all local adapters are opt-in.
 
 ### PR251c3. Multivariate Service Explicit Dependencies
 
@@ -1833,7 +1859,7 @@ PR: TBD.
 
 Priority: P1 final hosted simplification.
 
-Depends on: PR251c2.
+Depends on: PR251c2b.
 
 Scope: Remove local project, selection, multivariate-run, metadata-row, and workflow defaults from
 `MultivariateResearchService`; make local test composition supply the local ports explicitly.
@@ -1843,7 +1869,7 @@ focused multivariate service, run-view, and API tests pass.
 
 ### PR251c. Hosted Legacy Adapter And Configuration Removal
 
-Branch: split into PR251c1, PR251c2, and PR251c3 above.
+Branch: split into PR251c1, PR251c2a, PR251c2b, and PR251c3 above.
 
 Git status: ready.
 
@@ -1881,7 +1907,7 @@ the documented preflight, deployment, and rollback commands are verified.
 
 ### PR251. Single Hosted Authority And Legacy Fallback Removal
 
-Branch: split into PR251a, PR251b, PR251c1, PR251c2, PR251c3, and PR251d above.
+Branch: split into PR251a, PR251b, PR251c1, PR251c2a, PR251c2b, PR251c3, and PR251d above.
 
 Git status: in progress (PR251a merged; PR251c1 ready).
 
