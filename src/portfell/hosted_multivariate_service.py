@@ -172,7 +172,7 @@ class MultivariateResearchService(MultivariateRunViews):
         if run.status != "running":
             return
         try:
-            workers = max(1, self._worker_count() or 1)
+            workers = min(4, max(1, (self._worker_count() or 1) - 2))
             with ProcessPoolExecutor(max_workers=workers) as executor:
                 completed = self._compute(
                     run,

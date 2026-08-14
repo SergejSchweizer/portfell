@@ -127,6 +127,7 @@ def refresh_shared_market_data(
     end_date: date,
     listings: Iterable[SharedListingKey],
     concurrency: int = 4,
+    request_batch_size: int = 250,
     dry_run: bool = False,
     on_listing_completed: Callable[[SharedListingKey], None] | None = None,
 ) -> RefreshResult:
@@ -134,6 +135,8 @@ def refresh_shared_market_data(
 
     if concurrency < 1:
         raise SharedMarketRefreshError("invalid_refresh_concurrency")
+    if request_batch_size < 1:
+        raise SharedMarketRefreshError("invalid_refresh_batch_size")
     resolved_listings = tuple(listings)
     requests = plan_refresh(store, resolved_listings, end_date=end_date)
     result_hash = inventory_hash(resolved_listings)
@@ -212,32 +215,35 @@ def refresh_shared_market_data(
                 record_completed_request(request, item_changed)
 
         with ThreadPoolExecutor(max_workers=concurrency) as executor:
-            futures = {
-                executor.submit(_fetch_rows, fetch, request): request for request in requests
-            }
-            for future, request in futures.items():
-                try:
-                    rows = future.result()
-                except Exception as error:
-                    log_event(
-                        LOGGER,
-                        logging.ERROR,
-                        module="shared-market-refresh",
-                        event="provider_request_failed",
-                        fields={
-                            "code": request.listing.code,
-                            "dataset_type": request.dataset_type,
-                            "exchange": request.listing.exchange,
-                            "isin": request.listing.isin,
-                            "start_date": request.start_date or "full_history",
-                        },
-                        error=error,
-                    )
-                    errors.append("provider_or_storage_failure")
-                    failed_listings.add(request.listing)
-                    mark_request_completed(request)
-                else:
-                    publish_batch([(request, rows)])
+            for batch_start in range(0, len(requests), request_batch_size):
+                batch_requests = requests[batch_start : batch_start + request_batch_size]
+                futures = {
+                    executor.submit(_fetch_rows, fetch, request): request
+                    for request in batch_requests
+                }
+                for future, request in futures.items():
+                    try:
+                        rows = future.result()
+                    except Exception as error:
+                        log_event(
+                            LOGGER,
+                            logging.ERROR,
+                            module="shared-market-refresh",
+                            event="provider_request_failed",
+                            fields={
+                                "code": request.listing.code,
+                                "dataset_type": request.dataset_type,
+                                "exchange": request.listing.exchange,
+                                "isin": request.listing.isin,
+                                "start_date": request.start_date or "full_history",
+                            },
+                            error=error,
+                        )
+                        errors.append("provider_or_storage_failure")
+                        failed_listings.add(request.listing)
+                        mark_request_completed(request)
+                    else:
+                        publish_batch([(request, rows)])
         result = RefreshResult(
             result_hash,
             end_date.isoformat(),

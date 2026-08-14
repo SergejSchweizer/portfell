@@ -251,7 +251,7 @@ def test_multivariate_service_completes_a_mixed_distribution_frequency_portfolio
     assert all(len(candidate["weights"]) == 5 for candidate in baselines)
 
 
-def test_multivariate_service_uses_all_available_cpu_workers(
+def test_multivariate_service_reserves_interactive_cpu_capacity(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     import portfell.hosted_multivariate_service as service_module
@@ -280,7 +280,7 @@ def test_multivariate_service_uses_all_available_cpu_workers(
 
     service.complete("user-a", str(started["run_id"]))
 
-    assert worker_counts == [7]
+    assert worker_counts == [4]
     assert service.status("user-a", str(started["run_id"]))["status"] == "complete"
 
 

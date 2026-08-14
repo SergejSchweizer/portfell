@@ -141,7 +141,7 @@ def test_runtime_secrets_are_external_paths_and_not_build_arguments() -> None:
     assert "args:" not in rendered
 
 
-def test_compose_uses_health_checks_startup_order_and_hardening() -> None:
+def test_compose_uses_health_checks_startup_order_hardening_and_no_resource_limits() -> None:
     services = cast(ComposeMapping, _compose()["services"])
 
     for service_name in ("postgres", "api", "web"):
@@ -149,7 +149,7 @@ def test_compose_uses_health_checks_startup_order_and_hardening() -> None:
         assert "healthcheck" in service
         assert service["read_only"] is True
         assert service["security_opt"] == ["no-new-privileges:true"]
-        assert "deploy" in service
+        assert "deploy" not in service
 
     for service_name in ("api", "web"):
         service = cast(ComposeMapping, services[service_name])

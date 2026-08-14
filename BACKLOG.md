@@ -1,3 +1,5 @@
+Last reviewed: 2026-08-13
+
 ## Table Of Contents
 
 - [Backlog Policy](#backlog-policy)
@@ -20,6 +22,7 @@
 - [Active PostgreSQL Tenant Plane And Shared Data PR Stack](#active-postgresql-tenant-plane-and-shared-data-pr-stack)
 - [Active Monthly-Distribution ETF Multivariate PR Stack](#active-monthly-distribution-etf-multivariate-pr-stack)
 - [Active Shared Market Data And Nightly Refresh PR Stack](#active-shared-market-data-and-nightly-refresh-pr-stack)
+- [Active Hosted Simplicity And Interactive Performance PR Stack](#active-hosted-simplicity-and-interactive-performance-pr-stack)
 - [Current Architectural Decision](#current-architectural-decision)
 - [Series Completion Gate](#series-completion-gate)
 - [Update Rules](#update-rules)
@@ -983,6 +986,420 @@ in [GATES.md](GATES.md) pass, and one target-environment evidence bundle proves:
 - no browser manual historical-data action and no legacy mutation capable of provider ingestion;
 - synchronized contracts, OpenAPI snapshot, architecture, README, UI docs, runbooks, backlog status,
   and full Python/TypeScript/Playwright/Docker validation.
+
+## Active Hosted Simplicity And Interactive Performance PR Stack
+
+This series makes the hosted application simpler and keeps interactive reads responsive while
+ingestion or analysis workers are active. The target has one browser query cache, one FastAPI
+application boundary, one PostgreSQL tenant/control-plane read model, and worker-owned Parquet and
+analytical payload access:
+
+```text
+React + TanStack Query
+          |
+          v
+FastAPI page-view and command routes
+          |
+          v
+PostgreSQL tenant state + UI read projections
+          ^
+          |
+durable workers -> shared Parquet and content-addressed artifacts
+```
+
+PR246 through PR251 are sequential. They optimize the active PostgreSQL authority only and do not
+replace React, FastAPI, PostgreSQL, Polars, or Parquet. Local CLI analysis remains supported, but no
+local repository, workspace JSON, in-memory dictionary, or shared-file scan may become a fallback
+authority for a hosted request. Every latency assertion must use a checked-in deterministic fixture
+and report request count, response bytes, database statement count, shared-file reads, and elapsed
+time; wall-clock thresholds alone are insufficient evidence.
+
+### PR246. Worker Admission Control And Interactive Capacity
+
+Branch: `feat/hosted-worker-admission-control`.
+
+Git status: in progress.
+
+PR: https://github.com/SergejSchweizer/portfell/pull/400.
+
+Priority: P0 interactive availability.
+
+Depends on: PR245 and the active PostgreSQL hosted runtime on `main`.
+
+Scope:
+
+- Add one typed worker-capacity configuration shared by project bootstrap, metadata refresh, and
+  analytical execution. Reserve two visible CPUs for API/PostgreSQL work; default worker concurrency
+  to `min(4, max(1, visible_cpus - 2))`, allow an operator override only in `1..8`, use batches of 250
+  canonical listings, and log only the effective worker count, batch size, and workload class.
+- Introduce process-local admission control for each worker process so one durable job owns a bounded
+  number of fetch, transform, and publication tasks. Split large listing sets into deterministic
+  batches, release executor resources between batches, and heartbeat durable leases throughout.
+- Keep API and worker processes separate in the existing Compose services. Configure relative CPU and
+  I/O priority where the host supports it, without introducing a fifth runtime service or restoring
+  hard CPU/RAM limits. Unsupported priority controls must be visible at startup, not silently assumed.
+- Add worker metrics for queued, active, completed, failed, and retried units; batch duration; provider
+  wait; transform CPU time; publication time; and lease age. Metrics and logs contain project/job IDs
+  only where already authorized and never include credentials or unrestricted listing inventories.
+- Add a deterministic real-stack contention scenario that runs a large synthetic bootstrap while
+  repeatedly requesting health, project context, and workflow. Record an idle baseline and the loaded
+  result using the same image, fixture, and request sequence.
+
+Out of scope: Changing provider semantics, adding a distributed scheduler, adding Redis, changing
+calculation formulas, or making API processes execute worker jobs.
+
+Acceptance:
+
+- One configured worker process never exceeds its declared task concurrency, executor/thread count,
+  or deterministic batch size, including retries and concurrent heartbeat activity.
+- A cancelled, failed, or restarted batch retains durable progress and resumes from the first
+  incomplete listing without repeating a completed publication or losing its lease terminal state.
+- In the real-stack contention fixture, health remains responsive, interactive requests complete
+  throughout the worker run, `/health` p95 stays below 250 ms, navigation-read p95 stays below 1 s,
+  the HTTP error rate is zero, and loaded median/p95 latency is no more than twice the idle baseline.
+  The gate emits machine-readable evidence and fails on timeout, connection starvation, or API OOM.
+- Worker throughput, provider-request count, and final immutable publication identity remain equal to
+  the pre-change deterministic fixture; only scheduling and resource occupancy may change.
+- Focused worker tests, PostgreSQL lease tests, Compose validation, real-stack contention coverage,
+  Ruff, Pyright, and the applicable gates in `GATES.md` pass.
+
+Security: Capacity settings are operator-owned and bounded server-side. Browser input cannot select
+concurrency, priority, batch size, lease tokens, credentials, or storage paths.
+
+Determinism: Canonically sorted listing identities and versioned batch size define stable batch
+boundaries; scheduling order cannot alter output manifests or terminal counts.
+
+Idempotency: Replayed claims, retries, heartbeats, and publications converge on one durable job and one
+immutable result per business key.
+
+### PR247. PostgreSQL Navigation Read Model
+
+Branch: `feat/hosted-navigation-read-model`.
+
+Git status: not started.
+
+PR: TBD.
+
+Priority: P0 page-entry latency and architectural simplicity.
+
+Depends on: PR246.
+
+Scope:
+
+- Add versioned PostgreSQL projections for published metadata summary and project navigation state.
+  The projection contains only metadata revision/count/freshness, project identity/name, current
+  selection identity and unique-ISIN count, initial-fill status/progress, active analytical stage,
+  current run references, and a monotonically increasing projection revision.
+- Update projections transactionally from the existing project, selection, durable-job, metadata-
+  publication, and research-run command paths. Define a deterministic idempotent reconciliation
+  command for deployment, repair, and tests; it must never read tenant membership across RLS scopes.
+- Rewrite `/project-context`, `/workflow`, and `/projects/{project_id}/workflow` as side-effect-free,
+  bounded PostgreSQL projection reads. Remove Parquet materialization, selection-member scans,
+  per-project repository lookups, analytical selection writes, and current-project mutation from GET
+  execution. An absent current-project preference is returned explicitly and set only by a command.
+- Return projection revision and `ETag`; honor `If-None-Match` with `304` and no response body. Cache
+  directives must remain private and revalidation-based because responses are tenant scoped.
+- Instrument these routes with statement count, shared-file read count, response size, and elapsed
+  time. Add an architecture test that fails if a navigation reader imports table I/O, shared-store,
+  analytical calculation, or command-side repository modules.
+
+Out of scope: Returning analytical payload rows, changing project membership, replacing PostgreSQL,
+or introducing a general event-sourcing framework.
+
+Acceptance:
+
+- Navigation responses remain contract-equivalent for no-project, selected, filling, ready, running,
+  failed, stale, and completed fixtures, with the new revision and ETag fields explicitly versioned.
+- Each route uses a constant bounded number of PostgreSQL statements independent of project count,
+  uses at most three statements including transaction-local RLS binding, performs zero shared-file/
+  Parquet reads and zero writes, and does not construct or persist an analytical selection while
+  serving GET.
+- A 100-project/25,000-member deterministic fixture satisfies the documented response-size,
+  statement-count, and latency budgets both idle and during PR246's worker contention scenario:
+  uncompressed JSON stays below 256 KiB, idle p95 stays below 250 ms, and loaded p95 stays below 1 s.
+- Every relevant command updates the projection in the same successful transaction; forced rollback
+  leaves both source state and projection unchanged. Reconciliation produces byte-equivalent rows.
+- RLS, guessed-project, deleted-project, stale-projection, ETag, restart, migration, rollback, focused
+  API, and real-stack regression tests pass with the applicable gates in `GATES.md`.
+
+Security: Projection tables use forced RLS and contain no credentials, storage locations, unrestricted
+membership, or cross-project analytical payloads. Authorization starts from authenticated user and
+owned project on every read.
+
+Determinism: Source record identities plus a versioned projection schema produce one canonical row and
+ETag; reconciliation order cannot change serialized output.
+
+Idempotency: Reapplying an event or reconciliation updates the same projection revision only when its
+canonical content changes and never duplicates project or workflow rows.
+
+### PR248. Page View Contracts And Lazy Analytical Sections
+
+Branch: `feat/hosted-page-view-contracts`.
+
+Git status: not started.
+
+PR: TBD.
+
+Priority: P1 request fan-out and payload control.
+
+Depends on: PR247.
+
+Scope:
+
+- Define one versioned initial view contract for each Metadata Builder, Univariate, Bivariate, and
+  Multivariate page. Each contract includes navigation revision, authorized run identity/status,
+  section availability, compact summary values, pagination cursors, and immutable section revision
+  IDs; it does not embed every large table or matrix.
+- Add project-scoped FastAPI view routes that authorize once and assemble each initial contract from
+  PostgreSQL projections plus persisted artifact manifests. Replace the browser's independent initial
+  workflow, run, summary, plan, and first-result requests with one route per page.
+- Keep large Univariate result pages, pair tables, covariance/correlation matrices, components,
+  candidate details, validation series, and performance series behind explicit section endpoints.
+  Load a section only when its visible tab/panel requires it; cancel obsolete requests after project,
+  run, metric, tab, or route changes.
+- Add stable cursor pagination and response-size limits. Do not create one unbounded `full-data`
+  endpoint, GraphQL layer, browser-side join, or server-side financial recomputation during GET.
+  Initial page views are limited to 256 KiB uncompressed; lazy sections are limited to 2 MiB and
+  tabular pages to 200 rows. Contracts return `413 section_too_large` with section metadata when an
+  intrinsically indivisible matrix exceeds the limit.
+- Synchronize typed Python responses, generated/open API snapshots, TypeScript contracts, route/page
+  specifications, fixtures, and interaction tests in the same PR.
+
+Out of scope: Visual redesign, changing analytical values, replacing REST, or moving artifact payloads
+into PostgreSQL.
+
+Acceptance:
+
+- Initial entry to each workflow page requires at most one page-view request after an already cached
+  project shell; a cold shell plus page requires at most two application-data requests before first
+  useful content. Playwright asserts exact request paths and upper bounds.
+- Bivariate initial entry no longer issues the current 11-request matrix fan-out. Non-visible matrices
+  and Multivariate detail sections issue zero requests until selected, then exactly one request per
+  immutable section revision.
+- Every response stays below its documented compressed and uncompressed byte budget; oversized tables
+  use stable pagination and oversized matrices fail with a typed availability/limit contract rather
+  than truncation.
+- Two-project authorization, stale run replacement, rapid navigation cancellation, partial section
+  failure, empty state, loading state, retry, browser back/forward, desktop, tablet, and mobile tests
+  pass without browser-owned financial or authorization logic.
+- Focused API/UI tests, OpenAPI drift validation, Playwright request-count assertions, Web image build,
+  and the applicable gates in `GATES.md` pass.
+
+Security: Page and section routes resolve user, project, run, and artifact authorization before reading
+manifests or payloads. A section or artifact identifier alone never grants access.
+
+Determinism: One projection revision, run identity, artifact manifest, pagination cursor, and contract
+version produce byte-stable view and section responses.
+
+Idempotency: All view and section reads are non-mutating; retries and cancelled/restarted requests
+return the same revision without starting calculations or ingestion.
+
+### PR249. Shared Browser Query Cache And Navigation Prefetch
+
+Branch: `feat/web-query-cache`.
+
+Git status: not started.
+
+PR: TBD.
+
+Priority: P1 instant repeat navigation and frontend simplification.
+
+Depends on: PR248.
+
+Scope:
+
+- Adopt TanStack Query as the single browser server-state owner. Add one application query client and
+  typed key factories for project context, navigation workflow, page views, run revisions, and lazy
+  sections; keep ephemeral controls, open tabs, and form drafts as local React state.
+- Replace production `useResource` server reads, revision counters, global custom refresh events, and
+  duplicated Shell/page fetches. Remove the superseded hook after all production consumers migrate;
+  retain no second cache or stale-while-revalidate implementation.
+- Define explicit `staleTime`, garbage collection, retry, cancellation, and invalidation rules by
+  resource. Navigation and completed immutable runs use a 5-minute `staleTime`; running states and
+  page views use 15 seconds until PR250 replaces polling invalidation; unused queries are collected
+  after 15 minutes; GET retries are limited to two attempts with capped backoff; commands never retry
+  automatically. Mutations update returned canonical data and invalidate only affected user/project/
+  run keys after server success; failed or optimistic operations cannot expose uncommitted state.
+- Prefetch the destination page view on deliberate sidebar intent and after project selection, bounded
+  to one destination. Use ETags from PR247/PR248 for revalidation and preserve last successful data
+  during a background refresh without showing it for a different project or run.
+- Keep the cache memory-only. Clear it on logout/session invalidation and never persist tenant data,
+  credentials, responses, or query keys to localStorage, sessionStorage, IndexedDB, service-worker
+  caches, URLs, or logs.
+
+Out of scope: Offline mode, service workers, general client state management, visual redesign, or
+speculative prefetch of every workflow page.
+
+Acceptance:
+
+- Shell and page components issue one network request per cold canonical query key, deduplicate
+  concurrent consumers, reuse fresh data on back/forward navigation, and revalidate stale data once.
+- Switching projects cannot display, flash, retry, or reuse the previous project's page view or lazy
+  section. Logout and `401` session invalidation synchronously remove all tenant query data.
+- Successful project, selection, ingestion, and analytical commands invalidate exactly the documented
+  keys. Unit tests fail on broad global invalidation, duplicate key construction, uncancelled obsolete
+  requests, or an unbounded retry loop.
+- Playwright proves warm navigation renders from cache without a blocking loader, background refresh
+  preserves usable content, errors retain the last matching revision, and request counts satisfy
+  PR248's budgets on desktop and mobile.
+- Package lockfile, TypeScript strict checks, Vitest, Playwright, production Web build, Docker image
+  rebuild, storage-safety checks, and the applicable gates in `GATES.md` pass.
+
+Security: Cache keys include authenticated scope and exact project/run identity; cache data is
+memory-only and is destroyed at the authentication boundary.
+
+Determinism: Canonical key factories and server revisions determine cache identity; component mount
+order does not alter fetched data or invalidation scope.
+
+Idempotency: Concurrent reads single-flight per key, and repeated successful invalidation converges on
+one refetch of the newest server revision.
+
+### PR250. Durable Server-Sent Job And Workflow Updates
+
+Branch: `feat/hosted-status-event-stream`.
+
+Git status: not started.
+
+PR: TBD.
+
+Priority: P1 live status with bounded request load.
+
+Depends on: PR249.
+
+Scope:
+
+- Add a user-scoped durable status-event sequence for project bootstrap, metadata publication, and
+  Uni/Bi/Multivariate run transitions. Store only compact event type, authorized aggregate reference,
+  projection revision, terminal status, timestamp, and monotonic event ID in PostgreSQL.
+- Publish events in the same transaction as source-state and PR247 projection changes. PostgreSQL
+  notification may wake stream readers, but durable rows and event IDs remain the source for replay;
+  notification delivery alone is never correctness authority.
+- Add one authenticated FastAPI Server-Sent Events endpoint with heartbeat comments, `Last-Event-ID`
+  resume, tenant filtering, connection cleanup, and proxy-safe headers. Send a heartbeat every 15
+  seconds, retain events for 24 hours, replay at most 1,000 events per connection, permit at most two
+  streams per authenticated session, and reconnect after 1, 2, 5, 10, then at most 30 seconds with
+  jitter. Expired or oversized replay cursors return a typed reset event that triggers bounded query
+  invalidation rather than silent state loss.
+- Connect one browser stream per authenticated application session. Map events through PR249's key
+  factories to exact invalidations or canonical cache updates. Remove fixed-interval metadata,
+  bootstrap, and analysis status polling after each migrated state has equivalent stream coverage.
+- Add stream connection, reconnect, lag, replay, reset, and active-client metrics plus deployment
+  guidance for reverse-proxy buffering and graceful API shutdown.
+
+Out of scope: Streaming analytical tables/matrices, bidirectional WebSockets, command submission over
+the stream, browser-selected event topics, or using events as the durable business record.
+
+Acceptance:
+
+- One state transition produces one ordered durable event in the same successful transaction; a
+  rolled-back command produces none. Duplicate command delivery cannot create duplicate logical
+  transition events.
+- Disconnect/reconnect with `Last-Event-ID` replays every authorized missed event in order. Reconnect
+  without an ID starts from a bounded current cursor, and retention expiry yields the documented reset
+  behavior without leaking the existence of another user's events.
+- A complete bootstrap and each analytical run update the correct UI status without periodic polling.
+  A 15-minute no-change browser session generates no application-data request beyond stream heartbeat
+  traffic and documented auth/session renewal.
+- Multi-tab behavior stays within the documented connection limit, abandoned streams release API and
+  database resources, API restart reconnects successfully, and a slow client cannot create unbounded
+  memory, cursor, or connection growth.
+- RLS/adversarial stream tests, transactional event tests, browser reconnect tests, proxy/Compose
+  real-stack tests, observability checks, and the applicable gates in `GATES.md` pass.
+
+Security: Authentication and forced RLS scope every connection and replay query. Events contain no
+credentials, membership lists, payload values, storage paths, lease tokens, or cross-project details.
+
+Determinism: Commit order and a monotonic PostgreSQL event ID define replay order; event schema and
+projection revision mapping are versioned.
+
+Idempotency: Logical transition uniqueness prevents duplicate events, and replaying an event applies
+the same cache update/invalidation without duplicate commands or calculations.
+
+### PR251. Single Hosted Authority And Legacy Fallback Removal
+
+Branch: `refactor/hosted-single-authority`.
+
+Git status: not started.
+
+PR: TBD.
+
+Priority: P1 final hosted simplification.
+
+Depends on: PR250.
+
+Scope:
+
+- Make PostgreSQL plus authorized shared-artifact adapters the only production hosted composition.
+  Delete hosted fallback selection among in-memory state, workspace JSON, local lake repositories,
+  browser-triggered provider workflows, and shared-file-derived navigation state.
+- Separate package composition explicitly: local CLI commands may construct local lake adapters;
+  production FastAPI routes may construct only PostgreSQL tenant/control-plane repositories and
+  authorized shared payload readers; deterministic test compositions live under test-only factories.
+- Remove dead compatibility branches, duplicate hosted serializers/repositories, obsolete environment
+  switches, migrated polling APIs, superseded `useResource` code, and documentation that describes a
+  second hosted authority. Do not remove the mathematical core or local CLI workflows.
+- Add import/architecture checks that fail when hosted routes/services depend on local workflow,
+  workspace, unrestricted lake, provider-client, or test-composition modules, or when CLI modules
+  depend on hosted authentication/runtime composition.
+- Publish a migration and rollback note covering removed environment variables/routes, required
+  catalog head, minimum Web/API version pairing, deploy order, preflight, smoke checks, and rollback to
+  the last compatible complete stack. No dual-read or dual-write compatibility window is permitted.
+- Update `ARCHITECTURE.md`, `README.md`, hosted security/readiness documents, Compose configuration,
+  OpenAPI snapshot, page specifications, and operational runbooks to one current-state diagram and
+  terminology set.
+
+Out of scope: Removing local CLI mode, rewriting mathematical code, migrating shared analytical bytes
+into PostgreSQL, replacing the four-container Compose topology, or adopting a new frontend/backend
+framework.
+
+Acceptance:
+
+- Production startup has one documented hosted composition and fails closed when PostgreSQL,
+  migrations, shared-store manifests, credentials, or required secrets are unavailable. No production
+  setting can select local/in-memory/workspace authority.
+- Repository searches and executable architecture tests prove that hosted requests cannot read or
+  mutate local workspace JSON, unrestricted lake roots, in-memory authority dictionaries, or provider
+  clients; browser commands cannot trigger provider ingestion.
+- Local CLI commands and focused analytical tests remain functional without PostgreSQL or hosted auth,
+  while the Web/API real stack remains functional without a repository-local lake or workspace file.
+- The resulting production dependency graph, environment-variable inventory, route inventory, and
+  runtime module count are recorded before/after; every removed path has either a replacement named in
+  PR246-PR250 or explicit proof that it was unreachable/dead.
+- Fresh deployment, rolling-compatible deployment within the documented version window, restart,
+  backup/restore, rollback rehearsal, two-project isolation, browser workflow, Web image build, full
+  Python/TypeScript/Playwright/Docker validation, and all gates in `GATES.md` pass.
+
+Security: Removing fallback authority must narrow access. Missing tenant records, manifests, config,
+or migrations fail closed; local files and object existence can never authorize hosted access.
+
+Determinism: Explicit composition and versioned API/projection/event contracts select one dependency
+graph for a given release; startup performs no implicit migration or data import.
+
+Idempotency: Repeated startup, readiness, reconciliation, deployment smoke, and rollback checks do not
+duplicate state or mutate analytical payloads outside declared commands.
+
+### Hosted Simplicity And Interactive Performance Series Completion Gate
+
+This series is complete only after PR246 through PR251 merge in order and the current gates in
+[GATES.md](GATES.md) pass. One clean production-like evidence run must prove:
+
+- health, project navigation, and workflow remain responsive throughout a deterministic large
+  bootstrap and analytical workload, with idle/loaded latency, errors, resource occupancy, database
+  statements, shared-file reads, response bytes, and worker throughput captured together;
+- navigation GETs are bounded, side-effect-free PostgreSQL projection reads with zero Parquet/shared-
+  file access, constant statement count, private ETag revalidation, and forced-RLS isolation;
+- cold shell/page entry respects the two-request budget, warm navigation does not block on the network,
+  and hidden analytical sections perform no request until opened;
+- TanStack Query is the only production browser server-state cache, tenant data is memory-only, exact
+  invalidation and cancellation prevent cross-project flashes, and logout clears all cached data;
+- one resumable SSE stream replaces periodic status polling, survives API/browser reconnect, bounds
+  replay and slow-client resources, and leaks no cross-user event or aggregate identity;
+- hosted production has one PostgreSQL/shared-artifact authority with no local, in-memory, workspace,
+  unrestricted-lake, or provider-client fallback, while local CLI analysis remains independently
+  supported;
+- synchronized migrations, contracts, OpenAPI, architecture, UI specifications, observability,
+  deployment/rollback runbooks, focused regressions, full quality gates, rebuilt Web image, and
+  production-like browser evidence are complete.
 
 ## Current Architectural Decision
 
