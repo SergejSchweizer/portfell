@@ -15,6 +15,7 @@ from portfell.hosted_metadata_refresh_job_repository import (
     PostgresMetadataRefreshJobRepository,
 )
 from portfell.hosted_metadata_repository import MetadataRun, PostgresMetadataLifecycleRepository
+from portfell.hosted_navigation_reconciler import PostgresNavigationReconciler
 from portfell.hosted_worker_capacity import resolve_worker_concurrency
 from portfell.http import EodhdClient
 from portfell.shared_metadata_catalog import SharedMetadataCatalog
@@ -159,7 +160,12 @@ def build_metadata_refresh_worker(
     """Compose a worker without making API processes shared-store writers."""
 
     jobs = PostgresMetadataRefreshJobRepository(connection)  # type: ignore[arg-type]
-    runs = PostgresMetadataLifecycleRepository(connection)  # type: ignore[arg-type]
+    runs = PostgresMetadataLifecycleRepository(
+        connection,  # type: ignore[arg-type]
+        navigation_refresher=PostgresNavigationReconciler(
+            connection  # type: ignore[arg-type]
+        ).reconcile,
+    )
     return MetadataRefreshWorker(
         jobs=jobs,
         runs=runs,

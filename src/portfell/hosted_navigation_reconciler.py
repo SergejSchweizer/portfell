@@ -98,6 +98,24 @@ with project_rows as (
       on project.project_id = current.project_id
      and project.status = 'active'
     where current.user_id = %s::uuid
+), metadata as (
+    select
+        (select pointer.revision_id
+         from portfell_app.metadata_revision_pointers as pointer
+         where pointer.user_id = %s::uuid) as revision_id,
+        (select jsonb_strip_nulls(
+            jsonb_build_object(
+                'metadata_run_id', run.metadata_run_id::text,
+                'status', run.status,
+                'total', run.total,
+                'completed', run.completed,
+                'percent', run.percent
+            )
+        )
+         from portfell_app.metadata_runs as run
+         where run.user_id = %s::uuid
+         order by run.updated_at desc, run.metadata_run_id desc
+         limit 1) as latest_run
 )
 select jsonb_build_object(
     'current_project_id', preference.project_id,
@@ -121,12 +139,19 @@ select jsonb_build_object(
         from project_rows as project
         where project.project_id = preference.project_id
     ),
-    'projects', navigation.projects
+    'projects', navigation.projects,
+    'metadata', jsonb_strip_nulls(
+        jsonb_build_object(
+            'revision_id', metadata.revision_id,
+            'latest_run', metadata.latest_run
+        )
+    )
 )
 from navigation
+cross join metadata
 left join preference on true
 """,
-            (user_id, user_id),
+            (user_id, user_id, user_id, user_id),
         ).fetchone()
         if row is None or len(row) != 1 or not isinstance(row[0], dict):
             raise ValueError("navigation_reconciliation_invalid")

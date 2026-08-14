@@ -5,6 +5,8 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from typing import Protocol, cast
 from uuid import UUID
@@ -36,6 +38,8 @@ class MetadataCursor(Protocol):
 
 
 class MetadataConnection(Protocol):
+    def transaction(self) -> AbstractContextManager[object]: ...
+
     def execute(self, sql: str, parameters: tuple[object, ...] = ()) -> MetadataCursor: ...
 
 
@@ -62,15 +66,23 @@ class MetadataLifecycleRepository(Protocol):
 class PostgresMetadataLifecycleRepository:
     """RLS-bound metadata status and request-idempotency adapter."""
 
-    def __init__(self, connection: MetadataConnection) -> None:
+    def __init__(
+        self,
+        connection: MetadataConnection,
+        *,
+        navigation_refresher: Callable[[str], object] | None = None,
+    ) -> None:
         self._connection = connection
+        self._navigation_refresher = navigation_refresher
 
     def create(self, run: MetadataRun) -> MetadataRun:
-        self._bind(run.user_id)
-        self._connection.execute(
-            "insert into portfell_app.metadata_runs (metadata_run_id, user_id, status, total, completed, skipped_exchange_count, percent, summary) values (%s::uuid, %s::uuid, %s, %s, %s, %s, %s, %s::jsonb) on conflict (metadata_run_id) do nothing",
-            _parameters(run),
-        )
+        with self._connection.transaction():
+            self._bind(run.user_id)
+            self._connection.execute(
+                "insert into portfell_app.metadata_runs (metadata_run_id, user_id, status, total, completed, skipped_exchange_count, percent, summary) values (%s::uuid, %s::uuid, %s, %s, %s, %s, %s, %s::jsonb) on conflict (metadata_run_id) do nothing",
+                _parameters(run),
+            )
+            self._refresh_navigation(run.user_id)
         return run
 
     def status(self, *, user_id: str, run_id: str) -> MetadataRun | None:
@@ -78,34 +90,40 @@ class PostgresMetadataLifecycleRepository:
             UUID(run_id)
         except ValueError:
             return None
-        self._bind(user_id)
-        row = self._connection.execute(
-            "select metadata_run_id::text, user_id::text, status, total, completed, skipped_exchange_count, percent, summary from portfell_app.metadata_runs where metadata_run_id = %s::uuid",
-            (run_id,),
-        ).fetchone()
+        with self._connection.transaction():
+            self._bind(user_id)
+            row = self._connection.execute(
+                "select metadata_run_id::text, user_id::text, status, total, completed, skipped_exchange_count, percent, summary from portfell_app.metadata_runs where metadata_run_id = %s::uuid",
+                (run_id,),
+            ).fetchone()
         return _run(row)
 
     def update(self, run: MetadataRun) -> MetadataRun:
-        self._bind(run.user_id)
-        self._connection.execute(
-            "update portfell_app.metadata_runs set status = %s, total = %s, completed = %s, skipped_exchange_count = %s, percent = %s, summary = %s::jsonb, updated_at = now() where metadata_run_id = %s::uuid",
-            (*_parameters(run)[2:], run.metadata_run_id),
-        )
+        with self._connection.transaction():
+            self._bind(run.user_id)
+            self._connection.execute(
+                "update portfell_app.metadata_runs set status = %s, total = %s, completed = %s, skipped_exchange_count = %s, percent = %s, summary = %s::jsonb, updated_at = now() where metadata_run_id = %s::uuid",
+                (*_parameters(run)[2:], run.metadata_run_id),
+            )
+            self._refresh_navigation(run.user_id)
         return run
 
     def set_revision(self, *, user_id: str, revision_id: str) -> None:
-        self._bind(user_id)
-        self._connection.execute(
-            "insert into portfell_app.metadata_revision_pointers (user_id, revision_id) values (%s::uuid, %s) on conflict (user_id) do update set revision_id = excluded.revision_id, updated_at = now()",
-            (user_id, revision_id),
-        )
+        with self._connection.transaction():
+            self._bind(user_id)
+            self._connection.execute(
+                "insert into portfell_app.metadata_revision_pointers (user_id, revision_id) values (%s::uuid, %s) on conflict (user_id) do update set revision_id = excluded.revision_id, updated_at = now()",
+                (user_id, revision_id),
+            )
+            self._refresh_navigation(user_id)
 
     def revision(self, *, user_id: str) -> str | None:
-        self._bind(user_id)
-        row = self._connection.execute(
-            "select revision_id from portfell_app.metadata_revision_pointers where user_id = %s::uuid",
-            (user_id,),
-        ).fetchone()
+        with self._connection.transaction():
+            self._bind(user_id)
+            row = self._connection.execute(
+                "select revision_id from portfell_app.metadata_revision_pointers where user_id = %s::uuid",
+                (user_id,),
+            ).fetchone()
         if row is None:
             return None
         if len(row) != 1 or not isinstance(row[0], str):
@@ -115,11 +133,12 @@ class PostgresMetadataLifecycleRepository:
     def idempotent_response(
         self, *, user_id: str, operation: str, key: str, request_hash: str
     ) -> str | None:
-        self._bind(user_id)
-        row = self._connection.execute(
-            "select response_ref, request_hash from portfell_app.request_idempotency where user_id = %s::uuid and operation = %s and idempotency_key = %s",
-            (user_id, operation, key),
-        ).fetchone()
+        with self._connection.transaction():
+            self._bind(user_id)
+            row = self._connection.execute(
+                "select response_ref, request_hash from portfell_app.request_idempotency where user_id = %s::uuid and operation = %s and idempotency_key = %s",
+                (user_id, operation, key),
+            ).fetchone()
         if row is None:
             return None
         if len(row) != 2 or not isinstance(row[0], str) or not isinstance(row[1], str):
@@ -131,11 +150,16 @@ class PostgresMetadataLifecycleRepository:
     def remember_idempotency(
         self, *, user_id: str, operation: str, key: str, request_hash: str, response_ref: str
     ) -> None:
-        self._bind(user_id)
-        self._connection.execute(
-            "insert into portfell_app.request_idempotency (user_id, operation, idempotency_key, request_hash, response_ref) values (%s::uuid, %s, %s, %s, %s) on conflict (user_id, operation, idempotency_key) do nothing",
-            (user_id, operation, key, request_hash, response_ref),
-        )
+        with self._connection.transaction():
+            self._bind(user_id)
+            self._connection.execute(
+                "insert into portfell_app.request_idempotency (user_id, operation, idempotency_key, request_hash, response_ref) values (%s::uuid, %s, %s, %s, %s) on conflict (user_id, operation, idempotency_key) do nothing",
+                (user_id, operation, key, request_hash, response_ref),
+            )
+
+    def _refresh_navigation(self, user_id: str) -> None:
+        if self._navigation_refresher is not None:
+            self._navigation_refresher(user_id)
 
     def _bind(self, user_id: str) -> None:
         self._connection.execute(*set_authenticated_user_sql(user_id))

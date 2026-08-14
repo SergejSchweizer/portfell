@@ -39,7 +39,10 @@ def build_postgres_services(
 ) -> tuple[CredentialProjectService, MetadataProjectService, QuoteRunService, ResearchService]:
     """Compose services with PostgreSQL control records and shared payloads only."""
 
-    repositories = PostgresHostedRepositoryBundle.from_connection(request_scope)
+    navigation_reconciler = PostgresNavigationReconciler(request_scope)
+    repositories = PostgresHostedRepositoryBundle.from_connection(
+        request_scope, navigation_refresher=navigation_reconciler.reconcile
+    )
     credential_vault = EodhdCredentialVault(
         store=repositories.credentials,
         key_encryption_key=key_encryption_key,
@@ -117,7 +120,6 @@ def build_postgres_services(
         ),
     )
     persistence = PostgresResearchPersistence()
-    navigation_reconciler = PostgresNavigationReconciler(request_scope)
     credentials = CredentialProjectService(
         state,
         runtime,
