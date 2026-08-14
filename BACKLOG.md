@@ -1530,11 +1530,105 @@ order does not alter fetched data or invalidation scope.
 Idempotency: Concurrent reads single-flight per key, and repeated successful invalidation converges on
 one refetch of the newest server revision.
 
-### PR250. Durable Server-Sent Job And Workflow Updates
+### PR250a. Durable Status-Event Schema
 
-Branch: `feat/hosted-status-event-stream`.
+Branch: `feat/hosted-status-event-schema`.
+
+Git status: merged.
+
+PR: [#421](https://github.com/SergejSchweizer/portfell/pull/421).
+
+Delivered the RLS-protected, compact PostgreSQL event catalog and its versioned migration. The
+remaining PR250 work is deliberately split below so each change has one reviewable responsibility.
+
+### PR250b. Bounded Durable Status-Event Repository
+
+Branch: `feat/hosted-status-event-repository`.
+
+Git status: in progress.
+
+PR: TBD.
+
+Priority: P1 live status with bounded request load.
+
+Depends on: PR250a.
+
+Scope:
+
+- Add the PostgreSQL adapter that appends compact events and replays an authorized user's events in
+  monotonic ID order. Bind the authenticated RLS principal before every operation and enforce a
+  maximum replay page of 1,000 rows in the adapter itself.
+- Keep this PR transport- and publisher-free: no route, SSE serialization, polling removal, or
+  lifecycle call site belongs here.
+
+Acceptance:
+
+- Adapter tests prove RLS binding precedes writes and reads, append writes only the compact catalog
+  fields, replay is strictly ordered after a supplied cursor, and negative, zero, or oversized
+  bounds fail with the typed validation error.
+- Focused Python tests, Ruff, Pyright, and the applicable `GATES.md` checks pass.
+
+### PR250c. Transactional Status-Event Publication
+
+Branch: `feat/hosted-status-event-publication`.
 
 Git status: not started.
+
+PR: TBD.
+
+Priority: P1 live status with bounded request load.
+
+Depends on: PR250b.
+
+Scope: Publish exactly one durable compact event in the same PostgreSQL transaction as each project
+bootstrap, metadata publication, and Uni/Bi/Multivariate transition. Define logical transition
+uniqueness so retrying a command cannot duplicate an event.
+
+Acceptance: Commit paths atomically persist source state, projection revision, and one event;
+rollback persists none; lifecycle tests cover every transition, retry, and tenant boundary.
+
+### PR250d. Authenticated SSE Replay Transport
+
+Branch: `feat/hosted-status-event-sse`.
+
+Git status: not started.
+
+PR: TBD.
+
+Priority: P1 live status with bounded request load.
+
+Depends on: PR250c.
+
+Scope: Add one authenticated FastAPI SSE endpoint over the durable repository with heartbeats,
+`Last-Event-ID` replay, typed reset events, tenant filtering, proxy-safe headers, cleanup, and the
+two-stream session limit. Events remain compact invalidation hints, not analytical payloads.
+
+Acceptance: API and adversarial tests prove ordered authorized replay, reset on expired/oversized
+cursors, 15-second heartbeats, connection cleanup, no cross-user leakage, and bounded resources.
+
+### PR250e. Browser Status-Stream Adoption
+
+Branch: `feat/web-status-event-stream`.
+
+Git status: not started.
+
+PR: TBD.
+
+Priority: P1 live status with bounded request load.
+
+Depends on: PR250d.
+
+Scope: Connect one browser stream per authenticated application session; map received events through
+PR249's exact query keys; then remove fixed-interval polling only for states covered by the stream.
+
+Acceptance: Browser tests prove reconnect backoff, bounded key invalidation, no cross-project flash,
+status updates without polling, and no application-data requests during a 15-minute idle session.
+
+### PR250. Durable Server-Sent Job And Workflow Updates
+
+Branch: split into PR250a through PR250e above.
+
+Git status: in progress (PR250a merged; PR250b in progress).
 
 PR: TBD.
 
