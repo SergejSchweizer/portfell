@@ -182,7 +182,7 @@ class MultivariateResearchService(MultivariateRunViews):
                 completed = self._compute(
                     run,
                     executor=executor,
-                    on_phase=lambda run_id, phase, completed_units: self._lifecycle.advance(
+                    on_phase=lambda run_id, phase, completed_units: self._advance(
                         user_id, run_id, phase, completed_units
                     ),
                 )
@@ -238,6 +238,9 @@ class MultivariateResearchService(MultivariateRunViews):
         if selection is None:
             raise HostedApplicationError(422, "project_metadata_dependency_mismatch")
         return selection_record(selection)
+
+    def _advance(self, user_id: str, run_id: str, phase: str, completed_units: int) -> None:
+        self._lifecycle.advance(user_id, run_id, phase, completed_units)
 
     def _compute(
         self,
