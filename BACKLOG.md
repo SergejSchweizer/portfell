@@ -1675,9 +1675,9 @@ cache, image, or data migration is required.
 
 Branch: `fix/bivariate-complete-display`.
 
-Git status: in progress.
+Git status: pushed.
 
-PR: TBD.
+PR: https://github.com/SergejSchweizer/portfell/pull/456
 
 Priority: P0 display every calculated Bivariate statistic for the full selected universe.
 
