@@ -10,7 +10,6 @@ from portfell.hosted_api_state import HostedApiState
 from portfell.hosted_bivariate_service import BivariateResearchService
 from portfell.hosted_credential_project_service import CredentialProjectService
 from portfell.hosted_credentials import EodhdCredentialVault, KeyEncryptionKey
-from portfell.hosted_download_run_repository import PostgresDownloadRunRepository
 from portfell.hosted_metadata_project_service import MetadataProjectService
 from portfell.hosted_metadata_refresh_job_repository import PostgresMetadataRefreshJobRepository
 from portfell.hosted_multivariate_service import MultivariateResearchService
@@ -137,21 +136,19 @@ def build_postgres_services(
     )
     persistence = PostgresResearchPersistence()
     credentials = CredentialProjectService(
-        state,
-        runtime,
         repositories.projects,
         repositories.selections,
         repositories.settings,
         credential_vault,
         repositories.audit,
-        PostgresDownloadRunRepository(request_scope),
         repositories.idempotency,
         workflow_reader,
         project_data_loaded,
         project_active_run,
         repositories.navigation.read,
-        repositories.navigation.write,
         navigation_reconciler.reconcile,
+        None,
+        None,
     )
     metadata = MetadataProjectService(
         state,

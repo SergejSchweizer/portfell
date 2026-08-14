@@ -22,9 +22,8 @@
     "section_revision_mismatch",
     "section_too_large"
   ],
-  "normalized_sha256": "e6a915b2fe817de20b75c8c52d2ab8d6231c75c6e8521ec0421c3ae40bddf124",
+  "normalized_sha256": "a295d200a4865af0f3eeb744141fe35e84f9cb41d157e68c63ba210fb734f882",
   "operations": [
-    "DELETE /account 200",
     "POST /analyses 200/422",
     "GET /analyses/{run_id} 200/422",
     "GET /analyses/{run_id}/metrics 200/422",
@@ -42,10 +41,6 @@
     "DELETE /credentials/eodhd 200",
     "GET /credentials/eodhd 200",
     "POST /credentials/eodhd 200/422",
-    "GET /datasets 200",
-    "POST /downloads/plan 200/422",
-    "POST /downloads/run 200/422",
-    "GET /downloads/{download_run_id} 200/422",
     "GET /health 200",
     "POST /metadata-builder 200/422",
     "GET /metadata-builder/options 200",

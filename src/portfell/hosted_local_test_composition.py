@@ -9,6 +9,7 @@ from typing import Any, cast
 from portfell.hosted_analysis_service import HostedAnalysisService
 from portfell.hosted_api_local_runtime import LocalHostedRuntime
 from portfell.hosted_api_ports import Workflow
+from portfell.hosted_api_service_support import project_data_loaded, workflow_row
 from portfell.hosted_api_state import HostedApiState
 from portfell.hosted_bivariate_service import BivariateResearchService
 from portfell.hosted_credential_project_service import CredentialProjectService
@@ -20,6 +21,7 @@ from portfell.hosted_local_project_repository import LocalProjectRepository
 from portfell.hosted_local_selection_repository import LocalSelectionRepository
 from portfell.hosted_metadata_project_service import MetadataProjectService
 from portfell.hosted_multivariate_service import MultivariateResearchService
+from portfell.hosted_project_settings_repository import LocalProjectSettingsRepository
 from portfell.hosted_quote_lifecycle_repository import LocalQuoteLifecycleRepository
 from portfell.hosted_quote_run_service import QuoteRunService
 from portfell.hosted_research_persistence import LocalResearchPersistence
@@ -64,6 +66,49 @@ def _persist_local_workspace_if_configured(state: HostedApiState) -> None:
         persist_local_workspace(state)
 
 
+def _cleanup_local_credential_cache(
+    state: HostedApiState, user_id: str, project_id: str | None
+) -> None:
+    if project_id is None:
+        state.selections_by_id = {
+            key: row for key, row in state.selections_by_id.items() if row.user_id != user_id
+        }
+        state.analyses_by_id = {
+            key: row for key, row in state.analyses_by_id.items() if row.user_id != user_id
+        }
+        return
+    state.selections_by_id = {
+        key: row
+        for key, row in state.selections_by_id.items()
+        if row.user_id != user_id or row.project_id != project_id
+    }
+    state.analyses_by_id = {
+        key: row
+        for key, row in state.analyses_by_id.items()
+        if row.user_id != user_id or row.project_id != project_id
+    }
+
+
+def local_credential_project_service(state: HostedApiState) -> CredentialProjectService:
+    """Compose every local credential-service port explicitly."""
+
+    return CredentialProjectService(
+        LocalProjectRepository(state),
+        LocalSelectionRepository(state),
+        LocalProjectSettingsRepository(state),
+        state.credential_vault(),
+        LocalAuditEventRepository(state),
+        LocalIdempotencyRepository(state),
+        lambda user_id, project_id: workflow_row(state, user_id, project_id),
+        lambda user_id, project_id: project_data_loaded(state, project_id, user_id),
+        None,
+        lambda _user_id: None,
+        lambda _user_id: ({}, ""),
+        lambda: _persist_local_workspace_if_configured(state),
+        lambda user_id, project_id: _cleanup_local_credential_cache(state, user_id, project_id),
+    )
+
+
 def local_test_services(
     state: HostedApiState,
 ) -> tuple[CredentialProjectService, MetadataProjectService, QuoteRunService, ResearchService]:
@@ -71,7 +116,7 @@ def local_test_services(
 
     runtime = local_runtime()
     return (
-        CredentialProjectService(state, runtime),
+        local_credential_project_service(state),
         MetadataProjectService(
             state,
             runtime,
