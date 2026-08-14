@@ -346,8 +346,15 @@ def main(argv: list[str] | None = None) -> int:
             max_workers=1, thread_name_prefix="project-initial-fill"
         ) as executor:
             initial_fill: Future[BootstrapWorkerResult] | None = None
+            last_status_event_prune = 0.0
             while True:
                 recovery_jobs.recover_expired_leases()
+                if (
+                    time.monotonic() - last_status_event_prune >= 60
+                    and hasattr(metadata_connection, "execute")
+                ):
+                    PostgresStatusEventRepository(metadata_connection).prune_expired()
+                    last_status_event_prune = time.monotonic()
                 metadata_result = metadata_worker.run_once()
                 if initial_fill is None:
                     initial_fill = executor.submit(

@@ -30,6 +30,8 @@ class Connection:
             return Cursor(row=(3, 7))
         if "select exists(" in sql:
             return Cursor(row=(True,))
+        if "delete from portfell_app.status_events" in sql:
+            return Cursor(rows=[(1,), (2,)])
         return Cursor()
 
 
@@ -74,3 +76,9 @@ def test_status_event_replay_bounds_are_always_scoped_to_the_authenticated_user(
 
     assert repository.bounds(user_id=user_id) == (3, 7)
     assert repository.has_more(user_id=user_id, after_event_id=6)
+
+
+def test_status_event_retention_deletes_only_expired_compact_rows() -> None:
+    repository = PostgresStatusEventRepository(Connection())
+
+    assert repository.prune_expired() == 2
