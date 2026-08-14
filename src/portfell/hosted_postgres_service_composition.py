@@ -142,6 +142,7 @@ def build_postgres_services(
         repositories.audit,
         bootstrap,
         PostgresMetadataRefreshJobRepository(request_scope),
+        credentials.refresh_navigation,
     )
     quotes = QuoteRunService(
         state,

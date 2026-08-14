@@ -324,6 +324,11 @@ class CredentialProjectService:
         if self._navigation_writer is not None:
             self._navigation_writer(user_id, self._project_context_source(user_id))
 
+    def refresh_navigation(self, user_id: str) -> None:
+        """Refresh the projection after a collaborating command service changes project state."""
+
+        self._sync_navigation(user_id)
+
     def selection_detail(self, user_id: str, selection_id: str) -> JsonRow:
         selection = self._selections.by_id(selection_id=selection_id, user_id=user_id)
         if selection is None:

@@ -56,6 +56,7 @@ class MetadataProjectService:
         audit_repository: AuditEventRepository | None = None,
         bootstrap_repository: ProjectBootstrapRepository | None = None,
         metadata_refresh_queue: MetadataRefreshQueue | None = None,
+        navigation_refresher: Callable[[str], None] | None = None,
     ) -> None:
         self.state = state
         self.runtime = runtime
@@ -66,6 +67,7 @@ class MetadataProjectService:
         self._audit_events = audit_repository or LocalAuditEventRepository(state)
         self._bootstrap = bootstrap_repository
         self._metadata_refresh_queue = metadata_refresh_queue
+        self._navigation_refresher = navigation_refresher
 
     def _all_isins_rows(self) -> tuple[JsonRow, ...]:
         return self.state.all_isins_rows or self.runtime.all_isins_rows()
@@ -238,6 +240,7 @@ class MetadataProjectService:
             project = self._project(user_id, cached)
             selection = self._selection_for_project(user_id, project.project_id)
             self._projects.set_current_project(user_id=user_id, project_id=project.project_id)
+            self._refresh_navigation(user_id)
             return self._project_selection_row(project, selection)
         project_id = str(
             uuid.uuid5(uuid.NAMESPACE_URL, f"portfell:project:{user_id}:{project_name}")
@@ -251,6 +254,7 @@ class MetadataProjectService:
         if existing_project is not None:
             selection = self._selection_for_project(user_id, project_id)
             self._projects.set_current_project(user_id=user_id, project_id=project_id)
+            self._refresh_navigation(user_id)
             return self._project_selection_row(existing_project, selection)
         project = self._record(
             self._projects.create_project(TenantProject(project_id, user_id, project_name))
@@ -295,6 +299,7 @@ class MetadataProjectService:
                 response_ref=project_id,
             )
         self._audit(user_id, "metadata_builder.project.create")
+        self._refresh_navigation(user_id)
         result = self._project_selection_row(project, selection)
         if bootstrap is not None:
             result["initial_fill"] = {
@@ -309,6 +314,10 @@ class MetadataProjectService:
                 "started_at": None,
             }
         return result
+
+    def _refresh_navigation(self, user_id: str) -> None:
+        if self._navigation_refresher is not None:
+            self._navigation_refresher(user_id)
 
     @staticmethod
     def _project_selection_row(project: ProjectRecord, selection: SelectionRecord) -> JsonRow:

@@ -649,6 +649,43 @@ def test_metadata_builder_can_use_an_injected_selection_repository() -> None:
     assert repeated == created
 
 
+def test_metadata_builder_project_refreshes_navigation_projection() -> None:
+    refreshed: list[str] = []
+    state = HostedApiState(
+        all_isins_rows=(
+            {
+                "isin": "IE1",
+                "exchange": "XETRA",
+                "code": "AAA",
+                "name": "Example",
+                "instrument_type": "ETF",
+                "country": "IE",
+                "currency": "EUR",
+            },
+        )
+    )
+    state.metadata_revisions_by_user["user-1"] = "metadata-v1"
+    service = MetadataProjectService(
+        state,
+        LocalHostedRuntime(
+            quote_workflow=_empty_workflow, metadata_workflow=_empty_workflow, cpu_count=lambda: 1
+        ),
+        navigation_refresher=refreshed.append,
+    )
+
+    service.create_project_from_criteria(
+        "user-1",
+        exchange="XETRA",
+        name="",
+        instrument_type="ETF",
+        country="",
+        currency="",
+        idempotency_key=None,
+    )
+
+    assert refreshed == ["user-1"]
+
+
 def test_metadata_refresh_queue_does_not_require_a_browser_credential() -> None:
     class QueueRecorder:
         calls: list[tuple[str, str]] = []
