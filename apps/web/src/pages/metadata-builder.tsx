@@ -51,7 +51,11 @@ export function MetadataBuilderPage() {
       }
       setSelectionStatus("Loading saved Metadata Builder criteria…");
       try {
-        const pageView = await metadataBuilderApi.loadPageView(project.project_id);
+        const pageView = await queryClient.fetchQuery({
+          queryKey: queryKeys.pageView(project.project_id, "metadata_builder"),
+          queryFn: ({ signal }) => metadataBuilderApi.loadPageView(project.project_id, signal),
+          staleTime: queryTiming.volatile,
+        });
         if (cancelled) return;
         const criteria = pageView.summary.criteria;
         setExchange(criteria.exchange);

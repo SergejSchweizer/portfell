@@ -13,6 +13,7 @@ export type ProjectSidebarProps = Readonly<{
   onCloseDrawer: () => void;
   onProjectChange: (projectId: string) => Promise<boolean>;
   onWorkflowPageChange: (path: string) => void;
+  onWorkflowPageIntent: (pageId: WorkflowPageId) => void;
 }>;
 
 const workflowStatusLabel: Readonly<Record<WorkflowStatus, string>> = {
@@ -35,6 +36,7 @@ export function ProjectSidebar({
   onCloseDrawer,
   onProjectChange,
   onWorkflowPageChange,
+  onWorkflowPageIntent,
 }: ProjectSidebarProps) {
   const currentProjectId = context?.current_project_id ?? "";
   const currentProject = context?.current_project ?? null;
@@ -86,7 +88,7 @@ export function ProjectSidebar({
             const path = currentProject ? projectWorkflowPath(currentProject, page) : page.path;
             return (
               <li key={page.id} data-status={status}>
-                {locked ? <span aria-disabled="true">{contents}</span> : <a href={path} aria-current={page.id === currentPage ? "page" : undefined} onClick={(event) => navigateWorkflowPage(event, path)}>{contents}</a>}
+                {locked ? <span aria-disabled="true">{contents}</span> : <a href={path} aria-current={page.id === currentPage ? "page" : undefined} onMouseEnter={() => onWorkflowPageIntent(page.id)} onFocus={() => onWorkflowPageIntent(page.id)} onClick={(event) => navigateWorkflowPage(event, path)}>{contents}</a>}
               </li>
             );
           })}

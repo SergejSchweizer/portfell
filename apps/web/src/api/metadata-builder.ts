@@ -34,8 +34,8 @@ export const metadataBuilderApi = {
     loadProjectMetadataBuilder(projectId)
   ),
   loadInitialFill: (projectId: string): Promise<ApiInitialFill> => loadProjectInitialFill(projectId),
-  loadPageView: (projectId: string): Promise<ApiMetadataBuilderPageView> => (
-    loadMetadataBuilderPageView(projectId)
+  loadPageView: (projectId: string, signal?: AbortSignal): Promise<ApiMetadataBuilderPageView> => (
+    loadMetadataBuilderPageView(projectId, signal)
   ),
   loadFieldOptions: (): Promise<ApiFieldOptions> => requestJson<ApiFieldOptions>("/api/metadata-builder/options"),
   saveCredential: (providerKey: string): Promise<ApiCredentialStatus> => (

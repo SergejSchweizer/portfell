@@ -1,12 +1,12 @@
 
 import { useEffect, useRef, useState } from "react";
-import { loadProjectContext, loadProjectWorkflow } from "../api/client";
+import { loadProjectContext } from "../api/client";
 import { bivariateStatisticsApi, type BivariateRunData } from "../api/bivariate-statistics";
 import { Button } from "../components/button";
 import { nextProgressSnapshot, type ProgressSnapshot } from "../computation-progress";
 import { LoadingState } from "../components/loading-state";
 import { Panel } from "../components/panel";
-import type { ApiBivariateMetricSummary, ApiBivariateRow, ApiBivariateSummary, ApiCovarianceMatrix, ApiPage, ApiPairMetricMatrix, ApiPairPlan, ApiResearchRun, ApiTailRiskScatter, ApiWorkflow } from "../contracts";
+import type { ApiBivariateMetricSummary, ApiBivariateRow, ApiBivariateSummary, ApiCovarianceMatrix, ApiPage, ApiPairMetricMatrix, ApiPairPlan, ApiResearchRun, ApiTailRiskScatter } from "../contracts";
 import { queryClient, queryTiming } from "../query/client";
 import { queryKeys } from "../query/keys";
 import { useQueryResource } from "../query/use-query-resource";
@@ -24,15 +24,6 @@ const pairwiseMatrixTabs: readonly Readonly<{ metric: PairwiseMatrixMetric; labe
   { metric: "drawdown_overlap", label: "Drawdown Overlap" },
   { metric: "tail_risk_scatter", label: "Tail-Risk Scatter" },
 ];
-
-const emptyWorkflow: ApiWorkflow = {
-  stages: {
-    metadata_builder: { status: "ready" },
-    univariate_statistics: { status: "locked" },
-    bivariate_statistics: { status: "locked" },
-    multivariate_statistics: { status: "locked" },
-  },
-};
 
 function metric(value: number | null | undefined): string {
   return value == null ? "—" : value.toFixed(4);
@@ -237,9 +228,11 @@ function TailRiskScatter({ scatter }: { scatter: ApiTailRiskScatter | null }) {
 export function BivariateStatisticsPage() {
   const projectContext = useQueryResource(queryKeys.projectContext(), loadProjectContext, queryTiming.volatile);
   const projectId = projectContext.status === "ready" ? projectContext.data.current_project_id : null;
-  const workflow = useQueryResource(
-    queryKeys.workflow(projectId ?? undefined),
-    (signal) => projectId ? loadProjectWorkflow(projectId, signal) : Promise.resolve(emptyWorkflow),
+  const pageView = useQueryResource(
+    queryKeys.pageView(projectId ?? "no-project", "bivariate_statistics"),
+    (signal) => projectId
+      ? bivariateStatisticsApi.loadPageView(projectId, signal)
+      : Promise.reject(new Error("project_not_selected")),
     queryTiming.volatile,
   );
   const [run, setRun] = useState<ApiResearchRun | null>(null);
@@ -259,9 +252,7 @@ export function BivariateStatisticsPage() {
   const [message, setMessage] = useState("");
   const [starting, setStarting] = useState(false);
   const progressSnapshot = useRef<ProgressSnapshot | null>(null);
-  const persistedRunId = workflow.status === "ready"
-    ? workflow.data.stages.bivariate_statistics.bivariate_run_id
-    : undefined;
+  const persistedRunId = pageView.status === "ready" ? pageView.data.run_id ?? undefined : undefined;
 
   function applyRunData(data: BivariateRunData) {
     setResults(data.results);
@@ -331,7 +322,7 @@ export function BivariateStatisticsPage() {
       setSummary(null);
       setStarting(false);
       setMessage("");
-      void queryClient.invalidateQueries({ queryKey: queryKeys.workflow(projectId ?? undefined) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.pageView(projectId ?? "no-project", "bivariate_statistics") });
     };
     window.addEventListener("portfell:project-updated", resetProjectState);
     return () => window.removeEventListener("portfell:project-updated", resetProjectState);
@@ -389,13 +380,12 @@ export function BivariateStatisticsPage() {
     return () => { cancelled = true; };
   }, [persistedRunId, run?.run_id]);
 
-  if (workflow.status !== "ready") {
-    return workflow.status === "error"
-      ? <p>Workflow state is unavailable.</p>
+  if (pageView.status !== "ready") {
+    return pageView.status === "error"
+      ? <p>Bivariate statistics are unavailable.</p>
       : <LoadingState label="Loading bivariate statistics" />;
   }
-  const workflowData = workflow.data;
-  const selectionId = workflowData.stages.univariate_statistics.univariate_selection_id;
+  const selectionId = pageView.data.input.univariate_selection_id;
   if (!selectionId) {
     return <Panel title="Bivariate Statistics"><p>Complete univariate statistics and select at least two ISINs first.</p></Panel>;
   }

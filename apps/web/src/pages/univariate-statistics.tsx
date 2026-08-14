@@ -8,6 +8,8 @@ import { LoadingState } from "../components/loading-state";
 import { Panel } from "../components/panel";
 import type { ApiAnalyticalPageView, ApiDividendFrequency, ApiResearchRun, ApiUnivariateRow, ApiUnivariateSelectionSettings } from "../contracts";
 import { useDebouncedSave } from "../hooks/use-debounced-save";
+import { queryClient, queryTiming } from "../query/client";
+import { queryKeys } from "../query/keys";
 
 type MetricDefinition = Readonly<{ group: string; metric: string; label: string; description: string; equation: string; notation: string; unit?: string }>;
 type UnivariateStatisticTab = "dividends" | MetricDefinition["metric"];
@@ -143,7 +145,11 @@ export function UnivariateStatisticsPage() {
     const controller = new AbortController();
     setPageViewLoading(true);
     setPageViewError(null);
-    void univariateStatisticsApi.loadPageView(projectId, controller.signal).then((view) => {
+    void queryClient.fetchQuery({
+      queryKey: queryKeys.pageView(projectId, "univariate_statistics"),
+      queryFn: ({ signal }) => univariateStatisticsApi.loadPageView(projectId, signal),
+      staleTime: queryTiming.volatile,
+    }).then((view) => {
       if (!controller.signal.aborted) setPageView(view);
     }).catch((error: unknown) => {
       if (!controller.signal.aborted) setPageViewError(error instanceof Error ? error.message : "Univariate statistics are unavailable.");

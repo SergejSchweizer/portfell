@@ -4,6 +4,7 @@ import { postJson, requestJson } from "./client";
 import type {
   ApiBivariateRow,
   ApiBivariateSummary,
+  ApiAnalyticalPageView,
   ApiCovarianceMatrix,
   ApiLazyDetail,
   ApiPage,
@@ -44,6 +45,12 @@ export const bivariateStatisticsApi = {
   ),
   loadRun: (runId: string): Promise<ApiResearchRun> => (
     requestJson<ApiResearchRun>(`/api/bivariate-statistics/runs/${encodeURIComponent(runId)}`)
+  ),
+  loadPageView: (projectId: string, signal?: AbortSignal): Promise<ApiAnalyticalPageView> => (
+    requestJson<ApiAnalyticalPageView>(
+      `/api/projects/${encodeURIComponent(projectId)}/views/bivariate-statistics`,
+      { signal },
+    )
   ),
   loadResults: (runId: string): Promise<ApiPage<ApiBivariateRow>> => (
     requestJson<ApiPage<ApiBivariateRow>>(

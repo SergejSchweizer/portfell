@@ -576,8 +576,8 @@ return the same revision without starting calculations or ingestion.
 
 Branch: split into PR249a–PR249c below.
 
-Git status: in progress; PR249a landed as #419 and the shell adoption landed as #420. Consumer migration
-and deliberate prefetch remain split below.
+Git status: in progress; PR249a landed as #419, the shell adoption landed as #420, PR249b landed as
+#443, and deliberate prefetch remains below.
 
 PR: TBD.
 
@@ -601,7 +601,7 @@ Acceptance for PR249a:
 - Package lockfile, TypeScript strict check, unit coverage of key identity/default policy, production Web
   build, and storage-safety search prove no persistent tenant cache is introduced.
 
-PR249b branch: `refactor/web-query-cache-consumers`.
+PR249b branch: `refactor/web-query-cache-consumers` (merged as #443).
 
 - Depend only on PR249a. Migrate all production `useResource` server readers, revision counters, and
   global refresh events to the single QueryClient and delete the superseded hook. Commands invalidate
@@ -614,6 +614,8 @@ Acceptance for PR249b:
   optimistic cache state; focused Vitest assertions cover exact invalidations and cancellation.
 
 PR249c branch: `feat/web-query-cache-prefetch`.
+
+Git status: in progress.
 
 - Depend only on PR249b. Prefetch at most one deliberate sidebar destination/page view after selection
   or hover intent, using the canonical project-specific key and ETag revalidation. Do not speculatively
