@@ -167,9 +167,6 @@ def iter_pair_observations(
     skip_same_isin: bool = False,
 ) -> Iterator[PairObservation]:
     listings = tuple(sorted(returns_by_listing))
-    dates = common_return_dates(returns_by_listing)
-    if not dates:
-        return
     for left_id, left in enumerate(listings):
         right_start = left_id if include_self else left_id + 1
         for right_id, right in enumerate(listings[right_start:], start=right_start):
@@ -177,6 +174,9 @@ def iter_pair_observations(
                 continue
             left_rows = returns_by_listing[left]
             right_rows = returns_by_listing[right]
+            dates = tuple(sorted(set(left_rows).intersection(right_rows)))
+            if not dates:
+                continue
             yield PairObservation(
                 left=left,
                 right=right,

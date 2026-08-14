@@ -39,12 +39,11 @@ _SUMMARY_METRICS = (
 def build_bivariate_summary(rows: tuple[JsonRow, ...]) -> JsonRow:
     """Aggregate pair rows for the bivariate-statistics cards."""
 
-    date_start, date_end = _shared_date_range(rows)
+    coverage = _pairwise_coverage(rows)
     return {
         "pair_count": len(rows),
         "observation_count": _average_observations(rows),
-        "date_start": date_start,
-        "date_end": date_end,
+        **coverage,
         "metrics": {
             name: bivariate_metric_summary(
                 [float(row[name]) for row in rows if row.get(name) is not None]
@@ -82,7 +81,6 @@ def build_correlation_matrix(rows: tuple[JsonRow, ...], metric: str) -> JsonRow:
         ): float(row.get(metric_key, 0.0))
         for row in rows
     }
-    date_start, date_end = _shared_date_range(rows)
     return {
         "labels": _labels(listings),
         "values": [
@@ -93,8 +91,7 @@ def build_correlation_matrix(rows: tuple[JsonRow, ...], metric: str) -> JsonRow:
             for row in range(len(listings))
         ],
         "observation_count": _average_observations(rows),
-        "date_start": date_start,
-        "date_end": date_end,
+        **_pairwise_coverage(rows),
     }
 
 
@@ -122,7 +119,6 @@ def build_covariance_matrix_from_rows(rows: tuple[JsonRow, ...]) -> JsonRow:
         variances[right] = float(row.get("right_variance", 0.0))
     for listing, position in index.items():
         covariance[position][position] = variances.get(listing, 0.0)
-    date_start, date_end = _shared_date_range(rows)
     return {
         "labels": _labels(listings),
         "values": [
@@ -130,8 +126,7 @@ def build_covariance_matrix_from_rows(rows: tuple[JsonRow, ...]) -> JsonRow:
             for row, value_row in enumerate(covariance)
         ],
         "observation_count": _average_observations(rows),
-        "date_start": date_start,
-        "date_end": date_end,
+        **_pairwise_coverage(rows),
         "diagnostics": covariance_diagnostics(listings, covariance, _average_observations(rows)),
     }
 
@@ -139,7 +134,6 @@ def build_covariance_matrix_from_rows(rows: tuple[JsonRow, ...]) -> JsonRow:
 def build_tail_risk_scatter(rows: tuple[JsonRow, ...]) -> JsonRow:
     """Expose all persisted tail-risk pair values for a portfolio-selection scatterplot."""
 
-    date_start, date_end = _shared_date_range(rows)
     points = [
         {
             "left_isin": row["left_isin"],
@@ -163,8 +157,7 @@ def build_tail_risk_scatter(rows: tuple[JsonRow, ...]) -> JsonRow:
         "points": points,
         "pair_count": len(points),
         "observation_count": _average_observations(rows),
-        "date_start": date_start,
-        "date_end": date_end,
+        **_pairwise_coverage(rows),
         "tail_dependence_median": tail_summary["median"],
         "coexceedance_rate_median": coexceedance_summary["median"],
         "diagnostics": _tail_risk_scatter_diagnostics(
@@ -405,18 +398,27 @@ def _average_observations(rows: tuple[JsonRow, ...]) -> int:
     return round(sum(int(row.get("n_observations", 0)) for row in rows) / len(rows))
 
 
-def _shared_date_range(rows: tuple[JsonRow, ...]) -> tuple[str, str]:
-    ranges = {
-        (str(row.get("date_start", "")), str(row.get("date_end", "")))
+def _pairwise_coverage(rows: tuple[JsonRow, ...]) -> JsonRow:
+    """Expose the envelope and observation range of independently aligned pairs."""
+
+    periods = [
+        (str(row["date_start"]), str(row["date_end"]), int(row.get("n_observations", 0)))
         for row in rows
         if row.get("date_start") and row.get("date_end")
+    ]
+    if not periods:
+        return {
+            "date_start": "",
+            "date_end": "",
+            "observation_count_min": 0,
+            "observation_count_max": 0,
+        }
+    return {
+        "date_start": min(period[0] for period in periods),
+        "date_end": max(period[1] for period in periods),
+        "observation_count_min": min(period[2] for period in periods),
+        "observation_count_max": max(period[2] for period in periods),
     }
-    if len(ranges) > 1:
-        raise ValueError("bivariate rows do not share one aligned data period")
-    observation_counts = {int(row.get("n_observations", 0)) for row in rows}
-    if len(observation_counts) > 1:
-        raise ValueError("bivariate rows do not share one aligned observation count")
-    return next(iter(ranges), ("", ""))
 
 
 def _common_dates(

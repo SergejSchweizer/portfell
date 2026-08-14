@@ -46,6 +46,15 @@ function dataPeriod(dateStart: string | undefined, dateEnd: string | undefined):
   return dateStart && dateEnd ? `${dateStart} to ${dateEnd}` : "—";
 }
 
+function observationRange(
+  average: number | undefined,
+  minimum: number | undefined,
+  maximum: number | undefined,
+): string {
+  if (average === undefined || minimum === undefined || maximum === undefined) return "—";
+  return minimum === maximum ? average.toLocaleString() : `${minimum.toLocaleString()} to ${maximum.toLocaleString()} (avg ${average.toLocaleString()})`;
+}
+
 function BivariateMetricWindow({
   title, description, equation, notation, primary, secondary, primaryLabel, secondaryLabel,
   dateStart, dateEnd,
@@ -64,7 +73,7 @@ function BivariateMetricWindow({
       <p className="univariate-equation">{equation}</p>
       <p className="univariate-notation">{notation}</p>
       <dl>
-        <div><dt>Aligned data period</dt><dd>{dataPeriod(dateStart, dateEnd)}</dd></div>
+        <div><dt>Pair coverage</dt><dd>{dataPeriod(dateStart, dateEnd)}</dd></div>
         <div><dt>Pairs analysed</dt><dd>{primary ? "All computed pairs" : "—"}</dd></div>
         <div><dt>Average {primaryLabel}</dt><dd>{percent(primary?.mean)}</dd></div>
         <div><dt>Median {primaryLabel}</dt><dd>{percent(primary?.median)}</dd></div>
@@ -100,7 +109,7 @@ function PairMatrix({
   const highlightedColumn = (index: number): boolean => hoveredCell?.column === index;
   return <div className="bivariate-statistic__results">
     {matrix === null ? <p className="status-line">Compute bivariate statistics to populate the {title.toLowerCase()} matrix.</p> : matrix.labels.length > 0 ? <>
-      <p className="bivariate-statistic__matrix-caption">{title} matrix · {dataPeriod(matrix.date_start, matrix.date_end)} · {matrix.observation_count.toLocaleString()} shared observations</p>
+      <p className="bivariate-statistic__matrix-caption">{title} matrix · pair coverage {dataPeriod(matrix.date_start, matrix.date_end)} · {observationRange(matrix.observation_count, matrix.observation_count_min, matrix.observation_count_max)} shared observations</p>
       <table className="covariance-matrix" onMouseLeave={() => setHoveredCell(null)}>
         <thead><tr><th scope="col">ISIN</th>{matrix.labels.map((label, index) => <th scope="col" key={label.isin} className={highlightedColumn(index) ? "is-hovered-column" : undefined} title={`${label.label} · ${label.isin}`} onMouseEnter={() => setHoveredCell({ row: index, column: index })}>{label.label}</th>)}</tr></thead>
         <tbody>{matrix.labels.map((label, rowIndex) => <tr key={label.isin}><th scope="row" className={highlightedRow(rowIndex) ? "is-hovered-row" : undefined} title={`${label.label} · ${label.isin}`} onMouseEnter={() => setHoveredCell({ row: rowIndex, column: rowIndex })}>{label.label}</th>{matrix.values[rowIndex].map((value, columnIndex) => { const column = matrix.labels[columnIndex]; return <td key={`${label.isin}:${column.isin}`} className={`${value === null ? "covariance-matrix__empty" : ""} ${highlightedRow(rowIndex) ? "is-hovered-row" : ""} ${highlightedColumn(columnIndex) ? "is-hovered-column" : ""}`.trim() || undefined} title={value === null ? `Row: ${label.label} (${label.isin})\nColumn: ${column.label} (${column.isin})\nDuplicate or self relation omitted` : `Row: ${label.label} (${label.isin})\nColumn: ${column.label} (${column.isin})\n${title}: ${metric(value)}`} style={value === null ? undefined : { backgroundColor: covarianceColor(value, extent) }} onMouseEnter={() => setHoveredCell({ row: rowIndex, column: columnIndex })}>{metric(value)}</td>})}</tr>)}</tbody>
@@ -207,7 +216,7 @@ function TailRiskScatter({ scatter }: { scatter: ApiTailRiskScatter | null }) {
 
   if (!scatter) return <div className="bivariate-statistic__results"><p className="status-line">Compute bivariate statistics to populate the tail-risk scatterplot.</p></div>;
   return <div className="bivariate-statistic__results">
-    <p className="bivariate-statistic__matrix-caption">One point per ISIN pair · {dataPeriod(scatter.date_start, scatter.date_end)} · {scatter.observation_count.toLocaleString()} shared observations</p>
+    <p className="bivariate-statistic__matrix-caption">One point per ISIN pair · pair coverage {dataPeriod(scatter.date_start, scatter.date_end)} · {observationRange(scatter.observation_count, scatter.observation_count_min, scatter.observation_count_max)} shared observations</p>
     <div className="tail-risk-scatter__frame">
       <canvas ref={canvas} className="tail-risk-scatter" width={840} height={460} role="img" aria-label={`Tail dependence against co-exceedance rate for ${scatter.pair_count.toLocaleString()} ISIN pairs`} onMouseLeave={() => setHoveredPoint(null)} onMouseMove={(event) => {
         const element = event.currentTarget;
@@ -484,9 +493,9 @@ export function BivariateStatisticsPage() {
             <p className="univariate-equation">(λᴸᵢⱼ, Cᵢⱼ)</p>
             <p className="univariate-notation">λᴸ: lower-tail dependence · C: co-exceedance rate · i, j: ISIN pair</p>
             <dl>
-              <div><dt>Aligned data period</dt><dd>{dataPeriod(tailRiskScatter?.date_start, tailRiskScatter?.date_end)}</dd></div>
+              <div><dt>Pair coverage</dt><dd>{dataPeriod(tailRiskScatter?.date_start, tailRiskScatter?.date_end)}</dd></div>
               <div><dt>ISIN pairs plotted</dt><dd>{tailRiskScatter?.pair_count.toLocaleString() ?? "—"}</dd></div>
-              <div><dt>Shared observations</dt><dd>{tailRiskScatter?.observation_count.toLocaleString() ?? "—"}</dd></div>
+              <div><dt>Shared observations (min / max / avg)</dt><dd>{observationRange(tailRiskScatter?.observation_count, tailRiskScatter?.observation_count_min, tailRiskScatter?.observation_count_max)}</dd></div>
               <div><dt>Tail-dependence median</dt><dd>{percent(tailRiskScatter?.tail_dependence_median)}</dd></div>
               <div><dt>Co-exceedance median</dt><dd>{percent(tailRiskScatter?.coexceedance_rate_median)}</dd></div>
               <div><dt>Best-diversifier quadrant</dt><dd>{scatterDiagnostics ? `${scatterDiagnostics.best_diversifiers.toLocaleString()} pairs (${(scatterDiagnostics.best_diversifiers / Math.max(1, tailRiskScatter?.pair_count ?? 0) * 100).toFixed(1)}%)` : "—"}</dd></div>
@@ -512,9 +521,9 @@ export function BivariateStatisticsPage() {
             <p className="univariate-equation">{activePairwiseMetric === "lower_tail_dependence" ? "λᴸᵢⱼ = P(Rⱼ ≤ q₀.₀₅ⱼ | Rᵢ ≤ q₀.₀₅ᵢ)" : "Cᵢⱼ = (1 / T) Σ 𝟙(Rᵢ ≤ q₀.₀₅ᵢ, Rⱼ ≤ q₀.₀₅ⱼ)"}</p>
             <p className="univariate-notation">{activePairwiseMetric === "lower_tail_dependence" ? "R: daily log return · q₀.₀₅: 5th-percentile return · λᴸ: lower-tail dependence" : "R: daily log return · q₀.₀₅: 5th-percentile return · T: shared observations · 𝟙: indicator"}</p>
             <dl>
-              <div><dt>Aligned data period</dt><dd>{dataPeriod(summary?.date_start, summary?.date_end)}</dd></div>
+              <div><dt>Pair coverage</dt><dd>{dataPeriod(summary?.date_start, summary?.date_end)}</dd></div>
               <div><dt>Pairs analysed</dt><dd>{summary?.pair_count.toLocaleString() ?? "—"}</dd></div>
-              <div><dt>Shared observations</dt><dd>{summary?.observation_count.toLocaleString() ?? "—"}</dd></div>
+              <div><dt>Shared observations (min / max / avg)</dt><dd>{observationRange(summary?.observation_count, summary?.observation_count_min, summary?.observation_count_max)}</dd></div>
               <div><dt>Average {activeMetricLabel}</dt><dd>{percent(activeMetricSummary?.mean)}</dd></div>
               <div><dt>Median {activeMetricLabel}</dt><dd>{percent(activeMetricSummary?.median)}</dd></div>
               <div><dt>Minimum {activeMetricLabel}</dt><dd>{percent(activeMetricSummary?.minimum)}</dd></div>

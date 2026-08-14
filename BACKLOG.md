@@ -1349,6 +1349,45 @@ calculations, mutate persisted state, or create duplicate requests concurrently.
 
 Rollback: Revert the three owned files. No schema, API, persisted state, or deployment migration exists.
 
+### PR254. Pairwise Bivariate Calendar Coverage
+
+Branch: `fix/bivariate-pairwise-calendars`.
+
+Git status: pushed.
+
+PR: https://github.com/SergejSchweizer/portfell/pull/447.
+
+Priority: P1 retain every mathematically computable Bivariate pair despite unrelated listing gaps.
+
+Depends on: PR248d2 and PR252's Bivariate interaction coverage.
+
+Scope: Agent A owns pair observation construction in `src/portfell/gold_pair_stats.py` and persisted
+coverage projection in `src/portfell/bivariate_views.py`. Agent B owns TypeScript contracts,
+`apps/web/src/pages/bivariate-statistics.tsx`, the Bivariate page specification, and the named
+regression tests. The hand-off is the additive `observation_count_min` and `observation_count_max`
+read-model fields. Neither agent may change pair limits, worker scheduling, source market data,
+Univariate filtering, Multivariate covariance rules, authorization, or storage schemas.
+
+Acceptance: For listings A and B with dates `{1, 2}` and listing C with date `{2}`, the run returns
+all three pair rows: A/B has two observations, A/C and B/C have one. A listing with no dates in common
+with another creates no row for only that pair and does not suppress other pairs. Every returned row
+retains its exact `date_start`, `date_end`, and `n_observations`; summary, matrix, covariance, and
+scatter responses expose the outer pair-coverage range plus min/max observation counts. The UI labels
+variable history as Pair coverage and shows min/max/average shared observations. `uv run
+portfell-quality pr` and the Node 26 Web Docker build pass.
+
+Security: Pairwise calendar selection uses only already authorized run rows and does not change tenant,
+project, run, or artifact authorization.
+
+Determinism: A pair's sorted common dates determine its payload, input identity, cache invalidation,
+and coverage counts independent of listing order or worker concurrency.
+
+Idempotency: Recomputing unchanged return rows produces identical pair payloads; a changed pair
+calendar invalidates only that pair's cache identity.
+
+Rollback: Revert the owned calculation, view, TypeScript, documentation, and regression files. No
+schema or persistent migration is introduced.
+
 Series Completion Gate: This PR may merge only after the current pre-merge and post-merge gates in
 [GATES.md](GATES.md) pass.
 
