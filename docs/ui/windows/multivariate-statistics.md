@@ -35,9 +35,8 @@ or calculates financial values in the browser.
   reports starting and server-owned phase progress and remains disabled until the run is complete or failed.
 - Project switch: clear the prior project's run and result artifacts before loading
   the active project's workflow state; ignore late responses for the prior project.
-- Complete state: Overview, Risk Structure, Portfolio Candidates, Risk Contributions,
-  Income Evidence, and Validation tabs in the responsive statistics tab grid, with no horizontal
-  tab scrolling.
+- Complete state: Overview and Portfolio Candidates tabs in the responsive statistics tab grid, with
+  no horizontal tab scrolling.
 - Overview renders the persisted relative cumulative monthly-return chart before a portfolio-metrics
   table. The chart includes a visible `Cumulative relative gain (%)`
   y-axis title, calendar-time labels, and renders all instruments in
@@ -51,13 +50,10 @@ or calculates financial values in the browser.
   fixed instrument references.
 - Candidate cards compare every evaluated portfolio variant's VaR/CVaR, maximum weight,
   Herfindahl concentration, effective holdings, diversification, total return, average compounded
-  calendar-month and calendar-year returns, drawdown, and gross historical income. Risk
-  Contributions shows every evaluated variant's capital weights and risk contributions. Income Evidence
-  includes observed coverage, trend, cuts, total return, and quoted market-price capital change
-  as the NAV proxy.
+  calendar-month and calendar-year returns, drawdown, and gross historical income.
 - Portfolio-candidate selection checkboxes update immediately and persist the latest selection through
   one debounced background request. Saving a selection does not reload the workflow or replace the
-  displayed Multivariate results. Risk Contributions displays the selected candidate.
+  displayed Multivariate results.
 - Portfolio Candidates includes `highest_monthly_return`, a server-owned portfolio that maximizes
   mean historical compounded calendar-month total return under the same long-only minimum and
   maximum weights as every other candidate. The default 20% maximum applies from five holdings;
@@ -127,9 +123,8 @@ portfolio variants.
 
 Route and workflow-state tests prove that it remains locked until Bivariate
 Statistics is complete. The desktop two-project workflow test verifies that the
-compute action polls from `resolve_inputs` to persisted results. API-contract tests cover the bounded artifact,
-component, risk-contribution, income-evidence, and validation routes. Docker
-builds run TypeScript checking and the production web build after UI changes.
+compute action polls from `resolve_inputs` to persisted results and renders exactly the two visible
+tabs. Docker builds run TypeScript checking and the production web build after UI changes.
 
 ## Out of scope
 

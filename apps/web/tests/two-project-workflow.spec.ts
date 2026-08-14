@@ -452,8 +452,8 @@ test("Multivariate compute button polls resolve_inputs through completion", asyn
   await expect(page.getByRole("button", { name: "Compute multivariate statistics" })).toBeEnabled();
   await expect(page.getByRole("table", { name: "Portfolio overview metrics" })).toBeVisible();
   await expect(page.getByRole("table", { name: "Multivariate overview facts" })).toHaveCount(0);
-  await expect(page.getByRole("tablist", { name: "Multivariate statistics views" }).getByRole("tab")).toHaveCount(6);
-  await expect(page.getByRole("tab", { name: "Risk Structure" })).toBeVisible();
+  await expect(page.getByRole("tablist", { name: "Multivariate statistics views" }).getByRole("tab")).toHaveCount(2);
+  await expect(page.getByRole("tab", { name: "Risk Structure" })).toHaveCount(0);
   await page.getByRole("tab", { name: "Portfolio Candidates" }).click();
   await expect(page.getByText("Average monthly return: 1.00% · Average annual return: 12.00%")).toBeVisible();
   await page.getByRole("tab", { name: "Overview" }).click();
@@ -544,8 +544,7 @@ test("Multivariate unavailable statistics never render as zero or failed diagnos
 
   await expect(page.getByText("Unavailable evidence: insufficient_common_history")).toBeVisible();
   await expect(page.getByText("This analysis needs at least 100 shared daily returns. In Univariate Statistics, select Duration > 6 months, recompute Bivariate Statistics, then compute this run again.")).toBeVisible();
-  await page.getByRole("tab", { name: "Risk Structure" }).click();
-  await expect(page.getByRole("table", { name: "Multivariate risk structure facts" })).toHaveText(/Unavailable/);
+  await expect(page.getByRole("tab", { name: "Risk Structure" })).toHaveCount(0);
 });
 
 test("every workflow button completes its browser action for two isolated projects", async ({ page }) => {

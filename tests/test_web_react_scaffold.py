@@ -93,6 +93,20 @@ def test_statistics_result_panels_are_visible_before_results_load() -> None:
         not in multivariate_page
     )
 
+def test_multivariate_statistics_exposes_only_core_tabs() -> None:
+    page = (WEB_ROOT / "src" / "pages" / "multivariate-statistics.tsx").read_text(encoding="utf-8")
+    tab_registry = page[page.index("const tabs:") : page.index("function percent")]
+    assert 'label: "Overview"' in tab_registry
+    assert 'label: "Portfolio Candidates"' in tab_registry
+    for label in (
+        "Risk Structure",
+        "Risk Contributions",
+        "Income Evidence",
+        "Performance",
+        "Validation",
+    ):
+        assert f'label: "{label}"' not in tab_registry
+
 
 def test_vite_build_is_the_canonical_web_runtime() -> None:
     package = json.loads((WEB_ROOT / "package.json").read_text(encoding="utf-8"))

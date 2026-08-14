@@ -1488,8 +1488,42 @@ run lifecycle.
 Rollback: Revert the candidate and execution-contract changes together to restore v13 fixed-cap
 behavior. No schema migration, data rewrite, cache purge, or external side effect is required.
 
+### PR258. Multivariate Core Views
+
+Branch: `feat/multivariate-core-tabs`.
+
+Git status: pushed.
+
+PR: https://github.com/SergejSchweizer/portfell/pull/451.
+
+Priority: P2 simplified research interface.
+
+Depends on: The existing Multivariate page-view, candidate, summary, and performance contracts.
+
+Scope: Expose only Overview and Portfolio Candidates in the Multivariate Statistics tab grid. Preserve
+the Overview chart and metrics, candidate cards, candidate-selection persistence, compute action, and
+server-owned result loading. Update the two-project browser journey, page specification, and static UI
+regression. No API, calculation, persistence, or authorization behavior changes.
+
+Acceptance: The Multivariate tab list contains exactly Overview and Portfolio Candidates; removed tabs
+are not visible; both retained views preserve their existing data, interaction, and empty-state behavior;
+the two-project journey asserts two tabs; the static scaffold regression, Web Docker image build, and
+`uv run portfell-quality pr` pass.
+
+Security: Browser visibility changes do not alter tenant scope, authorization, candidate constraints,
+server calculation, storage, or logging.
+
+Determinism: Given the same persisted run, the fixed two-item tab registry renders the same available
+views and no removed navigation item.
+
+Idempotency: Opening or switching retained tabs does not mutate any state. Existing candidate-selection
+saves remain last-value-wins through the established debounced endpoint.
+
+Rollback: Revert the UI, specification, and regression commit together to restore the prior tab list;
+no schema migration, data, cache, or server rollback is required.
+
 Series Completion Gate: Before merge, satisfy the current required checks in [GATES.md](GATES.md),
-including focused Multivariate candidate, performance, service-idempotency, and `uv run portfell-quality pr` checks.
+including the Web Docker image build and `uv run portfell-quality pr`.
 
 ### Hosted Simplicity And Interactive Performance Series Completion Gate
 

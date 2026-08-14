@@ -26,11 +26,7 @@ type Tab = "overview" | "risk-structure" | "portfolio-candidates" | "risk-contri
 
 const tabs: readonly Readonly<{ id: Tab; label: string }>[] = [
   { id: "overview", label: "Overview" },
-  { id: "risk-structure", label: "Risk Structure" },
   { id: "portfolio-candidates", label: "Portfolio Candidates" },
-  { id: "risk-contributions", label: "Risk Contributions" },
-  { id: "income-evidence", label: "Income Evidence" },
-  { id: "validation", label: "Validation" },
 ];
 
 function percent(value: number | null | undefined): string {
