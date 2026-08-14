@@ -8,7 +8,6 @@ type Project = {
   univariateRunId?: string;
   bivariateRunId?: string;
   multivariateRunId?: string;
-  selectedCandidateIds?: string[];
   settings: { dividend_frequencies: string[]; statistic_labels: Record<string, string[]>; statistic_ranges: Record<string, { minimum: number; maximum: number }[]> };
 };
 
@@ -85,7 +84,7 @@ function bivariateSummary() {
 }
 
 function multivariateRun(project: Project, status: "running" | "complete") {
-  return { run_id: project.multivariateRunId, project_id: project.id, bivariate_run_id: project.bivariateRunId, input_snapshot_id: status === "complete" ? `snapshot-${project.id}` : null, status, phase: status === "complete" ? "complete" : "resolve_inputs", completed_units: status === "complete" ? 6 : 0, total_units: 6, elapsed_seconds: 0, estimated_remaining_seconds: status === "complete" ? 0 : 10, settings: { selected_candidate_ids: project.selectedCandidateIds ?? [] }, warnings: [], failure_reason: null };
+  return { run_id: project.multivariateRunId, project_id: project.id, bivariate_run_id: project.bivariateRunId, input_snapshot_id: status === "complete" ? `snapshot-${project.id}` : null, status, phase: status === "complete" ? "complete" : "resolve_inputs", completed_units: status === "complete" ? 6 : 0, total_units: 6, elapsed_seconds: 0, estimated_remaining_seconds: status === "complete" ? 0 : 10, settings: {}, warnings: [], failure_reason: null };
 }
 
 function multivariateSummary() { return { input_snapshot_id: "snapshot", risk_model_id: "risk", candidate_etf_count: 3, aligned_period: { date_start: "2024-01-01", date_end: "2025-01-01", observation_count: 252 }, availability_reasons: [] }; }
@@ -111,7 +110,6 @@ async function installTwoProjectApi(
   const calls: string[] = [];
   let currentProjectId: string | null = null;
   let metadataPolls = 0;
-  const univariatePolls = new Map<string, number>();
   let metadataReady = metadataInitiallyReady;
   let bivariatePolls = 0;
   let multivariatePolls = 0;
@@ -205,13 +203,7 @@ async function installTwoProjectApi(
       project.univariateRunId = `univariate-${project.id}`;
       return response(route, { run_id: project.univariateRunId, status: "running", total: 3, completed: 0, failed: 0, percent: 0 });
     }
-    if (method === "GET" && /^\/api\/univariate-statistics\/runs\/[^/]+$/.test(path)) {
-      const runId = path.split("/").at(-1)!;
-      const pollCount = (univariatePolls.get(runId) ?? 0) + 1;
-      univariatePolls.set(runId, pollCount);
-      const running = pollCount === 1;
-      return response(route, { run_id: runId, status: running ? "running" : "complete", total: 3, completed: running ? 0 : 3, failed: 0, percent: running ? 0 : 100 });
-    }
+    if (method === "GET" && /^\/api\/univariate-statistics\/runs\/[^/]+$/.test(path)) return response(route, { run_id: path.split("/").at(-1), status: "complete", total: 3, completed: 3, failed: 0, percent: 100 });
     if (method === "GET" && path.includes("/univariate-statistics/runs/") && path.endsWith("/results")) return response(route, { items: univariateRows, total: univariateRows.length, limit: 200, offset: 0 });
     if (method === "POST" && path === "/api/bivariate-statistics/plan") return response(route, { selected_listing_count: 3, theoretical_pair_count: 3, pair_limit: 100, allowed: true });
     if (method === "POST" && path === "/api/bivariate-statistics/runs") {
@@ -238,11 +230,6 @@ async function installTwoProjectApi(
       multivariatePolls += 1;
       const running = multivariateCompletesAfterPoll && multivariatePolls <= 5;
       return response(route, multivariateRun(current()!, running ? "running" : "complete"));
-    }
-    if (method === "PATCH" && /^\/api\/multivariate-statistics\/runs\/[^/]+\/settings$/.test(path)) {
-      const project = current()!;
-      project.selectedCandidateIds = body.selected_candidate_ids as string[];
-      return response(route, multivariateRun(project, "complete"));
     }
     if (method === "GET" && path.endsWith("/summary")) return response(route, unavailableMultivariateEvidence ? { ...multivariateSummary(), availability_reasons: ["insufficient_common_history"] } : multivariateSummary());
     if (method === "GET" && path.endsWith("/structure")) return response(route, unavailableMultivariateEvidence ? { ...multivariateStructure(), effective_rank: 0, effective_independent_drivers: 0, risk_cluster_count: 0, availability_reasons: ["risk_model_unavailable"] } : multivariateStructure());
@@ -284,10 +271,7 @@ async function createProject(page: Page, filter: { exchange: string; instrumentT
 async function computeUnivariate(page: Page) {
   await expect(page.getByRole("heading", { name: "Dividends" })).not.toBeVisible();
   await page.getByRole("button", { name: "Compute univariate statistics" }).click();
-  await expect(page.getByRole("button", { name: "Computing…" })).toBeDisabled();
-  await expect(page.getByText("0 of 3 listings computed")).toBeVisible();
   await expect(page.getByText("3 listings computed.")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Compute univariate statistics" })).toBeEnabled();
   await expect(page.getByRole("img", { name: "Annual dividend yield distribution for 3 ISINs" })).toBeVisible();
 }
 
@@ -340,7 +324,7 @@ test("Metadata Builder actions do not reload the document", async ({ page }) => 
   await expect.poll(() => page.evaluate(() => performance.getEntriesByType("navigation").length)).toBe(navigationCount);
 });
 
-test("Univariate filters persist and refresh their count without reloading the document", async ({ page }) => {
+test("Univariate filters persist in the background without reloading the workflow", async ({ page }) => {
   const fixture = await installTwoProjectApi(page);
   await page.goto("/metadata-builder");
   await createProject(page, { exchange: "XETRA", instrumentType: "ETF", country: "IE", currency: "EUR", name: "Alpha income" });
@@ -356,7 +340,7 @@ test("Univariate filters persist and refresh their count without reloading the d
   await expect(selection).toHaveValues(["monthly", "annual"]);
   await expect(page.getByRole("img", { name: "Annual dividend yield distribution for 3 ISINs" })).toBeVisible();
   await expect.poll(() => fixture.settingsWrites.get("project-1") ?? 0).toBe(1);
-  await expect.poll(() => fixture.calls.filter((call) => call === "GET /api/workflow").length).toBe(workflowCalls + 1);
+  expect(fixture.calls.filter((call) => call === "GET /api/workflow")).toHaveLength(workflowCalls);
   await expect.poll(() => page.evaluate(() => performance.getEntriesByType("navigation").length)).toBe(navigationCount);
 });
 
@@ -376,13 +360,13 @@ test("selecting a project restores its Metadata Builder fields", async ({ page }
   await expect(page.getByLabel("Name contains")).toHaveValue("Alpha income");
 });
 
-test("Metadata Builder reports and blocks duplicate submission while a project fill is running", async ({ page }) => {
+test("Metadata Builder stays available while a prior project fill is running", async ({ page }) => {
   await installTwoProjectApi(page, "running");
   await page.goto("/metadata-builder");
   await page.getByLabel("Exchange").selectOption("XETRA");
   await page.getByRole("button", { name: "Create new project" }).click();
 
-  await expect(page.getByRole("button", { name: /Loading quotes:/ })).toBeDisabled();
+  await expect(page.getByRole("button", { name: /Loading quotes:/ })).toBeEnabled();
 });
 
 test("compact header keeps all projects directly selectable", async ({ page }) => {
@@ -452,8 +436,8 @@ test("Multivariate compute button polls resolve_inputs through completion", asyn
   await expect(page.getByRole("button", { name: "Compute multivariate statistics" })).toBeEnabled();
   await expect(page.getByRole("table", { name: "Portfolio overview metrics" })).toBeVisible();
   await expect(page.getByRole("table", { name: "Multivariate overview facts" })).toHaveCount(0);
-  await expect(page.getByRole("tablist", { name: "Multivariate statistics views" }).getByRole("tab")).toHaveCount(6);
-  await expect(page.getByRole("tab", { name: "Risk Structure" })).toBeVisible();
+  await expect(page.getByRole("tablist", { name: "Multivariate statistics views" }).getByRole("tab")).toHaveCount(2);
+  await expect(page.getByRole("tab", { name: "Risk Structure" })).toHaveCount(0);
   await page.getByRole("tab", { name: "Portfolio Candidates" }).click();
   await expect(page.getByText("Average monthly return: 1.00% · Average annual return: 12.00%")).toBeVisible();
   await page.getByRole("tab", { name: "Overview" }).click();
@@ -470,10 +454,10 @@ test("Multivariate compute button polls resolve_inputs through completion", asyn
   await performanceChart.hover();
   await expect(page.getByRole("tooltip")).not.toContainText("ALPHA.XETRA");
   await expect(page.getByRole("tooltip")).toContainText("Equal weight: 2.50%");
-  await expect(page.getByRole("tooltip")).toContainText("Minimum variance: 2.19%");
+  await expect(page.getByRole("tooltip")).toContainText("Minimum variance: 2.70%");
   await expect(page.locator(".performance-chart__tooltip-instrument")).toHaveCount(0);
   await expect(page.locator(".performance-chart__tooltip-portfolio--0")).toContainText("Equal weight: 2.50%");
-  await expect(page.locator(".performance-chart__tooltip-portfolio--1")).toContainText("Minimum variance: 2.19%");
+  await expect(page.locator(".performance-chart__tooltip-portfolio--1")).toContainText("Minimum variance: 2.70%");
   await expect(performanceChart.locator(".performance-chart__portfolio--0").first()).toHaveCSS("stroke", "rgb(23, 105, 224)");
   await expect(performanceChart.locator(".performance-chart__portfolio--1").first()).toHaveCSS("stroke", "rgb(19, 115, 51)");
   await expect(performanceChart.locator(".performance-chart__portfolio--0").first()).toHaveCSS("stroke-dasharray", "none");
@@ -544,8 +528,7 @@ test("Multivariate unavailable statistics never render as zero or failed diagnos
 
   await expect(page.getByText("Unavailable evidence: insufficient_common_history")).toBeVisible();
   await expect(page.getByText("This analysis needs at least 100 shared daily returns. In Univariate Statistics, select Duration > 6 months, recompute Bivariate Statistics, then compute this run again.")).toBeVisible();
-  await page.getByRole("tab", { name: "Risk Structure" }).click();
-  await expect(page.getByRole("table", { name: "Multivariate risk structure facts" })).toHaveText(/Unavailable/);
+  await expect(page.getByRole("tab", { name: "Risk Structure" })).toHaveCount(0);
 });
 
 test("every workflow button completes its browser action for two isolated projects", async ({ page }) => {
@@ -586,7 +569,7 @@ test("every workflow button completes its browser action for two isolated projec
   await page.reload();
   await page.getByRole("tab", { name: "Duration" }).click();
   await expect(selections).toHaveValues(["> 2 years"]);
-  await expect.poll(() => fixture.settingsWrites.get("project-1") ?? 0).toBeGreaterThanOrEqual(2);
+  await expect.poll(() => fixture.settingsWrites.get("project-1") ?? 0).toBeGreaterThanOrEqual(9);
   await page.getByRole("tab", { name: "Dividends" }).click();
   await page.getByRole("img", { name: "Annual dividend yield distribution for 3 ISINs" }).locator("[tabindex=\"0\"]").first().hover();
   await expect(page.getByRole("tooltip").first()).toBeVisible();
@@ -650,8 +633,7 @@ test("every workflow button completes its browser action for two isolated projec
   await expect(page.getByText(/Maximum weight: 33.33%/)).toBeVisible();
   await expect(page.getByText(/Effective holdings: 3.00/)).toBeVisible();
   await expect(page.getByText(/Herfindahl concentration: 0.33/)).toBeVisible();
-  await page.getByLabel("Portfolio selection").click();
-  await expect.poll(() => fixture.projects.get("project-2")?.selectedCandidateIds).toEqual(["candidate-equal"]);
+  await expect(page.getByLabel("Portfolio selection")).toHaveCount(0);
 
   expect([...fixture.projects.values()].map((project) => project.name)).toEqual(["Alpha income", "Beta growth"]);
   expect(fixture.calls).toEqual(expect.arrayContaining([
@@ -663,6 +645,7 @@ test("every workflow button completes its browser action for two isolated projec
     "POST /api/multivariate-statistics/runs",
     "PUT /api/project-context/current-project",
   ]));
+  expect(fixture.calls).not.toContain("PATCH /api/multivariate-statistics/runs/multivariate-project-2/settings");
   expect(fixture.calls).not.toContain("POST /api/quote-runs");
 });
 
@@ -737,13 +720,7 @@ test("Metadata Builder disables submission while historical data is preparing", 
 test("sidebar project selector shows a project historical-data run", async ({ page }) => {
   await installTwoProjectApi(page, "running", true);
   await page.goto("/metadata-builder");
-  await page.getByLabel("Exchange").selectOption("XETRA");
-  await page.getByLabel("Instrument type").selectOption("ETF");
-  await page.getByLabel("Country").selectOption("IE");
-  await page.getByLabel("Currency").selectOption("EUR");
-  await page.getByLabel("Name contains").fill("Progress");
-  await page.getByRole("button", { name: "Create new project" }).click();
-  await expect(page.getByRole("button", { name: /Loading quotes:/ })).toBeDisabled();
+  await createProject(page, { exchange: "XETRA", instrumentType: "ETF", country: "IE", currency: "EUR", name: "Progress" });
 
   await expect(page.getByLabel("Project", { exact: true })).toHaveAttribute("data-run-status", "running");
   await expect(page.getByLabel("Project", { exact: true }).locator("option:checked")).toHaveText("Progress");

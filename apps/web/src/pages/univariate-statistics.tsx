@@ -7,7 +7,6 @@ import { nextProgressSnapshot, progressPercent, type ProgressSnapshot } from "..
 import { LoadingState } from "../components/loading-state";
 import { Panel } from "../components/panel";
 import type { ApiDividendFrequency, ApiResearchRun, ApiUnivariateRow, ApiUnivariateSelectionSettings } from "../contracts";
-import { useDebouncedSave } from "../hooks/use-debounced-save";
 import { useResource } from "../hooks/use-resource";
 
 type MetricDefinition = Readonly<{ group: string; metric: string; label: string; description: string; equation: string; notation: string; unit?: string }>;
@@ -15,7 +14,11 @@ type UnivariateStatisticTab = "dividends" | MetricDefinition["metric"];
 type DividendFrequency = ApiDividendFrequency;
 type SelectionRange = Readonly<{ minimum: number; maximum: number }>;
 type UnivariateSelectionSettings = ApiUnivariateSelectionSettings;
-type SelectionSave = Readonly<{ projectId: string; settings: UnivariateSelectionSettings }>;
+type PendingSelectionSave = Readonly<{
+  projectId: string;
+  version: number;
+  settings: UnivariateSelectionSettings;
+}>;
 
 const dividendFrequencyOptions: readonly Readonly<{ value: DividendFrequency; label: string }>[] = [
   { value: "accumulating", label: "None / unknown" },
@@ -107,17 +110,11 @@ export function UnivariateStatisticsPage() {
   const [portfolioStatisticRanges, setPortfolioStatisticRanges] = useState<Record<string, SelectionRange[]>>({});
   const [activeStatisticTab, setActiveStatisticTab] = useState<UnivariateStatisticTab>("dividends");
   const [message, setMessage] = useState("");
-  const [starting, setStarting] = useState(false);
   const selectionSettingsVersion = useRef(0);
   const selectionProjectId = useRef<string | null>(null);
-  const selectionSave = useDebouncedSave<SelectionSave>(
-    async ({ projectId, settings }) => {
-      await univariateStatisticsApi.saveSelectionSettings(projectId, settings);
-      setWorkflowRevision((value) => value + 1);
-      window.dispatchEvent(new Event("portfell:workflow-updated"));
-    },
-    (error) => setMessage(error instanceof Error ? error.message : "Could not save the project selection."),
-  );
+  const selectionSaveTimeout = useRef<number | undefined>(undefined);
+  const selectionSaveInFlight = useRef(false);
+  const pendingSelectionSave = useRef<PendingSelectionSave | null>(null);
   const progressSnapshot = useRef<ProgressSnapshot | null>(null);
   const workflowUnivariateRunId = workflow.status === "ready"
     ? workflow.data.stages.univariate_statistics.univariate_run_id ?? null
@@ -127,12 +124,15 @@ export function UnivariateStatisticsPage() {
     const resetProjectState = () => {
       selectionSettingsVersion.current += 1;
       selectionProjectId.current = null;
-      selectionSave.cancel();
+      pendingSelectionSave.current = null;
+      if (selectionSaveTimeout.current !== undefined) {
+        window.clearTimeout(selectionSaveTimeout.current);
+        selectionSaveTimeout.current = undefined;
+      }
       setRun(null);
       progressSnapshot.current = null;
       setUnivariateStartedAt(undefined);
       setResults(null);
-      setStarting(false);
       setMessage("");
       setWorkflowRevision((value) => value + 1);
     };
@@ -270,6 +270,24 @@ export function UnivariateStatisticsPage() {
   });
   const annualDividendHistogramMaximum = Math.max(...annualDividendHistogram.map(({ count }) => count), 1);
 
+  async function flushSelectionSave() {
+    if (selectionSaveInFlight.current) return;
+    const pending = pendingSelectionSave.current;
+    if (!pending) return;
+    pendingSelectionSave.current = null;
+    selectionSaveInFlight.current = true;
+    try {
+      await univariateStatisticsApi.saveSelectionSettings(pending.projectId, pending.settings);
+    } catch (error) {
+      if (pending.version === selectionSettingsVersion.current) {
+        setMessage(error instanceof Error ? error.message : "Could not save the project selection.");
+      }
+    } finally {
+      selectionSaveInFlight.current = false;
+      if (pendingSelectionSave.current !== null) void flushSelectionSave();
+    }
+  }
+
   function saveProjectSelections(
     dividendFrequencies: DividendFrequency[],
     statisticLabels: Record<string, string[]>,
@@ -278,11 +296,22 @@ export function UnivariateStatisticsPage() {
     selectionSettingsVersion.current += 1;
     const projectId = selectionProjectId.current;
     if (!projectId) return;
-    selectionSave.schedule({ projectId, settings: {
-      dividend_frequencies: dividendFrequencies,
-      statistic_labels: statisticLabels,
-      statistic_ranges: statisticRanges,
-    } });
+    pendingSelectionSave.current = {
+      projectId,
+      version: selectionSettingsVersion.current,
+      settings: {
+        dividend_frequencies: dividendFrequencies,
+        statistic_labels: statisticLabels,
+        statistic_ranges: statisticRanges,
+      },
+    };
+    if (selectionSaveTimeout.current !== undefined) {
+      window.clearTimeout(selectionSaveTimeout.current);
+    }
+    selectionSaveTimeout.current = window.setTimeout(() => {
+      selectionSaveTimeout.current = undefined;
+      void flushSelectionSave();
+    }, 250);
   }
 
   function saveStatisticSelection(metric: string, values: string[], ranges: SelectionRange[]) {
@@ -294,8 +323,7 @@ export function UnivariateStatisticsPage() {
   }
 
   async function compute() {
-    if (!metadata.metadata_selection_id || starting || run?.status === "running") return;
-    setStarting(true);
+    if (!metadata.metadata_selection_id) return;
     setMessage("Computing univariate statistics…");
     try {
       const nextRun = await univariateStatisticsApi.startRun({
@@ -310,8 +338,6 @@ export function UnivariateStatisticsPage() {
       setMessage(`${nextRun.completed.toLocaleString()} of ${nextRun.total.toLocaleString()} listings computed.`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Univariate computation failed.");
-    } finally {
-      setStarting(false);
     }
   }
 
@@ -334,8 +360,8 @@ export function UnivariateStatisticsPage() {
             />
             <p className="status-line" aria-live="polite">{message || "Compute statistics for the downloaded historical data."}</p>
             <div className="quote-fetch__action">
-              <Button type="button" variant="primary" disabled={!metadata.metadata_selection_id || starting || run?.status === "running"} aria-busy={starting || run?.status === "running"} onClick={() => void compute()}>
-                {starting ? "Starting computation…" : run?.status === "running" ? "Computing…" : "Compute univariate statistics"}
+              <Button type="button" variant="primary" disabled={!metadata.metadata_selection_id || run?.status === "running"} onClick={() => void compute()}>
+                {run?.status === "running" ? "Computing…" : "Compute univariate statistics"}
               </Button>
             </div>
           </div>
