@@ -127,7 +127,7 @@ def test_active_backlog_contains_only_unfinished_records() -> None:
     assert "## Active Three-Module Portfell UI PR Stack" not in backlog
     assert "## Active Hosted Multi-Tenant Portfell PR Stack" not in backlog
     assert "### PR252. Exhaustive User Interaction Manifest" in active
-    assert "Git status: not started." in active
+    assert "Git status: in progress on `test/exhaustive-user-interaction-merge-gate`" in active
     assert "PR246 through PR252 are sequential." in active
 
     for pr_number in range(230, 246):

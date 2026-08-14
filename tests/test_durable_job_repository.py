@@ -112,9 +112,7 @@ def test_initial_fill_lifecycle_publishes_compact_events_in_the_job_transaction(
         rows=[("job-1", "user-1", "project-1", "project_initial_fill", "hash-1", "input-1", 2)]
     )
     repository = PostgresDurableJobRepository(connection, status_events=events)
-    job = DurableJob(
-        "job-1", "user-1", "project-1", "project_initial_fill", "hash-1", "input-1"
-    )
+    job = DurableJob("job-1", "user-1", "project-1", "project_initial_fill", "hash-1", "input-1")
 
     repository.enqueue(
         job=job,
@@ -176,12 +174,20 @@ def test_complete_uses_lease_compare_and_set_and_finishes_attempt() -> None:
 
 def test_terminal_initial_fill_transition_refreshes_navigation_in_transaction() -> None:
     refreshed: list[str] = []
+    workflow_refreshed: list[tuple[str, str]] = []
     connection = _Connection()
-    repository = PostgresDurableJobRepository(connection, navigation_refresher=refreshed.append)
+    repository = PostgresDurableJobRepository(
+        connection,
+        navigation_refresher=refreshed.append,
+        workflow_refresher=lambda user_id, project_id: workflow_refreshed.append(
+            (user_id, project_id)
+        ),
+    )
 
     repository.complete(job_id="job-1", lease_token="lease-1", status="succeeded")
 
     assert refreshed == ["user-1"]
+    assert workflow_refreshed == [("user-1", "project-1")]
 
 
 def test_complete_rejects_stale_worker_lease() -> None:

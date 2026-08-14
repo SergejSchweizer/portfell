@@ -120,7 +120,8 @@ pr-quality
     +-- pr-real-stack-buttons
     |       bash scripts/run_real_stack_e2e.sh
     |       real Web, API, PostgreSQL, worker, and deterministic EODHD test service
-    |       validates a browser metadata refresh through durable worker publication
+    |       validates Metadata Builder through Uni/Bi/Multivariate completion
+    |       and persists the Monthly dividend portfolio selection
     |
     +-- pr-unit-tests-[1..4]
     |       scripts/pytest_shard.py --suite unit --shard-index N --shard-count 4 -- -q -n auto
@@ -223,7 +224,7 @@ merge-gate
     |
     +-- merge-real-stack-buttons
     |       bash scripts/run_real_stack_e2e.sh
-    |       exact-main real Docker browser contract
+    |       exact-main real Docker four-module browser contract
     |
     +-- merge-unit-tests-[1..4]
     |       scripts/pytest_shard.py --suite unit --shard-index N --shard-count 4 -- -q -n auto

@@ -89,10 +89,12 @@ class PostgresDurableJobRepository:
         connection: DurableJobConnection,
         *,
         navigation_refresher: Callable[[str], object] | None = None,
+        workflow_refresher: Callable[[str, str], object] | None = None,
         status_events: StatusEventPublisher | None = None,
     ) -> None:
         self._connection = connection
         self._navigation_refresher = navigation_refresher
+        self._workflow_refresher = workflow_refresher
         self._status_events = status_events
 
     def enqueue(self, *, job: DurableJob, event: OutboxEvent) -> DurableJob:
@@ -237,6 +239,8 @@ where job_id = %s::uuid and attempt_number = (
                 (terminal_code, job_id, job_id),
             )
             self._refresh_navigation(user_id)
+            if self._workflow_refresher is not None and job_kind == "project_initial_fill":
+                self._workflow_refresher(user_id, project_id)
             self._publish(
                 DurableJob(completed_job_id, user_id, project_id, job_kind, "", ""),
                 "completed",
