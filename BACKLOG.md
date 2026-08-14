@@ -4,31 +4,13 @@ Last reviewed: 2026-08-14
 
 - [Backlog Policy](#backlog-policy)
 - [Parallel Weak-Agent PR Design](#parallel-weak-agent-pr-design)
-- [Active Multivariate Calculation Correctness Work](#active-multivariate-calculation-correctness-work)
-- [Active Mixed Distribution Frequency Portfolio Work](#active-mixed-distribution-frequency-portfolio-work)
-- [Active Bivariate Calculation Correctness Work](#active-bivariate-calculation-correctness-work)
-- [Active Univariate Calculation Correctness Work](#active-univariate-calculation-correctness-work)
-- [Active Univariate Overview Narrow Bars Work](#active-univariate-overview-narrow-bars-work)
-- [Active Multivariate Minimum Variance Convergence Work](#active-multivariate-minimum-variance-convergence-work)
-- [Active Multivariate Overview Metric Labels Work](#active-multivariate-overview-metric-labels-work)
-- [Active Multivariate Overview Portfolio Controls Work](#active-multivariate-overview-portfolio-controls-work)
-- [Active Multivariate Overview Cumulative Axis Work](#active-multivariate-overview-cumulative-axis-work)
-- [Active Multivariate Overview Portfolio Colors Work](#active-multivariate-overview-portfolio-colors-work)
-- [Active Multivariate Overview Facts Removal Work](#active-multivariate-overview-facts-removal-work)
-- [Active Multivariate Overview Portfolio Summary Work](#active-multivariate-overview-portfolio-summary-work)
-- [Active Multivariate Overview Tabs Work](#active-multivariate-overview-tabs-work)
-- [Active Compose Stack Rebuild Work](#active-compose-stack-rebuild-work)
-- [Active Multivariate Performance Controls Work](#active-multivariate-performance-controls-work)
-- [Active Backlog Maintenance Work](#active-backlog-maintenance-work)
-- [Active PostgreSQL Tenant Plane And Shared Data PR Stack](#active-postgresql-tenant-plane-and-shared-data-pr-stack)
-- [Active Monthly-Distribution ETF Multivariate PR Stack](#active-monthly-distribution-etf-multivariate-pr-stack)
-- [Active Shared Market Data And Nightly Refresh PR Stack](#active-shared-market-data-and-nightly-refresh-pr-stack)
+- [Monthly-Distribution ETF Multivariate Architecture Record](#monthly-distribution-etf-multivariate-architecture-record)
+- [Shared Market Data And Nightly Refresh Architecture Record](#shared-market-data-and-nightly-refresh-architecture-record)
 - [Active Hosted Simplicity And Interactive Performance PR Stack](#active-hosted-simplicity-and-interactive-performance-pr-stack)
 - [Current Architectural Decision](#current-architectural-decision)
 - [Series Completion Gate](#series-completion-gate)
 - [Update Rules](#update-rules)
 - [Completed PR History](#completed-pr-history)
-- [Completed And Superseded Detailed Records](#completed-and-superseded-detailed-records)
 
 ## Backlog Policy
 
@@ -69,870 +51,7 @@ weak agent can verify it solely from the checked-in definition. Vague terms such
 named callers, and exact test assertions. If two agents cannot work safely in parallel, split the item
 into smaller sequential PRs and record the dependency and hand-off in this file before implementation.
 
-## Active Mixed Distribution Frequency Portfolio Work
-
-### PR245. Mixed Distribution Frequency Portfolios
-
-Branch: `feat/mixed-distribution-frequency-portfolios`.
-
-Git status: merged.
-
-PR: https://github.com/SergejSchweizer/portfell/pull/398.
-
-Priority: P1 portfolio universe correctness.
-
-Depends on: PR244.
-
-Scope: Evolve the versioned Multivariate ETF eligibility policy so one exact portfolio universe may
-contain monthly, quarterly, and semiannual distributing ETFs without dropping valid Bivariate members.
-
-Acceptance: A mixed monthly, quarterly, and semiannual Bivariate universe produces one eligible
-Multivariate snapshot with unchanged membership. Annual, irregular, accumulating, and unknown
-frequencies remain explicitly unavailable, and frequency-policy changes alter snapshot identity.
-
-Security: The policy consumes only typed, authorized Univariate rows and cannot broaden project or
-artifact access.
-
-Determinism: Supported frequencies are normalized and serialized in stable sorted order as part of
-the policy and snapshot identities.
-
-Idempotency: Recomputing the same mixed-frequency universe and policy resolves the same snapshot.
-
-Series Completion Gate: Before merge, satisfy the applicable validation gates in `GATES.md`.
-
-## Active Multivariate Calculation Correctness Work
-
-### PR244. Multivariate Calculation Correctness
-
-Branch: `fix/multivariate-calculation-correctness`.
-
-Git status: pushed.
-
-PR: https://github.com/SergejSchweizer/portfell/pull/394.
-
-Priority: P0 analytical correctness.
-
-Depends on: PR243.
-
-Scope: Aggregate realized portfolios from weighted simple daily returns across candidate metrics,
-Minimum CVaR, Walk-Forward validation, stress evidence, and performance; make monthly performance
-dates independent of input row order; invalidate prior candidate, validation, and Hosted runs; and
-accept canonical v2 Univariate dependencies while allowing failed v12 runs to restart.
-
-Acceptance: Candidate totals reconcile with Performance, Minimum CVaR receives simple-return
-scenarios, Walk-Forward compounds weighted simple returns, and shuffled source rows produce the same
-performance artifact. Minimum Variance receives its 100,000-iteration production budget. Contracts
-advance to candidate v6, validation v5, and execution v13.
-
-Security: Portfolio calculations remain server-owned and consume only the completed project-scoped
-Bivariate hand-off and shared-market revisions.
-
-Determinism: Identical aligned source revisions, constraints, and v12 contracts produce identical
-candidate, validation, stress, and performance artifacts.
-
-Idempotency: Repeating v13 with unchanged inputs resolves the same Hosted run and artifacts.
-
-Series Completion Gate: Before merge, satisfy the applicable validation gates in `GATES.md`.
-
-## Active Bivariate Calculation Correctness Work
-
-### PR243. Bivariate Calculation Correctness
-
-Branch: `fix/bivariate-calculation-correctness`.
-
-Git status: pushed.
-
-PR: https://github.com/SergejSchweizer/portfell/pull/393.
-
-Priority: P0 analytical correctness.
-
-Depends on: PR242.
-
-Scope: Replace the approximate Spearman metric with exact average-rank correlation, add aligned
-pair-content identities, and invalidate cached or Hosted results under algorithm version `v10`.
-
-Acceptance: Perfect monotonic rank relationships, including ties, return exact Spearman values.
-Return-value changes at an unchanged calendar invalidate cached pairs. Independent formula,
-downstream, and repository quality tests pass.
-
-Security: Pair calculation remains server-owned and consumes only the persisted selected return
-universe.
-
-Determinism: Identical aligned dates and return vectors produce identical v10 rows and input IDs.
-
-Idempotency: Repeating v10 with unchanged pair-content identities reuses the same artifact and
-Hosted run.
-
-Series Completion Gate: Before merge, satisfy the applicable validation gates in `GATES.md`.
-
-## Active Univariate Calculation Correctness Work
-
-### PR242. Univariate Calculation Correctness
-
-Branch: `fix/univariate-calculation-correctness`.
-
-Git status: pushed.
-
-PR: https://github.com/SergejSchweizer/portfell/pull/392.
-
-Priority: P0 analytical correctness.
-
-Depends on: current `main`.
-
-Scope: Use one quarantined valid-price series for every Univariate price metric, version the
-calculation contract, and invalidate cached or Hosted results when formulas or relevant source
-content change.
-
-Acceptance: Invalid edge prices cannot affect return, CAGR, drawdown, trend, or dividend yield.
-Legacy and content-mismatched artifacts are recomputed under `univariate.statistics.v2`; independent
-formula regressions and the repository quality gate pass.
-
-Security: Recalculation remains server-owned and reads only project-selected or local lake inputs.
-
-Determinism: Identical validated quote/dividend content and confidence level produce identical v2
-statistics and content identities.
-
-Idempotency: Repeating v2 with unchanged source identities reuses the same artifact and Hosted run.
-
-Series Completion Gate: Before merge, satisfy the applicable validation gates in `GATES.md`.
-
-## Active Univariate Overview Narrow Bars Work
-
-### PR241. Univariate Overview Narrow Bars
-
-Branch: `feat/univariate-overview-narrow-bars`.
-
-Git status: pushed.
-
-PR: https://github.com/SergejSchweizer/portfell/pull/391.
-
-Priority: P2 univariate visual clarity.
-
-Depends on: PR240.
-
-Scope: Slightly narrow and center the Univariate Overview histogram columns without changing
-their values, scales, labels, selections, or interactions.
-
-Acceptance: Dividend and quantitative statistic histogram columns use 84% of each bucket width.
-
-Security: The browser continues to render only server-produced values.
-
-Determinism: Identical persisted statistic rows render the same column geometry.
-
-Idempotency: Viewing or interacting with the charts creates no writes beyond existing selection
-updates.
-
-Series Completion Gate: Before merge, satisfy the applicable validation gates in `GATES.md`.
-
-## Active Multivariate Minimum Variance Convergence Work
-
-### PR240. Multivariate Minimum Variance Convergence
-
-Branch: `feat/multivariate-minimum-variance-convergence`.
-
-Git status: pushed.
-
-PR: https://github.com/SergejSchweizer/portfell/pull/390.
-
-Priority: P1 multivariate analytical completeness.
-
-Depends on: PR239.
-
-Scope: Allow the Multivariate Minimum Variance candidate to use the solver's full default
-convergence budget and invalidate runs calculated under the former short solver limit.
-
-Acceptance: Minimum Variance does not receive the former 500-iteration cap. A changed execution
-contract creates a fresh Multivariate run rather than reusing a result computed with that cap.
-
-Security: The server continues to own all solver execution and persisted candidate artifacts.
-
-Determinism: Identical inputs and the versioned solver budget produce the same candidate result.
-
-Idempotency: Repeating a request with the same v11 execution contract resolves the same run.
-
-Series Completion Gate: Before merge, satisfy the applicable validation gates in `GATES.md`.
-
-## Active Multivariate Overview Metric Labels Work
-
-### PR239. Multivariate Overview Metric Labels
-
-Branch: `feat/multivariate-overview-metric-labels`.
-
-Git status: merged.
-
-PR: https://github.com/SergejSchweizer/portfell/pull/389.
-
-Priority: P1 multivariate analytical clarity.
-
-Depends on: PR238.
-
-Scope: Shorten the requested Multivariate Overview portfolio-metrics table headers without
-changing the underlying server-provided values.
-
-Acceptance: The headers read `MD`, `Monthly Return`, `Annual Return`, `Holdings`, and
-`Deversifikaton`.
-
-Security: This presentation-only change does not alter analytical values or browser calculations.
-
-Determinism: An unchanged candidate artifact renders the same values under the renamed headers.
-
-Idempotency: Viewing Overview creates no writes or analytical work.
-
-Series Completion Gate: Before merge, satisfy the applicable validation gates in `GATES.md`.
-
-## Active Multivariate Overview Portfolio Controls Work
-
-### PR238. Multivariate Overview Portfolio Controls
-
-Branch: `feat/multivariate-overview-portfolio-controls`.
-
-Git status: pushed.
-
-PR: https://github.com/SergejSchweizer/portfell/pull/388.
-
-Priority: P1 multivariate analytical clarity.
-
-Depends on: PR237.
-
-Scope: Remove instrument activation controls from the Multivariate Overview and retain controls
-only for portfolio series.
-
-Acceptance: Instrument reference lines remain visible without checkboxes. Portfolio checkboxes
-select their series independently while chart and tooltip values follow the enabled portfolios.
-
-Security: The browser changes only local chart presentation state for server-produced values.
-
-Determinism: An unchanged artifact and portfolio selection produce the same displayed chart.
-
-Idempotency: Toggling portfolios creates no writes or analytical work.
-
-Series Completion Gate: Before merge, satisfy the applicable validation gates in `GATES.md`.
-
-## Active Multivariate Overview Cumulative Axis Work
-
-### PR237. Multivariate Overview Cumulative Axis
-
-Branch: `docs/multivariate-overview-cumulative-axis`.
-
-Git status: pushed.
-
-PR: https://github.com/SergejSchweizer/portfell/pull/387.
-
-Priority: P1 multivariate analytical clarity.
-
-Depends on: PR236.
-
-Scope: Clarify the Multivariate Overview chart y-axis as compounded cumulative relative gain.
-
-Acceptance: The y-axis states `Cumulative relative gain (%)`, matching the server-produced
-cumulative monthly performance artifact.
-
-Security: The label adds no client-side analytical calculation or state.
-
-Determinism: An unchanged performance artifact retains the same axis values and label.
-
-Idempotency: Viewing the chart creates no writes or analytical work.
-
-Series Completion Gate: Before merge, satisfy the applicable validation gates in `GATES.md`.
-
-## Active Multivariate Overview Portfolio Colors Work
-
-### PR236. Multivariate Overview Portfolio Colors
-
-Branch: `feat/multivariate-overview-portfolio-colors`.
-
-Git status: pushed.
-
-PR: https://github.com/SergejSchweizer/portfell/pull/386.
-
-Priority: P1 multivariate analytical clarity.
-
-Depends on: PR235.
-
-Scope: Render each Multivariate Overview portfolio series as a distinct solid color rather than a
-dashed line.
-
-Acceptance: Portfolio series use distinct computed colors and no `stroke-dasharray`; instrument
-series retain their light-gray treatment.
-
-Security: The browser changes only presentation of server-produced performance values.
-
-Determinism: An unchanged performance artifact renders the same series colors and paths.
-
-Idempotency: Rendering the chart creates no writes or analytical work.
-
-Series Completion Gate: Before merge, satisfy the applicable validation gates in `GATES.md`.
-
-## Active Multivariate Overview Facts Removal Work
-
-### PR235. Multivariate Overview Facts Removal
-
-Branch: `feat/multivariate-overview-remove-facts`.
-
-Git status: pushed.
-
-PR: https://github.com/SergejSchweizer/portfell/pull/385.
-
-Priority: P1 multivariate analytical clarity.
-
-Depends on: PR234.
-
-Scope: Remove the Multivariate Overview facts table while retaining the performance chart,
-portfolio metrics table, and server-provided availability messages.
-
-Acceptance: Overview does not render `Multivariate overview facts`; its performance chart and
-portfolio metrics table remain available after a completed Multivariate run.
-
-Security: The browser continues to display only server-provided analytical values.
-
-Determinism: An unchanged completed run produces the same retained Overview content.
-
-Idempotency: Viewing Overview creates no writes or analytical work.
-
-Series Completion Gate: Before merge, satisfy the applicable validation gates in `GATES.md`.
-
-## Active Multivariate Overview Portfolio Summary Work
-
-### PR234. Multivariate Overview Portfolio Summary
-
-Branch: `feat/multivariate-overview-portfolio-summary`.
-
-Git status: pushed.
-
-PR: https://github.com/SergejSchweizer/portfell/pull/384.
-
-Priority: P1 multivariate analytical clarity.
-
-Depends on: PR233.
-
-Scope: Show only portfolio values in Overview-chart inspection tooltips, label the relative-gain
-axis in percent, and add each portfolio's persisted primary metrics below the chart.
-
-Acceptance: The chart tooltip omits instruments, the y-axis title states `Relative gain (%)`, and
-the Overview portfolio table includes each portfolio's average monthly and annual relative gain.
-
-Security: The browser renders server-owned candidate and performance values without calculating returns.
-
-Determinism: An unchanged run produces the same chart, tooltip, and portfolio metrics table.
-
-Idempotency: Viewing or inspecting the Overview creates no writes or analytical work.
-
-Series Completion Gate: Before merge, satisfy the applicable validation gates in `GATES.md`.
-
-## Active Multivariate Overview Tabs Work
-
-### PR233. Multivariate Overview Tabs
-
-Branch: `feat/multivariate-overview-tabs`.
-
-Git status: pushed.
-
-PR: https://github.com/SergejSchweizer/portfell/pull/383.
-
-Priority: P1 multivariate analytical clarity.
-
-Depends on: PR232.
-
-Scope: Limit the Multivariate Statistics result navigation to Overview and Portfolio Candidates.
-
-Acceptance: Completed Multivariate runs expose exactly Overview and Portfolio Candidates tabs.
-The retained Overview performance chart and candidate cards remain available.
-
-Security: The browser continues to render only server-owned analytical artifacts.
-
-Determinism: An unchanged completed run exposes the same retained result views and values.
-
-Idempotency: Tab selection creates no writes or analytical work.
-
-Series Completion Gate: Before merge, satisfy the applicable validation gates in `GATES.md`.
-
-## Active Compose Stack Rebuild Work
-
-### PR232. Automatic Compose Stack Rebuilds
-
-Branch: `chore/compose-stack-rebuild-watch`.
-
-Git status: pushed.
-
-PR: https://github.com/SergejSchweizer/portfell/pull/382.
-
-Priority: P1 local runtime correctness.
-
-Depends on: PR231.
-
-Scope: Rebuild every locally built Compose service when its image inputs change, and make the
-fallback watcher rebuild the complete local application stack.
-
-Acceptance: Compose watch rebuilds Web for Web image inputs and API, migration, and worker
-services for shared Python image inputs. The fallback command rebuilds all Compose services.
-
-Security: Rebuild automation uses existing external secret-file configuration and does not expose
-or create secrets.
-
-Determinism: An unchanged watched input set causes no rebuild; a changed input invokes the same
-Compose rebuild command.
-
-Idempotency: Repeating a rebuild replaces service images without changing persistent volumes.
-
-Series Completion Gate: Before merge, satisfy the applicable validation gates in `GATES.md`.
-
-## Active Multivariate Performance Controls Work
-
-### PR231. Multivariate Performance Series Controls
-
-Branch: `feat/multivariate-performance-series-controls`.
-
-Git status: pushed.
-
-PR: https://github.com/SergejSchweizer/portfell/pull/381.
-
-Priority: P1 multivariate analytical clarity.
-
-Depends on: current `main`.
-
-Scope: Add local visibility controls for every Overview performance-chart instrument and portfolio
-series while preserving the server-owned monthly return artifact.
-
-Acceptance: Every chart series has an enabled-by-default checkbox. Any combination of enabled
-series controls the SVG and tooltip; hiding all series leaves controls available with an empty state.
-
-Security: The browser changes only local display state and does not calculate or persist returns.
-
-Determinism: An unchanged artifact and visible-series selection produce the same chart and tooltip.
-
-Idempotency: Toggling visibility creates no writes or analytical work.
-
-Series Completion Gate: Before merge, satisfy the applicable validation gates in `GATES.md`.
-
-## Active Backlog Maintenance Work
-
-### PR230. Condense Finished Backlog Records
-
-Branch: `docs/condense-finished-backlog`.
-
-Git status: pushed.
-
-PR: https://github.com/SergejSchweizer/portfell/pull/380.
-
-Priority: P2 repository maintenance.
-
-Depends on: current `main`.
-
-Scope: Replace terminal detailed PR plans with compact history rows while retaining active planned
-and operational follow-up records, governance policy, and architectural decisions.
-
-Acceptance: Every finished PR is represented once in `Completed PR History` with its stable
-identifier and final status. No terminal detailed PR plan or stale history-table link remains.
-
-Security: This documentation-only maintenance change does not alter runtime code, secrets, or
-deployment configuration.
-
-Determinism: The compact history preserves stable PR identifiers, titles, and final statuses.
-
-Idempotency: Reapplying the consolidation does not duplicate historical rows or modify active plans.
-
-Series Completion Gate: Before merge, satisfy the applicable documentation validation in `GATES.md`.
-
-## Active PostgreSQL Tenant Plane And Shared Data PR Stack
-
-This series implements D017. PostgreSQL becomes the only hosted source of truth for tenant and
-control-plane state. The shared store contains only tenant-neutral market and analytical payloads.
-The API authorizes every operation through an owned PostgreSQL project and selection; neither the
-browser nor analytical workers receive an unrestricted shared-store root.
-
-The target data flow is:
-
-```text
-user + encrypted key metadata + immutable project/selection + lifecycle history
-                              |
-                              v
-                    PostgreSQL tenant plane
-                              |
-              one user-requested, operations-owned selection delta fill
-                              v
-       shared quotes / dividends / splits + coverage catalog
-                              |
-                 content-addressed calculations
-                              v
-       shared uni / bi / multivariate artifact payloads
-                              |
-                              v
-          PostgreSQL project/run/artifact references
-
-all shared ingestion: dedicated operations credential
-after initial fill: nightly cron delta only
-```
-
-User EODHD credentials remain envelope-encrypted tenant metadata but never feed the globally shared
-corpus. Both the user-requested initial project fill and nightly refresh resolve one dedicated
-operations credential inside trusted workers. This removes credential races, billing ambiguity, and
-cross-user provenance from shared ingestion. It requires explicit provider-license approval for
-cross-customer storage, derived reuse, and service-credential ingestion; PR156 is a blocking
-fail-closed gate, not optional documentation.
-
-PR156 through PR167 are sequential. PR170 depends on PR167 and must complete before PR168 installs
-the production cron against the final storage paths. PR169 depends on PR167 and may execute in
-parallel. PR168, PR169, and PR170 are all required to complete the series. No PR may dual-write
-market/statistical payloads into PostgreSQL, put user/project fields into shared payloads, authorize
-from object existence, let a browser choose storage paths or credentials, or retain local-workspace
-JSON as a second hosted source of truth after cutover.
-
-### PR168. Durable Metadata Lifecycle And Request Idempotency
-
-Branch: `feat/hosted-metadata-lifecycle-repository`.
-
-Git status: planned. PR: TBD.
-
-Priority: P0 durable control-plane commands.
-
-Depends on: PR167.
-
-Scope: Add PostgreSQL migrations and repositories for metadata-fetch lifecycle, metadata revision
-pointers, and request idempotency. Replace `metadata_runs_by_id`, `metadata_revisions_by_user`, and
-hosted command idempotency dictionaries with transactional, user-scoped records; retain local adapters
-only in local mode.
-
-Acceptance: Restarting the hosted process preserves running/succeeded/failed metadata status, progress,
-revision identity, and idempotent responses. Cross-user reads and replay with conflicting payloads fail
-closed under RLS. No hosted route reads or writes the corresponding state dictionaries.
-
-Security: Bind every command to transaction-local user identity; idempotency rows contain no secrets.
-
-Determinism: Request hashes, terminal codes, revision IDs, and progress transitions are versioned and
-stable for identical input.
-
-Idempotency: Concurrent equivalent requests produce one lifecycle row and one response identity.
-
-### PR169. Durable Quote Jobs And Shared Market Publication
-
-Branch: `feat/hosted-quote-job-publication`.
-
-Git status: planned. PR: TBD.
-
-Priority: P0 durable ingestion execution.
-
-Depends on: PR168.
-
-Scope: Replace quote-run/progress dictionaries with PostgreSQL jobs, attempts, leases, and terminal
-records. Publish quote, dividend, and split bytes through the shared market store with immutable
-manifests and coverage revisions; persist only tenant references and lifecycle state in PostgreSQL.
-
-Acceptance: Worker restart resumes or safely reclaims a lease; progress and terminal status survive API
-restart; duplicate job requests single-flight by input hash; payload bytes contain no user/project field.
-Quote status authorizes through the owned project/selection before reading its control-plane record.
-
-Security: Browser input cannot select worker credentials, storage URIs, lease tokens, or shared roots.
-
-Determinism: Publication uses canonical listing identity, schema version, content hash, and atomic
-manifest swap.
-
-Idempotency: Replayed enqueue, claim, completion, and publication operations never duplicate business
-keys or expose a partial manifest.
-
-### PR170. Shared Coverage Catalog And Project Bootstrap
-
-Branch: `feat/hosted-shared-coverage-bootstrap`.
-
-Git status: planned. PR: TBD.
-
-Priority: P0 greenfield market bootstrap.
-
-Depends on: PR169.
-
-Scope: Implement a PostgreSQL coverage/catalog reference port and one resumable exact-selection
-bootstrap job using the operations credential. Remove per-user market grants, snapshots, copied rows,
-and terminal browser download semantics from hosted mode; preserve only local adapters for CLI/dev.
-
-Acceptance: A fresh project completes with zero provider calls when coverage is current, otherwise queues
-one operations-owned delta job. Two projects with overlapping listings reuse shared revisions without
-cross-project membership disclosure. Deleted projects do not delete shared payloads.
-
-Security: Only the trusted worker reads the operations credential; project authorization precedes every
-catalog or shared-store lookup.
-
-Determinism: Coverage is computed from exact canonical selections and revision manifests.
-
-Idempotency: Repeating project bootstrap reuses the same active job or confirmed coverage result.
-
-### PR171. Durable Research Run References
-
-Branch: `feat/hosted-research-run-repository`.
-
-Git status: planned. PR: TBD.
-
-Priority: P0 durable analytical control plane.
-
-Depends on: PR170.
-
-Scope: Persist univariate, bivariate, multivariate, analysis, selection-settings, and project-to-artifact
-references in PostgreSQL. Replace hosted research dictionaries and local persistence with repositories;
-store only hashes, statuses, input revision references, and artifact references in PostgreSQL.
-
-Acceptance: All research stages survive restart and reject guessed, deleted, stale, or cross-user IDs.
-PostgreSQL growth is reference-proportional, not payload- or pair-proportional. Local CLI tests continue
-through explicit local repositories.
-
-Security: RLS covers every run/reference query and mutation; payload locations are never client input.
-
-Determinism: Run identity derives from selection revision, market revisions, settings, and algorithm
-version.
-
-Idempotency: Equivalent submitted calculations share one run/reference identity per authorized scope.
-
-### PR172. Shared Analytical Artifact Store
-
-Branch: `feat/hosted-shared-analytical-artifacts`.
-
-Git status: planned. PR: TBD.
-
-Priority: P0 tenant-neutral analytical payloads.
-
-Depends on: PR171.
-
-Scope: Move Uni/Bi/Multi payloads, manifests, and result sections from hosted state to content-addressed
-shared storage. Add integrity-checked artifact adapters and enforce PostgreSQL-only project visibility
-references; remove hosted project-specific analytical payload copies.
-
-Acceptance: Equal exact inputs reuse one shared artifact; payloads contain no tenant fields; corrupt or
-missing manifests fail closed; an authorized run can be reproduced after restart and market correction.
-
-Security: Artifact IDs or storage paths never grant access without PostgreSQL authorization.
-
-Determinism: Artifact identity includes exact input manifests, algorithm and schema versions.
-
-Idempotency: Concurrent publication of equal artifacts yields one verified immutable manifest.
-
-### PR173. Operations Refresh And Greenfield Runtime Bootstrap
-
-Branch: `feat/hosted-operations-bootstrap`.
-
-Git status: planned. PR: TBD.
-
-Priority: P0 production-owned ingestion.
-
-Depends on: PR172.
-
-Scope: Wire the operations credential, one initial empty shared-store bootstrap, and cron-only refresh to
-the durable catalog/job pipeline. Remove hosted user-triggered provider ingestion and legacy workspace
-mounts from Compose; keep local refresh commands explicitly local.
-
-Acceptance: A fresh empty deployment bootstraps deterministically, cron refreshes the unique active
-listing union, and browser/API operations cannot trigger a provider call. Missing operations secrets or
-coverage manifests fail readiness without fallback.
-
-Security: Operations credentials are mounted only into authorized worker/cron services and never logs,
-API responses, or process arguments.
-
-Determinism: Cron input union, window planning, manifests, and freshness status are versioned.
-
-Idempotency: Repeated bootstrap and overlapping cron attempts single-flight and preserve the last valid
-shared publication.
-
-### PR174. PostgreSQL Hosted Runtime Composition
-
-Branch: `feat/hosted-postgres-runtime-composition`.
-
-Git status: planned. PR: TBD.
-
-Priority: P0 authority switch implementation.
-
-Depends on: PR173.
-
-Scope: Compose all durable repositories, shared stores, worker boundaries, and hosted authentication in
-`create_runtime_app`; enable explicit PostgreSQL authority only when every dependency is configured.
-Prevent local adapters, local workspace JSON, and in-memory authority from loading in hosted mode.
-
-Acceptance: `PORTFELL_HOSTED_AUTHORITY=postgres` starts against a fresh migrated catalog and shared
-store, repeated restarts retain all hosted state, and missing dependencies fail closed. Local authority
-continues to start only its explicit local composition.
-
-Security: Connection/password/KEK/operations secret handling remains file-mounted and redacted.
-
-Determinism: Composition chooses exactly one authority from explicit configuration.
-
-Idempotency: Repeated startup performs no migration, bootstrap, or data mutation outside its explicit
-operator command.
-
-### PR175. Greenfield Cutover Evidence And Legacy Authority Removal
-
-Branch: `feat/hosted-greenfield-cutover-evidence`.
-
-Git status: planned. PR: TBD.
-
-Priority: P0 final D017 launch gate.
-
-Depends on: PR174.
-
-Scope: Remove hosted legacy authority paths and prove the greenfield runtime through migrated-catalog,
-RLS/adversarial, backup/restore, restart, shared-store integrity, and post-deploy smoke evidence.
-Update Compose, runbooks, readiness, observability, API manifests, and architecture docs.
-
-Acceptance: Searches and architecture tests prove one PostgreSQL tenant plane and one shared payload
-plane; strict readiness and backup/restore pass; no hosted code reads/writes local workspace or legacy
-state dictionaries; local CLI remains explicit and green.
-
-Security: Include forced-RLS, guessed-ID, stale-session, worker-token, secret-scan, and deletion tests.
-
-Determinism: Evidence records exact code, schema, catalog, and shared-manifest versions.
-
-Idempotency: Repeating readiness, smoke, restore, and reconciliation checks is non-mutating or creates
-only declared immutable evidence.
-
-### PR168. Production Cron Installation And First Scheduled Run Evidence
-
-Branch: `chore/install-production-market-refresh-cron`.
-
-Git status: in progress. The implementation merged in PR #329; the remaining operational
-acceptance is first natural `20:15 Europe/Amsterdam` scheduled-run evidence.
-
-Implementation PR: https://github.com/SergejSchweizer/portfell/pull/329.
-
-Priority: P0 complete the production operations rollout.
-
-Depends on: PR167 and PR170.
-
-Scope:
-
-- Install the already implemented shared-market refresh cron on the production host as service user
-  `dev_portfell`, using the absolute checkout `/home/dev_portfell/portfell`. Do not install against a
-  feature checkout, unmerged commit, mutable image tag, local-workspace authority, or developer
-  credential.
-- Require the Compose `shared-market-refresh` job to mount the persistent host lake
-  `/volume2/docker/portfell/lake` at `/srv/portfell/shared-data` and set
-  `PORTFELL_SHARED_DATA_ROOT=/srv/portfell/shared-data`. The cron may publish quote, dividend, split,
-  coverage, manifest, and shared analytical updates only through this mount and may not write a
-  repository `lake`, named volume, project directory, or container-local persistent path.
-- Record a preflight evidence bundle that pins the deployed Git SHA and container image digest;
-  confirms PR156 licensing approval, PR167 PostgreSQL/shared-store authority, migration head, healthy
-  PostgreSQL/API/workers, the dedicated operations credential, external secret-file permissions,
-  shared-store write/atomic-replace capability, free disk space, and synchronized host time.
-- Back up the service user's existing crontab with owner-only permissions and a SHA-256 digest before
-  mutation. Provision `/volume2/docker/portfell/logs/shared-market-refresh.log`, its parent
-  directory, and logrotate ownership/retention so the non-interactive service user can append logs
-  without making configuration or secrets world-writable.
-- From the absolute production root, run `docker compose --env-file .env.local config`, then
-  `portfell-refresh-shared-market-data --dry-run`. The dry run must resolve the PostgreSQL active-
-  project listing union, operations credential, durable queue, shared root, lock, and delta plan
-  without making a provider request or mutating market/catalog state.
-- Execute `portfell-shared-market-cron run-once --project-root /home/dev_portfell/portfell` before
-  installation. Wait for the durable refresh job to reach a successful terminal state and reconcile
-  its inventory hash, requested gaps, immutable revisions, coverage catalog, failures, and duplicate
-  business keys against PostgreSQL and shared storage.
-- Install with
-  `portfell-shared-market-cron install --project-root /home/dev_portfell/portfell`, then verify
-  `status` and `crontab -l`. The one managed block must use
-  `SHELL=/bin/bash`, `CRON_TZ=Europe/Amsterdam`, `15 20 * * *`, `/usr/bin/flock -n`, absolute paths,
-  the Compose `operations` profile, and the `shared-market-refresh` one-shot service.
-- Repeat installation and prove the crontab digest is unchanged and every unrelated entry remains
-  byte-identical. Verify lock contention is side-effect free and that a simultaneous manual start
-  cannot create a second logical refresh job.
-- Observe one natural cron-triggered execution at `20:15 Europe/Amsterdam`; a manual `run-once` does
-  not satisfy this step. Verify start time, terminal success, manifest/catalog freshness, zero secret
-  leakage, bounded provider requests, no duplicate revisions, project-scoped freshness, logrotate,
-  status/SLO metrics, and alert recovery.
-- Commit only redacted operational evidence and checksums. Document exact install, status, log,
-  retry, credential-rotation, disk-full, stale-run, uninstall, crontab-restore, and application
-  rollback commands with named owner and decision points.
-
-Acceptance:
-
-- The PR identifies one production target with service user `dev_portfell`, root
-  `/home/dev_portfell/portfell`, exact merged PR167 Git SHA, exact API/worker image digest, migration
-  head, and approved PR156 licensing evidence; all values match the running services before any
-  crontab write.
-- Preflight is green for PostgreSQL/RLS, API/workers, operations credential, external secret modes,
-  shared-store atomic writes, queue claims, at least the documented minimum free disk space, NTP
-  synchronization, Docker Compose configuration, log directory, and logrotate. Any failed item stops
-  before changing crontab or provider/catalog state.
-- The recorded dry run exits `0`, reports the exact deduplicated active-project listing count and
-  inventory hash, creates no provider request/job/revision/catalog mutation, prints no credential or
-  secret path content, and uses no local-workspace JSON authority.
-- The pre-install `run-once` exits `0`; its durable job reaches `succeeded`; requested, succeeded,
-  unchanged, and failed counts reconcile; failed count is zero; every active project member has
-  quote/dividend/split coverage through the target date or a documented market-closed/not-applicable
-  status; and duplicate full business-key count is zero.
-- Before installation, `portfell-shared-market-cron status` reports `installed=false`. Afterwards it
-  reports `installed=true`, schedule `15 20 * * *`, timezone `Europe/Amsterdam`, and fresh successful
-  state; `crontab -l` contains exactly one complete managed Portfell block and no secret value.
-- Installing twice yields the same complete crontab SHA-256 digest. The pre-install backup digest is
-  recorded, owner-only, restorable, and all unrelated crontab bytes are identical before and after
-  install.
-- The rendered cron command contains only absolute paths, obtains the non-blocking flock, runs
-  `docker compose --profile operations run --rm --no-deps shared-market-refresh`, writes the approved
-  log, and exposes no network port or long-running second API process.
-- Inspection of the one-shot container proves source `/volume2/docker/portfell/lake`, destination
-  `/srv/portfell/shared-data`, and `PORTFELL_SHARED_DATA_ROOT=/srv/portfell/shared-data` agree. A
-  controlled refresh changes only expected files below the host lake and creates no persistent data
-  in the checkout, another host path, an anonymous/named volume, or the container writable layer.
-- A lock-contention test returns the documented non-success/no-op result, starts no provider request,
-  publishes no revision, and leaves the active refresh and last valid catalog readable. Repeating a
-  logical target date joins/reuses one durable job.
-- The first naturally scheduled run starts at the next `20:15 Europe/Amsterdam` cron window, reaches
-  `succeeded` within the documented SLO, advances or confirms catalog freshness, processes only
-  unique active-listing gaps, records zero duplicate business keys, and leaves all project freshness
-  endpoints healthy after API/worker restart.
-- Monitoring demonstrates an alert for a synthetic stale/failed status and a clear recovery after a
-  successful refresh. Logs rotate with the documented owner/mode/retention and contain no EODHD key,
-  KEK, database password, credential envelope, session token, or unrestricted project inventory.
-- The redacted evidence bundle contains command, timestamp, exit code, Git/image/schema identities,
-  crontab before/after hashes, run/job/manifest identities, reconciliation totals, first scheduled-
-  run proof, monitoring proof, operator signoff, and rollback checkpoint. Repository secret scanning
-  and every current gate in `GATES.md` pass.
-- An operator following only the committed runbook can inspect status, retry a failed refresh, rotate
-  the operations credential, recover from disk-full or stale lock, uninstall only the managed block,
-  restore the exact prior crontab, and invoke the PR167 application rollback without deleting shared
-  market data or PostgreSQL history.
-
-Security: Installation uses the least-privilege production service user and dedicated operations
-credential. Secrets remain in external owner-restricted files/mounts and never appear in crontab,
-commands, evidence, logs, environment dumps, Git, or CI. Evidence is redacted and secret-scanned
-before review.
-
-Determinism: The target root, service user, Git SHA, image digest, migration head, Compose profile,
-service name, timezone, schedule, lock, log path, installer command, readiness thresholds, and
-evidence schema are explicit and versioned. The cron block does not depend on cwd, shell profile,
-PATH lookup, locale, or mutable tags.
-
-Idempotency: Preflight and dry run are non-mutating; repeated installation preserves one managed
-block and unrelated crontab bytes; repeated target-date execution joins one durable refresh job and
-converges on one immutable revision per content identity. Uninstall/restore can be repeated without
-deleting shared payloads, tenant history, or unrelated cron entries.
-
-### PostgreSQL Tenant Plane And Shared Data Series Completion Gate
-
-This series is complete only after PR156 through PR167 merge in order, PR170 completes before PR168,
-PR168 and PR169 complete, and the current gates in [GATES.md](GATES.md) pass. One production-like
-evidence bundle must prove:
-
-- all user metadata, encrypted credential envelopes, immutable projects with exactly one canonical
-  member per unique ISIN, jobs/outbox/attempts, runs, audit, and top-level artifact references are
-  durable in PostgreSQL and isolated by forced RLS;
-- immutable quote/dividend/split revisions and Uni/Bi/Multi manifests/payloads exist only in shared
-  storage, contain no tenant fields, and are reused only for exact identities; Bivariate payloads are
-  bucketed and PostgreSQL growth is not pair-proportional;
-- project creation permits one resumable exact-selection bootstrap through PostgreSQL jobs and the
-  operations credential, including zero-provider-call completion; users trigger no later refresh;
-- cron uses the same operations credential and applies gap/tail/correction deltas to the unique
-  active-listing union through the same durable single-flight jobs;
-- the production service user's managed cron block is installed idempotently at
-  `20:15 Europe/Amsterdam`, one natural scheduled run succeeds, monitoring/rotation are live, and exact
-  uninstall/crontab-restore/application-rollback evidence is approved;
-- every production button and tab has a semantic interaction case on desktop, tablet, and mobile;
-  the inventory guard and Playwright interaction jobs are mandatory dependencies of both stable
-  merge-quality aggregates;
-- production PostgreSQL, shared payloads, logs, and backups use the approved
-  `/volume2/docker/portfell` bind roots with verified permissions, checksums, restart persistence,
-  backup/restore, and a rehearsed non-destructive rollback; secrets remain outside that tree;
-- project deletion and user credential deletion preserve shared payloads and other projects, while
-  tenant history and crypto-shredding follow explicit retention policy;
-- old analysis runs remain reproducible from pinned immutable revisions after market corrections;
-- licensing approval, fresh catalog/shared-store bootstrap, multi-replica load, adversarial
-  isolation, backup/restore, and post-launch smoke/observability evidence are complete before PR167
-  switches authority; legacy data migration, parity, and rollback are intentionally out of scope;
-- local CLI mode remains supported through explicit local adapters and cannot be confused with the
-  hosted PostgreSQL/shared-storage runtime.
-
-## Active Monthly-Distribution ETF Multivariate PR Stack
+## Monthly-Distribution ETF Multivariate Architecture Record
 
 This is the canonical first implementation series for the Multivariate Statistics module. Its
 initial product profile is a project-scoped universe of ETFs whose persisted Univariate
@@ -980,7 +99,7 @@ requires all of the following evidence in one clean-main validation:
 - synchronized `README.md`, `ARCHITECTURE.md`, module/page documentation, schemas, API contracts,
   backlog status, and operational runbooks.
 
-## Active Shared Market Data And Nightly Refresh PR Stack
+## Shared Market Data And Nightly Refresh Architecture Record
 
 This series replaces project-triggered historical-data downloads with one nightly refresh for the
 union of listings currently used by all persisted projects in the trusted local Portfell deployment.
@@ -1035,7 +154,7 @@ PostgreSQL tenant state + UI read projections
 durable workers -> shared Parquet and content-addressed artifacts
 ```
 
-PR246 through PR251 are sequential. They optimize the active PostgreSQL authority only and do not
+PR246 through PR252 are sequential. They optimize the active PostgreSQL authority only and do not
 replace React, FastAPI, PostgreSQL, Polars, or Parquet. Local CLI analysis remains supported, but no
 local repository, workspace JSON, in-memory dictionary, or shared-file scan may become a fallback
 authority for a hosted request. Every latency assertion must use a checked-in deterministic fixture
@@ -1970,9 +1089,197 @@ graph for a given release; startup performs no implicit migration or data import
 Idempotency: Repeated startup, readiness, reconciliation, deployment smoke, and rollback checks do not
 duplicate state or mutate analytical payloads outside declared commands.
 
+### PR252. Exhaustive User Interaction Manifest, Real-Stack Journeys, And Latency Merge Gate
+
+Branch: `test/exhaustive-user-interaction-merge-gate`.
+
+Git status: not started.
+
+PR: TBD.
+
+Priority: P0 prevent functional and interactive-performance regressions at merge time.
+
+Depends on: PR251. PR247-PR251 change navigation projections, page contracts, browser caching,
+status delivery, and production composition; their final checked-in contracts are mandatory PR252
+inputs and PR252 may not preserve superseded controls or fallback routes solely to keep old tests
+green.
+
+Business outcome: Every production user-operable Web control has a stable identity and at least one
+deterministic browser case that performs the same action a user can perform, verifies its observable
+effect, and records bounded interaction latency. An unregistered control, stale manifest entry,
+missing behavior assertion, unexpected request, browser error, or exceeded hard budget fails both the
+pre-merge and post-merge aggregate gates.
+
+Scope and ownership boundaries:
+
+- Introduce a versioned `ui-interaction-manifest-v1` contract and committed manifest under
+  `apps/web/tests/interactions/`. Each record owns exactly one stable interaction ID and declares route,
+  viewport applicability, prerequisite fixture state, accessible role/name, control type, enabled or
+  disabled state, user operation, sanitized input class, expected UI transition, expected request
+  method/path/count, persistence check, keyboard equivalent, and latency-budget ID. IDs are stable
+  semantic names and never array indexes, DOM paths, generated CSS selectors, project IDs, or labels
+  containing tenant data.
+- Add stable `data-portfell-interaction-id` attributes only at production interaction boundaries in
+  `apps/web/src/`. The attribute is test identity, not authorization or business state. Buttons, links,
+  tabs, text/search/number/date inputs, selects, textareas, checkboxes, radios, menu/drawer controls,
+  form submission, retry/cancel actions, draggable controls, and keyboard-only commands are in scope.
+  Read-only text, charts without an interaction, browser-native scrolling, and decorative elements are
+  excluded by an explicit checked-in allowlist with a reason per exclusion.
+- Add test-only structured interaction telemetry with schema
+  `ui-interaction-log-v1`. Set `PORTFELL_UI_TEST_LOG_LEVEL=debug` only in Playwright and deterministic
+  real-stack jobs; production and ordinary development defaults remain `info`. Browser, Web server,
+  API, worker, PostgreSQL-test instrumentation, and Playwright reporters emit JSON Lines containing
+  test/run ID, interaction ID, route, fixture state, viewport, operation class, redacted outcome,
+  request method plus route template, request/response byte counts, database statement count,
+  shared-file read count, timestamps, and elapsed milliseconds. Never log entered values, EODHD keys,
+  cookies, authorization headers, request/response bodies, project names, ISIN membership, SQL text,
+  filesystem roots, or secrets.
+- Implement a deterministic manifest collector that reads only schema-valid redacted test logs,
+  normalizes and sorts records, and proposes the committed manifest. Logs are discovery and evidence,
+  not runtime or test authority: generation fails on malformed/redaction-unsafe records, and the
+  committed reviewed manifest plus live DOM inventory remain authoritative. A missing log cannot remove
+  a manifest entry; `--check` fails on additions, removals, changed behavior, or exclusions until the
+  committed manifest is deliberately updated.
+- Extend Playwright with deterministic fixtures for no-project, project-filling, ready, running,
+  complete, failed, stale, empty-result, validation-error, authorization-error, server-error, retry,
+  and reconnect states. Exercise desktop `1440x1080`, tablet `1024x1366`, and mobile `390x844` with the
+  repository-pinned Chromium version, timezone `Europe/Amsterdam`, fixed locale, reduced motion, fixed
+  clock, deterministic IDs, and no production network access.
+- Add one case per manifest interaction and distinct behavior state. Fields receive valid, empty,
+  malformed, minimum, maximum, over-limit, paste, clear, and keyboard-submit cases where the production
+  contract permits them. Actions assert visible feedback, exact canonical request effects, final UI
+  state, focus, accessibility state, persisted server state where applicable, reload behavior, project
+  isolation, back/forward behavior, and duplicate/double activation. Disabled controls prove zero
+  command requests and zero mutation.
+- Keep mocked browser tests exhaustive and fast, then run critical complete journeys against the real
+  Docker Web, API, PostgreSQL, worker, persistent test lake, and deterministic EODHD stub. The real-stack
+  suite covers credential save/replace without exposing plaintext, metadata refresh, project creation
+  and bootstrap, project switch, Uni/Bi/Multivariate execution, all result tabs and filters, reload,
+  restart/reconnect, one injected failure/retry, and verification that no browser action invokes a real
+  provider or writes outside the test data root.
+- Add versioned latency budgets under `apps/web/tests/interactions/latency-budgets.v1.json`. Measure ten
+  samples after one discarded warm-up per deterministic action class and publish nearest-rank p50/p95
+  plus maximum. Immediate validation/loading/disabled feedback has p95 `<=250 ms` and maximum `<=500
+  ms`; warm cached navigation has p95 `<=750 ms` and maximum `<=1,500 ms`; cold local page readiness has
+  p95 `<=2,000 ms` and maximum `<=4,000 ms`; real-stack command acknowledgement has p95 `<=2,000 ms`
+  and maximum `<=4,000 ms`. Long-running analysis completion uses its deterministic fixture SLO rather
+  than the acknowledgement budget, but must show progress within `5,000 ms`, complete within `60,000
+  ms`, and reconcile its terminal result. A budget may be loosened only by an explicit manifest/budget
+  diff with measured before/after evidence and PR rationale.
+- Add required `pr-ui-user-journeys` and `merge-ui-user-journeys` jobs, sharded by page and viewport,
+  to `.github/workflows/pr-quality.yml` and `.github/workflows/merge-gate.yml`. Both stable aggregates
+  depend on their corresponding job. The jobs run manifest generation in `--check` mode, exhaustive
+  mocked interactions, keyboard/accessibility checks, real-stack journeys, request/resource counters,
+  and latency budgets. Upload sanitized JSONL, coverage, timing summary, trace, screenshot, video,
+  console, and network artifacts only on failure with seven-day retention; upload a redacted timing and
+  coverage summary on success with thirty-day retention.
+- Update `GATES.md`, Web test documentation, UI specifications, real-stack runbook, package scripts,
+  `.gitignore`, and branch-protection instructions. Existing focused Vitest and Playwright tests remain;
+  remove duplication only when the manifest case asserts the same behavior and the removal is visible
+  in the PR diff.
+
+Parallel implementation sequence and hand-off:
+
+1. Agent A owns the versioned manifest/log schemas, redaction validator, stable interaction-ID
+   convention, collector, exclusions, and fixtures. Agent B may review but must not independently add a
+   second schema, logger, manifest format, or control-ID convention. The first hand-off is committed
+   schema examples plus a golden normalized manifest fixture and exact validation command.
+2. After that hand-off, Agent A instruments production controls and test-only logging while Agent B
+   builds data-driven Playwright executors, action/effect assertions, latency reporter, and mock
+   fixtures. Shared edits to `package.json`, Playwright configuration, and existing workflow specs are
+   coordinated before either agent changes them.
+3. Agent B adds real-stack journeys and CI shards only after Agent A's redaction and deterministic
+   collector tests pass. Both agents independently run manifest `--check`, inspect the zero-uncovered
+   report, and review sanitized artifacts before the final workflow and documentation update.
+
+Out of scope: Production user analytics, session replay, logging field values or financial payloads,
+random monkey testing as acceptance evidence, replacing Playwright, changing financial calculations,
+changing product behavior only to simplify tests, contacting production EODHD, or treating screenshots
+and wall-clock time alone as proof of functional correctness.
+
+Acceptance:
+
+- A live runtime inventory visits every declared route and fixture state and reports exactly `0`
+  unregistered user-operable controls, `0` duplicate interaction IDs, `0` missing manifest controls,
+  `0` unexplained exclusions, and `100%` manifest entries with an executed action/effect case. Adding a
+  production control without a manifest record and test makes both UI jobs fail with its route, state,
+  role, accessible name, and interaction ID; deleting a control leaves a stale-entry failure.
+- Every button, link, tab, field, select, checkbox, radio, drawer/menu action, form operation, retry,
+  cancel, drag/drop, and keyboard command reachable in the deterministic states is either tested or
+  appears once in the reviewed exclusion file with a machine-checked non-empty reason. Dynamic controls
+  are covered in each state that changes enabledness, request behavior, or result behavior.
+- Every enabled manifest action proves the declared visible intermediate feedback, exact request
+  method/template/count, response handling, final accessible UI state, and persistent effect. Every
+  disabled or invalid case proves no command request, no database mutation, no shared-store write, and
+  a specific accessible explanation. Double-click, Enter, retry, reload, browser back/forward, and
+  project-switch cases create no duplicate logical command or cross-project state flash.
+- Test logs validate against `ui-interaction-log-v1`, regenerate byte-identically after stable sorting,
+  and produce the same manifest proposal from equivalent runs regardless of Playwright worker order.
+  Deliberate fixtures containing a provider key, cookie, authorization header, project name, ISIN,
+  SQL/body content, or absolute data path are rejected before artifact upload. Repository and artifact
+  secret scans report zero findings.
+- Desktop, tablet, and mobile cases assert mouse/pointer and keyboard behavior, visible focus,
+  accessible names, labels, roles, selected/expanded/disabled states, modal/drawer focus restoration,
+  and zero critical or serious automated accessibility violations. Responsive controls are neither
+  omitted nor counted as covered by an invisible desktop element.
+- The mocked suite blocks every non-local network origin, uses condition-based assertions without
+  sleeps, passes with `fullyParallel`, and produces the same control/action coverage under one worker
+  and the configured shard count. No test depends on execution order, retained browser state, a real
+  provider, production credentials, or an existing developer database/lake.
+- The real-stack journey starts from empty isolated PostgreSQL and lake state, reaches successful
+  metadata/project/Uni/Bi/Multivariate terminal states, exercises every critical control class, then
+  survives browser reload and API/worker recreation with exact project isolation and persisted results.
+  The deterministic provider call count, command/job identities, database changes, and lake business
+  keys reconcile; duplicate logical command and duplicate full business-key counts are zero.
+- Each timed sample records elapsed time together with request count, response bytes, database
+  statement count, shared-file reads, fixture state, and runner identity. Every hard p95 and maximum
+  budget passes. Navigation assertions preserve PR248 request budgets, PR249 cache behavior, PR250 SSE
+  behavior, and PR246 loaded-worker capacity; a timing result without the associated resource counters
+  fails evidence validation.
+- Browser `pageerror`, unhandled rejection, unexpected `console.error`, failed/unexpected request,
+  response contract error, React warning, hydration error, or uncaught API/worker exception fails the
+  responsible interaction case. Expected injected failures are matched by interaction ID and exact
+  typed error contract rather than globally ignored.
+- `pr-quality` cannot succeed unless `pr-ui-user-journeys` succeeds, and `merge-gate` cannot succeed
+  unless `merge-ui-user-journeys` succeeds. A workflow contract test proves both dependencies and all
+  required shards, real-stack execution, artifact redaction, and latency checks are present; no
+  `continue-on-error`, optional job, unpinned browser image, or production secret is used.
+- Completion evidence includes successful executions of
+  `cd apps/web && npm run interactions:manifest:check`,
+  `cd apps/web && npm run test:user-interactions`,
+  `cd apps/web && npm run test:user-latency`,
+  `bash scripts/run_real_stack_e2e.sh --suite user-interactions`,
+  `uv run portfell-quality pr`, and `uv run portfell-quality merge`, plus a redacted coverage/timing
+  summary listing total controls, actions, states, viewport shards, exclusions, p50/p95/max, request
+  counts, response bytes, database statements, shared-file reads, Git SHA, image/browser digests, and
+  zero secret findings.
+
+Security: Interaction IDs and logs are untrusted diagnostics, never authorization input. Test logging
+is opt-in and fail-closed outside production defaults; all values, bodies, credentials, tenant
+identifiers, market membership, SQL, and paths remain absent or redacted. Real-stack jobs use isolated
+ephemeral credentials and test roots, least-privilege containers, no production network, and no
+long-lived artifact containing tenant data.
+
+Determinism: Versioned schemas, stable IDs, canonical sorting, fixed fixtures, clock, locale, timezone,
+viewport, browser digest, test data, route templates, action semantics, sample count, percentile rule,
+and budgets determine byte-stable manifest and evidence output. Equivalent application behavior yields
+the same coverage and timing classifications independent of worker/shard order.
+
+Idempotency: Re-running collection, manifest checking, mocked interactions, real-stack journeys, and
+latency samples from the same fixture state neither changes the committed manifest nor duplicates
+projects, jobs, runs, revisions, settings, or lake business keys. Failed and retried tests clean their
+isolated state and never reuse production or another shard's database, lake, browser profile, log, or
+artifact directory.
+
+Rollback: PR252 adds no production data migration or user tracking. Rollback removes the two UI jobs,
+test-only log switch, reporter, interaction attributes, manifest, and fixtures together; restores the
+previous aggregate dependencies and `GATES.md`; and leaves production API/database/shared-store
+contracts unchanged. A rollback must not leave verbose test logging enabled in production or retain a
+partial manifest as a non-blocking check.
+
 ### Hosted Simplicity And Interactive Performance Series Completion Gate
 
-This series is complete only after PR246 through PR251 merge in order and the current gates in
+This series is complete only after PR246 through PR252 merge in order and the current gates in
 [GATES.md](GATES.md) pass. One clean production-like evidence run must prove:
 
 - health, project navigation, and workflow remain responsive throughout a deterministic large
@@ -2055,6 +1362,24 @@ backlog identifiers.
 
 | ID | Title | Final status |
 | --- | --- | --- |
+| PR245 | Mixed Distribution Frequency Portfolios | completed; merged in PR https://github.com/SergejSchweizer/portfell/pull/398 |
+| PR244 | Multivariate Calculation Correctness | completed in PRs https://github.com/SergejSchweizer/portfell/pull/394 and https://github.com/SergejSchweizer/portfell/pull/396 |
+| PR243 | Bivariate Calculation Correctness | completed in PR https://github.com/SergejSchweizer/portfell/pull/395; PR #393 closed without merge |
+| PR242 | Univariate Calculation Correctness | completed; merged in PR https://github.com/SergejSchweizer/portfell/pull/392 |
+| PR241 | Univariate Overview Narrow Bars | completed; merged in PR https://github.com/SergejSchweizer/portfell/pull/391 |
+| PR240 | Multivariate Minimum Variance Convergence | completed; merged in PR https://github.com/SergejSchweizer/portfell/pull/390 |
+| PR239 | Multivariate Overview Metric Labels | completed; merged in PR https://github.com/SergejSchweizer/portfell/pull/389 |
+| PR238 | Multivariate Overview Portfolio Controls | completed; merged in PR https://github.com/SergejSchweizer/portfell/pull/388 |
+| PR237 | Multivariate Overview Cumulative Axis | completed; merged in PR https://github.com/SergejSchweizer/portfell/pull/387 |
+| PR236 | Multivariate Overview Portfolio Colors | completed; merged in PR https://github.com/SergejSchweizer/portfell/pull/386 |
+| PR235 | Multivariate Overview Facts Removal | completed; merged in PR https://github.com/SergejSchweizer/portfell/pull/385 |
+| PR234 | Multivariate Overview Portfolio Summary | completed; merged in PR https://github.com/SergejSchweizer/portfell/pull/384 |
+| PR233 | Multivariate Overview Tabs | completed; merged in PR https://github.com/SergejSchweizer/portfell/pull/383 |
+| PR232 | Automatic Compose Stack Rebuilds | completed; merged in PR https://github.com/SergejSchweizer/portfell/pull/382 |
+| PR231 | Multivariate Performance Series Controls | completed; merged in PR https://github.com/SergejSchweizer/portfell/pull/381 |
+| PR230 | Condense Finished Backlog Records | completed; merged in PR https://github.com/SergejSchweizer/portfell/pull/380 |
+| D017 draft PR168-PR175 | Duplicate durable-authority draft sequence | superseded and discarded as non-active; implemented outcomes are represented by the merged D017 records below |
+| PR168 operational follow-up | Production Cron Installation And First Scheduled Run Evidence | remaining operational backlog discarded by user direction on 2026-08-14; implementation PR #329 remains merged and no natural-run acceptance is claimed |
 | PR246 | Worker Admission Control And Interactive Capacity | merged 2026-08-14. PR: https://github.com/SergejSchweizer/portfell/pull/400; commit `2e2663299ae2e7806774176d8e7f261b6aefac60` |
 | PR247 | PostgreSQL Navigation Read Model | merged through atomic PRs #401–#410 on 2026-08-14; includes bounded projection reads, reconciliation, lifecycle repair, instrumentation, and deterministic budget evidence. |
 | PR248a | Hosted Page-View Contract Foundation | landed 2026-08-14. PR: https://github.com/SergejSchweizer/portfell/pull/412; versioned Metadata Builder page-view envelope, typed unavailable initial-fill state, conditional GET, and OpenAPI contract evidence. |
