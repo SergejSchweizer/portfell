@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { loadProjectContext, loadWorkflow } from "../api/client";
+import { loadProjectContext } from "../api/client";
 import { multivariateStatisticsApi } from "../api/multivariate-statistics";
 import { Button } from "../components/button";
 import { nextProgressSnapshot, progressPercent, type ProgressSnapshot } from "../computation-progress";
@@ -7,6 +7,7 @@ import { LoadingState } from "../components/loading-state";
 import { Panel } from "../components/panel";
 import type {
   ApiMultivariateArtifacts,
+  ApiAnalyticalPageView,
   ApiMultivariateCandidates,
   ApiMultivariateComponents,
   ApiMultivariateIncomeEvidenceList,
@@ -18,7 +19,6 @@ import type {
   ApiMultivariateValidation,
 } from "../contracts";
 import { useDebouncedSave } from "../hooks/use-debounced-save";
-import { useResource } from "../hooks/use-resource";
 
 type Tab = "overview" | "risk-structure" | "portfolio-candidates" | "risk-contributions" | "income-evidence" | "performance" | "validation";
 
@@ -178,8 +178,10 @@ function PortfolioOverviewMetrics({ candidates }: Readonly<{ candidates: ApiMult
 
 export function MultivariateStatisticsPage() {
   const [revision, setRevision] = useState(0);
-  const workflow = useResource(loadWorkflow, [revision]);
-  const projects = useResource(loadProjectContext, [revision]);
+  const [projectId, setProjectId] = useState<string | null>(null);
+  const [pageView, setPageView] = useState<ApiAnalyticalPageView | null>(null);
+  const [pageViewLoading, setPageViewLoading] = useState(true);
+  const [pageViewError, setPageViewError] = useState<string | null>(null);
   const [run, setRun] = useState<ApiMultivariateRun | null>(null);
   const [summary, setSummary] = useState<ApiMultivariateSummary | null>(null);
   const [structure, setStructure] = useState<ApiMultivariateStructure | null>(null);
@@ -200,9 +202,8 @@ export function MultivariateStatisticsPage() {
     () => setMessage("Portfolio candidate selection could not be saved."),
   );
 
-  const bivariateRunId = workflow.status === "ready" ? workflow.data.stages.bivariate_statistics.bivariate_run_id : undefined;
-  const projectId = projects.status === "ready" ? projects.data.current_project_id : null;
-  const stage = workflow.status === "ready" ? workflow.data.stages.multivariate_statistics : null;
+  const bivariateRunId = pageView?.input.bivariate_run_id ?? undefined;
+  const stage = pageView;
   const selectedCandidateIds = run?.settings.selected_candidate_ids ?? [];
   const selectedCandidateId = selectedCandidateIds[0] ?? candidates?.items[0]?.candidate_id;
   const selectedContributions = useMemo(
@@ -210,19 +211,37 @@ export function MultivariateStatisticsPage() {
     [contributions, selectedCandidateId],
   );
 
-  async function loadRun(runId: string, version = projectVersion.current) {
-    const [nextRun, nextSummary, nextStructure, nextCandidates, nextComponents, nextContributions, nextIncome, nextValidation, nextArtifacts, nextPerformance] = await Promise.all([
-      multivariateStatisticsApi.loadRun(runId), multivariateStatisticsApi.loadSummary(runId), multivariateStatisticsApi.loadStructure(runId),
-      multivariateStatisticsApi.loadCandidates(runId), multivariateStatisticsApi.loadComponents(runId), multivariateStatisticsApi.loadRiskContributions(runId),
-      multivariateStatisticsApi.loadIncomeEvidence(runId), multivariateStatisticsApi.loadValidation(runId), multivariateStatisticsApi.loadArtifacts(runId), multivariateStatisticsApi.loadPerformance(runId),
-    ]);
-    if (version !== projectVersion.current) return;
-    setRun(nextRun); setSummary(nextSummary); setStructure(nextStructure); setCandidates(nextCandidates);
-    setComponents(nextComponents); setContributions(nextContributions); setIncome(nextIncome); setValidation(nextValidation); setArtifacts(nextArtifacts); setPerformance(nextPerformance);
-  }
+  useEffect(() => {
+    let cancelled = false;
+    void loadProjectContext().then((context) => {
+      if (!cancelled) setProjectId(context.current_project_id);
+    }).catch((error: unknown) => {
+      if (!cancelled) setPageViewError(error instanceof Error ? error.message : "Project context is unavailable.");
+    });
+    return () => { cancelled = true; };
+  }, [revision]);
 
   useEffect(() => {
-    const resetProjectState = () => {
+    if (!projectId) {
+      setPageView(null);
+      setPageViewLoading(false);
+      return;
+    }
+    const controller = new AbortController();
+    setPageViewLoading(true);
+    setPageViewError(null);
+    void multivariateStatisticsApi.loadPageView(projectId, controller.signal).then((view) => {
+      if (!controller.signal.aborted) setPageView(view);
+    }).catch((error: unknown) => {
+      if (!controller.signal.aborted) setPageViewError(error instanceof Error ? error.message : "Multivariate statistics are unavailable.");
+    }).finally(() => {
+      if (!controller.signal.aborted) setPageViewLoading(false);
+    });
+    return () => controller.abort();
+  }, [projectId, revision]);
+
+  useEffect(() => {
+    const resetProjectState = (event: Event) => {
       projectVersion.current += 1;
       candidateSelectionSave.cancel();
       progressSnapshot.current = null;
@@ -239,6 +258,8 @@ export function MultivariateStatisticsPage() {
       setActiveTab("overview");
       setStarting(false);
       setMessage("");
+      const context = event instanceof CustomEvent ? event.detail as { current_project_id?: string } : undefined;
+      if (context?.current_project_id !== undefined) setProjectId(context.current_project_id ?? null);
       setRevision((value) => value + 1);
     };
     window.addEventListener("portfell:project-updated", resetProjectState);
@@ -246,12 +267,59 @@ export function MultivariateStatisticsPage() {
   }, []);
 
   useEffect(() => {
-    const runId = stage?.multivariate_run_id;
+    const runId = pageView?.run_id;
     const version = projectVersion.current;
-    if (runId) void loadRun(runId, version).catch(() => {
-      if (version === projectVersion.current) setMessage("Multivariate results are unavailable.");
+    if (!runId || run?.run_id === runId) return;
+    let cancelled = false;
+    void multivariateStatisticsApi.loadRun(runId).then((nextRun) => {
+      if (!cancelled && version === projectVersion.current) setRun(nextRun);
+    }).catch(() => {
+      if (!cancelled && version === projectVersion.current) setMessage("Multivariate results are unavailable.");
     });
-  }, [stage?.multivariate_run_id]);
+    return () => { cancelled = true; };
+  }, [pageView?.run_id, run?.run_id]);
+
+  useEffect(() => {
+    if (!projectId || run?.status !== "complete") return;
+    const controller = new AbortController();
+    const options = { signal: controller.signal };
+    const load = async () => {
+      if (activeTab === "overview") {
+        const [nextSummary, nextCandidates, nextPerformance] = await Promise.all([
+          multivariateStatisticsApi.loadSection<ApiMultivariateSummary>(projectId, "summary", options),
+          multivariateStatisticsApi.loadSection<ApiMultivariateCandidates>(projectId, "candidates", options),
+          multivariateStatisticsApi.loadSection<ApiMultivariatePerformance>(projectId, "performance", options),
+        ]);
+        if (!controller.signal.aborted) { setSummary(nextSummary.data); setCandidates(nextCandidates.data); setPerformance(nextPerformance.data); }
+      } else if (activeTab === "risk-structure") {
+        const [nextStructure, nextArtifacts, nextComponents] = await Promise.all([
+          multivariateStatisticsApi.loadSection<ApiMultivariateStructure>(projectId, "structure", options),
+          multivariateStatisticsApi.loadSection<ApiMultivariateArtifacts>(projectId, "artifacts", options),
+          multivariateStatisticsApi.loadSection<ApiMultivariateComponents>(projectId, "components", options),
+        ]);
+        if (!controller.signal.aborted) { setStructure(nextStructure.data); setArtifacts(nextArtifacts.data); setComponents(nextComponents.data); }
+      } else if (activeTab === "portfolio-candidates") {
+        const next = await multivariateStatisticsApi.loadSection<ApiMultivariateCandidates>(projectId, "candidates", options);
+        if (!controller.signal.aborted) setCandidates(next.data);
+      } else if (activeTab === "risk-contributions") {
+        const next = await multivariateStatisticsApi.loadSection<ApiMultivariateRiskContributions>(projectId, "risk_contributions", { ...options, candidateId: selectedCandidateId });
+        if (!controller.signal.aborted) setContributions(next.data);
+      } else if (activeTab === "income-evidence") {
+        const next = await multivariateStatisticsApi.loadSection<ApiMultivariateIncomeEvidenceList>(projectId, "income_evidence", options);
+        if (!controller.signal.aborted) setIncome(next.data);
+      } else if (activeTab === "performance") {
+        const next = await multivariateStatisticsApi.loadSection<ApiMultivariatePerformance>(projectId, "performance", options);
+        if (!controller.signal.aborted) setPerformance(next.data);
+      } else {
+        const next = await multivariateStatisticsApi.loadSection<ApiMultivariateValidation>(projectId, "validation", options);
+        if (!controller.signal.aborted) setValidation(next.data);
+      }
+    };
+    void load().catch((error: unknown) => {
+      if (!controller.signal.aborted) setMessage(error instanceof Error ? error.message : "The selected multivariate result is unavailable.");
+    });
+    return () => controller.abort();
+  }, [activeTab, projectId, run?.run_id, run?.status, selectedCandidateId]);
 
   useEffect(() => {
     if (!run || run.status !== "running") return;
@@ -272,8 +340,6 @@ export function MultivariateStatisticsPage() {
           setMessage(current.failure_reason || "Multivariate calculation failed. Please try again.");
           return;
         }
-        await loadRun(current.run_id);
-        if (cancelled) return;
         setRevision((value) => value + 1);
         window.dispatchEvent(new Event("portfell:workflow-updated"));
       } catch (error) {
@@ -299,7 +365,6 @@ export function MultivariateStatisticsPage() {
         progressSnapshot.current, next.run_id, progressPercent(next.completed_units, next.total_units),
       );
       setRun(next);
-      await loadRun(next.run_id);
       setRevision((value) => value + 1);
     } catch {
       setMessage("Multivariate calculation could not be started.");
@@ -315,8 +380,9 @@ export function MultivariateStatisticsPage() {
     candidateSelectionSave.schedule({ runId: run.run_id, selectedCandidateIds: next });
   }
 
-  if (workflow.status === "idle" || workflow.status === "loading" || projects.status === "idle" || projects.status === "loading") return <LoadingState label="Loading multivariate statistics" />;
-  if (workflow.status === "error" || projects.status === "error") return <p role="alert">Multivariate workflow state is unavailable.</p>;
+  if (pageViewLoading) return <LoadingState label="Loading multivariate statistics" />;
+  if (pageViewError) return <p role="alert">{pageViewError}</p>;
+  if (!pageView) return <Panel title="Multivariate Statistics"><p>Select a project to compute portfolio-level analysis.</p></Panel>;
   if (stage?.status === "locked") return <Panel title="Multivariate Statistics"><p>Complete the matching bivariate run before portfolio-level analysis.</p></Panel>;
 
   const progress = run === null ? 0 : nextProgressSnapshot(

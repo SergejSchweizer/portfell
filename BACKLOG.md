@@ -491,6 +491,10 @@ following atomic steps; neither step may reintroduce the former Bivariate fan-ou
 
 PR248d2a branch: `feat/web-univariate-page-view-adoption`.
 
+PR: https://github.com/SergejSchweizer/portfell/pull/441 (merged 2026-08-14).
+
+Git status: merged.
+
 - Own only the Univariate page entry and its visible `results` lazy section. Use the compact Univariate
   page view for stage/run state and request result pages only after the completed-results panel is visible.
   Abort on project, run, or tab changes; retain local portfolio-selection drafts. Do not add TanStack
@@ -505,6 +509,8 @@ Acceptance for PR248d2a:
   and the applicable real-stack gate pass.
 
 PR248d2b branch: `feat/web-multivariate-page-view-adoption`.
+
+Git status: in progress.
 
 - Depend on PR248d2a only for the page-entry convention. Own only the Multivariate page entry and its
   visible overview/candidate/detail sections. Abort obsolete project/run/tab/candidate requests and retain
@@ -968,7 +974,7 @@ and focused hosted API/quote tests prove local adapters are opt-in.
 
 Branch: `refactor/hosted-credential-explicit-dependencies`.
 
-Git status: in progress.
+Git status: merged as #434.
 
 PR: TBD.
 

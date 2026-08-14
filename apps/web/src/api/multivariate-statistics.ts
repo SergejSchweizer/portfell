@@ -2,6 +2,8 @@
 
 import { postJson, requestJson } from "./client";
 import type {
+  ApiAnalyticalPageView,
+  ApiLazyDetail,
   ApiMultivariateCandidates,
   ApiMultivariateComponents,
   ApiMultivariateArtifacts,
@@ -32,6 +34,23 @@ export const multivariateStatisticsApi = {
   loadRun: (runId: string): Promise<ApiMultivariateRun> => (
     requestJson<ApiMultivariateRun>(`/api/multivariate-statistics/runs/${encodeURIComponent(runId)}`)
   ),
+  loadPageView: (projectId: string, signal?: AbortSignal): Promise<ApiAnalyticalPageView> => (
+    requestJson<ApiAnalyticalPageView>(
+      `/api/projects/${encodeURIComponent(projectId)}/views/multivariate-statistics`,
+      { signal },
+    )
+  ),
+  loadSection: <T>(
+    projectId: string,
+    section: string,
+    options: Readonly<{ candidateId?: string; signal?: AbortSignal }> = {},
+  ): Promise<ApiLazyDetail<T>> => {
+    const query = options.candidateId === undefined ? "" : `?candidate_id=${encodeURIComponent(options.candidateId)}`;
+    return requestJson<ApiLazyDetail<T>>(
+      `/api/projects/${encodeURIComponent(projectId)}/views/multivariate_statistics/sections/${encodeURIComponent(section)}${query}`,
+      { signal: options.signal },
+    );
+  },
   loadSummary: (runId: string): Promise<ApiMultivariateSummary> => (
     requestJson<ApiMultivariateSummary>(`/api/multivariate-statistics/runs/${encodeURIComponent(runId)}/summary`)
   ),
