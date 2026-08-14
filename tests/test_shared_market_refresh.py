@@ -180,6 +180,14 @@ def test_refresh_rejects_invalid_settings_and_persists_partial_failure(tmp_path)
         refresh_shared_market_data(
             store=store, listings=_LISTINGS, fetch=_fetch, end_date=date(2026, 1, 1), concurrency=0
         )
+    with pytest.raises(SharedMarketRefreshError, match="invalid_refresh_batch_size"):
+        refresh_shared_market_data(
+            store=store,
+            listings=_LISTINGS,
+            fetch=_fetch,
+            end_date=date(2026, 1, 1),
+            request_batch_size=0,
+        )
 
     def failing_fetch(request):  # type: ignore[no-untyped-def]
         if request.dataset_type == "splits":

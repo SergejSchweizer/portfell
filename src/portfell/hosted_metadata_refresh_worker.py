@@ -15,6 +15,7 @@ from portfell.hosted_metadata_refresh_job_repository import (
     PostgresMetadataRefreshJobRepository,
 )
 from portfell.hosted_metadata_repository import MetadataRun, PostgresMetadataLifecycleRepository
+from portfell.hosted_worker_capacity import resolve_worker_concurrency
 from portfell.http import EodhdClient
 from portfell.shared_metadata_catalog import SharedMetadataCatalog
 
@@ -58,12 +59,14 @@ class MetadataRefreshWorker:
         catalog: SharedMetadataCatalog,
         client: MetadataClient,
         cpu_count: Callable[[], int | None] = os.process_cpu_count,
+        concurrency: int | None = None,
     ) -> None:
         self._jobs = jobs
         self._runs = runs
         self._catalog = catalog
         self._client = client
         self._cpu_count = cpu_count
+        self._concurrency = concurrency
 
     def run_once(self) -> MetadataRefreshWorkerResult:
         claim = self._jobs.claim()
@@ -96,7 +99,9 @@ class MetadataRefreshWorker:
 
         result = fetch_all_metadata(
             self._client,
-            concurrency=max(1, self._cpu_count() or os.cpu_count() or 1),
+            concurrency=resolve_worker_concurrency(
+                self._cpu_count() or os.cpu_count(), configured_concurrency=self._concurrency
+            ),
             on_progress=progress,
         )
         rows = self._catalog.publish(result.rows)
@@ -145,7 +150,11 @@ class MetadataRefreshWorker:
 
 
 def build_metadata_refresh_worker(
-    connection: object, *, shared_data_root: Path, operations_token: str
+    connection: object,
+    *,
+    shared_data_root: Path,
+    operations_token: str,
+    concurrency: int | None = None,
 ) -> MetadataRefreshWorker:
     """Compose a worker without making API processes shared-store writers."""
 
@@ -156,4 +165,5 @@ def build_metadata_refresh_worker(
         runs=runs,
         catalog=SharedMetadataCatalog(shared_data_root),
         client=EodhdClient(runtime_eodhd_config(operations_token)),
+        concurrency=concurrency,
     )

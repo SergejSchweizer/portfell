@@ -122,3 +122,30 @@ def test_metadata_refresh_worker_records_a_safe_failed_run(tmp_path: Path) -> No
     assert jobs.completed == [False]
     assert runs.run.status == "failed"
     assert runs.run.summary["error_code"] == "eodhd_metadata_unavailable"
+
+
+def test_metadata_refresh_worker_bounds_default_concurrency(tmp_path: Path, monkeypatch) -> None:
+    run = _run()
+    claim = ClaimedMetadataRefresh(
+        run.metadata_run_id, run.user_id, "00000000-0000-0000-0000-000000000003"
+    )
+    seen: dict[str, int] = {}
+
+    def fetch(client: Client, *, concurrency: int, on_progress: object) -> object:
+        del client, on_progress
+        seen["concurrency"] = concurrency
+        return type(
+            "Result", (), {"rows": (), "requested_exchanges": (), "skipped_exchanges": ()}
+        )()
+
+    monkeypatch.setattr("portfell.hosted_metadata_refresh_worker.fetch_all_metadata", fetch)
+    worker = MetadataRefreshWorker(
+        jobs=Jobs(claim),
+        runs=Runs(run),
+        catalog=SharedMetadataCatalog(tmp_path),
+        client=Client(),
+        cpu_count=lambda: 32,
+    )  # type: ignore[arg-type]
+
+    assert worker.run_once().succeeded
+    assert seen["concurrency"] == 4

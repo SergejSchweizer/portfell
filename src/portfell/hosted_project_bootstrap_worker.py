@@ -20,6 +20,10 @@ from portfell.durable_job_repository import ClaimedJob, PostgresDurableJobReposi
 from portfell.hosted_catalog import set_authenticated_user_sql
 from portfell.hosted_database_connection import connect
 from portfell.hosted_metadata_refresh_worker import build_metadata_refresh_worker
+from portfell.hosted_worker_capacity import (
+    resolve_worker_concurrency,
+    worker_concurrency_from_environment,
+)
 from portfell.http import EodhdClient
 from portfell.logging import get_logger, log_event, setup_logging
 from portfell.shared_market_data import SharedListingKey, SharedMarketDataStore
@@ -272,7 +276,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run Portfell project initial-fill worker jobs.")
     parser.add_argument("--worker-id", default=f"bootstrap-worker-{os.getpid()}")
     parser.add_argument("--batch-size", type=int, default=1)
-    parser.add_argument("--concurrency", type=int, default=max(1, os.process_cpu_count() or 1))
+    parser.add_argument("--concurrency", type=int)
     parser.add_argument("--poll-seconds", type=float, default=2.0)
     parser.add_argument("--once", action="store_true")
     return parser
@@ -286,15 +290,26 @@ def main(argv: list[str] | None = None) -> int:
     root = os.environ.get("PORTFELL_SHARED_DATA_ROOT")
     database_url = os.environ.get("PORTFELL_DATABASE_URL")
     token = operations_token_from_environment()
-    if (
-        not root
-        or not database_url
-        or not token
-        or args.batch_size < 1
-        or args.concurrency < 1
-        or args.poll_seconds <= 0
-    ):
+    try:
+        configured_concurrency = (
+            args.concurrency
+            if args.concurrency is not None
+            else worker_concurrency_from_environment(os.environ)
+        )
+        concurrency = resolve_worker_concurrency(
+            os.process_cpu_count(), configured_concurrency=configured_concurrency
+        )
+    except ValueError:
         return 4
+    if not root or not database_url or not token or args.batch_size < 1 or args.poll_seconds <= 0:
+        return 4
+    log_event(
+        LOGGER,
+        logging.INFO,
+        module="project-bootstrap-worker",
+        event="worker_capacity_configured",
+        fields={"concurrency": concurrency, "workload": "bootstrap_and_metadata"},
+    )
     # Repositories explicitly delimit each claim/update with ``transaction()``.
     # Autocommit keeps those worker transactions short-lived instead of retaining
     # an implicit outer transaction for the lifetime of the polling process.
@@ -309,10 +324,13 @@ def main(argv: list[str] | None = None) -> int:
             store=SharedMarketDataStore(Path(root)),
             fetch=eodhd_fetch(EodhdClient(runtime_eodhd_config(token))),
             end_date=date.today(),
-            concurrency=args.concurrency,
+            concurrency=concurrency,
         )
         metadata_worker = build_metadata_refresh_worker(
-            metadata_connection, shared_data_root=Path(root), operations_token=token
+            metadata_connection,
+            shared_data_root=Path(root),
+            operations_token=token,
+            concurrency=concurrency,
         )
         with ThreadPoolExecutor(
             max_workers=1, thread_name_prefix="project-initial-fill"
