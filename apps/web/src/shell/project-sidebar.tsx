@@ -1,5 +1,5 @@
 import type { ChangeEvent, MouseEvent } from "react";
-import type { ApiProjectActiveRun, ApiProjectContext, ApiWorkflow, WorkflowStatus } from "../contracts";
+import type { ApiProjectContext, ApiWorkflow, WorkflowStatus } from "../contracts";
 import { projectWorkflowPath, workflowPages, type WorkflowPageId } from "../routes";
 
 export type ProjectSidebarProps = Readonly<{
@@ -60,18 +60,13 @@ export function ProjectSidebar({
         <select
           id="current-project"
           value={currentProjectId}
-          data-run-status={currentProject?.active_run?.status ?? "idle"}
           title={context?.current_project?.name}
           disabled={loading || switching || noProjects}
           onChange={changeProject}
         >
           {noProjects ? <option value="">No projects yet</option> : null}
           {context?.projects.map((project) => (
-            <option
-              key={project.project_id}
-              value={project.project_id}
-              style={{ color: projectActiveRunColor(project.active_run) }}
-            >
+            <option key={project.project_id} value={project.project_id}>
               {project.name}
             </option>
           ))}
@@ -99,9 +94,4 @@ export function ProjectSidebar({
       {error ? <p className="project-sidebar__message" role="alert">{error}</p> : null}
     </aside>
   );
-}
-
-function projectActiveRunColor(run: ApiProjectActiveRun | null | undefined): string | undefined {
-  if (!run) return undefined;
-  return run.status === "running" ? "var(--success)" : "var(--danger)";
 }

@@ -218,34 +218,13 @@ function ShellFrameContent({ currentPage, children }: ShellFrameProps) {
             </div>
           </div>
         </div>
-        <label className="app-header__project" htmlFor="compact-current-project">
-          Current project
-          <select
-            id="compact-current-project"
-            aria-label="Current project"
-            value={projectId ?? ""}
-            disabled={context.status !== "ready" || switching || context.data.projects.length === 0}
-            onChange={(event) => void changeProject(event.target.value)}
-          >
-            {context.status === "ready" && context.data.projects.length === 0 ? <option value="">No projects yet</option> : null}
-            {context.status === "ready" ? context.data.projects.map((project) => (
-              <option key={project.project_id} value={project.project_id}>{project.name}</option>
-            )) : null}
-          </select>
-        </label>
         <div className="app-header__metadata">
           <div className="metadata-fetch__credential-input">
             <label>
               EODHD key
-              <input
-                type="password"
-                autoComplete="off"
-                value={providerKey}
-                onChange={(event) => setProviderKey(event.target.value)}
-                placeholder={maskedCredentialLabel ? `Encrypted key: ${maskedCredentialLabel}` : "Enter provider key"}
-              />
+              <input type="text" autoComplete="off" value={providerKey} onChange={(event) => setProviderKey(event.target.value)} placeholder="Enter provider key" />
             </label>
-            {maskedCredentialLabel ? <span className="metadata-fetch__credential">Encrypted: {maskedCredentialLabel}</span> : null}
+            {maskedCredentialLabel ? <span className="metadata-fetch__credential">Saved: {maskedCredentialLabel}</span> : null}
           </div>
         </div>
         <button
