@@ -334,6 +334,11 @@ export type ApiPage<T> = Readonly<{
   offset: number;
 }>;
 
+export type ApiLazyDetail<T> = Readonly<{
+  revision: string;
+  data: T;
+}>;
+
 export type ApiUnivariateRow = Readonly<{
   isin: string;
   exchange: string;

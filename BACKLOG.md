@@ -1244,7 +1244,7 @@ canonical content changes and never duplicates project or workflow rows.
 
 Branch: split into the atomic PR248a–PR248d sequence below.
 
-Git status: in progress; PR248a landed as #412, PR248b landed as #414, PR248c1 landed as #415, PR248c2 landed as #416, and PR248d remains queued.
+Git status: in progress; PR248a landed as #412, PR248b landed as #414, PR248c1 landed as #415, PR248c2 landed as #416, PR248d1 landed as #417, and PR248d2 remains queued.
 
 PR: TBD; each atomic step receives its own PR.
 
@@ -1348,6 +1348,8 @@ owns Univariate/Bivariate/Multivariate page entries and their lazy visible secti
 ephemeral controls/tabs locally, cancel obsolete requests, and introduce no second query cache.
 
 PR248d1 branch: `feat/web-metadata-page-view-adoption`.
+
+PR: https://github.com/SergejSchweizer/portfell/pull/417 (landed 2026-08-14).
 
 - Replace the Metadata Builder project's independent criteria and initial-fill reads with exactly one
   `GET /projects/{project_id}/views/metadata-builder` call. Field options and explicit job-progress
@@ -1703,6 +1705,7 @@ backlog identifiers.
 | PR248b | Hosted Analysis Page-View Contracts | landed 2026-08-14. PR: https://github.com/SergejSchweizer/portfell/pull/414; compact conditional-GET views for Univariate, Bivariate, and Multivariate stage/section metadata. |
 | PR248c1 | Hosted Lazy Tabular Sections | landed 2026-08-14. PR: https://github.com/SergejSchweizer/portfell/pull/415; project-authorized 200-row pages with opaque revision-bound cursors. |
 | PR248c2 | Hosted Lazy Matrix And Detail Sections | landed 2026-08-14. PR: https://github.com/SergejSchweizer/portfell/pull/416; authorized analytical detail endpoints with immutable revisions and a 2 MiB encoded-response limit. |
+| PR248d1 | Web Metadata Page-View Adoption | landed 2026-08-14. PR: https://github.com/SergejSchweizer/portfell/pull/417; Metadata Builder restores criteria and initial-fill state from one compact page-view response. |
 | PR01 | Project Package And Quality Baseline | merged. PR: https://github.com/SergejSchweizer/portfell/pull/1 |
 | PR02 | Shared Configuration, HTTP, And Contract Primitives | merged. PR: https://github.com/SergejSchweizer/portfell/pull/3 |
 | PR03 | Simple Bronze/Silver/Gold Lake Layout Contract | merged. PR: https://github.com/SergejSchweizer/portfell/pull/3 |

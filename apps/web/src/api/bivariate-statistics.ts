@@ -5,6 +5,7 @@ import type {
   ApiBivariateRow,
   ApiBivariateSummary,
   ApiCovarianceMatrix,
+  ApiLazyDetail,
   ApiPage,
   ApiPairMetricMatrix,
   ApiPairPlan,
@@ -31,6 +32,8 @@ export type BivariateRunData = Readonly<{
 }>;
 
 export type PairMetricMatrixKind = "pearson" | "spearman" | "downside" | "lower_tail_dependence" | "tail_coexceedance_rate" | "rolling_stability" | "drawdown_overlap";
+
+type BivariateSection = "summary" | "covariance_matrix" | "correlation_matrix" | "tail_risk_scatter";
 
 export const bivariateStatisticsApi = {
   plan: (request: BivariateSelectionRequest): Promise<ApiPairPlan> => (
@@ -63,6 +66,13 @@ export const bivariateStatisticsApi = {
   ),
   loadTailRiskScatter: (runId: string): Promise<ApiTailRiskScatter> => requestJson<ApiTailRiskScatter>(
     `/api/bivariate-statistics/runs/${encodeURIComponent(runId)}/tail-risk-scatter`,
+  ),
+  loadSection: <T>(
+    projectId: string,
+    section: BivariateSection,
+    metric?: PairMetricMatrixKind,
+  ): Promise<ApiLazyDetail<T>> => requestJson<ApiLazyDetail<T>>(
+    `/api/projects/${encodeURIComponent(projectId)}/views/bivariate_statistics/sections/${section}${metric ? `?metric=${metric}` : ""}`,
   ),
   loadRunData: async (runId: string): Promise<BivariateRunData> => {
     const [results, covariance, summary, pearson, spearman, downside, lowerTailDependence, tailCoexceedanceRate, rollingStability, drawdownOverlap, tailRiskScatter] = await Promise.all([
