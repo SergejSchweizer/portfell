@@ -141,6 +141,21 @@ export type ApiMetadataBuilderPageView = Readonly<{
   sections: Readonly<Record<string, Readonly<{ available: boolean; revision?: string }>>>;
 }>;
 
+export type ApiAnalyticalPageView = Readonly<{
+  contract_version: number;
+  module: "univariate_statistics" | "bivariate_statistics" | "multivariate_statistics";
+  project_id: string;
+  workflow_etag: string | null;
+  run_id: string | null;
+  status: WorkflowStatus;
+  input: Readonly<Record<string, string | null>>;
+  sections: Readonly<Record<string, Readonly<{
+    available: boolean;
+    revision: string;
+    unavailable?: Readonly<{ code: string; status?: string }>;
+  }>>>;
+}>;
+
 export type ApiResearchRun = Readonly<{
   run_id: string;
   status: "running" | "complete" | "failed";
@@ -337,6 +352,14 @@ export type ApiPage<T> = Readonly<{
 export type ApiLazyDetail<T> = Readonly<{
   revision: string;
   data: T;
+}>;
+
+export type ApiLazyPage<T> = Readonly<{
+  revision: string;
+  items: readonly T[];
+  total: number;
+  limit: number;
+  next_cursor: string | null;
 }>;
 
 export type ApiUnivariateRow = Readonly<{

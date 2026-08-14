@@ -103,6 +103,22 @@ def analytical_page_view(
         )
         for key in _ANALYTICAL_SECTIONS[module]
     }
+    upstream_stage_by_module = {
+        "univariate_statistics": "metadata_builder",
+        "bivariate_statistics": "univariate_statistics",
+        "multivariate_statistics": "bivariate_statistics",
+    }
+    upstream_stage = stages.get(upstream_stage_by_module[module])
+    upstream = cast(JsonRow, upstream_stage) if isinstance(upstream_stage, dict) else {}
+    input_key_by_module = {
+        "univariate_statistics": "metadata_selection_id",
+        "bivariate_statistics": "univariate_selection_id",
+        "multivariate_statistics": "bivariate_run_id",
+    }
+    input_key = input_key_by_module[module]
+    input_value = upstream.get(input_key)
+    if input_value is not None and not isinstance(input_value, str):
+        raise ValueError("page_view_input_invalid")
     payload: JsonRow = {
         "contract_version": PAGE_VIEW_CONTRACT_VERSION,
         "module": module,
@@ -110,6 +126,7 @@ def analytical_page_view(
         "workflow_etag": workflow_etag,
         "run_id": run_id,
         "status": status,
+        "input": {input_key: input_value},
         "sections": sections,
     }
     return payload, stable_hash(payload)

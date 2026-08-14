@@ -2,6 +2,8 @@
 
 import { postJson, requestJson } from "./client";
 import type {
+  ApiAnalyticalPageView,
+  ApiLazyPage,
   ApiPage,
   ApiResearchRun,
   ApiUnivariateRow,
@@ -19,6 +21,23 @@ export const univariateStatisticsApi = {
   loadRun: (runId: string): Promise<ApiResearchRun> => (
     requestJson<ApiResearchRun>(`/api/univariate-statistics/runs/${encodeURIComponent(runId)}`)
   ),
+  loadPageView: (projectId: string, signal?: AbortSignal): Promise<ApiAnalyticalPageView> => (
+    requestJson<ApiAnalyticalPageView>(
+      `/api/projects/${encodeURIComponent(projectId)}/views/univariate-statistics`,
+      { signal },
+    )
+  ),
+  loadResultsSection: (
+    projectId: string,
+    cursor?: string,
+    signal?: AbortSignal,
+  ): Promise<ApiLazyPage<ApiUnivariateRow>> => {
+    const path = `/api/projects/${encodeURIComponent(projectId)}/views/univariate_statistics/sections/results`;
+    return requestJson<ApiLazyPage<ApiUnivariateRow>>(
+      cursor === undefined ? path : `${path}?cursor=${encodeURIComponent(cursor)}`,
+      { signal },
+    );
+  },
   loadResults: (runId: string, limit: number, offset: number): Promise<ApiPage<ApiUnivariateRow>> => (
     requestJson<ApiPage<ApiUnivariateRow>>(
       `/api/univariate-statistics/runs/${encodeURIComponent(runId)}/results?limit=${limit}&offset=${offset}`,
