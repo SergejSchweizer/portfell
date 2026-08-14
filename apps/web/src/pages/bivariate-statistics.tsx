@@ -254,6 +254,7 @@ export function BivariateStatisticsPage() {
   const [starting, setStarting] = useState(false);
   const progressSnapshot = useRef<ProgressSnapshot | null>(null);
   const persistedRunId = pageView.status === "ready" ? pageView.data.run_id ?? undefined : undefined;
+  const pageViewCompleted = pageView.status === "ready" && pageView.data.status === "complete";
 
   function applyRunData(data: BivariateRunData) {
     setResults(data.results);
@@ -270,7 +271,7 @@ export function BivariateStatisticsPage() {
   }
 
   useEffect(() => {
-    if (run?.status !== "complete") return;
+    if (!pageViewCompleted) return;
     let cancelled = false;
     const metric = activePairwiseMetric;
     async function loadVisibleSection() {
@@ -304,7 +305,7 @@ export function BivariateStatisticsPage() {
     }
     void loadVisibleSection();
     return () => { cancelled = true; };
-  }, [activePairwiseMetric, projectId, run?.run_id, run?.status]);
+  }, [activePairwiseMetric, pageViewCompleted, persistedRunId, projectId]);
 
   useEffect(() => {
     const resetProjectState = () => {
@@ -393,7 +394,7 @@ export function BivariateStatisticsPage() {
 
   async function compute() {
     const univariateSelectionId = selectionId;
-    if (!univariateSelectionId || starting || run?.status === "running") return;
+    if (!univariateSelectionId || pageViewCompleted || starting || run?.status === "running") return;
     setStarting(true);
     setMessage("Planning bivariate statistics…");
     try {
@@ -464,15 +465,15 @@ export function BivariateStatisticsPage() {
     <Panel title="Bivariate Statistics">
       <div className="quote-fetch quote-fetch--panel bivariate-compute">
         <label htmlFor="bivariate-progress">Bivariate statistics progress</label>
-        <progress id="bivariate-progress" max={100} value={run === null ? 0 : nextProgressSnapshot(progressSnapshot.current, run.run_id, run.percent).percent} />
+        <progress id="bivariate-progress" max={100} value={run === null ? (pageViewCompleted ? 100 : 0) : nextProgressSnapshot(progressSnapshot.current, run.run_id, run.percent).percent} />
         <p className="status-line" aria-live="polite">{message || "Compute statistics for the ISINs selected in univariate statistics."}</p>
         <div className="quote-fetch__action">
-          <Button type="button" variant="primary" disabled={starting || run?.status === "running"} aria-busy={starting || run?.status === "running"} onClick={() => void compute()}>
-            {starting ? "Planning computation…" : run?.status === "running" ? "Computing…" : "Compute Bivariate Statistics"}
+          <Button type="button" variant="primary" disabled={pageViewCompleted || starting || run?.status === "running"} aria-busy={starting || run?.status === "running"} onClick={() => void compute()}>
+            {pageViewCompleted ? "Bivariate statistics computed" : starting ? "Planning computation…" : run?.status === "running" ? "Computing…" : "Compute Bivariate Statistics"}
           </Button>
         </div>
       </div>
-      {run?.status === "complete" && <section className="bivariate-statistic" aria-labelledby="pairwise-dependence-title">
+      {pageViewCompleted && <section className="bivariate-statistic" aria-labelledby="pairwise-dependence-title">
         <div className="bivariate-statistic__tabs" role="tablist" aria-label="Pairwise dependence statistic">
           {pairwiseMatrixTabs.map((tab) => <button key={tab.metric} type="button" role="tab" aria-selected={activePairwiseMetric === tab.metric} className={activePairwiseMetric === tab.metric ? "is-active" : undefined} onClick={() => setActivePairwiseMetric(tab.metric)}>{tab.label}</button>)}
         </div>
