@@ -1169,7 +1169,7 @@ Acceptance for PR247c2b3b1:
   RLS-binding statement and that metrics are reset after each request/worker context.
 - API-contract, architecture, Ruff, format, Pyright, Playwright, and real-stack gates pass.
 
-PR247c2b3b2 branch: `feat/hosted-workflow-read-performance`.
+PR247c2b3b2 branch: `feat/hosted-workflow-read-performance` (ready for PR after PR247c2b3b1).
 
 - Depend only on PR247c2b3b1's structured metrics hook. Add deterministic 100-project/25,000-member
   projection fixtures and prove bounded statement counts, zero shared-file reads, no GET writes,
