@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import replace
 
 from portfell.bivariate_views import (
@@ -37,10 +38,12 @@ class BivariateResearchService:
         repository: ResearchRunRepository,
         data: ResearchDataPort,
         persistence: ResearchPersistencePort,
+        workflow_projector: Callable[[str, str], object] | None = None,
     ) -> None:
         self._repository = repository
         self._data = data
         self._persistence = persistence
+        self._workflow_projector = workflow_projector
 
     def plan(self, user_id: str, selection_id: str) -> JsonRow:
         return pair_plan(self._repository.univariate_selection(selection_id, user_id))
@@ -65,6 +68,14 @@ class BivariateResearchService:
             completed=0,
         )
         self._repository.save_bivariate_run(run)
+        project_id = self._repository.project_id_for_run(
+            user_id=user_id, run_id=selection.source_run_id
+        )
+        if project_id is not None:
+            self._repository.bind_project_run(
+                user_id=user_id, project_id=project_id, run_id=run.run_id
+            )
+            self._project(user_id, project_id)
         self._repository.audit(user_id, "bivariate_statistics.start")
         return research_run_row(run)
 
@@ -93,6 +104,9 @@ class BivariateResearchService:
                     self._repository.save_bivariate_run(
                         replace(active, completed=min(completed, total), total=total)
                     )
+                    project_id = self._repository.project_id_for_run(user_id=user_id, run_id=run_id)
+                    if project_id is not None:
+                        self._project(user_id, project_id)
 
             computed = create_bivariate_run(
                 user_id=user_id,
@@ -103,6 +117,9 @@ class BivariateResearchService:
             self._repository.save_bivariate_run(
                 replace(computed, run_id=run_id, total=computed.total, completed=computed.total)
             )
+            project_id = self._repository.project_id_for_run(user_id=user_id, run_id=run_id)
+            if project_id is not None:
+                self._project(user_id, project_id)
             self._repository.audit(user_id, "bivariate_statistics.complete")
             self._persistence.persist()
         except HostedResearchError:
@@ -150,5 +167,12 @@ class BivariateResearchService:
 
     def _fail(self, run: ResearchRun, user_id: str) -> None:
         self._repository.save_bivariate_run(replace(run, status="failed", failed=run.total))
+        project_id = self._repository.project_id_for_run(user_id=user_id, run_id=run.run_id)
+        if project_id is not None:
+            self._project(user_id, project_id)
         self._repository.audit(user_id, "bivariate_statistics.failed")
         self._persistence.persist()
+
+    def _project(self, user_id: str, project_id: str) -> None:
+        if self._workflow_projector is not None:
+            self._workflow_projector(user_id, project_id)

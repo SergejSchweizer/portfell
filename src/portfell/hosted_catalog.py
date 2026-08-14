@@ -14,7 +14,9 @@ from portfell.catalog_contract_validation import validate_catalog_contracts
 from portfell.hosted_download_run_schema import DOWNLOAD_RUN_PARTIAL_STATUS_SQL
 from portfell.hosted_navigation_read_model_schema import NAVIGATION_READ_MODEL_SCHEMA_SQL
 from portfell.hosted_project_workflow_projection_schema import (
+    PROJECT_RESEARCH_RUN_MAPPING_SCHEMA_SQL,
     PROJECT_WORKFLOW_PROJECTION_SCHEMA_SQL,
+    PROJECT_WORKFLOW_TABLE_SPECS,
 )
 from portfell.legacy_import_schema import LEGACY_IMPORT_LEDGER_SQL
 from portfell.metadata_builder_criteria_schema import METADATA_BUILDER_CRITERIA_SCHEMA_SQL
@@ -160,6 +162,7 @@ HOSTED_TABLES: tuple[HostedTable, ...] = (
         False,
         "Compact tenant-scoped project workflow read projections.",
     ),
+    *(HostedTable(*spec) for spec in PROJECT_WORKFLOW_TABLE_SPECS),
     HostedTable(
         "portfell_app.univariate_selections", True, True, "Persisted univariate result selections."
     ),
@@ -494,6 +497,7 @@ MIGRATIONS: tuple[HostedMigration, ...] = (
     ),
     HostedMigration(20, "navigation_read_model", NAVIGATION_READ_MODEL_SCHEMA_SQL),
     HostedMigration(21, "project_workflow_projection", PROJECT_WORKFLOW_PROJECTION_SCHEMA_SQL),
+    HostedMigration(22, "project_research_run_mapping", PROJECT_RESEARCH_RUN_MAPPING_SCHEMA_SQL),
 )
 
 

@@ -21,6 +21,10 @@ from portfell.hosted_postgres_research_repository import PostgresResearchReposit
 from portfell.hosted_postgres_runtime import PostgresHostedRuntime
 from portfell.hosted_postgres_workflow import PostgresWorkflowReader
 from portfell.hosted_project_bootstrap_repository import PostgresProjectBootstrapRepository
+from portfell.hosted_project_workflow_projection_repository import (
+    PostgresProjectWorkflowProjection,
+)
+from portfell.hosted_project_workflow_projector import PostgresProjectWorkflowProjector
 from portfell.hosted_quote_run_service import QuoteRunService
 from portfell.hosted_research_persistence import PostgresResearchPersistence
 from portfell.hosted_research_service import ResearchService
@@ -119,6 +123,9 @@ def build_postgres_services(
             )
         ),
     )
+    workflow_projector = PostgresProjectWorkflowProjector(
+        workflow_reader, PostgresProjectWorkflowProjection(request_scope)
+    )
     persistence = PostgresResearchPersistence()
     credentials = CredentialProjectService(
         state,
@@ -161,8 +168,12 @@ def build_postgres_services(
         SharedQuotePublisher(shared_store),
     )
     research = ResearchService(
-        UnivariateResearchService(research_repository, data, persistence),
-        BivariateResearchService(research_repository, data, persistence),
+        UnivariateResearchService(
+            research_repository, data, persistence, workflow_projector.reconcile
+        ),
+        BivariateResearchService(
+            research_repository, data, persistence, workflow_projector.reconcile
+        ),
         MultivariateResearchService(
             state,
             data,
@@ -173,6 +184,7 @@ def build_postgres_services(
             repositories.multivariate,
             runtime.all_isins_rows,
             runtime.process_cpu_count,
+            workflow_projector.reconcile,
         ),
         HostedAnalysisService(research_repository, persistence),
     )

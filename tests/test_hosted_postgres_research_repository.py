@@ -141,6 +141,23 @@ def _repository(connection: _Connection) -> PostgresResearchRepository:
     )
 
 
+def test_postgres_research_repository_binds_each_run_to_its_owned_project() -> None:
+    connection = _Connection()
+    user_id = "00000000-0000-5000-8000-000000000001"
+    project_id = "00000000-0000-5000-8000-000000000002"
+
+    _repository(connection).bind_project_run(
+        user_id=user_id, project_id=project_id, run_id="univariate-run-1"
+    )
+
+    assert connection.calls[0] == (
+        "select set_config(%s, %s, true)",
+        ("portfell.current_user_id", user_id),
+    )
+    assert "project_research_run_mappings" in connection.calls[1][0]
+    assert connection.calls[1][1] == ("univariate-run-1", user_id, project_id)
+
+
 def test_postgres_research_repository_persists_run_and_rows_under_bound_user() -> None:
     connection = _Connection()
     run = ResearchRun(

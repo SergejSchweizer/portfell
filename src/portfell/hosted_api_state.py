@@ -191,6 +191,7 @@ class HostedApiState:
     current_univariate_selection_by_user: dict[str, str] = field(
         default_factory=lambda: dict[str, str]()
     )
+    project_id_by_research_run: dict[str, str] = field(default_factory=lambda: dict[str, str]())
     univariate_selection_settings_by_project: dict[str, JsonRow] = field(
         default_factory=lambda: dict[str, JsonRow]()
     )

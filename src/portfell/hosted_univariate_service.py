@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import replace
 
 from portfell.hosted_api_errors import HostedApplicationError
@@ -37,10 +38,12 @@ class UnivariateResearchService:
         repository: ResearchRunRepository,
         data: ResearchDataPort,
         persistence: ResearchPersistencePort,
+        workflow_projector: Callable[[str, str], object] | None = None,
     ) -> None:
         self._repository = repository
         self._data = data
         self._persistence = persistence
+        self._workflow_projector = workflow_projector
 
     def start(self, user_id: str, selection_id: str, quote_run_id: str | None) -> JsonRow:
         selection = self._repository.metadata_selection(selection_id, user_id)
@@ -69,6 +72,10 @@ class UnivariateResearchService:
             completed=0,
         )
         self._repository.save_univariate_run(run)
+        self._repository.bind_project_run(
+            user_id=user_id, project_id=selection.project_id, run_id=run.run_id
+        )
+        self._project(user_id, selection.project_id)
         if quote_run_id is not None:
             self._repository.bind_quote_run(run.run_id, source_quote_id)
         self._repository.audit(user_id, "univariate_statistics.start")
@@ -123,6 +130,7 @@ class UnivariateResearchService:
             full_selection = create_full_univariate_selection(user_id=user_id, run=completed)
             saved_selection = self._repository.save_univariate_selection(full_selection)
             self._repository.set_current_univariate_selection(user_id, saved_selection.selection_id)
+            self._project(user_id, selection.project_id)
             self._repository.audit(user_id, "univariate_statistics.compute")
             self._persistence.persist()
         except Exception:
@@ -132,6 +140,9 @@ class UnivariateResearchService:
 
     def _fail(self, run: ResearchRun) -> None:
         self._repository.save_univariate_run(replace(run, status="failed", failed=run.total))
+        project_id = self._repository.project_id_for_run(user_id=run.user_id, run_id=run.run_id)
+        if project_id is not None:
+            self._project(run.user_id, project_id)
         self._repository.audit(run.user_id, "univariate_statistics.failed")
         self._persistence.persist()
 
@@ -170,6 +181,13 @@ class UnivariateResearchService:
         run = self._repository.find_univariate_run(run_id, user_id)
         if run is not None and run.status == "running":
             self._repository.save_univariate_run(replace(run, completed=min(completed, run.total)))
+            project_id = self._repository.project_id_for_run(user_id=user_id, run_id=run_id)
+            if project_id is not None:
+                self._project(user_id, project_id)
+
+    def _project(self, user_id: str, project_id: str) -> None:
+        if self._workflow_projector is not None:
+            self._workflow_projector(user_id, project_id)
 
 
 def _source_id(selection_id: str, quote_run_id: str) -> str:

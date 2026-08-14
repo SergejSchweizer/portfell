@@ -14,6 +14,7 @@ from portfell.hosted_api_service_support import opaque_id, stable_hash
 from portfell.hosted_api_state import HostedApiState, MultivariateRunRecord, SelectionRecord
 from portfell.hosted_local_project_repository import LocalProjectRepository
 from portfell.hosted_local_selection_repository import LocalSelectionRepository
+from portfell.hosted_multivariate_lifecycle import MultivariateRunLifecycle
 from portfell.hosted_multivariate_run_repository import (
     LocalMultivariateRunRepository,
     MultivariateRunRepository,
@@ -81,6 +82,7 @@ class MultivariateResearchService(MultivariateRunViews):
         run_repository: MultivariateRunRepository | None = None,
         metadata_rows: Callable[[], tuple[JsonRow, ...]] | None = None,
         worker_count: Callable[[], int | None] = os.process_cpu_count,
+        workflow_projector: Callable[[str, str], object] | None = None,
     ) -> None:
         self._data = data
         self._persistence = persistence
@@ -90,6 +92,9 @@ class MultivariateResearchService(MultivariateRunViews):
         self._research = research_repository
         self._metadata_rows = metadata_rows or (lambda: state.all_isins_rows)
         self._worker_count = worker_count
+        self._lifecycle = MultivariateRunLifecycle(
+            self._runs, workflow_projector, persistence.persist
+        )
 
     def start(
         self, user_id: str, project_id: str, bivariate_run_id: str, settings: JsonRow
@@ -116,7 +121,7 @@ class MultivariateResearchService(MultivariateRunViews):
             return multivariate_run_row(existing)
         previous = self._runs.current(user_id=user_id, project_id=project_id)
         if previous is not None and previous.status in {"ready", "running", "complete"}:
-            self._runs.save(
+            self._lifecycle.save(
                 replace(
                     previous,
                     status="stale",
@@ -142,7 +147,7 @@ class MultivariateResearchService(MultivariateRunViews):
             candidates=(),
             validation=(),
         )
-        self._runs.save(run, make_current=True)
+        self._lifecycle.save(run, make_current=True)
         self._persistence.persist()
         return multivariate_run_row(run)
 
@@ -183,7 +188,7 @@ class MultivariateResearchService(MultivariateRunViews):
                 )
         except Exception as error:
             completed = replace(run, status="failed", phase="failed", failure_reason=str(error))
-        self._runs.save(completed)
+        self._lifecycle.save(completed)
         self._persistence.persist()
 
     def _require_project(self, user_id: str, project_id: str) -> None:
@@ -197,7 +202,7 @@ class MultivariateResearchService(MultivariateRunViews):
             raise HostedApplicationError(404, "not_found")
         if run.status == "running" and time() - run.started_at_epoch > self._MAX_RUNNING_SECONDS:
             run = replace(run, status="failed", phase="failed", failure_reason="compute_timeout")
-            self._runs.save(run)
+            self._lifecycle.save(run)
             self._persistence.persist()
         return run
 
@@ -213,7 +218,7 @@ class MultivariateResearchService(MultivariateRunViews):
             run,
             settings={**run.settings, "selected_candidate_ids": list(selected_candidate_ids)},
         )
-        self._runs.save(updated)
+        self._lifecycle.save(updated)
         self._persistence.persist()
         return multivariate_run_row(updated)
 
@@ -235,17 +240,7 @@ class MultivariateResearchService(MultivariateRunViews):
         return selection_record(selection)
 
     def _advance(self, user_id: str, run_id: str, phase: str, completed_units: int) -> None:
-        current = self._runs.get(user_id=user_id, run_id=run_id)
-        if current is None or current.status != "running":
-            return
-        next_completed = max(current.completed_units, min(completed_units, current.total_units))
-        advanced = replace(
-            current,
-            phase=phase if next_completed > current.completed_units else current.phase,
-            completed_units=next_completed,
-        )
-        self._runs.save(advanced)
-        self._persistence.persist()
+        self._lifecycle.advance(user_id, run_id, phase, completed_units)
 
     def _compute(
         self,
