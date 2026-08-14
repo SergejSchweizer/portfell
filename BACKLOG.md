@@ -1061,11 +1061,12 @@ PR247c1 branch: `feat/hosted-navigation-workflow-projections` (ready for PR). It
 univariate-selection and preference writes from PostgreSQL workflow reads; completed worker commands
 remain the sole writers for those records.
 
-PR247c2 branch: `feat/hosted-navigation-lifecycle-projections` (in progress). Its first atomic commit
-projects metadata revision/run state and refreshes the navigation in every metadata lifecycle write under
-the same connection transaction. Remaining commits add research lifecycle state, projection-backed
-workflow routes, a repair command, instrumentation, large-fixture performance evidence, and restart/RLS
-tests.
+PR247c2a branch: `feat/hosted-navigation-lifecycle-projections` (ready for PR). It projects metadata
+revision/run state and refreshes the navigation in every metadata lifecycle write under the same
+connection transaction.
+
+PR247c2b will add research lifecycle state, projection-backed workflow routes, a repair command,
+instrumentation, large-fixture performance evidence, and restart/RLS tests.
 
 Priority: P0 page-entry latency and architectural simplicity.
 
