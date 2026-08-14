@@ -1789,7 +1789,7 @@ composition and independent local CLI graph.
 
 Branch: `refactor/hosted-metadata-explicit-dependencies`.
 
-Git status: ready.
+Git status: in progress.
 
 PR: TBD.
 

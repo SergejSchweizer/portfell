@@ -43,7 +43,13 @@ from portfell.hosted_credentials import (
     KeyEncryptionKey,
 )
 from portfell.hosted_download_run_repository import DownloadRunRepository
-from portfell.hosted_metadata_project_service import MetadataProjectService
+from portfell.hosted_local_audit_event_repository import LocalAuditEventRepository
+from portfell.hosted_local_metadata_repository import LocalMetadataLifecycleRepository
+from portfell.hosted_local_project_repository import LocalProjectRepository
+from portfell.hosted_local_selection_repository import LocalSelectionRepository
+from portfell.hosted_metadata_project_service import (
+    MetadataProjectService as _MetadataProjectService,
+)
 from portfell.hosted_navigation_read_model_repository import PostgresNavigationReadModel
 from portfell.hosted_navigation_reconciler import PostgresNavigationReconciler
 from portfell.hosted_project_bootstrap_repository import DurableProjectBootstrap
@@ -63,6 +69,23 @@ from portfell.paths import LakePaths
 from portfell.project_selection_bootstrap import ProjectBootstrap
 from portfell.selection_filters import Predicate
 from portfell.table_io import JsonRow
+
+
+def MetadataProjectService(
+    state: HostedApiState, runtime: LocalHostedRuntime, **dependencies: Any
+) -> _MetadataProjectService:
+    """Explicit local ports for legacy-focused service tests only."""
+
+    return _MetadataProjectService(
+        state,
+        runtime,
+        dependencies.pop("project_repository", LocalProjectRepository(state)),
+        dependencies.pop("selection_repository", LocalSelectionRepository(state)),
+        dependencies.pop("metadata_repository", LocalMetadataLifecycleRepository(state)),
+        dependencies.pop("credential_vault", state.credential_vault()),
+        dependencies.pop("audit_repository", LocalAuditEventRepository(state)),
+        **dependencies,
+    )
 
 INVALID_WORKSPACE_PAYLOADS: tuple[dict[str, object], ...] = (
     {"projects": {}},
