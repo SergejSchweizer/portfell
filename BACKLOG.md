@@ -1593,7 +1593,7 @@ back projection and event together. Focused Python tests, Ruff, Pyright, and app
 
 Branch: `feat/hosted-lifecycle-status-event-publication`.
 
-Git status: not started.
+Git status: in progress.
 
 PR: TBD.
 
@@ -1650,7 +1650,7 @@ status updates without polling, and no application-data requests during a 15-min
 
 Branch: split into PR250a, PR250b, PR250c1, PR250c2, PR250d, and PR250e above.
 
-Git status: in progress (PR250a/b merged; PR250c1 in progress).
+Git status: in progress (PR250a/b/c1 merged; PR250c2 in progress).
 
 PR: TBD.
 

@@ -12,6 +12,7 @@ from typing import Protocol, cast
 from uuid import UUID
 
 from portfell.hosted_catalog import set_authenticated_user_sql
+from portfell.hosted_status_event_repository import PostgresStatusEventRepository
 from portfell.table_io import JsonRow
 
 
@@ -71,9 +72,11 @@ class PostgresMetadataLifecycleRepository:
         connection: MetadataConnection,
         *,
         navigation_refresher: Callable[[str], object] | None = None,
+        status_events: PostgresStatusEventRepository | None = None,
     ) -> None:
         self._connection = connection
         self._navigation_refresher = navigation_refresher
+        self._status_events = status_events
 
     def create(self, run: MetadataRun) -> MetadataRun:
         with self._connection.transaction():
@@ -82,6 +85,7 @@ class PostgresMetadataLifecycleRepository:
                 "insert into portfell_app.metadata_runs (metadata_run_id, user_id, status, total, completed, skipped_exchange_count, percent, summary) values (%s::uuid, %s::uuid, %s, %s, %s, %s, %s, %s::jsonb) on conflict (metadata_run_id) do nothing",
                 _parameters(run),
             )
+            self._publish_run(run)
             self._refresh_navigation(run.user_id)
         return run
 
@@ -105,6 +109,7 @@ class PostgresMetadataLifecycleRepository:
                 "update portfell_app.metadata_runs set status = %s, total = %s, completed = %s, skipped_exchange_count = %s, percent = %s, summary = %s::jsonb, updated_at = now() where metadata_run_id = %s::uuid",
                 (*_parameters(run)[2:], run.metadata_run_id),
             )
+            self._publish_run(run)
             self._refresh_navigation(run.user_id)
         return run
 
@@ -115,6 +120,14 @@ class PostgresMetadataLifecycleRepository:
                 "insert into portfell_app.metadata_revision_pointers (user_id, revision_id) values (%s::uuid, %s) on conflict (user_id) do update set revision_id = excluded.revision_id, updated_at = now()",
                 (user_id, revision_id),
             )
+            if self._status_events is not None:
+                self._status_events.append(
+                    user_id=user_id,
+                    project_id=None,
+                    event_type="metadata.revision",
+                    aggregate_ref=f"metadata-revision:{revision_id}",
+                    projection_revision=revision_id,
+                )
             self._refresh_navigation(user_id)
 
     def revision(self, *, user_id: str) -> str | None:
@@ -160,6 +173,17 @@ class PostgresMetadataLifecycleRepository:
     def _refresh_navigation(self, user_id: str) -> None:
         if self._navigation_refresher is not None:
             self._navigation_refresher(user_id)
+
+    def _publish_run(self, run: MetadataRun) -> None:
+        if self._status_events is None:
+            return
+        self._status_events.append(
+            user_id=run.user_id,
+            project_id=None,
+            event_type="metadata.status",
+            aggregate_ref=f"metadata:{run.metadata_run_id}",
+            terminal_status=run.status if run.status in {"succeeded", "failed"} else None,
+        )
 
     def _bind(self, user_id: str) -> None:
         self._connection.execute(*set_authenticated_user_sql(user_id))

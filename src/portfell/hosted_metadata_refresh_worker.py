@@ -16,6 +16,7 @@ from portfell.hosted_metadata_refresh_job_repository import (
 )
 from portfell.hosted_metadata_repository import MetadataRun, PostgresMetadataLifecycleRepository
 from portfell.hosted_navigation_reconciler import PostgresNavigationReconciler
+from portfell.hosted_status_event_repository import PostgresStatusEventRepository
 from portfell.hosted_worker_capacity import resolve_worker_concurrency
 from portfell.http import EodhdClient
 from portfell.shared_metadata_catalog import SharedMetadataCatalog
@@ -165,6 +166,7 @@ def build_metadata_refresh_worker(
         navigation_refresher=PostgresNavigationReconciler(
             connection  # type: ignore[arg-type]
         ).reconcile,
+        status_events=PostgresStatusEventRepository(connection),  # type: ignore[arg-type]
     )
     return MetadataRefreshWorker(
         jobs=jobs,

@@ -16,6 +16,7 @@ from portfell.hosted_project_settings_repository import PostgresProjectSettingsR
 from portfell.hosted_quote_lifecycle_repository import PostgresQuoteLifecycleRepository
 from portfell.hosted_repository_importer import PostgresProjectRepository
 from portfell.hosted_selection_repository import PostgresSelectionRepository
+from portfell.hosted_status_event_repository import PostgresStatusEventRepository
 from portfell.hosted_user_repository import PostgresHostedUserRepository
 
 
@@ -53,6 +54,7 @@ class PostgresHostedRepositoryBundle:
             metadata=PostgresMetadataLifecycleRepository(
                 connection,  # type: ignore[arg-type]
                 navigation_refresher=navigation_refresher,
+                status_events=PostgresStatusEventRepository(connection),  # type: ignore[arg-type]
             ),
             quotes=PostgresQuoteLifecycleRepository(connection),  # type: ignore[arg-type]
             idempotency=PostgresIdempotencyRepository(connection),  # type: ignore[arg-type]

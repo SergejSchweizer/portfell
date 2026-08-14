@@ -68,6 +68,19 @@ class DurableJobConnection(Protocol):
     def execute(self, sql: str, parameters: tuple[object, ...] = ()) -> DurableJobCursor: ...
 
 
+class StatusEventPublisher(Protocol):
+    def append(
+        self,
+        *,
+        user_id: str,
+        project_id: str | None,
+        event_type: str,
+        aggregate_ref: str,
+        projection_revision: str | None = None,
+        terminal_status: str | None = None,
+    ) -> None: ...
+
+
 class PostgresDurableJobRepository:
     """Atomically queue jobs and claim bounded worker batches."""
 
@@ -76,9 +89,11 @@ class PostgresDurableJobRepository:
         connection: DurableJobConnection,
         *,
         navigation_refresher: Callable[[str], object] | None = None,
+        status_events: StatusEventPublisher | None = None,
     ) -> None:
         self._connection = connection
         self._navigation_refresher = navigation_refresher
+        self._status_events = status_events
 
     def enqueue(self, *, job: DurableJob, event: OutboxEvent) -> DurableJob:
         """Insert one logical job and its outbox event in one transaction."""
@@ -115,6 +130,7 @@ on conflict (event_id) do nothing
 """,
                 (event.event_id, event.user_id, event.event_type, event.aggregate_ref),
             )
+            self._publish(job, "queued")
             self._refresh_navigation(job.user_id)
         return job
 
@@ -172,6 +188,7 @@ where job_id = %s::uuid and lease_token = %s::uuid
 """,
                     (str(uuid.uuid4()), worker_id, row[0], lease_token),
                 )
+                self._publish_claimed(claimed, "running")
                 self._refresh_navigation(claimed.user_id)
         return tuple(_claimed_job(row, lease_token) for row in rows)
 
@@ -194,13 +211,15 @@ update portfell_app.jobs
 set status = %s, terminal_code = %s, lease_owner = null, lease_token = null,
     lease_expires_at = null, heartbeat_at = now(), updated_at = now()
 where job_id = %s::uuid and status = 'running' and lease_token = %s::uuid
-returning job_id::text, user_id::text, job_kind, status
+returning job_id::text, user_id::text, project_id::text, job_kind, status
 """,
                 (status, terminal_code, job_id, lease_token),
             ).fetchone()
             if completed is None:
                 raise DurableJobError("job_lease_lost")
-            completed_job_id, user_id, job_kind, completed_status = _completed_job(completed)
+            completed_job_id, user_id, project_id, job_kind, completed_status = _completed_job(
+                completed
+            )
             self._sync_initial_fill_status(
                 job_id=completed_job_id,
                 user_id=user_id,
@@ -218,6 +237,11 @@ where job_id = %s::uuid and attempt_number = (
                 (terminal_code, job_id, job_id),
             )
             self._refresh_navigation(user_id)
+            self._publish(
+                DurableJob(completed_job_id, user_id, project_id, job_kind, "", ""),
+                "completed",
+                terminal_status=completed_status,
+            )
 
     def heartbeat(self, *, job_id: str, lease_token: str) -> None:
         """Extend only the currently owned running-job lease."""
@@ -249,16 +273,15 @@ update portfell_app.jobs
 set completed_units = %s, total_units = %s, heartbeat_at = now(),
     lease_expires_at = now() + interval '5 minutes', updated_at = now()
 where job_id = %s::uuid and status = 'running' and lease_token = %s::uuid
-returning job_id::text, user_id::text
+returning job_id::text, user_id::text, project_id::text, job_kind
 """,
                 (completed_units, total_units, job_id, lease_token),
             ).fetchone()
             if updated is None:
                 raise DurableJobError("job_lease_lost")
-            if self._navigation_refresher is not None:
-                if len(updated) != 2 or not isinstance(updated[1], str):
-                    raise DurableJobError("job_progress_projection_invalid")
-                self._refresh_navigation(updated[1])
+            progress = _progress_job(updated)
+            self._publish(progress, "progress")
+            self._refresh_navigation(progress.user_id)
 
     def set_initial_fill_failed_listing_count(
         self, *, job_id: str, user_id: str, failed_listing_count: int
@@ -289,11 +312,11 @@ update portfell_app.jobs
 set status = 'queued', lease_owner = null, lease_token = null, lease_expires_at = null,
     available_at = now(), updated_at = now()
 where status = 'running' and lease_expires_at <= now()
-returning job_id::text, user_id::text, job_kind
+returning job_id::text, user_id::text, project_id::text, job_kind
 """
             ).fetchall()
             recovered = tuple(_recovered_job(row) for row in rows)
-            for job_id, user_id, job_kind in recovered:
+            for job_id, user_id, project_id, job_kind in recovered:
                 self._sync_initial_fill_status(
                     job_id=job_id,
                     user_id=user_id,
@@ -301,7 +324,8 @@ returning job_id::text, user_id::text, job_kind
                     status="planning",
                 )
                 self._refresh_navigation(user_id)
-            job_ids = tuple(job_id for job_id, _, _ in recovered)
+                self._publish(DurableJob(job_id, user_id, project_id, job_kind, "", ""), "queued")
+            job_ids = tuple(job_id for job_id, _, _, _ in recovered)
             for job_id in job_ids:
                 self._connection.execute(
                     """
@@ -332,6 +356,31 @@ where bootstrap_job_id = %s::uuid
         if self._navigation_refresher is not None:
             self._navigation_refresher(user_id)
 
+    def _publish(self, job: DurableJob, phase: str, *, terminal_status: str | None = None) -> None:
+        if self._status_events is None or job.job_kind != "project_initial_fill":
+            return
+        self._status_events.append(
+            user_id=job.user_id,
+            project_id=job.project_id,
+            event_type=f"bootstrap.{phase}",
+            aggregate_ref=f"bootstrap:{job.job_id}",
+            terminal_status=terminal_status,
+        )
+
+    def _publish_claimed(self, job: ClaimedJob, phase: str) -> None:
+        self._publish(
+            DurableJob(
+                job.job_id,
+                job.user_id,
+                job.project_id,
+                job.job_kind,
+                job.input_hash,
+                job.input_ref,
+                job.priority,
+            ),
+            phase,
+        )
+
 
 def _claimed_job(row: tuple[object, ...], lease_token: str) -> ClaimedJob:
     if len(row) != 7 or any(not isinstance(value, str) for value in row[:6]):
@@ -351,16 +400,22 @@ def _claimed_job(row: tuple[object, ...], lease_token: str) -> ClaimedJob:
     )
 
 
-def _completed_job(row: tuple[object, ...]) -> tuple[str, str, str, str]:
-    if len(row) != 4 or not all(isinstance(value, str) and value for value in row):
+def _completed_job(row: tuple[object, ...]) -> tuple[str, str, str, str, str]:
+    if len(row) != 5 or not all(isinstance(value, str) and value for value in row):
         raise DurableJobError("job_completion_projection_invalid")
-    return str(row[0]), str(row[1]), str(row[2]), str(row[3])
+    return str(row[0]), str(row[1]), str(row[2]), str(row[3]), str(row[4])
 
 
-def _recovered_job(row: tuple[object, ...]) -> tuple[str, str, str]:
-    if len(row) != 3 or not all(isinstance(value, str) and value for value in row):
+def _progress_job(row: tuple[object, ...]) -> DurableJob:
+    if len(row) != 4 or not all(isinstance(value, str) and value for value in row):
+        raise DurableJobError("job_progress_projection_invalid")
+    return DurableJob(str(row[0]), str(row[1]), str(row[2]), str(row[3]), "", "")
+
+
+def _recovered_job(row: tuple[object, ...]) -> tuple[str, str, str, str]:
+    if len(row) != 4 or not all(isinstance(value, str) and value for value in row):
         raise DurableJobError("job_recovery_projection_invalid")
-    return str(row[0]), str(row[1]), str(row[2])
+    return str(row[0]), str(row[1]), str(row[2]), str(row[3])
 
 
 def _initial_fill_status(job_status: str) -> str:
