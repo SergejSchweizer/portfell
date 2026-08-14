@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import json
-
 from portfell.hosted_postgres_research_repository import PostgresResearchRepository
 from portfell.hosted_research_workflow import ResearchRun, UnivariateSelection
 from portfell.selection_filters import Predicate
@@ -217,7 +215,7 @@ def test_postgres_research_repository_skips_empty_quote_run_ids() -> None:
     assert connection.calls == []
 
 
-def test_postgres_workflow_derives_bivariate_selection_from_saved_univariate_filters() -> None:
+def test_postgres_workflow_reads_a_missing_univariate_selection_without_writing() -> None:
     connection = _WorkflowConnection()
 
     workflow = _repository(connection).workflow_state(
@@ -226,14 +224,8 @@ def test_postgres_workflow_derives_bivariate_selection_from_saved_univariate_fil
         metadata_selection_id="metadata-selection-1",
     )
 
-    assert workflow.univariate_selected_isins == 1
-    assert workflow.univariate_selection_id is not None
-    selection_insert = next(
-        parameters
-        for statement, parameters in connection.calls
-        if "insert into portfell_app.univariate_selections" in statement
-    )
-    assert json.loads(selection_insert[3]) == ["IE00A:XETRA:AAA"]
-    assert any(
-        "current_univariate_selection_preferences" in statement for statement, _ in connection.calls
-    )
+    assert workflow.univariate_run_id == "univariate-run-1"
+    assert workflow.univariate_selection_id is None
+    statements = "\n".join(statement for statement, _ in connection.calls)
+    assert "insert into portfell_app.univariate_selections" not in statements
+    assert "insert into portfell_app.current_univariate_selection_preferences" not in statements

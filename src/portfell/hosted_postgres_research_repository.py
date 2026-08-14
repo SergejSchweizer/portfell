@@ -23,11 +23,9 @@ from portfell.hosted_research_workflow import (
     RunStatus,
     UnivariateSelection,
     bivariate_source_id,
-    create_full_univariate_selection,
     univariate_source_id,
 )
 from portfell.hosted_selection_repository import SelectionRepository, selection_record
-from portfell.hosted_univariate_selection_settings import apply_univariate_selection_settings
 from portfell.selection_filters import Predicate
 from portfell.table_io import JsonRow
 
@@ -186,16 +184,6 @@ on conflict (research_run_id) do update set quote_run_id = excluded.quote_run_id
         if univariate is None:
             return WorkflowResearchState()
         selection = self._current_selection_for_run(user_id, univariate.run_id)
-        if univariate.status == "complete":
-            selected_rows = apply_univariate_selection_settings(
-                univariate.rows, self._univariate_selection_settings(project_id)
-            )
-            selection = self.save_univariate_selection(
-                create_full_univariate_selection(
-                    user_id=user_id, run=univariate, rows=selected_rows
-                )
-            )
-            self.set_current_univariate_selection(user_id, selection.selection_id)
         if selection is None:
             return WorkflowResearchState(
                 univariate_run_id=univariate.run_id,
