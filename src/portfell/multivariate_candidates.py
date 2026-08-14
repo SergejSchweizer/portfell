@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from concurrent.futures import Executor
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from math import exp, log1p, sqrt
 from typing import Any
 
@@ -37,7 +37,7 @@ from portfell.portfolio_parts.solvers import (
     solve_minimum_variance,
 )
 
-CANDIDATE_CONTRACT = ContractVersion("multivariate.candidates", 6)
+CANDIDATE_CONTRACT = ContractVersion("multivariate.candidates", 7)
 MAX_WALK_FORWARD_SOLVER_ITERATIONS = 500
 MINIMUM_VARIANCE_MAX_ITERATIONS = 100_000
 MINIMUM_VARIANCE_TOLERANCE = 1e-7
@@ -157,13 +157,16 @@ def build_candidate_set(
     executor: Executor | None = None,
 ) -> tuple[PortfolioCandidate, ...]:
     """Build the stable candidates from one input/risk-model pair."""
-    infeasible_reason = _feasibility_reason(snapshot, risk_model, policy)
+    effective_policy = _effective_policy(policy, len(snapshot.listing_keys))
+    infeasible_reason = _feasibility_reason(snapshot, risk_model, effective_policy)
     if infeasible_reason:
         return tuple(
-            _unavailable(snapshot, risk_model, policy, method, infeasible_reason)
+            _unavailable(snapshot, risk_model, effective_policy, method, infeasible_reason)
             for method in METHODS
         )
-    tasks = tuple((snapshot, risk_model, return_rows, income, policy, method) for method in METHODS)
+    tasks = tuple(
+        (snapshot, risk_model, return_rows, income, effective_policy, method) for method in METHODS
+    )
     return (
         tuple(_build_candidate(task) for task in tasks)
         if executor is None
@@ -193,6 +196,17 @@ def build_refit_candidate_set(task: CandidateRefitTask) -> tuple[PortfolioCandid
         income=task.income,
         policy=task.policy,
     )
+
+
+def _effective_policy(
+    policy: MonthlyDistributionEtfPortfolioPolicy, listing_count: int
+) -> MonthlyDistributionEtfPortfolioPolicy:
+    if (
+        listing_count < 1
+        or policy.max_weight != DEFAULT_MONTHLY_DISTRIBUTION_ETF_PORTFOLIO_POLICY.max_weight
+    ):
+        return policy
+    return replace(policy, max_weight=max(policy.max_weight, 1 / listing_count))
 
 
 def _feasibility_reason(

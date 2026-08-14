@@ -60,12 +60,13 @@ or calculates financial values in the browser.
   displayed Multivariate results. Risk Contributions displays the selected candidate.
 - Portfolio Candidates includes `highest_monthly_return`, a server-owned portfolio that maximizes
   mean historical compounded calendar-month total return under the same long-only minimum and
-  maximum weights as every other candidate. It is descriptive historical evidence, not a forecast
-  or recommendation.
+  maximum weights as every other candidate. The default 20% maximum applies from five holdings;
+  smaller valid universes use the minimum cap that permits full allocation. It is descriptive
+  historical evidence, not a forecast or recommendation.
 - Minimum Variance uses a dedicated production convergence budget of 100,000 iterations with a
   $10^{-7}$ weight-movement tolerance. It remains an explicitly unavailable candidate only when
   that full solve cannot converge or its inputs are infeasible.
-- Execution contract `multivariate_execution.v13` keeps the joint risk model and covariance-based
+- Execution contract `multivariate_execution.v14` keeps the joint risk model and covariance-based
   optimizers on aligned asset log returns, while all realized portfolio paths use the financially
   exact daily simple return `sum(weight × asset simple return)`. Candidate return/drawdown and
   VaR/CVaR metrics, Minimum CVaR scenarios, Walk-Forward validation, stress evidence, and the

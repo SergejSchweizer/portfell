@@ -226,6 +226,33 @@ def test_infeasible_bounds_remain_explicit_for_every_candidate() -> None:
     assert {candidate.reasons for candidate in candidates} == {("infeasible_weight_bounds",)}
 
 
+@pytest.mark.parametrize("listing_count", (2, 3, 4))
+def test_default_policy_builds_portfolios_for_small_valid_universes(listing_count: int) -> None:
+    keys = _keys()[:listing_count]
+    snapshot = replace(_snapshot(), listing_keys=keys)
+    risk_model = replace(
+        _risk_model(),
+        listings=keys,
+        covariance=tuple(
+            tuple(0.01 if left == right else 0.001 for right in range(listing_count))
+            for left in range(listing_count)
+        ),
+    )
+
+    candidates = build_candidate_set(
+        snapshot=snapshot,
+        risk_model=risk_model,
+        return_rows=[row for row in _returns() if row["isin"] in {key.isin for key in keys}],
+        income={},
+    )
+
+    assert all(candidate.status == "feasible" for candidate in candidates)
+    assert all(
+        max(weight for _, weight in candidate.weights) <= 1 / listing_count + 1e-12
+        for candidate in candidates
+    )
+
+
 def test_candidate_policy_and_input_failures_are_explicit() -> None:
     with pytest.raises(ValueError, match="weights must satisfy"):
         MonthlyDistributionEtfPortfolioPolicy(min_weight=-0.1)

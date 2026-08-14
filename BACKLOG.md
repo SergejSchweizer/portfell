@@ -1453,9 +1453,43 @@ lake state until an existing explicit compute or selection action is invoked.
 Rollback: Revert the UI, specification, and regression commit together to restore result-gated panels;
 no migration, data, cache, or contract rollback is required.
 
+### PR257. Multivariate Small-Universe Portfolio Calculation
+
+Branch: `fix/multivariate-small-universes`.
+
+Git status: pushed.
+
+PR: https://github.com/SergejSchweizer/portfell/pull/450.
+
+Priority: P1 portfolio calculation availability.
+
+Depends on: The persisted Multivariate input snapshot, risk-model, candidate, and performance contracts.
+
+Scope: Make the default 20% maximum portfolio weight feasible for valid two-to-four instrument
+universes by using the smallest cap that permits full allocation. Keep explicitly stricter custom caps
+unavailable. Advance Multivariate execution and candidate contracts so prior completed runs with
+unavailable candidates are not reused. Update focused tests and the Multivariate page specification.
+
+Acceptance: A valid two-, three-, or four-instrument default universe produces feasible candidates and
+portfolio performance; five or more instruments retain the 20% default cap; explicit custom caps below
+the full-allocation threshold remain unavailable; a v13 completed run is not returned under v14; and
+the focused Multivariate tests plus `uv run portfell-quality pr` pass.
+
+Security: Server-owned candidate constraints, risk inputs, tenant isolation, and authorization remain
+unchanged. The browser receives only persisted results through existing typed endpoints.
+
+Determinism: The effective cap is a pure function of the versioned default policy and the stable input
+snapshot listing count. Candidate and run identities include their incremented contract versions.
+
+Idempotency: Identical v14 inputs return the same run; prior v13 results are intentionally stale for
+this calculation change. Repeated candidate calculation changes no data outside the existing persisted
+run lifecycle.
+
+Rollback: Revert the candidate and execution-contract changes together to restore v13 fixed-cap
+behavior. No schema migration, data rewrite, cache purge, or external side effect is required.
+
 Series Completion Gate: Before merge, satisfy the current required checks in [GATES.md](GATES.md),
-including `uv run pytest -q tests/test_web_react_scaffold.py`, the Web Docker image build, and
-`uv run portfell-quality pr`.
+including focused Multivariate candidate, performance, service-idempotency, and `uv run portfell-quality pr` checks.
 
 ### Hosted Simplicity And Interactive Performance Series Completion Gate
 
