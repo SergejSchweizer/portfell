@@ -77,9 +77,20 @@ where navigation.user_id = %s::uuid
         return None if row is None else _projection(row)
 
     def write(self, *, user_id: str, project_id: str, payload: JsonRow) -> tuple[JsonRow, str]:
+        payload, revision, _ = self.write_with_change(
+            user_id=user_id, project_id=project_id, payload=payload
+        )
+        return payload, revision
+
+    def write_with_change(
+        self, *, user_id: str, project_id: str, payload: JsonRow
+    ) -> tuple[JsonRow, str, bool]:
+        """Write the projection and identify a real, serialized state transition."""
+
         self._bind(user_id)
         row = self._connection.execute(
             """
+with written as (
 insert into portfell_app.project_workflow_projections (
     project_id, user_id, payload, projection_revision
 ) values (%s::uuid, %s::uuid, %s::jsonb, 1)
@@ -96,13 +107,27 @@ set payload = excluded.payload,
         else portfell_app.project_workflow_projections.updated_at
     end
 where portfell_app.project_workflow_projections.user_id = excluded.user_id
-returning payload, projection_revision
+  and portfell_app.project_workflow_projections.payload is distinct from excluded.payload
+returning payload, projection_revision, true as changed
+)
+select payload, projection_revision, changed from written
+union all
+select payload, projection_revision, false
+from portfell_app.project_workflow_projections
+where project_id = %s::uuid and user_id = %s::uuid
+  and not exists (select 1 from written)
 """,
-            (project_id, user_id, json.dumps(payload, sort_keys=True, separators=(",", ":"))),
+            (
+                project_id,
+                user_id,
+                json.dumps(payload, sort_keys=True, separators=(",", ":")),
+                project_id,
+                user_id,
+            ),
         ).fetchone()
         if row is None:
             raise ValueError("project_workflow_projection_not_owned")
-        return _projection(row)
+        return _projection_change(row)
 
     def _bind(self, user_id: str) -> None:
         if getattr(self._connection, "authenticated_user_id", None) == user_id:
@@ -118,6 +143,13 @@ def _projection(row: tuple[object, ...]) -> tuple[JsonRow, str]:
         {"payload": payload, "revision": row[1]}, sort_keys=True, separators=(",", ":")
     ).encode()
     return payload, hashlib.sha256(encoded).hexdigest()
+
+
+def _projection_change(row: tuple[object, ...]) -> tuple[JsonRow, str, bool]:
+    if len(row) != 3 or not isinstance(row[2], bool):
+        raise ValueError("project_workflow_projection_invalid")
+    payload, revision = _projection((row[0], row[1]))
+    return payload, revision, row[2]
 
 
 ABSENT_PROJECT = object()
