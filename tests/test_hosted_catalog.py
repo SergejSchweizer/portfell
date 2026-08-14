@@ -103,6 +103,7 @@ def test_hosted_migration_sql_defines_rls_and_immutable_catalog_shape() -> None:
         18,
         19,
         20,
+        21,
     ]
     assert len({migration.checksum for migration in migrations}) == len(migrations)
     assert "create table if not exists portfell_app.provider_credentials" in sql
@@ -120,6 +121,7 @@ def test_hosted_migration_sql_defines_rls_and_immutable_catalog_shape() -> None:
     assert "drop table if exists portfell_app.sessions" in sql
     assert "drop table if exists portfell_app.external_identities" in sql
     assert "create table if not exists portfell_app.current_project_preferences" in sql
+    assert "create table if not exists portfell_app.project_workflow_projections" in sql
     assert "add column if not exists status text not null default 'active'" in sql
     assert "add column if not exists purpose text not null default 'user_metadata'" in sql
     assert "provider_credentials_one_active_user_provider_purpose_idx" in sql

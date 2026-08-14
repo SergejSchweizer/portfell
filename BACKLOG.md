@@ -1065,8 +1065,12 @@ PR247c2a branch: `feat/hosted-navigation-lifecycle-projections` (ready for PR). 
 revision/run state and refreshes the navigation in every metadata lifecycle write under the same
 connection transaction.
 
-PR247c2b will add research lifecycle state, projection-backed workflow routes, a repair command,
-instrumentation, large-fixture performance evidence, and restart/RLS tests.
+PR247c2b1 branch: `feat/hosted-project-workflow-projection` (ready for PR after PR247c2a). It adds a
+project-scoped, RLS-bound workflow projection table and deterministic read/write adapter with revision
+ETags; no lifecycle command or route behavior changes in this foundational schema step.
+
+PR247c2b2 will add research lifecycle state and projection-backed workflow routes. PR247c2b3 will add
+the repair command, instrumentation, large-fixture performance evidence, and restart/RLS tests.
 
 Priority: P0 page-entry latency and architectural simplicity.
 

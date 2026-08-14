@@ -13,6 +13,9 @@ from portfell.analysis_lifecycle_schema import ANALYSIS_LIFECYCLE_SCHEMA_SQL
 from portfell.catalog_contract_validation import validate_catalog_contracts
 from portfell.hosted_download_run_schema import DOWNLOAD_RUN_PARTIAL_STATUS_SQL
 from portfell.hosted_navigation_read_model_schema import NAVIGATION_READ_MODEL_SCHEMA_SQL
+from portfell.hosted_project_workflow_projection_schema import (
+    PROJECT_WORKFLOW_PROJECTION_SCHEMA_SQL,
+)
 from portfell.legacy_import_schema import LEGACY_IMPORT_LEDGER_SQL
 from portfell.metadata_builder_criteria_schema import METADATA_BUILDER_CRITERIA_SCHEMA_SQL
 from portfell.metadata_lifecycle_schema import METADATA_LIFECYCLE_SCHEMA_SQL
@@ -150,6 +153,12 @@ HOSTED_TABLES: tuple[HostedTable, ...] = (
         True,
         False,
         "One durable initial shared-market fill per immutable project selection.",
+    ),
+    HostedTable(
+        "portfell_app.project_workflow_projections",
+        True,
+        False,
+        "Compact tenant-scoped project workflow read projections.",
     ),
     HostedTable(
         "portfell_app.univariate_selections", True, True, "Persisted univariate result selections."
@@ -484,6 +493,7 @@ MIGRATIONS: tuple[HostedMigration, ...] = (
         19, "initial_fill_failure_count", bootstrap_schema.PROJECT_INITIAL_FILL_FAILURE_SCHEMA_SQL
     ),
     HostedMigration(20, "navigation_read_model", NAVIGATION_READ_MODEL_SCHEMA_SQL),
+    HostedMigration(21, "project_workflow_projection", PROJECT_WORKFLOW_PROJECTION_SCHEMA_SQL),
 )
 
 
