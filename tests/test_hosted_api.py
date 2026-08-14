@@ -14,12 +14,12 @@ from portfell.hosted_api import (
     ApiUser,
     HostedApiError,
     HostedApiState,
-    LocalWorkspaceUserProvider,
     ProjectRecord,
     SelectionRecord,
     create_app,
 )
-from portfell.hosted_api_service_support import stable_hash
+from portfell.hosted_api_service_support import opaque_id, stable_hash
+from portfell.hosted_api_state import LocalWorkspaceUserProvider
 from portfell.hosted_credentials import InMemoryCredentialStore, KeyEncryptionKey
 from portfell.hosted_local_test_composition import (
     create_persistent_local_workspace_state,
@@ -138,7 +138,7 @@ def test_database_runtime_requires_explicit_authority(
     monkeypatch.delenv("PORTFELL_HOSTED_AUTHORITY", raising=False)
     monkeypatch.setenv("PORTFELL_DATABASE_URL", "postgresql://portfell_app@postgres:5432/portfell")
 
-    with pytest.raises(HostedApiError, match="hosted_authority_must_be_explicit"):
+    with pytest.raises(HostedApiError, match="postgres_hosted_authority_required"):
         hosted_api.create_runtime_app()
 
 
@@ -618,7 +618,7 @@ def test_quote_run_mutation_reuses_a_running_run(
         }
     )
     run = ProviderDownloadRun(
-        download_run_id=hosted_api._opaque_id(
+        download_run_id=opaque_id(
             "fetch-all-quotes", f"{DEFAULT_LOCAL_WORKSPACE_USER_ID}:{request_hash}"
         ),
         user_id=DEFAULT_LOCAL_WORKSPACE_USER_ID,

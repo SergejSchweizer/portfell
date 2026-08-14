@@ -1873,7 +1873,7 @@ focused multivariate service, run-view, and API tests pass.
 
 Branch: split into PR251c1, PR251c2a, PR251c2b, and PR251c3 above.
 
-Git status: ready.
+Git status: in progress.
 
 PR: TBD.
 
