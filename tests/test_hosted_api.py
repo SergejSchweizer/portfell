@@ -994,11 +994,18 @@ def test_project_metadata_builder_restores_saved_field_values(
 def test_project_context_is_empty_without_projects() -> None:
     client = _client()
 
-    assert _json(client.get("/project-context")) == {
+    first = client.get("/project-context")
+
+    assert _json(first) == {
         "current_project_id": None,
         "current_project": None,
         "projects": [],
     }
+    assert first.headers["cache-control"] == "private, max-age=0, must-revalidate"
+    assert first.headers["etag"]
+    repeated = client.get("/project-context", headers={"If-None-Match": first.headers["etag"]})
+    assert repeated.status_code == 304
+    assert repeated.content == b""
 
 
 def test_projects_listing_keeps_explicit_statistics_smoke_project() -> None:

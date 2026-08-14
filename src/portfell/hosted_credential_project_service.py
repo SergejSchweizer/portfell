@@ -235,18 +235,22 @@ class CredentialProjectService:
         return {"items": page(items, limit=limit, offset=offset)}
 
     def project_context(self, user_id: str) -> JsonRow:
+        return self.project_context_with_etag(user_id)[0]
+
+    def project_context_with_etag(self, user_id: str) -> tuple[JsonRow, str]:
         if self._navigation_reader is not None:
             projection = self._navigation_reader(user_id)
             if projection is not None:
-                return projection[0]
+                return projection
         project = self._current_project(user_id)
         projects = self._project_records(user_id)
         current = None if project is None else self._project_with_selection_row(project, user_id)
-        return {
+        context: JsonRow = {
             "current_project_id": None if project is None else project.project_id,
             "current_project": current,
             "projects": [self._project_with_selection_row(item, user_id) for item in projects],
         }
+        return context, stable_hash(context)
 
     def select_current_project(self, user_id: str, project_id: str) -> JsonRow:
         self._set_current_project(user_id, project_id)

@@ -8,7 +8,8 @@ from __future__ import annotations
 from collections.abc import Callable
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Header
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, Response
+from fastapi.responses import JSONResponse
 
 from portfell.hosted_api_contracts import (
     CurrentProjectRequest,
@@ -61,8 +62,16 @@ def metadata_project_router(
         return call(projects.list_projects, user.user_id, limit, offset)
 
     @router.get("/project-context")
-    def project_context(user: ApiUser = Depends(current_user)) -> JsonRow:
-        return call(projects.project_context, user.user_id)
+    def project_context(
+        user: ApiUser = Depends(current_user),
+        if_none_match: str | None = Header(default=None, alias="If-None-Match"),
+    ) -> Response:
+        row, etag = call(projects.project_context_with_etag, user.user_id)
+        quoted_etag = f'"{etag}"'
+        headers = {"ETag": quoted_etag, "Cache-Control": "private, max-age=0, must-revalidate"}
+        if if_none_match == quoted_etag:
+            return Response(status_code=304, headers=headers)
+        return JSONResponse(content=row, headers=headers)
 
     @router.put("/project-context/current-project")
     def select_current_project(
