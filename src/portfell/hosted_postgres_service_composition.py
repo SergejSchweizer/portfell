@@ -129,6 +129,7 @@ def build_postgres_services(
         workflow_reader,
         project_data_loaded,
         project_active_run,
+        repositories.navigation.read,
     )
     metadata = MetadataProjectService(
         state,

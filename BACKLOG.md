@@ -1018,9 +1018,9 @@ time; wall-clock thresholds alone are insufficient evidence.
 
 Branch: `feat/hosted-worker-admission-control`.
 
-Git status: in progress.
+Git status: merged 2026-08-14.
 
-PR: https://github.com/SergejSchweizer/portfell/pull/400.
+PR: https://github.com/SergejSchweizer/portfell/pull/400 (merged as `2e2663299ae2e7806774176d8e7f261b6aefac60`).
 
 Priority: P0 interactive availability.
 
@@ -1076,9 +1076,10 @@ immutable result per business key.
 
 Branch: `feat/hosted-navigation-read-model`.
 
-Git status: not started.
+Git status: in progress; split into mergeable implementation steps.
 
-PR: TBD.
+PR: step 1 pending publication (`feat/hosted-navigation-read-model`); subsequent steps add
+transactional projection reconciliation and HTTP cache contracts.
 
 Priority: P0 page-entry latency and architectural simplicity.
 

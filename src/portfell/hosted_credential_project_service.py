@@ -69,6 +69,7 @@ class CredentialProjectService:
         workflow_reader: Callable[[str, str | None], JsonRow] | None = None,
         project_data_loaded_reader: Callable[[str, str], bool] | None = None,
         project_active_run_reader: Callable[[str, str], JsonRow | None] | None = None,
+        navigation_reader: Callable[[str], tuple[JsonRow, str] | None] | None = None,
     ) -> None:
         self.state = state
         self.runtime = runtime
@@ -84,6 +85,7 @@ class CredentialProjectService:
         self._workflow_reader = workflow_reader
         self._project_data_loaded_reader = project_data_loaded_reader
         self._project_active_run_reader = project_active_run_reader
+        self._navigation_reader = navigation_reader
 
     def workflow(self, user_id: str, project_id: str | None = None) -> JsonRow:
         if project_id is None:
@@ -233,6 +235,10 @@ class CredentialProjectService:
         return {"items": page(items, limit=limit, offset=offset)}
 
     def project_context(self, user_id: str) -> JsonRow:
+        if self._navigation_reader is not None:
+            projection = self._navigation_reader(user_id)
+            if projection is not None:
+                return projection[0]
         project = self._current_project(user_id)
         projects = self._project_records(user_id)
         current = None if project is None else self._project_with_selection_row(project, user_id)

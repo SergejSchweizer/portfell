@@ -43,6 +43,7 @@ from portfell.hosted_credentials import (
 )
 from portfell.hosted_download_run_repository import DownloadRunRepository
 from portfell.hosted_metadata_project_service import MetadataProjectService
+from portfell.hosted_navigation_read_model_repository import PostgresNavigationReadModel
 from portfell.hosted_project_bootstrap_repository import DurableProjectBootstrap
 from portfell.hosted_quote_run_service import QuoteRunService
 from portfell.hosted_repository_importer import (
@@ -491,6 +492,45 @@ def test_project_context_can_use_durable_data_loaded_projection() -> None:
     context = service.project_context(user_id)
 
     assert context["projects"][0]["data_loaded"] is True
+
+
+def test_project_context_uses_an_injected_navigation_projection() -> None:
+    service = CredentialProjectService(
+        HostedApiState(),
+        navigation_reader=lambda user_id: (
+            (
+                {"current_project_id": "project-1", "current_project": None, "projects": []},
+                "etag",
+            )
+            if user_id == "user-1"
+            else None
+        ),
+    )
+
+    assert service.project_context("user-1")["current_project_id"] == "project-1"
+
+
+def test_navigation_read_model_binds_rls_and_derives_a_stable_etag() -> None:
+    class Cursor:
+        def fetchone(self) -> tuple[object, ...]:
+            return ({"current_project_id": "project-1", "projects": []}, 7)
+
+    class Connection:
+        calls: list[tuple[str, tuple[object, ...]]] = []
+
+        def execute(self, sql: str, parameters: tuple[object, ...] = ()) -> Cursor:
+            self.calls.append((sql, parameters))
+            return Cursor()
+
+    connection = Connection()
+    first = PostgresNavigationReadModel(connection).read("00000000-0000-5000-8000-000000000001")
+    second = PostgresNavigationReadModel(connection).read("00000000-0000-5000-8000-000000000001")
+
+    assert first is not None and second is not None
+    assert first[0] == second[0]
+    assert first[1] == second[1]
+    assert connection.calls[0][0] == "select set_config(%s, %s, true)"
+    assert "navigation_projections" in connection.calls[1][0]
 
 
 def test_project_context_includes_an_active_project_run() -> None:
