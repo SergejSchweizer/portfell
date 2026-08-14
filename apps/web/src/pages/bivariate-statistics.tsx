@@ -384,7 +384,7 @@ export function BivariateStatisticsPage() {
 
   async function compute() {
     const univariateSelectionId = selectionId;
-    if (!univariateSelectionId || pageViewCompleted || starting || run?.status === "running") return;
+    if (!univariateSelectionId || starting || run?.status === "running") return;
     setStarting(true);
     setMessage("Planning bivariate statistics…");
     try {
@@ -468,8 +468,8 @@ export function BivariateStatisticsPage() {
         <progress id="bivariate-progress" max={100} value={run === null ? (pageViewCompleted ? 100 : 0) : nextProgressSnapshot(progressSnapshot.current, run.run_id, run.percent).percent} />
         <p className="status-line" aria-live="polite">{message || "Compute statistics for the ISINs selected in univariate statistics."}</p>
         <div className="quote-fetch__action">
-          <Button type="button" variant="primary" disabled={pageViewCompleted || starting || run?.status === "running"} aria-busy={starting || run?.status === "running"} onClick={() => void compute()}>
-            {pageViewCompleted ? "Bivariate statistics computed" : starting ? "Planning computation…" : run?.status === "running" ? "Computing…" : "Compute Bivariate Statistics"}
+          <Button type="button" variant="primary" disabled={starting || run?.status === "running"} aria-busy={starting || run?.status === "running"} onClick={() => void compute()}>
+            {starting ? "Planning computation…" : run?.status === "running" ? "Computing…" : pageViewCompleted ? "Recompute Bivariate Statistics" : "Compute Bivariate Statistics"}
           </Button>
         </div>
       </div>

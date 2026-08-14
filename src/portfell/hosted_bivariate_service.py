@@ -56,7 +56,7 @@ class BivariateResearchService:
         source = bivariate_source_id(selection)
         run_id = opaque_id("bivariate-run", f"{user_id}:{source}")
         existing = self._repository.find_bivariate_run(run_id, user_id)
-        if existing is not None and existing.status != "failed":
+        if existing is not None and existing.status == "running":
             return research_run_row(existing)
         run = ResearchRun(
             run_id=run_id,
