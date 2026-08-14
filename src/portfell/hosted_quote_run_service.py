@@ -19,21 +19,11 @@ from portfell.hosted_api_service_support import (
 from portfell.hosted_api_state import HostedApiState, SelectionRecord
 from portfell.hosted_audit_event_repository import AuditEventRepository, HostedAuditEvent
 from portfell.hosted_credentials import CredentialVaultError, EodhdCredentialVault
-from portfell.hosted_idempotency_repository import (
-    IdempotencyRepository,
-    LocalIdempotencyRepository,
-)
-from portfell.hosted_local_audit_event_repository import LocalAuditEventRepository
-from portfell.hosted_local_project_repository import LocalProjectRepository
-from portfell.hosted_local_selection_repository import LocalSelectionRepository
-from portfell.hosted_quote_lifecycle_repository import (
-    LocalQuoteLifecycleRepository,
-    QuoteLifecycleRepository,
-)
+from portfell.hosted_idempotency_repository import IdempotencyRepository
+from portfell.hosted_quote_lifecycle_repository import QuoteLifecycleRepository
 from portfell.hosted_repository_importer import ProjectRepository, TenantSelection
 from portfell.hosted_selection_repository import SelectionRepository
 from portfell.hosted_shared_quote_publisher import SharedQuotePublisher
-from portfell.hosted_workspace_repository import persist_local_workspace
 from portfell.table_io import JsonRow
 
 LOGGER = logging.getLogger(__name__)
@@ -46,27 +36,25 @@ class QuoteRunService:
         self,
         state: HostedApiState,
         runtime: HostedRuntimePort,
-        project_repository: ProjectRepository | None = None,
-        selection_repository: SelectionRepository | None = None,
-        credential_vault: EodhdCredentialVault | None = None,
-        quote_repository: QuoteLifecycleRepository | None = None,
-        audit_repository: AuditEventRepository | None = None,
-        idempotency_repository: IdempotencyRepository | None = None,
-        quote_publisher: SharedQuotePublisher | None = None,
+        project_repository: ProjectRepository,
+        selection_repository: SelectionRepository,
+        credential_vault: EodhdCredentialVault,
+        quote_repository: QuoteLifecycleRepository,
+        audit_repository: AuditEventRepository,
+        idempotency_repository: IdempotencyRepository,
+        quote_publisher: SharedQuotePublisher | None,
+        workspace_persister: Callable[[], None] | None,
     ) -> None:
         self.state = state
         self.runtime = runtime
-        self._projects = project_repository or LocalProjectRepository(state)
-        self._selections = selection_repository or LocalSelectionRepository(state)
-        self._credentials = credential_vault or state.credential_vault()
-        self._quotes = quote_repository or LocalQuoteLifecycleRepository(state)
-        self._audit_events = audit_repository or LocalAuditEventRepository(state)
-        self._idempotency = idempotency_repository or LocalIdempotencyRepository(state)
-        self._quote_publisher = quote_publisher or (
-            None
-            if state.shared_market_data_store is None
-            else SharedQuotePublisher(state.shared_market_data_store)
-        )
+        self._projects = project_repository
+        self._selections = selection_repository
+        self._credentials = credential_vault
+        self._quotes = quote_repository
+        self._audit_events = audit_repository
+        self._idempotency = idempotency_repository
+        self._quote_publisher = quote_publisher
+        self._workspace_persister = workspace_persister
 
     def start(
         self,
@@ -181,8 +169,8 @@ class QuoteRunService:
                 },
             )
             should_persist = time.monotonic() - last_persisted_at >= 5.0
-            if self.state.workspace_store is not None and should_persist:
-                persist_local_workspace(self.state)
+            if self._workspace_persister is not None and should_persist:
+                self._workspace_persister()
                 last_persisted_at = time.monotonic()
 
         try:
