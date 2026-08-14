@@ -1036,6 +1036,38 @@ def test_metadata_builder_page_view_is_versioned_and_revalidates(
     assert not_modified.headers["etag"] == etag
 
 
+@pytest.mark.parametrize(
+    ("module", "path", "section"),
+    (
+        ("univariate_statistics", "univariate-statistics", "results"),
+        ("bivariate_statistics", "bivariate-statistics", "correlation_matrix"),
+        ("multivariate_statistics", "multivariate-statistics", "performance"),
+    ),
+)
+def test_analytical_page_views_are_compact_authorized_and_revalidate(
+    module: str, path: str, section: str
+) -> None:
+    client = _client()
+    project_id = _json(client.post("/projects", json={"name": "Core"}))["project_id"]
+
+    response = client.get(f"/projects/{project_id}/views/{path}")
+
+    assert response.status_code == 200
+    body = _json(response)
+    assert body["module"] == module
+    assert body["project_id"] == project_id
+    assert body["sections"][section]["available"] is False
+    assert response.headers["cache-control"] == "private, max-age=0, must-revalidate"
+    repeated = client.get(
+        f"/projects/{project_id}/views/{path}", headers={"If-None-Match": response.headers["etag"]}
+    )
+    assert repeated.status_code == 304
+    assert repeated.content == b""
+    assert client.get(
+        f"/projects/00000000-0000-5000-8000-000000000099/views/{path}"
+    ).status_code == 404
+
+
 def test_project_context_is_empty_without_projects() -> None:
     client = _client()
 

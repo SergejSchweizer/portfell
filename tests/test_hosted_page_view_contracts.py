@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from portfell.hosted_page_view_contracts import metadata_builder_page_view
+import pytest
+
+from portfell.hosted_page_view_contracts import analytical_page_view, metadata_builder_page_view
 
 
 def test_metadata_builder_page_view_is_versioned_compact_and_deterministic() -> None:
@@ -35,3 +37,47 @@ def test_metadata_builder_page_view_marks_missing_initial_fill_as_unavailable() 
         "available": False,
         "unavailable": {"code": "initial_fill_not_found"},
     }
+
+
+@pytest.mark.parametrize(
+    ("module", "section"),
+    (
+        ("univariate_statistics", "results"),
+        ("bivariate_statistics", "correlation_matrix"),
+        ("multivariate_statistics", "performance"),
+    ),
+)
+def test_analytical_page_view_defers_large_sections_until_the_stage_completes(
+    module: str, section: str
+) -> None:
+    workflow = {
+        "projection_etag": "workflow-revision",
+        "stages": {module: {"status": "running"}},
+    }
+
+    page_view, etag = analytical_page_view(
+        module=module, project_id="project-1", workflow=workflow
+    )
+
+    assert page_view["contract_version"] == 1
+    assert page_view["workflow_etag"] == "workflow-revision"
+    assert page_view["sections"][section] == {
+        "available": False,
+        "revision": page_view["sections"][section]["revision"],
+        "unavailable": {"code": "stage_not_complete", "status": "running"},
+    }
+    assert etag
+
+
+def test_analytical_page_view_exposes_section_revisions_after_completion() -> None:
+    workflow = {
+        "projection_etag": "workflow-revision",
+        "stages": {"bivariate_statistics": {"status": "complete", "bivariate_run_id": "run-1"}},
+    }
+
+    page_view, _ = analytical_page_view(
+        module="bivariate_statistics", project_id="project-1", workflow=workflow
+    )
+
+    assert page_view["run_id"] == "run-1"
+    assert all(section["available"] is True for section in page_view["sections"].values())

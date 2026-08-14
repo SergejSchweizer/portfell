@@ -8,7 +8,8 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Literal
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Header
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, Response
+from fastapi.responses import JSONResponse
 
 from portfell.hosted_api_contracts import (
     AnalysisCreateRequest,
@@ -19,6 +20,8 @@ from portfell.hosted_api_contracts import (
     UnivariateSelectionRequest,
 )
 from portfell.hosted_api_state import ApiUser
+from portfell.hosted_credential_project_service import CredentialProjectService
+from portfell.hosted_page_view_contracts import analytical_page_view
 from portfell.hosted_postgres_request_scope import RequestScopedPostgresConnection
 from portfell.hosted_research_service import ResearchService
 from portfell.hosted_routes_common import JsonRow, call
@@ -26,6 +29,7 @@ from portfell.hosted_routes_common import JsonRow, call
 
 def research_router(
     service: ResearchService,
+    projects: CredentialProjectService,
     *,
     current_user: Callable[[], ApiUser],
     workspace_user: Callable[[], ApiUser],
@@ -34,6 +38,55 @@ def research_router(
     """Build research routes around the research application service."""
 
     router = APIRouter()
+
+    def page_view_response(
+        *, module: str, project_id: str, user: ApiUser, if_none_match: str | None
+    ) -> Response:
+        workflow = call(projects.workflow, user.user_id, project_id)
+        row, etag = analytical_page_view(module=module, project_id=project_id, workflow=workflow)
+        headers = {"ETag": f'"{etag}"', "Cache-Control": "private, max-age=0, must-revalidate"}
+        if if_none_match == headers["ETag"]:
+            return Response(status_code=304, headers=headers)
+        return JSONResponse(content=row, headers=headers)
+
+    @router.get("/projects/{project_id}/views/univariate-statistics")
+    def univariate_page_view(
+        project_id: str,
+        user: ApiUser = Depends(current_user),
+        if_none_match: str | None = Header(default=None, alias="If-None-Match"),
+    ) -> Response:
+        return page_view_response(
+            module="univariate_statistics",
+            project_id=project_id,
+            user=user,
+            if_none_match=if_none_match,
+        )
+
+    @router.get("/projects/{project_id}/views/bivariate-statistics")
+    def bivariate_page_view(
+        project_id: str,
+        user: ApiUser = Depends(current_user),
+        if_none_match: str | None = Header(default=None, alias="If-None-Match"),
+    ) -> Response:
+        return page_view_response(
+            module="bivariate_statistics",
+            project_id=project_id,
+            user=user,
+            if_none_match=if_none_match,
+        )
+
+    @router.get("/projects/{project_id}/views/multivariate-statistics")
+    def multivariate_page_view(
+        project_id: str,
+        user: ApiUser = Depends(current_user),
+        if_none_match: str | None = Header(default=None, alias="If-None-Match"),
+    ) -> Response:
+        return page_view_response(
+            module="multivariate_statistics",
+            project_id=project_id,
+            user=user,
+            if_none_match=if_none_match,
+        )
 
     @router.post("/univariate-statistics/runs")
     def start_univariate(
