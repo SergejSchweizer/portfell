@@ -107,7 +107,6 @@ export function UnivariateStatisticsPage() {
   const [portfolioStatisticRanges, setPortfolioStatisticRanges] = useState<Record<string, SelectionRange[]>>({});
   const [activeStatisticTab, setActiveStatisticTab] = useState<UnivariateStatisticTab>("dividends");
   const [message, setMessage] = useState("");
-  const [starting, setStarting] = useState(false);
   const selectionSettingsVersion = useRef(0);
   const selectionProjectId = useRef<string | null>(null);
   const selectionSave = useDebouncedSave<SelectionSave>(
@@ -132,7 +131,6 @@ export function UnivariateStatisticsPage() {
       progressSnapshot.current = null;
       setUnivariateStartedAt(undefined);
       setResults(null);
-      setStarting(false);
       setMessage("");
       setWorkflowRevision((value) => value + 1);
     };
@@ -294,8 +292,7 @@ export function UnivariateStatisticsPage() {
   }
 
   async function compute() {
-    if (!metadata.metadata_selection_id || starting || run?.status === "running") return;
-    setStarting(true);
+    if (!metadata.metadata_selection_id) return;
     setMessage("Computing univariate statistics…");
     try {
       const nextRun = await univariateStatisticsApi.startRun({
@@ -310,8 +307,6 @@ export function UnivariateStatisticsPage() {
       setMessage(`${nextRun.completed.toLocaleString()} of ${nextRun.total.toLocaleString()} listings computed.`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Univariate computation failed.");
-    } finally {
-      setStarting(false);
     }
   }
 
@@ -334,8 +329,8 @@ export function UnivariateStatisticsPage() {
             />
             <p className="status-line" aria-live="polite">{message || "Compute statistics for the downloaded historical data."}</p>
             <div className="quote-fetch__action">
-              <Button type="button" variant="primary" disabled={!metadata.metadata_selection_id || starting || run?.status === "running"} aria-busy={starting || run?.status === "running"} onClick={() => void compute()}>
-                {starting ? "Starting computation…" : run?.status === "running" ? "Computing…" : "Compute univariate statistics"}
+              <Button type="button" variant="primary" disabled={!metadata.metadata_selection_id || run?.status === "running"} onClick={() => void compute()}>
+                {run?.status === "running" ? "Computing…" : "Compute univariate statistics"}
               </Button>
             </div>
           </div>

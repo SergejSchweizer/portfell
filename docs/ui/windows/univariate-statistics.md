@@ -36,7 +36,7 @@ immutable metadata selection and quote run ids, and loads bounded results from
 `GET /api/univariate-statistics/runs/{run_id}/results`. It renders server progress and returned
 statistics without recomputing them in React.
 
-The univariate-statistics action owns only computation progress, status, and its right-aligned action. The action reports the starting and running states and remains disabled from the initial request until the persisted run reaches a terminal state.
+The univariate-statistics action owns only computation progress, status, and its right-aligned action.
 Its determinate progress bar uses processed listings as its scale, including terminal failed listings;
 the server reports each completed listing for both shared-market and pinned quote-run computations.
 React keeps the displayed percentage monotonic for the active run so delayed polling responses cannot move the bar backward; starting or switching to another run resets that display.
@@ -68,17 +68,6 @@ and histogram derived from completed server-returned rows:
 
 Other cached Gold fields remain technical implementation data and are not presented as univariate
 statistics in the UI at this time.
-
-The server computes contract `univariate.statistics.v2`. Every price-derived metric uses the same
-ordered, de-duplicated, positive adjusted-close series after invalid price points are quarantined.
-Persisted Gold rows carry the calculation contract plus quote and dividend content identities;
-formula changes or relevant source-value revisions force recomputation even when dates and row counts
-are unchanged. Hosted run identities include the calculation contract so legacy completed runs are
-not reused after a formula correction.
-
-The Dividends and quantitative-statistic histograms render their stacked columns at 84% of each
-bucket width and center them in the bucket. This keeps the values and histogram scale unchanged
-while giving adjacent columns clearer separation.
 
 The persistent project sidebar supplies the active project and its workflow
 status. A project with a persisted metadata selection remains pending until its

@@ -154,12 +154,15 @@ PostgreSQL tenant state + UI read projections
 durable workers -> shared Parquet and content-addressed artifacts
 ```
 
-PR246 through PR252 are sequential. They optimize the active PostgreSQL authority only and do not
-replace React, FastAPI, PostgreSQL, Polars, or Parquet. Local CLI analysis remains supported, but no
-local repository, workspace JSON, in-memory dictionary, or shared-file scan may become a fallback
-authority for a hosted request. Every latency assertion must use a checked-in deterministic fixture
-and report request count, response bytes, database statement count, shared-file reads, and elapsed
-time; wall-clock thresholds alone are insufficient evidence.
+The execution graph is intentionally not purely numeric: `PR247 -> PR248`, then PR249 and PR250 may
+run in parallel; after PR249, PR253 through PR257 may run in parallel while PR250 continues; PR258
+joins those branches, followed by PR251 and PR252. A parallel PR owns one page or one infrastructure
+boundary and must not edit another parallel PR's files. These PRs optimize the active PostgreSQL
+authority only and do not replace React, FastAPI, PostgreSQL, Polars, or Parquet. Local CLI analysis
+remains supported, but no local repository, workspace JSON, in-memory dictionary, or shared-file scan
+may become a fallback authority for a hosted request. Every latency assertion must use a checked-in
+deterministic fixture and report request count, response bytes, database statement count, shared-file
+reads, and elapsed time; wall-clock thresholds alone are insufficient evidence.
 
 ### PR247. PostgreSQL Navigation Read Model
 
@@ -224,129 +227,122 @@ ETag; reconciliation order cannot change serialized output.
 Idempotency: Reapplying an event or reconciliation updates the same projection revision only when its
 canonical content changes and never duplicates project or workflow rows.
 
-### PR248. Page View Contracts And Lazy Analytical Sections
+### PR248. Page/Section API Contract Foundation
 
-Branch: `feat/hosted-page-view-contracts`.
+Branch: `feat/page-section-contract-foundation`.
 
 Git status: not started.
 
 PR: TBD.
 
-Priority: P1 request fan-out and payload control.
+Priority: P0 stable hand-off for parallel UI work.
 
 Depends on: PR247.
 
 Scope:
 
-- Define one versioned initial view contract for each Metadata Builder, Univariate, Bivariate, and
-  Multivariate page. Each contract includes navigation revision, authorized run identity/status,
-  section availability, compact summary values, pagination cursors, and immutable section revision
-  IDs; it does not embed every large table or matrix.
-- Add project-scoped FastAPI view routes that authorize once and assemble each initial contract from
-  PostgreSQL projections plus persisted artifact manifests. Replace the browser's independent initial
-  workflow, run, summary, plan, and first-result requests with one route per page.
-- Keep large Univariate result pages, pair tables, covariance/correlation matrices, components,
-  candidate details, validation series, and performance series behind explicit section endpoints.
-  Load a section only when its visible tab/panel requires it; cancel obsolete requests after project,
-  run, metric, tab, or route changes.
-- Add stable cursor pagination and response-size limits. Do not create one unbounded `full-data`
-  endpoint, GraphQL layer, browser-side join, or server-side financial recomputation during GET.
-  Initial page views are limited to 256 KiB uncompressed; lazy sections are limited to 2 MiB and
-  tabular pages to 200 rows. Contracts return `413 section_too_large` with section metadata when an
-  intrinsically indivisible matrix exceeds the limit.
-- Synchronize typed Python responses, generated/open API snapshots, TypeScript contracts, route/page
-  specifications, fixtures, and interaction tests in the same PR.
+- Define only the shared versioned envelopes used by later page PRs: `PageViewV1`, `SectionV1`,
+  `SectionAvailabilityV1`, opaque `CursorV1`, typed `section_too_large`, revision, and private ETag
+  semantics. A page view carries compact summary and availability metadata, never large result rows.
+- Add reusable FastAPI helpers for project/run authorization, canonical private `ETag` generation,
+  `If-None-Match`/`304`, response byte limits, and opaque cursor validation. Helpers perform no page
+  query and do not import analytical calculation or provider modules.
+- Add matching TypeScript contracts and one generated contract fixture consumed by Python and Web
+  tests. Create one empty extension module per page under the page-view router package so PR253-PR256
+  can edit different files without touching a shared router registry.
+- Specify limits centrally: page views `<=256 KiB` uncompressed, lazy sections `<=2 MiB`, tabular pages
+  `<=200` rows, malformed/stale cursors return a typed `400`, and indivisible oversized matrices return
+  `413 section_too_large`. Cursor contents are signed or otherwise tamper-evident and never authorize.
+- Record the exact endpoint naming, query-key segments, response ownership, and file ownership hand-off
+  in `docs/ui/page-section-api-v1.md`. Do not migrate a production page or add TanStack Query here.
 
-Out of scope: Visual redesign, changing analytical values, replacing REST, or moving artifact payloads
-into PostgreSQL.
+Out of scope: Production page endpoints, React migrations, SSE, visual redesign, changing analytical
+values, replacing REST, or moving artifact payloads into PostgreSQL.
 
 Acceptance:
 
-- Initial entry to each workflow page requires at most one page-view request after an already cached
-  project shell; a cold shell plus page requires at most two application-data requests before first
-  useful content. Playwright asserts exact request paths and upper bounds.
-- Bivariate initial entry no longer issues the current 11-request matrix fan-out. Non-visible matrices
-  and Multivariate detail sections issue zero requests until selected, then exactly one request per
-  immutable section revision.
-- Every response stays below its documented compressed and uncompressed byte budget; oversized tables
-  use stable pagination and oversized matrices fail with a typed availability/limit contract rather
-  than truncation.
-- Two-project authorization, stale run replacement, rapid navigation cancellation, partial section
-  failure, empty state, loading state, retry, browser back/forward, desktop, tablet, and mobile tests
-  pass without browser-owned financial or authorization logic.
-- Focused API/UI tests, OpenAPI drift validation, Playwright request-count assertions, Web image build,
-  and the applicable gates in `GATES.md` pass.
+- Python and TypeScript compile-time fixtures prove every field, status, error, cursor, and ETag rule is
+  equivalent; changing either side without regenerating the golden fixture fails.
+- Contract tests prove canonical payloads have byte-stable ETags, matching `If-None-Match` returns
+  bodyless `304`, private cache headers are present, and different tenant/project/run/revision inputs
+  cannot share an ETag.
+- Cursor tests cover first/next/end, deleted anchors, stale revision, tampering, page-size boundaries,
+  stable ordering, retries, and project isolation without offset-based continuation.
+- Architecture tests prove shared helpers perform zero writes and cannot import page repositories,
+  provider clients, table I/O, or financial calculations.
+- OpenAPI drift, Python tests, TypeScript strict checks, contract fixtures, and applicable `GATES.md`
+  checks pass. The PR changes no existing production page request count or rendering behavior.
 
-Security: Page and section routes resolve user, project, run, and artifact authorization before reading
-manifests or payloads. A section or artifact identifier alone never grants access.
+Security: Shared authorization starts from authenticated user and owned project; cursors, section IDs,
+artifact IDs, ETags, and run IDs alone never grant access or reveal another tenant's existence.
 
-Determinism: One projection revision, run identity, artifact manifest, pagination cursor, and contract
-version produce byte-stable view and section responses.
+Determinism: Canonical serialization plus tenant/project/run/revision and contract version produce
+byte-stable contracts, cursors, and ETags.
 
-Idempotency: All view and section reads are non-mutating; retries and cancelled/restarted requests
-return the same revision without starting calculations or ingestion.
+Idempotency: Helpers are non-mutating; retries return the same revision and never start calculations,
+ingestion, or projection repair.
 
-### PR249. Shared Browser Query Cache And Navigation Prefetch
+Rollback: Remove the unused contract/helper package and generated fixtures together. No migration,
+route, browser behavior, or persisted business data is changed.
 
-Branch: `feat/web-query-cache`.
+### PR249. Browser Query Cache Foundation
+
+Branch: `feat/browser-query-cache-foundation`.
 
 Git status: not started.
 
 PR: TBD.
 
-Priority: P1 instant repeat navigation and frontend simplification.
+Priority: P0 stable browser foundation for parallel page migrations.
 
 Depends on: PR248.
 
 Scope:
 
-- Adopt TanStack Query as the single browser server-state owner. Add one application query client and
-  typed key factories for project context, navigation workflow, page views, run revisions, and lazy
-  sections; keep ephemeral controls, open tabs, and form drafts as local React state.
-- Replace production `useResource` server reads, revision counters, global custom refresh events, and
-  duplicated Shell/page fetches. Remove the superseded hook after all production consumers migrate;
-  retain no second cache or stale-while-revalidate implementation.
-- Define explicit `staleTime`, garbage collection, retry, cancellation, and invalidation rules by
-  resource. Navigation and completed immutable runs use a 5-minute `staleTime`; running states and
-  page views use 15 seconds until PR250 replaces polling invalidation; unused queries are collected
-  after 15 minutes; GET retries are limited to two attempts with capped backoff; commands never retry
-  automatically. Mutations update returned canonical data and invalidate only affected user/project/
-  run keys after server success; failed or optimistic operations cannot expose uncommitted state.
-- Prefetch the destination page view on deliberate sidebar intent and after project selection, bounded
-  to one destination. Use ETags from PR247/PR248 for revalidation and preserve last successful data
-  during a background refresh without showing it for a different project or run.
-- Keep the cache memory-only. Clear it on logout/session invalidation and never persist tenant data,
-  credentials, responses, or query keys to localStorage, sessionStorage, IndexedDB, service-worker
-  caches, URLs, or logs.
+- Add the pinned TanStack Query dependency, one application `QueryClientProvider`, typed key factories
+  for session/project/page/run/section/status, and one abort-aware HTTP query function implementing
+  PR247/PR248 ETag revalidation. Existing pages may continue using `useResource` until their owner PR.
+- Define policy in one module: immutable completed sections `staleTime=5 minutes`, active page/status
+  state `staleTime=15 seconds` until PR258, unused query garbage collection after 15 minutes, GET retry
+  at most twice with capped backoff, and command mutations never retry automatically.
+- Provide exact helpers for project-scoped invalidation, canonical mutation-result updates, cancellation
+  on scope change, bounded one-destination prefetch, and synchronous cache clearing on logout or `401`.
+  There is no global `invalidateQueries()` helper and no optimistic cross-resource mutation.
+- Keep the cache memory-only. Add a repository check rejecting query persistence to localStorage,
+  sessionStorage, IndexedDB, service workers, URLs, or logs. Local React state remains the owner of
+  form drafts, active tab, focus, drawers, hover, and other ephemeral presentation state.
+- Publish a short migration recipe and fake QueryClient harness. PR253-PR257 consume these exact APIs
+  and may not introduce page-specific clients, key factories, fetch wrappers, or cache policies.
 
-Out of scope: Offline mode, service workers, general client state management, visual redesign, or
-speculative prefetch of every workflow page.
+Out of scope: Migrating production page reads, removing `useResource`, page prefetch behavior, SSE,
+offline mode, service workers, general client state management, or visual redesign.
 
 Acceptance:
 
-- Shell and page components issue one network request per cold canonical query key, deduplicate
-  concurrent consumers, reuse fresh data on back/forward navigation, and revalidate stale data once.
-- Switching projects cannot display, flash, retry, or reuse the previous project's page view or lazy
-  section. Logout and `401` session invalidation synchronously remove all tenant query data.
-- Successful project, selection, ingestion, and analytical commands invalidate exactly the documented
-  keys. Unit tests fail on broad global invalidation, duplicate key construction, uncancelled obsolete
-  requests, or an unbounded retry loop.
-- Playwright proves warm navigation renders from cache without a blocking loader, background refresh
-  preserves usable content, errors retain the last matching revision, and request counts satisfy
-  PR248's budgets on desktop and mobile.
-- Package lockfile, TypeScript strict checks, Vitest, Playwright, production Web build, Docker image
-  rebuild, storage-safety checks, and the applicable gates in `GATES.md` pass.
+- Provider integration leaves current visible behavior unchanged and creates exactly one QueryClient
+  per application session, including React Strict Mode tests.
+- Unit tests prove concurrent consumers single-flight, stale ETags revalidate once, `304` preserves the
+  matching cached value, abort signals cancel obsolete requests, and retries stop at the declared cap.
+- Key and invalidation table tests cover every resource family and fail on missing user/project/run/
+  revision scope, broad global invalidation, or invalidating an unrelated project or page.
+- Logout and injected `401` synchronously remove all tenant query data; tests and repository scans prove
+  no tenant payload, credential, key, or ETag is persisted or logged.
+- Package lockfile, TypeScript strict checks, Vitest, production Web build, and applicable `GATES.md`
+  checks pass without changing current page request counts.
 
 Security: Cache keys include authenticated scope and exact project/run identity; cache data is
 memory-only and is destroyed at the authentication boundary.
 
 Determinism: Canonical key factories and server revisions determine cache identity; component mount
-order does not alter fetched data or invalidation scope.
+order and concurrent subscribers do not alter fetched data or invalidation scope.
 
 Idempotency: Concurrent reads single-flight per key, and repeated successful invalidation converges on
 one refetch of the newest server revision.
 
-### PR250. Durable Server-Sent Job And Workflow Updates
+Rollback: Remove the provider, dependency, helpers, tests, and lockfile delta together; unchanged
+legacy consumers continue to operate because this PR performs no production-page migration.
+
+### PR250. Durable Status Events And SSE Backend
 
 Branch: `feat/hosted-status-event-stream`.
 
@@ -354,9 +350,9 @@ Git status: not started.
 
 PR: TBD.
 
-Priority: P1 live status with bounded request load.
+Priority: P1 durable live-status transport.
 
-Depends on: PR249.
+Depends on: PR248. It may run in parallel with PR249 and PR253-PR257.
 
 Scope:
 
@@ -372,14 +368,14 @@ Scope:
   streams per authenticated session, and reconnect after 1, 2, 5, 10, then at most 30 seconds with
   jitter. Expired or oversized replay cursors return a typed reset event that triggers bounded query
   invalidation rather than silent state loss.
-- Connect one browser stream per authenticated application session. Map events through PR249's key
-  factories to exact invalidations or canonical cache updates. Remove fixed-interval metadata,
-  bootstrap, and analysis status polling after each migrated state has equivalent stream coverage.
 - Add stream connection, reconnect, lag, replay, reset, and active-client metrics plus deployment
   guidance for reverse-proxy buffering and graceful API shutdown.
+- Publish a checked-in event-to-resource mapping fixture for PR258, but do not add EventSource,
+  TanStack Query integration, polling removal, or UI changes in this PR.
 
-Out of scope: Streaming analytical tables/matrices, bidirectional WebSockets, command submission over
-the stream, browser-selected event topics, or using events as the durable business record.
+Out of scope: Browser integration, polling removal, streaming analytical tables/matrices,
+bidirectional WebSockets, command submission over the stream, browser-selected event topics, or using
+events as the durable business record.
 
 Acceptance:
 
@@ -389,14 +385,15 @@ Acceptance:
 - Disconnect/reconnect with `Last-Event-ID` replays every authorized missed event in order. Reconnect
   without an ID starts from a bounded current cursor, and retention expiry yields the documented reset
   behavior without leaking the existence of another user's events.
-- A complete bootstrap and each analytical run update the correct UI status without periodic polling.
-  A 15-minute no-change browser session generates no application-data request beyond stream heartbeat
-  traffic and documented auth/session renewal.
+- A deterministic SSE client observes bootstrap and every analytical transition in commit order with
+  no polling endpoint involved; the checked-in mapping fixture identifies the exact target resource
+  family and projection revision for each event type.
 - Multi-tab behavior stays within the documented connection limit, abandoned streams release API and
   database resources, API restart reconnects successfully, and a slow client cannot create unbounded
   memory, cursor, or connection growth.
-- RLS/adversarial stream tests, transactional event tests, browser reconnect tests, proxy/Compose
-  real-stack tests, observability checks, and the applicable gates in `GATES.md` pass.
+- RLS/adversarial stream tests, transactional event tests, protocol reconnect tests, proxy/Compose
+  real-stack tests, observability checks, migration upgrade/downgrade rehearsal, and applicable gates
+  in `GATES.md` pass.
 
 Security: Authentication and forced RLS scope every connection and replay query. Events contain no
 credentials, membership lists, payload values, storage paths, lease tokens, or cross-project details.
@@ -404,8 +401,242 @@ credentials, membership lists, payload values, storage paths, lease tokens, or c
 Determinism: Commit order and a monotonic PostgreSQL event ID define replay order; event schema and
 projection revision mapping are versioned.
 
-Idempotency: Logical transition uniqueness prevents duplicate events, and replaying an event applies
-the same cache update/invalidation without duplicate commands or calculations.
+Idempotency: Logical transition uniqueness prevents duplicate events; replay performs no command,
+calculation, projection mutation, or additional event insert.
+
+Rollback: Stop Web/API rollout before downgrading the event migration; remove the SSE route and event
+writer in one compatible release. Existing polling remains active until PR258, so rollback does not
+remove status visibility.
+
+### PR253. Metadata Builder Partial-Update Vertical
+
+Branch: `feat/metadata-builder-partial-updates`.
+
+Git status: not started.
+
+PR: TBD.
+
+Priority: P1.
+
+Depends on: PR249. May run in parallel with PR250 and PR254-PR257.
+
+Scope: Own only the Metadata Builder page, its Web API module, its dedicated PR248 backend extension
+module, page specification, and focused tests. Add one compact initial view plus separate options,
+preview, and bootstrap-status resources. Split the page into query-owning summary, form, preview, and
+progress components; server state uses PR249 while draft fields remain local React state. Enable a
+query only when its panel is visible, use ETag revalidation, and use controlled status-only polling
+while status is active until PR258. Mutations update their canonical result and invalidate only the
+metadata page/status keys. Do not edit Shell or another analysis page.
+
+Acceptance:
+
+- Cold page entry makes one page-view request after cached Shell; hidden preview/options sections make
+  zero requests until opened and then one request per key/revision.
+- Typing in one field does not refetch or remount summary/progress/other fields; a render-observer test
+  proves an unrelated section's commit count is unchanged for the action.
+- Bootstrap changes only the progress subtree and exact status/page keys; no document reload, route
+  remount, global invalidation, duplicate command, or polling occurs after terminal state.
+- Empty/filling/ready/failed/retry, rapid project switch, cancellation, stale ETag/`304`, desktop/mobile,
+  API authorization, byte-limit, Vitest, Playwright, OpenAPI, and applicable gate tests pass.
+
+Security: Every route authorizes user/project before options, manifest, or status access; field values,
+credentials, paths, and tenant data are neither query keys nor logs.
+
+Determinism: Versioned page/status revisions and canonical form contracts define output.
+
+Idempotency: Reads do not write and duplicate bootstrap activation resolves to one logical job.
+
+Rollback: Remove this page's route/hooks/components and restore its previous page module; no shared
+foundation or persisted analytical data is removed.
+
+### PR254. Univariate Partial-Update Vertical
+
+Branch: `feat/univariate-partial-updates`.
+
+Git status: not started.
+
+PR: TBD.
+
+Priority: P1.
+
+Depends on: PR249. May run in parallel with PR250 and PR253/PR255-PR257.
+
+Scope: Own only Univariate page/API/backend-extension/spec/tests. Add compact page/run summary, separate
+run status, tab metadata, and cursor-paged result resources. Extract run controls, progress, tab bar,
+active result section, and filters into query-owning components. Only the visible tab query is enabled;
+completed immutable revisions use cache/ETag and cursor pagination. Draft settings and active tab stay
+local. Commands invalidate only Univariate run/status/affected-section keys. Use controlled active-only
+status polling until PR258; do not edit shared Shell or another page.
+
+Acceptance:
+
+- Cold entry uses one page-view request; inactive tabs request nothing; selecting a tab/page produces
+  exactly one bounded section request and back-navigation reuses a fresh immutable cache entry.
+- Progress events/polls rerender only run controls/progress, not result tables or settings; changing a
+  filter affects only its section and never reloads the document or every statistic.
+- Cursor first/next/end/stale, `304`, empty/failed/retry/cancel, rapid run/project switch, duplicate run,
+  response limits, two-project isolation, desktop/mobile, API/UI/OpenAPI and gate tests pass.
+- No offset continuation, revision counter, global custom refresh event, page-wide polling loop, or
+  browser-side financial calculation remains in the owned Univariate module.
+
+Security: Project/run authorization precedes result access and cursors never authorize.
+
+Determinism: Run/revision/filter/cursor define one ordered response.
+
+Idempotency: Retries do not create runs or rows; duplicate submission creates one logical run.
+
+Rollback: Restore only Univariate routes/page and retain shared contracts/cache; migrations are absent.
+
+### PR255. Bivariate Matrix-Slice Partial-Update Vertical
+
+Branch: `feat/bivariate-partial-updates`.
+
+Git status: not started.
+
+PR: TBD.
+
+Priority: P1.
+
+Depends on: PR249. May run in parallel with PR250 and PR253-PR254/PR256-PR257.
+
+Scope: Own only Bivariate page/API/backend-extension/spec/tests. Replace initial matrix fan-out with one
+compact page view and separate pair, scatter, and named matrix-slice resources. Key matrix slices by
+run revision, matrix kind, row cursor/window, and column cursor/window; enforce PR248 limits and typed
+oversize behavior. Extract controls/progress/tab/matrix/scatter sections, enable only the visible data
+query, cancel obsolete slices, and use active-only status polling until PR258.
+
+Acceptance:
+
+- Initial entry performs one page request instead of the current multi-matrix fan-out; hidden matrix,
+  pair, and scatter sections issue zero requests until selected.
+- Pan/page/tab changes fetch only the requested slice; cached slices are reused, stale slices cannot
+  flash after project/run/matrix changes, and one slice failure leaves other sections usable.
+- Progress updates rerender only progress/controls. Tests prove no full reload, page remount, global
+  invalidation, duplicate run, browser matrix recomputation, or request above the declared byte limit.
+- Matrix boundaries/oversize, cursor tampering, `304`, empty/failed/retry, isolation, responsive UI,
+  exact request counts, API/UI/OpenAPI, and applicable gate tests pass.
+
+Security: Matrix/pair identifiers and cursors cannot bypass user/project/run authorization.
+
+Determinism: Revision/kind/row/column window defines byte-stable output.
+
+Idempotency: Repeated reads and run activation do not duplicate work.
+
+Rollback: Restore only Bivariate routes/page; shared foundations and artifacts remain compatible.
+
+### PR256. Multivariate Lazy-Section Partial-Update Vertical
+
+Branch: `feat/multivariate-partial-updates`.
+
+Git status: not started.
+
+PR: TBD.
+
+Priority: P1.
+
+Depends on: PR249. May run in parallel with PR250 and PR253-PR255/PR257.
+
+Scope: Own only Multivariate page/API/backend-extension/spec/tests. Add one compact page/plan/run summary
+and separate components, candidates, validation, performance, diagnostics, and run-status resources.
+Components use cursor pagination; all detail queries use `enabled` only for the visible tab and exact
+run/revision/filter keys. Extract each result tab plus controls/progress into its own query boundary,
+keep draft settings/tab local, and use active-only status polling until PR258.
+
+Acceptance:
+
+- Cold entry makes one page-view request; every hidden detail tab makes zero requests, first visibility
+  makes exactly one, and fresh completed sections reopen without a blocking request.
+- Progress updates only progress/controls; tab/filter changes do not refetch page summary or unrelated
+  tabs and never trigger document reload or route remount.
+- Components cursor/stale revision, `304`, partial failure/retry, empty/running/completed states, rapid
+  scope switch, exact invalidation, isolation, response limits, responsive UI, API/UI/OpenAPI and gate
+  tests pass.
+- Owned code contains no offset continuation, broad refresh event, duplicated cache, browser financial
+  computation, or polling after terminal status.
+
+Security: Detail routes authorize user/project/run before manifest/payload reads.
+
+Determinism: Revision/section/filter/cursor defines output.
+
+Idempotency: Reads and retries do not mutate or duplicate runs.
+
+Rollback: Restore only Multivariate routes/page; no shared migration is reversed.
+
+### PR257. Shell Navigation And Credential Partial Updates
+
+Branch: `feat/shell-partial-updates`.
+
+Git status: not started.
+
+PR: TBD.
+
+Priority: P1.
+
+Depends on: PR249. May run in parallel with PR250 and PR253-PR256.
+
+Scope: Own only application frame, project sidebar, credential UI, routing/prefetch integration, their
+API modules/specs/tests. Migrate project context/workflow/credential presence to PR249 keys and PR247
+ETags. Extract independent header, project picker, workflow badge, credential form, and route outlet
+boundaries. Prefetch at most one destination on deliberate intent; project selection cancels the old
+scope before navigation and credentials never enter cache keys. Do not edit workflow page modules.
+
+Acceptance:
+
+- Shell has one canonical project/workflow request per cold key, `304` revalidation, deduplicated
+  subscribers, and warm back/forward navigation without a blocking loader.
+- Project switch updates only picker/workflow/outlet scope, never flashes old tenant data, and causes
+  exactly the documented destination prefetch; unrelated header/credential components do not rerender.
+- Credential save/replace preserves the stored key across reload/restart without returning plaintext;
+  logout/`401` synchronously clears all query data and no browser persistence contains tenant data.
+- No full document reload, global custom refresh event, duplicated Shell/page fetch, unbounded prefetch,
+  or broad invalidation remains; desktop/mobile Vitest/Playwright/security/gate tests pass.
+
+Security: Credentials remain write-only and cache keys are fully auth/project scoped.
+
+Determinism: Navigation revision and canonical key factories define state.
+
+Idempotency: Selection, prefetch, and revalidation converge without duplicate commands.
+
+Rollback: Restore owned Shell modules and keep PR249 installed.
+
+### PR258. Browser SSE Query Bridge And Polling Removal
+
+Branch: `feat/browser-sse-query-bridge`.
+
+Git status: not started.
+
+PR: TBD.
+
+Priority: P1.
+
+Depends on: PR250 and PR253-PR257.
+
+Scope: Add exactly one authenticated EventSource owner per application session. Map PR250 event fixture
+types through PR249 factories to exact status/page/section cache updates or invalidations; ignore stale
+revisions and use bounded reset invalidation. Replace all temporary active-status polling in PR253-PR256
+and Metadata context with the stream. Add reconnect/Last-Event-ID/session cleanup and a controlled
+polling fallback only when SSE is unavailable, active work exists, and exponential interval is bounded;
+stop it immediately on reconnect or terminal state. Do not stream analytical payloads.
+
+Acceptance:
+
+- Bootstrap and every run update only the matching progress/status subtree; unrelated page/query render
+  counters and network counts remain unchanged and no document reload occurs.
+- Fifteen idle minutes generate zero application-data requests beyond heartbeat/auth renewal. SSE loss
+  starts one bounded status-only fallback, reconnect stops it, and no terminal workflow keeps polling.
+- Replay, duplicate/out-of-order/stale event, reset, API restart, multi-tab limit, logout, project switch,
+  slow client, isolation, proxy buffering, exact invalidation, and responsive Playwright tests pass.
+- Repository checks find no fixed `750 ms` page polling, revision-counter refresh, or global refresh
+  event in production; event payloads never contain result tables, matrices, credentials, or paths.
+
+Security: Session auth and RLS scope streams; event data cannot authorize queries.
+
+Determinism: Monotonic event ID plus projection revision defines application order.
+
+Idempotency: Replay yields the same cache state without commands or refetch storms.
+
+Rollback: Restore bounded active-only polling before removing EventSource integration; PR250 backend
+may remain safely unused.
 
 ### PR251. Single Hosted Authority And Legacy Fallback Removal
 
@@ -417,7 +648,7 @@ PR: TBD.
 
 Priority: P1 final hosted simplification.
 
-Depends on: PR250.
+Depends on: PR258. PR253-PR258 must be merged before this cleanup starts.
 
 Scope:
 
@@ -456,7 +687,7 @@ Acceptance:
   while the Web/API real stack remains functional without a repository-local lake or workspace file.
 - The resulting production dependency graph, environment-variable inventory, route inventory, and
   runtime module count are recorded before/after; every removed path has either a replacement named in
-  PR246-PR250 or explicit proof that it was unreachable/dead.
+  PR247-PR250 and PR253-PR258 or explicit proof that it was unreachable/dead.
 - Fresh deployment, rolling-compatible deployment within the documented version window, restart,
   backup/restore, rollback rehearsal, two-project isolation, browser workflow, Web image build, full
   Python/TypeScript/Playwright/Docker validation, and all gates in `GATES.md` pass.
@@ -480,10 +711,10 @@ PR: TBD.
 
 Priority: P0 prevent functional and interactive-performance regressions at merge time.
 
-Depends on: PR251. PR247-PR251 change navigation projections, page contracts, browser caching,
-status delivery, and production composition; their final checked-in contracts are mandatory PR252
-inputs and PR252 may not preserve superseded controls or fallback routes solely to keep old tests
-green.
+Depends on: PR251. PR247-PR251 and PR253-PR258 change navigation projections, page contracts, browser
+caching, partial rendering, status delivery, and production composition; their final checked-in
+contracts are mandatory PR252 inputs and PR252 may not preserve superseded controls or fallback routes
+solely to keep old tests green.
 
 Business outcome: Every production user-operable Web control has a stable identity and at least one
 deterministic browser case that performs the same action a user can perform, verifies its observable
@@ -660,8 +891,9 @@ partial manifest as a non-blocking check.
 
 ### Hosted Simplicity And Interactive Performance Series Completion Gate
 
-This series is complete only after PR246 through PR252 merge in order and the current gates in
-[GATES.md](GATES.md) pass. One clean production-like evidence run must prove:
+This series is complete only after PR246-PR250 and PR253-PR258 follow the execution graph above, then
+PR251 and PR252 merge, and the current gates in [GATES.md](GATES.md) pass. One clean production-like
+evidence run must prove:
 
 - health, project navigation, and workflow remain responsive throughout a deterministic large
   bootstrap and analytical workload, with idle/loaded latency, errors, resource occupancy, database
