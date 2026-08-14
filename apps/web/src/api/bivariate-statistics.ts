@@ -71,9 +71,13 @@ export const bivariateStatisticsApi = {
     projectId: string,
     section: BivariateSection,
     metric?: PairMetricMatrixKind,
-  ): Promise<ApiLazyDetail<T>> => requestJson<ApiLazyDetail<T>>(
-    `/api/projects/${encodeURIComponent(projectId)}/views/bivariate_statistics/sections/${section}${metric ? `?metric=${metric}` : ""}`,
-  ),
+  ): Promise<ApiLazyDetail<T>> => {
+    const module = "bivariate_statistics";
+    const path = `/api/projects/${encodeURIComponent(projectId)}/views/${module}/sections/${section}`;
+    return requestJson<ApiLazyDetail<T>>(
+      metric === undefined ? path : `${path}?metric=${encodeURIComponent(metric)}`,
+    );
+  },
   loadRunData: async (runId: string): Promise<BivariateRunData> => {
     const [results, covariance, summary, pearson, spearman, downside, lowerTailDependence, tailCoexceedanceRate, rollingStability, drawdownOverlap, tailRiskScatter] = await Promise.all([
       bivariateStatisticsApi.loadResults(runId),

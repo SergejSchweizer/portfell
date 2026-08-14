@@ -21,6 +21,7 @@ from portfell.hosted_api import (
     create_persistent_local_workspace_state,
 )
 from portfell.hosted_credentials import InMemoryCredentialStore, KeyEncryptionKey
+from portfell.hosted_local_test_composition import local_test_services
 from portfell.hosted_postgres_request_scope import RequestScopedPostgresConnection
 from portfell.hosted_research_workflow import ResearchRun, UnivariateSelection
 from portfell.paths import LakePaths
@@ -28,7 +29,15 @@ from portfell.table_io import write_rows
 
 
 def _client(state: HostedApiState | None = None) -> TestClient:
-    return TestClient(create_app(state or HostedApiState()))
+    resolved_state = state or HostedApiState()
+    return TestClient(create_app(resolved_state, services=local_test_services(resolved_state)))
+
+
+def _test_app(
+    state: HostedApiState | None = None, **kwargs: object
+) -> Any:
+    resolved_state = state or HostedApiState()
+    return create_app(resolved_state, services=local_test_services(resolved_state), **kwargs)
 
 
 def _headers(
@@ -76,8 +85,13 @@ def test_local_workspace_requires_no_authentication_or_csrf() -> None:
     assert client.post("/projects", json={"name": "Core"}).status_code == 200
 
 
+def test_hosted_api_requires_an_explicit_service_composition() -> None:
+    with pytest.raises(HostedApiError, match="hosted_services_must_be_explicit"):
+        create_app()
+
+
 def test_postgres_composition_excludes_legacy_user_quote_routes() -> None:
-    application = create_app(include_quote_routes=False)
+    application = _test_app(include_quote_routes=False)
 
     assert "/quote-runs" not in application.openapi()["paths"]
 
@@ -138,7 +152,7 @@ def test_runtime_rejects_the_removed_local_authority(
 
 def test_api_uses_injected_current_user_provider() -> None:
     provider = LocalWorkspaceUserProvider(user_id="00000000-0000-5000-8000-000000000002")
-    client = TestClient(create_app(current_user_provider=provider))
+    client = TestClient(_test_app(current_user_provider=provider))
 
     client.post("/credentials/eodhd", json={"provider_key": "secret-provider-token"})
     status = _json(client.get("/credentials/eodhd"))
@@ -149,7 +163,7 @@ def test_api_uses_injected_current_user_provider() -> None:
 def test_postgres_composition_exposes_the_durable_status_event_stream() -> None:
     scope = RequestScopedPostgresConnection(_ScopedConnection)
 
-    application = create_app(request_scope=scope)
+    application = _test_app(request_scope=scope)
 
     assert "/status-events" in application.openapi()["paths"]
 
@@ -164,7 +178,7 @@ def test_api_wraps_requests_in_an_authenticated_postgres_transaction() -> None:
 
     scope = RequestScopedPostgresConnection(connect)
 
-    response = TestClient(create_app(request_scope=scope)).get("/health")
+    response = TestClient(_test_app(request_scope=scope)).get("/health")
 
     assert response.status_code == 200
     assert connections[0].committed
@@ -182,7 +196,7 @@ def test_api_provisions_the_server_principal_inside_the_postgres_request_scope()
         return connection
 
     response = TestClient(
-        create_app(
+        _test_app(
             request_scope=RequestScopedPostgresConnection(connect),
             ensure_user=provisioned.append,
         )
