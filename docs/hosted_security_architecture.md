@@ -9,7 +9,7 @@
 - [Operations Boundary](#operations-boundary)
 - [Historical Hosted PR Evidence](#historical-hosted-pr-evidence)
 
-Last reviewed: 2026-08-04
+Last reviewed: 2026-08-14
 
 ## Purpose
 
@@ -51,7 +51,7 @@ external KEK secret mount
 
 The API container starts only through the PostgreSQL runtime factory. It rejects the retired `local` authority. Shared data is read from published immutable revisions, and only the internal bootstrap worker or the scheduled operations refresh service receives the EODHD operations credential.
 
-Plaintext EODHD keys must never enter source control, browser state, logs, or persisted API responses. The following are forbidden: global current-selection pointers, per-user market grants, local workspace JSON files, and project-specific market-payload copies. Workflow state is derived from PostgreSQL records and published shared revisions.
+Plaintext EODHD keys must never enter source control, browser state, logs, or persisted API responses. The following are forbidden in production: global current-selection pointers, local workspace JSON files, in-memory tenant authority, and project-specific market-payload copies. Workflow state is derived from PostgreSQL records and published shared revisions.
 
 Public-hosted mode without an authenticated, user-key-backed principal is not supported.
 

@@ -564,7 +564,7 @@ The Web container serves the four-module research workspace: Metadata Builder, U
 
 Browser state is derived from API responses. The Web surface must not store EODHD keys, ciphertext, fingerprints, or sensitive API responses in `localStorage`, `sessionStorage`, URLs, analytics, logs, or rendered error output.
 
-Hosted public deployment readiness is described by `docs/security/hosted_readiness.json` and `docs/security/hosted_readiness.md`. Normal quality gates require complete readiness records while local-only mode remains available. Public-hosted release cutover must additionally pass `uv run python -m portfell.hosted_readiness --require-public-hosted`.
+Hosted deployment readiness is described by `docs/security/hosted_readiness.json` and `docs/security/hosted_readiness.md`. The container runtime uses PostgreSQL and the authorized shared-data volume as its only authority; deterministic local adapters are test/CLI-only. Release cutover must additionally pass `uv run python -m portfell.hosted_readiness --require-public-hosted`.
 
 Run the deterministic hosted cutover proof with:
 

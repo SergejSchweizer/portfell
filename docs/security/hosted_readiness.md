@@ -4,10 +4,6 @@
 ## Table Of Contents
 
 - [D017 Provider License](#d017-provider-license)
-- [Historical D016 EODHD Storage And Derived Display Rights](#historical-d016-eodhd-storage-and-derived-display-rights)
-- [Historical D016 Personal License Boundary](#historical-d016-personal-license-boundary)
-- [Historical D016 Shared Physical Deduplication](#historical-d016-shared-physical-deduplication)
-- [Historical D016 User Key Backed Grants](#historical-d016-user-key-backed-grants)
 - [Retention And Account Deletion](#retention-and-account-deletion)
 - [GDPR Rights And Country Coverage](#gdpr-rights-and-country-coverage)
 - [Audit Retention And Incident Response](#audit-retention-and-incident-response)
@@ -16,13 +12,13 @@
 - [Database Role Review](#database-role-review)
 - [No Automatic Broker Execution](#no-automatic-broker-execution)
 
-Last reviewed: 2026-08-10
+Last reviewed: 2026-08-14
 
 This document is evidence for `docs/security/hosted_readiness.json`. The JSON file is the machine-readable gate input; this file explains the decisions in operational language.
 
-The entitlement model below records D016 evidence and is superseded as a production target by D017.
-Public hosting remains blocked until PR156 replaces the machine-readable licensing evidence and
-PR167 completes the PostgreSQL/shared-storage cutover gate after PR166 recovery rehearsal.
+Historical D016 entitlement records remain in Git history only. The current production runtime uses
+PostgreSQL for tenant/control state and the authorized shared immutable store for market payloads;
+it has no workspace-JSON, in-memory, or user-download authority.
 
 ## D017 Provider License
 
@@ -33,25 +29,11 @@ encrypted tenant metadata only and never authorize or feed the globally shared c
 payloads to separate planes and forbids authorization, credential, project, run, session, and user
 fields in shared payloads.
 
-## Historical D016 EODHD Storage And Derived Display Rights
-
-Public-hosted mode may store only data fetched through a user-provided EODHD credential and may expose derived views only to users whose immutable entitlement snapshot includes the source observations. Provider redistribution and display rights must be reviewed again before public-hosted mode is enabled for external users.
-
-## Historical D016 Personal License Boundary
-
-Portfell does not pool one maintainer-owned provider key for all users. Each hosted user supplies their own provider credential, and provider calls resolve the credential only at request time through the encrypted vault.
-
-## Historical D016 Shared Physical Deduplication
-
-Shared observations and analytical artifacts may be physically deduplicated, but physical presence never grants visibility. User access is always resolved through user grants, immutable snapshots, and analysis-run ownership.
-
-## Historical D016 User Key Backed Grants
-
-No observation becomes visible to a user until a successful provider run using that user's active credential returns the observation and publishes a user grant.
-
 ## Retention And Account Deletion
 
-Account deletion removes user grants, current snapshot pointers, projects, selections, analysis references, and hosted API state. Shared physical observations may remain only as unowned cache material unless a separate legal retention policy requires removal.
+Account deletion and retention procedures are operated through PostgreSQL records and encrypted
+backups. Shared physical observations may remain only as tenant-neutral cache material unless a
+separate legal retention policy requires removal.
 
 ## GDPR Rights And Country Coverage
 

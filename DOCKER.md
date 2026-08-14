@@ -10,7 +10,7 @@ market refresh operations, continue with [docs/shared-market-refresh.md](docs/sh
 - [2. Prerequisites](#2-prerequisites)
 - [3. External Secrets](#3-external-secrets)
 - [4. Configure The Environment](#4-configure-the-environment)
-- [5. Start And Verify](#5-start-and-verify)
+- [5. Deploy And Verify](#5-deploy-and-verify)
 - [6. UGREEN NAS Production Storage](#6-ugreen-nas-production-storage)
 - [7. Non-Destructive Storage Migration](#7-non-destructive-storage-migration)
 - [8. Day-To-Day Commands](#8-day-to-day-commands)
@@ -22,7 +22,8 @@ Compose starts one PostgreSQL control plane and one immutable shared-data plane.
 PostgreSQL is the authority for users, projects, selections, jobs, and research
 run metadata. The shared-data volume holds published market-data revisions. No
 repository `lake`, user workspace JSON, or user-owned quote download is mounted
-into the hosted runtime.
+into the hosted runtime. The API starts only when
+`PORTFELL_HOSTED_AUTHORITY=postgres`; it has no local or in-memory runtime mode.
 
 ```text
 browser
@@ -97,6 +98,7 @@ Every secret entry is an absolute host-file path.
 ```dotenv
 PORTFELL_API_PORT=8000
 PORTFELL_WEB_PORT=3000
+PORTFELL_HOSTED_AUTHORITY=postgres
 PORTFELL_POSTGRES_PASSWORD_FILE=/run/host-secrets/portfell/postgres-password.txt
 PORTFELL_EODHD_KEK_FILE=/run/host-secrets/portfell/eodhd-kek.txt
 PORTFELL_OPERATIONS_EODHD_TOKEN_FILE=/run/host-secrets/portfell/operations-eodhd-token.txt
@@ -109,12 +111,16 @@ docker compose --env-file .env.local config --quiet
 docker compose --env-file .env.local config --services
 ```
 
-## 5. Start And Verify
+## 5. Deploy And Verify
 
-Build and start the default runtime. This starts PostgreSQL, the API, the Web
-application, and the internal bootstrap worker.
+Apply the catalog migrations before starting the application stack, then build
+and start PostgreSQL, the API, the Web application, and the internal bootstrap
+worker. The API and Web images must come from the same merged `main` revision;
+there is no mixed-version or dual-authority compatibility window.
 
 ```bash
+uv run python -m portfell.hosted_catalog_migration
+uv run python -m portfell.hosted_readiness --require-database
 docker compose --env-file .env.local up --build --detach
 docker compose --env-file .env.local ps
 docker compose --env-file .env.local logs --tail 100 api web project-bootstrap-worker
@@ -124,6 +130,17 @@ Wait until `portfell-postgress`, `portfell-api`, `portfell-web`, and
 `portfell-worker` are
 healthy. Open `http://localhost:3000` for the Web UI and
 `http://localhost:8000/health` for the API health response.
+
+Smoke-check the deployed API without exposing credentials:
+
+```bash
+curl --fail --silent --show-error http://localhost:8000/health
+```
+
+If a deployment fails after migrations or image startup, stop the new stack,
+restore the last compatible complete PostgreSQL backup and shared-data revision,
+then start the matching prior Web/API image pair. Do not run an old image against
+a newer catalog head or introduce a dual-read/dual-write fallback.
 
 ## 6. UGREEN NAS Production Storage
 
