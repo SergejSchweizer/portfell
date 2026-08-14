@@ -1072,8 +1072,9 @@ ETags; no lifecycle command or route behavior changes in this foundational schem
 PR247c2b2 was split because its prior combination of three analytical lifecycles, project association,
 and HTTP route replacement was not safely parallelizable for two weak agents. PR247c2b2a owns only
 the durable project-to-research mapping and command-side projection writes; PR247c2b2b owns only the
-pure projection readers and route composition. PR247c2b3 will add the repair command, instrumentation,
-large-fixture performance evidence, and restart/RLS tests.
+pure projection readers and route composition. PR247c2b3 was split again: PR247c2b3a owns deterministic
+repair plus restart/RLS evidence; PR247c2b3b owns route instrumentation and large-fixture performance
+evidence.
 
 PR247c2b2a branch: `feat/hosted-project-workflow-lifecycle` (ready for PR).
 
@@ -1125,6 +1126,47 @@ Acceptance for PR247c2b2b:
   or reconciliation writers.
 - API-contract, PostgreSQL adapter, route, architecture, Ruff, format, Pyright, and real-stack
   button gates pass. The PR changes no lifecycle schema or writer.
+
+PR247c2b3a branch: `feat/hosted-project-workflow-repair` (ready for PR).
+
+- Add an explicit deployment/maintenance callable that reconciles one authorized project's workflow
+  projection from the existing canonical workflow source. It accepts exact `user_id` and `project_id`,
+  owns one transaction, never enumerates users, and returns the canonical payload/ETag.
+- Provide a command-level restart repair entrypoint that accepts an explicit, deterministic list of
+  `(user_id, project_id)` inputs. It skips deleted or unauthorized projects, records no broad data,
+  and is idempotent when invoked repeatedly after a restart or interrupted worker.
+- Add PostgreSQL adapter tests for rollback, RLS, deleted projects, restart repair, and byte-identical
+  idempotent output. Do not add route timing instrumentation or performance fixtures here.
+
+Acceptance for PR247c2b3a:
+
+- Two consecutive repairs of unchanged source state return the same payload and ETag and do not advance
+  projection revision. A source mutation followed by repair advances exactly one revision.
+- A forced exception before transaction commit leaves both source and workflow projection unchanged.
+  Guessed, cross-user, and deleted project IDs return typed absence without reading another tenant.
+- A restart fixture with one missing and one stale workflow projection restores both through only the
+  explicit supplied project IDs; it performs no shared-file reads and never creates a selection/run.
+- Focused repair, projection adapter, migration/catalog, RLS, architecture, Ruff, format, Pyright, and
+  real-stack gates pass.
+
+PR247c2b3b branch: `feat/hosted-workflow-read-instrumentation`.
+
+- Instrument only `/workflow` and `/projects/{project_id}/workflow` with statement count, response
+  bytes, shared-file-read count, and elapsed time; expose structured test hooks without leaking these
+  values in tenant responses.
+- Add deterministic 100-project/25,000-member fixtures and prove bounded statement counts, zero
+  shared-file reads, no GET writes, response size below 256 KiB, idle p95 below 250 ms, and loaded p95
+  below 1 s. Do not modify projection schemas, lifecycle writers, or repair behavior.
+
+Acceptance for PR247c2b3b:
+
+- Instrumented route tests prove at most two PostgreSQL statements including RLS binding for both
+  current and explicit-project paths, zero writes, zero shared-file/Parquet reads, and no lifecycle or
+  reconciliation invocation.
+- The named large fixture produces the documented response-size and latency evidence deterministically
+  in CI, including the concurrent worker contention fixture from PR246.
+- API-contract, architecture, performance, Ruff, format, Pyright, Playwright, and real-stack gates
+  pass.
 
 Priority: P0 page-entry latency and architectural simplicity.
 
