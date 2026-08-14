@@ -33,11 +33,11 @@ from portfell.contract_versioning import stable_contract_id
 ListingKey = tuple[str, str, str]
 ReturnsByListing = dict[ListingKey, dict[str, float]]
 
-ALGORITHM_VERSION = 1
+ALGORITHM_VERSION = 2
 BASE_RETURN_FREQUENCY = "daily"
 MISSING_OBSERVATION_POLICY = "pairwise_common_date_intersection"
 MIN_OBSERVATIONS = 2
-MAX_LISTINGS = 200
+MAX_LISTINGS = 250
 
 DEFAULT_EWMA_DECAY = 0.94
 

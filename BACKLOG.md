@@ -1603,6 +1603,41 @@ state and do not issue commands or write project, artifact, or market state.
 Rollback: Revert the Plotly package, component, style, specification, and regression changes together;
 the prior SVG renderer is restored without a data migration, API change, or retained state.
 
+### PR261. Multivariate Risk Model For 201-250 Listings
+
+Branch: `fix/risk-model-250-listings`.
+
+Git status: in progress.
+
+PR: TBD.
+
+Priority: P0 restore portfolio calculation for valid large selections.
+
+Depends on: PR257's `multivariate_execution.v14` calculation semantics.
+
+Scope: Raise the bounded dense risk-model universe from 200 to 250 listings, advance the risk-model
+algorithm and artifact contracts, and advance the hosted Multivariate execution contract to v15. Add
+a deterministic 201-listing Ledoit-Wolf regression and retain an explicit 251-listing rejection. Do
+not change selection membership, covariance formulas, optimizer constraints, authorization, or storage.
+
+Acceptance: A complete 201-listing return matrix reaches risk-model estimation without a listing-limit
+error and returns a 201 by 201 covariance matrix. A 251-listing request fails closed with the bounded
+limit error. Starting the same project and Bivariate input under v15 produces a different logical run
+identity from v14, so a completed v14 `risk_model_unavailable` result is not reused. Focused risk-model,
+artifact, and hosted-service tests plus `uv run portfell-quality pr` pass; API and worker images rebuild.
+
+Security: The limit change consumes only the already authorized, project-scoped input snapshot and does
+not broaden tenant visibility, provider access, credentials, routes, or persisted membership.
+
+Determinism: Stable sorted listing identities, aligned returns, estimator settings, algorithm v2, artifact
+v2, and execution v15 determine the same covariance, artifact ID, and run ID for identical inputs.
+
+Idempotency: Equivalent v15 requests reuse the same v15 run. Existing v14 runs remain immutable and are
+not selected for v15 execution; no data rewrite or cache purge is required.
+
+Rollback: Restore the 200-listing guard and prior contract versions together. Existing v15 runs remain
+auditable but are no longer reused after rollback; no schema or data migration is required.
+
 ### Hosted Simplicity And Interactive Performance Series Completion Gate
 
 This series is complete only after PR246 through PR252 merge in order and the current gates in

@@ -18,7 +18,7 @@ from portfell.multivariate_inputs import MultivariateInputSnapshot, Multivariate
 from portfell.risk_model import RiskModelResult, estimate_risk_model
 from portfell.table_io import JsonRow
 
-RISK_MODEL_ARTIFACT_CONTRACT = ContractVersion("multivariate.risk_model", 1)
+RISK_MODEL_ARTIFACT_CONTRACT = ContractVersion("multivariate.risk_model", 2)
 PRODUCTION_ESTIMATOR = "ledoit_wolf"
 
 

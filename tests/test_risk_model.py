@@ -421,9 +421,23 @@ def test_unknown_estimator_and_return_type_and_window_policy_are_rejected() -> N
 
 def test_max_listings_limit_is_enforced() -> None:
     rows = _three_asset_rows({"2026-01-01": (0.01, 0.02, 0.03), "2026-01-02": (0.02, 0.01, -0.01)})
-    too_many = [("X", "E", str(i)) for i in range(201)]
+    too_many = [("X", "E", str(i)) for i in range(251)]
     with pytest.raises(ValueError, match="limited to"):
         estimate_risk_model(rows, listings=too_many)
+
+
+def test_risk_model_accepts_201_listings() -> None:
+    listings = [(f"IE{i:010d}", "XETRA", f"ETF{i:03d}") for i in range(201)]
+    rows = [
+        _row(isin, exchange, code, item_date, ((index * 17 + day * 13) % 101 - 50) / 10_000)
+        for day, item_date in enumerate(("2026-01-01", "2026-01-02", "2026-01-03"))
+        for index, (isin, exchange, code) in enumerate(listings)
+    ]
+
+    result = estimate_risk_model(rows, listings=listings, estimator="ledoit_wolf")
+
+    assert result.diagnostics.listing_count == 201
+    assert len(result.covariance) == 201
 
 
 def test_unknown_listing_is_rejected() -> None:
