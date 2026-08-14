@@ -149,7 +149,12 @@ def test_compose_uses_health_checks_startup_order_hardening_and_no_resource_limi
         assert "healthcheck" in service
         assert service["read_only"] is True
         assert service["security_opt"] == ["no-new-privileges:true"]
+    for service in services.values():
+        service = cast(ComposeMapping, service)
         assert "deploy" not in service
+        assert "cpus" not in service
+        assert "memory" not in service
+        assert "mem_limit" not in service
 
     for service_name in ("api", "web"):
         service = cast(ComposeMapping, services[service_name])

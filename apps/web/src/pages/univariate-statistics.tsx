@@ -4,7 +4,7 @@ import { loadProjectContext } from "../api/client";
 import { univariateStatisticsApi } from "../api/univariate-statistics";
 import { Button } from "../components/button";
 import { nextProgressSnapshot, progressPercent, type ProgressSnapshot } from "../computation-progress";
-import { LoadingState } from "../components/loading-state";
+import { LoadingIndicator, LoadingState } from "../components/loading-state";
 import { Panel } from "../components/panel";
 import type { ApiAnalyticalPageView, ApiDividendFrequency, ApiResearchRun, ApiUnivariateRow, ApiUnivariateSelectionSettings } from "../contracts";
 import { useDebouncedSave } from "../hooks/use-debounced-save";
@@ -362,6 +362,7 @@ export function UnivariateStatisticsPage() {
 
   return (
     <section className="univariate-statistics-page" data-route="univariate-statistics-page">
+      {workflow.refreshing ? <LoadingIndicator label="Refreshing univariate workflow" compact /> : null}
       <Panel title="Univariate Statistics">
         {stage.status === "locked" ? <p>Historical data is refreshed automatically by the shared-data service. Statistics unlock when coverage is available.</p> : <>
           <div className="quote-fetch quote-fetch--panel univariate-compute">

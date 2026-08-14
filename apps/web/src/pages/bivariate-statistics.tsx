@@ -4,7 +4,7 @@ import { loadProjectContext } from "../api/client";
 import { bivariateStatisticsApi, type BivariateRunData } from "../api/bivariate-statistics";
 import { Button } from "../components/button";
 import { nextProgressSnapshot, type ProgressSnapshot } from "../computation-progress";
-import { LoadingState } from "../components/loading-state";
+import { LoadingIndicator, LoadingState } from "../components/loading-state";
 import { Panel } from "../components/panel";
 import type { ApiBivariateMetricSummary, ApiBivariateRow, ApiBivariateSummary, ApiCovarianceMatrix, ApiPage, ApiPairMetricMatrix, ApiPairPlan, ApiResearchRun, ApiTailRiskScatter } from "../contracts";
 import { queryClient, queryTiming } from "../query/client";
@@ -458,7 +458,8 @@ export function BivariateStatisticsPage() {
   const activeMatrixTitle = activePairwiseMetric === "covariance"
     ? "Covariance"
     : pairwiseMatrixTabs.find((tab) => tab.metric === activePairwiseMetric)!.label;
-  return (
+  return (<>
+    {workflow.refreshing ? <LoadingIndicator label="Refreshing bivariate workflow" compact /> : null}
     <Panel title="Bivariate Statistics">
       <div className="quote-fetch quote-fetch--panel bivariate-compute">
         <label htmlFor="bivariate-progress">Bivariate statistics progress</label>
@@ -550,5 +551,5 @@ export function BivariateStatisticsPage() {
         {activePairwiseMetric === "tail_risk_scatter" ? <TailRiskScatter scatter={tailRiskScatter} /> : <PairMatrix matrix={activeMatrix} title={activeMatrixTitle} hoveredCell={hoveredMatrixCell} setHoveredCell={setHoveredMatrixCell} />}
       </section>}
     </Panel>
-  );
+  </>);
 }
