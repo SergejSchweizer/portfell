@@ -1642,9 +1642,9 @@ auditable but are no longer reused after rollback; no schema or data migration i
 
 Branch: `style/statistics-progress-height`.
 
-Git status: in progress.
+Git status: pushed.
 
-PR: TBD.
+PR: https://github.com/SergejSchweizer/portfell/pull/455
 
 Priority: P2 consistent statistics workflow presentation.
 
