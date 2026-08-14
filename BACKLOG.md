@@ -1609,11 +1609,11 @@ Acceptance: Commit paths atomically persist bootstrap/metadata source state and 
 persists none; worker and repository tests cover queued, running, successful, partial, failed, retry,
 and tenant-isolation cases.
 
-### PR250d. Authenticated SSE Replay Transport
+### PR250d1. Authenticated SSE Status-Event Transport
 
 Branch: `feat/hosted-status-event-sse`.
 
-Git status: not started.
+Git status: in progress.
 
 PR: TBD.
 
@@ -1621,12 +1621,32 @@ Priority: P1 live status with bounded request load.
 
 Depends on: PR250c1 and PR250c2.
 
-Scope: Add one authenticated FastAPI SSE endpoint over the durable repository with heartbeats,
-`Last-Event-ID` replay, typed reset events, tenant filtering, proxy-safe headers, cleanup, and the
-two-stream session limit. Events remain compact invalidation hints, not analytical payloads.
+Scope: Add one authenticated FastAPI SSE endpoint over the durable repository with `Last-Event-ID`
+replay, 15-second heartbeat comments, RLS-bound reads, proxy-safe headers, disconnect cleanup, and a
+two-stream limit per authenticated session. Events remain compact invalidation hints, not analytical
+payloads.
+
+Acceptance: Unit and API-contract tests prove strict non-negative resume parsing, compact ordered SSE
+framing, heartbeat framing, two-stream enforcement/release, and production-only route composition.
+
+### PR250d2. SSE Reset, Retention, And Transport Observability
+
+Branch: `feat/hosted-status-event-sse-resilience`.
+
+Git status: not started.
+
+PR: TBD.
+
+Priority: P1 live status with bounded request load.
+
+Depends on: PR250d1.
+
+Scope: Add 24-hour retention cleanup, typed reset responses for expired or oversized resume windows,
+connection/replay/lag/reset metrics, graceful shutdown handling, and reverse-proxy deployment
+guidance.
 
 Acceptance: API and adversarial tests prove ordered authorized replay, reset on expired/oversized
-cursors, 15-second heartbeats, connection cleanup, no cross-user leakage, and bounded resources.
+cursors, no cross-user leakage, bounded resources, and documented proxy/shutdown behavior.
 
 ### PR250e. Browser Status-Stream Adoption
 
@@ -1638,7 +1658,7 @@ PR: TBD.
 
 Priority: P1 live status with bounded request load.
 
-Depends on: PR250d.
+Depends on: PR250d1 and PR250d2.
 
 Scope: Connect one browser stream per authenticated application session; map received events through
 PR249's exact query keys; then remove fixed-interval polling only for states covered by the stream.
@@ -1648,9 +1668,9 @@ status updates without polling, and no application-data requests during a 15-min
 
 ### PR250. Durable Server-Sent Job And Workflow Updates
 
-Branch: split into PR250a, PR250b, PR250c1, PR250c2, PR250d, and PR250e above.
+Branch: split into PR250a, PR250b, PR250c1, PR250c2, PR250d1, PR250d2, and PR250e above.
 
-Git status: in progress (PR250a/b/c1 merged; PR250c2 in progress).
+Git status: in progress (PR250a/b/c1/c2 merged; PR250d1 in progress).
 
 PR: TBD.
 

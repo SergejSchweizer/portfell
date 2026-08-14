@@ -146,6 +146,14 @@ def test_api_uses_injected_current_user_provider() -> None:
     assert status["status"] == "active"
 
 
+def test_postgres_composition_exposes_the_durable_status_event_stream() -> None:
+    scope = RequestScopedPostgresConnection(_ScopedConnection)
+
+    application = create_app(request_scope=scope)
+
+    assert "/status-events" in application.openapi()["paths"]
+
+
 def test_api_wraps_requests_in_an_authenticated_postgres_transaction() -> None:
     connections: list[_ScopedConnection] = []
 
