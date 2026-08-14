@@ -239,18 +239,21 @@ def test_metadata_panel_uses_the_historical_data_progress_status_action_layout()
     assert ".metadata-fetch__progress { height: var(--progress-height);" in styles
 
 
-def test_bivariate_facts_show_the_universe_aligned_data_period() -> None:
+def test_bivariate_facts_show_pairwise_coverage() -> None:
     page = (WEB_ROOT / "src" / "pages" / "bivariate-statistics.tsx").read_text(encoding="utf-8")
     contracts = (WEB_ROOT / "src" / "contracts.ts").read_text(encoding="utf-8")
 
-    assert page.count("Aligned data period") >= 6
+    assert page.count("Pair coverage") >= 3
     assert "dataPeriod(matrix.date_start, matrix.date_end)" in page
+    assert "observationRange(" in page
     assert "lower_tail_dependence" in page
     assert "tail_coexceedance_rate" in page
     assert "TailRiskScatter" in page
     assert "Tail-Risk Scatter" in page
     assert contracts.count("date_start: string;") >= 4
     assert contracts.count("date_end: string;") >= 4
+    assert contracts.count("observation_count_min: number;") >= 4
+    assert contracts.count("observation_count_max: number;") >= 4
 
 
 def test_metadata_builder_refreshes_the_sidebar_project_context_and_decodes_api_errors() -> None:

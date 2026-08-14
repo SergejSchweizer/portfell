@@ -188,7 +188,10 @@ def test_gold_pair_engine_streams_upper_triangle_observations() -> None:
 
     assert [(item.left_id, item.right_id) for item in observations] == [(0, 1), (0, 2), (1, 2)]
     assert all(item.left_id < item.right_id for item in observations)
-    assert {item.dates for item in observations} == {("2026-01-02",)}
+    assert {item.dates for item in observations} == {
+        ("2026-01-01", "2026-01-02"),
+        ("2026-01-02",),
+    }
     assert observations[1].dates == ("2026-01-02",)
 
 

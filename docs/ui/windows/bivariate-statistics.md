@@ -42,9 +42,10 @@ contains no provider-download action and renders pairwise computation only after
 project's shared-market coverage is ready. A completed Univariate run sourced from the shared market
 uses those published quote rows directly; it does not require a project quote-run identifier.
 
-Every pairwise metric and matrix in one run uses the same universe-wide date intersection. Summary
-and matrix contracts expose `date_start` and `date_end`; every facts table renders that aligned data
-period so values from different tabs and windows are directly comparable.
+Every pairwise metric uses the complete date intersection of its two listings. Summary and matrix
+contracts expose the outer pair-coverage period plus minimum and maximum shared-observation counts;
+facts tables label this as pair coverage so different pair histories are never represented as one
+universe-wide aligned period.
 
 The server computes algorithm version `v10`. Pearson correlation and sample covariance use the
 aligned log returns directly; Spearman correlation is Pearson correlation over exact average ranks,

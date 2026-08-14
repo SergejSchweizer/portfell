@@ -442,6 +442,8 @@ export type ApiBivariateMetricSummary = Readonly<{
 export type ApiBivariateSummary = Readonly<{
   pair_count: number;
   observation_count: number;
+  observation_count_min: number;
+  observation_count_max: number;
   date_start: string;
   date_end: string;
   metrics: Readonly<Record<string, ApiBivariateMetricSummary>>;
@@ -595,6 +597,8 @@ export type ApiPairMetricMatrix = Readonly<{
   labels: readonly Readonly<{ isin: string; exchange: string; code: string; label: string }>[];
   values: readonly (readonly (number | null)[])[];
   observation_count: number;
+  observation_count_min: number;
+  observation_count_max: number;
   date_start: string;
   date_end: string;
 }>;
@@ -612,6 +616,8 @@ export type ApiTailRiskScatter = Readonly<{
   }>[];
   pair_count: number;
   observation_count: number;
+  observation_count_min: number;
+  observation_count_max: number;
   date_start: string;
   date_end: string;
   tail_dependence_median: number | null;
@@ -644,6 +650,8 @@ export type ApiCovarianceMatrix = Readonly<{
   labels: readonly Readonly<{ isin: string; exchange: string; code: string; label: string }>[];
   values: readonly (readonly (number | null)[])[];
   observation_count: number;
+  observation_count_min: number;
+  observation_count_max: number;
   date_start: string;
   date_end: string;
   diagnostics: Readonly<{

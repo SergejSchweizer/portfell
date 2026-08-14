@@ -30,7 +30,7 @@ def _return(isin: str, exchange: str, code: str, date: str, value: float) -> dic
     }
 
 
-def test_bivariate_statistics_use_common_dates_and_pairwise_metrics(tmp_path: Path) -> None:
+def test_bivariate_statistics_use_pairwise_dates_and_metrics(tmp_path: Path) -> None:
     paths = LakePaths(root=tmp_path / "lake")
     returns = [
         _return("IE1", "XETRA", "AAA", "2026-01-01", 0.01),
@@ -53,13 +53,13 @@ def test_bivariate_statistics_use_common_dates_and_pairwise_metrics(tmp_path: Pa
     assert row["left_listing_key"] == "XETRA__IE1__AAA"
     assert row["right_listing_key"] == "AS__IE2__BBB"
     assert row["pair_key"] == "XETRA__IE1__AAA___AS__IE2__BBB"
-    assert row["date_start"] == "2026-01-02"
+    assert row["date_start"] == "2026-01-01"
     assert row["date_end"] == "2026-01-03"
-    assert row["n_observations"] == 2
+    assert row["n_observations"] == 3
     assert row["pearson_correlation"] == pytest.approx(-1.0)
-    assert row["covariance"] == pytest.approx(-0.00005)
-    assert row["left_variance"] == pytest.approx(0.00005)
-    assert row["right_variance"] == pytest.approx(0.00005)
+    assert row["covariance"] == pytest.approx(-0.0001)
+    assert row["left_variance"] == pytest.approx(0.0001)
+    assert row["right_variance"] == pytest.approx(0.0001)
     assert row["left_beta_to_right"] == pytest.approx(-1.0)
     assert row["right_beta_to_left"] == pytest.approx(-1.0)
     assert "spearman_correlation" in row
@@ -77,8 +77,16 @@ def test_bivariate_statistics_use_common_dates_and_pairwise_metrics(tmp_path: Pa
     assert manifest["row_counts"]["listing_count"] == 3
     assert {
         (item["date_start"], item["date_end"], item["n_observations"]) for item in statistics
-    } == {("2026-01-02", "2026-01-03", 2)}
-    tail_diagnostics = build_bivariate_summary(tuple(statistics))["tail_dependence_diagnostics"]
+    } == {
+        ("2026-01-01", "2026-01-03", 3),
+        ("2026-01-02", "2026-01-03", 2),
+    }
+    summary = build_bivariate_summary(tuple(statistics))
+    assert summary["date_start"] == "2026-01-01"
+    assert summary["date_end"] == "2026-01-03"
+    assert summary["observation_count_min"] == 2
+    assert summary["observation_count_max"] == 3
+    tail_diagnostics = summary["tail_dependence_diagnostics"]
     assert tail_diagnostics["high_30_pairs"] >= 0
     assert tail_diagnostics["worst_pair"] is not None
     assert tail_diagnostics["best_diversifier_pair"] is not None
@@ -95,18 +103,28 @@ def test_bivariate_statistics_use_common_dates_and_pairwise_metrics(tmp_path: Pa
     drawdown_matrix = build_correlation_matrix(tuple(statistics), "drawdown_overlap")
     assert drawdown_matrix["labels"]
     assert drawdown_matrix["values"][0][1] == statistics[0]["drawdown_overlap_rate"]
+    assert drawdown_matrix["observation_count_min"] == 2
+    assert drawdown_matrix["observation_count_max"] == 3
     rolling_matrix = build_correlation_matrix(tuple(statistics), "rolling_stability")
     assert rolling_matrix["values"][0][1] == statistics[0]["rolling_correlation_stability"]
+    scatter = build_tail_risk_scatter(tuple(statistics))
+    assert scatter["observation_count_min"] == 2
+    assert scatter["observation_count_max"] == 3
 
 
-def test_bivariate_statistics_require_a_universe_wide_common_calendar() -> None:
+def test_bivariate_statistics_keep_pairs_with_a_common_calendar() -> None:
     returns = [
         _return("IE1", "XETRA", "AAA", "2026-01-01", 0.01),
         _return("IE2", "AS", "BBB", "2026-01-01", 0.02),
         _return("IE3", "PA", "CCC", "2026-01-02", 0.03),
     ]
 
-    assert build_bivariate_statistics(returns) == []
+    statistics = build_bivariate_statistics(returns)
+
+    assert len(statistics) == 1
+    assert statistics[0]["left_isin"] == "IE1"
+    assert statistics[0]["right_isin"] == "IE2"
+    assert statistics[0]["n_observations"] == 1
 
 
 def test_bivariate_statistics_reuses_cached_buckets_and_writes_delta(tmp_path: Path) -> None:
