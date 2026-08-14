@@ -1607,9 +1607,9 @@ the prior SVG renderer is restored without a data migration, API change, or reta
 
 Branch: `fix/risk-model-250-listings`.
 
-Git status: in progress.
+Git status: pushed.
 
-PR: TBD.
+PR: https://github.com/SergejSchweizer/portfell/pull/454
 
 Priority: P0 restore portfolio calculation for valid large selections.
 
