@@ -18,6 +18,7 @@ from portfell.hosted_status_event_stream import (
     StatusEventStreamError,
     event_frame,
     heartbeat_frame,
+    reset_frame,
     resume_cursor,
 )
 
@@ -45,17 +46,37 @@ def status_event_router(
         if not limiter.acquire(user.user_id):
             raise HTTPException(429, detail={"code": "status_event_stream_limit"})
 
+        resumed = last_event_id not in {None, ""}
+
         async def frames() -> AsyncIterator[str]:
-            nonlocal cursor
+            nonlocal cursor, resumed
             try:
                 while not await request.is_disconnected():
                     with request_scope.background_request(user.user_id):
-                        events = PostgresStatusEventRepository(request_scope).replay(
-                            user_id=user.user_id, after_event_id=cursor
-                        )
-                    for event in events:
-                        cursor = event.event_id
-                        yield event_frame(event)
+                        repository = PostgresStatusEventRepository(request_scope)
+                        oldest, newest = repository.bounds(user_id=user.user_id)
+                        if not resumed:
+                            cursor = newest or 0
+                            resumed = True
+                            events = ()
+                        elif oldest is not None and cursor < oldest - 1:
+                            cursor = newest or 0
+                            events = None
+                        else:
+                            events = repository.replay(
+                                user_id=user.user_id, after_event_id=cursor
+                            )
+                            if len(events) == 1_000 and repository.has_more(
+                                user_id=user.user_id, after_event_id=events[-1].event_id
+                            ):
+                                cursor = newest or events[-1].event_id
+                                events = None
+                    if events is None:
+                        yield reset_frame(cursor=cursor, reason="status_event_replay_reset")
+                    else:
+                        for event in events:
+                            cursor = event.event_id
+                            yield event_frame(event)
                     yield heartbeat_frame()
                     await asyncio.sleep(15)
             finally:

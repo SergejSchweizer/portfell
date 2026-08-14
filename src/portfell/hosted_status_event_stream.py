@@ -71,3 +71,10 @@ def heartbeat_frame() -> str:
     """Return a comment frame that keeps reverse proxies and clients alive."""
 
     return ": heartbeat\n\n"
+
+
+def reset_frame(*, cursor: int, reason: str) -> str:
+    """Tell a reconnecting client to invalidate bounded queries and resume at ``cursor``."""
+
+    data = json.dumps({"reason": reason}, sort_keys=True, separators=(",", ":"))
+    return f"id: {cursor}\nevent: reset\ndata: {data}\n\n"

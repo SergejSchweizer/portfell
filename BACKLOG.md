@@ -1629,11 +1629,11 @@ payloads.
 Acceptance: Unit and API-contract tests prove strict non-negative resume parsing, compact ordered SSE
 framing, heartbeat framing, two-stream enforcement/release, and production-only route composition.
 
-### PR250d2. SSE Reset, Retention, And Transport Observability
+### PR250d2. SSE Resume Reset Recovery
 
 Branch: `feat/hosted-status-event-sse-resilience`.
 
-Git status: not started.
+Git status: in progress.
 
 PR: TBD.
 
@@ -1641,12 +1641,30 @@ Priority: P1 live status with bounded request load.
 
 Depends on: PR250d1.
 
-Scope: Add 24-hour retention cleanup, typed reset responses for expired or oversized resume windows,
-connection/replay/lag/reset metrics, graceful shutdown handling, and reverse-proxy deployment
-guidance.
+Scope: Detect an expired cursor or a replay window larger than 1,000 retained events before any
+partial replay is emitted. Send one typed reset event containing the current cursor, so the browser
+can invalidate bounded query keys and resume without silent state loss.
 
-Acceptance: API and adversarial tests prove ordered authorized replay, reset on expired/oversized
-cursors, no cross-user leakage, bounded resources, and documented proxy/shutdown behavior.
+Acceptance: Repository and framing tests prove per-user retained bounds, bounded replay detection,
+typed reset framing, and no partial stale replay.
+
+### PR250d3. SSE Retention And Transport Observability
+
+Branch: `feat/hosted-status-event-sse-operations`.
+
+Git status: not started.
+
+PR: TBD.
+
+Priority: P1 live status with bounded request load.
+
+Depends on: PR250d2.
+
+Scope: Add 24-hour retention cleanup, connection/replay/lag/reset metrics, graceful shutdown
+handling, and reverse-proxy deployment guidance.
+
+Acceptance: Worker/operations tests prove retention is bounded, metrics are recorded without event
+payloads, shutdown releases streams, and documented proxy behavior avoids buffering.
 
 ### PR250e. Browser Status-Stream Adoption
 
@@ -1658,7 +1676,7 @@ PR: TBD.
 
 Priority: P1 live status with bounded request load.
 
-Depends on: PR250d1 and PR250d2.
+Depends on: PR250d1, PR250d2, and PR250d3.
 
 Scope: Connect one browser stream per authenticated application session; map received events through
 PR249's exact query keys; then remove fixed-interval polling only for states covered by the stream.
@@ -1668,9 +1686,9 @@ status updates without polling, and no application-data requests during a 15-min
 
 ### PR250. Durable Server-Sent Job And Workflow Updates
 
-Branch: split into PR250a, PR250b, PR250c1, PR250c2, PR250d1, PR250d2, and PR250e above.
+Branch: split into PR250a, PR250b, PR250c1, PR250c2, PR250d1, PR250d2, PR250d3, and PR250e above.
 
-Git status: in progress (PR250a/b/c1/c2 merged; PR250d1 in progress).
+Git status: in progress (PR250a/b/c1/c2/d1 merged; PR250d2 in progress).
 
 PR: TBD.
 

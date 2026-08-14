@@ -2,11 +2,19 @@ from portfell.hosted_status_event_repository import PostgresStatusEventRepositor
 
 
 class Cursor:
-    def __init__(self, rows: list[tuple[object, ...]] | None = None) -> None:
+    def __init__(
+        self,
+        rows: list[tuple[object, ...]] | None = None,
+        row: tuple[object, ...] | None = None,
+    ) -> None:
         self.rows = rows or []
+        self.row = row
 
     def fetchall(self) -> list[tuple[object, ...]]:
         return self.rows
+
+    def fetchone(self) -> tuple[object, ...] | None:
+        return self.row
 
 
 class Connection:
@@ -18,6 +26,10 @@ class Connection:
         self.calls.append((sql, parameters))
         if "select event_id" in sql:
             return Cursor([(3, "workflow.changed", "project:p1", "etag", None)])
+        if "select min(event_id)" in sql:
+            return Cursor(row=(3, 7))
+        if "select exists(" in sql:
+            return Cursor(row=(True,))
         return Cursor()
 
 
@@ -54,3 +66,11 @@ def test_status_event_replay_rejects_unbounded_or_negative_cursors() -> None:
             assert str(error) == "status_event_replay_invalid"
         else:
             raise AssertionError("expected bounded replay validation")
+
+
+def test_status_event_replay_bounds_are_always_scoped_to_the_authenticated_user() -> None:
+    repository = PostgresStatusEventRepository(Connection())
+    user_id = "00000000-0000-5000-8000-000000000001"
+
+    assert repository.bounds(user_id=user_id) == (3, 7)
+    assert repository.has_more(user_id=user_id, after_event_id=6)
