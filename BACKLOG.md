@@ -1057,9 +1057,13 @@ PR247b branch: `feat/hosted-navigation-reconciliation` (ready for PR). It provid
 RLS-bound, idempotent reconciliation primitive and wires it into PostgreSQL project commands and every
 initial-fill job lifecycle transition in the same durable-job transaction.
 
-PR247c will add the corresponding metadata-refresh and research-run lifecycle reconciliation, then
-replace `/workflow` and `/projects/{project_id}/workflow` with bounded projection reads. It also owns the
-repair command, route instrumentation, large-fixture performance evidence, and restart/RLS tests.
+PR247c1 branch: `feat/hosted-navigation-workflow-projections` (ready for PR). It removes hidden
+univariate-selection and preference writes from PostgreSQL workflow reads; completed worker commands
+remain the sole writers for those records.
+
+PR247c2 will add metadata-refresh and research-run lifecycle reconciliation, then replace `/workflow`
+and `/projects/{project_id}/workflow` with bounded projection reads. It also owns the repair command,
+route instrumentation, large-fixture performance evidence, and restart/RLS tests.
 
 Priority: P0 page-entry latency and architectural simplicity.
 
