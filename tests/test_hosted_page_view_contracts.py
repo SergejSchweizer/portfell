@@ -79,7 +79,10 @@ def test_analytical_page_view_defers_large_sections_until_the_stage_completes(
 def test_analytical_page_view_exposes_section_revisions_after_completion() -> None:
     workflow = {
         "projection_etag": "workflow-revision",
-        "stages": {"bivariate_statistics": {"status": "complete", "bivariate_run_id": "run-1"}},
+        "stages": {
+            "univariate_statistics": {"status": "complete", "univariate_selection_id": "selection-1"},
+            "bivariate_statistics": {"status": "complete", "bivariate_run_id": "run-1"},
+        },
     }
 
     page_view, _ = analytical_page_view(
@@ -87,6 +90,7 @@ def test_analytical_page_view_exposes_section_revisions_after_completion() -> No
     )
 
     assert page_view["run_id"] == "run-1"
+    assert page_view["input"] == {"univariate_selection_id": "selection-1"}
     assert all(section["available"] is True for section in page_view["sections"].values())
 
 

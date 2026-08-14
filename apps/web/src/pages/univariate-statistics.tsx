@@ -1,14 +1,13 @@
 
 import { useEffect, useRef, useState } from "react";
-import { loadProjectContext, loadWorkflow } from "../api/client";
+import { loadProjectContext } from "../api/client";
 import { univariateStatisticsApi } from "../api/univariate-statistics";
 import { Button } from "../components/button";
 import { nextProgressSnapshot, progressPercent, type ProgressSnapshot } from "../computation-progress";
 import { LoadingState } from "../components/loading-state";
 import { Panel } from "../components/panel";
-import type { ApiDividendFrequency, ApiResearchRun, ApiUnivariateRow, ApiUnivariateSelectionSettings } from "../contracts";
+import type { ApiAnalyticalPageView, ApiDividendFrequency, ApiResearchRun, ApiUnivariateRow, ApiUnivariateSelectionSettings } from "../contracts";
 import { useDebouncedSave } from "../hooks/use-debounced-save";
-import { useResource } from "../hooks/use-resource";
 
 type MetricDefinition = Readonly<{ group: string; metric: string; label: string; description: string; equation: string; notation: string; unit?: string }>;
 type UnivariateStatisticTab = "dividends" | MetricDefinition["metric"];
@@ -70,14 +69,15 @@ function dividendFrequency(value: ApiUnivariateRow): DividendFrequency {
     : "accumulating";
 }
 
-async function loadUnivariateResults(runId: string): Promise<readonly ApiUnivariateRow[]> {
-  const firstPage = await univariateStatisticsApi.loadResults(runId, 200, 0);
-  const pages = await Promise.all(
-    Array.from({ length: Math.ceil(firstPage.total / 200) - 1 }, (_, index) => (
-      univariateStatisticsApi.loadResults(runId, 200, (index + 1) * 200)
-    )),
-  );
-  return [...firstPage.items, ...pages.flatMap((page) => page.items)];
+async function loadUnivariateResults(projectId: string, signal: AbortSignal): Promise<readonly ApiUnivariateRow[]> {
+  const items: ApiUnivariateRow[] = [];
+  let cursor: string | undefined;
+  do {
+    const page = await univariateStatisticsApi.loadResultsSection(projectId, cursor, signal);
+    items.push(...page.items);
+    cursor = page.next_cursor ?? undefined;
+  } while (cursor !== undefined);
+  return items;
 }
 
 function estimatedRemainingTime(startedAt: number | undefined, completed: number, total: number): string {
@@ -98,7 +98,10 @@ export function univariateProgress(run: ApiResearchRun | null): Readonly<{ max: 
 
 export function UnivariateStatisticsPage() {
   const [workflowRevision, setWorkflowRevision] = useState(0);
-  const workflow = useResource(loadWorkflow, [workflowRevision]);
+  const [projectId, setProjectId] = useState<string | null>(null);
+  const [pageView, setPageView] = useState<ApiAnalyticalPageView | null>(null);
+  const [pageViewLoading, setPageViewLoading] = useState(true);
+  const [pageViewError, setPageViewError] = useState<string | null>(null);
   const [run, setRun] = useState<ApiResearchRun | null>(null);
   const [univariateStartedAt, setUnivariateStartedAt] = useState<number | undefined>();
   const [results, setResults] = useState<readonly ApiUnivariateRow[] | null>(null);
@@ -119,12 +122,39 @@ export function UnivariateStatisticsPage() {
     (error) => setMessage(error instanceof Error ? error.message : "Could not save the project selection."),
   );
   const progressSnapshot = useRef<ProgressSnapshot | null>(null);
-  const workflowUnivariateRunId = workflow.status === "ready"
-    ? workflow.data.stages.univariate_statistics.univariate_run_id ?? null
-    : null;
+  const workflowUnivariateRunId = pageView?.run_id ?? null;
 
   useEffect(() => {
-    const resetProjectState = () => {
+    let cancelled = false;
+    void loadProjectContext().then((context) => {
+      if (!cancelled) setProjectId(context.current_project_id);
+    }).catch((error: unknown) => {
+      if (!cancelled) setPageViewError(error instanceof Error ? error.message : "Project context is unavailable.");
+    });
+    return () => { cancelled = true; };
+  }, [workflowRevision]);
+
+  useEffect(() => {
+    if (!projectId) {
+      setPageView(null);
+      setPageViewLoading(false);
+      return;
+    }
+    const controller = new AbortController();
+    setPageViewLoading(true);
+    setPageViewError(null);
+    void univariateStatisticsApi.loadPageView(projectId, controller.signal).then((view) => {
+      if (!controller.signal.aborted) setPageView(view);
+    }).catch((error: unknown) => {
+      if (!controller.signal.aborted) setPageViewError(error instanceof Error ? error.message : "Univariate statistics are unavailable.");
+    }).finally(() => {
+      if (!controller.signal.aborted) setPageViewLoading(false);
+    });
+    return () => controller.abort();
+  }, [projectId, workflowRevision]);
+
+  useEffect(() => {
+    const resetProjectState = (event: Event) => {
       selectionSettingsVersion.current += 1;
       selectionProjectId.current = null;
       selectionSave.cancel();
@@ -134,6 +164,8 @@ export function UnivariateStatisticsPage() {
       setResults(null);
       setStarting(false);
       setMessage("");
+      const context = event instanceof CustomEvent ? event.detail as { current_project_id?: string } : undefined;
+      if (context?.current_project_id !== undefined) setProjectId(context.current_project_id ?? null);
       setWorkflowRevision((value) => value + 1);
     };
     window.addEventListener("portfell:project-updated", resetProjectState);
@@ -141,23 +173,22 @@ export function UnivariateStatisticsPage() {
   }, []);
 
   useEffect(() => {
-    if (!workflowUnivariateRunId || results !== null) return;
+    if (!workflowUnivariateRunId || results !== null || !pageView) return;
     const restoredRunId = workflowUnivariateRunId;
+    const restoredPageView = pageView;
     let cancelled = false;
 
     async function restoreUnivariateResults() {
       try {
-        const [restoredRun, restoredResults] = await Promise.all([
-          univariateStatisticsApi.loadRun(restoredRunId),
-          loadUnivariateResults(restoredRunId),
-        ]);
+        const restoredRun = restoredPageView.status === "complete"
+          ? { run_id: restoredRunId, status: "complete", total: 0, completed: 0, failed: 0, percent: 100 } as const
+          : await univariateStatisticsApi.loadRun(restoredRunId);
         if (cancelled) return;
         progressSnapshot.current = nextProgressSnapshot(
           progressSnapshot.current, restoredRun.run_id, progressPercent(restoredRun.completed + restoredRun.failed, restoredRun.total),
         );
         setRun(restoredRun);
-        setResults(restoredResults);
-        setMessage(`${restoredResults.length.toLocaleString()} listings restored.`);
+        setMessage(restoredRun.status === "complete" ? "Saved univariate statistics restored." : "Restoring univariate statistics…");
       } catch (error) {
         if (cancelled) return;
         setMessage(error instanceof Error ? error.message : "Could not restore univariate statistics.");
@@ -166,14 +197,27 @@ export function UnivariateStatisticsPage() {
 
     void restoreUnivariateResults();
     return () => { cancelled = true; };
-  }, [results, workflowUnivariateRunId]);
+  }, [pageView, results, workflowUnivariateRunId]);
+
+  useEffect(() => {
+    if (!projectId || run?.status !== "complete" || results !== null) return;
+    const controller = new AbortController();
+    void loadUnivariateResults(projectId, controller.signal).then((restoredResults) => {
+      if (controller.signal.aborted) return;
+      setResults(restoredResults);
+      setMessage(`${restoredResults.length.toLocaleString()} listings restored.`);
+    }).catch((error: unknown) => {
+      if (!controller.signal.aborted) setMessage(error instanceof Error ? error.message : "Could not restore univariate statistics.");
+    });
+    return () => controller.abort();
+  }, [projectId, results, run?.run_id, run?.status]);
 
   useEffect(() => {
     let cancelled = false;
     const version = selectionSettingsVersion.current;
-    void loadProjectContext().then(async (context) => {
-      const projectId = context.current_project_id;
-      if (!projectId || cancelled) return;
+    if (!projectId) return;
+    void (async () => {
+      if (cancelled) return;
       try {
         const saved = await univariateStatisticsApi.loadSelectionSettings(projectId);
         if (cancelled || version !== selectionSettingsVersion.current) return;
@@ -188,9 +232,9 @@ export function UnivariateStatisticsPage() {
           setPortfolioStatisticRanges({});
         }
       }
-    });
+    })();
     return () => { cancelled = true; };
-  }, [workflowRevision]);
+  }, [projectId, workflowRevision]);
 
   useEffect(() => {
     if (!run || run.status !== "running") return;
@@ -212,10 +256,7 @@ export function UnivariateStatisticsPage() {
           setMessage("Univariate computation failed. Please try again.");
           return;
         }
-        const computedRows = await loadUnivariateResults(current.run_id);
-        if (cancelled) return;
-        setResults(computedRows);
-        setMessage(`${computedRows.length.toLocaleString()} listings computed.`);
+        setMessage("Univariate statistics computed. Loading visible results…");
         window.dispatchEvent(new Event("portfell:workflow-updated"));
       } catch (error) {
         if (!cancelled) setMessage(error instanceof Error ? error.message : "Could not retrieve univariate computation status.");
@@ -230,14 +271,14 @@ export function UnivariateStatisticsPage() {
     };
   }, [run?.run_id, univariateStartedAt]);
 
-  if (workflow.status === "loading" || workflow.status === "idle") {
+  if (pageViewLoading) {
     return <LoadingState label="Loading univariate statistics" />;
   }
-  if (workflow.status === "error") return <p>Workflow state is unavailable.</p>;
-  const stage = workflow.data.stages.univariate_statistics;
-  const metadata = workflow.data.stages.metadata_builder;
-  const selectedForBivariate = workflow.data.process_overview?.univariate_statistics_isins;
-  const portfolioSelectionCount = selectedForBivariate ?? results?.length;
+  if (pageViewError) return <p>{pageViewError}</p>;
+  if (!pageView) return <Panel title="Univariate Statistics"><p>Select a project to compute univariate statistics.</p></Panel>;
+  const stage = pageView;
+  const metadataSelectionId = pageView.input.metadata_selection_id;
+  const portfolioSelectionCount = results?.length;
   const portfolioSelectionLabel = portfolioSelectionCount === undefined
     ? "Portfolio selection (Updating…)"
     : `Portfolio selection (${portfolioSelectionCount.toLocaleString()} ${portfolioSelectionCount === 1 ? "ISIN" : "ISINs"})`;
@@ -292,12 +333,12 @@ export function UnivariateStatisticsPage() {
   }
 
   async function compute() {
-    if (!metadata.metadata_selection_id || starting || run?.status === "running") return;
+    if (!metadataSelectionId || starting || run?.status === "running") return;
     setStarting(true);
     setMessage("Computing univariate statistics…");
     try {
       const nextRun = await univariateStatisticsApi.startRun({
-        metadata_selection_id: metadata.metadata_selection_id,
+        metadata_selection_id: metadataSelectionId,
       });
       progressSnapshot.current = nextProgressSnapshot(
         progressSnapshot.current, nextRun.run_id, progressPercent(nextRun.completed + nextRun.failed, nextRun.total),
@@ -332,7 +373,7 @@ export function UnivariateStatisticsPage() {
             />
             <p className="status-line" aria-live="polite">{message || "Compute statistics for the downloaded historical data."}</p>
             <div className="quote-fetch__action">
-              <Button type="button" variant="primary" disabled={!metadata.metadata_selection_id || starting || run?.status === "running"} aria-busy={starting || run?.status === "running"} onClick={() => void compute()}>
+              <Button type="button" variant="primary" disabled={!metadataSelectionId || starting || run?.status === "running"} aria-busy={starting || run?.status === "running"} onClick={() => void compute()}>
                 {starting ? "Starting computation…" : run?.status === "running" ? "Computing…" : "Compute univariate statistics"}
               </Button>
             </div>

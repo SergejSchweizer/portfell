@@ -363,7 +363,7 @@ canonical content changes and never duplicates project or workflow rows.
 
 Branch: split into the atomic PR248a–PR248d sequence below.
 
-Git status: in progress; PR248a landed as #412, PR248b landed as #414, PR248c1 landed as #415, PR248c2 landed as #416, PR248d1 landed as #417, and PR248d2 remains queued.
+Git status: in progress; PR248a landed as #412, PR248b landed as #414, PR248c1 landed as #415, PR248c2 landed as #416, PR248d1 landed as #417, and the former PR248d2 is split below by remaining page entry point.
 
 PR: TBD; each atomic step receives its own PR.
 
@@ -485,19 +485,36 @@ Acceptance for PR248d1:
 - Vitest client/component tests, the Metadata Builder Playwright flow, TypeScript strict checks, Web
   production build, Docker image build, and real-stack button gates pass.
 
-PR248d2 branch: `feat/web-statistics-page-view-adoption`.
+PR248d2 was completed for Bivariate only as `feat/web-statistics-page-view-adoption` in PR #418. Its
+remaining Univariate and Multivariate work is independently mergeable and therefore split into the
+following atomic steps; neither step may reintroduce the former Bivariate fan-out.
 
-- Depend only on PR248d1 and PR248c1/c2. Replace statistics-page entry fan-out with each page's compact
-  view route and load only the visible tab/section. Preserve local control drafts and cancel requests on
-  project/run/tab/metric/route changes. Do not add TanStack Query; PR249 owns that cache migration.
+PR248d2a branch: `feat/web-univariate-page-view-adoption`.
 
-Acceptance for PR248d2:
+- Own only the Univariate page entry and its visible `results` lazy section. Use the compact Univariate
+  page view for stage/run state and request result pages only after the completed-results panel is visible.
+  Abort on project, run, or tab changes; retain local portfolio-selection drafts. Do not add TanStack
+  Query, change Bivariate/Multivariate, or modify analytical calculations.
 
-- Bivariate first entry makes no non-visible matrix/detail request, a visible tab makes exactly one
-  revision-bound lazy request, and rapid project/run changes cannot paint stale data. Univariate and
-  Multivariate satisfy the same project-isolation and cancellation contract.
-- TypeScript strict checks, Vitest, Playwright request-count coverage, Web build, Docker image build,
-  API/UI contract checks, and real-stack gates pass.
+Acceptance for PR248d2a:
+
+- A completed Univariate restore uses one compact page-view request and makes zero result-page requests
+  until its results panel is visible. A visible panel requests only revision-bound pages required to render
+  the active statistic, and a project/run switch cannot paint rows from the old project.
+- Focused Vitest request/cancellation tests, TypeScript strict checks, Web build, API/UI contract checks,
+  and the applicable real-stack gate pass.
+
+PR248d2b branch: `feat/web-multivariate-page-view-adoption`.
+
+- Depend on PR248d2a only for the page-entry convention. Own only the Multivariate page entry and its
+  visible overview/candidate/detail sections. Abort obsolete project/run/tab/candidate requests and retain
+  local candidate-control state. Do not add TanStack Query or change Univariate/Bivariate.
+
+Acceptance for PR248d2b:
+
+- A completed Multivariate restore uses one compact page-view request, requests no invisible section, and
+  requests exactly the selected revision-bound section. Rapid project/run/tab/candidate changes cannot
+  display another project's data. Focused Vitest, TypeScript, build, contract, and real-stack evidence pass.
 
 Scope:
 
@@ -553,7 +570,8 @@ return the same revision without starting calculations or ingestion.
 
 Branch: split into PR249a–PR249c below.
 
-Git status: in progress; PR249a is being prepared.
+Git status: in progress; PR249a landed as #419 and the shell adoption landed as #420. Consumer migration
+and deliberate prefetch remain split below.
 
 PR: TBD.
 
@@ -561,7 +579,7 @@ Priority: P1 instant repeat navigation and frontend simplification.
 
 Depends on: PR248.
 
-PR249a branch: `feat/web-query-cache`.
+PR249a branch: `feat/web-query-cache` (merged as #419).
 
 - Add the exact `@tanstack/react-query` dependency, one memory-only application `QueryClient`, canonical
   typed key factories, and the shared retry/stale/garbage-collection policy. Do not migrate consumers,
