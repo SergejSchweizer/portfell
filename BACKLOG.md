@@ -250,6 +250,10 @@ Scope:
 - Add matching TypeScript contracts and one generated contract fixture consumed by Python and Web
   tests. Create one empty extension module per page under the page-view router package so PR253-PR256
   can edit different files without touching a shared router registry.
+- Shared ownership is limited to `src/portfell/hosted_page_views/{contracts,common,router}.py`,
+  `apps/web/src/api/page-view-contracts.ts`, the generated OpenAPI/contract snapshot, and PR248 tests.
+  PR248 also creates registered page extension modules named `metadata_builder.py`, `univariate.py`,
+  `bivariate.py`, and `multivariate.py`; later vertical PRs exclusively own their named module.
 - Specify limits centrally: page views `<=256 KiB` uncompressed, lazy sections `<=2 MiB`, tabular pages
   `<=200` rows, malformed/stale cursors return a typed `400`, and indivisible oversized matrices return
   `413 section_too_large`. Cursor contents are signed or otherwise tamper-evident and never authorize.
@@ -272,6 +276,10 @@ Acceptance:
   provider clients, table I/O, or financial calculations.
 - OpenAPI drift, Python tests, TypeScript strict checks, contract fixtures, and applicable `GATES.md`
   checks pass. The PR changes no existing production page request count or rendering behavior.
+
+Evidence: `uv run pytest tests/test_page_section_contracts.py tests/test_hosted_api_contract_snapshot.py`,
+`cd apps/web && npm test -- page-section-contracts`, `cd apps/web && npm run typecheck`, and
+`uv run portfell-quality pr` pass; the generated V1 golden fixture is byte-identical after regeneration.
 
 Security: Shared authorization starts from authenticated user and owned project; cursors, section IDs,
 artifact IDs, ETags, and run IDs alone never grant access or reveal another tenant's existence.
@@ -329,6 +337,10 @@ Acceptance:
   no tenant payload, credential, key, or ETag is persisted or logged.
 - Package lockfile, TypeScript strict checks, Vitest, production Web build, and applicable `GATES.md`
   checks pass without changing current page request counts.
+
+Evidence: `cd apps/web && npm test -- query-cache-foundation`, `cd apps/web && npm run typecheck`,
+`cd apps/web && npm run build`, and `uv run portfell-quality pr` pass; the PR includes the key-policy
+table and tests for every row.
 
 Security: Cache keys include authenticated scope and exact project/run identity; cache data is
 memory-only and is destroyed at the authentication boundary.
@@ -395,6 +407,10 @@ Acceptance:
   real-stack tests, observability checks, migration upgrade/downgrade rehearsal, and applicable gates
   in `GATES.md` pass.
 
+Evidence: `uv run pytest tests/test_hosted_status_event_repository.py tests/test_hosted_status_event_stream.py`,
+`bash scripts/run_real_stack_e2e.sh --suite status-event-backend`, and `uv run portfell-quality pr` pass
+with sanitized ordered replay, connection-count, lag, and migration rehearsal artifacts.
+
 Security: Authentication and forced RLS scope every connection and replay query. Events contain no
 credentials, membership lists, payload values, storage paths, lease tokens, or cross-project details.
 
@@ -420,8 +436,9 @@ Priority: P1.
 
 Depends on: PR249. May run in parallel with PR250 and PR254-PR257.
 
-Scope: Own only the Metadata Builder page, its Web API module, its dedicated PR248 backend extension
-module, page specification, and focused tests. Add one compact initial view plus separate options,
+Scope: Own only `pages/metadata-builder.tsx`, `api/metadata-builder.ts`, PR248's
+`hosted_page_views/metadata_builder.py`, its page specification, and focused tests. Add
+`/projects/{project_id}/views/metadata-builder` plus separate options,
 preview, and bootstrap-status resources. Split the page into query-owning summary, form, preview, and
 progress components; server state uses PR249 while draft fields remain local React state. Enable a
 query only when its panel is visible, use ETag revalidation, and use controlled status-only polling
@@ -438,6 +455,13 @@ Acceptance:
   remount, global invalidation, duplicate command, or polling occurs after terminal state.
 - Empty/filling/ready/failed/retry, rapid project switch, cancellation, stale ETag/`304`, desktop/mobile,
   API authorization, byte-limit, Vitest, Playwright, OpenAPI, and applicable gate tests pass.
+
+Out of scope: Analysis pages, Shell, SSE transport, visual redesign, and metadata calculation changes.
+
+Evidence: `uv run pytest tests/test_hosted_metadata_builder_page_view.py`,
+`cd apps/web && npm test -- metadata-builder.partial-updates`,
+`cd apps/web && npm run e2e -- metadata-builder.partial-updates.spec.ts`, and
+`uv run portfell-quality pr` pass; request/render counters are attached to the PR.
 
 Security: Every route authorizes user/project before options, manifest, or status access; field values,
 credentials, paths, and tenant data are neither query keys nor logs.
@@ -461,7 +485,9 @@ Priority: P1.
 
 Depends on: PR249. May run in parallel with PR250 and PR253/PR255-PR257.
 
-Scope: Own only Univariate page/API/backend-extension/spec/tests. Add compact page/run summary, separate
+Scope: Own only `pages/univariate-statistics.tsx`, `api/univariate-statistics.ts`, PR248's
+`hosted_page_views/univariate.py`, its spec/tests, and `/projects/{project_id}/views/univariate`. Add a
+compact page/run summary and separate
 run status, tab metadata, and cursor-paged result resources. Extract run controls, progress, tab bar,
 active result section, and filters into query-owning components. Only the visible tab query is enabled;
 completed immutable revisions use cache/ETag and cursor pagination. Draft settings and active tab stay
@@ -478,6 +504,13 @@ Acceptance:
   response limits, two-project isolation, desktop/mobile, API/UI/OpenAPI and gate tests pass.
 - No offset continuation, revision counter, global custom refresh event, page-wide polling loop, or
   browser-side financial calculation remains in the owned Univariate module.
+
+Out of scope: Other pages, Shell, SSE transport, visual redesign, and statistical formula changes.
+
+Evidence: `uv run pytest tests/test_hosted_univariate_page_view.py`,
+`cd apps/web && npm test -- univariate.partial-updates`,
+`cd apps/web && npm run e2e -- univariate.partial-updates.spec.ts`, and
+`uv run portfell-quality pr` pass with request/render/response-byte evidence.
 
 Security: Project/run authorization precedes result access and cursors never authorize.
 
@@ -499,7 +532,9 @@ Priority: P1.
 
 Depends on: PR249. May run in parallel with PR250 and PR253-PR254/PR256-PR257.
 
-Scope: Own only Bivariate page/API/backend-extension/spec/tests. Replace initial matrix fan-out with one
+Scope: Own only `pages/bivariate-statistics.tsx`, `api/bivariate-statistics.ts`, PR248's
+`hosted_page_views/bivariate.py`, its spec/tests, and `/projects/{project_id}/views/bivariate`. Replace
+initial matrix fan-out with one
 compact page view and separate pair, scatter, and named matrix-slice resources. Key matrix slices by
 run revision, matrix kind, row cursor/window, and column cursor/window; enforce PR248 limits and typed
 oversize behavior. Extract controls/progress/tab/matrix/scatter sections, enable only the visible data
@@ -515,6 +550,13 @@ Acceptance:
   invalidation, duplicate run, browser matrix recomputation, or request above the declared byte limit.
 - Matrix boundaries/oversize, cursor tampering, `304`, empty/failed/retry, isolation, responsive UI,
   exact request counts, API/UI/OpenAPI, and applicable gate tests pass.
+
+Out of scope: Other pages, Shell, SSE transport, visual redesign, and matrix/statistical recomputation.
+
+Evidence: `uv run pytest tests/test_hosted_bivariate_page_view.py`,
+`cd apps/web && npm test -- bivariate.partial-updates`,
+`cd apps/web && npm run e2e -- bivariate.partial-updates.spec.ts`, and
+`uv run portfell-quality pr` pass with fan-out/slice/render/byte evidence.
 
 Security: Matrix/pair identifiers and cursors cannot bypass user/project/run authorization.
 
@@ -536,7 +578,9 @@ Priority: P1.
 
 Depends on: PR249. May run in parallel with PR250 and PR253-PR255/PR257.
 
-Scope: Own only Multivariate page/API/backend-extension/spec/tests. Add one compact page/plan/run summary
+Scope: Own only `pages/multivariate-statistics.tsx`, `api/multivariate-statistics.ts`, PR248's
+`hosted_page_views/multivariate.py`, its spec/tests, and `/projects/{project_id}/views/multivariate`. Add
+one compact page/plan/run summary
 and separate components, candidates, validation, performance, diagnostics, and run-status resources.
 Components use cursor pagination; all detail queries use `enabled` only for the visible tab and exact
 run/revision/filter keys. Extract each result tab plus controls/progress into its own query boundary,
@@ -553,6 +597,13 @@ Acceptance:
   tests pass.
 - Owned code contains no offset continuation, broad refresh event, duplicated cache, browser financial
   computation, or polling after terminal status.
+
+Out of scope: Other pages, Shell, SSE transport, visual redesign, and analytical formula changes.
+
+Evidence: `uv run pytest tests/test_hosted_multivariate_page_view.py`,
+`cd apps/web && npm test -- multivariate.partial-updates`,
+`cd apps/web && npm run e2e -- multivariate.partial-updates.spec.ts`, and
+`uv run portfell-quality pr` pass with lazy-request/render/byte evidence.
 
 Security: Detail routes authorize user/project/run before manifest/payload reads.
 
@@ -574,8 +625,9 @@ Priority: P1.
 
 Depends on: PR249. May run in parallel with PR250 and PR253-PR256.
 
-Scope: Own only application frame, project sidebar, credential UI, routing/prefetch integration, their
-API modules/specs/tests. Migrate project context/workflow/credential presence to PR249 keys and PR247
+Scope: Own only `shell/frame.tsx`, `shell/project-sidebar.tsx`,
+`shell/metadata-fetch-context.tsx`, `routes.tsx`, credential/navigation API modules, specs, and tests.
+Migrate project context/workflow/credential presence to PR249 keys and PR247
 ETags. Extract independent header, project picker, workflow badge, credential form, and route outlet
 boundaries. Prefetch at most one destination on deliberate intent; project selection cancels the old
 scope before navigation and credentials never enter cache keys. Do not edit workflow page modules.
@@ -590,6 +642,13 @@ Acceptance:
   logout/`401` synchronously clears all query data and no browser persistence contains tenant data.
 - No full document reload, global custom refresh event, duplicated Shell/page fetch, unbounded prefetch,
   or broad invalidation remains; desktop/mobile Vitest/Playwright/security/gate tests pass.
+
+Out of scope: Workflow page modules, SSE transport, visual redesign, and credential cryptography.
+
+Evidence: `uv run pytest tests/test_hosted_navigation_read_model.py tests/test_hosted_credentials.py`,
+`cd apps/web && npm test -- shell.partial-updates`,
+`cd apps/web && npm run e2e -- shell.partial-updates.spec.ts`, and
+`uv run portfell-quality pr` pass with request/render/cache-clear evidence.
 
 Security: Credentials remain write-only and cache keys are fully auth/project scoped.
 
@@ -628,6 +687,14 @@ Acceptance:
   slow client, isolation, proxy buffering, exact invalidation, and responsive Playwright tests pass.
 - Repository checks find no fixed `750 ms` page polling, revision-counter refresh, or global refresh
   event in production; event payloads never contain result tables, matrices, credentials, or paths.
+
+Out of scope: Analytical payload streaming, WebSockets, command submission, UI redesign, and backend
+event schema changes beyond consuming PR250's versioned fixture.
+
+Evidence: `uv run pytest tests/test_hosted_status_event_stream.py`,
+`cd apps/web && npm test -- status-events`, `cd apps/web && npm run e2e -- status-events.spec.ts`,
+`bash scripts/run_real_stack_e2e.sh --suite status-events`, and `uv run portfell-quality pr` pass with
+sanitized replay, request-count, render-count, and polling-fallback evidence.
 
 Security: Session auth and RLS scope streams; event data cannot authorize queries.
 
