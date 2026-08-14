@@ -1048,9 +1048,10 @@ Branch: `feat/hosted-navigation-read-model`.
 
 Git status: in progress; split into mergeable implementation steps.
 
-PR: steps 1–5: https://github.com/SergejSchweizer/portfell/pull/401 (schema, bounded reader,
-conditional GET, project-command writes, Metadata Builder hand-off, and side-effect-free absent-current
-project handling); subsequent steps add complete worker and research reconciliation.
+PR247a (navigation foundation): https://github.com/SergejSchweizer/portfell/pull/401 — schema,
+bounded reader/writer, conditional GET, project-command writes, Metadata Builder hand-off, and
+side-effect-free absent-current-project handling. PR247b will add worker/research reconciliation,
+projection-backed workflow reads, a deterministic repair command, and the performance evidence below.
 
 Priority: P0 page-entry latency and architectural simplicity.
 
