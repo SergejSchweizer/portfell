@@ -25,6 +25,7 @@ from portfell.hosted_project_workflow_projection_repository import (
     PostgresProjectWorkflowProjection,
 )
 from portfell.hosted_project_workflow_projector import PostgresProjectWorkflowProjector
+from portfell.hosted_project_workflow_reader import PostgresProjectedWorkflowReader
 from portfell.hosted_quote_run_service import QuoteRunService
 from portfell.hosted_research_persistence import PostgresResearchPersistence
 from portfell.hosted_research_service import ResearchService
@@ -111,7 +112,7 @@ def build_postgres_services(
         quote_rows=quote_rows,
         analyses=repositories.analyses,
     )
-    workflow_reader = PostgresWorkflowReader(
+    workflow_source = PostgresWorkflowReader(
         selections=repositories.selections,
         bootstrap=bootstrap,
         metadata_rows=runtime.all_isins_rows,
@@ -124,7 +125,10 @@ def build_postgres_services(
         ),
     )
     workflow_projector = PostgresProjectWorkflowProjector(
-        workflow_reader, PostgresProjectWorkflowProjection(request_scope)
+        workflow_source, PostgresProjectWorkflowProjection(request_scope)
+    )
+    workflow_reader = PostgresProjectedWorkflowReader(
+        PostgresProjectWorkflowProjection(request_scope)
     )
     persistence = PostgresResearchPersistence()
     credentials = CredentialProjectService(

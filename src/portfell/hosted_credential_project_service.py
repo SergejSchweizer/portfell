@@ -92,10 +92,10 @@ class CredentialProjectService:
         self._navigation_reconciler = navigation_reconciler
 
     def workflow(self, user_id: str, project_id: str | None = None) -> JsonRow:
-        if project_id is None:
+        if project_id is None and self._workflow_reader is None:
             project = self._current_project(user_id)
             project_id = None if project is None else project.project_id
-        else:
+        elif project_id is not None and self._workflow_reader is None:
             self._project(user_id, project_id)
         if self._workflow_reader is not None:
             return self._workflow_reader(user_id, project_id)
