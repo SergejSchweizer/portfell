@@ -400,7 +400,16 @@ def covariance_diagnostics(
         for right_index, right in enumerate(listings)
     }
     minimum_variance = solve_minimum_variance(
-        listings, covariance_map, min_weight=0.0, max_weight=1.0
+        listings,
+        covariance_map,
+        min_weight=0.0,
+        max_weight=1.0,
+        # This is an informational page-view fact, not the production
+        # portfolio optimiser.  A bounded, coarse solve keeps a large
+        # covariance matrix responsive; the full optimiser runs later in
+        # Multivariate Statistics with its own explicit budget.
+        max_iterations=80,
+        tolerance=1e-6,
     )
     return {
         "listing_count": count,

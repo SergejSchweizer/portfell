@@ -8,7 +8,7 @@ from dataclasses import replace
 from portfell.bivariate_views import (
     build_bivariate_summary,
     build_correlation_matrix,
-    build_covariance_matrix,
+    build_covariance_matrix_from_rows,
     build_tail_risk_scatter,
 )
 from portfell.hosted_api_errors import HostedApplicationError
@@ -146,21 +146,12 @@ class BivariateResearchService:
 
     def covariance_matrix(self, user_id: str, run_id: str) -> JsonRow:
         run = self._repository.bivariate_run(run_id, user_id)
-        selection = next(
-            (
-                item
-                for item in self._repository.univariate_selections(user_id)
-                if bivariate_source_id(item) == run.source_id
-            ),
-            None,
-        )
-        if selection is None:
+        if not any(
+            bivariate_source_id(selection) == run.source_id
+            for selection in self._repository.univariate_selections(user_id)
+        ):
             raise HostedApplicationError(404, "not_found")
-        quote_run_id = self._repository.quote_run_id(selection.source_run_id)
-        quotes = self._repository.quote_rows(quote_run_id)
-        if not quotes:
-            quotes = self._data.selected_rows(selection.member_ids, dataset="quotes")
-        return build_covariance_matrix(quotes, selection.member_ids)
+        return build_covariance_matrix_from_rows(run.rows)
 
     def tail_risk_scatter(self, user_id: str, run_id: str) -> JsonRow:
         return build_tail_risk_scatter(self._repository.bivariate_run(run_id, user_id).rows)

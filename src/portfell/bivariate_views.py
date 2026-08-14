@@ -94,6 +94,44 @@ def build_correlation_matrix(rows: tuple[JsonRow, ...], metric: str) -> JsonRow:
     }
 
 
+def build_covariance_matrix_from_rows(rows: tuple[JsonRow, ...]) -> JsonRow:
+    """Build the covariance matrix from persisted bivariate pair results.
+
+    The bivariate run has already aligned dates and calculated covariance for
+    every selected pair.  Reusing those durable values avoids re-reading the
+    global quote lake for a page request.
+    """
+
+    listings = _pair_listings(rows)
+    index = {listing: position for position, listing in enumerate(listings)}
+    covariance: list[list[float]] = [[0.0] * len(listings) for _ in listings]
+    variances: dict[tuple[str, str, str], float] = {}
+    for row in rows:
+        left = _listing(row, "left")
+        right = _listing(row, "right")
+        left_index = index[left]
+        right_index = index[right]
+        value = float(row.get("covariance", 0.0))
+        covariance[left_index][right_index] = value
+        covariance[right_index][left_index] = value
+        variances[left] = float(row.get("left_variance", 0.0))
+        variances[right] = float(row.get("right_variance", 0.0))
+    for listing, position in index.items():
+        covariance[position][position] = variances.get(listing, 0.0)
+    date_start, date_end = _shared_date_range(rows)
+    return {
+        "labels": _labels(listings),
+        "values": [
+            [value if column > row else None for column, value in enumerate(value_row)]
+            for row, value_row in enumerate(covariance)
+        ],
+        "observation_count": _average_observations(rows),
+        "date_start": date_start,
+        "date_end": date_end,
+        "diagnostics": covariance_diagnostics(listings, covariance, _average_observations(rows)),
+    }
+
+
 def build_tail_risk_scatter(rows: tuple[JsonRow, ...]) -> JsonRow:
     """Expose all persisted tail-risk pair values for a portfolio-selection scatterplot."""
 

@@ -1,17 +1,19 @@
 
 import { useEffect, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { loadProjectContext } from "../api/client";
 import { bivariateStatisticsApi, type BivariateRunData } from "../api/bivariate-statistics";
 import { Button } from "../components/button";
 import { nextProgressSnapshot, type ProgressSnapshot } from "../computation-progress";
 import { LoadingIndicator, LoadingState } from "../components/loading-state";
 import { Panel } from "../components/panel";
-import type { ApiBivariateMetricSummary, ApiBivariateRow, ApiBivariateSummary, ApiCovarianceMatrix, ApiPage, ApiPairMetricMatrix, ApiPairPlan, ApiResearchRun, ApiTailRiskScatter } from "../contracts";
+import type { ApiBivariateMetricSummary, ApiBivariateRow, ApiBivariateSummary, ApiCovarianceMatrix, ApiLazyDetail, ApiPage, ApiPairMetricMatrix, ApiPairPlan, ApiResearchRun, ApiTailRiskScatter } from "../contracts";
 import { queryClient, queryTiming } from "../query/client";
 import { queryKeys } from "../query/keys";
 import { useQueryResource } from "../query/use-query-resource";
 
 type PairwiseMatrixMetric = "covariance" | "pearson" | "spearman" | "downside" | "lower_tail_dependence" | "tail_coexceedance_rate" | "rolling_stability" | "drawdown_overlap" | "tail_risk_scatter";
+type LoadedBivariateSection = ApiCovarianceMatrix | ApiPairMetricMatrix | ApiTailRiskScatter;
 
 const pairwiseMatrixTabs: readonly Readonly<{ metric: PairwiseMatrixMetric; label: string }>[] = [
   { metric: "covariance", label: "Covariance" },
@@ -255,6 +257,30 @@ export function BivariateStatisticsPage() {
   const progressSnapshot = useRef<ProgressSnapshot | null>(null);
   const persistedRunId = pageView.status === "ready" ? pageView.data.run_id ?? undefined : undefined;
   const pageViewCompleted = pageView.status === "ready" && pageView.data.status === "complete";
+  const completedProjectId = pageViewCompleted ? projectId : null;
+  // Page views deliberately contain only small status metadata.  Read the
+  // selected, potentially large result section through React Query so a
+  // completed run always gets its visible data loaded after navigation.
+  const summarySection = useQuery({
+    queryKey: ["bivariate-section", completedProjectId, "summary"],
+    queryFn: () => bivariateStatisticsApi.loadSection<ApiBivariateSummary>(completedProjectId!, "summary"),
+    enabled: completedProjectId !== null,
+    staleTime: queryTiming.volatile,
+  });
+  const visibleSection = useQuery<ApiLazyDetail<LoadedBivariateSection>>({
+    queryKey: ["bivariate-section", completedProjectId, activePairwiseMetric],
+    queryFn: () => {
+      if (activePairwiseMetric === "tail_risk_scatter") {
+        return bivariateStatisticsApi.loadSection<ApiTailRiskScatter>(completedProjectId!, "tail_risk_scatter") as Promise<ApiLazyDetail<LoadedBivariateSection>>;
+      }
+      if (activePairwiseMetric === "covariance") {
+        return bivariateStatisticsApi.loadSection<ApiCovarianceMatrix>(completedProjectId!, "covariance_matrix") as Promise<ApiLazyDetail<LoadedBivariateSection>>;
+      }
+      return bivariateStatisticsApi.loadSection<ApiPairMetricMatrix>(completedProjectId!, "correlation_matrix", activePairwiseMetric) as Promise<ApiLazyDetail<LoadedBivariateSection>>;
+    },
+    enabled: completedProjectId !== null,
+    staleTime: queryTiming.volatile,
+  });
 
   function applyRunData(data: BivariateRunData) {
     setResults(data.results);
@@ -269,43 +295,6 @@ export function BivariateStatisticsPage() {
     setDrawdownOverlapMatrix(data.drawdownOverlap);
     setTailRiskScatter(data.tailRiskScatter);
   }
-
-  useEffect(() => {
-    if (!pageViewCompleted) return;
-    let cancelled = false;
-    const metric = activePairwiseMetric;
-    async function loadVisibleSection() {
-      try {
-        if (!projectId) return;
-        const summaryResponse = await bivariateStatisticsApi.loadSection<ApiBivariateSummary>(projectId, "summary");
-        if (cancelled) return;
-        setSummary(summaryResponse.data);
-        if (metric === "tail_risk_scatter") {
-          const response = await bivariateStatisticsApi.loadSection<ApiTailRiskScatter>(projectId, "tail_risk_scatter");
-          if (!cancelled) setTailRiskScatter(response.data);
-          return;
-        }
-        if (metric === "covariance") {
-          const response = await bivariateStatisticsApi.loadSection<ApiCovarianceMatrix>(projectId, "covariance_matrix");
-          if (!cancelled) setCovarianceMatrix(response.data);
-          return;
-        }
-        const response = await bivariateStatisticsApi.loadSection<ApiPairMetricMatrix>(projectId, "correlation_matrix", metric);
-        if (cancelled) return;
-        if (metric === "pearson") setPearsonMatrix(response.data);
-        else if (metric === "spearman") setSpearmanMatrix(response.data);
-        else if (metric === "downside") setDownsideMatrix(response.data);
-        else if (metric === "lower_tail_dependence") setLowerTailDependenceMatrix(response.data);
-        else if (metric === "tail_coexceedance_rate") setTailCoexceedanceRateMatrix(response.data);
-        else if (metric === "rolling_stability") setRollingStabilityMatrix(response.data);
-        else if (metric === "drawdown_overlap") setDrawdownOverlapMatrix(response.data);
-      } catch (error) {
-        if (!cancelled) setMessage(error instanceof Error ? error.message : "Could not load the selected bivariate section.");
-      }
-    }
-    void loadVisibleSection();
-    return () => { cancelled = true; };
-  }, [activePairwiseMetric, pageViewCompleted, persistedRunId, projectId]);
 
   useEffect(() => {
     const resetProjectState = () => {
@@ -349,6 +338,7 @@ export function BivariateStatisticsPage() {
           return;
         }
         setMessage("Bivariate statistics computed.");
+        void queryClient.invalidateQueries({ queryKey: queryKeys.pageView(projectId ?? "no-project", "bivariate_statistics") });
         window.dispatchEvent(new Event("portfell:workflow-updated"));
       } catch (error) {
         if (!cancelled) setMessage(error instanceof Error ? error.message : "Could not retrieve bivariate computation status.");
@@ -417,29 +407,39 @@ export function BivariateStatisticsPage() {
     }
   }
 
-  const diagnostics = covarianceMatrix?.diagnostics;
+  const loadedSummary = summarySection.data?.data ?? summary;
+  const loadedCovarianceMatrix = activePairwiseMetric === "covariance"
+    ? visibleSection.data?.data as ApiCovarianceMatrix | undefined
+    : covarianceMatrix ?? undefined;
+  const loadedTailRiskScatter = activePairwiseMetric === "tail_risk_scatter"
+    ? visibleSection.data?.data as ApiTailRiskScatter | undefined
+    : tailRiskScatter ?? undefined;
+  const loadedPairMetricMatrix = activePairwiseMetric !== "covariance" && activePairwiseMetric !== "tail_risk_scatter"
+    ? visibleSection.data?.data as ApiPairMetricMatrix | undefined
+    : undefined;
+  const diagnostics = loadedCovarianceMatrix?.diagnostics;
   const activeMetricSummary = activePairwiseMetric === "pearson"
-    ? summary?.metrics.pearson_correlation
+    ? loadedSummary?.metrics.pearson_correlation
     : activePairwiseMetric === "spearman"
-      ? summary?.metrics.spearman_correlation
+      ? loadedSummary?.metrics.spearman_correlation
       : activePairwiseMetric === "downside"
-        ? summary?.metrics.downside_correlation
+        ? loadedSummary?.metrics.downside_correlation
         : activePairwiseMetric === "lower_tail_dependence"
-          ? summary?.metrics.lower_tail_dependence
+          ? loadedSummary?.metrics.lower_tail_dependence
           : activePairwiseMetric === "rolling_stability"
-            ? summary?.metrics.rolling_correlation_stability
+            ? loadedSummary?.metrics.rolling_correlation_stability
             : activePairwiseMetric === "drawdown_overlap"
-              ? summary?.metrics.drawdown_overlap_rate
-          : summary?.metrics.tail_coexceedance_rate;
+              ? loadedSummary?.metrics.drawdown_overlap_rate
+          : loadedSummary?.metrics.tail_coexceedance_rate;
   const activeCorrelation = activeMetricSummary;
-  const tailDiagnostics = summary?.tail_dependence_diagnostics;
-  const coexceedanceDiagnostics = summary?.coexceedance_diagnostics;
-  const scatterDiagnostics = tailRiskScatter?.diagnostics;
-  const rollingDiagnostics = summary?.rolling_correlation_diagnostics;
-  const drawdownDiagnostics = summary?.drawdown_overlap_diagnostics;
+  const tailDiagnostics = loadedSummary?.tail_dependence_diagnostics;
+  const coexceedanceDiagnostics = loadedSummary?.coexceedance_diagnostics;
+  const scatterDiagnostics = loadedTailRiskScatter?.diagnostics;
+  const rollingDiagnostics = loadedSummary?.rolling_correlation_diagnostics;
+  const drawdownDiagnostics = loadedSummary?.drawdown_overlap_diagnostics;
   const activeMatrix = activePairwiseMetric === "covariance"
-    ? covarianceMatrix
-    : activePairwiseMetric === "pearson"
+    ? loadedCovarianceMatrix ?? null
+    : loadedPairMetricMatrix ?? (activePairwiseMetric === "pearson"
       ? pearsonMatrix
       : activePairwiseMetric === "spearman"
         ? spearmanMatrix
@@ -451,7 +451,7 @@ export function BivariateStatisticsPage() {
               ? rollingStabilityMatrix
             : activePairwiseMetric === "drawdown_overlap"
               ? drawdownOverlapMatrix
-              : tailCoexceedanceRateMatrix;
+              : tailCoexceedanceRateMatrix);
   const activeMetricLabel = activePairwiseMetric === "lower_tail_dependence"
     ? "tail dependence"
     : activePairwiseMetric === "tail_coexceedance_rate"
