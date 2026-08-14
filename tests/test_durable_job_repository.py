@@ -50,9 +50,15 @@ class _Connection:
             return _Cursor(("job-1",) if self._inserted else None)
         if "for update skip locked" in sql:
             return _Cursor(rows=self._rows)
-        if "returning job_id::text, user_id::text, job_kind, status" in sql:
+        if "returning job_id::text, user_id::text, project_id::text, job_kind, status" in sql:
             return _Cursor(
-                ("job-1", "user-1", "project_initial_fill", "succeeded")
+                ("job-1", "user-1", "project-1", "project_initial_fill", "succeeded")
+                if self.completion_succeeds
+                else None
+            )
+        if "set completed_units = %s, total_units = %s" in sql:
+            return _Cursor(
+                ("job-1", "user-1", "project-1", "project_initial_fill")
                 if self.completion_succeeds
                 else None
             )
@@ -73,6 +79,14 @@ def _event() -> OutboxEvent:
     return OutboxEvent("event-1", "user-1", "job_queued", "job-1")
 
 
+class _StatusEvents:
+    def __init__(self) -> None:
+        self.events: list[dict[str, object]] = []
+
+    def append(self, **kwargs: object) -> None:
+        self.events.append(kwargs)
+
+
 def test_enqueue_inserts_outbox_only_for_new_logical_job() -> None:
     connection = _Connection()
 
@@ -90,6 +104,39 @@ def test_enqueue_deduplicates_outbox_when_job_already_exists() -> None:
     PostgresDurableJobRepository(connection).enqueue(job=_job(), event=_event())
 
     assert all("outbox_events" not in statement for statement, _ in connection.calls)
+
+
+def test_initial_fill_lifecycle_publishes_compact_events_in_the_job_transaction() -> None:
+    events = _StatusEvents()
+    connection = _Connection(
+        rows=[("job-1", "user-1", "project-1", "project_initial_fill", "hash-1", "input-1", 2)]
+    )
+    repository = PostgresDurableJobRepository(connection, status_events=events)
+    job = DurableJob(
+        "job-1", "user-1", "project-1", "project_initial_fill", "hash-1", "input-1"
+    )
+
+    repository.enqueue(
+        job=job,
+        event=OutboxEvent("event-1", "user-1", "project_initial_fill.queued", "job-1"),
+    )
+    claimed = repository.claim(worker_id="worker-1", batch_size=1)
+    repository.update_progress(
+        job_id=claimed[0].job_id,
+        lease_token=claimed[0].lease_token,
+        completed_units=1,
+        total_units=2,
+    )
+    repository.complete(job_id="job-1", lease_token=claimed[0].lease_token, status="succeeded")
+
+    assert [event["event_type"] for event in events.events] == [
+        "bootstrap.queued",
+        "bootstrap.running",
+        "bootstrap.progress",
+        "bootstrap.completed",
+    ]
+    assert all(event["project_id"] == "project-1" for event in events.events)
+    assert events.events[-1]["terminal_status"] == "succeeded"
 
 
 def test_claim_uses_skip_locked_and_creates_one_attempt_per_claim() -> None:
@@ -172,7 +219,7 @@ def test_progress_is_bounded_and_requires_the_current_worker_lease() -> None:
 
 
 def test_expired_leases_return_jobs_to_queue_and_finish_attempts() -> None:
-    connection = _Connection(rows=[("job-1", "user-1", "project_initial_fill")])
+    connection = _Connection(rows=[("job-1", "user-1", "project-1", "project_initial_fill")])
 
     assert PostgresDurableJobRepository(connection).recover_expired_leases() == ("job-1",)
 
@@ -186,7 +233,9 @@ def test_project_initial_fill_projection_tracks_job_transitions() -> None:
         rows=[("job-1", "user-1", "project-1", "project_initial_fill", "hash-1", "input-1", 2)]
     )
     completion_connection = _Connection()
-    recovery_connection = _Connection(rows=[("job-1", "user-1", "project_initial_fill")])
+    recovery_connection = _Connection(
+        rows=[("job-1", "user-1", "project-1", "project_initial_fill")]
+    )
 
     PostgresDurableJobRepository(claim_connection).claim(worker_id="worker-1", batch_size=1)
     PostgresDurableJobRepository(completion_connection).complete(
@@ -200,7 +249,7 @@ def test_project_initial_fill_projection_tracks_job_transitions() -> None:
         for statement, _ in connection.calls
     )
     assert "set status = 'running'" in statements
-    assert "returning job_id::text, user_id::text, job_kind, status" in statements
+    assert "returning job_id::text, user_id::text, project_id::text, job_kind, status" in statements
     assert "set status = %s, updated_at = now()" in statements
     assert sum("select set_config" in statement for statement, _ in claim_connection.calls) == 1
     assert (

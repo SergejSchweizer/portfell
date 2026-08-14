@@ -11,6 +11,7 @@ from typing import Protocol, cast
 
 from portfell.durable_job_repository import DurableJob, OutboxEvent, PostgresDurableJobRepository
 from portfell.hosted_catalog import set_authenticated_user_sql
+from portfell.hosted_status_event_repository import PostgresStatusEventRepository
 from portfell.project_selection_bootstrap import BootstrapError, ProjectBootstrap
 
 
@@ -68,7 +69,10 @@ class PostgresProjectBootstrapRepository:
 
     def __init__(self, connection: BootstrapConnection) -> None:
         self._connection = connection
-        self._jobs = PostgresDurableJobRepository(connection)  # type: ignore[arg-type]
+        self._jobs = PostgresDurableJobRepository(
+            connection,
+            status_events=PostgresStatusEventRepository(connection),  # type: ignore[arg-type]
+        )
 
     def start(
         self,

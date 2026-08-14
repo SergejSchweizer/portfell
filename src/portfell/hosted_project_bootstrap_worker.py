@@ -21,6 +21,7 @@ from portfell.hosted_catalog import set_authenticated_user_sql
 from portfell.hosted_database_connection import connect
 from portfell.hosted_metadata_refresh_worker import build_metadata_refresh_worker
 from portfell.hosted_navigation_reconciler import PostgresNavigationReconciler
+from portfell.hosted_status_event_repository import PostgresStatusEventRepository
 from portfell.hosted_worker_capacity import (
     resolve_worker_concurrency,
     worker_concurrency_from_environment,
@@ -320,10 +321,12 @@ def main(argv: list[str] | None = None) -> int:
         bootstrap_jobs = PostgresDurableJobRepository(
             bootstrap_connection,
             navigation_refresher=PostgresNavigationReconciler(bootstrap_connection).reconcile,
+            status_events=PostgresStatusEventRepository(bootstrap_connection),
         )
         recovery_jobs = PostgresDurableJobRepository(
             metadata_connection,
             navigation_refresher=PostgresNavigationReconciler(metadata_connection).reconcile,
+            status_events=PostgresStatusEventRepository(metadata_connection),
         )
         worker = ProjectBootstrapWorker(
             jobs=bootstrap_jobs,

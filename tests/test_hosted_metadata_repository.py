@@ -22,6 +22,14 @@ class _Connection:
         return _Cursor()
 
 
+class _StatusEvents:
+    def __init__(self) -> None:
+        self.events: list[dict[str, object]] = []
+
+    def append(self, **kwargs: object) -> None:
+        self.events.append(kwargs)
+
+
 def _run() -> MetadataRun:
     return MetadataRun(
         "00000000-0000-0000-0000-000000000001",
@@ -52,3 +60,33 @@ def test_metadata_writes_refresh_navigation_in_the_same_connection_scope() -> No
     assert "insert into portfell_app.metadata_runs" in statements
     assert "update portfell_app.metadata_runs" in statements
     assert "metadata_revision_pointers" in statements
+
+
+def test_metadata_lifecycle_publishes_compact_status_and_revision_events() -> None:
+    events = _StatusEvents()
+    repository = PostgresMetadataLifecycleRepository(
+        _Connection(), status_events=events  # type: ignore[arg-type]
+    )
+    running = _run()
+    completed = MetadataRun(
+        running.metadata_run_id,
+        running.user_id,
+        "succeeded",
+        running.total,
+        running.total,
+        0,
+        100,
+        {},
+    )
+
+    repository.create(running)
+    repository.update(completed)
+    repository.set_revision(user_id=running.user_id, revision_id="metadata-v1")
+
+    assert [event["event_type"] for event in events.events] == [
+        "metadata.status",
+        "metadata.status",
+        "metadata.revision",
+    ]
+    assert events.events[1]["terminal_status"] == "succeeded"
+    assert events.events[2]["projection_revision"] == "metadata-v1"
