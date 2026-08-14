@@ -18,10 +18,14 @@ from portfell.hosted_api import (
     ProjectRecord,
     SelectionRecord,
     create_app,
-    create_persistent_local_workspace_state,
 )
+from portfell.hosted_api_service_support import stable_hash
 from portfell.hosted_credentials import InMemoryCredentialStore, KeyEncryptionKey
-from portfell.hosted_local_test_composition import local_test_services
+from portfell.hosted_local_test_composition import (
+    create_persistent_local_workspace_state,
+    local_test_services,
+    run_quote_fetch_for_test,
+)
 from portfell.hosted_postgres_request_scope import RequestScopedPostgresConnection
 from portfell.hosted_research_workflow import ResearchRun, UnivariateSelection
 from portfell.paths import LakePaths
@@ -549,7 +553,7 @@ def test_quote_run_progress_is_visible_after_the_first_completed_task(
         fake_fetch_all_quotes_workflow,
     )
 
-    hosted_api._run_quote_fetch(
+    run_quote_fetch_for_test(
         state,
         run,
         "selection-a",
@@ -606,7 +610,7 @@ def test_quote_run_mutation_reuses_a_running_run(
         )
     )
     selection = state.selections_by_id[created["selection"]["selection_id"]]
-    request_hash = hosted_api._stable_hash(
+    request_hash = stable_hash(
         {
             "project_id": created["project"]["project_id"],
             "selection_id": selection.selection_id,

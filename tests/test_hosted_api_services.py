@@ -49,6 +49,7 @@ from portfell.hosted_local_audit_event_repository import LocalAuditEventReposito
 from portfell.hosted_local_metadata_repository import LocalMetadataLifecycleRepository
 from portfell.hosted_local_project_repository import LocalProjectRepository
 from portfell.hosted_local_selection_repository import LocalSelectionRepository
+from portfell.hosted_local_test_composition import run_quote_fetch_for_test
 from portfell.hosted_metadata_project_service import (
     MetadataProjectService as _MetadataProjectService,
 )
@@ -312,7 +313,7 @@ def test_quote_fetch_compatibility_hook_delegates(
     monkeypatch.setattr(hosted_api.QuoteRunService, "run_quote_fetch", fake_run_quote_fetch)
     run = ProviderDownloadRun("run-1", "user-a", "credential-1", "eodhd", "running", (), "hash-1")
 
-    hosted_api._run_quote_fetch(HostedApiState(), run, "selection-1", "secret")
+    run_quote_fetch_for_test(HostedApiState(), run, "selection-1", "secret")
 
     assert calls == [("run-1", "selection-1", "secret")]
 

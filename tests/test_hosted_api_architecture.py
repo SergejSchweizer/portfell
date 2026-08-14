@@ -23,10 +23,13 @@ FORBIDDEN_ROUTE_IMPORTS = frozenset(
         "portfell.hosted_api_local_runtime",
         "portfell.hosted_credentials",
         "portfell.hosted_workspace",
+        "portfell.hosted_workspace_repository",
+        "portfell.hosted_local_test_composition",
         "portfell.metadata_builder",
         "portfell.paths",
         "portfell.silver",
         "portfell.table_io",
+        "portfell.http",
         "portfell.workflows",
     }
 )
@@ -35,6 +38,10 @@ FORBIDDEN_SERVICE_IMPORTS = frozenset(
         "fastapi",
         "portfell.hosted_api",
         "portfell.hosted_api_local_runtime",
+        "portfell.hosted_local_",
+        "portfell.hosted_local_test_composition",
+        "portfell.hosted_workspace",
+        "portfell.hosted_workspace_repository",
         "portfell.hosted_routes_common",
         "portfell.hosted_routes_credentials",
         "portfell.hosted_routes_metadata_projects",
@@ -44,6 +51,17 @@ FORBIDDEN_SERVICE_IMPORTS = frozenset(
         "portfell.hosted_research_repository",
         "portfell.metadata_builder",
         "portfell.paths",
+        "portfell.http",
+        "portfell.workflows",
+    }
+)
+FORBIDDEN_PRODUCTION_API_IMPORTS = frozenset(
+    {
+        "portfell.hosted_api_local_runtime",
+        "portfell.hosted_local_test_composition",
+        "portfell.hosted_workspace",
+        "portfell.hosted_workspace_repository",
+        "portfell.http",
         "portfell.workflows",
     }
 )
@@ -63,7 +81,12 @@ def _forbidden_imports(source: str, forbidden: frozenset[str]) -> set[str]:
     return {
         imported
         for imported in _imports(source)
-        if any(imported == value or imported.startswith(f"{value}.") for value in forbidden)
+        if any(
+            imported == value
+            or imported.startswith(f"{value}.")
+            or (value.endswith("_") and imported.startswith(value))
+            for value in forbidden
+        )
     }
 
 
@@ -88,6 +111,11 @@ def test_hosted_routes_only_translate_http() -> None:
         source = path.read_text(encoding="utf-8")
         assert _forbidden_imports(source, FORBIDDEN_ROUTE_IMPORTS) == set(), path
         assert _route_state_access(source) == set(), path
+
+
+def test_hosted_production_api_has_no_local_or_provider_authority() -> None:
+    source = (PACKAGE_ROOT / "hosted_api.py").read_text(encoding="utf-8")
+    assert _forbidden_imports(source, FORBIDDEN_PRODUCTION_API_IMPORTS) == set()
 
 
 def test_hosted_services_are_fastapi_free_and_runtime_port_driven() -> None:
@@ -144,6 +172,10 @@ def test_research_implementation_is_split_and_covered_by_hosted_service_gates() 
             "from portfell.hosted_credentials import FileCredentialStore",
             "portfell.hosted_credentials",
         ),
+        (
+            "from portfell.hosted_local_test_composition import local_test_services",
+            "portfell.hosted_local_test_composition",
+        ),
     ],
 )
 def test_route_import_fixture_violations_are_detected(source: str, violation: str) -> None:
@@ -169,6 +201,14 @@ def test_route_mutable_state_fixture_violations_are_detected(source: str) -> Non
         (
             "from portfell.hosted_api_local_runtime import LocalHostedRuntime",
             "portfell.hosted_api_local_runtime",
+        ),
+        (
+            "from portfell.hosted_local_project_repository import LocalProjectRepository",
+            "portfell.hosted_local_project_repository",
+        ),
+        (
+            "from portfell.hosted_workspace_repository import persist_local_workspace",
+            "portfell.hosted_workspace_repository",
         ),
         ("from portfell.hosted_routes_common import call", "portfell.hosted_routes_common"),
     ],

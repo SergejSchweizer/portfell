@@ -1768,9 +1768,9 @@ production API module does not import local runtime or local research adapters.
 
 ### PR251b. Hosted Dependency Boundary Tests
 
-Branch: `test/hosted-single-authority-boundaries`.
+Branch: `chore/hosted-single-authority-boundaries`.
 
-Git status: not started.
+Git status: in progress.
 
 PR: TBD.
 
@@ -1855,9 +1855,9 @@ local adapters are opt-in.
 
 Branch: `refactor/hosted-multivariate-explicit-dependencies`.
 
-Git status: in progress.
+Git status: merged.
 
-PR: TBD.
+PR: https://github.com/SergejSchweizer/portfell/pull/435.
 
 Priority: P1 final hosted simplification.
 
