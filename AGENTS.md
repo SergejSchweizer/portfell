@@ -17,6 +17,7 @@ This file is the workflow reference for coding agents and maintainers. It should
 ## Project Workflow Rules
 
 - Every non-merged PR-sized item recorded in `BACKLOG.md` must include a branch path, Git status, and PR link. Historical merged entries do not require branch-path backfills.
+- Design every new backlog PR for two independent agents to implement and verify in parallel. Treat the PR definition as the complete work order: it must be atomic, state ownership and hand-offs, name exact validation evidence, and provide machine-verifiable acceptance criteria that do not rely on unstated context. The canonical checklist is [Parallel Weak-Agent PR Design](BACKLOG.md#parallel-weak-agent-pr-design); split work that cannot meet it into dependent PRs before implementation.
 - Use branch paths in the form `<type>/<scope>-<short-description>` with lowercase ASCII letters, numbers, and hyphens only after the slash.
 - Allowed branch path types are `feat`, `fix`, `refactor`, `docs`, and `chore`.
 - Use `feat/` for new behavior, `fix/` for defect correction, `refactor/` for behavior-preserving structural or performance work, `docs/` for documentation-only changes, and `chore/` for build, CI, test-only, style, dependency, or repository-maintenance work.
