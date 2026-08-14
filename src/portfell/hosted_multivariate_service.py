@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 from collections.abc import Callable
 from concurrent.futures import Executor, ProcessPoolExecutor
 from dataclasses import replace
@@ -11,14 +10,9 @@ from time import time
 from portfell.gold import build_returns
 from portfell.hosted_api_errors import HostedApplicationError
 from portfell.hosted_api_service_support import opaque_id, stable_hash
-from portfell.hosted_api_state import HostedApiState, MultivariateRunRecord, SelectionRecord
-from portfell.hosted_local_project_repository import LocalProjectRepository
-from portfell.hosted_local_selection_repository import LocalSelectionRepository
+from portfell.hosted_api_state import MultivariateRunRecord, SelectionRecord
 from portfell.hosted_multivariate_lifecycle import MultivariateRunLifecycle
-from portfell.hosted_multivariate_run_repository import (
-    LocalMultivariateRunRepository,
-    MultivariateRunRepository,
-)
+from portfell.hosted_multivariate_run_repository import MultivariateRunRepository
 from portfell.hosted_multivariate_run_views import MultivariateRunViews
 from portfell.hosted_repository_importer import ProjectRepository
 from portfell.hosted_research_ports import (
@@ -73,24 +67,23 @@ class MultivariateResearchService(MultivariateRunViews):
 
     def __init__(
         self,
-        state: HostedApiState,
         data: ResearchDataPort,
         persistence: ResearchPersistencePort,
         research_repository: ResearchRunRepository,
-        project_repository: ProjectRepository | None = None,
-        selection_repository: SelectionRepository | None = None,
-        run_repository: MultivariateRunRepository | None = None,
-        metadata_rows: Callable[[], tuple[JsonRow, ...]] | None = None,
-        worker_count: Callable[[], int | None] = os.process_cpu_count,
-        workflow_projector: Callable[[str, str], object] | None = None,
+        project_repository: ProjectRepository,
+        selection_repository: SelectionRepository,
+        run_repository: MultivariateRunRepository,
+        metadata_rows: Callable[[], tuple[JsonRow, ...]],
+        worker_count: Callable[[], int | None],
+        workflow_projector: Callable[[str, str], object] | None,
     ) -> None:
         self._data = data
         self._persistence = persistence
-        self._projects = project_repository or LocalProjectRepository(state)
-        self._selections = selection_repository or LocalSelectionRepository(state)
-        self._runs = run_repository or LocalMultivariateRunRepository(state)
+        self._projects = project_repository
+        self._selections = selection_repository
+        self._runs = run_repository
         self._research = research_repository
-        self._metadata_rows = metadata_rows or (lambda: state.all_isins_rows)
+        self._metadata_rows = metadata_rows
         self._worker_count = worker_count
         self._lifecycle = MultivariateRunLifecycle(
             self._runs, workflow_projector, persistence.persist

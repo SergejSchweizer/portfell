@@ -1776,7 +1776,7 @@ PR: TBD.
 
 Priority: P1 final hosted simplification.
 
-Depends on: PR251a.
+Depends on: PR251c3.
 
 Scope: Add executable architecture tests prohibiting hosted route/service imports of local workspace,
 test composition, provider client, unrestricted lake, and in-memory authority modules. Keep local CLI
@@ -1855,7 +1855,7 @@ local adapters are opt-in.
 
 Branch: `refactor/hosted-multivariate-explicit-dependencies`.
 
-Git status: ready.
+Git status: in progress.
 
 PR: TBD.
 

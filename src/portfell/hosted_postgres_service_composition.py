@@ -182,7 +182,6 @@ def build_postgres_services(
             research_repository, data, persistence, workflow_projector.reconcile
         ),
         MultivariateResearchService(
-            state,
             data,
             persistence,
             research_repository,
