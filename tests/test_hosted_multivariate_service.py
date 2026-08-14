@@ -10,6 +10,9 @@ import pytest
 
 from portfell.hosted_api_service_support import stable_hash
 from portfell.hosted_api_state import HostedApiState, ProjectRecord, SelectionRecord
+from portfell.hosted_local_project_repository import LocalProjectRepository
+from portfell.hosted_local_selection_repository import LocalSelectionRepository
+from portfell.hosted_multivariate_run_repository import LocalMultivariateRunRepository
 from portfell.hosted_multivariate_service import MultivariateResearchService
 from portfell.hosted_repository_importer import (
     InMemoryProjectRepository,
@@ -67,11 +70,15 @@ def _service(
     worker_count: Callable[[], int | None] | None = None,
 ) -> MultivariateResearchService:
     return MultivariateResearchService(
-        state,
         data,
         persistence,
         HostedResearchRepository(state),
-        worker_count=worker_count or (lambda: 1),
+        LocalProjectRepository(state),
+        LocalSelectionRepository(state),
+        LocalMultivariateRunRepository(state),
+        lambda: state.all_isins_rows,
+        worker_count or (lambda: 1),
+        None,
     )
 
 
@@ -316,14 +323,17 @@ def test_multivariate_plan_authorizes_an_injected_project_repository() -> None:
         )
     )
     service = MultivariateResearchService(
-        state,
         data,
         _Persistence(),
         HostedResearchRepository(
             state, project_repository=repository, selection_repository=selections
         ),
-        project_repository=repository,
-        selection_repository=selections,
+        repository,
+        selections,
+        LocalMultivariateRunRepository(state),
+        lambda: state.all_isins_rows,
+        lambda: 1,
+        None,
     )
 
     assert state.selections_by_id == {}

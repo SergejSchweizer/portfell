@@ -20,6 +20,7 @@ from portfell.hosted_local_metadata_repository import LocalMetadataLifecycleRepo
 from portfell.hosted_local_project_repository import LocalProjectRepository
 from portfell.hosted_local_selection_repository import LocalSelectionRepository
 from portfell.hosted_metadata_project_service import MetadataProjectService
+from portfell.hosted_multivariate_run_repository import LocalMultivariateRunRepository
 from portfell.hosted_multivariate_service import MultivariateResearchService
 from portfell.hosted_project_settings_repository import LocalProjectSettingsRepository
 from portfell.hosted_quote_lifecycle_repository import LocalQuoteLifecycleRepository
@@ -50,7 +51,17 @@ def local_research_service(state: HostedApiState, data: ResearchDataPort) -> Res
     return ResearchService(
         UnivariateResearchService(repository, data, persistence),
         BivariateResearchService(repository, data, persistence),
-        MultivariateResearchService(state, data, persistence, repository),
+        MultivariateResearchService(
+            data,
+            persistence,
+            repository,
+            LocalProjectRepository(state),
+            LocalSelectionRepository(state),
+            LocalMultivariateRunRepository(state),
+            lambda: state.all_isins_rows,
+            lambda: os.process_cpu_count(),
+            None,
+        ),
         HostedAnalysisService(repository, persistence),
     )
 
