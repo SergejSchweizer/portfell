@@ -2,13 +2,36 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 from portfell.hosted_api_service_support import stable_hash
 
 JsonRow = dict[str, Any]
 
 PAGE_VIEW_CONTRACT_VERSION = 1
+
+_ANALYTICAL_SECTIONS: dict[str, tuple[str, ...]] = {
+    "univariate_statistics": ("results", "selection_results"),
+    "bivariate_statistics": (
+        "results",
+        "summary",
+        "covariance_matrix",
+        "correlation_matrix",
+        "tail_risk_scatter",
+    ),
+    "multivariate_statistics": (
+        "summary",
+        "structure",
+        "candidates",
+        "candidate_detail",
+        "risk_contributions",
+        "income_evidence",
+        "components",
+        "validation",
+        "artifacts",
+        "performance",
+    ),
+}
 
 
 def metadata_builder_page_view(
@@ -35,3 +58,62 @@ def metadata_builder_page_view(
         },
     }
     return payload, stable_hash(payload)
+
+
+def analytical_page_view(
+    *, module: str, project_id: str, workflow: JsonRow
+) -> tuple[JsonRow, str]:
+    """Return a compact analytical entry view without reading result payloads."""
+
+    if module not in _ANALYTICAL_SECTIONS:
+        raise ValueError("page_view_module_invalid")
+    stages_value = workflow.get("stages")
+    if not isinstance(stages_value, dict):
+        raise ValueError("page_view_workflow_invalid")
+    stages = cast(JsonRow, stages_value)
+    stage_value = stages.get(module)
+    if not isinstance(stage_value, dict):
+        raise ValueError("page_view_workflow_stage_missing")
+    stage = cast(JsonRow, stage_value)
+    status = stage.get("status")
+    if not isinstance(status, str):
+        raise ValueError("page_view_workflow_status_invalid")
+    workflow_etag = workflow.get("projection_etag")
+    if workflow_etag is not None and not isinstance(workflow_etag, str):
+        raise ValueError("page_view_workflow_etag_invalid")
+    run_id = stage.get(f"{module.removesuffix('_statistics')}_run_id")
+    if run_id is not None and not isinstance(run_id, str):
+        raise ValueError("page_view_run_id_invalid")
+    revision_seed: JsonRow = {
+        "module": module,
+        "project_id": project_id,
+        "workflow_etag": workflow_etag,
+        "stage": stage,
+    }
+    available = status == "complete"
+    unavailable = None if available else {"code": "stage_not_complete", "status": status}
+    sections: JsonRow = {
+        key: _section_row(
+            available=available,
+            revision=stable_hash({**revision_seed, "section": key}),
+            unavailable=unavailable,
+        )
+        for key in _ANALYTICAL_SECTIONS[module]
+    }
+    payload: JsonRow = {
+        "contract_version": PAGE_VIEW_CONTRACT_VERSION,
+        "module": module,
+        "project_id": project_id,
+        "workflow_etag": workflow_etag,
+        "run_id": run_id,
+        "status": status,
+        "sections": sections,
+    }
+    return payload, stable_hash(payload)
+
+
+def _section_row(*, available: bool, revision: str, unavailable: JsonRow | None) -> JsonRow:
+    row: JsonRow = {"available": available, "revision": revision}
+    if unavailable is not None:
+        row["unavailable"] = unavailable
+    return row

@@ -161,6 +161,7 @@ def create_app(
     application.include_router(
         research_router(
             research,
+            credentials,
             current_user=current_user,
             workspace_user=workspace_user,
             request_scope=request_scope,
