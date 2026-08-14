@@ -124,6 +124,21 @@ def test_multivariate_performance_chart_uses_plotly_series_colors() -> None:
     assert "plotly.js-dist-min" in package["dependencies"]
 
 
+def test_statistics_progress_bars_share_the_10px_height() -> None:
+    styles = (WEB_ROOT / "styles" / "app.css").read_text(encoding="utf-8")
+    pages = {
+        name: (WEB_ROOT / "src" / "pages" / f"{name}-statistics.tsx").read_text(encoding="utf-8")
+        for name in ("univariate", "bivariate", "multivariate")
+    }
+
+    assert "--progress-height: 10px;" in styles
+    for name, page in pages.items():
+        assert f"{name}-compute" in page
+        assert f".{name}-compute progress" in styles
+    assert "height: var(--progress-height);" in styles
+    assert "min-height: var(--progress-height);" in styles
+
+
 def test_vite_build_is_the_canonical_web_runtime() -> None:
     package = json.loads((WEB_ROOT / "package.json").read_text(encoding="utf-8"))
     dockerfile = (WEB_ROOT / "Dockerfile").read_text(encoding="utf-8")

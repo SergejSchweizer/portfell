@@ -33,7 +33,7 @@ or calculates financial values in the browser.
 - Locked state: the compute panel and every result tab remain visible with unavailable fields while the
   Bivariate prerequisite is incomplete.
 - Ready state: the Bivariate-style compact server-owned progress panel with a
-  labelled 14px determinate progress bar, status line, and right-aligned compute action. The action
+  labelled 10px determinate progress bar, status line, and right-aligned compute action. The action
   reports starting and server-owned phase progress and remains disabled until the run is complete or failed.
 - Project switch: clear the prior project's run and result artifacts before loading
   the active project's workflow state; ignore late responses for the prior project.

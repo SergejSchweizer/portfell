@@ -197,7 +197,12 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 .performance-chart__tooltip-portfolio--4 { color: var(--series-5); }
 .quote-fetch__action--dual { gap: var(--space-2); }
 .univariate-compute { gap: 6px; margin-bottom: var(--space-4); }
-.univariate-compute progress { height: var(--progress-height); }
+.univariate-compute progress,
+.bivariate-compute progress,
+.multivariate-compute progress {
+  height: var(--progress-height);
+  min-height: var(--progress-height);
+}
 .univariate-compute__progress {
   appearance: none;
   overflow: hidden;
@@ -211,10 +216,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 .univariate-compute__progress::-moz-progress-bar { background: var(--primary); }
 .univariate-compute .status-line { min-height: 16px; margin: 0; }
 .univariate-compute .portfell-button { min-height: 32px; }
-.bivariate-compute { gap: 6px; margin-bottom: var(--space-4); }
-.quote-fetch.bivariate-compute progress { height: var(--progress-height); min-height: var(--progress-height); }
-.bivariate-compute .status-line { min-height: 16px; margin: 0; }
-.bivariate-compute .portfell-button { min-height: 32px; }
+.bivariate-compute, .multivariate-compute { gap: 6px; margin-bottom: var(--space-4); }
+.bivariate-compute .status-line, .multivariate-compute .status-line { min-height: 16px; margin: 0; }
+.bivariate-compute .portfell-button, .multivariate-compute .portfell-button { min-height: 32px; }
 .bivariate-statistic { display: grid; grid-template-columns: minmax(260px, .9fr) minmax(420px, 1.6fr); gap: var(--space-6); padding: var(--space-4); border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--canvas); }
 .bivariate-statistic__tabs, .univariate-statistic__tabs { grid-column: 1 / -1; }
 .bivariate-statistic__tabs, .univariate-statistic__tabs, .statistics-tabs {

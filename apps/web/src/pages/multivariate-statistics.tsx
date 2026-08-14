@@ -432,7 +432,7 @@ export function MultivariateStatisticsPage() {
     {pageViewLoading ? <LoadingIndicator label="Loading selected project" compact /> : null}
     {pageViewError ? <p className="status-line" role="alert">Could not load the selected project. Showing the previous view.</p> : null}
     <Panel title="Multivariate Statistics">
-      <div className="quote-fetch quote-fetch--panel bivariate-compute">
+      <div className="quote-fetch quote-fetch--panel multivariate-compute">
         <label htmlFor="multivariate-progress">Multivariate statistics progress</label>
         <progress id="multivariate-progress" value={progress} max={100} />
         <p className="status-line" aria-live="polite">{run ? `${run.phase} · ${run.completed_units} of ${run.total_units} phases complete · ${run.elapsed_seconds}s elapsed${run.estimated_remaining_seconds == null ? "" : ` · about ${run.estimated_remaining_seconds}s remaining`}` : "Ready to compute."}</p>

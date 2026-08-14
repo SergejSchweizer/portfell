@@ -40,7 +40,7 @@ The univariate-statistics action owns only computation progress, status, and its
 Its determinate progress bar uses processed listings as its scale, including terminal failed listings;
 the server reports each completed listing for both shared-market and pinned quote-run computations.
 React keeps the displayed percentage monotonic for the active run so delayed polling responses cannot move the bar backward; starting or switching to another run resets that display.
-All workflow progress bars use the shared 14px height.
+All workflow progress bars use the shared 10px height.
 The Dividends univariate-statistic block and all quantitative-statistic tabs render immediately when
 the page opens. Until a result payload is available, their controls and charts show their existing
 empty values without implying a completed computation. The block provides a payout-frequency selection and an accessible
