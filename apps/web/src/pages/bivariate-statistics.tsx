@@ -5,7 +5,7 @@ import { loadProjectContext } from "../api/client";
 import { bivariateStatisticsApi, type BivariateRunData } from "../api/bivariate-statistics";
 import { Button } from "../components/button";
 import { nextProgressSnapshot, type ProgressSnapshot } from "../computation-progress";
-import { LoadingIndicator, LoadingState } from "../components/loading-state";
+import { LoadingIndicator } from "../components/loading-state";
 import { Panel } from "../components/panel";
 import type { ApiBivariateMetricSummary, ApiBivariateRow, ApiBivariateSummary, ApiCovarianceMatrix, ApiLazyDetail, ApiPage, ApiPairMetricMatrix, ApiPairPlan, ApiResearchRun, ApiTailRiskScatter } from "../contracts";
 import { queryClient, queryTiming } from "../query/client";
@@ -381,15 +381,7 @@ export function BivariateStatisticsPage() {
     return () => { cancelled = true; };
   }, [persistedRunId, run?.run_id]);
 
-  if (pageView.status !== "ready") {
-    return pageView.status === "error"
-      ? <p>Bivariate statistics are unavailable.</p>
-      : <LoadingState label="Loading bivariate statistics" />;
-  }
-  const selectionId = pageView.data.input.univariate_selection_id;
-  if (!selectionId) {
-    return <Panel title="Bivariate Statistics"><p>Complete univariate statistics and select at least two ISINs first.</p></Panel>;
-  }
+  const selectionId = pageView.status === "ready" ? pageView.data.input.univariate_selection_id : null;
 
   async function compute() {
     const univariateSelectionId = selectionId;
@@ -471,18 +463,19 @@ export function BivariateStatisticsPage() {
     : pairwiseMatrixTabs.find((tab) => tab.metric === activePairwiseMetric)!.label;
   return (<>
     {pageView.refreshing ? <LoadingIndicator label="Loading selected project" compact /> : null}
+    {pageView.status === "error" ? <p className="status-line" role="alert">Bivariate statistics are unavailable. Showing empty fields.</p> : null}
     <Panel title="Bivariate Statistics">
       <div className="quote-fetch quote-fetch--panel bivariate-compute">
         <label htmlFor="bivariate-progress">Bivariate statistics progress</label>
         <progress id="bivariate-progress" max={100} value={run === null ? (pageViewCompleted ? 100 : 0) : nextProgressSnapshot(progressSnapshot.current, run.run_id, run.percent).percent} />
         <p className="status-line" aria-live="polite">{message || "Compute statistics for the ISINs selected in univariate statistics."}</p>
         <div className="quote-fetch__action">
-          <Button type="button" variant="primary" disabled={starting || run?.status === "running"} aria-busy={starting || run?.status === "running"} onClick={() => void compute()}>
+          <Button type="button" variant="primary" disabled={!selectionId || starting || run?.status === "running"} aria-busy={starting || run?.status === "running"} onClick={() => void compute()}>
             {starting ? "Planning computation…" : run?.status === "running" ? "Computing…" : pageViewCompleted ? "Recompute Bivariate Statistics" : "Compute Bivariate Statistics"}
           </Button>
         </div>
       </div>
-      {pageViewCompleted && <section className="bivariate-statistic" aria-labelledby="pairwise-dependence-title">
+      <section className="bivariate-statistic" aria-labelledby="pairwise-dependence-title">
         <div className="bivariate-statistic__tabs" role="tablist" aria-label="Pairwise dependence statistic">
           {pairwiseMatrixTabs.map((tab) => <button key={tab.metric} type="button" role="tab" aria-selected={activePairwiseMetric === tab.metric} className={activePairwiseMetric === tab.metric ? "is-active" : undefined} onClick={() => setActivePairwiseMetric(tab.metric)}>{tab.label}</button>)}
         </div>
@@ -560,7 +553,7 @@ export function BivariateStatisticsPage() {
           </>}
         </div>
         {activePairwiseMetric === "tail_risk_scatter" ? <TailRiskScatter scatter={tailRiskScatter} /> : <PairMatrix matrix={activeMatrix} title={activeMatrixTitle} hoveredCell={hoveredMatrixCell} setHoveredCell={setHoveredMatrixCell} />}
-      </section>}
+      </section>
     </Panel>
   </>);
 }

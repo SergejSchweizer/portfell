@@ -41,9 +41,9 @@ Its determinate progress bar uses processed listings as its scale, including ter
 the server reports each completed listing for both shared-market and pinned quote-run computations.
 React keeps the displayed percentage monotonic for the active run so delayed polling responses cannot move the bar backward; starting or switching to another run resets that display.
 All workflow progress bars use the shared 14px height.
-The Dividends univariate-statistic block is not rendered before
-the run is complete and its result payload has loaded, matching the result-driven bivariate
-statistic windows. It provides a payout-frequency selection and an accessible
+The Dividends univariate-statistic block and all quantitative-statistic tabs render immediately when
+the page opens. Until a result payload is available, their controls and charts show their existing
+empty values without implying a completed computation. The block provides a payout-frequency selection and an accessible
 histogram that counts ISINs by none/unknown, monthly, quarterly, semiannual, annual, and
 irregular schedules. The selected schedules and statistic filters update locally immediately and
 persist the latest value per project through one debounced background request. The sidebar workflow
@@ -88,9 +88,8 @@ which requires at least 100 common daily returns across the Bivariate selection.
 
 No manual historical-data action, quote-run polling state, or quote-run mutation request exists in the
 page. The statistics action is disabled when shared coverage or other prerequisites are missing, or a
-run is active. No statistics window is present before completed univariate results are loaded;
-afterwards, one accessible tab panel contains Dividends and every quantitative statistic, including
-when the returned result set is empty. Results use typed contracts, accessible tab semantics, stable
+run is active. One accessible tab panel is present before and after results load; it contains Dividends
+and every quantitative statistic with explicit empty fields until data is available. Results use typed contracts, accessible tab semantics, stable
 loading feedback, bounded pagination, and a clear upstream-data requirement.
 
 The stateful two-project browser journey observes shared-market readiness and computes both

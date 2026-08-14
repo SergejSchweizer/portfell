@@ -75,6 +75,25 @@ def test_workflow_pages_place_ingestion_actions_before_their_stage_controls() ->
     assert "tailCoexceedanceRateMatrix" in bivariate_page
 
 
+def test_statistics_result_panels_are_visible_before_results_load() -> None:
+    univariate_page = (WEB_ROOT / "src" / "pages" / "univariate-statistics.tsx").read_text(
+        encoding="utf-8"
+    )
+    bivariate_page = (WEB_ROOT / "src" / "pages" / "bivariate-statistics.tsx").read_text(
+        encoding="utf-8"
+    )
+    multivariate_page = (WEB_ROOT / "src" / "pages" / "multivariate-statistics.tsx").read_text(
+        encoding="utf-8"
+    )
+    assert "const displayedResults = results ?? [];" in univariate_page
+    assert 'run?.status === "complete" && results !== null' not in univariate_page
+    assert "{pageViewCompleted && <section" not in bivariate_page
+    assert (
+        '{run?.status === "complete" && <Panel title="Multivariate results">'
+        not in multivariate_page
+    )
+
+
 def test_vite_build_is_the_canonical_web_runtime() -> None:
     package = json.loads((WEB_ROOT / "package.json").read_text(encoding="utf-8"))
     dockerfile = (WEB_ROOT / "Dockerfile").read_text(encoding="utf-8")
