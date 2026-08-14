@@ -1149,23 +1149,42 @@ Acceptance for PR247c2b3a:
 - Focused repair, projection adapter, migration/catalog, RLS, architecture, Ruff, format, Pyright, and
   real-stack gates pass.
 
-PR247c2b3b branch: `feat/hosted-workflow-read-instrumentation`.
+PR247c2b3b was split for independent verification: PR247c2b3b1 owns only deterministic
+instrumentation; PR247c2b3b2 owns only the large-fixture performance evidence.
+
+PR247c2b3b1 branch: `feat/hosted-workflow-read-instrumentation` (ready for PR).
 
 - Instrument only `/workflow` and `/projects/{project_id}/workflow` with statement count, response
   bytes, shared-file-read count, and elapsed time; expose structured test hooks without leaking these
   values in tenant responses.
-- Add deterministic 100-project/25,000-member fixtures and prove bounded statement counts, zero
-  shared-file reads, no GET writes, response size below 256 KiB, idle p95 below 250 ms, and loaded p95
-  below 1 s. Do not modify projection schemas, lifecycle writers, or repair behavior.
+- Do not add large performance fixtures, change projection schemas, lifecycle writers, or repair
+  behavior; PR247c2b3b2 owns that evidence.
 
-Acceptance for PR247c2b3b:
+Acceptance for PR247c2b3b1:
 
 - Instrumented route tests prove at most two PostgreSQL statements including RLS binding for both
   current and explicit-project paths, zero writes, zero shared-file/Parquet reads, and no lifecycle or
   reconciliation invocation.
-- The named large fixture produces the documented response-size and latency evidence deterministically
-  in CI, including the concurrent worker contention fixture from PR246.
-- API-contract, architecture, performance, Ruff, format, Pyright, Playwright, and real-stack gates
+- Reader and request-scope tests prove that an already authenticated request does not issue a duplicate
+  RLS-binding statement and that metrics are reset after each request/worker context.
+- API-contract, architecture, Ruff, format, Pyright, Playwright, and real-stack gates pass.
+
+PR247c2b3b2 branch: `feat/hosted-workflow-read-performance`.
+
+- Depend only on PR247c2b3b1's structured metrics hook. Add deterministic 100-project/25,000-member
+  projection fixtures and prove bounded statement counts, zero shared-file reads, no GET writes,
+  response size below 256 KiB, idle p95 below 250 ms, and loaded p95 below 1 s.
+- Include PR246's worker-contention scenario without changing application schemas, route logic, or
+  lifecycle writers. The fixture must build compact precomputed projections rather than 25,000 real
+  selection rows in a GET test.
+
+Acceptance for PR247c2b3b2:
+
+- Current-project and explicit-project paths each produce the named deterministic performance report
+  from the structured metric hook; all assertion limits above are checked in CI.
+- The 100-project fixture proves response bytes are bounded independently of member count and that no
+  request touches table I/O or shared market files.
+- Performance, API-contract, architecture, Ruff, format, Pyright, Playwright, and real-stack gates
   pass.
 
 Priority: P0 page-entry latency and architectural simplicity.

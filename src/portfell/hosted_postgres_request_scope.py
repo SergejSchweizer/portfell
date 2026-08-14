@@ -41,12 +41,33 @@ class RequestScopedPostgresConnection:
         self._after_commit: ContextVar[list[Callable[[], None]] | None] = ContextVar(
             "portfell_postgres_after_commit", default=None
         )
+        self._authenticated_user: ContextVar[str | None] = ContextVar(
+            "portfell_postgres_authenticated_user", default=None
+        )
+        self._statement_count: ContextVar[int | None] = ContextVar(
+            "portfell_postgres_statement_count", default=None
+        )
 
     def execute(self, sql: str, parameters: tuple[object, ...] = ()) -> Any:
         connection = self._current.get()
         if connection is None:
             raise ScopedConnectionError("postgres_request_scope_required")
+        count = self._statement_count.get()
+        if count is not None:
+            self._statement_count.set(count + 1)
         return connection.execute(sql, parameters)
+
+    @property
+    def authenticated_user_id(self) -> str | None:
+        """Return the current RLS principal without issuing a PostgreSQL statement."""
+
+        return self._authenticated_user.get()
+
+    @property
+    def statement_count(self) -> int | None:
+        """Return statements executed in the current request/worker scope."""
+
+        return self._statement_count.get()
 
     @contextmanager
     def transaction(self) -> Generator[None]:
@@ -57,6 +78,7 @@ class RequestScopedPostgresConnection:
             return
         connection = self._connect()
         token: Token[ScopedConnection | None] = self._current.set(connection)
+        statement_token = self._statement_count.set(0)
         try:
             yield
         except BaseException:
@@ -66,6 +88,7 @@ class RequestScopedPostgresConnection:
             connection.commit()
         finally:
             self._current.reset(token)
+            self._statement_count.reset(statement_token)
             connection.close()
 
     @contextmanager
@@ -74,11 +97,13 @@ class RequestScopedPostgresConnection:
 
         connection = self._connect()
         token: Token[ScopedConnection | None] = self._current.set(connection)
+        user_token = self._authenticated_user.set(user_id)
+        statement_token = self._statement_count.set(0)
         callbacks: list[Callable[[], None]] = []
         after_commit_token = self._after_commit.set(callbacks)
         committed = False
         try:
-            connection.execute(*set_authenticated_user_sql(user_id))
+            self.execute(*set_authenticated_user_sql(user_id))
             yield
         except BaseException:
             connection.rollback()
@@ -88,6 +113,8 @@ class RequestScopedPostgresConnection:
             committed = True
         finally:
             self._current.reset(token)
+            self._authenticated_user.reset(user_token)
+            self._statement_count.reset(statement_token)
             self._after_commit.reset(after_commit_token)
             connection.close()
         if committed:
@@ -114,12 +141,16 @@ class RequestScopedPostgresConnection:
         connection = self._connect()
         connection.autocommit = True
         token: Token[ScopedConnection | None] = self._current.set(connection)
+        user_token = self._authenticated_user.set(user_id)
+        statement_token = self._statement_count.set(0)
         try:
-            connection.execute(
+            self.execute(
                 "select set_config(%s, %s, false)",
                 ("portfell.current_user_id", user_id),
             )
             yield
         finally:
             self._current.reset(token)
+            self._authenticated_user.reset(user_token)
+            self._statement_count.reset(statement_token)
             connection.close()
