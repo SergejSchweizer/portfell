@@ -7,13 +7,18 @@ import { EmptyState } from "../components/empty-state";
 import { LoadingState } from "../components/loading-state";
 import { Panel } from "../components/panel";
 import type { ApiInitialFill, ApiProjectSummary } from "../contracts";
-import { useResource } from "../hooks/use-resource";
+import { queryClient, queryTiming } from "../query/client";
+import { queryKeys } from "../query/keys";
+import { useQueryResource } from "../query/use-query-resource";
 import { projectWorkflowPath, workflowPages } from "../routes";
 import { useMetadataFetch } from "../shell/metadata-fetch-context";
 
 export function MetadataBuilderPage() {
-  const [metadataRevision, setMetadataRevision] = useState(0);
-  const options = useResource(metadataBuilderApi.loadFieldOptions, [metadataRevision]);
+  const options = useQueryResource(
+    queryKeys.metadataOptions(),
+    metadataBuilderApi.loadFieldOptions,
+    queryTiming.completed,
+  );
   const { fetchMetadata, fetching, canFetchMetadata, metadataProgress, metadataStatus } = useMetadataFetch();
   const [exchange, setExchange] = useState("");
   const [instrumentType, setInstrumentType] = useState("");
@@ -25,7 +30,7 @@ export function MetadataBuilderPage() {
   const [creatingProject, setCreatingProject] = useState(false);
 
   useEffect(() => {
-    const refresh = () => setMetadataRevision((value) => value + 1);
+    const refresh = () => { void queryClient.invalidateQueries({ queryKey: queryKeys.metadataOptions() }); };
     window.addEventListener("portfell:metadata-updated", refresh);
     return () => window.removeEventListener("portfell:metadata-updated", refresh);
   }, []);
@@ -134,18 +139,15 @@ export function MetadataBuilderPage() {
     }
   }
 
-  if (options.status === "loading" || options.status === "idle") {
-    return <LoadingState label="Loading metadata options" />;
-  }
-
-  if (options.status === "error") {
-    return (
+  if (options.status !== "ready") {
+    return options.status === "error" ? (
       <EmptyState
         title="Metadata unavailable"
         description="Fetch all metadata to load the shared catalogue first."
       />
-    );
+    ) : <LoadingState label="Loading metadata options" />;
   }
+  const optionData = options.data;
 
   return (
     <section className="metadata-builder-page" data-route="metadata-builder-page">
@@ -167,28 +169,28 @@ export function MetadataBuilderPage() {
             Exchange
             <select value={exchange} onChange={(event) => setExchange(event.target.value)}>
               <option value="">Any</option>
-              {options.data.exchange.map((option) => <option key={option.value} value={option.value}>{fieldOptionLabel(option.value, option.isin_count)}</option>)}
+              {optionData.exchange.map((option) => <option key={option.value} value={option.value}>{fieldOptionLabel(option.value, option.isin_count)}</option>)}
             </select>
           </label>
           <label>
             Instrument type
             <select value={instrumentType} onChange={(event) => setInstrumentType(event.target.value)}>
               <option value="">Any</option>
-              {options.data.instrument_type.map((option) => <option key={option.value} value={option.value}>{fieldOptionLabel(option.value, option.isin_count)}</option>)}
+              {optionData.instrument_type.map((option) => <option key={option.value} value={option.value}>{fieldOptionLabel(option.value, option.isin_count)}</option>)}
             </select>
           </label>
           <label>
             Country
             <select value={country} onChange={(event) => setCountry(event.target.value)}>
               <option value="">Any</option>
-              {options.data.country.map((option) => <option key={option.value} value={option.value}>{fieldOptionLabel(option.value, option.isin_count)}</option>)}
+              {optionData.country.map((option) => <option key={option.value} value={option.value}>{fieldOptionLabel(option.value, option.isin_count)}</option>)}
             </select>
           </label>
           <label>
             Currency
             <select value={currency} onChange={(event) => setCurrency(event.target.value)}>
               <option value="">Any</option>
-              {options.data.currency.map((option) => <option key={option.value} value={option.value}>{fieldOptionLabel(option.value, option.isin_count)}</option>)}
+              {optionData.currency.map((option) => <option key={option.value} value={option.value}>{fieldOptionLabel(option.value, option.isin_count)}</option>)}
             </select>
           </label>
           <label className="metadata-builder-form__name">
@@ -199,7 +201,7 @@ export function MetadataBuilderPage() {
             <Button
               type="submit"
               variant="primary"
-              disabled={!options.data.metadata_ready || creatingProject || initialFillIsActive(initialFill)}
+              disabled={!optionData.metadata_ready || creatingProject || initialFillIsActive(initialFill)}
               aria-busy={creatingProject || initialFillIsActive(initialFill)}
               aria-live="polite"
             >
@@ -208,7 +210,7 @@ export function MetadataBuilderPage() {
           </div>
         </form>
         <p className="status-line" aria-live="polite">
-          {options.data.metadata_ready
+          {optionData.metadata_ready
             ? initialFillStatusMessage(selectionStatus, initialFill)
             : "Download metadata successfully before building a project."}
         </p>
