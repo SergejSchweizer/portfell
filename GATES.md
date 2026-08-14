@@ -12,9 +12,10 @@
 - [Branch Protection](#branch-protection)
 - [Conventional Commits](#conventional-commits)
 - [Sharding Policy](#sharding-policy)
+- [PR Definition Readiness](#pr-definition-readiness)
 - [Update Rules](#update-rules)
 
-Last reviewed: 2026-07-19
+Last reviewed: 2026-08-14
 
 ## Purpose
 
@@ -329,6 +330,15 @@ pytest-xdist: pytest -n auto inside every test shard
 ```
 
 Do not increase shard count by default. Reconsider only when at least one Unit or Integration shard regularly exceeds 5 minutes after setup caching is already healthy.
+
+## PR Definition Readiness
+
+Before implementation begins, every new `BACKLOG.md` PR definition must satisfy the canonical
+[Parallel Weak-Agent PR Design](BACKLOG.md#parallel-weak-agent-pr-design) checklist. In particular,
+two independent agents must be able to implement and verify the change from the checked-in work
+order alone: it must state one atomic outcome, ownership boundaries, hand-offs, measurable
+acceptance criteria, and exact evidence commands. Split an item into ordered PRs when parallel work
+would otherwise share a migration, public contract, or implementation surface.
 
 ## Update Rules
 
