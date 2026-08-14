@@ -459,7 +459,6 @@ export function BivariateStatisticsPage() {
     ? "Covariance"
     : pairwiseMatrixTabs.find((tab) => tab.metric === activePairwiseMetric)!.label;
   return (<>
-    {workflow.refreshing ? <LoadingIndicator label="Refreshing bivariate workflow" compact /> : null}
     <Panel title="Bivariate Statistics">
       <div className="quote-fetch quote-fetch--panel bivariate-compute">
         <label htmlFor="bivariate-progress">Bivariate statistics progress</label>
