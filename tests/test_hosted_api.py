@@ -993,6 +993,49 @@ def test_project_metadata_builder_restores_saved_field_values(
     }
 
 
+def test_metadata_builder_page_view_is_versioned_and_revalidates(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    monkeypatch.setenv("PORTFELL_LAKE_ROOT", str(tmp_path / "lake"))
+    state = HostedApiState(
+        all_isins_rows=(
+            {
+                "isin": "IE1",
+                "exchange": "XETRA",
+                "code": "AAA",
+                "name": "Example UCITS ETF",
+                "instrument_type": "ETF",
+                "country": "IE",
+                "currency": "EUR",
+            },
+        )
+    )
+    state.metadata_revisions_by_user[DEFAULT_LOCAL_WORKSPACE_USER_ID] = "revision-1"
+    client = _client(state)
+    created = _json(
+        client.post(
+            "/metadata-builder",
+            headers=_headers(idempotency="metadata-builder-page-view"),
+            json={"exchange": "XETRA"},
+        )
+    )
+    project_id = created["project"]["project_id"]
+
+    response = client.get(f"/projects/{project_id}/views/metadata-builder")
+
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "private, max-age=0, must-revalidate"
+    assert response.json()["contract_version"] == 1
+    assert response.json()["project_id"] == project_id
+    assert response.json()["summary"]["criteria"]["selected_count"] == 1
+    etag = response.headers["etag"]
+    not_modified = client.get(
+        f"/projects/{project_id}/views/metadata-builder", headers={"If-None-Match": etag}
+    )
+    assert not_modified.status_code == 304
+    assert not_modified.headers["etag"] == etag
+
+
 def test_project_context_is_empty_without_projects() -> None:
     client = _client()
 

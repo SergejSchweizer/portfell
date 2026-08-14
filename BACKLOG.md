@@ -1046,7 +1046,7 @@ time; wall-clock thresholds alone are insufficient evidence.
 
 Branch: `feat/hosted-navigation-read-model`.
 
-Git status: merged through atomic PRs #401, #402, #403, #404, #405, #406, #407, #408, #409, and #410.
+Git status: historical; see Completed PR History (PR247).
 
 PR247a (navigation foundation): https://github.com/SergejSchweizer/portfell/pull/401 — schema,
 bounded reader/writer, conditional GET, project-command writes, Metadata Builder hand-off, and
@@ -1643,6 +1643,7 @@ backlog identifiers.
 | ID | Title | Final status |
 | --- | --- | --- |
 | PR246 | Worker Admission Control And Interactive Capacity | merged 2026-08-14. PR: https://github.com/SergejSchweizer/portfell/pull/400; commit `2e2663299ae2e7806774176d8e7f261b6aefac60` |
+| PR247 | PostgreSQL Navigation Read Model | merged through atomic PRs #401–#410 on 2026-08-14; includes bounded projection reads, reconciliation, lifecycle repair, instrumentation, and deterministic budget evidence. |
 | PR01 | Project Package And Quality Baseline | merged. PR: https://github.com/SergejSchweizer/portfell/pull/1 |
 | PR02 | Shared Configuration, HTTP, And Contract Primitives | merged. PR: https://github.com/SergejSchweizer/portfell/pull/3 |
 | PR03 | Simple Bronze/Silver/Gold Lake Layout Contract | merged. PR: https://github.com/SergejSchweizer/portfell/pull/3 |

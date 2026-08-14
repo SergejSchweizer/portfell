@@ -18,7 +18,7 @@
     "quote_run_incomplete",
     "scoped_quote_rows_unavailable"
   ],
-  "normalized_sha256": "b799306241568b3f05b2c3f64fcee5b5c96070e646db62ecc107a1bddae0981b",
+  "normalized_sha256": "f842fa3d822003855eae86394286e91fd22453f177e145433987a86f36652640",
   "operations": [
     "DELETE /account 200",
     "POST /analyses 200/422",
@@ -70,6 +70,7 @@
     "GET /projects/{project_id}/metadata-builder 200/422",
     "GET /projects/{project_id}/univariate-selection-settings 200/422",
     "PUT /projects/{project_id}/univariate-selection-settings 200/422",
+    "GET /projects/{project_id}/views/metadata-builder 200/422",
     "GET /projects/{project_id}/workflow 200/422",
     "POST /quote-runs 200/422",
     "GET /quote-runs/{quote_run_id} 200/422",

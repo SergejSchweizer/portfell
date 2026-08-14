@@ -8,7 +8,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Header, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Response
 from fastapi.responses import JSONResponse
 
 from portfell.hosted_api_contracts import (
@@ -18,9 +18,11 @@ from portfell.hosted_api_contracts import (
     SelectionCreateRequest,
     UnivariateSelectionSettingsRequest,
 )
+from portfell.hosted_api_errors import HostedApplicationError
 from portfell.hosted_api_state import ApiUser
 from portfell.hosted_credential_project_service import CredentialProjectService
 from portfell.hosted_metadata_project_service import MetadataProjectService
+from portfell.hosted_page_view_contracts import metadata_builder_page_view
 from portfell.hosted_routes_common import JsonRow, call
 
 
@@ -85,6 +87,34 @@ def metadata_project_router(
     ) -> JsonRow:
         project, selection = call(projects.project_metadata_builder, user.user_id, str(project_id))
         return call(metadata.project_criteria_row, project, selection)
+
+    @router.get("/projects/{project_id}/views/metadata-builder")
+    def metadata_builder_view(
+        project_id: UUID,
+        user: ApiUser = Depends(current_user),
+        if_none_match: str | None = Header(default=None, alias="If-None-Match"),
+    ) -> Response:
+        project, selection = call(projects.project_metadata_builder, user.user_id, str(project_id))
+        criteria = call(metadata.project_criteria_row, project, selection)
+        try:
+            initial_fill = metadata.initial_fill_status(user.user_id, str(project_id))
+        except HostedApplicationError as error:
+            if error.status_code != 404 or error.code != "initial_fill_not_found":
+                raise HTTPException(
+                    status_code=error.status_code, detail={"code": error.code}
+                ) from error
+            initial_fill = None
+        workflow = call(projects.workflow, user.user_id, str(project_id))
+        row, etag = metadata_builder_page_view(
+            project_id=str(project_id),
+            criteria=criteria,
+            initial_fill=initial_fill,
+            workflow=workflow,
+        )
+        headers = {"ETag": f'"{etag}"', "Cache-Control": "private, max-age=0, must-revalidate"}
+        if if_none_match == headers["ETag"]:
+            return Response(status_code=304, headers=headers)
+        return JSONResponse(content=row, headers=headers)
 
     @router.get("/projects/{project_id}/initial-fill")
     def initial_fill_status(project_id: UUID, user: ApiUser = Depends(current_user)) -> JsonRow:
