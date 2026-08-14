@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import hashlib
 import json
-from typing import Protocol, cast
+from typing import Any, Protocol, cast
 
 from portfell.hosted_catalog import set_authenticated_user_sql
-from portfell.table_io import JsonRow
+
+JsonRow = dict[str, Any]
 
 
 class NavigationCursor(Protocol):
