@@ -33,9 +33,10 @@ storage, and ranking remain backend responsibilities.
 Its workflow progress bar uses the shared 14px height. The action reports planning separately from running and remains disabled from the plan request until the persisted run reaches a terminal state.
 For an active run, React retains the highest server-reported percentage so delayed polling responses cannot move the determinate bar backward; a different run starts with its own progress.
 
-The pairwise-dependence window is not rendered until its particular Bivariate run reaches
-`complete`; while it is pending, running, failed, or unavailable, the page shows only the progress
-and compute controls.
+The pairwise-dependence window is rendered immediately with every metric tab visible. While its
+particular Bivariate run is pending, running, failed, or unavailable, facts and visualizations retain
+their explicit empty fields and existing unavailable messages while the progress and compute controls
+remain available.
 
 Historical market data is refreshed centrally by the shared-market operations service. This page
 contains no provider-download action and renders pairwise computation only after the selected
@@ -97,8 +98,8 @@ and status message before this page loads the replacement project workflow.
 ## Acceptance
 
 The page blocks execution when upstream filtering is incomplete, empty, stale, or over the configured
-pair limit. It prevents duplicate runs, hides result windows before the run completes, represents empty
-and partial results explicitly, and provides accessible tabular output on desktop and a usable responsive
+pair limit. It prevents duplicate runs, keeps every result window visible before the run completes,
+represents empty and partial results explicitly, and provides accessible tabular output on desktop and a usable responsive
 representation on narrow screens.
 
 The browser workflow test covers the Compute Bivariate Statistics action with a server-owned

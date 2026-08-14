@@ -3,7 +3,7 @@ import { loadProjectContext } from "../api/client";
 import { multivariateStatisticsApi } from "../api/multivariate-statistics";
 import { Button } from "../components/button";
 import { nextProgressSnapshot, progressPercent, type ProgressSnapshot } from "../computation-progress";
-import { LoadingIndicator, LoadingState } from "../components/loading-state";
+import { LoadingIndicator } from "../components/loading-state";
 import { Panel } from "../components/panel";
 import type {
   ApiMultivariateArtifacts,
@@ -205,7 +205,6 @@ export function MultivariateStatisticsPage() {
   );
 
   const bivariateRunId = pageView?.input.bivariate_run_id ?? undefined;
-  const stage = pageView;
   const selectedCandidateIds = run?.settings.selected_candidate_ids ?? [];
   const selectedCandidateId = selectedCandidateIds[0] ?? candidates?.items[0]?.candidate_id;
   const selectedContributions = useMemo(
@@ -386,11 +385,6 @@ export function MultivariateStatisticsPage() {
     candidateSelectionSave.schedule({ runId: run.run_id, selectedCandidateIds: next });
   }
 
-  if (pageViewLoading && !pageView) return <LoadingState label="Loading multivariate statistics" />;
-  if (pageViewError && !pageView) return <p role="alert">{pageViewError}</p>;
-  if (!pageView) return <Panel title="Multivariate Statistics"><p>Select a project to compute portfolio-level analysis.</p></Panel>;
-  if (stage?.status === "locked") return <Panel title="Multivariate Statistics"><p>Complete the matching bivariate run before portfolio-level analysis.</p></Panel>;
-
   const progress = run === null ? 0 : nextProgressSnapshot(
     progressSnapshot.current, run.run_id, progressPercent(run.completed_units, run.total_units),
   ).percent;
@@ -411,10 +405,10 @@ export function MultivariateStatisticsPage() {
           </Button>
         </div>
       </div>
-      {stage?.status === "stale" && <p role="status">The prior multivariate result is stale because its bivariate input changed. Compute a new run to refresh it.</p>}
+      {pageView?.status === "stale" && <p role="status">The prior multivariate result is stale because its bivariate input changed. Compute a new run to refresh it.</p>}
       {message && <p role="alert">{message}</p>}{run?.failure_reason && <p role="alert">{run.failure_reason}</p>}
     </Panel>
-    {run?.status === "complete" && <Panel title="Multivariate results">
+    <Panel title="Multivariate results">
       <div className="statistics-tabs" role="tablist" aria-label="Multivariate statistics views">{tabs.map((tab) => <button key={tab.id} role="tab" aria-selected={activeTab === tab.id} onClick={() => setActiveTab(tab.id)}>{tab.label}</button>)}</div>
       {activeTab === "overview" && <>{performance && <PerformanceChart performance={performance} alignedPeriod={summary?.aligned_period} />}{candidates && <PortfolioOverviewMetrics candidates={candidates.items} />}{summary?.availability_reasons?.length ? <p role="status">Unavailable evidence: {summary.availability_reasons.join(", ")}</p> : null}{historyRequirement(summary?.availability_reasons) ? <p role="status">{historyRequirement(summary?.availability_reasons)}</p> : null}</>}
       {activeTab === "risk-structure" && <><table className="multivariate-facts"><caption>Multivariate risk structure facts</caption><thead><tr><th>Fact</th><th>Value</th></tr></thead><tbody><tr><th>Effective rank</th><td>{structureAvailable ? number(structure?.effective_rank) : "Unavailable"}</td></tr><tr><th>Dominant component share</th><td>{structureAvailable ? percent(structure?.dominant_component_share) : "Unavailable"}</td></tr><tr><th>Components for 80%</th><td>{structureAvailable ? structure?.thresholds?.components_for_80pct ?? "Unavailable" : "Unavailable"}</td></tr><tr><th>Components for 90%</th><td>{structureAvailable ? structure?.thresholds?.components_for_90pct ?? "Unavailable" : "Unavailable"}</td></tr><tr><th>Components for 95%</th><td>{structureAvailable ? structure?.thresholds?.components_for_95pct ?? "Unavailable" : "Unavailable"}</td></tr><tr><th>Strongest common driver</th><td>{structureAvailable ? listing(structure?.strongest_common_driver) : "Unavailable"}</td></tr><tr><th>Minimum eigenvalue</th><td>{riskModelAvailable ? number(artifactRisk?.minimum_eigenvalue) : "Unavailable"}</td></tr><tr><th>Condition number</th><td>{riskModelAvailable ? number(artifactRisk?.condition_number) : "Unavailable"}</td></tr><tr><th>Positive semidefinite</th><td>{!riskModelAvailable || artifactRisk?.is_positive_semidefinite == null ? "Unavailable" : artifactRisk.is_positive_semidefinite ? "Yes" : "No"}</td></tr><tr><th>Largest redundancy</th><td>{structureAvailable && structure?.largest_redundancy_warning ? `${listing(structure.largest_redundancy_warning.left)} and ${listing(structure.largest_redundancy_warning.right)} (${percent(structure.largest_redundancy_warning.correlation)} correlation)` : "Unavailable"}</td></tr></tbody></table>{structure?.availability_reasons?.length ? <p role="status">Structure unavailable: {structure.availability_reasons.join(", ")}</p> : null}<table><caption>Component loadings and empirical clusters</caption><thead><tr><th>Component</th><th>Listing</th><th>Loading</th><th>Explained variance</th><th>Cluster</th></tr></thead><tbody>{components?.items.map((item) => <tr key={`${item.component_id}:${item.isin}:${item.exchange}:${item.code}`}><td>{item.component_id}</td><td>{item.code}.{item.exchange}</td><td>{number(item.loading)}</td><td>{percent(item.explained_variance)}</td><td>{item.cluster ?? "Unavailable"}</td></tr>)}</tbody></table></>}
@@ -423,6 +417,6 @@ export function MultivariateStatisticsPage() {
       {activeTab === "income-evidence" && <><p>All income values are gross historical observations. Net, sustainable, tax, and cost claims remain unavailable unless a verified source is present. Capital change uses the quoted market-price proxy.</p><table><caption>Monthly-distribution evidence</caption><thead><tr><th>Listing</th><th>Observed months</th><th>Coverage</th><th>Gross TTM yield</th><th>Trend</th><th>Cuts</th><th>Total return</th><th>Market-price capital change (NAV proxy)</th><th>Warnings</th></tr></thead><tbody>{income?.items.map((item) => <tr key={`${item.isin}:${item.exchange}:${item.code}`}><td>{item.code}.{item.exchange}</td><td>{item.observed_month_count}</td><td>{percent(item.observed_payment_coverage)}</td><td>{percent(item.gross_ttm_distribution_yield)}</td><td>{number(item.distribution_trend)}</td><td>{item.cut_count ?? "Unavailable"}</td><td>{percent(item.total_return)}</td><td>{percent(item.market_price_capital_change)}</td><td>{[...item.warnings, ...item.availability_reasons].join(", ") || "None"}</td></tr>)}</tbody></table></>}
       {activeTab === "performance" && performance && <><h3>Monthly portfolio returns</h3><table><caption>Compounded monthly return for every feasible portfolio</caption><thead><tr><th>Portfolio</th><th>Month</th><th>Return</th></tr></thead><tbody>{performance.period_returns.filter((item) => item.period === "monthly").map((item) => <tr key={`${item.candidate_id}:${item.period}:${item.label}`}><td>{portfolioMethod(item.method)}</td><td>{item.label}</td><td>{percent(item.return)}</td></tr>)}</tbody></table><h3>Annual portfolio returns</h3><table><caption>Compounded calendar-year return for every feasible portfolio</caption><thead><tr><th>Portfolio</th><th>Year</th><th>Return</th></tr></thead><tbody>{performance.period_returns.filter((item) => item.period === "annual").map((item) => <tr key={`${item.candidate_id}:${item.period}:${item.label}`}><td>{portfolioMethod(item.method)}</td><td>{item.label}</td><td>{percent(item.return)}</td></tr>)}</tbody></table></>}
       {activeTab === "validation" && <table><caption>Persisted walk-forward, stress, and scorecard evidence</caption><thead><tr><th>Type</th><th>Method</th><th>Status</th><th>Reason</th></tr></thead><tbody>{validation?.items.map((item, index) => <tr key={`${String(item.kind)}:${String(item.candidate_id)}:${index}`}><td>{String(item.kind ?? "validation")}</td><td>{String(item.method ?? "Unavailable")}</td><td>{String(item.status ?? "available")}</td><td>{String(item.reason ?? item.availability_reasons ?? "None")}</td></tr>)}</tbody></table>}
-    </Panel>}
+    </Panel>
   </section>;
 }

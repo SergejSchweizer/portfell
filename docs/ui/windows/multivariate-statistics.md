@@ -28,8 +28,8 @@ or calculates financial values in the browser.
 
 ## Layout
 
-- Locked state: one `Multivariate Statistics` panel explains that Bivariate
-  Statistics must complete first.
+- Locked state: the compute panel and every result tab remain visible with unavailable fields while the
+  Bivariate prerequisite is incomplete.
 - Ready state: the Bivariate-style compact server-owned progress panel with a
   labelled 14px determinate progress bar, status line, and right-aligned compute action. The action
   reports starting and server-owned phase progress and remains disabled until the run is complete or failed.
@@ -96,10 +96,10 @@ or calculates financial values in the browser.
   be recomputed rather than remaining indefinitely `running`. Walk-Forward validation uses at most
   24 deterministic windows spanning the available history; refits run in parallel, while turnover
   and transaction costs are evaluated in chronological order.
-- Complete: Multivariate result tabs load automatically only after the particular
-  Multivariate run reaches `complete`, after refresh or project reactivation. They render the
-  server-produced, project-owned summary, canonical risk-model facts, candidate metrics, and
-  cumulative monthly performance artifact.
+- Complete: Multivariate result tabs load their server-produced, project-owned summary,
+  canonical risk-model facts, candidate metrics, and cumulative monthly performance artifact after
+  the particular Multivariate run reaches `complete`, after refresh or project reactivation. The tabs
+  are already visible with empty fields before those artifacts load.
 - Insufficient common history: retain unavailable facts rather than rendering substitute values, and state
   the required recovery path: select Univariate Duration `> 6 months`, recompute Bivariate Statistics,
   then compute Multivariate Statistics again. The production risk model requires 100 shared daily returns.

@@ -4,7 +4,7 @@ import { loadProjectContext } from "../api/client";
 import { univariateStatisticsApi } from "../api/univariate-statistics";
 import { Button } from "../components/button";
 import { nextProgressSnapshot, progressPercent, type ProgressSnapshot } from "../computation-progress";
-import { LoadingIndicator, LoadingState } from "../components/loading-state";
+import { LoadingIndicator } from "../components/loading-state";
 import { Panel } from "../components/panel";
 import type { ApiAnalyticalPageView, ApiDividendFrequency, ApiResearchRun, ApiUnivariateRow, ApiUnivariateSelectionSettings } from "../contracts";
 import { useDebouncedSave } from "../hooks/use-debounced-save";
@@ -277,13 +277,8 @@ export function UnivariateStatisticsPage() {
     };
   }, [run?.run_id, univariateStartedAt]);
 
-  if (pageViewLoading && !pageView) {
-    return <LoadingState label="Loading univariate statistics" />;
-  }
-  if (pageViewError && !pageView) return <p>{pageViewError}</p>;
-  if (!pageView) return <Panel title="Univariate Statistics"><p>Select a project to compute univariate statistics.</p></Panel>;
-  const stage = pageView;
-  const metadataSelectionId = pageView.input.metadata_selection_id;
+  const metadataSelectionId = pageView?.input.metadata_selection_id ?? null;
+  const displayedResults = results ?? [];
   const portfolioSelectionCount = results?.length;
   const portfolioSelectionLabel = portfolioSelectionCount === undefined
     ? "Portfolio selection (Updating…)"
@@ -365,7 +360,7 @@ export function UnivariateStatisticsPage() {
       {pageViewLoading ? <LoadingIndicator label="Loading selected project" compact /> : null}
       {pageViewError ? <p className="status-line" role="alert">Could not load the selected project. Showing the previous view.</p> : null}
       <Panel title="Univariate Statistics">
-        {stage.status === "locked" ? <p>Historical data is refreshed automatically by the shared-data service. Statistics unlock when coverage is available.</p> : <>
+        <>
           <div className="quote-fetch quote-fetch--panel univariate-compute">
             <label htmlFor="univariate-progress">Univariate statistics progress</label>
             <progress
@@ -380,13 +375,14 @@ export function UnivariateStatisticsPage() {
               ).percent / 100).toLocaleString()} of ${progress.max.toLocaleString()} listings processed.`}
             />
             <p className="status-line" aria-live="polite">{message || "Compute statistics for the downloaded historical data."}</p>
+            {!metadataSelectionId ? <p className="status-line" role="status">Historical data is refreshed automatically by the shared-data service. Statistics unlock when coverage is available.</p> : null}
             <div className="quote-fetch__action">
               <Button type="button" variant="primary" disabled={pageViewLoading || !metadataSelectionId || starting || run?.status === "running"} aria-busy={pageViewLoading || starting || run?.status === "running"} onClick={() => void compute()}>
                 {starting ? "Starting computation…" : run?.status === "running" ? "Computing…" : "Compute univariate statistics"}
               </Button>
             </div>
           </div>
-          {run?.status === "complete" && results !== null ? <section className="univariate-statistic" aria-labelledby="univariate-statistic-title">
+          <section className="univariate-statistic" aria-labelledby="univariate-statistic-title">
             <div className="univariate-statistic__tabs" role="tablist" aria-label="Univariate statistic">
               <button type="button" role="tab" aria-selected={activeStatisticTab === "dividends"} className={activeStatisticTab === "dividends" ? "is-active" : undefined} onClick={() => setActiveStatisticTab("dividends")}>Dividends</button>
               {metricDefinitions.map((statistic) => <button key={statistic.metric} type="button" role="tab" aria-selected={activeStatisticTab === statistic.metric} className={activeStatisticTab === statistic.metric ? "is-active" : undefined} onClick={() => setActiveStatisticTab(statistic.metric)}>{statistic.label}</button>)}
@@ -399,7 +395,7 @@ export function UnivariateStatisticsPage() {
               </div>
               <ul className="dividend-frequency-list" aria-label="Dividend payout frequencies">
                 {dividendFrequencyCounts.map(({ value, label, count }) => <li key={value}>
-                  <span><i className="dividend-frequency-swatch" data-frequency={value} />{label}</span><strong>{results && results.length > 0 ? `${((count / results.length) * 100).toFixed(1)}%` : "0.0%"}</strong><small>{count} ISINs</small>
+                  <span><i className="dividend-frequency-swatch" data-frequency={value} />{label}</span><strong>{displayedResults.length > 0 ? `${((count / displayedResults.length) * 100).toFixed(1)}%` : "0.0%"}</strong><small>{count} ISINs</small>
                 </li>)}
               </ul>
               <p className="univariate-equation" aria-label="Annual dividend yield equals annual distributions divided by price times one hundred percent">Dividend yield = Σ Dₜ / P × 100%</p>
@@ -416,7 +412,7 @@ export function UnivariateStatisticsPage() {
                   {dividendFrequencyOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                 </select>
               </label>
-            <div className="dividend-histogram" role="img" aria-label={`Annual dividend yield distribution for ${results.length} ISINs`}>
+            <div className="dividend-histogram" role="img" aria-label={`Annual dividend yield distribution for ${displayedResults.length} ISINs`}>
               <span className="dividend-histogram__axis dividend-histogram__axis--y">ISIN count</span>
               <div className="dividend-histogram__plot">
                 {annualDividendHistogram.map(({ label, count, frequencies }) => <div className="dividend-histogram__bar" key={label} tabIndex={0} aria-label={`${label}: ${count} ISINs; ${frequencies.filter((frequency) => frequency.count > 0).map((frequency) => `${frequency.label} ${frequency.count}`).join(", ")}`}>
@@ -435,9 +431,9 @@ export function UnivariateStatisticsPage() {
               <span className="dividend-histogram__axis dividend-histogram__axis--x">Annual dividend yield (%)</span>
             </div>
               </div>
-            </div> : results.length > 0 ? (() => {
+            </div> : displayedResults.length > 0 ? (() => {
                   const statistic = metricDefinitions.find((definition) => definition.metric === activeStatisticTab)!;
-                  const metricValues = results.flatMap((row) => typeof row[statistic.metric] === "number" && Number.isFinite(row[statistic.metric])
+                  const metricValues = displayedResults.flatMap((row) => typeof row[statistic.metric] === "number" && Number.isFinite(row[statistic.metric])
                     ? [{ value: row[statistic.metric] as number, frequency: dividendFrequency(row) }]
                     : []);
                   const values = metricValues.map(({ value }) => value);
@@ -548,8 +544,8 @@ export function UnivariateStatisticsPage() {
                     </div>
                   </section>;
                 })() : <p>No univariate rows matched the pinned selection.</p>}
-          </section> : null}
-        </>}
+          </section>
+        </>
       </Panel>
     </section>
   );
