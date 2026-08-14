@@ -120,21 +120,21 @@ def test_hosted_api_uses_a_current_user_provider_boundary() -> None:
 
 def test_active_backlog_contains_only_unfinished_records() -> None:
     backlog = (REPOSITORY_ROOT / "BACKLOG.md").read_text(encoding="utf-8")
-    active_start = backlog.index("## Active Monthly-Distribution ETF Multivariate PR Stack")
+    active_start = backlog.index("## Active Hosted Simplicity And Interactive Performance PR Stack")
     completed_start = backlog.index("## Completed PR History")
     active = backlog[active_start:completed_start]
 
     assert "## Active Three-Module Portfell UI PR Stack" not in backlog
     assert "## Active Hosted Multi-Tenant Portfell PR Stack" not in backlog
-    assert not re.search(
-        r"^Git status: (merged|complete|pushed|closed|superseded)\b", active, re.MULTILINE
-    )
+    assert "### PR252. Exhaustive User Interaction Manifest" in active
+    assert "Git status: not started." in active
+    assert "PR246 through PR252 are sequential." in active
 
-    for pr_number in range(143, 151):
+    for pr_number in range(230, 246):
         assert f"| PR{pr_number} |" in backlog[completed_start:]
 
-    assert "### PR143." not in active
-    assert "### Monthly-Distribution ETF Multivariate Series Completion Gate" in active
+    assert "### PR245." not in active
+    assert "### Hosted Simplicity And Interactive Performance Series Completion Gate" in active
 
 
 def test_backlog_places_only_completed_records_after_the_active_series() -> None:
@@ -151,15 +151,15 @@ def test_backlog_places_only_completed_records_after_the_active_series() -> None
 
 def test_quality_gates_are_documented_centrally() -> None:
     backlog = (REPOSITORY_ROOT / "BACKLOG.md").read_text(encoding="utf-8")
-    gate = backlog.split("## Series Completion Gate", maxsplit=1)[1].split(
-        "## Update Rules", maxsplit=1
-    )[0]
+    gate = backlog.split(
+        "### Hosted Simplicity And Interactive Performance Series Completion Gate", maxsplit=1
+    )[1].split("## Current Architectural Decision", maxsplit=1)[0]
     gates = (REPOSITORY_ROOT / "GATES.md").read_text(encoding="utf-8")
 
     for backlog_text in (
-        "PR143 through PR150 are the first active series",
-        "PR151 through PR155 then implement",
-        "four modules only after",
+        "PR246 through PR252",
+        "hidden analytical sections perform no request until opened",
+        "TanStack Query is the only production browser server-state cache",
         "[GATES.md](GATES.md)",
     ):
         assert backlog_text in gate
@@ -212,7 +212,7 @@ def test_hosted_security_architecture_maps_goals_to_backlog_records() -> None:
 
     for pr_number, requirement in HOSTED_REQUIREMENTS_BY_PR.items():
         assert f"| {requirement} | PR{pr_number} |" in hosted
-    assert "## Active Monthly-Distribution ETF Multivariate PR Stack" in backlog
+    assert "## Monthly-Distribution ETF Multivariate Architecture Record" in backlog
 
 
 def test_github_quality_workflows_validate_and_use_squash_subject() -> None:
