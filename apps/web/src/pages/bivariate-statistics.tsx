@@ -1,6 +1,6 @@
 
 import { useEffect, useRef, useState } from "react";
-import { loadWorkflow } from "../api/client";
+import { loadProjectContext, loadWorkflow } from "../api/client";
 import { bivariateStatisticsApi, type BivariateRunData } from "../api/bivariate-statistics";
 import { Button } from "../components/button";
 import { nextProgressSnapshot, type ProgressSnapshot } from "../computation-progress";
@@ -262,6 +262,45 @@ export function BivariateStatisticsPage() {
   }
 
   useEffect(() => {
+    if (run?.status !== "complete") return;
+    let cancelled = false;
+    const metric = activePairwiseMetric;
+    async function loadVisibleSection() {
+      try {
+        const context = await loadProjectContext();
+        const projectId = context.current_project_id;
+        if (!projectId) return;
+        const summaryResponse = await bivariateStatisticsApi.loadSection<ApiBivariateSummary>(projectId, "summary");
+        if (cancelled) return;
+        setSummary(summaryResponse.data);
+        if (metric === "tail_risk_scatter") {
+          const response = await bivariateStatisticsApi.loadSection<ApiTailRiskScatter>(projectId, "tail_risk_scatter");
+          if (!cancelled) setTailRiskScatter(response.data);
+          return;
+        }
+        if (metric === "covariance") {
+          const response = await bivariateStatisticsApi.loadSection<ApiCovarianceMatrix>(projectId, "covariance_matrix");
+          if (!cancelled) setCovarianceMatrix(response.data);
+          return;
+        }
+        const response = await bivariateStatisticsApi.loadSection<ApiPairMetricMatrix>(projectId, "correlation_matrix", metric);
+        if (cancelled) return;
+        if (metric === "pearson") setPearsonMatrix(response.data);
+        else if (metric === "spearman") setSpearmanMatrix(response.data);
+        else if (metric === "downside") setDownsideMatrix(response.data);
+        else if (metric === "lower_tail_dependence") setLowerTailDependenceMatrix(response.data);
+        else if (metric === "tail_coexceedance_rate") setTailCoexceedanceRateMatrix(response.data);
+        else if (metric === "rolling_stability") setRollingStabilityMatrix(response.data);
+        else if (metric === "drawdown_overlap") setDrawdownOverlapMatrix(response.data);
+      } catch (error) {
+        if (!cancelled) setMessage(error instanceof Error ? error.message : "Could not load the selected bivariate section.");
+      }
+    }
+    void loadVisibleSection();
+    return () => { cancelled = true; };
+  }, [activePairwiseMetric, run?.run_id, run?.status]);
+
+  useEffect(() => {
     const resetProjectState = () => {
       setRun(null);
       progressSnapshot.current = null;
@@ -304,10 +343,7 @@ export function BivariateStatisticsPage() {
           setMessage("Bivariate computation failed. Please try again.");
           return;
         }
-        const data = await bivariateStatisticsApi.loadRunData(current.run_id);
-        if (cancelled) return;
-        applyRunData(data);
-        setMessage(`${data.results.total.toLocaleString()} pair statistics computed.`);
+        setMessage("Bivariate statistics computed.");
         window.dispatchEvent(new Event("portfell:workflow-updated"));
       } catch (error) {
         if (!cancelled) setMessage(error instanceof Error ? error.message : "Could not retrieve bivariate computation status.");
@@ -328,15 +364,11 @@ export function BivariateStatisticsPage() {
     let cancelled = false;
     async function restoreBivariateRun() {
       try {
-        const [savedRun, data] = await Promise.all([
-          bivariateStatisticsApi.loadRun(restoredRunId),
-          bivariateStatisticsApi.loadRunData(restoredRunId),
-        ]);
+        const savedRun = await bivariateStatisticsApi.loadRun(restoredRunId);
         if (cancelled) return;
         progressSnapshot.current = nextProgressSnapshot(progressSnapshot.current, savedRun.run_id, savedRun.percent);
         setRun(savedRun);
-        applyRunData(data);
-        setMessage(`${data.results.total.toLocaleString()} saved pair statistics restored.`);
+        setMessage("Saved bivariate statistics restored.");
       } catch (error) {
         if (!cancelled) setMessage(error instanceof Error ? error.message : "Could not restore saved bivariate statistics.");
       }
@@ -368,9 +400,7 @@ export function BivariateStatisticsPage() {
       progressSnapshot.current = nextProgressSnapshot(progressSnapshot.current, nextRun.run_id, nextRun.percent);
       setRun(nextRun);
       if (nextRun.status === "complete") {
-        const data = await bivariateStatisticsApi.loadRunData(nextRun.run_id);
-        applyRunData(data);
-        setMessage(`${data.results.total.toLocaleString()} pair statistics computed.`);
+        setMessage("Bivariate statistics computed.");
       }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Bivariate computation failed.");
