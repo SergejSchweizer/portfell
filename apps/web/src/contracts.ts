@@ -130,6 +130,17 @@ export type ApiProjectMetadataBuilder = Readonly<{
   name: string;
 }>;
 
+export type ApiMetadataBuilderPageView = Readonly<{
+  contract_version: number;
+  module: "metadata_builder";
+  project_id: string;
+  summary: Readonly<{
+    criteria: ApiProjectMetadataBuilder;
+    initial_fill: ApiInitialFill | null;
+  }>;
+  sections: Readonly<Record<string, Readonly<{ available: boolean; revision?: string }>>>;
+}>;
+
 export type ApiResearchRun = Readonly<{
   run_id: string;
   status: "running" | "complete" | "failed";
