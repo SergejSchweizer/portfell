@@ -7,7 +7,9 @@ import {
   selectCurrentProject,
 } from "../api/client";
 import type { ApiProjectContext, ApiWorkflow } from "../contracts";
-import { useResource } from "../hooks/use-resource";
+import { queryClient, queryTiming } from "../query/client";
+import { queryKeys } from "../query/keys";
+import { useQueryResource } from "../query/use-query-resource";
 import { projectSlug, projectSlugFromPath, projectWorkflowPath, workflowPages, type WorkflowPageId } from "../routes";
 import { MetadataFetchProvider, useMetadataFetch } from "./metadata-fetch-context";
 import { ProjectSidebar } from "./project-sidebar";
@@ -35,8 +37,6 @@ export function ShellFrame({ currentPage, children }: ShellFrameProps) {
 }
 
 function ShellFrameContent({ currentPage, children }: ShellFrameProps) {
-  const [contextRevision, setContextRevision] = useState(0);
-  const [workflowRevision, setWorkflowRevision] = useState(0);
   const [switching, setSwitching] = useState(false);
   const [switchError, setSwitchError] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -46,17 +46,18 @@ function ShellFrameContent({ currentPage, children }: ShellFrameProps) {
     setProviderKey,
     maskedCredentialLabel,
   } = useMetadataFetch();
-  const context = useResource(loadProjectContext, [contextRevision]);
+  const context = useQueryResource(queryKeys.projectContext(), loadProjectContext, queryTiming.volatile);
   const projectId = context.status === "ready" ? context.data.current_project_id : null;
-  const workflow = useResource(
+  const workflow = useQueryResource(
+    queryKeys.workflow(projectId ?? undefined),
     () => projectId ? loadProjectWorkflow(projectId) : Promise.resolve(emptyWorkflow),
-    [projectId, workflowRevision],
+    queryTiming.volatile,
   );
 
   useEffect(() => {
     const refresh = () => {
-      setContextRevision((value) => value + 1);
-      setWorkflowRevision((value) => value + 1);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.projectContext() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.workflow() });
     };
     window.addEventListener("portfell:workflow-updated", refresh);
     return () => window.removeEventListener("portfell:workflow-updated", refresh);
@@ -120,8 +121,8 @@ function ShellFrameContent({ currentPage, children }: ShellFrameProps) {
         .then((nextContext) => {
           window.dispatchEvent(new CustomEvent<ApiProjectContext>("portfell:project-updated", { detail: nextContext }));
           window.history.replaceState({}, "", projectWorkflowPath(requestedProject, workflowPages.find((page) => page.id === currentPage)!));
-          setContextRevision((value) => value + 1);
-          setWorkflowRevision((value) => value + 1);
+          queryClient.setQueryData(queryKeys.projectContext(), nextContext);
+          void queryClient.invalidateQueries({ queryKey: queryKeys.workflow(requestedProject.project_id) });
         })
         .catch((error: unknown) => setSwitchError(error instanceof Error ? error.message : "Project switch failed."))
         .finally(() => setSwitching(false));
@@ -148,8 +149,8 @@ function ShellFrameContent({ currentPage, children }: ShellFrameProps) {
       window.dispatchEvent(new CustomEvent<ApiProjectContext>("portfell:project-updated", { detail: nextContext }));
       window.history.pushState({}, "", projectWorkflowPath(nextProject, target));
       window.dispatchEvent(new Event("portfell:navigation"));
-      setContextRevision((value) => value + 1);
-      setWorkflowRevision((value) => value + 1);
+      queryClient.setQueryData(queryKeys.projectContext(), nextContext);
+      queryClient.setQueryData(queryKeys.workflow(nextProjectId), nextWorkflow);
       return true;
     } catch (error) {
       setSwitchError(error instanceof Error ? error.message : "Project switch failed.");
