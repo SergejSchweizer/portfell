@@ -1770,9 +1770,9 @@ production API module does not import local runtime or local research adapters.
 
 Branch: `chore/hosted-single-authority-boundaries`.
 
-Git status: in progress.
+Git status: merged.
 
-PR: TBD.
+PR: https://github.com/SergejSchweizer/portfell/pull/436.
 
 Priority: P1 final hosted simplification.
 
@@ -1873,9 +1873,9 @@ focused multivariate service, run-view, and API tests pass.
 
 Branch: split into PR251c1, PR251c2a, PR251c2b, and PR251c3 above.
 
-Git status: in progress.
+Git status: merged.
 
-PR: TBD.
+PR: https://github.com/SergejSchweizer/portfell/pull/437.
 
 Priority: P1 final hosted simplification.
 
@@ -1892,7 +1892,7 @@ paths have a named replacement or proof of being dead; API/Web composition is si
 
 Branch: `docs/hosted-single-authority-operations`.
 
-Git status: not started.
+Git status: in progress.
 
 PR: TBD.
 
@@ -1911,7 +1911,7 @@ the documented preflight, deployment, and rollback commands are verified.
 
 Branch: split into PR251a, PR251b, PR251c1, PR251c2a, PR251c2b, PR251c3, and PR251d above.
 
-Git status: in progress (PR251a merged; PR251c1 ready).
+Git status: in progress (PR251a/b/c1/c2a/c2b/c3 merged; PR251d in progress).
 
 PR: TBD.
 
