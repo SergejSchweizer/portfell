@@ -9,6 +9,7 @@ from portfell.hosted_catalog import (
     set_authenticated_user_sql,
     validate_hosted_catalog_contracts,
 )
+from portfell.hosted_status_event_schema import HOSTED_STATUS_EVENT_SCHEMA_SQL
 
 
 class FakeConnection:
@@ -41,6 +42,9 @@ class FakeResult:
 
 def test_hosted_catalog_contracts_validate_security_invariants() -> None:
     validate_hosted_catalog_contracts()
+
+    assert "create table if not exists portfell_app.status_events" in HOSTED_STATUS_EVENT_SCHEMA_SQL
+    assert "force row level security" in HOSTED_STATUS_EVENT_SCHEMA_SQL
 
     roles_by_name = {role.name: role for role in HOSTED_ROLES}
     assert set(roles_by_name) == {
@@ -105,6 +109,7 @@ def test_hosted_migration_sql_defines_rls_and_immutable_catalog_shape() -> None:
         20,
         21,
         22,
+        23,
     ]
     assert len({migration.checksum for migration in migrations}) == len(migrations)
     assert "create table if not exists portfell_app.provider_credentials" in sql

@@ -18,6 +18,7 @@ from portfell.hosted_project_workflow_projection_schema import (
     PROJECT_WORKFLOW_PROJECTION_SCHEMA_SQL,
     PROJECT_WORKFLOW_TABLE_SPECS,
 )
+from portfell.hosted_status_event_schema import HOSTED_STATUS_EVENT_SCHEMA_SQL
 from portfell.legacy_import_schema import LEGACY_IMPORT_LEDGER_SQL
 from portfell.metadata_builder_criteria_schema import METADATA_BUILDER_CRITERIA_SCHEMA_SQL
 from portfell.metadata_lifecycle_schema import METADATA_LIFECYCLE_SCHEMA_SQL
@@ -498,6 +499,7 @@ MIGRATIONS: tuple[HostedMigration, ...] = (
     HostedMigration(20, "navigation_read_model", NAVIGATION_READ_MODEL_SCHEMA_SQL),
     HostedMigration(21, "project_workflow_projection", PROJECT_WORKFLOW_PROJECTION_SCHEMA_SQL),
     HostedMigration(22, "project_research_run_mapping", PROJECT_RESEARCH_RUN_MAPPING_SCHEMA_SQL),
+    HostedMigration(23, "durable_hosted_status_events", HOSTED_STATUS_EVENT_SCHEMA_SQL),
 )
 
 
