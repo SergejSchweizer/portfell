@@ -510,6 +510,42 @@ def test_project_context_uses_an_injected_navigation_projection() -> None:
     assert service.project_context("user-1")["current_project_id"] == "project-1"
 
 
+def test_project_command_writes_navigation_projection() -> None:
+    writes: list[tuple[str, JsonRow]] = []
+    service = CredentialProjectService(
+        HostedApiState(),
+        navigation_writer=lambda user_id, payload: (
+            writes.append((user_id, payload)) or (payload, "etag")
+        ),
+    )
+
+    created = service.create_project("user-1", "Income", "request-1")
+
+    assert created["name"] == "Income"
+    assert writes == [
+        (
+            "user-1",
+            {
+                "current_project_id": created["project_id"],
+                "current_project": {
+                    "project_id": created["project_id"],
+                    "name": "Income",
+                    "selected_count": 0,
+                    "data_loaded": False,
+                },
+                "projects": [
+                    {
+                        "project_id": created["project_id"],
+                        "name": "Income",
+                        "selected_count": 0,
+                        "data_loaded": False,
+                    }
+                ],
+            },
+        )
+    ]
+
+
 def test_navigation_read_model_binds_rls_and_derives_a_stable_etag() -> None:
     class Cursor:
         def fetchone(self) -> tuple[object, ...]:

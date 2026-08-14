@@ -70,6 +70,7 @@ class CredentialProjectService:
         project_data_loaded_reader: Callable[[str, str], bool] | None = None,
         project_active_run_reader: Callable[[str, str], JsonRow | None] | None = None,
         navigation_reader: Callable[[str], tuple[JsonRow, str] | None] | None = None,
+        navigation_writer: Callable[[str, JsonRow], tuple[JsonRow, str]] | None = None,
     ) -> None:
         self.state = state
         self.runtime = runtime
@@ -86,6 +87,7 @@ class CredentialProjectService:
         self._project_data_loaded_reader = project_data_loaded_reader
         self._project_active_run_reader = project_active_run_reader
         self._navigation_reader = navigation_reader
+        self._navigation_writer = navigation_writer
 
     def workflow(self, user_id: str, project_id: str | None = None) -> JsonRow:
         if project_id is None:
@@ -226,6 +228,7 @@ class CredentialProjectService:
             response_ref=project_id,
         )
         self._audit(user_id, "project.create")
+        self._sync_navigation(user_id)
         return project_row(self._record(project))
 
     def list_projects(self, user_id: str, limit: int, offset: int) -> JsonRow:
@@ -242,6 +245,10 @@ class CredentialProjectService:
             projection = self._navigation_reader(user_id)
             if projection is not None:
                 return projection
+        context = self._project_context_source(user_id)
+        return context, stable_hash(context)
+
+    def _project_context_source(self, user_id: str) -> JsonRow:
         project = self._current_project(user_id)
         projects = self._project_records(user_id)
         current = None if project is None else self._project_with_selection_row(project, user_id)
@@ -250,11 +257,12 @@ class CredentialProjectService:
             "current_project": current,
             "projects": [self._project_with_selection_row(item, user_id) for item in projects],
         }
-        return context, stable_hash(context)
+        return context
 
     def select_current_project(self, user_id: str, project_id: str) -> JsonRow:
         self._set_current_project(user_id, project_id)
         self._audit(user_id, "project.current.select")
+        self._sync_navigation(user_id)
         return self.project_context(user_id)
 
     def project_metadata_builder(
@@ -291,6 +299,7 @@ class CredentialProjectService:
             if row.project_id != project_id or row.user_id != user_id
         }
         self._audit(user_id, "project.delete")
+        self._sync_navigation(user_id)
         return {"status": "deleted", "project_id": project_id}
 
     def create_selection(
@@ -308,7 +317,12 @@ class CredentialProjectService:
             TenantSelection(selection_id, project_id, user_id, name, members)
         )
         self._audit(user_id, "selection.create")
+        self._sync_navigation(user_id)
         return selection_row(self._selection_record(selection))
+
+    def _sync_navigation(self, user_id: str) -> None:
+        if self._navigation_writer is not None:
+            self._navigation_writer(user_id, self._project_context_source(user_id))
 
     def selection_detail(self, user_id: str, selection_id: str) -> JsonRow:
         selection = self._selections.by_id(selection_id=selection_id, user_id=user_id)
