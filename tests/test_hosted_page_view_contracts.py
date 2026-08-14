@@ -80,7 +80,10 @@ def test_analytical_page_view_exposes_section_revisions_after_completion() -> No
     workflow = {
         "projection_etag": "workflow-revision",
         "stages": {
-            "univariate_statistics": {"status": "complete", "univariate_selection_id": "selection-1"},
+            "univariate_statistics": {
+                "status": "complete",
+                "univariate_selection_id": "selection-1",
+            },
             "bivariate_statistics": {"status": "complete", "bivariate_run_id": "run-1"},
         },
     }

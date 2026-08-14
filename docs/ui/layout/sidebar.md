@@ -5,6 +5,7 @@
 
 - [Inputs](#inputs)
 - [Header Metadata Fetch](#header-metadata-fetch)
+- [Targeted Updates](#targeted-updates)
 - [Required States](#required-states)
 - [Desktop Layout](#desktop-layout)
 - [Mobile Drawer](#mobile-drawer)
@@ -40,6 +41,19 @@ decrypted server-side for the stable workspace user and prefilled into the
 visible header field after a reload. The browser keeps that value only in React
 state; it does not write the provider key to cookies, local storage, or session
 storage.
+
+## Targeted Updates
+
+The sidebar uses the existing React Query cache as two distinct resources:
+project context and the selected project's workflow. A
+`portfell:workflow-updated` event revalidates only the workflow resource, so
+only the status labels and process counters that depend on it change. It does
+not reload the project list or the current page's statistics.
+
+A `portfell:project-updated` event revalidates both resources because a project
+selection may change the selected project and its available stages. Query data
+is retained while a revalidation is in progress, so the selector and navigation
+do not disappear during a small background request.
 
 ## Required States
 

@@ -59,12 +59,19 @@ function ShellFrameContent({ currentPage, children }: ShellFrameProps) {
   );
 
   useEffect(() => {
-    const refresh = () => {
+    const refreshWorkflow = () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.workflowRoot() });
+    };
+    const refreshProjectContext = () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.projectContext() });
       void queryClient.invalidateQueries({ queryKey: queryKeys.workflowRoot() });
     };
-    window.addEventListener("portfell:workflow-updated", refresh);
-    return () => window.removeEventListener("portfell:workflow-updated", refresh);
+    window.addEventListener("portfell:workflow-updated", refreshWorkflow);
+    window.addEventListener("portfell:project-updated", refreshProjectContext);
+    return () => {
+      window.removeEventListener("portfell:workflow-updated", refreshWorkflow);
+      window.removeEventListener("portfell:project-updated", refreshProjectContext);
+    };
   }, []);
 
   useEffect(() => {
