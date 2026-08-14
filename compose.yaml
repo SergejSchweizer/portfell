@@ -31,11 +31,6 @@ services:
       - /var/run/postgresql
     security_opt:
       - no-new-privileges:true
-    deploy:
-      resources:
-        limits:
-          cpus: "2.0"
-          memory: 1G
 
   api:
     container_name: portfell-api
@@ -80,11 +75,6 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
-    deploy:
-      resources:
-        limits:
-          cpus: "6.0"
-          memory: 1G
 
   web:
     container_name: portfell-web
@@ -123,11 +113,6 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
-    deploy:
-      resources:
-        limits:
-          cpus: "1.0"
-          memory: 512M
 
   project-bootstrap-worker:
     container_name: portfell-worker
@@ -172,11 +157,6 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
-    deploy:
-      resources:
-        limits:
-          cpus: "6.0"
-          memory: 1G
 
 networks:
   portfell-internal:

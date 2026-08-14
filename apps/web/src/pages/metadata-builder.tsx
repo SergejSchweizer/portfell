@@ -4,7 +4,7 @@ import { loadProjectContext } from "../api/client";
 import { metadataBuilderApi } from "../api/metadata-builder";
 import { Button } from "../components/button";
 import { EmptyState } from "../components/empty-state";
-import { LoadingState } from "../components/loading-state";
+import { LoadingIndicator, LoadingState } from "../components/loading-state";
 import { Panel } from "../components/panel";
 import type { ApiInitialFill, ApiProjectSummary } from "../contracts";
 import { useResource } from "../hooks/use-resource";
@@ -157,6 +157,7 @@ export function MetadataBuilderPage() {
 
   return (
     <section className="metadata-builder-page" data-route="metadata-builder-page">
+      {options.refreshing ? <LoadingIndicator label="Refreshing metadata options" compact /> : null}
       <Panel title="Download Metadata">
         <div className="quote-fetch quote-fetch--panel metadata-download">
           <label htmlFor="metadata-progress">Metadata download progress</label>

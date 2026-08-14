@@ -20,7 +20,9 @@ describe("shared React components", () => {
     rerender(<><Panel title="Panel title"><span>Body</span></Panel><Panel><span>Untitled</span></Panel><LoadingState label="Fetching"><span>Details</span></LoadingState><Field label="Limit" htmlFor="limit" hint="Optional"><input id="limit" /></Field></>);
     expect(screen.getByRole("heading", { name: "Panel title" })).toBeVisible();
     expect(screen.queryByRole("heading", { name: "Untitled" })).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Fetching")).toHaveTextContent("Details");
+    expect(screen.getByRole("region", { name: "Fetching" })).toHaveTextContent("Details");
+    expect(screen.getByRole("progressbar", { name: "Fetching" })).toBeVisible();
+    expect(screen.getByRole("status", { name: "Fetching" })).toHaveAttribute("aria-busy", "true");
     expect(screen.getByText("Optional")).not.toHaveAttribute("role", "alert");
 
     rerender(<Field label="Limit" htmlFor="limit"><input id="limit" /></Field>);

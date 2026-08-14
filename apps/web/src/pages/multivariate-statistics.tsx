@@ -3,7 +3,7 @@ import { loadProjectContext, loadWorkflow } from "../api/client";
 import { multivariateStatisticsApi } from "../api/multivariate-statistics";
 import { Button } from "../components/button";
 import { nextProgressSnapshot, progressPercent, type ProgressSnapshot } from "../computation-progress";
-import { LoadingState } from "../components/loading-state";
+import { LoadingIndicator, LoadingState } from "../components/loading-state";
 import { Panel } from "../components/panel";
 import type {
   ApiMultivariateArtifacts,
@@ -326,6 +326,7 @@ export function MultivariateStatisticsPage() {
   const structureAvailable = !structure?.availability_reasons?.length;
   const riskModelAvailable = !artifactRisk?.availability_reasons?.length;
   return <section className="multivariate-statistics-page" data-route="multivariate-statistics-page">
+    {workflow.refreshing || projects.refreshing ? <LoadingIndicator label="Refreshing multivariate content" compact /> : null}
     <Panel title="Multivariate Statistics">
       <div className="quote-fetch quote-fetch--panel bivariate-compute">
         <label htmlFor="multivariate-progress">Multivariate statistics progress</label>

@@ -90,6 +90,12 @@ page-level loading state is reserved for the initial load when no renderable dat
 switches must still clear project-owned results before loading the next project to prevent cross-project
 data leakage.
 
+Every initial content load must render the shared loading state with its animated loading icon and
+indeterminate progress bar. Background revalidation must render the compact shared loading indicator
+next to the affected page content without hiding data that is already available. Loading indicators
+must expose `role="status"`, `aria-busy="true"`, and a specific accessible label; their animation must
+respect reduced-motion preferences.
+
 Progress indicators must appear before the action that starts or repeats the operation when that ordering is part of the page specification. Actions should remain spatially stable while labels change between idle and running states.
 
 ## Validation
