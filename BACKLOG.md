@@ -1244,7 +1244,7 @@ canonical content changes and never duplicates project or workflow rows.
 
 Branch: split into the atomic PR248a–PR248d sequence below.
 
-Git status: in progress; PR248a landed as #412 and PR248b–PR248d remain queued.
+Git status: in progress; PR248a landed as #412, PR248b landed as #414, and PR248c–PR248d remain queued.
 
 PR: TBD; each atomic step receives its own PR.
 
@@ -1278,6 +1278,8 @@ Acceptance for PR248a:
 
 PR248b branch: `feat/hosted-analysis-page-view-contracts`.
 
+PR: https://github.com/SergejSchweizer/portfell/pull/414 (landed 2026-08-14).
+
 - Depend only on PR248a's envelope and add Univariate, Bivariate, and Multivariate compact initial-view
   routes. Each reads authorized workflow/run projections and compact persisted summaries only; large
   result pages, pair rows, matrices, candidates, validation, and performance stay unavailable until a
@@ -1292,21 +1294,50 @@ Acceptance for PR248b:
 - Two-project, stale-run, missing-run, and cross-user fixtures prove authorization and contract shape;
   focused API, contract, architecture, Ruff, format, Pyright, OpenAPI, and real-stack gates pass.
 
-PR248c branch: `feat/hosted-lazy-analytical-sections`.
+PR248c was split because tabular pagination and indivisible analytical payload limits have different
+authorization, transport, and failure contracts. PR248c1 supplies the tabular hand-off; PR248c2 consumes
+its revision/cursor contract for matrices and large analytical detail sections.
 
-- Add explicit authorized lazy-section routes for tabular result pages, matrices, components, candidate
-  detail, validation, and performance. Enforce 200-row pagination and 2 MiB section limits; return
-  `413 section_too_large` with typed section metadata for indivisible oversize matrices.
-- Required handoff: stable opaque pagination cursors and exact section-key/revision mapping consumed by
-  PR248d. Do not alter initial-view route shapes.
+PR248c1 branch: `feat/hosted-lazy-tabular-sections`.
 
-Acceptance for PR248c:
+- Add only authorized lazy pages for Univariate `results` and `selection_results`, Bivariate `results`,
+  and Multivariate `components`. Resolve project and stage ownership before reading the named run or
+  selection; do not add matrices, candidate detail, validation, performance, or React changes.
+- Each page is exactly 200 rows at most and uses a stable opaque cursor bound to the initial-view section
+  revision. A changed revision returns `409 section_revision_mismatch`; malformed cursors return
+  `409 section_cursor_invalid`; a locked, running, stale, failed, or absent section returns
+  `409 section_not_available`.
+- Required hand-off: response shape is `{revision, items, total, limit, next_cursor}` and is bounded to
+  2 MiB. It is the only pagination/cursor implementation PR248c2 and PR248d may consume.
 
-- A non-visible section is not read; each visible section receives exactly one request per immutable
-  revision. Pagination has no duplicate/omitted rows across cursor boundaries.
-- Oversize, unauthorized, stale-revision, missing-artifact, and retry fixtures return typed outcomes
-  without data leakage or recomputation. API, contract, security, Ruff, format, Pyright, and real-stack
-  gates pass.
+Acceptance for PR248c1:
+
+- A completed three-item Univariate fixture returns its authorized project-scoped result page, no cursor
+  follows its last page, and a 201-item fixture returns 200 items followed by one immutable cursor that
+  returns the remaining item without duplicate or omission.
+- Guessed project IDs, cross-user project IDs, run IDs from another project, unknown sections, locked
+  stages, malformed cursors, and stale cursors return their exact typed outcomes without reading a result
+  payload or recomputing analysis.
+- API contract snapshot, focused route/contract tests, security/architecture tests, Ruff, format,
+  Pyright, and real-stack button gates pass. The initial-page routes remain byte-identical.
+
+PR248c2 branch: `feat/hosted-lazy-matrix-and-detail-sections`.
+
+- Depend only on PR248c1's section revision and cursor envelope. Add authorized lazy routes for
+  covariance/correlation matrices, tail-risk scatter, Bivariate summary, and Multivariate summary,
+  structure, candidates, candidate detail, risk contributions, income evidence, validation, artifacts,
+  and performance. Do not modify page entry or pagination behavior.
+- Enforce the 2 MiB encoded section limit before returning a response. An indivisible oversize matrix or
+  detail payload returns `413 section_too_large` with `{section, revision}`; it must never be truncated or
+  recomputed. Tabular candidate/component data continues to use only PR248c1 pagination.
+
+Acceptance for PR248c2:
+
+- A non-visible matrix/detail section is not read. A visible authorized section is fetched once per
+  immutable revision, while stale/unknown revisions, cross-user IDs, failed runs, missing artifacts, and
+  oversized fixtures produce their exact typed result without leakage.
+- Matrix and detail fixtures prove the 2 MiB measurement uses encoded response bytes and does not cut
+  rows, labels, or values. API, contract, security, Ruff, format, Pyright, and real-stack gates pass.
 
 PR248d branch: `feat/web-page-view-adoption`.
 
@@ -1647,6 +1678,7 @@ backlog identifiers.
 | PR246 | Worker Admission Control And Interactive Capacity | merged 2026-08-14. PR: https://github.com/SergejSchweizer/portfell/pull/400; commit `2e2663299ae2e7806774176d8e7f261b6aefac60` |
 | PR247 | PostgreSQL Navigation Read Model | merged through atomic PRs #401–#410 on 2026-08-14; includes bounded projection reads, reconciliation, lifecycle repair, instrumentation, and deterministic budget evidence. |
 | PR248a | Hosted Page-View Contract Foundation | landed 2026-08-14. PR: https://github.com/SergejSchweizer/portfell/pull/412; versioned Metadata Builder page-view envelope, typed unavailable initial-fill state, conditional GET, and OpenAPI contract evidence. |
+| PR248b | Hosted Analysis Page-View Contracts | landed 2026-08-14. PR: https://github.com/SergejSchweizer/portfell/pull/414; compact conditional-GET views for Univariate, Bivariate, and Multivariate stage/section metadata. |
 | PR01 | Project Package And Quality Baseline | merged. PR: https://github.com/SergejSchweizer/portfell/pull/1 |
 | PR02 | Shared Configuration, HTTP, And Contract Primitives | merged. PR: https://github.com/SergejSchweizer/portfell/pull/3 |
 | PR03 | Simple Bronze/Silver/Gold Lake Layout Contract | merged. PR: https://github.com/SergejSchweizer/portfell/pull/3 |

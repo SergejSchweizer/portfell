@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import base64
+import json
 from typing import Any, cast
 
 from portfell.hosted_api_service_support import stable_hash
@@ -117,3 +119,30 @@ def _section_row(*, available: bool, revision: str, unavailable: JsonRow | None)
     if unavailable is not None:
         row["unavailable"] = unavailable
     return row
+
+
+def encode_section_cursor(*, revision: str, offset: int) -> str:
+    """Encode one immutable section page position without exposing its structure."""
+
+    payload = json.dumps({"offset": offset, "revision": revision}, sort_keys=True).encode()
+    return base64.urlsafe_b64encode(payload).decode().rstrip("=")
+
+
+def decode_section_cursor(*, cursor: str, revision: str) -> int:
+    """Resolve an opaque cursor only when it belongs to the requested revision."""
+
+    try:
+        padded = cursor + "=" * (-len(cursor) % 4)
+        value = json.loads(base64.urlsafe_b64decode(padded).decode())
+    except (UnicodeDecodeError, ValueError, json.JSONDecodeError) as error:
+        raise ValueError("section_cursor_invalid") from error
+    if not isinstance(value, dict):
+        raise ValueError("section_cursor_invalid")
+    cursor_value = cast(JsonRow, value)
+    offset = cursor_value.get("offset")
+    cursor_revision = cursor_value.get("revision")
+    if not isinstance(offset, int) or offset < 0 or not isinstance(cursor_revision, str):
+        raise ValueError("section_cursor_invalid")
+    if cursor_revision != revision:
+        raise ValueError("section_revision_mismatch")
+    return offset
