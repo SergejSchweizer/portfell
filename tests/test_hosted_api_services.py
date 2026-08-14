@@ -547,6 +547,18 @@ def test_project_command_writes_navigation_projection() -> None:
     ]
 
 
+def test_project_command_prefers_a_navigation_reconciler() -> None:
+    reconciled: list[str] = []
+    service = CredentialProjectService(
+        HostedApiState(),
+        navigation_reconciler=lambda user_id: reconciled.append(user_id) or ({}, "etag"),
+    )
+
+    service.create_project("user-1", "Income", "request-1")
+
+    assert reconciled == ["user-1"]
+
+
 def test_account_deletion_refreshes_navigation_projection() -> None:
     writes: list[JsonRow] = []
     service = CredentialProjectService(
