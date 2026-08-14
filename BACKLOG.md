@@ -1078,7 +1078,7 @@ Branch: `feat/hosted-navigation-read-model`.
 
 Git status: in progress; split into mergeable implementation steps.
 
-PR: step 1 pending publication (`feat/hosted-navigation-read-model`); subsequent steps add
+PR: step 1: https://github.com/SergejSchweizer/portfell/pull/401; subsequent steps add
 transactional projection reconciliation and HTTP cache contracts.
 
 Priority: P0 page-entry latency and architectural simplicity.
