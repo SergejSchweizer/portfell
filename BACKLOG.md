@@ -1310,6 +1310,48 @@ previous aggregate dependencies and `GATES.md`; and leaves production API/databa
 contracts unchanged. A rollback must not leave verbose test logging enabled in production or retain a
 partial manifest as a non-blocking check.
 
+### PR253. Event-Scoped Initial-Fill Revalidation
+
+Branch: `feat/web-event-scoped-revalidation`.
+
+Git status: pushed.
+
+PR: https://github.com/SergejSchweizer/portfell/pull/446.
+
+Priority: P1 eliminate redundant initial-fill refresh requests without interrupting the active page.
+
+Depends on: PR248d1, PR249, and PR250e.
+
+Scope: Metadata Builder owns only `apps/web/src/pages/metadata-builder.tsx`, its unit coverage in
+`apps/web/tests/unit/components.test.tsx`, and `docs/ui/windows/metadata-builder.md`. Agent A implements
+the project-scoped status-refresh state and event filter. Agent B independently verifies that a status
+event for project A refreshes only A, an event for project B does not refresh A, malformed events retain
+the safe fallback, and the fallback interval is 15 seconds. Neither agent may change server event
+schemas, routes, authentication, portfolio logic, or other workflow pages.
+
+Acceptance: During an active initial fill, the browser calls only
+`GET /api/projects/{project_id}/initial-fill` for the persisted project ID; it does not first call
+`GET /api/project-context`. A matching `portfell:status-event` refreshes progress immediately, a
+different project's event creates zero refresh request, and the disconnected/malformed-event fallback
+runs no more than once per 15 seconds. Rendered progress remains visible throughout background refresh,
+and project switching clears prior project state before loading the replacement. Vitest asserts event
+filtering and the exact fallback interval; Node 26 runs the focused suite; the Web Docker build and
+`uv run portfell-quality pr` pass.
+
+Security: Event aggregate references select only a locally held project ID; they never authorize an
+API request or expose another project's data.
+
+Determinism: The project ID captured from the authorized page view and an event aggregate reference
+determine whether a refresh occurs; no timer order changes the selected request path.
+
+Idempotency: Repeated matching events coalesce through the existing in-flight guard and do not start
+calculations, mutate persisted state, or create duplicate requests concurrently.
+
+Rollback: Revert the three owned files. No schema, API, persisted state, or deployment migration exists.
+
+Series Completion Gate: This PR may merge only after the current pre-merge and post-merge gates in
+[GATES.md](GATES.md) pass.
+
 ### Hosted Simplicity And Interactive Performance Series Completion Gate
 
 This series is complete only after PR246 through PR252 merge in order and the current gates in
