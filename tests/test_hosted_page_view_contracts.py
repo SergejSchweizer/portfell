@@ -3,7 +3,9 @@ from __future__ import annotations
 import pytest
 
 from portfell.hosted_page_view_contracts import (
+    MAX_LAZY_SECTION_BYTES,
     analytical_page_view,
+    bounded_detail_section,
     decode_section_cursor,
     encode_section_cursor,
     metadata_builder_page_view,
@@ -96,3 +98,13 @@ def test_section_cursor_is_opaque_and_bound_to_one_revision() -> None:
         decode_section_cursor(cursor=cursor, revision="revision-2")
     with pytest.raises(ValueError, match="section_cursor_invalid"):
         decode_section_cursor(cursor="not a cursor", revision="revision-1")
+
+
+def test_detail_section_retains_its_payload_or_rejects_an_indivisible_oversize_value() -> None:
+    result = bounded_detail_section(revision="revision-1", payload={"pair_count": 3})
+
+    assert result == {"revision": "revision-1", "data": {"pair_count": 3}}
+    with pytest.raises(ValueError, match="section_too_large"):
+        bounded_detail_section(
+            revision="revision-1", payload={"values": "x" * MAX_LAZY_SECTION_BYTES}
+        )

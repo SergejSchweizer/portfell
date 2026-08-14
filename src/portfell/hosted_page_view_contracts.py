@@ -11,6 +11,7 @@ from portfell.hosted_api_service_support import stable_hash
 JsonRow = dict[str, Any]
 
 PAGE_VIEW_CONTRACT_VERSION = 1
+MAX_LAZY_SECTION_BYTES = 2 * 1024 * 1024
 
 _ANALYTICAL_SECTIONS: dict[str, tuple[str, ...]] = {
     "univariate_statistics": ("results", "selection_results"),
@@ -146,3 +147,13 @@ def decode_section_cursor(*, cursor: str, revision: str) -> int:
     if cursor_revision != revision:
         raise ValueError("section_revision_mismatch")
     return offset
+
+
+def bounded_detail_section(*, revision: str, payload: JsonRow) -> JsonRow:
+    """Attach a revision and reject indivisible responses above the documented limit."""
+
+    row: JsonRow = {"revision": revision, "data": payload}
+    encoded = json.dumps(row, sort_keys=True, separators=(",", ":")).encode()
+    if len(encoded) > MAX_LAZY_SECTION_BYTES:
+        raise ValueError("section_too_large")
+    return row

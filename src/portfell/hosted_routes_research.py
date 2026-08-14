@@ -24,6 +24,7 @@ from portfell.hosted_api_state import ApiUser
 from portfell.hosted_credential_project_service import CredentialProjectService
 from portfell.hosted_page_view_contracts import (
     analytical_page_view,
+    bounded_detail_section,
     decode_section_cursor,
     encode_section_cursor,
 )
@@ -61,6 +62,8 @@ def research_router(
         project_id: str,
         user: ApiUser,
         cursor: str | None,
+        metric: str,
+        candidate_id: str | None,
     ) -> JsonRow:
         workflow = call(projects.workflow, user.user_id, project_id)
         page_view, _ = analytical_page_view(module=module, project_id=project_id, workflow=workflow)
@@ -97,6 +100,66 @@ def research_router(
             result = call(service.bivariate_results, user.user_id, run_id, 200, offset)
         elif module == "multivariate_statistics" and section == "components":
             result = call(service.multivariate_components, user.user_id, run_id, 200, offset)
+        elif module == "bivariate_statistics" and section == "summary":
+            return detail_response(
+                revision, section, call(service.bivariate_summary, user.user_id, run_id)
+            )
+        elif module == "bivariate_statistics" and section == "covariance_matrix":
+            return detail_response(
+                revision, section, call(service.bivariate_covariance_matrix, user.user_id, run_id)
+            )
+        elif module == "bivariate_statistics" and section == "correlation_matrix":
+            return detail_response(
+                revision,
+                section,
+                call(service.bivariate_correlation_matrix, user.user_id, run_id, metric),
+            )
+        elif module == "bivariate_statistics" and section == "tail_risk_scatter":
+            return detail_response(
+                revision, section, call(service.bivariate_tail_risk_scatter, user.user_id, run_id)
+            )
+        elif module == "multivariate_statistics" and section == "summary":
+            return detail_response(
+                revision, section, call(service.multivariate_summary, user.user_id, run_id)
+            )
+        elif module == "multivariate_statistics" and section == "structure":
+            return detail_response(
+                revision, section, call(service.multivariate_structure, user.user_id, run_id)
+            )
+        elif module == "multivariate_statistics" and section == "candidates":
+            return detail_response(
+                revision, section, call(service.multivariate_candidates, user.user_id, run_id)
+            )
+        elif module == "multivariate_statistics" and section == "candidate_detail":
+            if candidate_id is None:
+                raise HTTPException(status_code=422, detail={"code": "candidate_id_required"})
+            return detail_response(
+                revision,
+                section,
+                call(service.multivariate_candidate_detail, user.user_id, run_id, candidate_id),
+            )
+        elif module == "multivariate_statistics" and section == "risk_contributions":
+            return detail_response(
+                revision,
+                section,
+                call(service.multivariate_risk_contributions, user.user_id, run_id, candidate_id),
+            )
+        elif module == "multivariate_statistics" and section == "income_evidence":
+            return detail_response(
+                revision, section, call(service.multivariate_income_evidence, user.user_id, run_id)
+            )
+        elif module == "multivariate_statistics" and section == "validation":
+            return detail_response(
+                revision, section, call(service.multivariate_validation, user.user_id, run_id)
+            )
+        elif module == "multivariate_statistics" and section == "artifacts":
+            return detail_response(
+                revision, section, call(service.multivariate_artifacts, user.user_id, run_id)
+            )
+        elif module == "multivariate_statistics" and section == "performance":
+            return detail_response(
+                revision, section, call(service.multivariate_performance, user.user_id, run_id)
+            )
         else:
             raise HTTPException(status_code=404, detail={"code": "not_found"})
         raw_items = result.get("items")
@@ -118,6 +181,15 @@ def research_router(
             )
         return row
 
+    def detail_response(revision: str, section: str, payload: JsonRow) -> JsonRow:
+        try:
+            return bounded_detail_section(revision=revision, payload=payload)
+        except ValueError as error:
+            raise HTTPException(
+                status_code=413,
+                detail={"code": str(error), "section": section, "revision": revision},
+            ) from error
+
     @router.get("/projects/{project_id}/views/{module}/sections/{section}")
     def analytical_tabular_section(
         project_id: str,
@@ -126,6 +198,16 @@ def research_router(
         ],
         section: str,
         cursor: str | None = None,
+        metric: Literal[
+            "pearson",
+            "spearman",
+            "downside",
+            "lower_tail_dependence",
+            "tail_coexceedance_rate",
+            "drawdown_overlap",
+            "rolling_stability",
+        ] = "pearson",
+        candidate_id: str | None = None,
         user: ApiUser = Depends(current_user),
     ) -> JsonRow:
         return lazy_tabular_section(
@@ -134,6 +216,8 @@ def research_router(
             project_id=project_id,
             user=user,
             cursor=cursor,
+            metric=metric,
+            candidate_id=candidate_id,
         )
 
     @router.get("/projects/{project_id}/views/univariate-statistics")
