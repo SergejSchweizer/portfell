@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import Plotly from "plotly.js-dist-min";
+import type { Data, Layout, PlotMouseEvent, PlotlyHTMLElement } from "plotly.js";
 import { loadProjectContext } from "../api/client";
 import { multivariateStatisticsApi } from "../api/multivariate-statistics";
 import { Button } from "../components/button";
@@ -53,20 +55,6 @@ function historyRequirement(reasons: readonly string[] | undefined): string | nu
     : null;
 }
 
-function performancePoints(values: ApiMultivariatePerformance["instrument_series"][number]["values"], minimum: number, maximum: number, start: number, end: number): string {
-  const width = 760;
-  const height = 220;
-  return values.filter((value) => {
-    const time = Date.parse(value.date);
-    return time >= start && time <= end;
-  }).map((value) => {
-    const time = Date.parse(value.date);
-    const x = 20 + (time - start) / Math.max(1, end - start) * width;
-    const y = 20 + (maximum - value.return) / Math.max(0.000001, maximum - minimum) * height;
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  }).join(" ");
-}
-
 export function relativePerformanceValues(
   values: ApiMultivariatePerformance["instrument_series"][number]["values"],
   start: number,
@@ -85,6 +73,80 @@ export function relativePerformanceValues(
   }));
 }
 
+type PerformanceSeries = Readonly<{
+  id: string;
+  index: number;
+  label: string;
+  values: ApiMultivariatePerformance["instrument_series"][number]["values"];
+}>;
+
+const portfolioSeriesColors = ["#1769e0", "#137333", "#b06000", "#6b4fbb", "#007c91"];
+
+function PlotlyPerformanceChart({
+  instruments, portfolios, timeline, setHoveredIndex,
+}: Readonly<{
+  instruments: readonly PerformanceSeries[];
+  portfolios: readonly PerformanceSeries[];
+  timeline: ApiMultivariatePerformance["instrument_series"][number]["values"];
+  setHoveredIndex: (index: number | null) => void;
+}>) {
+  const container = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const element = container.current;
+    if (!element) return;
+    const lineTrace = (series: PerformanceSeries, color: string, width: number): Data => ({
+      type: "scatter",
+      mode: "lines",
+      name: series.label,
+      x: series.values.map((value) => value.date),
+      y: series.values.map((value) => value.return * 100),
+      customdata: series.values.map((value) => value.date),
+      hoverinfo: "none",
+      line: { color, width },
+    });
+    const data = [
+      ...instruments.map((series) => lineTrace(series, "#c7cdd4", 2)),
+      ...portfolios.map((series) => lineTrace(series, portfolioSeriesColors[series.index % portfolioSeriesColors.length], 3)),
+    ];
+    const layout: Partial<Layout> = {
+      autosize: true,
+      height: 300,
+      margin: { l: 58, r: 16, t: 16, b: 48 },
+      paper_bgcolor: "rgba(0,0,0,0)",
+      plot_bgcolor: "rgba(0,0,0,0)",
+      showlegend: false,
+      hovermode: "x",
+      xaxis: { type: "date", tickformat: "%b %Y", showgrid: false, zeroline: false },
+      yaxis: {
+        title: { text: "Cumulative relative gain (%)" },
+        ticksuffix: "%",
+        gridcolor: "#dfe3e8",
+        zeroline: true,
+        zerolinecolor: "#c7cdd4",
+        zerolinewidth: 1,
+      },
+    };
+    const config = { displayModeBar: false, responsive: true };
+    const onHover = (event: PlotMouseEvent) => {
+      const date = String(event.points[0]?.customdata ?? "");
+      const index = timeline.findIndex((value) => value.date === date);
+      if (index >= 0) setHoveredIndex(index);
+    };
+    let plot: PlotlyHTMLElement | null = null;
+    void Plotly.react(element, data, layout, config).then((nextPlot) => {
+      plot = nextPlot;
+      nextPlot.on("plotly_hover", onHover);
+    });
+    return () => {
+      plot?.removeAllListeners("plotly_hover");
+      Plotly.purge(element);
+    };
+  }, [instruments, portfolios, setHoveredIndex, timeline]);
+
+  return <div ref={container} className="performance-chart__plotly" aria-hidden="true" />;
+}
+
 function PerformanceChart({ performance, alignedPeriod }: Readonly<{ performance: ApiMultivariatePerformance; alignedPeriod?: Readonly<{ date_start: string; date_end: string }> }>) {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const [hiddenPortfolioIds, setHiddenPortfolioIds] = useState<ReadonlySet<string>>(new Set());
@@ -93,41 +155,33 @@ function PerformanceChart({ performance, alignedPeriod }: Readonly<{ performance
   const times = allValues.map((item) => Date.parse(item.date));
   const start = alignedPeriod ? Date.parse(alignedPeriod.date_start) : Math.min(...times);
   const end = alignedPeriod ? Date.parse(alignedPeriod.date_end) : Math.max(...times);
-  const instruments = performance.instrument_series.map((item, index) => ({
+  const instruments = useMemo(() => performance.instrument_series.map((item, index) => ({
     id: `instrument:${item.isin}:${item.exchange}:${item.code}`,
-    item: { ...item, values: relativePerformanceValues(item.values, start, end) },
+    values: relativePerformanceValues(item.values, start, end),
     index,
     label: `${item.code}.${item.exchange}`,
-  }));
-  const portfolios = performance.portfolio_series.map((item, index) => ({
+  })), [end, performance.instrument_series, start]);
+  const portfolios = useMemo(() => performance.portfolio_series.map((item, index) => ({
     id: `portfolio:${item.candidate_id ?? index}`,
-    item: { ...item, values: relativePerformanceValues(item.values, start, end) },
+    values: relativePerformanceValues(item.values, start, end),
     index,
     label: portfolioMethod(item.method),
-  }));
+  })), [end, performance.portfolio_series, start]);
   const visibleInstruments = instruments;
-  const visiblePortfolios = portfolios.filter(({ id }) => !hiddenPortfolioIds.has(id));
-  const values = [...visibleInstruments, ...visiblePortfolios].flatMap(({ item }) => item.values);
+  const visiblePortfolios = useMemo(
+    () => portfolios.filter(({ id }) => !hiddenPortfolioIds.has(id)),
+    [hiddenPortfolioIds, portfolios],
+  );
+  const values = [...visibleInstruments, ...visiblePortfolios].flatMap((series) => series.values);
   const hasVisibleSeries = values.length > 0;
-  const minimum = Math.min(0, ...values.map((item) => item.return));
-  const maximum = Math.max(0, ...values.map((item) => item.return));
-  const timeline = (portfolios[0]?.item.values ?? instruments[0]?.item.values ?? []).filter((item) => {
+  const timeline = useMemo(() => (portfolios[0]?.values ?? instruments[0]?.values ?? []).filter((item) => {
     const time = Date.parse(item.date);
     return time >= start && time <= end;
-  });
-  const axisLabels = Array.from({ length: Math.min(6, timeline.length) }, (_, index) => {
-    const point = timeline[Math.round(index / Math.max(1, Math.min(6, timeline.length) - 1) * (timeline.length - 1))];
-    const time = Date.parse(point.date);
-    return {
-      label: new Intl.DateTimeFormat("en", { month: "short", year: "numeric", timeZone: "UTC" }).format(time),
-      x: 20 + (time - start) / Math.max(1, end - start) * 760,
-    };
-  });
+  }), [end, instruments, portfolios, start]);
   const hoveredDate = hoveredIndex == null ? undefined : timeline[hoveredIndex]?.date;
-  const hoverPosition = hoveredIndex == null || timeline.length < 2 ? 20 : 20 + hoveredIndex / (timeline.length - 1) * 760;
-  const hoveredValues = hoveredDate == null ? [] : visiblePortfolios.flatMap(({ item, index }) => {
-      const value = item.values.find((point) => point.date === hoveredDate);
-      return value ? [{ label: portfolioMethod(item.method), value: value.return, className: `performance-chart__tooltip-portfolio performance-chart__tooltip-portfolio--${index % 5}` }] : [];
+    const hoveredValues = hoveredDate == null ? [] : visiblePortfolios.flatMap((series) => {
+      const value = series.values.find((point) => point.date === hoveredDate);
+      return value ? [{ label: series.label, value: value.return, className: `performance-chart__tooltip-portfolio performance-chart__tooltip-portfolio--${series.index % 5}` }] : [];
     });
 
   function togglePortfolio(id: string) {
@@ -139,16 +193,10 @@ function PerformanceChart({ performance, alignedPeriod }: Readonly<{ performance
     });
   }
 
-  function inspectAt(clientX: number, bounds: DOMRect) {
-    const chartX = Math.max(20, Math.min(780, (clientX - bounds.left) / bounds.width * 800));
-    const nextIndex = Math.round((chartX - 20) / 760 * Math.max(0, timeline.length - 1));
-    setHoveredIndex(nextIndex);
-  }
-
   return <>
     <p className="performance-chart__legend">Relative cumulative monthly returns for every input instrument and feasible portfolio method.</p>
     <fieldset className="performance-chart__controls"><legend>Visible portfolio series</legend><ul className="performance-chart__series" aria-label="Portfolio series">{portfolios.map(({ id, index, label }) => <li key={id}><label><input type="checkbox" checked={!hiddenPortfolioIds.has(id)} onChange={() => togglePortfolio(id)} /><span className={`performance-chart__swatch performance-chart__portfolio performance-chart__portfolio--${index % 5}`} />{label}</label></li>)}</ul></fieldset>
-    {hasVisibleSeries ? <div className="performance-chart" role="group" aria-label="Relative cumulative monthly return comparison for visible instruments and feasible portfolios. Hover or use arrow keys to inspect a month." tabIndex={0} onMouseLeave={() => setHoveredIndex(null)} onMouseMove={(event) => inspectAt(event.clientX, event.currentTarget.getBoundingClientRect())} onKeyDown={(event) => {
+    {hasVisibleSeries ? <div className="performance-chart" role="group" aria-label="Relative cumulative monthly return comparison for visible instruments and feasible portfolios. Hover or use arrow keys to inspect a month." tabIndex={0} onMouseLeave={() => setHoveredIndex(null)} onKeyDown={(event) => {
       if (timeline.length === 0) return;
       if (event.key === "Home") setHoveredIndex(0);
       else if (event.key === "End") setHoveredIndex(timeline.length - 1);
@@ -157,14 +205,7 @@ function PerformanceChart({ performance, alignedPeriod }: Readonly<{ performance
       else return;
       event.preventDefault();
     }}>
-      <svg viewBox="0 0 800 280" preserveAspectRatio="none" aria-hidden="true">
-        <text className="performance-chart__axis-title" x="12" y="130" textAnchor="middle" transform="rotate(-90 12 130)">Cumulative relative gain (%)</text>
-        <line className="performance-chart__zero" x1="20" x2="780" y1={20 + (maximum - 0) / Math.max(0.000001, maximum - minimum) * 220} y2={20 + (maximum - 0) / Math.max(0.000001, maximum - minimum) * 220} />
-        {visibleInstruments.map(({ id, item, index }) => <polyline key={id} className={`performance-chart__instrument performance-chart__instrument--${index % 5}`} points={performancePoints(item.values, minimum, maximum, start, end)} />)}
-        {visiblePortfolios.map(({ id, item, index }) => <polyline key={id} className={`performance-chart__portfolio performance-chart__portfolio--${index % 5}`} points={performancePoints(item.values, minimum, maximum, start, end)} />)}
-        {axisLabels.map((item) => <text className="performance-chart__axis-label" key={`${item.label}:${item.x}`} x={item.x} y="265" textAnchor="middle">{item.label}</text>)}
-        {hoveredDate && <line className="performance-chart__cursor" x1={hoverPosition} x2={hoverPosition} y1="20" y2="240" />}
-      </svg>
+      <PlotlyPerformanceChart instruments={visibleInstruments} portfolios={visiblePortfolios} timeline={timeline} setHoveredIndex={setHoveredIndex} />
       {hoveredDate && <div className="performance-chart__tooltip" role="tooltip"><strong>{hoveredDate}</strong>{hoveredValues.map((item) => <span className={item.className} key={item.label}>{item.label}: {percent(item.value)}</span>)}</div>}
     </div> : <p role="status">Select at least one series to show the performance chart.</p>}
   </>;

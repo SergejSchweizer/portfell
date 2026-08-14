@@ -15,6 +15,7 @@
   "dependencies": {
     "@tanstack/react-query": "5.66.8",
     "lucide-react": "^1.31.0",
+    "plotly.js-dist-min": "^3.7.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"
   },
@@ -23,6 +24,7 @@
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.2",
     "@types/node": "^26.2.0",
+    "@types/plotly.js": "^3.0.13",
     "@types/react": "^19.1.12",
     "@types/react-dom": "^19.1.9",
     "@vitejs/plugin-react": "^6.0.5",
