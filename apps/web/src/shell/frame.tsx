@@ -201,12 +201,12 @@ function ShellFrameContent({ currentPage, children }: ShellFrameProps) {
           <div className="process-overview" aria-label="Process overview">
             <div className="process-overview__step" data-complete={workflow.status === "ready" && workflow.data.process_overview?.metadata_downloaded_isins ? "true" : "false"}>
               <small>1 · Metadata download</small>
-              <strong>{workflow.status === "ready" ? workflow.data.process_overview?.metadata_downloaded_isins.toLocaleString() ?? "—" : "—"} ISINs</strong>
+              <strong>{workflow.status === "ready" ? workflow.data.process_overview?.metadata_downloaded_isins?.toLocaleString() ?? "—" : "—"} ISINs</strong>
             </div>
             <span className="process-overview__arrow" aria-hidden="true">→</span>
             <div className="process-overview__step" data-complete={workflow.status === "ready" && workflow.data.process_overview?.metadata_builder_isins !== undefined ? "true" : "false"}>
               <small>2 · Metadata Builder</small>
-              <strong>{workflow.status === "ready" && workflow.data.process_overview?.metadata_builder_isins !== undefined ? workflow.data.process_overview.metadata_builder_isins.toLocaleString() : "—"} ISINs</strong>
+              <strong>{workflow.status === "ready" && workflow.data.process_overview?.metadata_builder_isins != null ? workflow.data.process_overview.metadata_builder_isins.toLocaleString() : "—"} ISINs</strong>
             </div>
             <span className="process-overview__arrow" aria-hidden="true">→</span>
             <div className="process-overview__step" data-complete={workflow.status === "ready" && workflow.data.process_overview?.univariate_statistics_isins != null ? "true" : "false"}>
