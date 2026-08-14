@@ -57,7 +57,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 .portfell-loading-indicator[data-compact="true"] { margin: 0 0 var(--space-3); }
 .portfell-loading-indicator span { display: flex; align-items: center; gap: var(--space-2); font-weight: 600; }
 .portfell-loading-indicator svg { width: 18px; height: 18px; animation: portfell-loading-spin 900ms linear infinite; }
-.portfell-loading-indicator progress { height: 4px; min-height: 4px; }
+.portfell-loading-indicator progress { height: var(--progress-height); min-height: var(--progress-height); }
 @keyframes portfell-loading-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .portfell-loading-indicator svg { animation: none; } }
 .portfell-status-badge, .portfell-inline-notice { display: inline-flex; gap: var(--space-1); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: var(--space-1) var(--space-2); }

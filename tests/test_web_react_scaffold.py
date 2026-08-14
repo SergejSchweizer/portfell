@@ -237,6 +237,7 @@ def test_metadata_panel_uses_the_historical_data_progress_status_action_layout()
     assert "exchanges completed" in context
     assert "--progress-height: 10px;" in styles
     assert ".metadata-fetch__progress { height: var(--progress-height);" in styles
+    assert ".portfell-loading-indicator progress { height: var(--progress-height);" in styles
 
 
 def test_bivariate_facts_show_pairwise_coverage() -> None:
