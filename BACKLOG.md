@@ -1785,19 +1785,75 @@ and analytical-core imports explicitly outside the hosted graph.
 Acceptance: Tests fail for every prohibited edge and pass for the explicit PostgreSQL/shared-artifact
 composition and independent local CLI graph.
 
-### PR251c. Hosted Legacy Adapter And Configuration Removal
+### PR251c1. Metadata Service Explicit Dependencies
 
-Branch: `refactor/hosted-single-authority-removal`.
+Branch: `refactor/hosted-metadata-explicit-dependencies`.
 
-Git status: not started.
+Git status: ready.
 
 PR: TBD.
 
 Priority: P1 final hosted simplification.
 
-Depends on: PR251b.
+Depends on: PR251a.
 
-Scope: Delete unreachable hosted fallback adapters, obsolete environment switches, duplicate
+Scope: Remove local project, selection, metadata, audit, and credential defaults from
+`MetadataProjectService`. Move their construction to `hosted_local_test_composition`; update every
+focused caller to inject its dependencies explicitly.
+
+Acceptance: The service imports no `hosted_local_*` module, constructor calls cannot omit its
+repository ports, production composition remains PostgreSQL-only, and Metadata service/API tests pass.
+
+### PR251c2. Credential And Quote Service Explicit Dependencies
+
+Branch: `refactor/hosted-project-quote-explicit-dependencies`.
+
+Git status: ready.
+
+PR: TBD.
+
+Priority: P1 final hosted simplification.
+
+Depends on: PR251c1.
+
+Scope: Remove local project, selection, audit, idempotency, settings, download, workspace, and quote
+defaults from `CredentialProjectService` and `QuoteRunService`; update local test composition and all
+focused callers.
+
+Acceptance: Neither service imports a `hosted_local_*` or workspace repository; every constructor
+requires its ports; hosted API/quote tests prove explicit PostgreSQL composition and local tests opt in.
+
+### PR251c3. Multivariate Service Explicit Dependencies
+
+Branch: `refactor/hosted-multivariate-explicit-dependencies`.
+
+Git status: ready.
+
+PR: TBD.
+
+Priority: P1 final hosted simplification.
+
+Depends on: PR251c2.
+
+Scope: Remove local project, selection, multivariate-run, metadata-row, and workflow defaults from
+`MultivariateResearchService`; make local test composition supply the local ports explicitly.
+
+Acceptance: The service imports no local repository; production uses only PostgreSQL/shared data;
+focused multivariate service, run-view, and API tests pass.
+
+### PR251c. Hosted Legacy Adapter And Configuration Removal
+
+Branch: split into PR251c1, PR251c2, and PR251c3 above.
+
+Git status: ready.
+
+PR: TBD.
+
+Priority: P1 final hosted simplification.
+
+Depends on: PR251c3.
+
+Scope: Delete remaining unreachable hosted fallback adapters, obsolete environment switches, duplicate
 serializers/repositories, and migrated browser cache/polling code. Retain only explicit local CLI
 adapters and test factories.
 
@@ -1825,9 +1881,9 @@ the documented preflight, deployment, and rollback commands are verified.
 
 ### PR251. Single Hosted Authority And Legacy Fallback Removal
 
-Branch: split into PR251a through PR251d above.
+Branch: split into PR251a, PR251b, PR251c1, PR251c2, PR251c3, and PR251d above.
 
-Git status: in progress (PR251a in progress).
+Git status: in progress (PR251a merged; PR251c1 ready).
 
 PR: TBD.
 
