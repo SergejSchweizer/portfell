@@ -22,7 +22,7 @@ from portfell.hosted_api_contracts import (
     UnivariateRunRequest,
     UnivariateSelectionRequest,
 )
-from portfell.hosted_api_service_support import opaque_id, stable_hash
+from portfell.hosted_api_service_support import opaque_id
 from portfell.hosted_api_state import (
     DEFAULT_LOCAL_WORKSPACE_USER_ID,
     AnalysisRecord,
@@ -38,10 +38,6 @@ from portfell.hosted_api_state import (
 from portfell.hosted_credential_project_service import CredentialProjectService
 from portfell.hosted_credentials import load_key_encryption_key
 from portfell.hosted_database_connection import connect as connect_database
-from portfell.hosted_local_test_composition import (
-    create_persistent_local_workspace_state,
-    run_quote_fetch_for_test,
-)
 from portfell.hosted_metadata_project_service import MetadataProjectService
 from portfell.hosted_postgres_request_scope import RequestScopedPostgresConnection
 from portfell.hosted_postgres_service_composition import build_postgres_services
@@ -78,11 +74,8 @@ __all__ = [
     "UnivariateRunRequest",
     "UserOwnedRow",
     "create_app",
-    "create_persistent_local_workspace_state",
     "create_runtime_app",
     "_opaque_id",
-    "_run_quote_fetch",
-    "_stable_hash",
 ]
 
 
@@ -206,18 +199,8 @@ def create_runtime_app() -> FastAPI:
     raise HostedApiError("postgres_hosted_authority_required")
 
 
-def _run_quote_fetch(state: HostedApiState, run: Any, selection_id: str, provider_key: str) -> None:
-    """Compatibility hook for focused quote-progress tests."""
-
-    run_quote_fetch_for_test(state, run, selection_id, provider_key)
-
-
 def _opaque_id(kind: str, value: str) -> str:
     return opaque_id(kind, value)
-
-
-def _stable_hash(payload: dict[str, Any]) -> str:
-    return stable_hash(payload)
 
 
 # The container entry point invokes ``create_runtime_app`` as a Uvicorn factory.
