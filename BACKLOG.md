@@ -1638,6 +1638,39 @@ not selected for v15 execution; no data rewrite or cache purge is required.
 Rollback: Restore the 200-listing guard and prior contract versions together. Existing v15 runs remain
 auditable but are no longer reused after rollback; no schema or data migration is required.
 
+### PR262. Uniform Statistics Progress Bar Height
+
+Branch: `style/statistics-progress-height`.
+
+Git status: in progress.
+
+PR: TBD.
+
+Priority: P2 consistent statistics workflow presentation.
+
+Depends on: PR261 because this stacked branch starts from its current validated application baseline.
+
+Scope: Give Univariate, Bivariate, and Multivariate compute panels explicit page-owned class names and
+apply the shared `--progress-height: 10px` token as both height and minimum height. Synchronize the three
+page specifications and scaffold regression. Do not change progress values, polling, commands, APIs,
+calculation behavior, or persistence.
+
+Acceptance: Each of the three statistics pages exposes its own compute class; one shared CSS rule applies
+exactly 10px height and minimum height to all three native progress elements; no page retains a 14px
+progress specification. The focused scaffold test, Web Docker image build, and `uv run portfell-quality pr`
+pass.
+
+Security: CSS and class-name changes do not alter authorization, tenant scope, requests, credentials,
+logs, or persisted data.
+
+Determinism: The fixed shared token renders the same 10px native progress height for every workflow state.
+
+Idempotency: Rendering or updating progress changes only the native element value and does not duplicate
+commands or mutate server state beyond the existing explicit workflow action.
+
+Rollback: Revert the page class, shared CSS rule, specifications, and regression together. No schema,
+cache, image, or data migration is required.
+
 ### Hosted Simplicity And Interactive Performance Series Completion Gate
 
 This series is complete only after PR246 through PR252 merge in order and the current gates in
