@@ -19,6 +19,8 @@ import type {
   ApiMultivariateValidation,
 } from "../contracts";
 import { useDebouncedSave } from "../hooks/use-debounced-save";
+import { queryClient, queryTiming } from "../query/client";
+import { queryKeys } from "../query/keys";
 
 type Tab = "overview" | "risk-structure" | "portfolio-candidates" | "risk-contributions" | "income-evidence" | "performance" | "validation";
 
@@ -230,7 +232,11 @@ export function MultivariateStatisticsPage() {
     const controller = new AbortController();
     setPageViewLoading(true);
     setPageViewError(null);
-    void multivariateStatisticsApi.loadPageView(projectId, controller.signal).then((view) => {
+    void queryClient.fetchQuery({
+      queryKey: queryKeys.pageView(projectId, "multivariate_statistics"),
+      queryFn: ({ signal }) => multivariateStatisticsApi.loadPageView(projectId, signal),
+      staleTime: queryTiming.volatile,
+    }).then((view) => {
       if (!controller.signal.aborted) setPageView(view);
     }).catch((error: unknown) => {
       if (!controller.signal.aborted) setPageViewError(error instanceof Error ? error.message : "Multivariate statistics are unavailable.");

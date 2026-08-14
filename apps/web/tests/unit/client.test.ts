@@ -100,7 +100,7 @@ describe("API client", () => {
       univariateStatisticsApi.loadPageView("project/a"), univariateStatisticsApi.loadResultsSection("project/a", "cursor/a"),
       univariateStatisticsApi.loadSelectionSettings("project/a"),
       univariateStatisticsApi.saveSelectionSettings("project/a", settings),
-      bivariateStatisticsApi.plan(bivariateRequest), bivariateStatisticsApi.startRun(bivariateRequest), bivariateStatisticsApi.loadRun("run/a"),
+      bivariateStatisticsApi.plan(bivariateRequest), bivariateStatisticsApi.startRun(bivariateRequest), bivariateStatisticsApi.loadRun("run/a"), bivariateStatisticsApi.loadPageView("project/a"),
       bivariateStatisticsApi.loadRunData("run/a"),
       bivariateStatisticsApi.loadSection("project/a", "summary"),
       bivariateStatisticsApi.loadSection("project/a", "correlation_matrix", "downside"),
@@ -115,7 +115,7 @@ describe("API client", () => {
 
     expect(fetchMock.mock.calls.map(([path]) => path)).toEqual(expect.arrayContaining([
       "/api/metadata-builder/options", "/api/metadata-builder", "/api/projects/project%2Fa/views/metadata-builder", "/api/projects/project%2Fa/initial-fill", "/api/univariate-statistics/runs",
-      "/api/univariate-statistics/runs/run%2Fa/results?limit=10&offset=5", "/api/bivariate-statistics/plan",
+      "/api/univariate-statistics/runs/run%2Fa/results?limit=10&offset=5", "/api/bivariate-statistics/plan", "/api/projects/project%2Fa/views/bivariate-statistics",
       "/api/projects/project%2Fa/views/univariate-statistics",
       "/api/projects/project%2Fa/views/univariate_statistics/sections/results?cursor=cursor%2Fa",
       "/api/bivariate-statistics/runs/run%2Fa/covariance-matrix",

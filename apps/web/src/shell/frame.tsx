@@ -6,6 +6,10 @@ import {
   loadProjectWorkflow,
   selectCurrentProject,
 } from "../api/client";
+import { bivariateStatisticsApi } from "../api/bivariate-statistics";
+import { metadataBuilderApi } from "../api/metadata-builder";
+import { multivariateStatisticsApi } from "../api/multivariate-statistics";
+import { univariateStatisticsApi } from "../api/univariate-statistics";
 import type { ApiProjectContext, ApiWorkflow } from "../contracts";
 import { queryClient, queryTiming } from "../query/client";
 import { queryKeys } from "../query/keys";
@@ -136,6 +140,9 @@ function ShellFrameContent({ currentPage, children }: ShellFrameProps) {
 
   async function changeProject(nextProjectId: string): Promise<boolean> {
     if (!projectId || nextProjectId === projectId || switching) return false;
+    void queryClient.cancelQueries({ predicate: (query) => (
+      query.queryKey[0] === "page-view" && query.queryKey[1] === projectId
+    ) });
     setSwitching(true);
     setSwitchError(null);
     try {
@@ -151,6 +158,7 @@ function ShellFrameContent({ currentPage, children }: ShellFrameProps) {
       window.dispatchEvent(new Event("portfell:navigation"));
       queryClient.setQueryData(queryKeys.projectContext(), nextContext);
       queryClient.setQueryData(queryKeys.workflow(nextProjectId), nextWorkflow);
+      void prefetchWorkflowPage(target.id, nextProjectId);
       return true;
     } catch (error) {
       setSwitchError(error instanceof Error ? error.message : "Project switch failed.");
@@ -163,6 +171,18 @@ function ShellFrameContent({ currentPage, children }: ShellFrameProps) {
   function changeWorkflowPage(path: string) {
     window.history.pushState({}, "", path);
     window.dispatchEvent(new Event("portfell:navigation"));
+  }
+
+  function prefetchWorkflowPage(pageId: WorkflowPageId, targetProjectId = projectId): void {
+    if (!targetProjectId) return;
+    const queryKey = queryKeys.pageView(targetProjectId, pageId);
+    const queryFn: (context: Readonly<{ signal: AbortSignal }>) => Promise<unknown> = ({ signal }) => {
+      if (pageId === "metadata_builder") return metadataBuilderApi.loadPageView(targetProjectId, signal);
+      if (pageId === "univariate_statistics") return univariateStatisticsApi.loadPageView(targetProjectId, signal);
+      if (pageId === "bivariate_statistics") return bivariateStatisticsApi.loadPageView(targetProjectId, signal);
+      return multivariateStatisticsApi.loadPageView(targetProjectId, signal);
+    };
+    void queryClient.prefetchQuery<unknown>({ queryKey, queryFn, staleTime: queryTiming.volatile });
   }
 
   return (
@@ -254,6 +274,7 @@ function ShellFrameContent({ currentPage, children }: ShellFrameProps) {
           onCloseDrawer={() => setDrawerOpen(false)}
           onProjectChange={changeProject}
           onWorkflowPageChange={changeWorkflowPage}
+          onWorkflowPageIntent={prefetchWorkflowPage}
         />
         <main className="page-content">{children}</main>
       </div>

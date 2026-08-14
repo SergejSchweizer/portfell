@@ -90,8 +90,8 @@ export function loadProjectInitialFill(projectId: string): Promise<ApiInitialFil
   return requestJson<ApiInitialFill>(`/api/projects/${encodeURIComponent(projectId)}/initial-fill`);
 }
 
-export function loadMetadataBuilderPageView(projectId: string): Promise<ApiMetadataBuilderPageView> {
-  return requestJson<ApiMetadataBuilderPageView>(`/api/projects/${encodeURIComponent(projectId)}/views/metadata-builder`);
+export function loadMetadataBuilderPageView(projectId: string, signal?: AbortSignal): Promise<ApiMetadataBuilderPageView> {
+  return requestJson<ApiMetadataBuilderPageView>(`/api/projects/${encodeURIComponent(projectId)}/views/metadata-builder`, { signal });
 }
 
 export function selectCurrentProject(projectId: string): Promise<ApiProjectContext> {
