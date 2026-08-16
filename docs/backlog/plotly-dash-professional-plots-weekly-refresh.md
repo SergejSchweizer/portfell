@@ -2,7 +2,7 @@
 
 Status: active normative amendment to `BACKLOG.md` and `docs/backlog/plotly-dash-multivariate-optimizer-ui.md`.
 
-This amendment has precedence wherever the earlier PR264-PR275 specification is less specific or conflicts with the requirements below. It does not create a separate product workflow: Multivariate Statistics remains the portfolio optimizer.
+This amendment has precedence wherever the earlier PR264-PR275 specification is less specific or conflicts with the requirements below. It does not create a separate product workflow: Multivariate Statistics remains the portfolio optimizer. The current-code correctness requirements in `docs/backlog/current-code-correctness-amendment.md` and `docs/backlog/current-code-project-isolation-addendum.md` are additionally mandatory; where they are more specific about data identity, availability, durable execution, atomic publication, project isolation, failure redaction, or readiness, they win.
 
 ## Professional Plot Contract
 
@@ -21,7 +21,7 @@ Every production Plotly chart must satisfy all of these rules:
 - show the analytical revision/as-of context in the chart region or adjacent figure caption when two revisions could otherwise be confused;
 - expose an accessible text label/description identifying the plot and its X/Y meaning; a plot is not accepted only because it is visually present.
 
-PR264 acceptance is extended with contract tests that reject a production figure missing title, required axis labels, semantic legend metadata, or deterministic hovertemplate. Shared helpers must format percentages, ratios, counts, dates, ISIN/listing identities, and unavailable values consistently.
+PR264 acceptance is extended with contract tests that reject a production figure missing title, required axis labels, semantic legend metadata, or deterministic hovertemplate. Shared helpers must format percentages, ratios, counts, dates, full listing identities, and unavailable values consistently.
 
 ### PR267 amendment — Univariate plot
 
@@ -46,25 +46,26 @@ The global Bivariate plot must be presentation-ready:
 - point hover contains listing identity, annualized return, selected median dependence metric, usable pair count, and the other available median dependence metrics;
 - every heatmap has a descriptive title, row/column listing labels, named colorbar metric, and cell hover with both listing identities, metric value, and shared-observation count where available;
 - Tail-Risk Scatter has explicit axis labels, legend, and point hover identifying the pair plus all relevant tail-risk values;
+- covariance UI follows the current-code correctness amendment: independently pairwise-aligned covariance values are labeled as a pairwise covariance surface with coverage and are not presented with coherent-matrix PSD/determinant/eigenvalue claims unless a separately estimated common-calendar matrix backs those diagnostics;
 - tests assert titles, axis labels, colorbar/legend labels, hover templates, units, and stable ordering for the deterministic 201-listing fixture.
 
 ### PR274 amendment — Multivariate optimizer plots
 
 Every optimizer/Decision Audit plot must satisfy the shared contract and use persisted DecisionArtifact evidence only. At minimum:
 
-- global candidate chart title `Portfolio Candidate OOS Return / Risk`, X `OOS annualized volatility (% p.a.)`, Y `OOS annualized return (% p.a.)`, legend distinguishing `Winner`, `Eligible candidate`, `Baseline`, and any other rendered candidate class; hover includes method, risk model, training window, optimization objective, OOS return, volatility, Sharpe, Sortino, Calmar when available, CVaR, maximum drawdown, and turnover;
+- global candidate chart title `Portfolio Candidate OOS Return / Risk`, X `OOS annualized volatility (% p.a.)`, Y `OOS annualized return (% p.a.)`, legend distinguishing `Winner`, `Eligible candidate`, `Baseline`, and any other rendered candidate class; hover includes configuration identity, method, risk model, training window, optimization objective, OOS return, volatility, Sharpe, Sortino, Calmar when available, CVaR, maximum drawdown, and turnover;
 - Universe funnel has title, stage labels, exact counts, and hover/explanation for each stage; before/after scatter has explicit return/risk axes and legend for retained/rejected classes;
 - redundancy heatmap/cluster plot has listing/cluster labels, named metric/color scale, and hover explaining representative/rejected relationship;
 - Risk Model diagnostics have a title, named axes, legend identifying risk-model candidates, and hover with observation count, condition number, stability metric, and model parameter where applicable;
 - Optimization trade-off plot has named axes/legend and candidate hover with the complete decision metrics needed to compare methods;
 - Validation cumulative-performance plot has date/time X label, cumulative wealth/return Y label, candidate legend, and date/value hover; OOS Return/Risk scatter and Weight Stability heatmap have the same complete professional metadata;
-- Final Portfolio capital weights, risk contributions, and income contributions each have a descriptive title, units, listing labels, hover values, and explicit unavailable reason instead of an empty chart.
+- Final Portfolio capital weights, risk contributions, and income contributions each have a descriptive title, units, full listing labels, hover values, and explicit unavailable reason instead of an empty chart.
 
 A PR274 registry test must enumerate every production figure ID and prove it satisfies `ProfessionalPlotContract`. A figure added later without registering title/axes/legend/hover metadata must fail the test.
 
 ## PR275 amendment — preserve professional plotting at production cutover
 
-PR275 may change deployment paths/container topology but must not regress figure semantics. Its Dash E2E cutover journey verifies the same title/axis/legend/hover contract on at least one Univariate, one Bivariate heatmap/global plot, and the Multivariate global candidate plot after React deletion and `/dash` prefix removal.
+PR275 may change deployment paths/container topology but must not regress figure semantics. Its Dash E2E cutover journey verifies the same title/axis/legend/hover contract on at least one Univariate, one Bivariate heatmap/global plot, and the Multivariate global candidate plot after React deletion and `/dash` prefix removal. It additionally proves the current-code correctness amendments survive cutover: unavailable values remain typed rather than zero sentinels, duplicate-ISIN listings remain distinct by full identity, and same-method optimizer configurations remain distinct by configuration ID.
 
 ## PR276 — Sunday Full Research Refresh
 
@@ -123,19 +124,19 @@ Tasks / Acceptance — identical checklist:
 - [ ] Add one `weekly_research_refresh` orchestrator invoked inside the existing `project-bootstrap-worker`; no fourth long-running Compose service and no browser process is required. The host cron command contains no provider secret.
 - [ ] Stage 1 invokes the existing canonical shared-market refresh exactly once for the de-duplicated active-project listing union and refreshes the existing datasets `quotes`, `dividends`, and `splits`. It must not perform a separate provider fetch per project.
 - [ ] After successful shared refresh, pin the published/current shared-market revision used by the cycle. Enumerate active projects in stable project-ID order and resolve each project's immutable selection/settings under existing authorization/service boundaries.
-- [ ] For each project, start/reuse Univariate Statistics against the fresh pinned market revision and the project's persisted Univariate settings. If no saved filter exists, use the existing documented no-filter/default selection policy; never invent a browser-only default. Wait for a terminal result before Bivariate starts.
+- [ ] For each project, start/reuse Univariate Statistics against the fresh pinned market revision and the project's persisted project-scoped Univariate settings/current-selection authority. If no saved filter exists, use the existing documented no-filter/default selection policy; never invent a browser-only default. Wait for a terminal result before Bivariate starts.
 - [ ] Apply the project's persisted Univariate selection to the new Univariate result and start/reuse Bivariate Statistics against that exact Univariate selection/revision. Bivariate starts only after Univariate succeeds. Persist/provide the same run progress/status contracts used by the UI.
 - [ ] Start/reuse Multivariate Statistics only after Bivariate succeeds. Use the project's persisted `Optimization objective` and constraints; when objective is absent use exactly `return_risk`. Multivariate performs the automatic selector/solver/walk-forward/winner flow already defined by PR269-PR274 and publishes DecisionArtifacts/final portfolio normally.
 - [ ] Failure isolation is exact: market-refresh failure blocks all project statistics and ends the cycle failed; a project's Univariate failure marks that project's Bivariate/Multivariate `blocked_upstream` and continues with the next project; Bivariate failure blocks only that project's Multivariate; Multivariate failure does not affect other projects. No failed stage is represented as successful/stale zero data.
 - [ ] Re-running the same logical weekly cycle after interruption reuses existing market/statistics runs where input revisions/settings are unchanged, resumes incomplete work, and creates no duplicate logical run, duplicate winner, duplicate DecisionArtifact, or duplicate market business key. Lock contention starts zero provider/statistics work.
 - [ ] Publish one redacted cycle summary containing cycle ID, local scheduled date/timezone, pinned market revision, project count, and per-stage `complete|failed|blocked|reused` counts. Logs contain no EODHD token, database password, project membership dump, SQL, or storage payload.
-- [ ] Deterministic integration fixture with at least two projects proves one shared provider refresh, Uni -> Bi -> Multivariate ordering per project, persisted-objective use (`return_risk` default on one project and a non-default objective on the other), project-failure isolation, restart/resume, and byte-stable terminal summary. No browser must be open.
+- [ ] Deterministic integration fixture with at least two projects proves one shared provider refresh, Uni -> Bi -> Multivariate ordering per project, persisted-objective use (`return_risk` default on one project and a non-default objective on the other), independent project-scoped Univariate selections, project-failure isolation, restart/resume, and byte-stable terminal summary. Reversing project processing order yields the same per-project chain. No browser must be open.
 - [ ] Update operations docs to state: Sunday `09:00 Europe/Vienna`; one fetch of the active-listing union; then complete Uni/Bi/Multivariate refresh. Remove wording that says the scheduled job performs only shared-market refresh. Preserve a manual `run-once` path using the same orchestrator.
 - [ ] Focused scheduler/orchestration tests, PostgreSQL/service integration tests, architecture tests, Ruff, Pyright, `docker compose config`, worker execution smoke test, and `uv run portfell-quality pr` pass from one SHA.
 
 Security: the weekly orchestrator runs in the existing trusted worker with the operations provider credential and existing project/data authority. It must not move provider credentials to Dash/browser or create cross-project visibility.
 
-Determinism: exact schedule/timezone, stable active-project order, immutable input revisions, persisted settings/objective, and existing algorithm versions determine one reproducible cycle plan.
+Determinism: exact schedule/timezone, stable active-project order, immutable input revisions, project-scoped persisted settings/selection, objective, and existing algorithm versions determine one reproducible cycle plan.
 
 Idempotency: `flock` plus existing logical run/content identities make repeated or resumed cycles converge on one market revision and one Uni/Bi/Multivariate result chain per project/input.
 
@@ -147,6 +148,7 @@ The complete target is not finished until PR264-PR276 are merged and a clean pro
 
 - every production Plotly figure complies with the Professional Plot Contract: descriptive title, labeled axes/units, semantic legend where applicable, deterministic hover menu, stable trace names/order, explicit unavailable states, and responsive/accessibility metadata;
 - Multivariate Statistics remains the only optimizer page/run and all important optimizer decisions remain visualized;
+- all current-code correctness amendments pass, including full listing identity, configuration identity, unavailable-vs-zero semantics, durable worker execution, atomic/reusable Bivariate results, non-mutating reads, lease-safe publication, project-scoped current selections, safe failure codes, explicit walk-forward/risk-model semantics, and dependency-aware readiness;
 - final production UI/runtime is the PR275 three-service Dash/FastAPI topology;
 - the managed cron is exactly Sunday `09:00 Europe/Vienna` (`0 9 * * 0`), runs without a browser, refreshes shared market data once for the de-duplicated active union, then completes/reuses Univariate, Bivariate, and Multivariate Statistics for every active project in dependency order;
 - the weekly Multivariate run respects each project's persisted optimization objective/constraints and defaults only a missing objective to `return_risk`;
