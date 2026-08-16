@@ -1,9 +1,10 @@
-Last reviewed: 2026-08-14
+Last reviewed: 2026-08-16
 
 ## Table Of Contents
 
 - [Backlog Policy](#backlog-policy)
 - [Parallel Weak-Agent PR Design](#parallel-weak-agent-pr-design)
+- [Active Plotly Dash Three-Page Research UI PR Stack (PR264-PR268)](#active-plotly-dash-three-page-research-ui-pr-stack-pr264-pr268)
 - [Monthly-Distribution ETF Multivariate Architecture Record](#monthly-distribution-etf-multivariate-architecture-record)
 - [Shared Market Data And Nightly Refresh Architecture Record](#shared-market-data-and-nightly-refresh-architecture-record)
 - [Active Hosted Simplicity And Interactive Performance PR Stack](#active-hosted-simplicity-and-interactive-performance-pr-stack)
@@ -50,6 +51,290 @@ weak agent can verify it solely from the checked-in definition. Vague terms such
 “update all callers”, or “test thoroughly” are prohibited unless accompanied by measurable limits,
 named callers, and exact test assertions. If two agents cannot work safely in parallel, split the item
 into smaller sequential PRs and record the dependency and hand-off in this file before implementation.
+
+## Active Plotly Dash Three-Page Research UI PR Stack (PR264-PR268)
+
+This series builds a side-by-side Plotly Dash implementation of only Metadata Builder, Univariate
+Statistics, and Bivariate Statistics. React remains the production browser implementation throughout
+this series; no PR in PR264-PR268 may delete or replace `apps/web`, change canonical non-`/dash` routes,
+add a Multivariate Dash page, modify financial formulas, read PostgreSQL/shared Parquet directly from
+Dash, or create a second durable job system. The full executable work orders, exact file ownership,
+fixture names, callback boundaries, measurable behavior, evidence commands, and rollback rules are
+versioned in [docs/backlog/plotly-dash-three-page-research-ui.md](docs/backlog/plotly-dash-three-page-research-ui.md).
+That linked document is normative for PR264-PR268 and is part of each PR's acceptance contract.
+
+The series uses one checklist per PR named `Tasks / Acceptance`. There is deliberately no second,
+separate acceptance list: every checkbox is simultaneously an implementation task and its acceptance
+criterion. An agent may mark a checkbox complete only when both the implementation and the evidence
+stated in that exact checkbox exist in the PR.
+
+Parallel execution is fixed as:
+
+```text
+PR264 runtime foundation
+      |
+      +-----------------------+
+      |                       |
+      v                       v
+PR265 shell/navigation   PR266 Metadata Builder
+      |                       |
+      +-----------+-----------+
+                  |
+          both merged to main
+                  |
+      +-----------+-----------+
+      |                       |
+      v                       v
+PR267 Univariate       PR268 Bivariate + parity gate
+```
+
+PR265 and PR266 must branch from the same PR264 merge commit and may be implemented concurrently by
+two weak agents. PR267 and PR268 must branch from the same `main` commit after PR265 and PR266 merge
+and may be implemented concurrently. A parallel PR must never be stacked on the other parallel agent's
+branch. Shared IDs/contracts are frozen by the predecessor PR before parallel work begins.
+
+### PR264. Plotly Dash Runtime Foundation
+
+Branch: `feat/dash-runtime-foundation`.
+
+Git status: planned.
+
+PR: not opened.
+
+Suggested PR title: `feat(dash): add three-page runtime foundation`.
+
+Required squash commit subject: `feat(dash): add three-page runtime foundation`.
+
+Base: `main`.
+
+Merge method: squash merge after the branch contains current `main` and all required gates pass.
+
+Priority: P1 establish the only Dash runtime/contracts before page work begins.
+
+Depends on: current already-merged hosted page-view, lazy-section, workflow, run, and command contracts.
+
+Scope: Add the Dash/FastAPI runtime, exact three-page route/ID registry, typed Dash-facing gateway and
+fixtures, Dash Docker image, opt-in Compose profile, dependency lock changes, architecture boundary
+checks, and health contract. Dash is presentation/orchestration only and receives no provider secret,
+PostgreSQL repository, lake/table-I/O object, or financial calculation authority.
+
+Tasks / Acceptance: the single authoritative checklist is the ten-checkbox `PR264 — Plotly Dash Runtime
+Foundation` checklist in
+[docs/backlog/plotly-dash-three-page-research-ui.md](docs/backlog/plotly-dash-three-page-research-ui.md).
+Every checkbox must be satisfied exactly; there is no separate acceptance list.
+
+Parallelization: Agent A owns dependency/runtime/Docker/Compose files and `app.py`/`runtime.py`. Agent B
+owns frozen contracts/IDs/fakes and foundation tests. Agent B commits `contracts.py` and `ids.py` first;
+Agent A may import but never edit them afterward. Neither agent may touch `apps/web/**`, analytical
+formulas, PostgreSQL repository implementations, provider clients, migrations, or Multivariate code.
+
+Security: Dash is not authorization authority and receives no EODHD key/KEK, PostgreSQL password, or
+shared-data mount.
+
+Determinism: locked dependencies plus frozen page IDs/routes/contracts/fixtures determine one runtime
+shape for one Git SHA.
+
+Idempotency: import/startup/health/read paths mutate no project or analytical state; existing commands
+retain server-owned idempotency.
+
+Rollback: remove the Dash package/image/profile and dependency changes; no database/API/React migration
+exists.
+
+### PR265. Dash Portfell Shell And Project Navigation
+
+Branch: `feat/dash-research-shell`.
+
+Git status: planned.
+
+PR: not opened.
+
+Suggested PR title: `feat(dash): add research shell and project navigation`.
+
+Required squash commit subject: `feat(dash): add research shell and project navigation`.
+
+Base: the exact `main` commit containing merged PR264.
+
+Merge method: squash merge only.
+
+Priority: P1 reproduce the current shell/navigation before analytical page cutover is considered.
+
+Depends on: PR264.
+
+Scope: Implement the Portfell brand/header/process overview, project selector, three-stage workflow
+sidebar, canonical `/dash/projects/<project_slug>/...` navigation, workflow locking/status, responsive
+layout, project switching, and two-project isolation. It must contain exactly Metadata Builder,
+Univariate Statistics, and Bivariate Statistics; no Multivariate link/page is permitted.
+
+Tasks / Acceptance: the single authoritative checklist is the ten-checkbox `PR265 — Dash Portfell Shell
+And Project Navigation` checklist in
+[docs/backlog/plotly-dash-three-page-research-ui.md](docs/backlog/plotly-dash-three-page-research-ui.md).
+Every checkbox must be satisfied exactly; there is no separate acceptance list.
+
+Parallelization: wave-1 Agent A. Implementation ownership is `shell.py`, `navigation.py`, shell-only CSS,
+and explicitly allowed shell wiring. The independent verifier owns shell/navigation tests and
+`docs/ui/dash-shell.md`. PR264 IDs/routes are immutable. PR265 may run concurrently with PR266 and may
+not edit PR266-owned page/callback/view-model files.
+
+Security: project slug/component state selects only an already authorized server request and never
+grants project access.
+
+Determinism: canonical slug normalization plus server workflow projection yields one URL/sidebar state.
+
+Idempotency: route loads are reads; selecting the already-current project sends no command; duplicate
+project-switch delivery converges on one server current-project state.
+
+Rollback: revert only Dash shell/navigation/assets/tests/docs; PR264 remains runnable.
+
+### PR266. Dash Metadata Builder Page
+
+Branch: `feat/dash-metadata-builder`.
+
+Git status: planned.
+
+PR: not opened.
+
+Suggested PR title: `feat(dash): add Metadata Builder page`.
+
+Required squash commit subject: `feat(dash): add Metadata Builder page`.
+
+Base: the same exact PR264 merge commit used by PR265; never branch from PR265.
+
+Merge method: squash merge only; rebase on current `main` before merge if PR265 lands first.
+
+Priority: P1 reproduce the complete data-selection/bootstrap page independently of shell work.
+
+Depends on: PR264.
+
+Scope: Implement the combined Download Metadata + Metadata Builder panel, exact five criteria, metadata
+fetch status, project creation, initial-fill status/progress/retry semantics, saved criteria restore,
+responsive layout, and project-switch cancellation using existing server commands/page views. The page
+must never request/store an EODHD key or call provider code directly.
+
+Tasks / Acceptance: the single authoritative checklist is the ten-checkbox `PR266 — Dash Metadata
+Builder Page` checklist in
+[docs/backlog/plotly-dash-three-page-research-ui.md](docs/backlog/plotly-dash-three-page-research-ui.md).
+Every checkbox must be satisfied exactly; there is no separate acceptance list.
+
+Parallelization: wave-1 Agent B. One agent owns only page layout/CSS; the other owns only
+`callbacks/metadata_builder.py`, `view_models/metadata_builder.py`, tests and the page specification.
+Component IDs come from PR264 and may not be edited. PR266 may run concurrently with PR265 with zero
+shared page files.
+
+Security: all mutation remains server-authorized and the Dash page receives no provider credential.
+
+Determinism: persisted page view plus sorted field options produces the same controls/counts/status for
+the same revision.
+
+Idempotency: progress/restore are reads; metadata/project commands retain server idempotency and
+duplicate Dash callback delivery cannot create a second logical command.
+
+Rollback: revert Dash Metadata files/tests/docs only; server/React/project data remain unchanged.
+
+### PR267. Dash Univariate Statistics Page
+
+Branch: `feat/dash-univariate-statistics`.
+
+Git status: planned.
+
+PR: not opened.
+
+Suggested PR title: `feat(dash): add Univariate Statistics page`.
+
+Required squash commit subject: `feat(dash): add Univariate Statistics page`.
+
+Base: `main` after both PR265 and PR266 are merged.
+
+Merge method: squash merge only.
+
+Priority: P1 native Plotly univariate research inspection and persisted selection controls.
+
+Depends on: PR264, PR265, PR266.
+
+Scope: Implement existing Univariate run/restore/progress behavior, exactly ten tabs, current metric
+text/equations/units, Plotly histograms from server-provided values, exact dividend-frequency and
+Duration thresholds, revision-bound result paging, 250 ms last-value-wins selection persistence, and
+cross-project cancellation. Dash must not recalculate any financial statistic.
+
+Tasks / Acceptance: the single authoritative checklist is the ten-checkbox `PR267 — Dash Univariate
+Statistics Page` checklist in
+[docs/backlog/plotly-dash-three-page-research-ui.md](docs/backlog/plotly-dash-three-page-research-ui.md).
+Every checkbox must be satisfied exactly; there is no separate acceptance list.
+
+Parallelization: wave-2 Agent A. The visual agent owns only page/figure/CSS files; the state agent owns
+only Univariate callbacks/view-model/tests/docs. The frozen `UnivariateMetricSpec` table is the shared
+handoff and is edited only by the state agent. PR267 may run concurrently with PR268 and may not touch
+Bivariate files.
+
+Security: only project-authorized page-view/result/settings payloads are consumed; URL/control state is
+never authorization.
+
+Determinism: immutable page/result revisions plus frozen metric table/formatting yield identical tabs,
+figures and saved settings for identical input.
+
+Idempotency: figures/reads do not mutate state; duplicate compute/save delivery converges through server
+idempotency and last-value-wins settings persistence.
+
+Rollback: remove Dash Univariate files/tests/docs only; existing runs/settings and React remain intact.
+
+### PR268. Dash Bivariate Statistics Page And Three-Page Parity Gate
+
+Branch: `feat/dash-bivariate-statistics`.
+
+Git status: planned.
+
+PR: not opened.
+
+Suggested PR title: `feat(dash): add Bivariate Statistics page and parity gate`.
+
+Required squash commit subject: `feat(dash): add Bivariate Statistics page and parity gate`.
+
+Base: the same exact post-PR265/PR266 `main` commit used by PR267; never branch from PR267.
+
+Merge method: squash merge only; final parity evidence requires rebasing on a `main` containing merged
+PR267.
+
+Priority: P1 complete the three-page Dash research path and prove parity without React replacement.
+
+Depends on: PR264, PR265, PR266; final parity evidence additionally requires merged PR267.
+
+Scope: Implement Bivariate run/progress/restore, exactly nine views, lazy section loading, Plotly heatmaps
+for eight matrix metrics, WebGL Tail-Risk Scatter for the full indexed point payload, pair-coverage facts,
+typed unavailable/oversize/stale states, large-universe performance evidence, and one deterministic
+Metadata -> Univariate -> Bivariate two-project journey. No formula/pair/API/2-MiB-limit change is
+permitted.
+
+Tasks / Acceptance: the single authoritative checklist is the ten-checkbox `PR268 — Dash Bivariate
+Statistics Page And Three-Page Parity Gate` checklist in
+[docs/backlog/plotly-dash-three-page-research-ui.md](docs/backlog/plotly-dash-three-page-research-ui.md).
+Every checkbox must be satisfied exactly; there is no separate acceptance list.
+
+Parallelization: wave-2 Agent B. The visual agent owns only Bivariate page/figure/CSS files; the state
+agent owns Bivariate callbacks/view-model/tests/journey/docs. The nine-tab/lazy-section mapping is frozen
+before parallel coding and edited only by the state agent. PR268 may run concurrently with PR267 and
+must not touch Univariate implementation files.
+
+Security: lazy-section IDs never authorize access; existing project/run ownership is resolved before a
+payload reaches Dash and the Dash container has no database/provider/shared-store secret.
+
+Determinism: immutable section revision plus server label/pair order and fixed Plotly builders produce the
+same figures for the same payload.
+
+Idempotency: lazy reads/tab reuse are non-mutating; duplicate start delivery relies on the existing
+idempotent Bivariate command and cannot create a second logical run.
+
+Rollback: revert Bivariate/parity files. React remains production UI, so no route/data/user-state
+migration rollback is required.
+
+### Plotly Dash Three-Page Series Completion Gate
+
+PR264-PR268 are complete only when all five entries merge and one clean `main` run proves the exact
+series-completion checklist in
+[docs/backlog/plotly-dash-three-page-research-ui.md](docs/backlog/plotly-dash-three-page-research-ui.md):
+exactly three `/dash/projects/<project_slug>/...` pages, unchanged independently runnable React UI,
+existing Portfell authority only, no direct provider/PostgreSQL/lake/calculation imports, restart-safe
+project-scoped state, server-produced financial values only, complete 201-listing/20,100-pair Bivariate
+rendering, all named Python/static/Docker/Compose/quality evidence green from one Git SHA, and no implied
+public-production cutover.
 
 ## Monthly-Distribution ETF Multivariate Architecture Record
 
