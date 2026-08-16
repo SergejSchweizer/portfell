@@ -2,7 +2,7 @@
 
 Status: normative base planning contract for `BACKLOG.md` PR264-PR275.
 
-The active implementation authority is the combination of this base specification, the frozen detailed PR264-PR275 work orders in `docs/backlog/plotly-dash-multivariate-optimizer-ui-detailed-v1.md`, `BACKLOG.md`, and `docs/backlog/plotly-dash-professional-plots-weekly-refresh.md`. The amendment adds mandatory professional Plotly requirements to PR264/PR267/PR268/PR274/PR275 and defines PR276; where it is more specific or conflicts with wording in this base file or detailed-v1 file, the amendment wins. Historical plans under `docs/backlog/archive/` are evidence only.
+The active implementation authority is the combination of this base specification, `BACKLOG.md`, `docs/backlog/plotly-dash-professional-plots-weekly-refresh.md`, `docs/backlog/current-code-correctness-amendment.md`, and `docs/backlog/current-code-project-isolation-addendum.md`. The professional-plot/weekly-refresh amendment adds mandatory plotting requirements to PR264/PR267/PR268/PR274/PR275 and defines PR276. The current-code amendments add mandatory correctness work to PR267-PR276 based on the 2026-08-16 review of production code. Where an amendment is more specific or conflicts with wording in this base file, the amendment wins. Historical plans under `docs/backlog/archive/` are evidence only.
 
 ## Product invariant: Multivariate Statistics is the optimizer
 
@@ -64,6 +64,10 @@ Univariate Statistics has one always-visible global Return/Risk universe plot ab
 
 Every plot must also satisfy the active `ProfessionalPlotContract` in `docs/backlog/plotly-dash-professional-plots-weekly-refresh.md`.
 
+## Correctness invariant
+
+The production stack must also satisfy `docs/backlog/current-code-correctness-amendment.md` and `docs/backlog/current-code-project-isolation-addendum.md`. In particular: unavailable analytical values are not numeric-zero sentinels; production optimizer identity is full `(isin, exchange, code)`; candidate identity is configuration-specific; Uni/Bi/Multivariate heavy work is durable-worker owned rather than API-process background work; status reads are non-mutating; Bivariate completed revisions publish atomically and exact pair counts honor exclusions; covariance display semantics distinguish pairwise surfaces from coherent risk matrices; walk-forward units/policies are explicit; public errors are redacted; readiness verifies dependencies; and current Univariate selection state is project-scoped rather than user-global.
+
 ## Temporary and final routing/runtime
 
 PR264-PR274 build the replacement UI safely beside the current React UI. During those implementation PRs the Dash base path is `/dash/`; this coexistence is temporary migration scaffolding only.
@@ -115,7 +119,7 @@ PR267 univariate + universe plot + control     PR268 bivariate + universe plot +
                      merge both
                          |
                       PR269
-       Multivariate decision/objective contracts
+       Multivariate decision/objective/correctness contracts
                          |
   +----------------------+----------------------+
   |                                             |
@@ -127,8 +131,8 @@ PR270 automatic universe selector             PR271 production solver/candidate 
                          |
   +----------------------+----------------------+
   |                                             |
-PR272 Multivariate run orchestration          PR273 Multivariate decision persistence/API
-+ OOS objective winner                          |
+PR272 durable Multivariate/research run       PR273 Multivariate decision persistence/API
+orchestration + OOS objective winner           + project-scoped selection persistence
   |                                             |
   +----------------------+----------------------+
                          |
@@ -143,7 +147,7 @@ PR272 Multivariate run orchestration          PR273 Multivariate decision persis
                          |
                          v
                       PR276
- Sunday full research refresh (defined in amendment)
+ Sunday full research refresh
 ```
 
-The detailed-v1 file is the explicit weak-agent work order for PR264-PR275. The amendment is mandatory acceptance for its named PRs and is the complete work order for PR276.
+For the original detailed PR264-PR275 task checklists, use `docs/backlog/plotly-dash-multivariate-optimizer-ui-detailed-v1.md` together with the active `BACKLOG.md` summaries and all active amendments. The amendments are mandatory acceptance for their named PRs; an implementation that satisfies the old checklist but violates a current-code amendment is incomplete.
