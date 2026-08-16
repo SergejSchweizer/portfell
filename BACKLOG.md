@@ -6,6 +6,7 @@ Last reviewed: 2026-08-16
 - [Weak-Agent Execution Rules](#weak-agent-execution-rules)
 - [Product And UI Invariants](#product-and-ui-invariants)
 - [Scheduled Research Invariant](#scheduled-research-invariant)
+- [PR458 Correctness Backlog Gate](#pr458-correctness-backlog-gate)
 - [Execution Graph](#execution-graph)
 - [PR264-PR276](#pr264-pr276)
 - [Series Completion Gate](#series-completion-gate)
@@ -13,9 +14,9 @@ Last reviewed: 2026-08-16
 
 ## Backlog Policy
 
-This file contains only active planned work for the Plotly Dash replacement UI, Multivariate Statistics portfolio optimizer, professional decision visualization, mandatory React/Docker cutover, and scheduled full research refresh. Unrelated planned work is intentionally absent.
+This file contains only active planned work for the Plotly Dash replacement UI, Multivariate Statistics portfolio optimizer, professional decision visualization, mandatory React/Docker cutover, scheduled full research refresh, and the correctness remediation required by the current-code review. Unrelated planned work is intentionally absent.
 
-The detailed base work orders for PR264-PR275 are in `docs/backlog/plotly-dash-multivariate-optimizer-ui.md`. The active amendment `docs/backlog/plotly-dash-professional-plots-weekly-refresh.md` adds mandatory professional Plotly requirements to PR264/PR267/PR268/PR274/PR275 and defines PR276. Where the amendment is more specific or conflicts with older wording, the amendment wins. Historical files under `docs/backlog/archive/` are evidence only.
+The detailed base work orders for PR264-PR275 are in `docs/backlog/plotly-dash-multivariate-optimizer-ui.md`. The active amendment `docs/backlog/plotly-dash-professional-plots-weekly-refresh.md` adds mandatory professional Plotly requirements to PR264/PR267/PR268/PR274/PR275 and defines PR276. The active correctness authorities `docs/backlog/current-code-correctness-amendment.md` and `docs/backlog/current-code-project-isolation-addendum.md` add mandatory current-code remediation to PR267-PR276. PR458 is the documentation/backlog gate that registers those findings before affected implementation PRs proceed. Where an active amendment is more specific or conflicts with older wording, the amendment wins. Historical files under `docs/backlog/archive/` are evidence only.
 
 Every active PR must contain `Branch`, `Git status`, `PR`, `Suggested PR title`, `Required squash subject`, `Base`, `Merge method`, `Priority`, `Depends on`, `Scope`, `Tasks / Acceptance`, `Parallelization`, `Security`, `Determinism`, `Idempotency`, and `Rollback`. There is exactly one checklist per PR named `Tasks / Acceptance`; implementation and the evidence named in the same checkbox must both exist before it is checked.
 
@@ -91,9 +92,56 @@ Market data is fetched once for the active union, never once per project. Within
 
 Current `main` already uses `0 9 * * 0` but with `Europe/Amsterdam` and invokes only `python -m portfell.shared_market_refresh`; PR276 changes the timezone to `Europe/Vienna` and replaces the market-only invocation with the complete scheduled research orchestrator.
 
+## PR458 Correctness Backlog Gate
+
+### PR458. Current-Code Correctness Hardening And Project Isolation
+
+Branch: `docs/current-code-correctness-backlog-review`.
+
+Git status: open documentation/backlog PR; no runtime code changes.
+
+PR: GitHub PR #458, open.
+
+Suggested PR title: `docs(backlog): harden current-code correctness and project isolation`.
+
+Required squash subject: `docs(backlog): harden current-code correctness and project isolation`.
+
+Base: `main` reviewed at `69d76a108257a9d07dd8e22a918ae789942afc07`.
+
+Merge method: squash only.
+
+Priority: P0 correctness planning gate.
+
+Depends on: repository-wide static review of current `main`; no implementation PR dependency.
+
+Scope: documentation/backlog-only registration of the current-code correctness review; make CCR-01 through CCR-13 mandatory remediation inside the already-planned PR267-PR276 stack; register project-scoped current-Univariate-selection authority; no runtime code, financial-formula, schema, Docker, provider, or production-behavior change in PR458 itself.
+
+Tasks / Acceptance:
+
+- [ ] `BACKLOG.md` registers PR458 explicitly as the P0 correctness planning gate and names `docs/backlog/current-code-correctness-amendment.md` plus `docs/backlog/current-code-project-isolation-addendum.md` as active normative authorities.
+- [ ] CCR-01 through CCR-13 have one unambiguous owning implementation PR and deterministic acceptance evidence, covering durable worker ownership, immutable/reusable Bivariate revisions, read-only status projection, public error redaction, unavailable-vs-zero metric semantics, exact pair counts, pairwise-covariance semantics, full `ListingIdentity`, stable `configuration_id`, walk-forward policy/units, truthful risk-model observation policy, production readiness, and project-scoped current-selection isolation.
+- [ ] The active base specification and weekly-refresh amendment reference the correctness authorities so weak agents cannot implement PR267-PR276 from an older incomplete contract.
+- [ ] Two-project isolation is explicitly tested across selection changes, restarts, and weekly A->B versus B->A processing order; user-global current-Univariate-selection authority is forbidden in the final production design.
+- [ ] PR458 remains documentation/backlog-only; runtime implementation belongs to the affected PR267-PR276 work orders and must not be silently pulled into this PR.
+
+Parallelization: review findings may be independently verified, but edits to the active normative backlog/specification files have one sequential owner to avoid conflicting authority text.
+
+Security: documents only; the review explicitly freezes safe public error-code requirements and forbids exposing raw exception/SQL/path/provider details in later runtime PRs.
+
+Determinism: findings are pinned to the reviewed `main` SHA; each defect has fixed ownership and deterministic regression evidence.
+
+Idempotency: merging PR458 changes planning authority only and creates no runtime state, jobs, selections, market rows, or analytical artifacts.
+
+Rollback: revert the PR458 documentation changes; no runtime or persistent data rollback is required.
+
+Implementation sequencing rule: PR458 must be merged before any not-yet-open affected PR267-PR276 branch is treated as implementation-authoritative. Those PRs must use the merged correctness amendments, not an older backlog snapshot.
+
 ## Execution Graph
 
 ```text
+PR458 current-code correctness/backlog gate
+                |
+                v
 PR264 Dash/runtime/run-control/professional-plot foundation
   |
   +---------------------------+
@@ -584,8 +632,9 @@ Rollback: revert to prior market-only cron behavior; already published analytica
 
 ## Series Completion Gate
 
-The target is complete only when PR264-PR276 are merged and one clean final `main` evidence run proves:
+The target is complete only when PR458 and PR264-PR276 are merged and one clean final `main` evidence run proves:
 
+- PR458's CCR-01 through CCR-13 remediation contracts are satisfied by their owning implementation PRs, including durable worker execution, immutable analytical revisions, typed metric availability, full listing/configuration identity, truthful risk-model/OOS semantics, readiness, and project-scoped current-Univariate-selection authority;
 - exactly four workflow pages exist and Multivariate Statistics is the only optimizer page/run/stage;
 - Uni, Bi, Multivariate each expose their exact calculation button, progress bar, phase/status, failure/reload behavior, duplicate-start protection, and project isolation;
 - Multivariate exposes exactly `return_risk`, `return_drawdown`, `minimum_risk` and selects the winner from objective-specific OOS evidence;
