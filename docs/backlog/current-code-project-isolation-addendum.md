@@ -1,6 +1,6 @@
 # Current-Code Project Isolation Addendum
 
-Status: active normative addendum to `docs/backlog/current-code-correctness-amendment.md` and the PR269/PR273/PR275/PR276 work orders.
+Status: active normative addendum to `docs/backlog/current-code-correctness-amendment.md` and the PR269/PR273/PR275/PR276 work orders. It is registered by the active base specification `docs/backlog/plotly-dash-multivariate-optimizer-ui.md` and is therefore part of the PR264-PR276 implementation authority.
 
 Review basis: current `main` at `69d76a108257a9d07dd8e22a918ae789942afc07`.
 
