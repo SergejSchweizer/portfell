@@ -1,18 +1,5 @@
 Last reviewed: 2026-08-16
 
-## Table Of Contents
-
-- [Backlog Policy](#backlog-policy)
-- [Weak-Agent Execution Rules](#weak-agent-execution-rules)
-- [Product And UI Invariants](#product-and-ui-invariants)
-- [Universe And History Invariant](#universe-and-history-invariant)
-- [Scheduled Research Invariant](#scheduled-research-invariant)
-- [PR458 Correctness Backlog Gate](#pr458-correctness-backlog-gate)
-- [Execution Graph](#execution-graph)
-- [PR264-PR276](#pr264-pr276)
-- [Series Completion Gate](#series-completion-gate)
-- [Historical Backlog Archive](#historical-backlog-archive)
-
 ## Backlog Policy
 
 This file contains only active planned work for the Plotly Dash replacement UI, Multivariate Statistics portfolio optimizer, professional decision visualization, continuous universe/history visibility, mandatory React/Docker cutover, scheduled full research refresh, and correctness remediation from the current-code review. Unrelated planned work is intentionally absent.
@@ -89,7 +76,7 @@ Every workflow page shows one persistent `Universe & History` summary and one `R
 - Multivariate aligned optimization calendar and `Walk-Forward Training / Test Coverage`;
 - final portfolio holding count and exact final-refit common range/observation count.
 
-Stage order in the persistent pipeline is fixed:
+Stage order is fixed:
 
 ```text
 Metadata -> Univariate -> Bivariate -> Multivariate -> Final portfolio
@@ -128,56 +115,33 @@ Market data is fetched once for the active union, never once per project. Within
 ### PR458. Current-Code Correctness Hardening, Project Isolation, And Research-Evidence Contract Registration
 
 Branch: `docs/current-code-correctness-backlog-review`.
-
-Git status: open documentation/backlog PR; no runtime code changes.
-
-PR: GitHub PR #458.
-
-Suggested PR title: `docs(backlog): harden current-code correctness and project isolation`.
-
-Required squash subject: `docs(backlog): harden current-code correctness and project isolation`.
-
+Git status: merged to `main`.
+PR: GitHub PR #458, merged.
+Suggested PR title: `docs(backlog): harden correctness and add universe-history audit`.
+Required squash subject: `docs(backlog): harden correctness and add universe-history audit`.
 Base: reviewed `main` at `69d76a108257a9d07dd8e22a918ae789942afc07`.
-
-Merge method: squash only.
-
-Priority: P0 planning gate.
-
+Merge method: squash.
+Priority: P0 planning gate, complete.
 Depends on: repository-wide static review of current `main`.
-
-Scope: register CCR-01 through CCR-13, project-scoped current-selection isolation, professional plotting/weekly-refresh authority, and the mandatory universe/history pipeline amendment before implementation PRs proceed. No runtime/schema/Docker/financial-formula behavior change in PR458 itself.
-
-Tasks / Acceptance:
-
-- [ ] Register all active authority files listed in Backlog Policy.
-- [ ] CCR-01 through CCR-13 have one owning implementation PR and deterministic regression evidence.
-- [ ] `docs/backlog/universe-history-pipeline-amendment.md` assigns exact universe/history responsibilities to PR264-PR276 and forbids browser-side recomputation.
-- [ ] Two-project isolation covers selections, analytical runs, universe/history snapshots, restarts, and weekly A->B versus B->A order.
-- [ ] PR458 remains planning/documentation only.
-
-Parallelization: one sequential owner edits active authority files; review findings may be verified independently.
-
-Security: planning only; later runtime work must use redacted errors and project-scoped evidence.
-
-Determinism: findings and contracts are pinned to reviewed source/versions and frozen identifiers.
-
-Idempotency: merge changes planning authority only.
-
-Rollback: revert documentation changes; no data rollback.
-
-Implementation sequencing rule: PR458 must be merged before affected implementation branches are treated as authoritative.
+Scope: registered CCR-01 through CCR-13, project-scoped selection isolation, professional plotting/weekly-refresh authority, and mandatory universe/history pipeline requirements. Runtime implementation remains in PR264-PR276.
+Tasks / Acceptance: completed by merged planning artifacts; implementation acceptance remains delegated to the owning PR264-PR276 work orders.
+Parallelization: complete.
+Security: planning only.
+Determinism: contracts pinned to reviewed source/versions and frozen identifiers.
+Idempotency: planning merge created no runtime state.
+Rollback: revert documentation merge if necessary.
 
 ## Execution Graph
 
 ```text
-PR458 correctness + universe/history planning gate
-                |
-                v
-PR264 Dash/runtime/run-control/professional-plot/universe-history foundation
+PR458 merged planning gate
+        |
+        v
+PR264 foundation
   |
   +---------------------------+
   |                           |
-PR265 shell/navigation     PR266 Metadata Builder + metadata universe/history
+PR265 shell/navigation     PR266 Metadata + initial universe/history
   |                           |
   +-------------+-------------+
                 |
@@ -192,12 +156,12 @@ PR267 Uni + return/risk    PR268 Bi + diversification
                 |
         both merged to main
                 |
-PR269 Multivariate objective/run/decision + ResearchUniverseSnapshot contracts
+PR269 objective/run/decision + ResearchUniverseSnapshot contracts
                 |
   +-------------+-------------+
   |                           |
-PR270 automatic universe   PR271 solver/risk-model candidates
-+ stage history           + aligned-history evidence
+PR270 universe selector    PR271 solver/risk-model candidates
++ history impact          + aligned-history evidence
   |                           |
   +-------------+-------------+
                 |
@@ -205,23 +169,22 @@ PR270 automatic universe   PR271 solver/risk-model candidates
                 |
   +-------------+-------------+
   |                           |
-PR272 Multivariate run     PR273 decision + universe/history persistence/API
-+ OOS winner + WF ranges  |
+PR272 durable Multi run    PR273 decision + history persistence/API
++ OOS + WF ranges         |
   +-------------+-------------+
                 |
         both merged to main
                 |
-PR274 Multivariate Dash optimizer + Decision Audit + history pipeline
+PR274 Multivariate Dash optimizer + Decision/History Audit
                 |
-PR275 React deletion + production Dash/FastAPI/Docker cutover
+PR275 React deletion + Dash/FastAPI/Docker cutover
                 |
-PR276 Sunday full research refresh + same snapshot evidence
+PR276 Sunday full research refresh + same evidence contracts
 ```
 
 ## PR264-PR276
 
 ### PR264. Plotly Dash Runtime, Shared Run-Control, Professional Plot, And Universe/History Foundation
-
 Branch: `feat/dash-runtime-foundation`.
 Git status: planned.
 PR: not opened.
@@ -230,17 +193,16 @@ Required squash subject: `feat(dash): add four-page runtime, run-control, plot, 
 Base: `main`.
 Merge method: squash only.
 Priority: P0.
-Depends on: merged hosted page-view/lazy-section/workflow/run/command contracts and PR458.
-Scope: temporary Dash/FastAPI sidecar, four routes, shared `StatisticsRunControl`, typed gateway, `ProfessionalPlotContract`, frozen Universe/History presentation contracts/figure IDs, deterministic two-project fixtures, Docker/profile and architecture boundaries.
-Tasks / Acceptance: PR264 base checklist + professional-plot amendment + PR264 universe/history amendment; all are one checklist.
-Parallelization: Agent B freezes contracts/IDs/run-control/plot/history fixtures first; Agent A owns runtime/container wiring and may import but not edit frozen contracts.
+Depends on: PR458 merged planning gate.
+Scope: temporary Dash/FastAPI sidecar, four routes, shared `StatisticsRunControl`, typed gateway, `ProfessionalPlotContract`, Universe/History presentation contracts/figure IDs, deterministic two-project fixtures, Docker/profile and architecture boundaries.
+Tasks / Acceptance: PR264 base checklist + professional-plot amendment + PR264 universe/history amendment.
+Parallelization: Agent B freezes contracts/IDs/run-control/plot/history fixtures first; Agent A owns runtime/container wiring.
 Security: Dash gets no DB/provider/shared-data authority.
 Determinism: frozen IDs/contracts/fixtures.
 Idempotency: startup/health/reads mutate nothing.
 Rollback: remove temporary Dash additions.
 
 ### PR265. Dash Shell And Four-Stage Project Navigation
-
 Branch: `feat/dash-research-shell`.
 Git status: planned.
 PR: not opened.
@@ -250,7 +212,7 @@ Base: exact PR264 merge commit.
 Merge method: squash only.
 Priority: P1.
 Depends on: PR264.
-Scope: shell/project selector/process overview/sidebar with exactly four workflow links; compact current-stage listing/common-history indicator from the shared snapshot; no separate Optimizer concept.
+Scope: shell/project selector/process overview/sidebar with exactly four workflow links; compact current-stage listing/common-history indicator from the shared snapshot.
 Tasks / Acceptance: base PR265 checklist + PR265 universe/history amendment.
 Parallelization: wave 1 Agent A; concurrent with PR266; shell-only paths.
 Security: route/project state never authorizes data.
@@ -259,7 +221,6 @@ Idempotency: same-project selection emits no command.
 Rollback: revert shell/navigation.
 
 ### PR266. Dash Metadata Builder And Initial Universe/History Evidence
-
 Branch: `feat/dash-metadata-builder`.
 Git status: planned.
 PR: not opened.
@@ -269,7 +230,7 @@ Base: same exact PR264 merge commit as PR265.
 Merge method: squash only.
 Priority: P1.
 Depends on: PR264.
-Scope: metadata download/builder with exact five criteria, project creation, fill progress, plus listing/unique-ISIN counts and history evidence when market history exists; downstream pipeline stages remain typed not-run/blocked.
+Scope: metadata download/builder with exact five criteria, project creation/fill progress, listing/unique-ISIN counts and history evidence when market history exists; downstream stages typed not-run/blocked.
 Tasks / Acceptance: base PR266 checklist + PR266 universe/history amendment.
 Parallelization: wave 1 Agent B; concurrent with PR265; Metadata-only paths.
 Security: provider credential stays server-side.
@@ -277,8 +238,7 @@ Determinism: same revision/options -> same summary.
 Idempotency: duplicate callbacks cannot create duplicate logical commands.
 Rollback: revert Metadata Dash files.
 
-### PR267. Dash Univariate Statistics, Run Control, Return-Risk, And Listing-History Views
-
+### PR267. Dash Univariate Statistics, Return-Risk, And Listing-History Views
 Branch: `feat/dash-univariate-universe`.
 Git status: planned.
 PR: not opened.
@@ -288,7 +248,7 @@ Base: exact `main` after PR265+PR266.
 Merge method: squash only.
 Priority: P0.
 Depends on: PR264-PR266.
-Scope: `Compute univariate statistics`, progress/status, existing tabs/selection, professional Return/Risk plot/Pareto frontier, Univariate snapshot, per-listing history distribution and `Univariate Listing History Coverage`.
+Scope: compute control/progress, existing tabs/selection, professional Return/Risk plot/Pareto frontier, Univariate snapshot, per-listing history distribution and `Univariate Listing History Coverage`.
 Tasks / Acceptance: base PR267 + professional plot + correctness + universe/history amendments.
 Parallelization: wave 2 Agent A; concurrent with PR268; Univariate-only paths.
 Security: authorized project results only.
@@ -296,8 +256,7 @@ Determinism: stable listing/trace/history ordering.
 Idempotency: duplicate start converges; plots read-only.
 Rollback: revert Univariate Dash files.
 
-### PR268. Dash Bivariate Statistics, Run Control, Diversification, And Pair-History Views
-
+### PR268. Dash Bivariate Statistics, Diversification, And Pair-History Views
 Branch: `feat/dash-bivariate-universe`.
 Git status: planned.
 PR: not opened.
@@ -307,16 +266,15 @@ Base: same exact post-PR265/PR266 `main` as PR267.
 Merge method: squash only.
 Priority: P0.
 Depends on: PR264-PR266.
-Scope: `Compute bivariate statistics`, progress/status, global Return/Diversification plot, detailed heatmaps/tail scatter, exact eligible-pair evidence, pairwise history statistics and `Pairwise Shared-History Distribution`.
+Scope: compute control/progress, global Return/Diversification plot, detailed heatmaps/tail scatter, exact pair evidence, pairwise history statistics and `Pairwise Shared-History Distribution`.
 Tasks / Acceptance: base PR268 + professional plot + correctness + universe/history amendments.
 Parallelization: wave 2 Agent B; concurrent with PR267; Bivariate-only paths.
 Security: section IDs never authorize access.
-Determinism: exact pair set/revision/metric order determines figures.
+Determinism: exact pair set/revision/metric order.
 Idempotency: duplicate start converges; plot switches read-only.
 Rollback: revert Bivariate Dash files.
 
 ### PR269. Multivariate Objective, Run, Decision, Correctness, And ResearchUniverseSnapshot Contracts
-
 Branch: `feat/multivariate-optimizer-contracts`.
 Git status: planned.
 PR: not opened.
@@ -328,14 +286,13 @@ Priority: P0.
 Depends on: PR267, PR268.
 Scope: three objectives, OOS ranking/ties, one Multivariate run/progress model, eight DecisionArtifact stages, full ListingIdentity/configuration identity, durable attempt/error/availability contracts, project-scoped selection contract, canonical `ResearchUniverseSnapshot`, exact envelope/common-history semantics and removal reason registry.
 Tasks / Acceptance: base PR269 + correctness/project-isolation + universe/history amendments.
-Parallelization: Agent A freezes contracts; Agent B writes fixtures/property/progress tests after freeze.
+Parallelization: Agent A freezes contracts; Agent B writes fixtures/tests after freeze.
 Security: analytical evidence only; public errors redacted.
 Determinism: canonical serialization/IDs.
 Idempotency: identical writes converge; conflicts fail closed.
 Rollback: remove new contracts.
 
 ### PR270. Multivariate Automatic Universe Selector With History Impact Evidence
-
 Branch: `feat/multivariate-universe-selector`.
 Git status: planned.
 PR: not opened.
@@ -354,7 +311,6 @@ Idempotency: pure selector repeats exactly.
 Rollback: remove selector.
 
 ### PR271. Multivariate Solver-Backed Candidates And Aligned-History Diagnostics
-
 Branch: `feat/multivariate-production-solvers`.
 Git status: planned.
 PR: not opened.
@@ -364,7 +320,7 @@ Base: same exact PR269 merge commit as PR270.
 Merge method: squash only.
 Priority: P0.
 Depends on: PR269.
-Scope: solver-backed Maximum Sharpe/Maximum Diversification plus Minimum Variance/ERC/HRP/Minimum CVaR/Equal Weight; Sample/Ledoit-Wolf/EWMA configurations; full listing identity; exact risk-model aligned date range/observation count per configuration; no exhaustive production enumeration.
+Scope: solver-backed Maximum Sharpe/Maximum Diversification plus Minimum Variance/ERC/HRP/Minimum CVaR/Equal Weight; Sample/Ledoit-Wolf/EWMA; full listing identity; exact risk-model aligned date range/observation count per configuration; no exhaustive production enumeration.
 Tasks / Acceptance: base PR271 + correctness + universe/history amendments.
 Parallelization: wave 3 Agent B; concurrent with PR270; solver/risk-model paths.
 Security: pure numerical inputs.
@@ -373,7 +329,6 @@ Idempotency: pure calculations mutate nothing.
 Rollback: remove solver adapters.
 
 ### PR272. Durable Multivariate Orchestration, OOS Winner, And Walk-Forward History Evidence
-
 Branch: `feat/multivariate-auto-orchestrator`.
 Git status: planned.
 PR: not opened.
@@ -383,16 +338,15 @@ Base: exact `main` after PR270+PR271.
 Merge method: squash only.
 Priority: P0.
 Depends on: PR269-PR271.
-Scope: one durable Multivariate run performs universe selection, risk models, candidates, walk-forward validation, objective-specific winner and final refit; publishes attempt-safe DecisionArtifacts, universe/history snapshots and exact train/test ranges.
+Scope: one durable Multivariate run performs selection, risk models, candidates, walk-forward, objective winner and final refit; publishes attempt-safe DecisionArtifacts, universe/history snapshots and exact train/test ranges.
 Tasks / Acceptance: base PR272 + correctness + universe/history amendments.
 Parallelization: wave 4 Agent A; concurrent with PR273; orchestration/ranking/progress paths.
 Security: authorize project/run before data.
-Determinism: objective + registry + split/ranking policy determine winner/history.
+Determinism: objective + registry + split/ranking policy.
 Idempotency: same inputs/settings -> one logical result.
 Rollback: restore prior orchestration.
 
 ### PR273. Multivariate Decision And Universe/History Persistence/API
-
 Branch: `feat/multivariate-decision-sections`.
 Git status: planned.
 PR: not opened.
@@ -411,7 +365,6 @@ Idempotency: identical writes no-op; reads non-mutating.
 Rollback: remove persistence/read surfaces.
 
 ### PR274. Dash Multivariate Statistics Optimizer, Decision Audit, And Universe/History Audit
-
 Branch: `feat/dash-multivariate-optimizer`.
 Git status: planned.
 PR: not opened.
@@ -421,16 +374,15 @@ Base: exact `main` after PR272+PR273.
 Merge method: squash only.
 Priority: P0.
 Depends on: PR264-PR273.
-Scope: objective selector, `Optimize portfolio`, progress/status, tabs `Universe`, `Risk Model`, `Optimization`, `Validation`, `Final Portfolio`, professional Decision Audit, persistent Universe & History summary/pipeline, internal reduction history, aligned risk-model history, `Walk-Forward Training / Test Coverage`, final-refit history.
-Tasks / Acceptance: base PR274 + professional plot + correctness + universe/history amendments. Registry tests cover every production figure.
-Parallelization: Agent A page/figures/CSS; Agent B callbacks/view-model/sections/E2E/docs; frozen contracts immutable.
+Scope: objective selector, `Optimize portfolio`, progress/status, tabs `Universe`, `Risk Model`, `Optimization`, `Validation`, `Final Portfolio`, professional Decision Audit, persistent Universe & History summary/pipeline, reduction history, aligned risk-model history, `Walk-Forward Training / Test Coverage`, final-refit history.
+Tasks / Acceptance: base PR274 + professional plot + correctness + universe/history amendments. Registry tests cover every figure.
+Parallelization: Agent A page/figures/CSS; Agent B callbacks/view-model/sections/E2E/docs.
 Security: authorized persisted sections only.
 Determinism: run/objective/revision -> stable traces/ranges/winner.
 Idempotency: identical start -> one run; charts read-only.
 Rollback: revert Multivariate Dash layer.
 
 ### PR275. Production Dash Cutover, React Deletion, Docker Consolidation, And Evidence-Preservation Gate
-
 Branch: `refactor/dash-production-cutover`.
 Git status: planned.
 PR: not opened.
@@ -442,14 +394,13 @@ Priority: P0 mandatory cutover.
 Depends on: PR264-PR274 all green.
 Scope: delete React/TS/Vite/Node UI, mount Dash in FastAPI, canonical routes without `/dash`, final Compose exactly `postgres`, `app`, `project-bootstrap-worker`; preserve professional plots, DecisionArtifacts, project isolation, typed availability and Universe/History semantics through restart/project switching.
 Tasks / Acceptance: base PR275 + professional plot + correctness/project-isolation + universe/history amendments.
-Parallelization: Agent B freezes cutover manifest; Agent A old UI deletion; Agent B Python runtime/Docker/Compose/readiness; shared files one owner.
-Security: Dash package remains presentation-only despite shared Python app container.
-Determinism: cutover manifest + route registry + evidence contracts.
+Parallelization: Agent B freezes cutover manifest; Agent A old UI deletion; Agent B Python runtime/Docker/Compose/readiness.
+Security: Dash package remains presentation-only.
+Determinism: cutover manifest + route/evidence contracts.
 Idempotency: build/start/restart do not duplicate state.
 Rollback: return to PR274 coexistence SHA.
 
 ### PR276. Sunday Full Research Refresh With Complete Research Evidence
-
 Branch: `feat/weekly-full-research-refresh`.
 Git status: planned.
 PR: not opened.
@@ -459,17 +410,17 @@ Base: exact PR275 merge commit.
 Merge method: squash only.
 Priority: P0 scheduled research freshness.
 Depends on: PR275 and final service/run/evidence contracts.
-Scope: exact Sunday `09:00 Europe/Vienna`; one shared quotes/dividends/splits refresh for de-duplicated active union; stable per-project Uni -> Bi -> Multivariate using persisted settings/objective/constraints; same progress/DecisionArtifact/ResearchUniverseSnapshot authority as manual runs; project failure isolation and restart/resume; no browser/fourth service.
+Scope: exact Sunday `09:00 Europe/Vienna`; one shared quotes/dividends/splits refresh for de-duplicated active union; stable per-project Uni -> Bi -> Multivariate using persisted settings/objective/constraints; same progress/DecisionArtifact/ResearchUniverseSnapshot authority as manual runs; project failure isolation/restart/resume; no browser/fourth service.
 Tasks / Acceptance: PR276 professional/weekly-refresh checklist + correctness/project-isolation + universe/history amendments.
-Parallelization: Agent A scheduler/orchestrator/contracts; Agent B independent integration verification/operations docs; no overlapping ownership.
+Parallelization: Agent A scheduler/orchestrator/contracts; Agent B independent integration verification/operations docs.
 Security: trusted worker keeps operations credential; browser receives none.
-Determinism: schedule + pinned market revision + project settings/objective + algorithm versions determine cycle and snapshots.
-Idempotency: `flock` + logical identities prevent duplicate runs/artifacts/snapshots.
+Determinism: schedule + pinned market revision + project settings/objective + algorithm versions.
+Idempotency: `flock` + logical identities prevent duplicates.
 Rollback: revert to prior market-only cron behavior; published evidence remains auditable.
 
 ## Series Completion Gate
 
-The target is complete only when PR458 and PR264-PR276 are merged and one clean final `main` evidence run proves:
+The target is complete only when PR264-PR276 are merged and one clean final `main` evidence run proves:
 
 - CCR-01 through CCR-13 remediation contracts pass;
 - exactly four workflow pages exist and Multivariate Statistics is the only optimizer page/run/stage;
