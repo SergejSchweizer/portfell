@@ -13,7 +13,7 @@ insert (user_id, selection_id)
 on conflict (user_id) do update ...
 ```
 
-`UnivariateResearchService.complete()` and `apply_selection()` both call `set_current_univariate_selection(user_id, selection_id)` without a project ID. `workflow_state(project_id=...)` then calls `_current_selection_for_run(user_id, univariate_run_id)`, which reads that one user-global preference and only afterwards checks whether the chosen selection belongs to the requested run.
+`UnivariateResearchService.complete()` and `apply_selection()` both call `set_current_univariate_selection(user_id, selection_id)` without a project ID. `workflow_state(project_id=...)` then resolves the current selection through the user-scoped preference and verifies it against the requested Univariate run.
 
 With two projects for one user, selecting or recomputing Project B can therefore replace the preference previously used by Project A. Project A's subsequent workflow projection can lose its current Univariate selection/Bivariate chain even though its persisted selection still exists. This violates the active two-project isolation contract and would also make the planned weekly multi-project cycle order-dependent.
 
