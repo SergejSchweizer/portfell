@@ -4,35 +4,35 @@ Last reviewed: 2026-08-16
 
 - [Backlog Policy](#backlog-policy)
 - [Weak-Agent Execution Rules](#weak-agent-execution-rules)
-- [Product Invariant](#product-invariant)
+- [Product And UI Invariants](#product-and-ui-invariants)
+- [Scheduled Research Invariant](#scheduled-research-invariant)
 - [Execution Graph](#execution-graph)
-- [PR264-PR275](#pr264-pr275)
+- [PR264-PR276](#pr264-pr276)
 - [Series Completion Gate](#series-completion-gate)
 - [Historical Backlog Archive](#historical-backlog-archive)
 
 ## Backlog Policy
 
-This file contains only active planned work for the Plotly Dash replacement UI and Multivariate Statistics portfolio optimizer. Planned work unrelated to Plotly/Dash, Multivariate optimization, optimizer explainability, required Uni/Bivariate visualizations, React removal, or final Docker/runtime cutover is intentionally absent from active planning.
+This file contains only active planned work for the Plotly Dash replacement UI, Multivariate Statistics portfolio optimizer, professional decision visualization, mandatory React/Docker cutover, and scheduled full research refresh. Unrelated planned work is intentionally absent.
 
-Completed, superseded, pushed, and historical records from before this refocus are preserved verbatim in `docs/backlog/archive/BACKLOG-2026-08-16-before-dash-optimizer.md`; they are not active authority. The superseded three-page-only Dash plan is preserved in `docs/backlog/archive/plotly-dash-three-page-research-ui-v1.md`.
+The detailed base work orders for PR264-PR275 are in `docs/backlog/plotly-dash-multivariate-optimizer-ui.md`. The active amendment `docs/backlog/plotly-dash-professional-plots-weekly-refresh.md` adds mandatory professional Plotly requirements to PR264/PR267/PR268/PR274/PR275 and defines PR276. Where the amendment is more specific or conflicts with older wording, the amendment wins. Historical files under `docs/backlog/archive/` are evidence only.
 
-Every active PR contains `Branch`, `Git status`, `PR`, `Priority`, `Depends on`, `Base`, `Merge method`, `Scope`, `Tasks / Acceptance`, `Parallelization`, `Security`, `Determinism`, `Idempotency`, and `Rollback`. The detailed executable work orders are in `docs/backlog/plotly-dash-multivariate-optimizer-ui.md`.
-
-There is exactly one checklist per PR named `Tasks / Acceptance`. There is no second acceptance list. A checkbox may be completed only when implementation and the exact evidence named by that checkbox both exist.
+Every active PR must contain `Branch`, `Git status`, `PR`, `Suggested PR title`, `Required squash subject`, `Base`, `Merge method`, `Priority`, `Depends on`, `Scope`, `Tasks / Acceptance`, `Parallelization`, `Security`, `Determinism`, `Idempotency`, and `Rollback`. There is exactly one checklist per PR named `Tasks / Acceptance`; implementation and the evidence named in the same checkbox must both exist before it is checked.
 
 ## Weak-Agent Execution Rules
 
 Assume two agents with weak reasoning, incomplete context, and no permission to infer missing architecture:
 
 - parallel PRs branch from the exact same predecessor `main` merge commit and never from each other;
-- shared contracts, IDs, reason codes, objective IDs, route suffixes, status values, tie-breaks, and fixture names are frozen in predecessor PRs;
-- every PR owns explicit paths and forbids overlapping ownership unless a one-time hand-off is written first;
+- shared contracts, component IDs, plot IDs, objective IDs, reason codes, route suffixes, progress states, tie-breaks, cron stage IDs, and fixture IDs are frozen in predecessor work before parallel branches start;
+- each PR owns explicit files/modules; overlapping ownership is forbidden unless a one-time hand-off is written first;
 - UI never recomputes portfolio statistics or invents optimizer explanations; it renders server-produced/persisted evidence;
-- production optimization never enumerates all ISIN subsets or a several-hundred-dimensional weight grid;
+- production optimization never enumerates all ISIN subsets or a several-hundred-dimensional exhaustive weight grid;
 - every important Multivariate decision is incomplete until its persisted evidence has a visible Decision Audit representation;
-- historical archive wording never overrides this active file or the normative specification.
+- every production Plotly figure must use the frozen `ProfessionalPlotContract`; local page-specific alternatives are forbidden;
+- scheduled work must call the same server/analytical contracts as explicit runs and must not create a browser-only or cron-only second implementation of Uni/Bi/Multivariate calculations.
 
-## Product Invariant
+## Product And UI Invariants
 
 The workflow is exactly:
 
@@ -43,28 +43,61 @@ Metadata Builder
     -> Multivariate Statistics
 ```
 
-**Multivariate Statistics is the portfolio optimizer.** There is no separate Optimizer page, route, workflow stage, run-status surface, or post-Multivariate step. Internal selector/solver/walk-forward/decision modules are components of one Multivariate Statistics run.
+**Multivariate Statistics is the portfolio optimizer.** There is no separate Optimizer page, route, workflow stage, status surface, scheduled stage, or post-Multivariate step. Internal selector/risk-model/solver/walk-forward/ranking/DecisionArtifact modules are components of one Multivariate Statistics run.
 
-All three statistics pages have one explicit calculation surface above results:
+All three statistics pages contain one explicit calculation surface above analytical results:
 
 - Univariate: `Compute univariate statistics` + progress bar + phase/status + failure state.
 - Bivariate: `Compute bivariate statistics` + progress bar + phase/status + failure state.
 - Multivariate: required `Optimization objective` selector + `Optimize portfolio` + progress bar + phase/status + failure state.
 
-Multivariate objective selector supports exactly `Return / Risk` (`return_risk`, default), `Return / Drawdown` (`return_drawdown`), and `Minimum Risk` (`minimum_risk`). Winner selection is objective-specific and based only on walk-forward out-of-sample evidence. The exact ranking/tie rules are frozen in the normative specification.
+Multivariate objective selector supports exactly `Return / Risk` (`return_risk`, default), `Return / Drawdown` (`return_drawdown`), and `Minimum Risk` (`minimum_risk`). Winner selection is objective-specific and based only on walk-forward out-of-sample evidence.
 
-Univariate has one always-visible Return/Risk universe Plotly chart above tabs. Bivariate has one always-visible Return/Diversification universe Plotly chart above tabs. Multivariate has one always-visible portfolio-candidate chart above tabs and visual evidence for every important optimizer decision stage.
+Every production Plotly chart is professional and self-explanatory. It must have a descriptive title, explicit axis labels and units, semantic legend when visual encodings distinguish classes/traces, deterministic hover menus with friendly labels and stable identities, explicit unavailable/blocked/not-applicable states, stable trace names/order, responsive layout, and accessible text metadata. Raw field names such as `annualized_geometric_return` may be data keys but may not be shown as user-facing titles/axis/hover labels. The exact shared contract and page-specific required titles/labels/hover fields are frozen in `docs/backlog/plotly-dash-professional-plots-weekly-refresh.md`.
 
-PR264-PR274 build Dash beside React only as temporary migration scaffolding. **PR275 is mandatory**: it deletes the current React/TypeScript production UI and reorganizes Docker so Dash is the only browser UI. Final Compose contains exactly `postgres`, `app`, and `project-bootstrap-worker`; one Python `app` process/container serves FastAPI REST plus mounted Dash.
+Required top-level charts remain:
+
+- Univariate: `Univariate Return / Risk Universe`, X=`Annualized volatility (% p.a.)`, Y=`Annualized geometric return (% p.a.)`, with selection/data-quality classes and Pareto frontier.
+- Bivariate: `Bivariate Return / Diversification Universe`, Y=`Annualized geometric return (% p.a.)`, dynamic named median-dependence X axis, semantic legend and complete listing hover.
+- Multivariate: `Portfolio Candidate OOS Return / Risk`, X=`OOS annualized volatility (% p.a.)`, Y=`OOS annualized return (% p.a.)`, objective/candidate/winner evidence and professional plots for every decision stage.
+
+PR264-PR274 build Dash beside React only as temporary migration scaffolding. **PR275 is mandatory**: delete the React/TypeScript/Vite production UI, remove Node web and temporary Dash containers, mount Dash into FastAPI, and make final Compose exactly `postgres`, `app`, `project-bootstrap-worker`.
+
+## Scheduled Research Invariant
+
+The managed production schedule is exactly:
+
+```text
+CRON_TZ=Europe/Vienna
+0 9 * * 0
+```
+
+That means Sunday at 09:00 Vienna local time, including DST behavior from `Europe/Vienna`.
+
+The weekly job is not market-data-only. One cycle must run without a browser and execute/reuse this dependency chain:
+
+```text
+shared market refresh once
+(quotes + dividends + splits for de-duplicated active-project union)
+        -> Univariate Statistics for every active project
+        -> Bivariate Statistics for each successful Uni selection/revision
+        -> Multivariate Statistics for each successful Bi revision
+           using persisted Optimization objective/constraints
+           default objective only when absent: return_risk
+        -> terminal cycle summary
+```
+
+Market data is fetched once for the active union, never once per project. Within a project, Bivariate never starts before successful Univariate and Multivariate never starts before successful Bivariate. Project failures are isolated: a failed project does not stop other projects, while downstream stages of that project are explicitly `blocked_upstream`. A market-refresh failure blocks all project calculations for that cycle. Re-runs/resume must reuse unchanged logical runs and create no duplicate market business keys, Uni/Bi/Multivariate runs, winners, or DecisionArtifacts.
+
+Current `main` already uses `0 9 * * 0` but with `Europe/Amsterdam` and invokes only `python -m portfell.shared_market_refresh`; PR276 changes the timezone to `Europe/Vienna` and replaces the market-only invocation with the complete scheduled research orchestrator.
 
 ## Execution Graph
 
 ```text
-PR264 Dash/runtime/run-control foundation
+PR264 Dash/runtime/run-control/professional-plot foundation
   |
   +---------------------------+
   |                           |
-  v                           v
 PR265 shell/navigation     PR266 Metadata Builder
   |                           |
   +-------------+-------------+
@@ -73,46 +106,41 @@ PR265 shell/navigation     PR266 Metadata Builder
                 |
   +-------------+-------------+
   |                           |
-  v                           v
-PR267 Uni + plot + control PR268 Bi + plot + control
+PR267 Uni + professional   PR268 Bi + professional
+plot + run control         plots + run control
   |                           |
   +-------------+-------------+
                 |
         both merged to main
                 |
-                v
 PR269 Multivariate objective/run/decision contracts
                 |
   +-------------+-------------+
   |                           |
-  v                           v
 PR270 automatic universe   PR271 solver-backed candidates
-selector                      |
-  |                           |
+selector                   |
   +-------------+-------------+
                 |
         both merged to main
                 |
   +-------------+-------------+
   |                           |
-  v                           v
-PR272 Multivariate run     PR273 Multivariate decision
-orchestration + OOS winner persistence/API
-  |                           |
+PR272 Multivariate run     PR273 decision persistence/API
++ OOS objective winner     |
   +-------------+-------------+
                 |
         both merged to main
                 |
-                v
-PR274 Multivariate Dash optimizer + Decision Audit
+PR274 Multivariate Dash optimizer + professional Decision Audit
                 |
-                v
 PR275 React deletion + production Dash/FastAPI/Docker cutover
+                |
+PR276 Sunday full research refresh
 ```
 
-## PR264-PR275
+## PR264-PR276
 
-### PR264. Plotly Dash Runtime, Shared Run-Control, And Four-Page Foundation
+### PR264. Plotly Dash Runtime, Shared Run-Control, Professional Plot Contract, And Four-Page Foundation
 
 Branch: `feat/dash-runtime-foundation`.
 
@@ -120,9 +148,9 @@ Git status: planned.
 
 PR: not opened.
 
-Suggested PR title: `feat(dash): add four-page runtime and run-control foundation`.
+Suggested PR title: `feat(dash): add four-page runtime, run-control, and plot foundation`.
 
-Required squash subject: `feat(dash): add four-page runtime and run-control foundation`.
+Required squash subject: `feat(dash): add four-page runtime, run-control, and plot foundation`.
 
 Base: `main`.
 
@@ -132,15 +160,15 @@ Priority: P0.
 
 Depends on: already-merged hosted page-view, lazy-section, workflow, run, and command contracts.
 
-Scope: temporary Dash/FastAPI sidecar under `/dash/`, exactly four workflow suffixes, shared `StatisticsRunControl`, typed gateway, Plotly presentation contracts, deterministic fixtures, temporary Dash Docker/profile, and architecture boundaries. The final production topology is explicitly deferred only to mandatory PR275.
+Scope: temporary Dash/FastAPI sidecar, four page IDs/routes, shared `StatisticsRunControl`, typed gateway, deterministic fixtures, Docker/profile, architecture boundaries, and one frozen `ProfessionalPlotContract` covering titles, labeled axes/units, semantic legends, hovertemplates, stable trace ordering, unavailable states, responsive/accessibility metadata, and shared formatting.
 
-Tasks / Acceptance: single authoritative `PR264` checklist in `docs/backlog/plotly-dash-multivariate-optimizer-ui.md`.
+Tasks / Acceptance: PR264 base checklist in `docs/backlog/plotly-dash-multivariate-optimizer-ui.md` plus the PR264 professional-plot amendment in `docs/backlog/plotly-dash-professional-plots-weekly-refresh.md`; both form one acceptance contract.
 
-Parallelization: Agent B freezes contracts/IDs/run-control/fixtures first; Agent A owns runtime/dependency/container wiring and may import but not edit frozen files.
+Parallelization: Agent B freezes contracts/IDs/run-control/plot contract/fixtures first; Agent A owns runtime/dependency/container wiring and may import but not edit frozen contracts.
 
-Security: temporary Dash container gets no database/provider/shared-data authority.
+Security: temporary Dash gets no DB/provider/shared-data authority.
 
-Determinism: frozen IDs/routes/run-control/contracts determine runtime shape.
+Determinism: frozen IDs/routes/run-control/plot contracts determine display/runtime shape.
 
 Idempotency: startup/health/reads mutate nothing.
 
@@ -166,19 +194,19 @@ Priority: P1.
 
 Depends on: PR264.
 
-Scope: Portfell shell, project selector, process overview, responsive sidebar, exactly four workflow links, temporary `/dash/projects/<slug>/...` navigation, and two-project isolation. No separate Optimizer link/state is allowed.
+Scope: Portfell shell, project selector, process overview, responsive sidebar, exactly four workflow links, temporary `/dash/projects/<slug>/...` navigation, two-project isolation, no separate Optimizer link/status.
 
-Tasks / Acceptance: single authoritative `PR265` checklist in normative specification.
+Tasks / Acceptance: authoritative PR265 checklist in base specification.
 
-Parallelization: wave 1 Agent A; concurrent with PR266; owns shell/navigation only.
+Parallelization: wave 1 Agent A; concurrent with PR266; shell/navigation-only paths.
 
 Security: route/project state never authorizes data.
 
-Determinism: project workflow projection determines shell.
+Determinism: workflow projection determines shell.
 
 Idempotency: same-project selection emits no command.
 
-Rollback: revert shell/navigation only.
+Rollback: revert shell/navigation.
 
 ### PR266. Dash Metadata Builder
 
@@ -200,9 +228,9 @@ Priority: P1.
 
 Depends on: PR264.
 
-Scope: combined metadata download/builder, five criteria, create-project, initial-fill progress/retry/restore, responsive behavior, no provider credential in browser.
+Scope: combined metadata download/builder, exact five criteria, project creation, initial-fill progress/retry/restore, responsive behavior, no provider credential in browser.
 
-Tasks / Acceptance: single authoritative `PR266` checklist.
+Tasks / Acceptance: authoritative PR266 checklist in base specification.
 
 Parallelization: wave 1 Agent B; concurrent with PR265; Metadata-only paths.
 
@@ -214,7 +242,7 @@ Idempotency: duplicate callbacks cannot create duplicate logical commands.
 
 Rollback: revert Metadata Dash files.
 
-### PR267. Dash Univariate Statistics, Calculation Control, And Global Return-Risk Plot
+### PR267. Dash Univariate Statistics, Run Control, And Professional Return-Risk Universe
 
 Branch: `feat/dash-univariate-universe`.
 
@@ -222,9 +250,9 @@ Git status: planned.
 
 PR: not opened.
 
-Suggested PR title: `feat(dash): add Univariate calculation and return-risk universe`.
+Suggested PR title: `feat(dash): add professional Univariate return-risk universe`.
 
-Required squash subject: `feat(dash): add Univariate calculation and return-risk universe`.
+Required squash subject: `feat(dash): add professional Univariate return-risk universe`.
 
 Base: exact `main` after PR265+PR266.
 
@@ -234,21 +262,21 @@ Priority: P0.
 
 Depends on: PR264-PR266.
 
-Scope: exact `Compute univariate statistics` control with progress/status/failure/reload semantics; existing Uni tabs/selection; always-visible Return/Volatility universe scatter and Pareto frontier above tabs.
+Scope: exact `Compute univariate statistics` control/progress/status; existing Uni tabs/selection; professional always-visible Return/Volatility scatter and Pareto frontier with exact title/axes/legend/hover contract.
 
-Tasks / Acceptance: single authoritative `PR267` checklist.
+Tasks / Acceptance: base PR267 checklist plus PR267 amendment; title `Univariate Return / Risk Universe`, X `Annualized volatility (% p.a.)`, Y `Annualized geometric return (% p.a.)`, semantic legend, full listing/return/risk hover and visual-contract tests are mandatory.
 
 Parallelization: wave 2 Agent A; concurrent with PR268; Univariate-only paths.
 
-Security: only authorized project result/run payloads.
+Security: authorized project results only.
 
-Determinism: stable run adapter/listing sort/frontier rule.
+Determinism: stable listing/trace/frontier order.
 
-Idempotency: duplicate start converges on one run; plots are read-only.
+Idempotency: duplicate start converges; chart interactions read-only.
 
 Rollback: revert Univariate Dash files.
 
-### PR268. Dash Bivariate Statistics, Calculation Control, And Global Return-Diversification Plot
+### PR268. Dash Bivariate Statistics, Run Control, And Professional Return-Diversification Views
 
 Branch: `feat/dash-bivariate-universe`.
 
@@ -256,9 +284,9 @@ Git status: planned.
 
 PR: not opened.
 
-Suggested PR title: `feat(dash): add Bivariate calculation and diversification universe`.
+Suggested PR title: `feat(dash): add professional Bivariate diversification views`.
 
-Required squash subject: `feat(dash): add Bivariate calculation and diversification universe`.
+Required squash subject: `feat(dash): add professional Bivariate diversification views`.
 
 Base: same exact post-PR265/PR266 `main` as PR267.
 
@@ -268,21 +296,21 @@ Priority: P0.
 
 Depends on: PR264-PR266.
 
-Scope: exact `Compute bivariate statistics` control with progress/status/failure/reload semantics; nine Bivariate views; Plotly matrices/WebGL tail scatter; always-visible Return/median-dependence universe plot above tabs with six-metric selector.
+Scope: exact `Compute bivariate statistics` control/progress/status; nine detailed views; professional global Return/median-dependence scatter, Plotly heatmaps, WebGL tail scatter, exact titles/axes/legends/colorbars/hover menus.
 
-Tasks / Acceptance: single authoritative `PR268` checklist.
+Tasks / Acceptance: base PR268 checklist plus PR268 amendment; all global/matrix/tail plots must pass the shared ProfessionalPlotContract and deterministic 201-listing fixture.
 
 Parallelization: wave 2 Agent B; concurrent with PR267; Bivariate-only paths.
 
 Security: section IDs never authorize access.
 
-Determinism: pair revision/median rule/stable order.
+Determinism: pair revision/metric/trace order determine figures.
 
-Idempotency: duplicate start converges on one run; plot switches are read-only.
+Idempotency: duplicate start converges; plot switches read-only.
 
 Rollback: revert Bivariate Dash files.
 
-### PR269. Multivariate Statistics Decision, Objective, And Run Contract Foundation
+### PR269. Multivariate Statistics Objective, Run, Progress, And Decision Contracts
 
 Branch: `feat/multivariate-optimizer-contracts`.
 
@@ -300,23 +328,23 @@ Merge method: squash only.
 
 Priority: P0.
 
-Depends on: PR267, PR268, existing Multivariate/risk-model/scorecard contracts.
+Depends on: PR267, PR268.
 
-Scope: freeze three optimization objectives, objective-specific OOS ranking, one Multivariate run identity/progress phase model, immutable DecisionArtifact contracts, reason codes, sink, fixtures. This is one Multivariate Statistics lifecycle, not a separate Optimizer lifecycle.
+Scope: exactly three objectives, OOS ranking/tie rules, one Multivariate run/progress model, eight DecisionArtifact stages, reason codes, deterministic IDs/fixtures. No separate optimizer lifecycle.
 
-Tasks / Acceptance: single authoritative `PR269` checklist.
+Tasks / Acceptance: authoritative PR269 checklist in base specification.
 
-Parallelization: contracts/objectives first by Agent A; fixtures/property/progress tests by Agent B; next wave waits for merge.
+Parallelization: Agent A contracts/objectives; Agent B fixtures/property/progress tests after freeze.
 
-Security: decision artifacts contain analytical evidence only.
+Security: analytical evidence only.
 
-Determinism: objective registry + canonical serialization determine IDs.
+Determinism: objective registry/canonical serialization determine IDs.
 
-Idempotency: identical run/decision inputs converge; conflict fails closed.
+Idempotency: identical writes converge; conflicts fail closed.
 
 Rollback: remove new Multivariate optimizer contracts.
 
-### PR270. Multivariate Automatic Universe Selector From Uni/Bivariate Evidence
+### PR270. Multivariate Automatic Universe Selector
 
 Branch: `feat/multivariate-universe-selector`.
 
@@ -336,19 +364,19 @@ Priority: P0.
 
 Depends on: PR269.
 
-Scope: automatic eligibility, Univariate Pareto selection, deterministic Bivariate redundancy reduction only when needed to fit bounded risk model, <=250 output, full decision evidence, no manual ISIN picking.
+Scope: eligibility, Univariate Pareto selection, deterministic Bivariate redundancy reduction only when needed, <=250 output, decision evidence, no manual ISIN picking.
 
-Tasks / Acceptance: single authoritative `PR270` checklist.
+Tasks / Acceptance: authoritative PR270 checklist.
 
 Parallelization: wave 3 Agent A; concurrent with PR271; selector-only paths.
 
-Security: selector may only remove from authorized pinned input.
+Security: may only remove from authorized pinned input.
 
-Determinism: frozen ranking/clustering/tie rules.
+Determinism: frozen ranking/clustering/ties.
 
-Idempotency: pure selection repeats exactly.
+Idempotency: pure selector repeats exactly.
 
-Rollback: remove selector; upstream unchanged.
+Rollback: remove selector.
 
 ### PR271. Multivariate Solver-Backed Portfolio Candidate Set
 
@@ -370,21 +398,21 @@ Priority: P0.
 
 Depends on: PR269.
 
-Scope: solver-backed Maximum Sharpe/Maximum Diversification plus existing Min Variance/ERC/HRP/Min CVaR/Equal Weight baseline, Sample/Ledoit-Wolf/EWMA risk configurations, deterministic diagnostics, no exhaustive production subset/weight-grid enumeration.
+Scope: solver-backed Maximum Sharpe/Maximum Diversification plus existing Minimum Variance/ERC/HRP/Minimum CVaR and Equal Weight baseline; Sample/Ledoit-Wolf/EWMA configurations; deterministic diagnostics; no exhaustive production subset/weight-grid enumeration.
 
-Tasks / Acceptance: single authoritative `PR271` checklist.
+Tasks / Acceptance: authoritative PR271 checklist.
 
 Parallelization: wave 3 Agent B; concurrent with PR270; solver/candidate-only paths.
 
-Security: pure numerical inputs only.
+Security: pure numerical inputs.
 
-Determinism: fixed solver settings and stable identities.
+Determinism: fixed solver settings/identities.
 
 Idempotency: pure calculations mutate nothing.
 
 Rollback: remove new solver adapters.
 
-### PR272. Multivariate Statistics Run Orchestration And OOS Objective Winner
+### PR272. Multivariate Run Orchestration And OOS Objective Winner
 
 Branch: `feat/multivariate-auto-orchestrator`.
 
@@ -402,23 +430,23 @@ Merge method: squash only.
 
 Priority: P0.
 
-Depends on: PR269-PR271 plus walk-forward/scorecard infrastructure.
+Depends on: PR269-PR271 and walk-forward/scorecard infrastructure.
 
-Scope: the one Multivariate Statistics run performs universe selection, risk models, candidate construction, walk-forward validation, objective-specific OOS winner selection, final refit, progress publication, and final decision artifacts. No separate optimizer run type is browser-visible.
+Scope: one Multivariate run performs automatic universe selection, risk models, candidate construction, walk-forward validation, objective-specific OOS winner, final refit, progress publication and all decisions.
 
-Tasks / Acceptance: single authoritative `PR272` checklist.
+Tasks / Acceptance: authoritative PR272 checklist.
 
 Parallelization: wave 4 Agent A; concurrent with PR273; orchestration/ranking/progress only.
 
-Security: authorize project/run before resolving data.
+Security: authorize project/run before data.
 
-Determinism: objective + bounded model registry + split/ranking policy determine winner.
+Determinism: objective + bounded registry + split/ranking policy determine winner.
 
-Idempotency: same input/objective/settings -> one Multivariate run/winner.
+Idempotency: same inputs/objective/settings -> one run/winner.
 
-Rollback: restore previous Multivariate orchestration.
+Rollback: restore prior Multivariate orchestration.
 
-### PR273. Multivariate Decision Artifact Persistence And Lazy Read Sections
+### PR273. Multivariate Decision Persistence And Lazy Read Sections
 
 Branch: `feat/multivariate-decision-sections`.
 
@@ -438,21 +466,21 @@ Priority: P0.
 
 Depends on: PR269-PR271.
 
-Scope: persist decisions under Multivariate run authority, expose compact page-view progress/objective/winner state and lazy decision sections, no financial calculation in GET paths, two-project isolation.
+Scope: persist decisions under Multivariate run authority; compact page-view status/objective/winner; lazy decision sections; no calculation in GET paths; two-project isolation.
 
-Tasks / Acceptance: single authoritative `PR273` checklist.
+Tasks / Acceptance: authoritative PR273 checklist.
 
 Parallelization: wave 4 Agent B; concurrent with PR272; persistence/read/API only.
 
-Security: project + Multivariate run authorization precedes artifact access.
+Security: project + Multivariate run authorization first.
 
 Determinism: canonical bytes/revisions.
 
-Idempotency: repeated identical writes no-op; reads non-mutating.
+Idempotency: identical writes no-op; reads non-mutating.
 
-Rollback: remove persistence/read surfaces only.
+Rollback: remove persistence/read surfaces.
 
-### PR274. Dash Multivariate Statistics Optimizer, Calculation Control, Objective Selector, And Decision Audit
+### PR274. Dash Multivariate Statistics Optimizer, Objective, Run Control, And Professional Decision Audit
 
 Branch: `feat/dash-multivariate-optimizer`.
 
@@ -460,9 +488,9 @@ Git status: planned.
 
 PR: not opened.
 
-Suggested PR title: `feat(dash): make Multivariate Statistics the portfolio optimizer`.
+Suggested PR title: `feat(dash): make Multivariate Statistics the professional portfolio optimizer`.
 
-Required squash subject: `feat(dash): make Multivariate Statistics the portfolio optimizer`.
+Required squash subject: `feat(dash): make Multivariate Statistics the professional portfolio optimizer`.
 
 Base: exact `main` after PR272+PR273.
 
@@ -472,21 +500,21 @@ Priority: P0.
 
 Depends on: PR264-PR273.
 
-Scope: fourth Dash page; exact three-choice optimization-objective selector; exact `Optimize portfolio` button; progress/status/failure/reload semantics; always-visible candidate plot; tabs `Universe`, `Risk Model`, `Optimization`, `Validation`, `Final Portfolio`; visual audit of every important decision stage; deterministic 400-listing/three-objective journey.
+Scope: exact objective selector, `Optimize portfolio`, progress/status; tabs `Universe`, `Risk Model`, `Optimization`, `Validation`, `Final Portfolio`; professional global candidate chart and professional plot/table/hover evidence for every important decision stage.
 
-Tasks / Acceptance: single authoritative `PR274` checklist.
+Tasks / Acceptance: base PR274 checklist plus complete PR274 ProfessionalPlotContract amendment. A registry test must enumerate every production Multivariate figure and reject missing title/axes/legend/hover metadata.
 
-Parallelization: Agent A page/objective layout/figures/CSS; Agent B callbacks/view-model/sections/run-control/E2E/docs; frozen PR269/PR273 contracts cannot change.
+Parallelization: Agent A page/objective/figures/CSS; Agent B callbacks/view-model/sections/run-control/E2E/docs; frozen contracts immutable.
 
-Security: browser consumes authorized Multivariate sections only.
+Security: authorized Multivariate sections only.
 
-Determinism: objective/run revision -> stable plots/winner.
+Determinism: objective/run revision -> stable traces/winner.
 
-Idempotency: identical start -> one Multivariate run; charts read-only.
+Idempotency: identical start -> one run; charts read-only.
 
 Rollback: revert Multivariate Dash layer.
 
-### PR275. Production Dash Cutover, React UI Deletion, And Docker Consolidation
+### PR275. Production Dash Cutover, React Deletion, And Docker Consolidation
 
 Branch: `refactor/dash-production-cutover`.
 
@@ -502,39 +530,73 @@ Base: exact PR274 merge commit.
 
 Merge method: squash only.
 
-Priority: P0 mandatory final cutover.
+Priority: P0 mandatory cutover.
 
-Depends on: PR264-PR274 all merged/green.
+Depends on: PR264-PR274 all green.
 
-Scope: delete `apps/web/**` and React/TypeScript/Vite production UI; remove temporary Dash sidecar topology; mount Dash in production FastAPI ASGI app; canonicalize browser paths without `/dash`; reorganize Compose to exactly `postgres`, `app`, `project-bootstrap-worker`; replace old API/Web/Dash images with one Python app image plus worker command; migrate tests/docs/gates and prove rollback.
+Scope: delete `apps/web/**` and React/TypeScript/Vite production UI; remove Node web and temporary Dash containers; mount Dash in FastAPI; remove `/dash` from canonical browser routes; final Compose exactly `postgres`, `app`, `project-bootstrap-worker`; migrate tests/docs/gates. Cutover E2E must prove professional plot title/axis/legend/hover semantics survived.
 
-Tasks / Acceptance: single authoritative `PR275` checklist, including exact cutover manifest and strict two-agent path ownership.
+Tasks / Acceptance: base PR275 checklist plus PR275 plot-preservation amendment.
 
-Parallelization: Agent B first freezes cutover manifest. Agent A owns old UI deletion/test/doc migration; Agent B owns Python runtime/Docker/Compose/health/ports/operations. Shared root files are individually assigned in manifest before edits.
+Parallelization: Agent B freezes cutover manifest; Agent A owns old UI/test/doc deletion; Agent B owns Python runtime/Docker/Compose/health/ports. Shared root files receive one owner in manifest.
 
-Security: final shared `app` container holds API secrets as required, but architecture/injection tests prove `dash_ui` itself cannot import/receive database/provider/storage adapters.
+Security: shared app may hold API secrets, but `dash_ui` dependency graph remains presentation-only.
 
-Determinism: cutover manifest + three-service topology + route registry determine final runtime.
+Determinism: cutover manifest + route registry + three-service topology.
 
-Idempotency: build/start/restart/cutover smoke does not duplicate analytical state.
+Idempotency: build/start/restart/cutover smoke does not duplicate state.
 
-Rollback: return to PR274 coexistence SHA; no schema/data migration is introduced by cutover.
+Rollback: return to PR274 coexistence SHA; no schema rewrite.
+
+### PR276. Sunday Full Research Refresh
+
+Branch: `feat/weekly-full-research-refresh`.
+
+Git status: planned.
+
+PR: not opened.
+
+Suggested PR title: `feat(cron): refresh market data and all portfolio statistics weekly`.
+
+Required squash subject: `feat(cron): refresh market data and all portfolio statistics weekly`.
+
+Base: exact PR275 merge commit.
+
+Merge method: squash only.
+
+Priority: P0 scheduled research freshness.
+
+Depends on: PR275 and final Uni/Bi/Multivariate service/run contracts.
+
+Scope: keep one managed host cron; exact `CRON_TZ=Europe/Vienna`, `0 9 * * 0`; execute inside `project-bootstrap-worker`; refresh canonical quotes/dividends/splits once for the de-duplicated active-project union, then run/reuse Uni -> Bi -> Multivariate for every active project in stable order using persisted settings/objective/constraints; default missing Multivariate objective only to `return_risk`; persist progress/status/DecisionArtifacts; support failure isolation and restart/resume; no fourth long-running container and no browser required.
+
+Tasks / Acceptance: single authoritative PR276 checklist in `docs/backlog/plotly-dash-professional-plots-weekly-refresh.md`.
+
+Parallelization: Agent A owns scheduler/orchestrator and frozen cycle-result/stage contracts; Agent B independently owns cron/integration verification and operations docs. `pyproject.toml` is Agent A-only; docs are Agent B-only; Dash figure/page code is forbidden.
+
+Security: trusted worker retains operations provider credential; nothing moves to browser/Dash; project isolation remains existing authority.
+
+Determinism: exact schedule/timezone, stable project order, pinned market revision, persisted settings/objective, algorithm versions determine cycle.
+
+Idempotency: `flock` + existing logical/content identities converge repeated/resumed cycles without duplicate market rows/runs/winners/DecisionArtifacts.
+
+Rollback: revert to prior market-only cron behavior; already published analytical artifacts remain immutable/auditable.
 
 ## Series Completion Gate
 
-The series is complete only when all PR264-PR275 acceptance checklists pass and one clean final `main` SHA proves:
+The target is complete only when PR264-PR276 are merged and one clean final `main` evidence run proves:
 
-- exactly four workflow pages exist and Multivariate Statistics is consistently the only portfolio optimizer page/run;
+- exactly four workflow pages exist and Multivariate Statistics is the only optimizer page/run/stage;
 - Uni, Bi, Multivariate each expose their exact calculation button, progress bar, phase/status, failure/reload behavior, duplicate-start protection, and project isolation;
-- Multivariate objective selector exposes exactly `return_risk`, `return_drawdown`, `minimum_risk`, and objective-specific winner ranking is OOS-only;
-- Univariate/Bivariate global plots and every Multivariate decision visualization are present and use server/persisted evidence only;
-- no manual per-ISIN or optimizer-method choice is required after a Multivariate run starts;
-- no exhaustive several-hundred-ISIN subset permutation or high-dimensional weight-grid production path exists;
-- React/TypeScript production UI is deleted and no production Node UI container remains;
-- final Compose services are exactly `postgres`, `app`, `project-bootstrap-worker`;
-- one Python `app` serves existing `/api` REST plus canonical Dash `/projects/<slug>/...` browser routes;
-- all Python/Dash/API/contract/architecture/Docker/Compose/E2E/quality gates pass from one SHA.
+- Multivariate exposes exactly `return_risk`, `return_drawdown`, `minimum_risk` and selects the winner from objective-specific OOS evidence;
+- every production Plotly figure is professional: descriptive title, labeled axes/units, semantic legend where applicable, deterministic friendly hover menu, stable trace semantics, explicit unavailable states, responsive/accessibility metadata;
+- Univariate/Bivariate top-level plots and every important Multivariate decision visualization use server/persisted evidence only;
+- no manual per-ISIN or optimizer-method selection is required after a Multivariate run starts and no exhaustive several-hundred-ISIN subset/weight-grid production path exists;
+- React/TypeScript production UI is deleted, no production Node UI container remains, final Compose is exactly `postgres`, `app`, `project-bootstrap-worker`, and one Python app serves `/api` plus canonical Dash `/projects/<slug>/...`;
+- managed cron is exactly Sunday `09:00 Europe/Vienna`, refreshes the active-union market data once, then completes/reuses Uni/Bi/Multivariate for every active project in dependency order without a browser;
+- weekly Multivariate uses each project's persisted objective/constraints and defaults only an absent objective to `return_risk`;
+- scheduled failure isolation/restart/resume/duplicate protection, two-project isolation, logs, worker execution, Python/Dash/API/contract/architecture/Docker/Compose/E2E/quality gates pass from one SHA.
 
 ## Historical Backlog Archive
 
-`docs/backlog/archive/BACKLOG-2026-08-16-before-dash-optimizer.md` and `docs/backlog/archive/plotly-dash-three-page-research-ui-v1.md` are historical evidence only. They may contain superseded React, three-page Dash, or separate-optimizer wording and must not be used as active implementation instructions.
+`docs/backlog/archive/BACKLOG-2026-08-16-before-dash-optimizer.md` and `docs/backlog/archive/plotly-dash-three-page-research-ui-v1.md` are historical evidence only and must not override this file, the base implementation specification, or the active amendment.
