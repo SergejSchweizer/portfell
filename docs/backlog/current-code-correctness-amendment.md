@@ -22,31 +22,31 @@ For each affected PR, the rows below are mandatory additions to that PR's existi
 10. A pairwise-calendar covariance surface is not a coherent portfolio covariance matrix. It may not be described, validated, or consumed as positive-semidefinite risk-model covariance unless one explicit common observation policy produced the complete matrix.
 11. Risk-model observation-policy metadata must describe the implementation exactly. Listwise complete-case alignment may not be labeled pairwise.
 12. OOS metric names and units are explicit. Daily volatility may not be surfaced or ranked as annualized volatility without the documented annualization transform.
-13. Production readiness verifies dependencies required to serve requests; configuration presence alone is not readiness.
+13. Production readiness verifies dependencies required to serve requests; configuration presence or process existence alone is not readiness.
 
 ## Current-code findings and disposition
 
 ### CCR-01 — API-process daemon threads own research calculations — P0
 
-Current path: `hosted_routes_research.py` schedules `service.complete(...)`; `hosted_postgres_request_scope.py` executes after-commit callbacks in `Thread(..., daemon=True)`, with FastAPI `BackgroundTasks` as the no-request-scope fallback. A process restart can therefore terminate active research work, and the API can create process-local concurrent research threads without durable lease ownership.
+Current path: `hosted_routes_research.py` schedules `service.complete(...)`; `hosted_postgres_request_scope.py` executes after-commit callbacks with `Thread(target=callback, daemon=True, name="portfell-research")`, with FastAPI `BackgroundTasks` as the no-request-scope fallback. A process restart can therefore terminate active research work, and the API can create process-local concurrent research threads without durable lease ownership.
 
 Required disposition: PR269 freezes the durable research-attempt contract; PR272 migrates Uni/Bi/Multivariate execution to the existing durable worker/job authority; PR275 removes the process-local production execution path; PR276 uses the same durable runs rather than bypassing them.
 
 ### CCR-02 — Bivariate restart destroys last valid result — P0
 
-Current path: `HostedBivariateResearchService.start()` derives a deterministic run ID, reuses only `running`, then recreates the run and calls `replace_bivariate_rows(..., ())`. Starting the same completed logical run therefore clears its persisted pair rows before the replacement computation succeeds.
+Current path: `HostedBivariateResearchService.start()` derives a deterministic run ID and reuses only an existing `running` run. For the same completed logical ID it constructs a new `ResearchRun(status="running", rows=())` and calls `save_bivariate_run()`. The PostgreSQL repository `_save_run()` upserts that same `research_run_id` and immediately replaces `research_run_rows` with the supplied empty rows; the in-memory repository likewise overwrites the run object. Starting the identical completed run therefore removes the last valid pair rows before the replacement computation succeeds.
 
 Required disposition: PR268 makes completed-run reuse and atomic replacement explicit; PR276 verifies that a weekly rerun cannot erase a valid Bivariate result.
 
 ### CCR-03 — Multivariate status read can falsely fail a valid long run — P0
 
-Current path: `HostedMultivariateResearchService._require_run()` applies a hard 15-minute wall-clock threshold to a `running` record and persists `abandoned_running_run`; status/read projections call this method. The actual process-local computation can continue and later race with the state written by the reader.
+Current path: `HostedMultivariateResearchService._require_run()` applies a hard 15-minute wall-clock threshold to a `running` record and persists a failed state with `failure_reason="compute_timeout"`; status/read projections call this method. The actual process-local computation can continue and later race with the state written by the reader.
 
 Required disposition: PR269 freezes lease/heartbeat/attempt semantics; PR272 removes read-side lifecycle mutation and uses compare-and-set terminal publication by current attempt; PR275 proves restart/slow-run survival.
 
 ### CCR-04 — Raw Multivariate exception strings are client-readable — P0 security/contract
 
-Current path: the generic exception branch in Multivariate completion persists `failure_reason=str(error)`, and the run view exposes `failure_reason`.
+Current path: the generic exception branch in Multivariate completion persists `failure_reason=str(error)`, and the Multivariate run view exposes `failure_reason`.
 
 Required disposition: PR269 defines redacted error codes; PR272 maps exceptions to safe public reasons and logs raw detail only server-side; PR273 persists/exposes only the safe contract; PR274 renders friendly messages from those codes.
 
@@ -60,13 +60,13 @@ Required disposition: PR267/PR268 stop presentation layers from treating legacy 
 
 ### CCR-06 — Bivariate planned pair count can exceed calculated pair count — P1
 
-Current path: `BivariateExecutionPlan.total_pair_count` uses `n*(n-1)/2` over full listing identities, while pair generation defaults to `skip_same_isin=True`. If the same ISIN appears on multiple exchanges/listings, the denominator includes a pair that calculation deliberately omits.
+Current path: Bivariate run planning uses the theoretical `n*(n-1)/2` pair count over full listing identities, while pair generation defaults to `skip_same_isin=True`. If the same ISIN appears on multiple exchanges/listings, the denominator includes a pair that calculation deliberately omits.
 
 Required disposition: PR268 materializes the exact eligible pair-key set first and derives calculation, paging, progress, and terminal counts from that same set.
 
 ### CCR-07 — Bivariate covariance view assembles incompatible pair calendars as one matrix — P0/P1
 
-Current path: pair covariance is calculated on each pair's own shared calendar. `build_covariance_matrix_from_rows()` assembles those values into one square matrix and repeatedly writes pair-calendar variances onto the diagonal. Such a display can be non-PSD and its diagonal can depend on which pair supplied the last variance; determinant/eigenvalue diagnostics can therefore imply a coherent covariance model that was never estimated.
+Current path: pair covariance is calculated on each pair's own shared calendar. `build_covariance_matrix_from_rows()` assembles those values into one square matrix and writes pair-level variance values onto diagonal cells. Such a display is not guaranteed to be positive semidefinite and can make coherent-matrix determinant/eigenvalue diagnostics mathematically misleading because the cells were not estimated from one common multivariate sample.
 
 Required disposition: PR268 treats this as a pairwise covariance surface with explicit per-pair coverage, removes synthesized coherent-matrix claims/diagnostics, or separately computes a true common-calendar diagnostic under one frozen policy. The Multivariate risk model may never consume the pairwise display surface as its covariance estimate.
 
@@ -78,7 +78,7 @@ Required disposition: PR269 freezes canonical full listing identity; PR271 refac
 
 ### CCR-09 — Walk-forward validation collapses future candidate configurations by method — P0 planned-optimizer blocker
 
-Current path: `multivariate_validation.py` creates `by_method = {candidate.method: candidate ...}`. The current candidate set happens to have one candidate per method, but PR271/PR272 explicitly plan method x risk-model x training-window configurations. Multiple `maximum_sharpe` or `minimum_variance` candidates would overwrite each other in that map and OOS results could be attached to the wrong configuration.
+Current path: `multivariate_validation.py` creates `by_method = {candidate.method: candidate for candidate in evaluated}` and later resolves results by method. The current candidate set happens to have one candidate per method, but PR271/PR272 explicitly plan method × risk-model × training-window configurations. Multiple `maximum_sharpe` or `minimum_variance` candidates would overwrite each other in that map and OOS results could be attached to the wrong configuration.
 
 Required disposition: PR269 freezes `configuration_id`; PR271 emits it; PR272 joins validation jobs/results only by configuration ID; PR273/PR274 preserve and display it.
 
@@ -94,9 +94,9 @@ Current path: `risk_model.py` labels the missing-observation policy `pairwise_co
 
 Required disposition: PR269/PR271 rename/freeze the actual policy, persist exact observation count/date range and separate pair-coverage diagnostics, and add a three-listing staggered-calendar regression fixture.
 
-### CCR-12 — Production health check can report healthy without proving dependency readiness — P1 operations
+### CCR-12 — Production health check is unconditional rather than readiness-aware — P1 operations
 
-Current path: `hosted_runtime.health_check()` validates runtime configuration and returns `status=ok`; current Compose health uses that command. Database connectivity and request-serving readiness are therefore not proven by this health result.
+Current path: `hosted_runtime.health_check()` unconditionally emits `{"status":"ok","mode":"postgres_hosted"}` and returns `0`. It does not verify runtime configuration, PostgreSQL connectivity, schema/migration availability, initialized request routing, or the dependencies required to serve production requests; current Compose uses this command as a health signal.
 
 Required disposition: PR275 separates liveness from readiness. Readiness must exercise the minimal dependencies required by the final FastAPI+Dash app, including a bounded PostgreSQL readiness query and initialized application routing; dependency failure returns non-ready.
 
@@ -162,7 +162,7 @@ Additional rows for the existing PR272 `Tasks / Acceptance` checklist:
 
 - [ ] Move production Univariate, Bivariate, and Multivariate heavy completion work off API daemon threads/FastAPI process-local background tasks and onto the existing durable worker/job authority using PR269 attempt/lease contracts. API/Dash start commands only create/reuse durable logical runs and enqueue/reuse work.
 - [ ] Worker heartbeat/lease renewal is explicit for long-running stages. Expired work may be reclaimed, but a stale earlier attempt is rejected by compare-and-set when publishing progress or terminal result.
-- [ ] Status/read paths are pure reads. Remove the Multivariate 15-minute read-side abandonment mutation; abandonment/recovery is worker/lease-owned. A fake-clock test advances beyond 15 minutes while heartbeat remains valid and proves status stays running.
+- [ ] Status/read paths are pure reads. Remove the Multivariate 15-minute read-side `compute_timeout` mutation; abandonment/recovery is worker/lease-owned. A fake-clock test advances beyond 15 minutes while heartbeat remains valid and proves status stays running.
 - [ ] Generic Uni/Bi/Multivariate exceptions map to PR269 redacted public failure codes. A test raises an exception containing a fake token, SQL fragment, and filesystem path and proves none is present in persisted/public failure reason.
 - [ ] Walk-forward scheduling, candidate lookup, worker payload, result join, ranking, final refit, and DecisionArtifact linkage use `configuration_id`, never optimizer method alone. A fixture validates two same-method candidates with different model/window simultaneously.
 - [ ] Validate `maximum_refit_count` before scheduling and handle the explicitly frozen `1` policy without division by zero. Invalid policies fail before work starts with a typed reason.
@@ -240,4 +240,4 @@ Forbidden at final completion:
 - run-state mutation from GET/status/read paths;
 - raw `str(exception)` in public/persisted failure reasons;
 - stale-attempt terminal overwrite;
-- configuration-only production readiness.
+- configuration-only or unconditional production readiness.
