@@ -26,6 +26,13 @@ def _criterion(label: str, suffix: str, options: tuple[tuple[str, str], ...]) ->
 def build_metadata_layout(view: MetadataBuilderView) -> object:
     """Render server-owned metadata state and exactly five builder criteria."""
 
+    history_rows = [
+        html.Li(
+            f"{stage}: {state}" if reason is None else f"{stage}: {state} ({reason})",
+            **{"data-stage": stage, "data-state": state},
+        )
+        for stage, state, reason in view.downstream_states
+    ]
     return html.Section(
         [
             html.H2("Metadata Builder"),
@@ -37,10 +44,14 @@ def build_metadata_layout(view: MetadataBuilderView) -> object:
                         disabled=view.fetch_active,
                     ),
                     html.Progress(
+                        id=component_id(METADATA_NAMESPACE, "fetch-progress"),
                         value=view.fetch_percent if view.fetch_percent is not None else None,
                         max=100,
                     ),
-                    html.Span(view.fetch_status),
+                    html.Span(
+                        view.fetch_status,
+                        id=component_id(METADATA_NAMESPACE, "fetch-status"),
+                    ),
                 ],
                 className="metadata-fetch",
             ),
@@ -65,6 +76,7 @@ def build_metadata_layout(view: MetadataBuilderView) -> object:
                     html.Strong(f"Listings: {view.listing_count}"),
                     html.Span(f"Unique ISINs: {view.unique_isin_count}"),
                     html.Span(view.history_label),
+                    html.Ul(history_rows, id=component_id(METADATA_NAMESPACE, "history-states")),
                 ],
                 id=component_id(METADATA_NAMESPACE, "universe-history"),
             ),

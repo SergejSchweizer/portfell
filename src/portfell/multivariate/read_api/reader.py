@@ -62,11 +62,7 @@ class PersistedMultivariateEvidenceReader:
         )
 
     def run_projection(
-        self,
-        *,
-        user_id: str,
-        project_slug: str,
-        run_id: str,
+        self, *, user_id: str, project_slug: str, run_id: str
     ) -> Mapping[str, object]:
         projection = self._projection(
             user_id=user_id,
@@ -96,11 +92,7 @@ class PersistedMultivariateEvidenceReader:
         return section_projection(projection, section_id=section_id)
 
     def pipeline_projection(
-        self,
-        *,
-        user_id: str,
-        project_slug: str,
-        run_id: str,
+        self, *, user_id: str, project_slug: str, run_id: str
     ) -> tuple[Mapping[str, object], ...]:
         projection = self._projection(
             user_id=user_id,
