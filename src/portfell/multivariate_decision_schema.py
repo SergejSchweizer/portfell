@@ -9,24 +9,26 @@ MULTIVARIATE_DECISION_SCHEMA_NAME = "multivariate_decision_history_evidence"
 
 MULTIVARIATE_DECISION_SCHEMA_SQL = """
 create table if not exists portfell_app.multivariate_decisions (
-    decision_id text primary key,
+    decision_id text not null,
     user_id uuid not null references portfell_app.users(user_id) on delete cascade,
     project_id uuid not null references portfell_app.projects(project_id) on delete cascade,
     run_id text not null,
     stage text not null,
     canonical_payload jsonb not null,
     created_at timestamptz not null default now(),
+    primary key (user_id, project_id, decision_id),
     unique (user_id, project_id, run_id, stage, decision_id)
 );
 
 create table if not exists portfell_app.research_universe_snapshots (
-    snapshot_id text primary key,
+    snapshot_id text not null,
     user_id uuid not null references portfell_app.users(user_id) on delete cascade,
     project_id uuid not null references portfell_app.projects(project_id) on delete cascade,
     run_id text not null,
     stage text not null,
     canonical_payload jsonb not null,
     created_at timestamptz not null default now(),
+    primary key (user_id, project_id, snapshot_id),
     unique (user_id, project_id, run_id, stage, snapshot_id)
 );
 
