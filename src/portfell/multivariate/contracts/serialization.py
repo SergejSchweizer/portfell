@@ -8,7 +8,14 @@ import math
 from collections.abc import Mapping, Sequence
 from enum import Enum
 
-_FORBIDDEN_KEY_FRAGMENTS = ("secret", "password", "token_file", "private_key", "filesystem_path")
+_FORBIDDEN_KEY_FRAGMENTS = (
+    "secret",
+    "password",
+    "token",
+    "private_key",
+    "credential",
+    "path",
+)
 
 
 def _primitive(value: object) -> object:
