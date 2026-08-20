@@ -10,9 +10,17 @@ from dash import Dash, Input, Output, State, ctx
 
 from portfell.dash_ui.callbacks.multivariate_statistics.commands import optimizer_command_key
 from portfell.dash_ui.core.gateway import DashResearchGateway
-from portfell.dash_ui.core.ids import MULTIVARIATE_NAMESPACE, OBJECTIVE_SELECTOR_ID, component_id
+from portfell.dash_ui.core.ids import (
+    MULTIVARIATE_NAMESPACE,
+    OBJECTIVE_SELECTOR_ID,
+    component_id,
+)
 from portfell.dash_ui.core.routes import WorkflowId
-from portfell.dash_ui.core.run_control import RunStatus, StatisticsRunControl, normalize_progress
+from portfell.dash_ui.core.run_control import (
+    RunStatus,
+    StatisticsRunControl,
+    normalize_progress,
+)
 from portfell.multivariate.contracts.objectives import OptimizationObjective
 from portfell.multivariate.contracts.settings import MultivariateOptimizationSettings
 
@@ -37,28 +45,42 @@ def _settings(
     persisted: Mapping[str, object],
     objective: str | None,
 ) -> MultivariateOptimizationSettings:
-    selected = objective or str(persisted.get("objective") or OptimizationObjective.RETURN_RISK.value)
+    selected = objective or str(
+        persisted.get("objective") or OptimizationObjective.RETURN_RISK.value
+    )
     frequencies_raw = persisted.get("allowed_distribution_frequencies")
     if isinstance(frequencies_raw, (list, tuple)):
         frequencies = tuple(str(value) for value in frequencies_raw)
     else:
         frequencies = ()
     holdings_raw = persisted.get("max_holdings")
-    max_holdings = holdings_raw if isinstance(holdings_raw, int) and not isinstance(holdings_raw, bool) else None
+    max_holdings = (
+        holdings_raw
+        if isinstance(holdings_raw, int) and not isinstance(holdings_raw, bool)
+        else None
+    )
     return MultivariateOptimizationSettings(
         objective=OptimizationObjective(selected),
         allowed_distribution_frequencies=frequencies,
         min_weight=_float_setting(persisted, "min_weight", 0.0),
         max_weight=_float_setting(persisted, "max_weight", 1.0),
         max_holdings=max_holdings,
-        transaction_cost_rate=_float_setting(persisted, "transaction_cost_rate", 0.0),
+        transaction_cost_rate=_float_setting(
+            persisted,
+            "transaction_cost_rate",
+            0.0,
+        ),
     )
 
 
-def _settings_payload(settings: MultivariateOptimizationSettings) -> dict[str, object]:
+def _settings_payload(
+    settings: MultivariateOptimizationSettings,
+) -> dict[str, object]:
     return {
         "objective": settings.objective.value,
-        "allowed_distribution_frequencies": list(settings.allowed_distribution_frequencies),
+        "allowed_distribution_frequencies": list(
+            settings.allowed_distribution_frequencies
+        ),
         "min_weight": settings.min_weight,
         "max_weight": settings.max_weight,
         "max_holdings": settings.max_holdings,
@@ -106,16 +128,22 @@ def _control(row: Mapping[str, object]) -> StatisticsRunControl:
     )
 
 
-def _outputs(control: StatisticsRunControl) -> tuple[float | None, str, str, bool]:
+def _outputs(
+    control: StatisticsRunControl,
+) -> tuple[float | None, str, str, bool]:
     return (
         control.percent,
         control.phase or control.status.value,
         control.failure_reason or "",
-        control.status in {RunStatus.STARTING, RunStatus.RUNNING} or not control.can_start,
+        control.status in {RunStatus.STARTING, RunStatus.RUNNING}
+        or not control.can_start,
     )
 
 
-def register_multivariate_callbacks(app: Dash, gateway: DashResearchGateway) -> None:
+def register_multivariate_callbacks(
+    app: Dash,
+    gateway: DashResearchGateway,
+) -> None:
     """Register objective-aware start/poll behavior without browser-side analytics."""
 
     @app.callback(
@@ -138,20 +166,27 @@ def register_multivariate_callbacks(app: Dash, gateway: DashResearchGateway) -> 
         if project_slug is None:
             return None, "unavailable", "project_unavailable", True
 
-        persisted = _mapping(gateway.multivariate_settings(project_slug=project_slug))
+        persisted = _mapping(
+            gateway.multivariate_settings(project_slug=project_slug)
+        )
         settings = _settings(persisted, objective)
-        persisted_objective = str(persisted.get("objective") or OptimizationObjective.RETURN_RISK.value)
-        if ctx.triggered_id == OBJECTIVE_SELECTOR_ID and settings.objective.value != persisted_objective:
+        persisted_objective = str(
+            persisted.get("objective") or OptimizationObjective.RETURN_RISK.value
+        )
+        objective_changed = settings.objective.value != persisted_objective
+        if ctx.triggered_id == OBJECTIVE_SELECTOR_ID and objective_changed:
             current = _control(
                 gateway.run_status(
                     project_slug=project_slug,
                     stage_id=WorkflowId.MULTIVARIATE_STATISTICS,
                 )
             )
-            return current.percent, RunStatus.STALE.value, "", True if current.status in {RunStatus.STARTING, RunStatus.RUNNING} else False
+            active = current.status in {RunStatus.STARTING, RunStatus.RUNNING}
+            return current.percent, RunStatus.STALE.value, "", active
 
         status_row: Mapping[str, object]
-        if ctx.triggered_id == component_id(MULTIVARIATE_NAMESPACE, "optimize") and n_clicks:
+        optimize_id = component_id(MULTIVARIATE_NAMESPACE, "optimize")
+        if ctx.triggered_id == optimize_id and n_clicks:
             page = _mapping(
                 gateway.page_view(
                     project_slug=project_slug,
@@ -159,7 +194,9 @@ def register_multivariate_callbacks(app: Dash, gateway: DashResearchGateway) -> 
                 )
             )
             input_row = _mapping(page.get("input"))
-            upstream = input_row.get("bivariate_revision") or input_row.get("bivariate_run_id")
+            upstream = input_row.get("bivariate_revision") or input_row.get(
+                "bivariate_run_id"
+            )
             if not isinstance(upstream, str) or not upstream:
                 return None, "unavailable", "bivariate_revision_unavailable", True
             status_row = gateway.start_run(
