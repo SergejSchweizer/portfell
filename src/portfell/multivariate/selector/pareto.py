@@ -4,8 +4,19 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from portfell.multivariate.contracts.common import ListingIdentity
-from portfell.multivariate.selector.eligibility import SelectorMetrics
+from portfell.multivariate.contracts.common import DecisionStageId, EvidenceAvailability, ListingIdentity
+from portfell.multivariate.contracts.decision_reasons import DecisionReasonCode
+from portfell.multivariate.contracts.decisions import (
+    DecisionArtifact,
+    DecisionCandidate,
+    DecisionRejection,
+)
+from portfell.multivariate.contracts.history import HistoryRange
+from portfell.multivariate.selector.eligibility import (
+    SelectionStageEvidence,
+    SelectorMetrics,
+    _snapshot,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -97,3 +108,59 @@ def select_pareto(
     selected = tuple(member for member in ranked if member.rank <= cutoff)
     dominated = tuple(member for member in ranked if member.rank > cutoff)
     return ParetoResult(selected, dominated)
+
+
+def pareto_evidence(
+    *,
+    run_id: str,
+    objective: str,
+    project_slug: str,
+    pinned_revision: str,
+    rows: tuple[SelectorMetrics, ...],
+    result: ParetoResult,
+    algorithm_version: str,
+    profile_version: str,
+    observed_history: HistoryRange = HistoryRange(None, None, None),
+    common_history: HistoryRange = HistoryRange(None, None, None),
+) -> SelectionStageEvidence:
+    """Build immutable before/after snapshots and the Pareto DecisionArtifact."""
+
+    before = tuple(sorted(row.listing for row in rows))
+    selected = tuple(sorted(member.listing for member in result.selected))
+    dominated = tuple(sorted(member.listing for member in result.dominated))
+    before_snapshot = _snapshot(
+        project_slug=project_slug,
+        revision=pinned_revision,
+        listings=before,
+        removed_count=0,
+        removal_reasons={},
+        observed_history=observed_history,
+        common_history=common_history,
+    )
+    after_snapshot = _snapshot(
+        project_slug=project_slug,
+        revision=pinned_revision,
+        listings=selected,
+        removed_count=len(dominated),
+        removal_reasons={DecisionReasonCode.PARETO_DOMINATED.value: len(dominated)},
+        observed_history=observed_history,
+        common_history=common_history,
+    )
+    decision = DecisionArtifact(
+        run_id=run_id,
+        objective=objective,
+        stage=DecisionStageId.UNIVARIATE_PARETO,
+        pinned_revisions=(pinned_revision,),
+        candidates=tuple(DecisionCandidate(listing.token) for listing in before),
+        selected_ids=tuple(listing.token for listing in selected),
+        rejections=tuple(
+            DecisionRejection(listing.token, DecisionReasonCode.PARETO_DOMINATED)
+            for listing in dominated
+        ),
+        status=EvidenceAvailability.AVAILABLE,
+        reason_code=DecisionReasonCode.PARETO_SELECTED,
+        algorithm_version=algorithm_version,
+        profile_version=profile_version,
+        listing_scope=before,
+    )
+    return SelectionStageEvidence(decision, before_snapshot, after_snapshot)
