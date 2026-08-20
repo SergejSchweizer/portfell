@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 
 from portfell.dash_ui.callbacks.multivariate_statistics.commands import optimizer_command_key
@@ -35,13 +36,8 @@ def _fresh_view() -> MultivariateView:
         max_holdings=20,
         transaction_cost_rate=0.001,
     )
-    return MultivariateView(
-        run_control=_control(),
-        objective=draft.objective,
-        min_weight=draft.min_weight,
-        max_weight=draft.max_weight,
-        max_holdings=draft.max_holdings,
-        transaction_cost_rate=draft.transaction_cost_rate,
+    return replace(
+        draft,
         result_revision="multi-1",
         result_objective=draft.objective,
         result_settings_signature=draft.settings_signature,
@@ -61,21 +57,14 @@ def test_pr289_exposes_exactly_three_objectives_with_return_risk_default() -> No
 def test_pr289_objective_and_any_constraint_change_marks_result_stale_without_start() -> None:
     fresh = _fresh_view()
     assert fresh.result_is_stale is False
-    changed_objective = MultivariateView(
-        **{
-            **fresh.__dict__,
-            "objective": OptimizationObjective.MINIMUM_RISK,
-        }
-    )
-    assert changed_objective.result_is_stale is True
+    assert replace(fresh, objective=OptimizationObjective.MINIMUM_RISK).result_is_stale is True
     for changes in (
         {"min_weight": 0.05},
         {"max_weight": 0.5},
         {"max_holdings": 10},
         {"transaction_cost_rate": 0.002},
     ):
-        changed = MultivariateView(**{**fresh.__dict__, **changes})
-        assert changed.result_is_stale is True
+        assert replace(fresh, **changes).result_is_stale is True
     source = Path(
         "src/portfell/dash_ui/viewmodels/multivariate_statistics/model.py"
     ).read_text(encoding="utf-8")
