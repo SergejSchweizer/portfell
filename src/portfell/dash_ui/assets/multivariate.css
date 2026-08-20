@@ -1,0 +1,8 @@
+.multivariate-page { display: grid; gap: 1rem; min-width: 0; }
+.multivariate-page label { display: grid; gap: .35rem; max-width: 32rem; }
+.multivariate-page section { min-width: 0; }
+.multivariate-page button:focus-visible, .multivariate-page [tabindex]:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+@media (max-width: 600px) {
+  .multivariate-page { gap: .75rem; }
+  .multivariate-page .dash-graph { min-height: 18rem; }
+}
