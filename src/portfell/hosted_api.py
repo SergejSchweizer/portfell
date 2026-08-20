@@ -124,6 +124,9 @@ def create_app(
                 return await call_next(request)
 
     application.state.portfell_state = resolved_state
+    application.state.portfell_services = services
+    application.state.portfell_current_user_provider = provider
+    application.state.portfell_request_scope = request_scope
     application.include_router(
         credential_router(credentials, current_user=current_user, workspace_user=workspace_user)
     )
