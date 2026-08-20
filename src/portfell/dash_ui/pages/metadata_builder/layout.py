@@ -37,10 +37,14 @@ def build_metadata_layout(view: MetadataBuilderView) -> object:
                         disabled=view.fetch_active,
                     ),
                     html.Progress(
+                        id=component_id(METADATA_NAMESPACE, "fetch-progress"),
                         value=view.fetch_percent if view.fetch_percent is not None else None,
                         max=100,
                     ),
-                    html.Span(view.fetch_status),
+                    html.Span(
+                        view.fetch_status,
+                        id=component_id(METADATA_NAMESPACE, "fetch-status"),
+                    ),
                 ],
                 className="metadata-fetch",
             ),
