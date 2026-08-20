@@ -6,6 +6,8 @@ from collections.abc import Iterable
 
 from portfell.dash_ui.figures.bivariate_statistics.models import BivariateUniversePoint
 
+WEBGL_LISTING_THRESHOLD = 200
+
 METRIC_LABELS: dict[str, str] = {
     "median_pearson": "Median Pearson correlation",
     "median_spearman": "Median Spearman correlation",
@@ -26,10 +28,11 @@ def diversification_figure(
     ordered = tuple(sorted(points, key=lambda point: point.listing_id))
     available = [point for point in ordered if point.metric(metric_id) is not None]
     unavailable = [point.listing_id for point in ordered if point.metric(metric_id) is None]
+    trace_type = "scattergl" if len(ordered) > WEBGL_LISTING_THRESHOLD else "scatter"
     return {
         "data": [
             {
-                "type": "scattergl",
+                "type": trace_type,
                 "mode": "markers",
                 "name": METRIC_LABELS[metric_id],
                 "x": [point.metric(metric_id) for point in available],
@@ -54,7 +57,10 @@ def diversification_figure(
             "title": "Bivariate Return / Diversification Universe",
             "xaxis": {"title": METRIC_LABELS[metric_id]},
             "yaxis": {"title": "Annualized geometric return (% p.a.)"},
-            "meta": {"unavailable_listing_ids": unavailable},
+            "meta": {
+                "unavailable_listing_ids": unavailable,
+                "webgl_listing_threshold": WEBGL_LISTING_THRESHOLD,
+            },
             "uirevision": f"bivariate-diversification-{metric_id}-v1",
         },
     }
