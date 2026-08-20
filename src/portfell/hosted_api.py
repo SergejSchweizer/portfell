@@ -107,7 +107,11 @@ def _resolve_project_id(
             continue
         name = raw_project.get("name")
         project_id = raw_project.get("project_id")
-        if isinstance(name, str) and isinstance(project_id, str) and _project_slug(name) == project_slug:
+        if (
+            isinstance(name, str)
+            and isinstance(project_id, str)
+            and _project_slug(name) == project_slug
+        ):
             matches.append(project_id)
     if len(matches) != 1:
         raise KeyError(project_slug)
@@ -230,7 +234,9 @@ def create_runtime_app() -> FastAPI:
     evidence_reader = PersistedMultivariateEvidenceReader(
         request_scope,
         resolve_project_id=lambda user_id, project_slug: _resolve_project_id(
-            projects, user_id=user_id, project_slug=project_slug
+            projects,
+            user_id=user_id,
+            project_slug=project_slug,
         ),
     )
     return create_app(
