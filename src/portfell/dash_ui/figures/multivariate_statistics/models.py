@@ -5,6 +5,8 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 
+_OBJECTIVES = {"return_risk", "return_drawdown", "minimum_risk"}
+
 
 @dataclass(frozen=True, slots=True)
 class PortfolioCandidatePoint:
@@ -15,6 +17,11 @@ class PortfolioCandidatePoint:
     winner: bool
     method: str
     risk_model: str
+    objective: str = "return_risk"
+
+    def __post_init__(self) -> None:
+        if self.objective not in _OBJECTIVES:
+            raise ValueError("unknown multivariate objective")
 
 
 @dataclass(frozen=True, slots=True)
