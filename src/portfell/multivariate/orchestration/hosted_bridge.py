@@ -6,10 +6,15 @@ import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from statistics import median
+from typing import cast
 
 from portfell.multivariate.contracts.objectives import DEFAULT_OBJECTIVE, OptimizationObjective
-from portfell.multivariate.orchestration.ranking import OOSScore
-from portfell.multivariate.orchestration.runner import FinalRefit, MultivariateRunResult, complete_run
+from portfell.multivariate.orchestration.ranking import OOSScore, select_winner
+from portfell.multivariate.orchestration.runner import (
+    FinalRefit,
+    MultivariateRunResult,
+    complete_run,
+)
 from portfell.multivariate.orchestration.walk_forward import WalkForwardSplit
 
 
@@ -22,13 +27,33 @@ class HostedOOSSelection:
 
 
 def _optional_float(value: object) -> float | None:
-    if value is None:
-        return None
-    try:
+    if isinstance(value, bool):
         parsed = float(value)
-    except (TypeError, ValueError):
+    elif isinstance(value, (int, float)):
+        parsed = float(value)
+    elif isinstance(value, str):
+        try:
+            parsed = float(value)
+        except ValueError:
+            return None
+    else:
         return None
     return parsed if math.isfinite(parsed) else None
+
+
+def _optional_int(value: object) -> int | None:
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value) if value.is_integer() else None
+    if isinstance(value, str):
+        try:
+            return int(value)
+        except ValueError:
+            return None
+    return None
 
 
 def _median(values: Sequence[float | None]) -> float | None:
@@ -38,7 +63,10 @@ def _median(values: Sequence[float | None]) -> float | None:
 
 def _annualized_return(rows: Sequence[Mapping[str, object]]) -> float | None:
     completed = [row for row in rows if row.get("status") == "complete"]
-    observations = sum(int(row.get("test_observation_count") or 0) for row in completed)
+    counts = [_optional_int(row.get("test_observation_count")) for row in completed]
+    if any(value is None for value in counts):
+        return None
+    observations = sum(value for value in counts if value is not None)
     if observations <= 0:
         return None
     wealth = 1.0
@@ -60,11 +88,19 @@ def _score(candidate_id: str, rows: Sequence[Mapping[str, object]]) -> OOSScore:
     available_cvars = [value for value in cvars if value is not None]
     return OOSScore(
         configuration_id=candidate_id,
-        median_oos_sharpe=_median([_optional_float(row.get("sharpe_ratio")) for row in completed]),
-        median_oos_sortino=_median([_optional_float(row.get("sortino_ratio")) for row in completed]),
-        whole_oos_maximum_drawdown=min(available_drawdowns) if available_drawdowns else None,
+        median_oos_sharpe=_median(
+            [_optional_float(row.get("sharpe_ratio")) for row in completed]
+        ),
+        median_oos_sortino=_median(
+            [_optional_float(row.get("sortino_ratio")) for row in completed]
+        ),
+        whole_oos_maximum_drawdown=(
+            min(available_drawdowns) if available_drawdowns else None
+        ),
         oos_cvar=max(available_cvars) if available_cvars else None,
-        median_turnover=_median([_optional_float(row.get("turnover")) for row in completed]),
+        median_turnover=_median(
+            [_optional_float(row.get("turnover")) for row in completed]
+        ),
         annualized_oos_return=_annualized_return(completed),
         oos_annualized_volatility=_median(
             [_optional_float(row.get("volatility")) for row in completed]
@@ -72,7 +108,9 @@ def _score(candidate_id: str, rows: Sequence[Mapping[str, object]]) -> OOSScore:
     )
 
 
-def _walk_forward_ranges(rows: Sequence[Mapping[str, object]]) -> tuple[WalkForwardSplit, ...]:
+def _walk_forward_ranges(
+    rows: Sequence[Mapping[str, object]],
+) -> tuple[WalkForwardSplit, ...]:
     ranges = sorted(
         {
             (
@@ -102,9 +140,10 @@ def _weights(candidate: Mapping[str, object]) -> tuple[float, ...]:
     if not isinstance(raw, list):
         raise ValueError("winner weights are unavailable")
     values: list[float] = []
-    for row in raw:
-        if not isinstance(row, dict):
+    for item in cast(list[object], raw):
+        if not isinstance(item, Mapping):
             raise ValueError("winner weights are invalid")
+        row = cast(Mapping[str, object], item)
         value = _optional_float(row.get("weight"))
         if value is None:
             raise ValueError("winner weights are invalid")
@@ -127,9 +166,9 @@ def select_hosted_oos_winner(
     walk_forward_rows = [row for row in validation if row.get("kind") == "walk_forward"]
     candidate_ids = sorted(
         {
-            str(row.get("candidate_id"))
+            candidate_id
             for row in walk_forward_rows
-            if isinstance(row.get("candidate_id"), str) and row.get("candidate_id")
+            if isinstance((candidate_id := row.get("candidate_id")), str) and candidate_id
         }
     )
     scores = tuple(
@@ -142,20 +181,21 @@ def select_hosted_oos_winner(
     if not scores:
         raise ValueError("no OOS candidate evidence is available")
 
-    from portfell.multivariate.orchestration.ranking import select_winner
-
     winner = select_winner(scores, objective)
-    winner_rows = [row for row in candidates if row.get("candidate_id") == winner.configuration_id]
+    winner_rows = [
+        row for row in candidates if row.get("candidate_id") == winner.configuration_id
+    ]
     if len(winner_rows) != 1:
         raise ValueError("OOS winner does not map to exactly one final-refit candidate")
 
     aligned = summary.get("aligned_period")
-    if not isinstance(aligned, dict):
+    if not isinstance(aligned, Mapping):
         raise ValueError("final-refit aligned period is unavailable")
-    first_date = str(aligned.get("date_start") or "")
-    last_date = str(aligned.get("date_end") or "")
-    observation_count = int(aligned.get("observation_count") or 0)
-    if not first_date or not last_date:
+    aligned_row = cast(Mapping[str, object], aligned)
+    first_date = str(aligned_row.get("date_start") or "")
+    last_date = str(aligned_row.get("date_end") or "")
+    observation_count = _optional_int(aligned_row.get("observation_count"))
+    if not first_date or not last_date or observation_count is None:
         raise ValueError("final-refit aligned range is unavailable")
 
     final_refit = FinalRefit(
