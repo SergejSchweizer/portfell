@@ -65,14 +65,22 @@ def _settings(
         min_weight=_float_setting(persisted, "min_weight", 0.0),
         max_weight=_float_setting(persisted, "max_weight", 1.0),
         max_holdings=max_holdings,
-        transaction_cost_rate=_float_setting(persisted, "transaction_cost_rate", 0.0),
+        transaction_cost_rate=_float_setting(
+            persisted,
+            "transaction_cost_rate",
+            0.0,
+        ),
     )
 
 
-def _settings_payload(settings: MultivariateOptimizationSettings) -> dict[str, object]:
+def _settings_payload(
+    settings: MultivariateOptimizationSettings,
+) -> dict[str, object]:
     return {
         "objective": settings.objective.value,
-        "allowed_distribution_frequencies": list(settings.allowed_distribution_frequencies),
+        "allowed_distribution_frequencies": list(
+            settings.allowed_distribution_frequencies
+        ),
         "min_weight": settings.min_weight,
         "max_weight": settings.max_weight,
         "max_holdings": settings.max_holdings,
@@ -120,16 +128,22 @@ def _control(row: Mapping[str, object]) -> StatisticsRunControl:
     )
 
 
-def _outputs(control: StatisticsRunControl) -> tuple[float | None, str, str, bool]:
+def _outputs(
+    control: StatisticsRunControl,
+) -> tuple[float | None, str, str, bool]:
     return (
         control.percent,
         control.phase or control.status.value,
         control.failure_reason or "",
-        control.status in {RunStatus.STARTING, RunStatus.RUNNING} or not control.can_start,
+        control.status in {RunStatus.STARTING, RunStatus.RUNNING}
+        or not control.can_start,
     )
 
 
-def register_multivariate_callbacks(app: Dash, gateway: DashResearchGateway) -> None:
+def register_multivariate_callbacks(
+    app: Dash,
+    gateway: DashResearchGateway,
+) -> None:
     """Register objective-aware start/poll behavior without browser-side analytics."""
 
     @app.callback(
@@ -152,7 +166,9 @@ def register_multivariate_callbacks(app: Dash, gateway: DashResearchGateway) -> 
         if project_slug is None:
             return None, "unavailable", "project_unavailable", True
 
-        persisted = _mapping(gateway.multivariate_settings(project_slug=project_slug))
+        persisted = _mapping(
+            gateway.multivariate_settings(project_slug=project_slug)
+        )
         settings = _settings(persisted, objective)
         persisted_objective = str(
             persisted.get("objective") or OptimizationObjective.RETURN_RISK.value
@@ -178,7 +194,9 @@ def register_multivariate_callbacks(app: Dash, gateway: DashResearchGateway) -> 
                 )
             )
             input_row = _mapping(page.get("input"))
-            upstream = input_row.get("bivariate_revision") or input_row.get("bivariate_run_id")
+            upstream = input_row.get("bivariate_revision") or input_row.get(
+                "bivariate_run_id"
+            )
             if not isinstance(upstream, str) or not upstream:
                 return None, "unavailable", "bivariate_revision_unavailable", True
             status_row = gateway.start_run(

@@ -116,7 +116,9 @@ def register_univariate_callbacks(app: Dash, gateway: DashResearchGateway) -> No
                     project_slug=project_slug,
                     upstream_revision=upstream,
                 ),
-                settings={"dividend_frequencies": tuple(dividend_frequencies or ())},
+                settings={
+                    "dividend_frequencies": tuple(dividend_frequencies or ()),
+                },
             )
         else:
             status_row = gateway.run_status(
