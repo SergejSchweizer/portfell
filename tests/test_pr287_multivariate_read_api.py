@@ -95,7 +95,10 @@ def test_reader_sections_and_pipeline_are_deterministic() -> None:
 
 def test_project_slug_resolution_is_deterministic_and_fail_closed() -> None:
     assert _project_slug("Älpha Growth") == "alpha-growth"
-    assert _resolve_project_id(Projects(), user_id="user-1", project_slug="alpha-growth") == "project-1"
+    assert (
+        _resolve_project_id(Projects(), user_id="user-1", project_slug="alpha-growth")
+        == "project-1"
+    )
 
     try:
         _resolve_project_id(Projects(), user_id="user-1", project_slug="missing")
@@ -111,5 +114,8 @@ def test_create_app_registers_multivariate_evidence_routes_when_reader_is_inject
     paths = {route.path for route in application.routes}
 
     assert "/api/projects/{project_slug}/multivariate/runs/{run_id}/evidence" in paths
-    assert "/api/projects/{project_slug}/multivariate/runs/{run_id}/sections/{section_id}" in paths
+    assert (
+        "/api/projects/{project_slug}/multivariate/runs/{run_id}/sections/{section_id}"
+        in paths
+    )
     assert "/api/projects/{project_slug}/multivariate/runs/{run_id}/universe-history" in paths
