@@ -126,7 +126,10 @@ def test_return_risk_selects_only_from_walk_forward_oos_and_uses_full_refit_weig
     assert selected.result.final_refit.first_date == "2024-01-02"
     assert selected.result.final_refit.last_date == "2024-12-31"
     assert selected.result.final_refit.observation_count == 252
-    assert [(split.training_dates[-1], split.test_dates[0]) for split in selected.result.splits] == [
+    split_boundaries = [
+        (split.training_dates[-1], split.test_dates[0]) for split in selected.result.splits
+    ]
+    assert split_boundaries == [
         ("2024-06-28", "2024-07-01"),
         ("2024-07-31", "2024-08-01"),
     ]
