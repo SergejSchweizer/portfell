@@ -2,7 +2,7 @@ name: portfell
 
 services:
   postgres:
-    container_name: portfell-postgress
+    container_name: portfell-postgres
     image: postgres:17-alpine
     restart: unless-stopped
     environment:
@@ -10,8 +10,7 @@ services:
       POSTGRES_USER: portfell_app
       POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
       PGDATA: /var/lib/postgresql/data/pgdata
-    secrets:
-      - postgres_password
+    secrets: [postgres_password]
     volumes:
       - portfell-postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -20,20 +19,14 @@ services:
       timeout: 5s
       retries: 10
       start_period: 20s
-    networks:
-      - portfell-internal
-    expose:
-      - "5432"
+    networks: [portfell-internal]
+    expose: ["5432"]
     read_only: true
-    tmpfs:
-      - /tmp
-      - /run
-      - /var/run/postgresql
-    security_opt:
-      - no-new-privileges:true
+    tmpfs: [/tmp, /run, /var/run/postgresql]
+    security_opt: [no-new-privileges:true]
 
-  api:
-    container_name: portfell-api
+  app:
+    container_name: portfell-app
     build:
       context: .
       dockerfile: apps/api/Dockerfile
@@ -45,9 +38,7 @@ services:
       PORTFELL_DATABASE_PASSWORD_FILE: /run/secrets/postgres_password
       PORTFELL_SHARED_DATA_ROOT: /srv/portfell/shared-data
       PORTFELL_EODHD_KEK_FILE: /run/secrets/eodhd_kek
-    secrets:
-      - eodhd_kek
-      - postgres_password
+    secrets: [eodhd_kek, postgres_password]
     volumes:
       - portfell-shared-data:/srv/portfell/shared-data
     depends_on:
@@ -56,63 +47,19 @@ services:
       project-bootstrap-worker:
         condition: service_healthy
     ports:
-      - "0.0.0.0:${PORTFELL_API_PORT:-8000}:8000"
+      - "0.0.0.0:${PORTFELL_APP_PORT:-8000}:8000"
     healthcheck:
       test: ["CMD", "python", "-m", "portfell.hosted_runtime", "health"]
       interval: 10s
       timeout: 5s
       retries: 10
       start_period: 20s
-    networks:
-      - portfell-internal
-      - portfell-public
-    group_add:
-      - "${PORTFELL_SECRET_GROUP_ID:-100}"
+    networks: [portfell-internal, portfell-public]
+    group_add: ["${PORTFELL_SECRET_GROUP_ID:-100}"]
     read_only: true
-    tmpfs:
-      - /tmp
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-
-  web:
-    container_name: portfell-web
-    build:
-      context: .
-      dockerfile: apps/web/Dockerfile
-    develop:
-      watch:
-        - action: rebuild
-          path: ./apps/web
-        - action: rebuild
-          path: ./apps/web/Dockerfile
-        - action: rebuild
-          path: ./compose.yaml
-    restart: unless-stopped
-    environment:
-      NODE_ENV: development
-      PORTFELL_API_BASE_URL: http://api:8000
-    depends_on:
-      api:
-        condition: service_healthy
-    ports:
-      - "0.0.0.0:${PORTFELL_WEB_PORT:-333}:3000"
-    healthcheck:
-      test: ["CMD", "node", "server.js", "--health"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 20s
-    networks:
-      - portfell-public
-    read_only: true
-    tmpfs:
-      - /tmp
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
 
   project-bootstrap-worker:
     container_name: portfell-worker
@@ -124,16 +71,16 @@ services:
       - sh
       - -c
       - >-
-        python -m portfell.hosted_catalog_migration && touch /tmp/catalog-migrated
+        python -m portfell.hosted_catalog_migration
+        && python -m portfell.multivariate_decision_migration
+        && touch /tmp/catalog-migrated
         && exec python -m portfell.hosted_project_bootstrap_worker
     environment:
       PORTFELL_SHARED_DATA_ROOT: /srv/portfell/shared-data
       PORTFELL_DATABASE_URL: postgresql://portfell_app@postgres:5432/portfell
       PORTFELL_DATABASE_PASSWORD_FILE: /run/secrets/postgres_password
       PORTFELL_OPERATIONS_EODHD_TOKEN_FILE: /run/secrets/operations_eodhd_token
-    secrets:
-      - operations_eodhd_token
-      - postgres_password
+    secrets: [operations_eodhd_token, postgres_password]
     volumes:
       - portfell-shared-data:/srv/portfell/shared-data
     depends_on:
@@ -145,18 +92,12 @@ services:
       timeout: 2s
       retries: 15
       start_period: 10s
-    networks:
-      - portfell-internal
-      - portfell-public
-    group_add:
-      - "${PORTFELL_SECRET_GROUP_ID:-100}"
+    networks: [portfell-internal, portfell-public]
+    group_add: ["${PORTFELL_SECRET_GROUP_ID:-100}"]
     read_only: true
-    tmpfs:
-      - /tmp
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
 
 networks:
   portfell-internal:

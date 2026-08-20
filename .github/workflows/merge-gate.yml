@@ -7,308 +7,103 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
 env:
   PYTEST_SHARD_COUNT: 4
 
 jobs:
-  merge-lint-quality:
+  lint:
     name: merge-lint-quality
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
-        with:
-          fetch-depth: 0
-          ref: ${{ github.sha }}
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: astral-sh/setup-uv@v6
+      - run: uv python install
+      - run: uv sync --dev
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run python -m portfell.architecture_checks
+      - run: uv run python -m portfell.schema_validation
+      - run: uv run python -m portfell.security_gates
+      - run: uv run portfell-quality --commits-only
+      - run: git diff --quiet && git diff --cached --quiet
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86
-        with:
-          enable-cache: true
-
-      - name: Install Python
-        run: uv python install
-
-      - name: Install dependencies
-        run: uv sync --dev
-
-      - name: Ruff lint
-        run: uv run ruff check .
-
-      - name: Ruff format
-        run: uv run ruff format --check .
-
-      - name: Architecture and import boundaries
-        run: uv run python -m portfell.architecture_checks
-
-      - name: Dataset schema registry
-        run: uv run python -m portfell.schema_validation
-
-      - name: Hosted security gates
-        run: uv run python -m portfell.security_gates
-
-      - name: Validate branch commit subjects
-        run: uv run portfell-quality --commits-only
-
-      - name: Verify tracked working tree stays clean
-        run: |
-          git diff --quiet
-          git diff --cached --quiet
-
-  merge-type-quality:
+  type:
     name: merge-type-quality
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
-        with:
-          fetch-depth: 0
-          ref: ${{ github.sha }}
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv python install
+      - run: uv sync --dev
+      - run: uv run pyright
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86
-        with:
-          enable-cache: true
-
-      - name: Install Python
-        run: uv python install
-
-      - name: Install dependencies
-        run: uv sync --dev
-
-      - name: Pyright
-        run: uv run pyright
-
-  merge-web-unit-quality:
-    name: merge-web-unit-quality
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
-        with:
-          fetch-depth: 0
-          ref: ${{ github.sha }}
-
-      - name: Install Web dependencies
-        run: |
-          docker run --rm --user "$(id -u):$(id -g)" \
-            -e npm_config_cache=/tmp/npm-cache \
-            -v "$GITHUB_WORKSPACE:/workspace" \
-            -w /workspace/apps/web \
-            node:26-alpine \
-            sh -lc 'npm ci && npm run typecheck && npm run test:coverage'
-
-  merge-web-button-e2e:
-    name: merge-web-button-e2e
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
-        with:
-          fetch-depth: 0
-          ref: ${{ github.sha }}
-
-      - name: Run browser workflows for every visible button
-        run: |
-          docker run --rm --ipc=host --user "$(id -u):$(id -g)" \
-            -e CI=true \
-            -e npm_config_cache=/tmp/npm-cache \
-            -v "$GITHUB_WORKSPACE:/workspace" \
-            -w /workspace/apps/web \
-            mcr.microsoft.com/playwright:v1.62.1-noble \
-            bash -lc 'npm ci && npm run build && npm run e2e'
-
-      - name: Upload browser failure artifacts
-        if: failure()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: merge-web-button-e2e-artifacts
-          path: apps/web/test-results
-          if-no-files-found: ignore
-          retention-days: 7
-
-  merge-real-stack-buttons:
-    name: merge-real-stack-buttons
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
-        with:
-          fetch-depth: 0
-          ref: ${{ github.sha }}
-
-      - name: Run real Docker browser button contracts
-        run: bash scripts/run_real_stack_e2e.sh
-
-      - name: Upload real-stack failure artifacts
-        if: failure()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: merge-real-stack-buttons-artifacts
-          path: apps/web/test-results
-          if-no-files-found: ignore
-          retention-days: 7
-
-  merge-unit-tests:
+  unit:
     name: merge-unit-tests-${{ matrix.shard }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      matrix:
-        shard: [1, 2, 3, 4]
-
+      matrix: {shard: [1, 2, 3, 4]}
     steps:
-      - name: Checkout
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
-        with:
-          fetch-depth: 0
-          ref: ${{ github.sha }}
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86
-        with:
-          enable-cache: true
-
-      - name: Install Python
-        run: uv python install
-
-      - name: Install dependencies
-        run: uv sync --dev
-
-      - name: Unit test shard with coverage
-        env:
-          COVERAGE_FILE: .coverage.unit.${{ matrix.shard }}
-        run: >-
-          uv run python scripts/pytest_shard.py
-          --suite unit
-          --shard-index ${{ matrix.shard }}
-          --shard-count ${PYTEST_SHARD_COUNT}
-          --
-          -q
-          -n auto
-          --cov=portfell
-          --cov-report=
-          --cov-fail-under=0
-
-      - name: Upload coverage shard
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv python install
+      - run: uv sync --dev
+      - run: COVERAGE_FILE=.coverage.unit-${{ matrix.shard }} uv run python scripts/pytest_shard.py --suite unit --shard-index ${{ matrix.shard }} --shard-count 4 -- -q -n auto --cov=portfell --cov-report=
+      - uses: actions/upload-artifact@v4
         with:
           name: coverage-unit-${{ matrix.shard }}
-          path: .coverage.unit.${{ matrix.shard }}
+          path: .coverage.unit-${{ matrix.shard }}
           include-hidden-files: true
 
-  merge-integration-tests:
+  integration:
     name: merge-integration-tests-${{ matrix.shard }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      matrix:
-        shard: [1, 2, 3, 4]
-
+      matrix: {shard: [1, 2, 3, 4]}
     steps:
-      - name: Checkout
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
-        with:
-          fetch-depth: 0
-          ref: ${{ github.sha }}
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86
-        with:
-          enable-cache: true
-
-      - name: Install Python
-        run: uv python install
-
-      - name: Install dependencies
-        run: uv sync --dev
-
-      - name: Integration test shard with coverage
-        env:
-          COVERAGE_FILE: .coverage.integration.${{ matrix.shard }}
-        run: >-
-          uv run python scripts/pytest_shard.py
-          --suite integration
-          --shard-index ${{ matrix.shard }}
-          --shard-count ${PYTEST_SHARD_COUNT}
-          --
-          -q
-          -n auto
-          --cov=portfell
-          --cov-report=
-          --cov-fail-under=0
-
-      - name: Upload coverage shard
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv python install
+      - run: uv sync --dev
+      - run: COVERAGE_FILE=.coverage.integration-${{ matrix.shard }} uv run python scripts/pytest_shard.py --suite integration --shard-index ${{ matrix.shard }} --shard-count 4 -- -q -n auto --cov=portfell --cov-report=
+      - uses: actions/upload-artifact@v4
         with:
           name: coverage-integration-${{ matrix.shard }}
-          path: .coverage.integration.${{ matrix.shard }}
+          path: .coverage.integration-${{ matrix.shard }}
           include-hidden-files: true
 
-  merge-gate:
-    name: merge-gate
+  app-image:
+    name: merge-dash-app-image
     runs-on: ubuntu-latest
-    needs:
-      - merge-lint-quality
-      - merge-type-quality
-      - merge-web-unit-quality
-      - merge-web-button-e2e
-      - merge-real-stack-buttons
-      - merge-unit-tests
-      - merge-integration-tests
-    if: always()
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
-        with:
-          fetch-depth: 0
-          ref: ${{ github.sha }}
+      - uses: actions/checkout@v4
+      - run: docker build --file apps/api/Dockerfile --tag portfell-app:merge .
+      - run: docker compose config --quiet
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86
-        with:
-          enable-cache: true
-
-      - name: Install Python
-        run: uv python install
-
-      - name: Install dependencies
-        run: uv sync --dev
-
-      - name: Download coverage shards
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+  aggregate:
+    name: merge-gate
+    if: always()
+    needs: [lint, type, unit, integration, app-image]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv python install
+      - run: uv sync --dev
+      - uses: actions/download-artifact@v4
         with:
           pattern: coverage-*
           path: coverage-shards
           merge-multiple: true
-
-      - name: Verify merge gate jobs
-        env:
-          LINT_RESULT: ${{ needs.merge-lint-quality.result }}
-          TYPE_RESULT: ${{ needs.merge-type-quality.result }}
-          WEB_UNIT_RESULT: ${{ needs.merge-web-unit-quality.result }}
-          WEB_BUTTON_E2E_RESULT: ${{ needs.merge-web-button-e2e.result }}
-          REAL_STACK_BUTTONS_RESULT: ${{ needs.merge-real-stack-buttons.result }}
-          UNIT_RESULT: ${{ needs.merge-unit-tests.result }}
-          INTEGRATION_RESULT: ${{ needs.merge-integration-tests.result }}
-        run: |
-          if [[ "$LINT_RESULT" != "success" || "$TYPE_RESULT" != "success" || "$WEB_UNIT_RESULT" != "success" || "$WEB_BUTTON_E2E_RESULT" != "success" || "$REAL_STACK_BUTTONS_RESULT" != "success" || "$UNIT_RESULT" != "success" || "$INTEGRATION_RESULT" != "success" ]]; then
-            echo "merge-gate failed: lint=$LINT_RESULT type=$TYPE_RESULT web_unit=$WEB_UNIT_RESULT web_button_e2e=$WEB_BUTTON_E2E_RESULT real_stack_buttons=$REAL_STACK_BUTTONS_RESULT unit=$UNIT_RESULT integration=$INTEGRATION_RESULT" >&2
-            exit 1
-          fi
-          echo "merge-gate prerequisites passed."
-
-      - name: Combine coverage and enforce threshold
+      - name: Enforce 95 percent combined coverage
         run: |
           uv run coverage combine coverage-shards
           uv run coverage report --fail-under=95
+      - name: Require every parallel gate
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "$RESULTS"
+          test "$(echo "$RESULTS" | tr ' ' '\n' | grep -vc '^success$')" -eq 0
