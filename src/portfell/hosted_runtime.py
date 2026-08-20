@@ -26,7 +26,7 @@ def run_api_placeholder() -> int:
 
     log_event(LOGGER, 20, module="hosted-runtime", event="api_starting")
     uvicorn.run(
-        "portfell.dash_ui.runtime.mount:create_runtime_app_with_dash",
+        "portfell.hosted_dash_runtime:create_runtime_app_with_dash",
         factory=True,
         host="0.0.0.0",
         port=8000,
