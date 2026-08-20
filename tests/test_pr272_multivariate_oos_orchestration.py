@@ -11,7 +11,12 @@ def _candidate(candidate_id: str, first_weight: float) -> dict[str, object]:
         "candidate_id": candidate_id,
         "weights": [
             {"isin": "A", "exchange": "XETRA", "code": "AAA", "weight": first_weight},
-            {"isin": "B", "exchange": "XETRA", "code": "BBB", "weight": 1.0 - first_weight},
+            {
+                "isin": "B",
+                "exchange": "XETRA",
+                "code": "BBB",
+                "weight": 1.0 - first_weight,
+            },
         ],
     }
 
@@ -98,7 +103,12 @@ def test_return_risk_selects_only_from_walk_forward_oos_and_uses_full_refit_weig
             post_cost_return=0.03,
             volatility=0.11,
         ),
-        {"kind": "stress", "status": "complete", "candidate_id": "cfg-b", "sharpe_ratio": 99.0},
+        {
+            "kind": "stress",
+            "status": "complete",
+            "candidate_id": "cfg-b",
+            "sharpe_ratio": 99.0,
+        },
     ]
 
     selected = select_hosted_oos_winner(
@@ -172,7 +182,9 @@ def test_missing_complete_oos_evidence_fails_closed_without_fabricating_winner()
             settings={"objective": "return_risk"},
             summary=_summary(),
             candidates=[_candidate("cfg-a", 0.7)],
-            validation=[{"kind": "stress", "status": "complete", "candidate_id": "cfg-a"}],
+            validation=[
+                {"kind": "stress", "status": "complete", "candidate_id": "cfg-a"}
+            ],
         )
 
 
@@ -218,7 +230,12 @@ class _Multivariate:
     def summary(self, user_id: str, run_id: str):
         return _summary()
 
-    def update_settings(self, user_id: str, run_id: str, selected_candidate_ids: tuple[str, ...]):
+    def update_settings(
+        self,
+        user_id: str,
+        run_id: str,
+        selected_candidate_ids: tuple[str, ...],
+    ):
         self.selected = selected_candidate_ids
         return {"selected_candidate_ids": list(selected_candidate_ids)}
 
@@ -229,7 +246,9 @@ class _Unused:
 
 def test_research_service_publishes_exactly_the_oos_selected_candidate() -> None:
     multivariate = _Multivariate()
-    service = ResearchService(_Unused(), _Unused(), multivariate, _Unused())  # type: ignore[arg-type]
+    service = ResearchService(  # type: ignore[arg-type]
+        _Unused(), _Unused(), multivariate, _Unused()
+    )
 
     service.complete_multivariate("user-1", "run-1")
 
