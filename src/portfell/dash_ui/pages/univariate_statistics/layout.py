@@ -20,9 +20,19 @@ def build_univariate_layout(view: UnivariateView) -> object:
             html.H2("Univariate Statistics"),
             html.Div(
                 [
-                    html.Progress(value=control.percent, max=100),
-                    html.Span(control.phase or control.status.value),
-                    html.Span(control.failure_reason or ""),
+                    html.Progress(
+                        id=component_id(UNIVARIATE_NAMESPACE, "progress"),
+                        value=control.percent,
+                        max=100,
+                    ),
+                    html.Span(
+                        control.phase or control.status.value,
+                        id=component_id(UNIVARIATE_NAMESPACE, "status"),
+                    ),
+                    html.Span(
+                        control.failure_reason or "",
+                        id=component_id(UNIVARIATE_NAMESPACE, "failure"),
+                    ),
                     html.Button(
                         "Compute univariate statistics",
                         id=component_id(UNIVARIATE_NAMESPACE, "compute"),
