@@ -36,3 +36,23 @@ class WalkForwardView:
     test_last: str
     training_observations: int
     test_observations: int
+
+
+@dataclass(frozen=True, slots=True)
+class PersistedHistoryRangeView:
+    evidence_id: str
+    first_date: str | None
+    last_date: str | None
+    observation_count: int | None
+    status: str = "available"
+    reason: str | None = None
+
+    def __post_init__(self) -> None:
+        if not self.evidence_id:
+            raise ValueError("evidence_id is required")
+        if self.observation_count is None and (
+            self.first_date is not None or self.last_date is not None
+        ):
+            raise ValueError("unavailable history cannot carry guessed dates")
+        if self.observation_count is not None and self.observation_count < 0:
+            raise ValueError("observation_count cannot be negative")
