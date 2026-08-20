@@ -20,16 +20,28 @@ class StoredEvidence:
     canonical_payload: str
 
 
+@dataclass(frozen=True, slots=True)
+class StoredCurrentSelection:
+    selection_revision: str
+    canonical_payload: str
+
+
 def _existing_payload(
     connection: CatalogConnection,
     *,
     table: str,
     id_column: str,
     evidence_id: str,
+    user_id: str,
+    project_id: str,
 ) -> str | None:
     row = connection.execute(
-        f"select canonical_payload::text from portfell_app.{table} where {id_column} = %s",
-        (evidence_id,),
+        f"""
+select canonical_payload::text
+from portfell_app.{table}
+where user_id = %s::uuid and project_id = %s::uuid and {id_column} = %s
+""",
+        (user_id, project_id, evidence_id),
     ).fetchone()
     return None if row is None else str(row[0])
 
@@ -54,6 +66,8 @@ def put_decision(
         table="multivariate_decisions",
         id_column="decision_id",
         evidence_id=evidence.evidence_id,
+        user_id=user_id,
+        project_id=project_id,
     )
     if previous is not None:
         if _canonical_json_text(previous) != payload:
@@ -85,6 +99,8 @@ def put_snapshot(
         table="research_universe_snapshots",
         id_column="snapshot_id",
         evidence_id=evidence.evidence_id,
+        user_id=user_id,
+        project_id=project_id,
     )
     if previous is not None:
         if _canonical_json_text(previous) != payload:
@@ -127,9 +143,31 @@ where portfell_app.multivariate_current_selections.selection_revision <> exclude
     )
 
 
+def get_current_selection(
+    connection: CatalogConnection,
+    *,
+    user_id: str,
+    project_id: str,
+) -> StoredCurrentSelection | None:
+    """Return only the current selection owned by the explicit user/project pair."""
+
+    row = connection.execute(
+        """
+select selection_revision, canonical_payload::text
+from portfell_app.multivariate_current_selections
+where user_id = %s::uuid and project_id = %s::uuid
+""",
+        (user_id, project_id),
+    ).fetchone()
+    if row is None:
+        return None
+    return StoredCurrentSelection(str(row[0]), _canonical_json_text(str(row[1])))
+
+
 def list_run_evidence(
     connection: CatalogConnection,
     *,
+    user_id: str,
     project_id: str,
     run_id: str,
     kind: str,
@@ -146,9 +184,9 @@ def list_run_evidence(
         f"""
 select {id_column}, run_id, stage, canonical_payload::text
 from portfell_app.{table}
-where project_id = %s::uuid and run_id = %s
+where user_id = %s::uuid and project_id = %s::uuid and run_id = %s
 order by stage, {id_column}
 """,
-        (project_id, run_id),
+        (user_id, project_id, run_id),
     ).fetchall()
     return tuple(StoredEvidence(str(row[0]), str(row[1]), str(row[2]), str(row[3])) for row in rows)
