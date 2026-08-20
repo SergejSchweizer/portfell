@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import os
+import re
+import unicodedata
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -43,11 +45,16 @@ from portfell.hosted_quote_run_service import QuoteRunService
 from portfell.hosted_research_service import ResearchService
 from portfell.hosted_routes_credentials import credential_router
 from portfell.hosted_routes_metadata_projects import metadata_project_router
+from portfell.hosted_routes_multivariate_evidence import (
+    MultivariateEvidenceReader,
+    multivariate_evidence_router,
+)
 from portfell.hosted_routes_quote_runs import quote_run_router
 from portfell.hosted_routes_research import research_router
 from portfell.hosted_routes_status_events import status_event_router
 from portfell.hosted_status_event_stream import StatusEventConnectionLimiter
 from portfell.hosted_user_repository import PostgresHostedUserRepository
+from portfell.multivariate.read_api.reader import PersistedMultivariateEvidenceReader
 
 __all__ = [
     "AnalysisCreateRequest",
@@ -79,6 +86,34 @@ class HostedApiError(RuntimeError):
     """Raised when the hosted API cannot satisfy a user-scoped request."""
 
 
+def _project_slug(name: str) -> str:
+    normalized = unicodedata.normalize("NFKD", name)
+    ascii_name = "".join(ch for ch in normalized if not unicodedata.combining(ch))
+    return re.sub(r"[^a-z0-9]+", "-", ascii_name.casefold()).strip("-") or "project"
+
+
+def _resolve_project_id(
+    projects: CredentialProjectService,
+    *,
+    user_id: str,
+    project_slug: str,
+) -> str:
+    raw_projects = projects.project_context(user_id).get("projects")
+    if not isinstance(raw_projects, list):
+        raise KeyError(project_slug)
+    matches: list[str] = []
+    for raw_project in raw_projects:
+        if not isinstance(raw_project, dict):
+            continue
+        name = raw_project.get("name")
+        project_id = raw_project.get("project_id")
+        if isinstance(name, str) and isinstance(project_id, str) and _project_slug(name) == project_slug:
+            matches.append(project_id)
+    if len(matches) != 1:
+        raise KeyError(project_slug)
+    return matches[0]
+
+
 def create_app(
     state: HostedApiState | None = None,
     *,
@@ -93,6 +128,7 @@ def create_app(
     request_scope: RequestScopedPostgresConnection | None = None,
     ensure_user: Callable[[str], object] | None = None,
     include_quote_routes: bool = True,
+    multivariate_evidence_reader: MultivariateEvidenceReader | None = None,
 ) -> FastAPI:
     """Compose the hosted application and its concern-specific route adapters."""
 
@@ -124,6 +160,9 @@ def create_app(
                 return await call_next(request)
 
     application.state.portfell_state = resolved_state
+    application.state.portfell_services = services
+    application.state.portfell_current_user_provider = provider
+    application.state.portfell_request_scope = request_scope
     application.include_router(
         credential_router(credentials, current_user=current_user, workspace_user=workspace_user)
     )
@@ -148,6 +187,10 @@ def create_app(
             request_scope=request_scope,
         )
     )
+    if multivariate_evidence_reader is not None:
+        application.include_router(
+            multivariate_evidence_router(multivariate_evidence_reader, current_user=current_user)
+        )
     if request_scope is not None:
         application.include_router(
             status_event_router(
@@ -177,17 +220,26 @@ def create_runtime_app() -> FastAPI:
         lambda: connect_database(database_url, autocommit=False)
     )
     state = HostedApiState()
+    services = build_postgres_services(
+        state,
+        request_scope=request_scope,
+        shared_data_root=Path(shared_data_root),
+        key_encryption_key=key_encryption_key,
+    )
+    projects = services[0]
+    evidence_reader = PersistedMultivariateEvidenceReader(
+        request_scope,
+        resolve_project_id=lambda user_id, project_slug: _resolve_project_id(
+            projects, user_id=user_id, project_slug=project_slug
+        ),
+    )
     return create_app(
         state,
-        services=build_postgres_services(
-            state,
-            request_scope=request_scope,
-            shared_data_root=Path(shared_data_root),
-            key_encryption_key=key_encryption_key,
-        ),
+        services=services,
         request_scope=request_scope,
         ensure_user=PostgresHostedUserRepository(request_scope).create,
         include_quote_routes=False,
+        multivariate_evidence_reader=evidence_reader,
     )
 
 
