@@ -1,3 +1,8 @@
+from __future__ import annotations
+
+from unittest.mock import Mock
+
+from portfell.hosted_api import _project_slug, _resolve_project_id, create_app
 from portfell.multivariate.read_api.reader import PersistedMultivariateEvidenceReader
 
 
@@ -43,6 +48,17 @@ class Connection:
         raise AssertionError(sql)
 
 
+class Projects:
+    def project_context(self, user_id: str):
+        assert user_id == "user-1"
+        return {
+            "projects": [
+                {"name": "Alpha Growth", "project_id": "project-1"},
+                {"name": "Beta Income", "project_id": "project-2"},
+            ]
+        }
+
+
 def test_reader_resolves_owned_project_and_returns_stored_evidence_only() -> None:
     resolver_calls = []
 
@@ -75,3 +91,25 @@ def test_reader_sections_and_pipeline_are_deterministic() -> None:
 
     assert section["winner"] == "cfg-1"
     assert [row["stage"] for row in pipeline] == ["metadata", "final_portfolio"]
+
+
+def test_project_slug_resolution_is_deterministic_and_fail_closed() -> None:
+    assert _project_slug("Älpha Growth") == "alpha-growth"
+    assert _resolve_project_id(Projects(), user_id="user-1", project_slug="alpha-growth") == "project-1"
+
+    try:
+        _resolve_project_id(Projects(), user_id="user-1", project_slug="missing")
+    except KeyError as error:
+        assert error.args == ("missing",)
+    else:
+        raise AssertionError("missing project slug must fail closed")
+
+
+def test_create_app_registers_multivariate_evidence_routes_when_reader_is_injected() -> None:
+    services = (Mock(), Mock(), Mock(), Mock())
+    application = create_app(services=services, multivariate_evidence_reader=Mock())
+    paths = {route.path for route in application.routes}
+
+    assert "/api/projects/{project_slug}/multivariate/runs/{run_id}/evidence" in paths
+    assert "/api/projects/{project_slug}/multivariate/runs/{run_id}/sections/{section_id}" in paths
+    assert "/api/projects/{project_slug}/multivariate/runs/{run_id}/universe-history" in paths
