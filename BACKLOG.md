@@ -4,89 +4,86 @@ Last reviewed: 2026-08-20
 
 ## Authority
 
-This file is the active execution index. Detailed acceptance criteria and path ownership remain in `docs/backlog/parallel-weak-agent-execution-v2.md`; correctness, project-isolation, professional-plot, Universe & History, and Sunday-refresh semantics remain governed by the active documents under `docs/backlog/`.
+This file is the active execution index for the Plotly Dash replacement UI, Multivariate Statistics optimizer, Python/FastAPI production cutover, and scheduled Sunday full-research refresh.
 
-`GATES.md` is the only quality-gate and coverage-threshold authority.
+Detailed scope, acceptance criteria, dependency rules, and path ownership remain in `docs/backlog/parallel-weak-agent-execution-v2.md` and the active amendments under `docs/backlog/`. `GATES.md` is the only quality-gate and coverage-threshold authority.
 
-## Git Execution Rules
+## Git execution rules
 
-- Every implementation branch contains its work-order PR key: `<type>/prNNN-<scope>`.
-- Every new implementation commit uses Conventional Commits and contains the same PR key in its scope, for example `feat(pr293-scheduled-union-refresh): ...`.
-- Parallel siblings branch from the same predecessor SHA and do not depend on partially completed sibling branches.
-- Work remains unmerged until the maintainer explicitly requests a merge to `main`.
-- `implemented` means code exists on the named branch. It does not imply that `main` contains the code or that all hosted CI checks have passed.
-- `PR CI pending` means no pull-request-triggered GitHub Actions run exists for the current branch head; it must not be read as green CI.
+- Every implementation branch contains its work-order key: `<type>/prNNN-<scope>`.
+- Every implementation commit uses Conventional Commits and contains the same PR key in its scope.
+- Parallel siblings branch from the same predecessor integration state and never depend on a partially completed sibling.
+- Sibling implementation ownership is disjoint; integration PRs compose owner surfaces rather than re-implementing them.
+- `implemented` means the work exists on the named branch. It does not mean the work has landed on `main`.
+- All work-order PRs remain draft/open until the maintainer explicitly requests landing them.
+- Hosted validation is not green while the GitHub Actions jobs fail before executing normal job steps; this status must not be represented as passing CI.
 
-## Product Invariants
+## Product invariants
 
-The browser workflow remains exactly:
+The browser workflow is exactly:
 
 ```text
 Metadata Builder
-    -> Univariate Statistics
-    -> Bivariate Statistics
-    -> Multivariate Statistics
+  -> Univariate Statistics
+  -> Bivariate Statistics
+  -> Multivariate Statistics
 ```
 
-Multivariate Statistics is the only portfolio-optimizer page/stage. Its objectives remain exactly `return_risk` (default), `return_drawdown`, and `minimum_risk`, with winner selection based on walk-forward out-of-sample evidence.
+Multivariate Statistics is the only portfolio-optimizer page/stage. Objectives are exactly `return_risk` (default), `return_drawdown`, and `minimum_risk`; winner selection uses walk-forward out-of-sample evidence.
 
-Every workflow page must preserve persisted/server-produced Universe & History evidence. Full listing identity is `(isin, exchange, code)`; unique ISIN count is display metadata only.
+Full listing identity is `(isin, exchange, code)`. Universe & History evidence is server-produced/persisted and remains project-scoped.
 
-The final runtime target is one Python FastAPI + Dash application with long-running Compose services exactly `postgres`, `app`, and `project-bootstrap-worker`; React/TypeScript/Vite/Node production UI is removed by the cutover work.
+The production browser runtime is Python FastAPI + Plotly Dash. React/TypeScript/Vite/Node production UI is removed. Long-running Compose services are exactly `postgres`, `app`, and `project-bootstrap-worker`.
 
-The scheduled research contract remains exactly:
+The managed research schedule is exactly:
 
 ```text
 CRON_TZ=Europe/Vienna
 0 9 * * 0
-
-shared active-project market union refresh once
-  -> Univariate per active project
-  -> Bivariate after successful Univariate
-  -> Multivariate after successful Bivariate
-  -> terminal cycle summary
 ```
 
-## Active Work-Order Index
+One logical Sunday cycle refreshes the de-duplicated active-project market union once, then runs Univariate -> Bivariate -> Multivariate per active project with project-isolated failure and idempotent restart/resume semantics.
 
-All work orders have PR-ID-bearing branches. Git status below reflects repository branch state as of 2026-08-20; none of these implementation branches is represented here as merged to `main`.
+## Open work-order PR index
 
-| Key | Git branch | Priority | Depends on | Atomic outcome | Git status | GitHub PR |
-| --- | --- | --- | --- | --- | --- | --- |
-| PR264 | `feat/pr264-dash-contract-registry` | P0 | PR458 | freeze Dash routes/IDs/gateway protocols | implemented on branch; PR CI pending | not opened |
-| PR277 | `feat/pr277-dash-temporary-runtime` | P0 | PR264 | temporary Dash runtime/container only | implemented on branch; PR CI pending | not opened |
-| PR278 | `feat/pr278-dash-presentation-contracts` | P0 | PR264 | run-control/plot/availability contracts + fixtures | implemented on branch; PR CI pending | not opened |
-| PR265 | `feat/pr265-dash-research-shell` | P1 | PR277, PR278 | shell/navigation only | implemented on branch; PR CI pending | not opened |
-| PR266 | `feat/pr266-dash-metadata-builder` | P1 | PR277, PR278 | Metadata page + initial history only | implemented on branch; PR CI pending | not opened |
-| PR267 | `feat/pr267-dash-univariate-control` | P0 | PR265, PR266 | Univariate control/page/callbacks | implemented on branch; PR CI pending | not opened |
-| PR268 | `feat/pr268-dash-bivariate-control` | P0 | PR265, PR266 | Bivariate control/page/callbacks | implemented on branch; PR CI pending | not opened |
-| PR279 | `feat/pr279-dash-univariate-figures` | P0 | PR267 | Univariate professional/history figures | implemented on branch; PR CI pending | not opened |
-| PR280 | `feat/pr280-dash-bivariate-figures` | P0 | PR268 | Bivariate professional/history figures | implemented on branch; PR CI pending | not opened |
-| PR269 | `feat/pr269-multivariate-contract-registry` | P0 | PR279, PR280 | common Multivariate identity/serialization/protocol freeze | implemented on branch; PR CI pending | not opened |
-| PR281 | `feat/pr281-multivariate-run-contracts` | P0 | PR269 | objective/settings/run/progress contracts | implemented on branch; PR CI pending | not opened |
-| PR282 | `feat/pr282-multivariate-decision-contracts` | P0 | PR269 | DecisionArtifact/reason/sink contracts | implemented on branch; PR CI pending | not opened |
-| PR283 | `feat/pr283-multivariate-history-contracts` | P0 | PR269 | ResearchUniverseSnapshot/history/isolation contracts | implemented on branch; PR CI pending | not opened |
-| PR270 | `feat/pr270-multivariate-pareto-selector` | P0 | PR281-PR283 | eligibility + Pareto stages | implemented on branch; PR CI pending | not opened |
-| PR271 | `feat/pr271-multivariate-solver-candidates` | P0 | PR281-PR283 | seven optimizer-method adapters | implemented on branch; PR CI pending | not opened |
-| PR284 | `feat/pr284-multivariate-redundancy-reducer` | P0 | PR281-PR283 | deterministic Bivariate redundancy stage | implemented on branch; PR CI pending | not opened |
-| PR285 | `feat/pr285-multivariate-risk-candidates` | P0 | PR281-PR283 | risk models + aligned-history candidate assembly | implemented on branch; PR CI pending | not opened |
-| PR286 | `feat/pr286-multivariate-algorithm-integration` | P0 | PR270, PR271, PR284, PR285 | selector/candidate composition gate | implemented on branch; PR CI pending | not opened |
-| PR272 | `feat/pr272-multivariate-oos-orchestration` | P0 | PR286 | walk-forward/OOS winner/final refit | implemented + focused tests; OOS publication wired; PR CI pending | not opened |
-| PR273 | `feat/pr273-multivariate-decision-persistence` | P0 | PR286 | decision/history persistence | implemented + focused schema/migration tests; PR CI pending | not opened |
-| PR287 | `feat/pr287-multivariate-read-api` | P0 | PR273 | authorized read/lazy evidence projections | implemented + focused read/composition tests; PR CI pending | not opened |
-| PR288 | `feat/pr288-dash-multivariate-figures` | P0 | PR272, PR287 | Multivariate candidate/Decision/History figures | implemented on branch; PR CI pending | not opened |
-| PR289 | `feat/pr289-dash-multivariate-callbacks` | P0 | PR272, PR287 | Multivariate view-model/callbacks | implemented on branch; PR CI pending | not opened |
-| PR290 | `feat/pr290-dash-multivariate-layout` | P0 | PR272, PR287 | Multivariate page layout/CSS | implemented on branch; PR CI pending | not opened |
-| PR274 | `feat/pr274-dash-multivariate-integration` | P0 | PR288-PR290 | Multivariate UI wiring + browser evidence | implemented on branch; PR CI pending | not opened |
-| PR291 | `refactor/pr291-dash-fastapi-mount` | P0 | PR274 | mount Dash into FastAPI/canonical routes | implemented on branch; PR CI pending | not opened |
-| PR292 | `refactor/pr292-remove-react-ui` | P0 | PR274 | delete React/Node production UI | implemented on branch; PR CI pending | not opened |
-| PR275 | `refactor/pr275-dash-production-cutover` | P0 | PR291, PR292 | final Compose/CI/evidence cutover gate | implemented on branch; PR CI pending | not opened |
-| PR293 | `feat/pr293-scheduled-union-refresh` | P0 | PR275 | shared active-union market refresh | implemented + focused tests; PR CI pending | not opened |
-| PR294 | `feat/pr294-scheduled-project-research` | P0 | PR275 | one-project Uni -> Bi -> Multi cycle | implemented + focused tests; PR CI pending | not opened |
-| PR295 | `feat/pr295-scheduled-sunday-runner` | P0 | PR275 | scheduler/lock/terminal summary | implemented + focused tests; PR CI pending | not opened |
-| PR276 | `feat/pr276-weekly-full-research-refresh` | P0 | PR293-PR295 | Sunday integration/restart/ops gate | integrated implementation + focused/integration tests; PR CI pending | not opened |
+All 32 work-order PRs are implemented on PR-key-bearing branches and are currently open drafts. `Head` is the current branch head recorded during this execution pass.
 
-## Parallel Execution Waves
+| Key | GitHub PR | Git branch | Depends on | Atomic outcome | Head | Git status |
+| --- | ---: | --- | --- | --- | --- | --- |
+| PR264 | #461 | `feat/pr264-dash-contract-registry` | PR458 | freeze Dash routes/IDs/gateway protocols | `2180ee480781` | implemented; open draft; validation not green |
+| PR277 | #462 | `feat/pr277-dash-temporary-runtime` | PR264 | temporary Dash runtime/container only | `008f57230808` | implemented; open draft; validation not green |
+| PR278 | #463 | `feat/pr278-dash-presentation-contracts` | PR264 | run-control/plot/availability contracts | `d2a9ad41e0af` | implemented; open draft; validation not green |
+| PR265 | #464 | `feat/pr265-dash-research-shell` | PR277, PR278 | shell/navigation only | `14846371f078` | implemented; open draft; validation not green |
+| PR266 | #465 | `feat/pr266-dash-metadata-builder` | PR277, PR278 | Metadata page/view-model/callback ownership | `9d64b7358a49` | implemented; open draft; validation not green |
+| PR267 | #466 | `feat/pr267-dash-univariate-control` | PR265, PR266 | Univariate control/page/start-poll callbacks | `323a4898e263` | implemented; open draft; validation not green |
+| PR268 | #467 | `feat/pr268-dash-bivariate-control` | PR265, PR266 | Bivariate control/page/start-poll callbacks | `823dd79730db` | implemented; open draft; validation not green |
+| PR279 | #468 | `feat/pr279-dash-univariate-figures` | PR267 | Univariate professional/history figures | `65a77885ef9e` | implemented; open draft; validation not green |
+| PR280 | #469 | `feat/pr280-dash-bivariate-figures` | PR268 | Bivariate professional/history figures | `0d67972b57d7` | implemented; open draft; validation not green |
+| PR269 | #470 | `feat/pr269-multivariate-contract-registry` | PR279, PR280 | Multivariate identity/serialization/protocol freeze | `649ad7fd9159` | implemented; open draft; validation not green |
+| PR281 | #471 | `feat/pr281-multivariate-run-contracts` | PR269 | objective/settings/run/progress contracts | `1f0a52e68e95` | implemented; open draft; validation not green |
+| PR282 | #472 | `feat/pr282-multivariate-decision-contracts` | PR269 | DecisionArtifact/reason contracts | `74105c89d677` | implemented; open draft; validation not green |
+| PR283 | #473 | `feat/pr283-multivariate-history-contracts` | PR269 | ResearchUniverseSnapshot/history/isolation contracts | `f8de9ecd9b10` | implemented; open draft; validation not green |
+| PR270 | #474 | `feat/pr270-multivariate-pareto-selector` | PR281-PR283 | eligibility + Pareto selector | `0d91bdb4d8d6` | implemented; open draft; validation not green |
+| PR271 | #475 | `feat/pr271-multivariate-solver-candidates` | PR281-PR283 | optimizer-method candidate adapters | `a28a84f68aa3` | implemented; open draft; validation not green |
+| PR284 | #476 | `feat/pr284-multivariate-redundancy-reducer` | PR281-PR283 | deterministic redundancy reducer | `cadba8d4bb60` | implemented; sibling ownership cleaned; open draft |
+| PR285 | #477 | `feat/pr285-multivariate-risk-candidates` | PR281-PR283 | risk models + aligned-history candidates | `484f09dc34f5` | implemented; sibling ownership cleaned; open draft |
+| PR286 | #478 | `feat/pr286-multivariate-algorithm-integration` | PR270, PR271, PR284, PR285 | selector/candidate composition | `fbac620c31ad` | implemented; open draft; validation not green |
+| PR272 | #479 | `feat/pr272-multivariate-oos-orchestration` | PR286 | walk-forward/OOS winner/final refit | `4661ce6046ab` | implemented; focused tests committed; open draft |
+| PR273 | #480 | `feat/pr273-multivariate-decision-persistence` | PR286 | decision/history persistence and migration | `c67f0e93b01b` | implemented; focused tests committed; open draft |
+| PR287 | #481 | `feat/pr287-multivariate-read-api` | PR273 | authorized current/run/section/history read API | `b99e7561a630` | implemented; focused tests committed; open draft |
+| PR288 | #482 | `feat/pr288-dash-multivariate-figures` | PR272, PR287 | Multivariate candidate/decision/history figures | `e3dca841c5b8` | implemented; open draft; validation not green |
+| PR289 | #483 | `feat/pr289-dash-multivariate-callbacks` | PR272, PR287 | objective/settings-aware Multivariate callbacks | `676f9164c7b5` | implemented; owner callbacks/tests committed; open draft |
+| PR290 | #484 | `feat/pr290-dash-multivariate-layout` | PR272, PR287 | Multivariate page layout/CSS | `97d0605b5190` | implemented; open draft; validation not green |
+| PR274 | #485 | `feat/pr274-dash-multivariate-integration` | PR288-PR290 | Multivariate UI composition/browser evidence | `cc01f1218e56` | implemented; open draft; validation not green |
+| PR291 | #486 | `refactor/pr291-dash-fastapi-mount` | PR274 | FastAPI mount/routing + owner callback registration | `96d118064b00` | integrated current owner surfaces; open draft |
+| PR292 | #487 | `refactor/pr292-remove-react-ui` | PR274 | delete React/Node production UI | `e1848b14e131` | implemented; open draft; validation not green |
+| PR275 | #488 | `refactor/pr275-dash-production-cutover` | PR291, PR292 | final Compose/CI/runtime cutover | `b5b18e1ea4cc` | integrated current PR291/PR292/core owners; open draft |
+| PR293 | #489 | `feat/pr293-scheduled-union-refresh` | PR275 | shared active-union market refresh | `63adcd9c87b3` | implemented on current PR275 state; open draft |
+| PR294 | #490 | `feat/pr294-scheduled-project-research` | PR275 | one-project Uni -> Bi -> Multi scheduled chain | `cc8826adafea` | implemented on current PR275 state; open draft |
+| PR295 | #491 | `feat/pr295-scheduled-sunday-runner` | PR275 | Sunday scheduler/lock/terminal summary | `847f2077cf72` | implemented on current PR275 state; open draft |
+| PR276 | #492 | `feat/pr276-weekly-full-research-refresh` | PR293-PR295 | final Sunday integration/restart/ops gate | `9ca82cd10c36` | final owner-head integration assembled; open draft |
+
+## Maximum-parallel execution graph
 
 ```text
 PR264
@@ -108,26 +105,24 @@ PR264
   -> PR276
 ```
 
-The 3-way and 4-way waves are intentionally safe because their public contracts are frozen by predecessor work orders and their implementation ownership is disjoint.
+The 3-way and 4-way waves remain independent siblings. Integration branches consume the latest owner heads explicitly; stale internal wave bases must never become a second implementation authority.
 
-## Series Completion Gate
+## Series completion gate
 
-Before any request to land the series on `main`, one integrated candidate SHA must prove:
+Before landing the series on `main`, one integrated candidate SHA must prove all canonical `GATES.md` requirements, including:
 
-- CCR-01 through CCR-13 remediation requirements pass;
-- exactly four workflow pages exist and Multivariate Statistics is the only optimizer page/run/stage;
-- Uni/Bi/Multi calculation controls, progress, failure/reload, stale state, and duplicate-start protection work;
-- exactly the three frozen Multivariate objectives are available and OOS evidence determines the winner;
-- every production Plotly figure satisfies `ProfessionalPlotContract`;
-- persisted Universe & History evidence remains project-scoped and deterministic through switching/restart;
-- no exhaustive several-hundred-instrument subset/weight-grid production path exists;
-- React/TypeScript/Vite/Node production UI is absent;
-- final Compose services are exactly `postgres`, `app`, `project-bootstrap-worker`;
-- Sunday schedule is exactly 09:00 Europe/Vienna and market data refreshes once for the de-duplicated active-project union;
-- scheduled and manual analytical execution reuse the same run/evidence identities;
-- project failures are isolated and restart/resume does not duplicate market keys, runs, winners, DecisionArtifacts, selections, or ResearchUniverseSnapshots;
-- all canonical checks in `GATES.md` pass from the integrated SHA.
+- exactly four workflow pages and no separate optimizer page;
+- exactly the three frozen Multivariate objectives;
+- objective-specific OOS winner selection and deterministic final refit;
+- project-scoped persistence/read isolation and Universe & History evidence;
+- explicit Uni/Bi/Multi start/progress/failure/stale/duplicate-start behavior;
+- production Plotly figure contracts;
+- FastAPI + Dash only, with React/Node production UI absent;
+- Compose services exactly `postgres`, `app`, `project-bootstrap-worker`;
+- exact Sunday 09:00 Europe/Vienna scheduling;
+- one market refresh for the active-project union per logical cycle;
+- manual/scheduled reuse of the same analytical identities;
+- project failure isolation and duplicate-free restart/resume;
+- combined merge coverage at the `GATES.md` threshold of 95%.
 
-## Historical Backlog Archive
-
-Historical backlog files under `docs/backlog/archive/` are evidence only and do not override this active index or the active execution addendum.
+Historical backlog files under `docs/backlog/archive/` remain evidence only.
