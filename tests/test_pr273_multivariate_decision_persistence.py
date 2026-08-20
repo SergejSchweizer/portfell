@@ -40,6 +40,9 @@ def test_pr273_schema_contract_is_versioned_rls_scoped_and_complete() -> None:
         assert f"create table if not exists {table}" in MULTIVARIATE_DECISION_SCHEMA_SQL
         assert f"alter table {table} enable row level security" in MULTIVARIATE_DECISION_SCHEMA_SQL
         assert f"alter table {table} force row level security" in MULTIVARIATE_DECISION_SCHEMA_SQL
+    assert "primary key (user_id, project_id, decision_id)" in MULTIVARIATE_DECISION_SCHEMA_SQL
+    assert "primary key (user_id, project_id, snapshot_id)" in MULTIVARIATE_DECISION_SCHEMA_SQL
+    assert "primary key (user_id, project_id)" in MULTIVARIATE_DECISION_SCHEMA_SQL
 
 
 def test_pr273_schema_application_is_one_idempotent_sql_batch() -> None:

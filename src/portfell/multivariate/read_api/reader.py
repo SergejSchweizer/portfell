@@ -7,6 +7,7 @@ from collections.abc import Callable, Mapping
 from portfell.hosted_catalog_ports import CatalogConnection
 from portfell.multivariate.read_api.projections import (
     MultivariateEvidenceProjection,
+    current_selection_projection,
     pipeline_projection,
     project_run_evidence,
     section_projection,
@@ -27,6 +28,9 @@ class PersistedMultivariateEvidenceReader:
         self._connection = connection
         self._resolve_project_id = resolve_project_id
 
+    def _project_id(self, *, user_id: str, project_slug: str) -> str:
+        return self._resolve_project_id(user_id, project_slug)
+
     def _projection(
         self,
         *,
@@ -34,11 +38,26 @@ class PersistedMultivariateEvidenceReader:
         project_slug: str,
         run_id: str,
     ) -> MultivariateEvidenceProjection:
-        project_id = self._resolve_project_id(user_id, project_slug)
+        project_id = self._project_id(user_id=user_id, project_slug=project_slug)
         return project_run_evidence(
             self._connection,
+            user_id=user_id,
             project_slug=project_slug,
             run_id=run_id,
+            resolve_project_id=lambda _: project_id,
+        )
+
+    def current_projection(
+        self,
+        *,
+        user_id: str,
+        project_slug: str,
+    ) -> Mapping[str, object]:
+        project_id = self._project_id(user_id=user_id, project_slug=project_slug)
+        return current_selection_projection(
+            self._connection,
+            user_id=user_id,
+            project_slug=project_slug,
             resolve_project_id=lambda _: project_id,
         )
 

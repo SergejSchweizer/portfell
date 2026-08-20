@@ -7,19 +7,35 @@ from portfell.multivariate.read_api.reader import PersistedMultivariateEvidenceR
 
 
 class Cursor:
-    def __init__(self, rows):
+    def __init__(self, rows=(), one=None):
         self._rows = rows
+        self._one = one
 
     def fetchall(self):
         return self._rows
 
+    def fetchone(self):
+        return self._one
+
 
 class Connection:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, tuple[object, ...]]] = []
+
     def execute(self, sql: str, parameters=()):
-        assert parameters == ("project-1", "run-1")
+        self.calls.append((sql, parameters))
+        if "multivariate_current_selections" in sql:
+            assert parameters == ("user-1", "project-1")
+            return Cursor(
+                one=(
+                    "selection-1",
+                    '{"run_id":"run-1","winner":"cfg-1"}',
+                )
+            )
+        assert parameters == ("user-1", "project-1", "run-1")
         if "multivariate_decisions" in sql:
             return Cursor(
-                [
+                rows=[
                     (
                         "decision-1",
                         "run-1",
@@ -30,7 +46,7 @@ class Connection:
             )
         if "research_universe_snapshots" in sql:
             return Cursor(
-                [
+                rows=[
                     (
                         "snapshot-2",
                         "run-1",
@@ -59,19 +75,35 @@ class Projects:
         }
 
 
-def test_reader_resolves_owned_project_and_returns_stored_evidence_only() -> None:
+def test_reader_resolves_owned_project_before_project_scoped_repository_reads() -> None:
     resolver_calls = []
+    connection = Connection()
 
     def resolve(user_id: str, project_slug: str) -> str:
         resolver_calls.append((user_id, project_slug))
         return "project-1"
 
-    reader = PersistedMultivariateEvidenceReader(Connection(), resolve_project_id=resolve)
+    reader = PersistedMultivariateEvidenceReader(connection, resolve_project_id=resolve)
     run = reader.run_projection(user_id="user-1", project_slug="alpha", run_id="run-1")
 
     assert resolver_calls == [("user-1", "alpha")]
     assert run["decisions"][0]["winner"] == "cfg-1"
     assert [row["stage"] for row in run["history"]] == ["final_portfolio", "metadata"]
+    assert all("user_id = %s::uuid and project_id = %s::uuid" in sql for sql, _ in connection.calls)
+
+
+def test_reader_current_projection_returns_persisted_run_and_selection_only() -> None:
+    reader = PersistedMultivariateEvidenceReader(
+        Connection(), resolve_project_id=lambda _user_id, _slug: "project-1"
+    )
+    current = reader.current_projection(user_id="user-1", project_slug="alpha")
+    assert current == {
+        "project_slug": "alpha",
+        "availability": "available",
+        "selection_revision": "selection-1",
+        "run_id": "run-1",
+        "selection": {"run_id": "run-1", "winner": "cfg-1"},
+    }
 
 
 def test_reader_sections_and_pipeline_are_deterministic() -> None:
@@ -93,6 +125,23 @@ def test_reader_sections_and_pipeline_are_deterministic() -> None:
     assert [row["stage"] for row in pipeline] == ["metadata", "final_portfolio"]
 
 
+def test_reader_missing_section_is_typed_unavailable_without_calculation() -> None:
+    reader = PersistedMultivariateEvidenceReader(
+        Connection(), resolve_project_id=lambda _user_id, _slug: "project-1"
+    )
+    section = reader.section_projection(
+        user_id="user-1",
+        project_slug="alpha",
+        run_id="run-1",
+        section_id="risk_model_candidates",
+    )
+    assert section == {
+        "availability": "unavailable",
+        "reason": "section_not_persisted",
+        "section_id": "risk_model_candidates",
+    }
+
+
 def test_project_slug_resolution_is_deterministic_and_fail_closed() -> None:
     assert _project_slug("Älpha Growth") == "alpha-growth"
     assert (
@@ -108,11 +157,12 @@ def test_project_slug_resolution_is_deterministic_and_fail_closed() -> None:
         raise AssertionError("missing project slug must fail closed")
 
 
-def test_create_app_registers_multivariate_evidence_routes_when_reader_is_injected() -> None:
+def test_create_app_registers_all_read_only_multivariate_evidence_routes() -> None:
     services = (Mock(), Mock(), Mock(), Mock())
     application = create_app(services=services, multivariate_evidence_reader=Mock())
     paths = {route.path for route in application.routes}
 
+    assert "/api/projects/{project_slug}/multivariate/current" in paths
     assert "/api/projects/{project_slug}/multivariate/runs/{run_id}/evidence" in paths
     assert (
         "/api/projects/{project_slug}/multivariate/runs/{run_id}/sections/{section_id}"

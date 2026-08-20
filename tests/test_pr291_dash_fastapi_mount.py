@@ -19,6 +19,20 @@ def test_dash_package_does_not_import_hosted_or_postgres_authority() -> None:
     assert "DashResearchGateway" in mount
 
 
+def test_pr291_delegates_stage_callbacks_to_owner_modules() -> None:
+    mount = (ROOT / "src/portfell/dash_ui/runtime/mount.py").read_text(encoding="utf-8")
+    assert "@app.callback" not in mount
+    for registration in (
+        "register_metadata_callbacks(app, gateway)",
+        "register_univariate_callbacks(app, gateway)",
+        "register_bivariate_callbacks(app, gateway)",
+        "register_multivariate_callbacks(app, gateway)",
+    ):
+        assert mount.count(registration) == 1
+    assert "optimizer_command_key" not in mount
+    assert "start_command_key" not in mount
+
+
 def test_hosted_composition_injects_gateway_into_dash_mount() -> None:
     source = (ROOT / "src/portfell/hosted_dash_runtime.py").read_text(encoding="utf-8")
     assert "create_runtime_app()" in source

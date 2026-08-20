@@ -8,7 +8,10 @@ from dataclasses import dataclass
 from typing import cast
 
 from portfell.hosted_catalog_ports import CatalogConnection
-from portfell.multivariate.persistence.repository import list_run_evidence
+from portfell.multivariate.persistence.repository import (
+    get_current_selection,
+    list_run_evidence,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -26,9 +29,42 @@ def _decode(payload: str) -> Mapping[str, object]:
     return cast(dict[str, object], value)
 
 
+def current_selection_projection(
+    connection: CatalogConnection,
+    *,
+    user_id: str,
+    project_slug: str,
+    resolve_project_id: Callable[[str], str],
+) -> Mapping[str, object]:
+    """Return the authorized persisted current selection without analytical recomputation."""
+
+    project_id = resolve_project_id(project_slug)
+    current = get_current_selection(
+        connection,
+        user_id=user_id,
+        project_id=project_id,
+    )
+    if current is None:
+        return {
+            "project_slug": project_slug,
+            "availability": "not_run",
+            "reason": "current_multivariate_selection_not_persisted",
+        }
+    payload = _decode(current.canonical_payload)
+    run_id = payload.get("run_id")
+    return {
+        "project_slug": project_slug,
+        "availability": "available",
+        "selection_revision": current.selection_revision,
+        "run_id": run_id if isinstance(run_id, str) else None,
+        "selection": payload,
+    }
+
+
 def project_run_evidence(
     connection: CatalogConnection,
     *,
+    user_id: str,
     project_slug: str,
     run_id: str,
     resolve_project_id: Callable[[str], str],
@@ -40,6 +76,7 @@ def project_run_evidence(
         _decode(row.canonical_payload)
         for row in list_run_evidence(
             connection,
+            user_id=user_id,
             project_id=project_id,
             run_id=run_id,
             kind="decision",
@@ -49,6 +86,7 @@ def project_run_evidence(
         _decode(row.canonical_payload)
         for row in list_run_evidence(
             connection,
+            user_id=user_id,
             project_id=project_id,
             run_id=run_id,
             kind="snapshot",
