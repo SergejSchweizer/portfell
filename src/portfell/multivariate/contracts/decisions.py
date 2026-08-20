@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 
@@ -65,23 +66,34 @@ class DecisionConflictError(RuntimeError):
 
 
 class IdempotentDecisionSink:
-    """Small reference sink used by services and tests to enforce conflict semantics."""
+    """Reference sink enforcing exact idempotent/conflict semantics."""
 
     def __init__(self) -> None:
         self._payloads: dict[str, str] = {}
 
+    def put_payload(self, *, decision_id: str, canonical_payload: str) -> bool:
+        """Write canonical bytes under an explicit ID and fail closed on conflicts."""
+
+        if not decision_id:
+            raise ValueError("decision_id is required")
+        decoded = json.loads(canonical_payload)
+        if canonical_json(decoded) != canonical_payload:
+            raise ValueError("decision payload must use canonical JSON bytes")
+        previous = self._payloads.get(decision_id)
+        if previous is None:
+            self._payloads[decision_id] = canonical_payload
+            return True
+        if previous != canonical_payload:
+            raise DecisionConflictError(f"conflicting decision payload for {decision_id}")
+        return False
+
     def put(self, artifact: DecisionArtifact) -> bool:
         """Return True for a new write, False for an identical no-op."""
 
-        decision_id = artifact.decision_id
-        payload = canonical_json(artifact)
-        previous = self._payloads.get(decision_id)
-        if previous is None:
-            self._payloads[decision_id] = payload
-            return True
-        if previous != payload:
-            raise DecisionConflictError(f"conflicting decision payload for {decision_id}")
-        return False
+        return self.put_payload(
+            decision_id=artifact.decision_id,
+            canonical_payload=canonical_json(artifact),
+        )
 
     def get(self, decision_id: str) -> str | None:
         return self._payloads.get(decision_id)
