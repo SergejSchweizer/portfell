@@ -20,13 +20,13 @@ def health() -> int:
 
 
 def run_api_placeholder() -> int:
-    """Start the hosted FastAPI application."""
+    """Start the hosted FastAPI application with mounted production Dash UI."""
 
     import uvicorn
 
     log_event(LOGGER, 20, module="hosted-runtime", event="api_starting")
     uvicorn.run(
-        "portfell.hosted_api:create_runtime_app",
+        "portfell.dash_ui.runtime.mount:create_runtime_app_with_dash",
         factory=True,
         host="0.0.0.0",
         port=8000,
