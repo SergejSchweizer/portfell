@@ -1,0 +1,11 @@
+.portfell-shell { min-height: 100vh; font-family: system-ui, sans-serif; }
+.portfell-header { display: grid; grid-template-columns: 1fr minmax(14rem, 24rem); gap: 1rem; align-items: center; padding: 1rem; }
+.workflow-overview { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .5rem; padding: 0 1rem 1rem; }
+.workflow-link { display: flex; gap: .5rem; align-items: center; padding: .65rem .75rem; text-decoration: none; }
+.workflow-link:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+.portfell-body { display: grid; grid-template-columns: minmax(12rem, 16rem) 1fr; gap: 1rem; padding: 0 1rem 1rem; }
+.workflow-sidebar { display: grid; align-content: start; gap: .25rem; }
+@media (max-width: 600px) {
+  .portfell-header, .portfell-body, .workflow-overview { grid-template-columns: 1fr; }
+  .workflow-sidebar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
