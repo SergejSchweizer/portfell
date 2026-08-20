@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import inspect
 
-from portfell.multivariate.contracts.common import EvidenceAvailability, ListingIdentity
+from portfell.multivariate.contracts.common import DecisionStageId, EvidenceAvailability, ListingIdentity
 from portfell.multivariate.contracts.decision_reasons import DecisionReasonCode
 from portfell.multivariate.selector.redundancy import (
     RedundancyCandidate,
     reduce_redundancy,
+    redundancy_evidence,
 )
 
 
@@ -85,3 +86,22 @@ def test_pr284_rejection_records_dependence_tail_drawdown_and_history_impact() -
     assert rejection.drawdown_overlap == 0.2
     assert rejection.before_common_observations == 1500
     assert rejection.after_common_observations == 1600
+
+
+def test_pr284_stage_evidence_contains_decision_and_before_after_snapshots() -> None:
+    candidates = tuple(_candidate(index) for index in range(251))
+    result = reduce_redundancy(candidates, correlations=_pair_values(candidates, 0.8))
+    evidence = redundancy_evidence(
+        run_id="run-1",
+        objective="return_risk",
+        project_slug="alpha",
+        pinned_revision="bi-1",
+        candidates=candidates,
+        result=result,
+        algorithm_version="algo-v1",
+        profile_version="profile-v1",
+    )
+    assert evidence.decision.stage is DecisionStageId.BIVARIATE_REDUNDANCY
+    assert evidence.before_snapshot.listing_count == 251
+    assert evidence.after_snapshot.listing_count == 250
+    assert evidence.after_snapshot.removed_count == 1
