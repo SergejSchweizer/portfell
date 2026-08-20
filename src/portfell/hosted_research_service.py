@@ -7,6 +7,7 @@ from portfell.hosted_api_state import AnalysisRecord
 from portfell.hosted_bivariate_service import BivariateResearchService
 from portfell.hosted_multivariate_service import MultivariateResearchService
 from portfell.hosted_univariate_service import UnivariateResearchService
+from portfell.multivariate.orchestration.hosted_bridge import select_hosted_oos_winner
 from portfell.table_io import JsonRow
 
 
@@ -92,7 +93,31 @@ class ResearchService:
         return self._multivariate.plan(user_id, project_id, bivariate_run_id, settings)
 
     def complete_multivariate(self, user_id: str, run_id: str) -> None:
+        """Complete the hosted run, then select the published candidate from OOS evidence only."""
+
         self._multivariate.complete(user_id, run_id)
+        status = self._multivariate.status(user_id, run_id)
+        if status.get("status") != "complete":
+            return
+        settings = status.get("settings")
+        candidate_page = self._multivariate.candidates(user_id, run_id)
+        validation_page = self._multivariate.validation(user_id, run_id)
+        candidates = candidate_page.get("items")
+        validation = validation_page.get("items")
+        if (
+            not isinstance(settings, dict)
+            or not isinstance(candidates, list)
+            or not isinstance(validation, list)
+        ):
+            raise ValueError("multivariate OOS publication evidence is malformed")
+        selection = select_hosted_oos_winner(
+            run_id=run_id,
+            settings=settings,
+            summary=self._multivariate.summary(user_id, run_id),
+            candidates=candidates,
+            validation=validation,
+        )
+        self._multivariate.update_settings(user_id, run_id, (selection.candidate_id,))
 
     def multivariate_performance(self, user_id: str, run_id: str) -> JsonRow:
         return self._multivariate.performance(user_id, run_id)
