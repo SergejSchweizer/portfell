@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from collections.abc import Callable, Mapping
+from collections.abc import Mapping
 from contextlib import contextmanager
 from typing import Iterator, cast
 
@@ -20,7 +20,7 @@ from portfell.hosted_research_service import ResearchService
 
 
 class HostedDashGateway(DashResearchGateway):
-    """Reuse the hosted application services without exposing their authority to Dash modules."""
+    """Reuse hosted services without exposing database/provider authority to Dash modules."""
 
     def __init__(
         self,
@@ -47,15 +47,13 @@ class HostedDashGateway(DashResearchGateway):
             yield user_id
 
     @staticmethod
-    def _slug(name: str) -> str:
+    def slug(name: str) -> str:
         normalized = unicodedata.normalize("NFKD", name)
-        ascii_name = "".join(character for character in normalized if not unicodedata.combining(character))
-        slug = re.sub(r"[^a-z0-9]+", "-", ascii_name.casefold()).strip("-")
-        return slug or "project"
+        ascii_name = "".join(ch for ch in normalized if not unicodedata.combining(ch))
+        return re.sub(r"[^a-z0-9]+", "-", ascii_name.casefold()).strip("-") or "project"
 
     def _project_id(self, *, user_id: str, project_slug: str) -> str:
-        context = self._projects.project_context(user_id)
-        projects = context.get("projects")
+        projects = self._projects.project_context(user_id).get("projects")
         if not isinstance(projects, list):
             raise KeyError(project_slug)
         matches: list[str] = []
@@ -63,9 +61,8 @@ class HostedDashGateway(DashResearchGateway):
             if not isinstance(raw_project, dict):
                 continue
             project = cast(dict[str, object], raw_project)
-            name = project.get("name")
-            project_id = project.get("project_id")
-            if isinstance(name, str) and isinstance(project_id, str) and self._slug(name) == project_slug:
+            name, project_id = project.get("name"), project.get("project_id")
+            if isinstance(name, str) and isinstance(project_id, str) and self.slug(name) == project_slug:
                 matches.append(project_id)
         if len(matches) != 1:
             raise KeyError(project_slug)
@@ -73,8 +70,7 @@ class HostedDashGateway(DashResearchGateway):
 
     def _workflow(self, *, user_id: str, project_slug: str) -> tuple[str, dict[str, object]]:
         project_id = self._project_id(user_id=user_id, project_slug=project_slug)
-        workflow = self._projects.workflow(user_id, project_id)
-        return project_id, workflow
+        return project_id, self._projects.workflow(user_id, project_id)
 
     def project_context(self, *, project_slug: str) -> Presentation:
         with self._scope() as user_id:
@@ -121,12 +117,11 @@ class HostedDashGateway(DashResearchGateway):
             if not isinstance(stage, dict):
                 return {"status": "failed", "error_code": "workflow_stage_missing"}
             projection = dict(cast(dict[str, object], stage))
-            run_key_by_stage = {
+            run_key = {
                 WorkflowId.UNIVARIATE_STATISTICS: "univariate_run_id",
                 WorkflowId.BIVARIATE_STATISTICS: "bivariate_run_id",
                 WorkflowId.MULTIVARIATE_STATISTICS: "multivariate_run_id",
-            }
-            run_key = run_key_by_stage.get(stage_id)
+            }.get(stage_id)
             run_id = None if run_key is None else projection.get(run_key)
             if not isinstance(run_id, str):
                 return projection
@@ -134,9 +129,7 @@ class HostedDashGateway(DashResearchGateway):
                 return self._research.univariate_status(user_id, run_id)
             if stage_id is WorkflowId.BIVARIATE_STATISTICS:
                 return self._research.bivariate_status(user_id, run_id)
-            if stage_id is WorkflowId.MULTIVARIATE_STATISTICS:
-                return self._research.multivariate_status(user_id, run_id)
-            return projection
+            return self._research.multivariate_status(user_id, run_id)
 
     def start_run(
         self,
@@ -146,8 +139,29 @@ class HostedDashGateway(DashResearchGateway):
         command_key: str,
         settings: Mapping[str, object],
     ) -> Presentation:
-        del command_key
         with self._scope() as user_id:
+            if stage_id is WorkflowId.METADATA_BUILDER:
+                action = settings.get("action")
+                if action == "fetch_metadata":
+                    row, task = self._metadata.start_metadata_fetch(user_id)
+                    task()
+                    return row
+                if action == "create_project":
+                    row = self._metadata.create_project_from_criteria(
+                        user_id,
+                        exchange=str(settings.get("exchange") or ""),
+                        name=str(settings.get("name") or ""),
+                        instrument_type=str(settings.get("instrument_type") or ""),
+                        country=str(settings.get("country") or ""),
+                        currency=str(settings.get("currency") or ""),
+                        idempotency_key=command_key,
+                    )
+                    project = row.get("project")
+                    result = dict(row)
+                    if isinstance(project, dict) and isinstance(project.get("name"), str):
+                        result["project_slug"] = self.slug(cast(str, project["name"]))
+                    return result
+
             project_id, workflow = self._workflow(user_id=user_id, project_slug=project_slug)
             stages = workflow.get("stages")
             if not isinstance(stages, dict):
@@ -193,10 +207,7 @@ class HostedDashGateway(DashResearchGateway):
                 if not isinstance(bivariate_run_id, str):
                     raise HostedApplicationError(409, "bivariate_run_unavailable")
                 row = self._research.start_multivariate(
-                    user_id,
-                    project_id,
-                    bivariate_run_id,
-                    dict(settings),
+                    user_id, project_id, bivariate_run_id, dict(settings)
                 )
                 run_id = row.get("run_id")
                 if row.get("status") == "running" and isinstance(run_id, str):
@@ -218,25 +229,17 @@ class HostedDashGateway(DashResearchGateway):
         with self._scope() as user_id:
             _, workflow = self._workflow(user_id=user_id, project_slug=project_slug)
             stages = workflow.get("stages")
-            if not isinstance(stages, dict):
-                return {"objective": "return_risk"}
-            stage = stages.get(WorkflowId.MULTIVARIATE_STATISTICS.value)
-            if not isinstance(stage, dict):
-                return {"objective": "return_risk"}
-            run_id = stage.get("multivariate_run_id")
+            stage = stages.get(WorkflowId.MULTIVARIATE_STATISTICS.value) if isinstance(stages, dict) else None
+            run_id = stage.get("multivariate_run_id") if isinstance(stage, dict) else None
             if not isinstance(run_id, str):
                 return {"objective": "return_risk"}
-            status = self._research.multivariate_status(user_id, run_id)
-            settings = status.get("settings")
+            settings = self._research.multivariate_status(user_id, run_id).get("settings")
             return settings if isinstance(settings, dict) else {"objective": "return_risk"}
 
-    def decision_section(
-        self, *, project_slug: str, run_id: str, section_id: str
-    ) -> Presentation:
+    def decision_section(self, *, project_slug: str, run_id: str, section_id: str) -> Presentation:
         del project_slug, section_id
         with self._scope() as user_id:
-            artifacts = self._research.multivariate_artifacts(user_id, run_id)
-            return artifacts
+            return self._research.multivariate_artifacts(user_id, run_id)
 
     def universe_history(self, *, project_slug: str, stage_id: str) -> Presentation:
         with self._scope() as user_id:
