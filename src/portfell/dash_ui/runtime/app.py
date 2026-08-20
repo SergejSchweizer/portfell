@@ -1,3 +1,4 @@
+# pyright: reportMissingImports=false, reportUnknownArgumentType=false, reportUnknownMemberType=false, reportUnknownVariableType=false
 """Temporary presentation-only Dash process.
 
 The temporary process deliberately receives only the hosted API base URL. It is
