@@ -1,0 +1,32 @@
+services:
+  dash:
+    container_name: portfell-dash
+    profiles: ["dash-migration"]
+    build:
+      context: .
+      dockerfile: apps/dash/Dockerfile
+    restart: unless-stopped
+    environment:
+      PORTFELL_API_BASE_URL: http://api:8000
+      PORTFELL_DASH_HOST: 0.0.0.0
+      PORTFELL_DASH_PORT: "8050"
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${PORTFELL_DASH_PORT:-8050}:8050"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8050/dash/', timeout=2).read()"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - portfell-public
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
