@@ -104,7 +104,11 @@ class ResearchService:
         validation_page = self._multivariate.validation(user_id, run_id)
         candidates = candidate_page.get("items")
         validation = validation_page.get("items")
-        if not isinstance(settings, dict) or not isinstance(candidates, list) or not isinstance(validation, list):
+        if (
+            not isinstance(settings, dict)
+            or not isinstance(candidates, list)
+            or not isinstance(validation, list)
+        ):
             raise ValueError("multivariate OOS publication evidence is malformed")
         selection = select_hosted_oos_winner(
             run_id=run_id,
