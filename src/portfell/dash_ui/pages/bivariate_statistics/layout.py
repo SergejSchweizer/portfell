@@ -20,9 +20,19 @@ def build_bivariate_layout(view: BivariateView) -> object:
             html.H2("Bivariate Statistics"),
             html.Div(
                 [
-                    html.Progress(value=control.percent, max=100),
-                    html.Span(control.phase or control.status.value),
-                    html.Span(control.failure_reason or ""),
+                    html.Progress(
+                        id=component_id(BIVARIATE_NAMESPACE, "progress"),
+                        value=control.percent,
+                        max=100,
+                    ),
+                    html.Span(
+                        control.phase or control.status.value,
+                        id=component_id(BIVARIATE_NAMESPACE, "status"),
+                    ),
+                    html.Span(
+                        control.failure_reason or "",
+                        id=component_id(BIVARIATE_NAMESPACE, "failure"),
+                    ),
                     html.Button(
                         "Compute bivariate statistics",
                         id=component_id(BIVARIATE_NAMESPACE, "compute"),
