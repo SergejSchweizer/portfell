@@ -11,6 +11,8 @@ from portfell.multivariate_decision_schema import apply_multivariate_decision_sc
 
 
 def main() -> int:
+    """Apply the idempotent Multivariate decision/history schema."""
+
     database_url = os.environ.get("PORTFELL_DATABASE_URL")
     if not database_url:
         print("database_url_required", file=sys.stderr)
