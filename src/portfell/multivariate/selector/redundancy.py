@@ -4,8 +4,22 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from portfell.multivariate.contracts.common import EvidenceAvailability, ListingIdentity
+from portfell.multivariate.contracts.common import (
+    DecisionStageId,
+    EvidenceAvailability,
+    ListingIdentity,
+)
 from portfell.multivariate.contracts.decision_reasons import DecisionReasonCode
+from portfell.multivariate.contracts.decisions import (
+    DecisionArtifact,
+    DecisionCandidate,
+    DecisionRejection,
+)
+from portfell.multivariate.contracts.history import (
+    HistoryRange,
+    ResearchStage,
+    ResearchUniverseSnapshot,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,6 +52,13 @@ class RedundancyResult:
     reason_code: DecisionReasonCode = DecisionReasonCode.REDUNDANCY_REPRESENTED
     before_common_observations: int | None = None
     after_common_observations: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class RedundancyStageEvidence:
+    decision: DecisionArtifact
+    before_snapshot: ResearchUniverseSnapshot
+    after_snapshot: ResearchUniverseSnapshot
 
 
 def _pair_key(left: ListingIdentity, right: ListingIdentity) -> tuple[ListingIdentity, ListingIdentity]:
@@ -181,3 +202,76 @@ def reduce_redundancy(
         before_common_observations,
         after_common_observations,
     )
+
+
+def _history_range(observations: int | None) -> HistoryRange:
+    return HistoryRange(None, None, observations)
+
+
+def redundancy_evidence(
+    *,
+    run_id: str,
+    objective: str,
+    project_slug: str,
+    pinned_revision: str,
+    candidates: tuple[RedundancyCandidate, ...],
+    result: RedundancyResult,
+    algorithm_version: str,
+    profile_version: str,
+) -> RedundancyStageEvidence:
+    """Build the stage DecisionArtifact and before/after ResearchUniverseSnapshots."""
+
+    before = tuple(sorted(candidate.listing for candidate in candidates))
+    after = tuple(sorted(result.selected))
+    reason = result.reason_code
+    removal_reasons = {} if not result.rejected else {reason.value: len(result.rejected)}
+    before_snapshot = ResearchUniverseSnapshot(
+        project_slug=project_slug,
+        revision=pinned_revision,
+        stage=ResearchStage.MULTIVARIATE,
+        availability=EvidenceAvailability.AVAILABLE,
+        listing_count=len(before),
+        unique_isin_count=len({listing.isin for listing in before}),
+        removed_count=0,
+        common_usable_history=_history_range(result.before_common_observations),
+    )
+    after_snapshot = ResearchUniverseSnapshot(
+        project_slug=project_slug,
+        revision=pinned_revision,
+        stage=ResearchStage.MULTIVARIATE,
+        availability=result.availability,
+        listing_count=len(after),
+        unique_isin_count=len({listing.isin for listing in after}),
+        removed_count=len(result.rejected),
+        removal_reasons=removal_reasons,
+        common_usable_history=_history_range(result.after_common_observations),
+    )
+    decision = DecisionArtifact(
+        run_id=run_id,
+        objective=objective,
+        stage=DecisionStageId.BIVARIATE_REDUNDANCY,
+        pinned_revisions=(pinned_revision,),
+        candidates=tuple(DecisionCandidate(listing.token) for listing in before),
+        selected_ids=tuple(listing.token for listing in after),
+        rejections=tuple(
+            DecisionRejection(
+                item.listing.token,
+                DecisionReasonCode.REDUNDANCY_REPRESENTED,
+                {
+                    "representative": item.representative.token,
+                    "pearson": item.pearson,
+                    "tail_dependence": item.tail_dependence,
+                    "drawdown_overlap": item.drawdown_overlap,
+                    "before_common_observations": item.before_common_observations,
+                    "after_common_observations": item.after_common_observations,
+                },
+            )
+            for item in result.rejected
+        ),
+        status=result.availability,
+        reason_code=reason,
+        algorithm_version=algorithm_version,
+        profile_version=profile_version,
+        listing_scope=before,
+    )
+    return RedundancyStageEvidence(decision, before_snapshot, after_snapshot)
