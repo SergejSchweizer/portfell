@@ -15,6 +15,7 @@ This file is the active execution index. Detailed acceptance criteria and path o
 - Parallel siblings branch from the same predecessor SHA and do not depend on partially completed sibling branches.
 - Work remains unmerged until the maintainer explicitly requests a merge to `main`.
 - `implemented` means code exists on the named branch. It does not imply that `main` contains the code or that all hosted CI checks have passed.
+- `PR CI pending` means no pull-request-triggered GitHub Actions run exists for the current branch head; it must not be read as green CI.
 
 ## Product Invariants
 
@@ -48,42 +49,42 @@ shared active-project market union refresh once
 
 ## Active Work-Order Index
 
-All work orders now have PR-ID-bearing branches. Git status below reflects repository branch state as of 2026-08-20; none of these implementation branches is represented here as merged to `main`.
+All work orders have PR-ID-bearing branches. Git status below reflects repository branch state as of 2026-08-20; none of these implementation branches is represented here as merged to `main`.
 
 | Key | Git branch | Priority | Depends on | Atomic outcome | Git status | GitHub PR |
 | --- | --- | --- | --- | --- | --- | --- |
-| PR264 | `feat/pr264-dash-contract-registry` | P0 | PR458 | freeze Dash routes/IDs/gateway protocols | implemented on branch; validation pending | not opened |
-| PR277 | `feat/pr277-dash-temporary-runtime` | P0 | PR264 | temporary Dash runtime/container only | implemented on branch; validation pending | not opened |
-| PR278 | `feat/pr278-dash-presentation-contracts` | P0 | PR264 | run-control/plot/availability contracts + fixtures | implemented on branch; validation pending | not opened |
-| PR265 | `feat/pr265-dash-research-shell` | P1 | PR277, PR278 | shell/navigation only | implemented on branch; validation pending | not opened |
-| PR266 | `feat/pr266-dash-metadata-builder` | P1 | PR277, PR278 | Metadata page + initial history only | implemented on branch; validation pending | not opened |
-| PR267 | `feat/pr267-dash-univariate-control` | P0 | PR265, PR266 | Univariate control/page/callbacks | implemented on branch; validation pending | not opened |
-| PR268 | `feat/pr268-dash-bivariate-control` | P0 | PR265, PR266 | Bivariate control/page/callbacks | implemented on branch; validation pending | not opened |
-| PR279 | `feat/pr279-dash-univariate-figures` | P0 | PR267 | Univariate professional/history figures | implemented on branch; validation pending | not opened |
-| PR280 | `feat/pr280-dash-bivariate-figures` | P0 | PR268 | Bivariate professional/history figures | implemented on branch; validation pending | not opened |
-| PR269 | `feat/pr269-multivariate-contract-registry` | P0 | PR279, PR280 | common Multivariate identity/serialization/protocol freeze | implemented on branch; validation pending | not opened |
-| PR281 | `feat/pr281-multivariate-run-contracts` | P0 | PR269 | objective/settings/run/progress contracts | implemented on branch; validation pending | not opened |
-| PR282 | `feat/pr282-multivariate-decision-contracts` | P0 | PR269 | DecisionArtifact/reason/sink contracts | implemented on branch; validation pending | not opened |
-| PR283 | `feat/pr283-multivariate-history-contracts` | P0 | PR269 | ResearchUniverseSnapshot/history/isolation contracts | implemented on branch; validation pending | not opened |
-| PR270 | `feat/pr270-multivariate-pareto-selector` | P0 | PR281-PR283 | eligibility + Pareto stages | implemented on branch; validation pending | not opened |
-| PR271 | `feat/pr271-multivariate-solver-candidates` | P0 | PR281-PR283 | seven optimizer-method adapters | implemented on branch; validation pending | not opened |
-| PR284 | `feat/pr284-multivariate-redundancy-reducer` | P0 | PR281-PR283 | deterministic Bivariate redundancy stage | implemented on branch; validation pending | not opened |
-| PR285 | `feat/pr285-multivariate-risk-candidates` | P0 | PR281-PR283 | risk models + aligned-history candidate assembly | implemented on branch; validation pending | not opened |
-| PR286 | `feat/pr286-multivariate-algorithm-integration` | P0 | PR270, PR271, PR284, PR285 | selector/candidate composition gate | implemented on branch; validation pending | not opened |
-| PR272 | `feat/pr272-multivariate-oos-orchestration` | P0 | PR286 | walk-forward/OOS winner/final refit | implemented on branch; validation pending | not opened |
-| PR273 | `feat/pr273-multivariate-decision-persistence` | P0 | PR286 | decision/history persistence | implemented on branch; validation pending | not opened |
-| PR287 | `feat/pr287-multivariate-read-api` | P0 | PR273 | authorized read/lazy evidence projections | implemented on branch; validation pending | not opened |
-| PR288 | `feat/pr288-dash-multivariate-figures` | P0 | PR272, PR287 | Multivariate candidate/Decision/History figures | implemented on branch; validation pending | not opened |
-| PR289 | `feat/pr289-dash-multivariate-callbacks` | P0 | PR272, PR287 | Multivariate view-model/callbacks | implemented on branch; validation pending | not opened |
-| PR290 | `feat/pr290-dash-multivariate-layout` | P0 | PR272, PR287 | Multivariate page layout/CSS | implemented on branch; validation pending | not opened |
-| PR274 | `feat/pr274-dash-multivariate-integration` | P0 | PR288-PR290 | Multivariate UI wiring + browser evidence | implemented on branch; validation pending | not opened |
-| PR291 | `refactor/pr291-dash-fastapi-mount` | P0 | PR274 | mount Dash into FastAPI/canonical routes | implemented on branch; validation pending | not opened |
-| PR292 | `refactor/pr292-remove-react-ui` | P0 | PR274 | delete React/Node production UI | implemented on branch; validation pending | not opened |
-| PR275 | `refactor/pr275-dash-production-cutover` | P0 | PR291, PR292 | final Compose/CI/evidence cutover gate | implemented on branch; validation pending | not opened |
-| PR293 | `feat/pr293-scheduled-union-refresh` | P0 | PR275 | shared active-union market refresh | implemented + focused tests on branch | not opened |
-| PR294 | `feat/pr294-scheduled-project-research` | P0 | PR275 | one-project Uni -> Bi -> Multi cycle | implemented + focused tests on branch | not opened |
-| PR295 | `feat/pr295-scheduled-sunday-runner` | P0 | PR275 | scheduler/lock/terminal summary | implemented + focused tests on branch | not opened |
-| PR276 | `feat/pr276-weekly-full-research-refresh` | P0 | PR293-PR295 | Sunday integration/restart/ops gate | implemented + integration test on branch | not opened |
+| PR264 | `feat/pr264-dash-contract-registry` | P0 | PR458 | freeze Dash routes/IDs/gateway protocols | implemented on branch; PR CI pending | not opened |
+| PR277 | `feat/pr277-dash-temporary-runtime` | P0 | PR264 | temporary Dash runtime/container only | implemented on branch; PR CI pending | not opened |
+| PR278 | `feat/pr278-dash-presentation-contracts` | P0 | PR264 | run-control/plot/availability contracts + fixtures | implemented on branch; PR CI pending | not opened |
+| PR265 | `feat/pr265-dash-research-shell` | P1 | PR277, PR278 | shell/navigation only | implemented on branch; PR CI pending | not opened |
+| PR266 | `feat/pr266-dash-metadata-builder` | P1 | PR277, PR278 | Metadata page + initial history only | implemented on branch; PR CI pending | not opened |
+| PR267 | `feat/pr267-dash-univariate-control` | P0 | PR265, PR266 | Univariate control/page/callbacks | implemented on branch; PR CI pending | not opened |
+| PR268 | `feat/pr268-dash-bivariate-control` | P0 | PR265, PR266 | Bivariate control/page/callbacks | implemented on branch; PR CI pending | not opened |
+| PR279 | `feat/pr279-dash-univariate-figures` | P0 | PR267 | Univariate professional/history figures | implemented on branch; PR CI pending | not opened |
+| PR280 | `feat/pr280-dash-bivariate-figures` | P0 | PR268 | Bivariate professional/history figures | implemented on branch; PR CI pending | not opened |
+| PR269 | `feat/pr269-multivariate-contract-registry` | P0 | PR279, PR280 | common Multivariate identity/serialization/protocol freeze | implemented on branch; PR CI pending | not opened |
+| PR281 | `feat/pr281-multivariate-run-contracts` | P0 | PR269 | objective/settings/run/progress contracts | implemented on branch; PR CI pending | not opened |
+| PR282 | `feat/pr282-multivariate-decision-contracts` | P0 | PR269 | DecisionArtifact/reason/sink contracts | implemented on branch; PR CI pending | not opened |
+| PR283 | `feat/pr283-multivariate-history-contracts` | P0 | PR269 | ResearchUniverseSnapshot/history/isolation contracts | implemented on branch; PR CI pending | not opened |
+| PR270 | `feat/pr270-multivariate-pareto-selector` | P0 | PR281-PR283 | eligibility + Pareto stages | implemented on branch; PR CI pending | not opened |
+| PR271 | `feat/pr271-multivariate-solver-candidates` | P0 | PR281-PR283 | seven optimizer-method adapters | implemented on branch; PR CI pending | not opened |
+| PR284 | `feat/pr284-multivariate-redundancy-reducer` | P0 | PR281-PR283 | deterministic Bivariate redundancy stage | implemented on branch; PR CI pending | not opened |
+| PR285 | `feat/pr285-multivariate-risk-candidates` | P0 | PR281-PR283 | risk models + aligned-history candidate assembly | implemented on branch; PR CI pending | not opened |
+| PR286 | `feat/pr286-multivariate-algorithm-integration` | P0 | PR270, PR271, PR284, PR285 | selector/candidate composition gate | implemented on branch; PR CI pending | not opened |
+| PR272 | `feat/pr272-multivariate-oos-orchestration` | P0 | PR286 | walk-forward/OOS winner/final refit | implemented + focused tests; OOS publication wired; PR CI pending | not opened |
+| PR273 | `feat/pr273-multivariate-decision-persistence` | P0 | PR286 | decision/history persistence | implemented + focused schema/migration tests; PR CI pending | not opened |
+| PR287 | `feat/pr287-multivariate-read-api` | P0 | PR273 | authorized read/lazy evidence projections | implemented + focused read/composition tests; PR CI pending | not opened |
+| PR288 | `feat/pr288-dash-multivariate-figures` | P0 | PR272, PR287 | Multivariate candidate/Decision/History figures | implemented on branch; PR CI pending | not opened |
+| PR289 | `feat/pr289-dash-multivariate-callbacks` | P0 | PR272, PR287 | Multivariate view-model/callbacks | implemented on branch; PR CI pending | not opened |
+| PR290 | `feat/pr290-dash-multivariate-layout` | P0 | PR272, PR287 | Multivariate page layout/CSS | implemented on branch; PR CI pending | not opened |
+| PR274 | `feat/pr274-dash-multivariate-integration` | P0 | PR288-PR290 | Multivariate UI wiring + browser evidence | implemented on branch; PR CI pending | not opened |
+| PR291 | `refactor/pr291-dash-fastapi-mount` | P0 | PR274 | mount Dash into FastAPI/canonical routes | implemented on branch; PR CI pending | not opened |
+| PR292 | `refactor/pr292-remove-react-ui` | P0 | PR274 | delete React/Node production UI | implemented on branch; PR CI pending | not opened |
+| PR275 | `refactor/pr275-dash-production-cutover` | P0 | PR291, PR292 | final Compose/CI/evidence cutover gate | implemented on branch; PR CI pending | not opened |
+| PR293 | `feat/pr293-scheduled-union-refresh` | P0 | PR275 | shared active-union market refresh | implemented + focused tests; PR CI pending | not opened |
+| PR294 | `feat/pr294-scheduled-project-research` | P0 | PR275 | one-project Uni -> Bi -> Multi cycle | implemented + focused tests; PR CI pending | not opened |
+| PR295 | `feat/pr295-scheduled-sunday-runner` | P0 | PR275 | scheduler/lock/terminal summary | implemented + focused tests; PR CI pending | not opened |
+| PR276 | `feat/pr276-weekly-full-research-refresh` | P0 | PR293-PR295 | Sunday integration/restart/ops gate | integrated implementation + focused/integration tests; PR CI pending | not opened |
 
 ## Parallel Execution Waves
 
