@@ -6,6 +6,7 @@ from collections.abc import Callable, Mapping
 
 from portfell.hosted_catalog_ports import CatalogConnection
 from portfell.multivariate.read_api.projections import (
+    MultivariateEvidenceProjection,
     pipeline_projection,
     project_run_evidence,
     section_projection,
@@ -17,11 +18,22 @@ ProjectResolver = Callable[[str, str], str]
 class PersistedMultivariateEvidenceReader:
     """Resolve project ownership first, then decode only immutable stored evidence."""
 
-    def __init__(self, connection: CatalogConnection, *, resolve_project_id: ProjectResolver) -> None:
+    def __init__(
+        self,
+        connection: CatalogConnection,
+        *,
+        resolve_project_id: ProjectResolver,
+    ) -> None:
         self._connection = connection
         self._resolve_project_id = resolve_project_id
 
-    def _projection(self, *, user_id: str, project_slug: str, run_id: str):
+    def _projection(
+        self,
+        *,
+        user_id: str,
+        project_slug: str,
+        run_id: str,
+    ) -> MultivariateEvidenceProjection:
         project_id = self._resolve_project_id(user_id, project_slug)
         return project_run_evidence(
             self._connection,
@@ -33,7 +45,11 @@ class PersistedMultivariateEvidenceReader:
     def run_projection(
         self, *, user_id: str, project_slug: str, run_id: str
     ) -> Mapping[str, object]:
-        projection = self._projection(user_id=user_id, project_slug=project_slug, run_id=run_id)
+        projection = self._projection(
+            user_id=user_id,
+            project_slug=project_slug,
+            run_id=run_id,
+        )
         return {
             "project_slug": projection.project_slug,
             "run_id": projection.run_id,
@@ -49,11 +65,19 @@ class PersistedMultivariateEvidenceReader:
         run_id: str,
         section_id: str,
     ) -> Mapping[str, object]:
-        projection = self._projection(user_id=user_id, project_slug=project_slug, run_id=run_id)
+        projection = self._projection(
+            user_id=user_id,
+            project_slug=project_slug,
+            run_id=run_id,
+        )
         return section_projection(projection, section_id=section_id)
 
     def pipeline_projection(
         self, *, user_id: str, project_slug: str, run_id: str
     ) -> tuple[Mapping[str, object], ...]:
-        projection = self._projection(user_id=user_id, project_slug=project_slug, run_id=run_id)
+        projection = self._projection(
+            user_id=user_id,
+            project_slug=project_slug,
+            run_id=run_id,
+        )
         return pipeline_projection(projection)
