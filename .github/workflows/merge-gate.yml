@@ -20,6 +20,7 @@ jobs:
       - uses: astral-sh/setup-uv@v6
       - run: uv python install
       - run: uv sync --dev
+      - run: uv pip install --python .venv/bin/python --requirement apps/api/requirements-ui.txt
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run python -m portfell.architecture_checks
@@ -36,6 +37,7 @@ jobs:
       - uses: astral-sh/setup-uv@v6
       - run: uv python install
       - run: uv sync --dev
+      - run: uv pip install --python .venv/bin/python --requirement apps/api/requirements-ui.txt
       - run: uv run pyright
 
   unit:
@@ -49,6 +51,7 @@ jobs:
       - uses: astral-sh/setup-uv@v6
       - run: uv python install
       - run: uv sync --dev
+      - run: uv pip install --python .venv/bin/python --requirement apps/api/requirements-ui.txt
       - run: COVERAGE_FILE=.coverage.unit-${{ matrix.shard }} uv run python scripts/pytest_shard.py --suite unit --shard-index ${{ matrix.shard }} --shard-count 4 -- -q -n auto --cov=portfell --cov-report=
       - uses: actions/upload-artifact@v4
         with:
@@ -67,6 +70,7 @@ jobs:
       - uses: astral-sh/setup-uv@v6
       - run: uv python install
       - run: uv sync --dev
+      - run: uv pip install --python .venv/bin/python --requirement apps/api/requirements-ui.txt
       - run: COVERAGE_FILE=.coverage.integration-${{ matrix.shard }} uv run python scripts/pytest_shard.py --suite integration --shard-index ${{ matrix.shard }} --shard-count 4 -- -q -n auto --cov=portfell --cov-report=
       - uses: actions/upload-artifact@v4
         with:
