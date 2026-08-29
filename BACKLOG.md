@@ -396,6 +396,10 @@ Branch: `refactor/pr317-hosted-market-read-plane`
 
 Depends on: PR316.
 
+Git status: integrated on `main` at `5d15e03`. PostgreSQL hosted composition accepts a
+server-owned, lazy `MarketDataGateway` and fails closed when it is absent; the gateway is never
+browser-provided and its complete PR gate passed (`1022 passed`).
+
 Scope: remove provider acquisition capabilities/provider-key arguments from hosted runtime ports and wire `MarketDataGateway` through composition. Legacy acquisition code may remain physically until deletion wave but must be unreachable.
 
 Acceptance: hosted services can request market reads only through gateway; no provider command is reachable from browser/API composition.
