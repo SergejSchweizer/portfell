@@ -424,7 +424,9 @@ Branch: `refactor/pr319-metadata-market-source`
 
 Depends on: PR318.
 
-Git status: in progress on `refactor/pr319-metadata-market-source`.
+Git status: integrated on `main` at `ee1bc1c`. Active full-identity listings now come only from
+the external market gateway; the consumed listing snapshot is persisted as metadata lineage and the
+application and market PostgreSQL DSNs both fail closed unless they match `config.yaml`.
 
 Scope: Metadata uses active listings from gateway only.
 
