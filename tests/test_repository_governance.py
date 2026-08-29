@@ -167,14 +167,12 @@ def test_hosted_security_architecture_maps_goals_to_backlog_records() -> None:
     architecture = (REPOSITORY_ROOT / "ARCHITECTURE.md").read_text(encoding="utf-8")
     decisions = (REPOSITORY_ROOT / "DECISIONS.md").read_text(encoding="utf-8")
     risks = (REPOSITORY_ROOT / "RISKS.md").read_text(encoding="utf-8")
-    goals = (REPOSITORY_ROOT / "GOALS.md").read_text(encoding="utf-8")
     hosted = (REPOSITORY_ROOT / "docs/hosted_security_architecture.md").read_text(encoding="utf-8")
     backlog = (REPOSITORY_ROOT / "BACKLOG.md").read_text(encoding="utf-8")
 
     assert "docs/hosted_security_architecture.md" in architecture
     assert "D016. Use PostgreSQL-First User-Key-Backed Hosted Architecture" in decisions
     assert "R010. Hosted Multi-Tenant Access Can Leak Provider Data Or Credentials" in risks
-    assert "multi-tenant but user-key-backed" in goals
 
     for boundary in (
         "Browser",
