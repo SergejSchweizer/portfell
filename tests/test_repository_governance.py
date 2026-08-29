@@ -120,49 +120,34 @@ def test_hosted_api_uses_a_current_user_provider_boundary() -> None:
 
 def test_active_backlog_contains_only_unfinished_records() -> None:
     backlog = (REPOSITORY_ROOT / "BACKLOG.md").read_text(encoding="utf-8")
-    active_start = backlog.index("## Active Hosted Simplicity And Interactive Performance PR Stack")
-    completed_start = backlog.index("## Completed PR History")
-    active = backlog[active_start:completed_start]
-
-    assert "## Active Three-Module Portfell UI PR Stack" not in backlog
-    assert "## Active Hosted Multi-Tenant Portfell PR Stack" not in backlog
-    assert "### PR252. Exhaustive User Interaction Manifest" in active
-    assert "Git status: in progress on `test/exhaustive-user-interaction-merge-gate`" in active
-    assert "PR246 through PR252 are sequential." in active
-
-    for pr_number in range(230, 246):
-        assert f"| PR{pr_number} |" in backlog[completed_start:]
-
-    assert "### PR245." not in active
-    assert "### Hosted Simplicity And Interactive Performance Series Completion Gate" in active
+    assert "## 0. Single-file authority" in backlog
+    assert "## 3. Source cutover and simplification series — PR308–PR343" in backlog
+    assert "## 4. Plotly Dash + clean database full-replacement series — PR344–PR360" in backlog
+    assert "### PR308 — Xetra source contract foundation" in backlog
+    assert "### PR360 — Production cutover, destructive removal" in backlog
+    assert "PR308\n  |\nPR309 || PR310 || PR311 || PR312 || PR313 || PR314" in backlog
 
 
 def test_backlog_places_only_completed_records_after_the_active_series() -> None:
     backlog = (REPOSITORY_ROOT / "BACKLOG.md").read_text(encoding="utf-8")
-    completed = backlog.index("## Completed PR History")
 
-    assert "## Completed And Superseded Detailed Records" not in backlog
-    history = backlog[completed:]
-    assert "### Completed Hosted Stack Records" not in history
-    assert "### Completed UI Foundation Record" not in history
-    assert "| PR92 |" in history
-    assert "| PR229 |" in history
+    assert "Historical backlog text" in backlog
+    assert "no unfinished legacy UI/database work" in backlog
+    assert "## Completed PR History" not in backlog
+    assert "## Active Hosted Simplicity And Interactive Performance PR Stack" not in backlog
 
 
 def test_quality_gates_are_documented_centrally() -> None:
     backlog = (REPOSITORY_ROOT / "BACKLOG.md").read_text(encoding="utf-8")
-    gate = backlog.split(
-        "### Hosted Simplicity And Interactive Performance Series Completion Gate", maxsplit=1
-    )[1].split("## Current Architectural Decision", maxsplit=1)[0]
     gates = (REPOSITORY_ROOT / "GATES.md").read_text(encoding="utf-8")
 
     for backlog_text in (
-        "PR246 through PR252",
-        "hidden analytical sections perform no request until opened",
-        "TanStack Query is the only production browser server-state cache",
-        "[GATES.md](GATES.md)",
+        "`GATES.md` remains the sole authority",
+        "focused tests plus `uv run portfell-quality pr`",
+        "`uv run portfell-quality merge`",
+        "## 6. Final series completion gate",
     ):
-        assert backlog_text in gate
+        assert backlog_text in backlog
 
     for gates_text in (
         "## Rebase Workflow",
@@ -211,7 +196,7 @@ def test_hosted_security_architecture_maps_goals_to_backlog_records() -> None:
 
     for pr_number, requirement in HOSTED_REQUIREMENTS_BY_PR.items():
         assert f"| {requirement} | PR{pr_number} |" in hosted
-    assert "## Monthly-Distribution ETF Multivariate Architecture Record" in backlog
+    assert "## 1. Final target architecture — hard decision" in backlog
 
 
 def test_github_quality_workflows_validate_and_use_squash_subject() -> None:

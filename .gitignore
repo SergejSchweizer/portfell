@@ -37,6 +37,8 @@ apps/**/test-results/
 
 # Public examples are allowed; local secrets stay ignored.
 !.env.example
+!config.example.yaml
+config.yaml
 
 # Project metadata and lockfiles.
 !pyproject.toml

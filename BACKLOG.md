@@ -180,6 +180,10 @@ Branch: `refactor/pr308-xetra-source-contract`
 
 Priority: P0.
 
+Git status: ready for rebase and linear integration. Focused market-source tests and the complete PR
+quality gate pass (`1001 passed`); the gate specifications are synchronized with this authoritative
+backlog's transitional architecture.
+
 Scope: create only the new `src/portfell/market_source/` foundation (`errors.py`, `config.py`, `contracts.py`, `connection.py`, package init), the shared local PostgreSQL configuration contract (`config.yaml` loader/validation, tracked secret-free `config.example.yaml`, `.gitignore` rule for `config.yaml`), plus focused tests. Define `PORTFELL_MARKET_DATABASE_URL`, exact DTOs/types/keys, the six frozen source errors, role validation, UTC session behavior, and read-only/repeatable-read transaction helpers.
 
 Frozen errors: `market_source_config_missing`, `market_source_unavailable`, `market_source_role_invalid`, `market_source_contract_mismatch`, `market_source_duplicate_key`, `market_source_invalid_value`.
