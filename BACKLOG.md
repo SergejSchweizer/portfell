@@ -352,8 +352,10 @@ Branch: `refactor/pr314-market-source-projection`
 
 Depends on: PR308.
 
-Git status: in progress from `main` at `e72415a`; the prior 451-file worktree report was
-identical executable-bit metadata noise with no content changes.
+Git status: integrated on `main` at `f0f209d`. The centralized raw-DTO projection converts
+`Decimal` values only at the analytical boundary, rejects missing adjusted close with a typed
+error, and keeps dividend and split events outside return construction; its complete PR gate
+passed (`1019 passed`).
 
 Scope: one centralized mapping from raw market DTOs to analytical inputs.
 
