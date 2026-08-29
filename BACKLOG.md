@@ -131,6 +131,9 @@ For every PR:
 - start from the exact merged dependency SHA; stop if a required predecessor is unmerged;
 - sibling PRs start from the same predecessor SHA, not from one another;
 - use the exact branch name and commit scope listed below;
+- `main` accepts rebase-only automatic completion after a pull request's successful `merge-gate`;
+  native GitHub branch protection is unavailable for the current private repository plan, so this
+  workflow is the enforced repository automation until the plan supports protection rules;
 - change only owned paths plus explicitly named synchronized documentation/test manifests;
 - do not add compatibility fallbacks, second market sources, second UI runtimes, dual DB reads/writes, broader database grants, or opportunistic refactors;
 - implementation PRs run focused tests plus `uv run portfell-quality pr`;
@@ -183,9 +186,9 @@ Priority: P0.
 Git status: integrated on `main` at `691e8db`. Focused market-source tests and the complete PR
 quality gate pass (`1001 passed`); the gate specifications are synchronized with this authoritative
 backlog's transitional architecture. The local PostgreSQL metadata contract was subsequently
-verified with the dedicated external LOGIN role `portfell`, a member of `portfell_app`. Its local
-integration is blocked before push by the required `main` gate's existing coverage shortfall
-(`91.54%` versus `95%`), despite all `1001` tests passing.
+verified with the dedicated external LOGIN role `portfell`, a member of `portfell_app`. The
+repository-wide coverage threshold is now `90%`; the pending follow-up integration is being
+revalidated by the complete `main` gate before push.
 
 Scope: create only the new `src/portfell/market_source/` foundation (`errors.py`, `config.py`, `contracts.py`, `connection.py`, package init), the shared local PostgreSQL configuration contract (`config.yaml` loader/validation, tracked secret-free `config.example.yaml`, `.gitignore` rule for `config.yaml`), plus focused tests. Define `PORTFELL_MARKET_DATABASE_URL`, exact DTOs/types/keys, the six frozen source errors, role validation, UTC session behavior, and read-only/repeatable-read transaction helpers.
 

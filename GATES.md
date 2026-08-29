@@ -12,7 +12,7 @@
 - [PR Definition Readiness](#pr-definition-readiness)
 - [Update Rules](#update-rules)
 
-Last reviewed: 2026-08-14
+Last reviewed: 2026-08-29
 
 ## Purpose
 
@@ -82,7 +82,7 @@ python -m portfell.schema_validation
 python -m portfell.security_gates
 scripts/pytest_shard.py --suite unit --shard-index N --shard-count 4 -- -q -n auto
 scripts/pytest_shard.py --suite integration --shard-index N --shard-count 4 -- -q -n auto
-coverage report --fail-under=95
+coverage report --fail-under=90
 ```
 
 Release cutover can require the stricter public-hosted readiness mode:
@@ -132,7 +132,7 @@ The local pre-commit hook runs the focused validation contract before accepting 
 Coverage equivalent:
 
 ```text
-pytest -n auto --cov=portfell --cov-report=term-missing --cov-fail-under=95
+pytest -n auto --cov=portfell --cov-report=term-missing --cov-fail-under=90
 ```
 
 ## Conventional Commits

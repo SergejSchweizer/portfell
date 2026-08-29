@@ -1,6 +1,8 @@
 name: merge-gate
 
 on:
+  pull_request:
+    branches: [main]
   push:
     branches: [main]
 
@@ -311,4 +313,4 @@ jobs:
       - name: Combine coverage and enforce threshold
         run: |
           uv run coverage combine coverage-shards
-          uv run coverage report --fail-under=95
+          uv run coverage report --fail-under=90

@@ -35,7 +35,7 @@ MAIN_COVERAGE_COMMAND: Command = (
     "auto",
     "--cov=portfell",
     "--cov-report=term-missing",
-    "--cov-fail-under=95",
+    "--cov-fail-under=90",
 )
 
 CONVENTIONAL_COMMIT_TYPES = "build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test"

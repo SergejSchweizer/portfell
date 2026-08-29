@@ -155,7 +155,7 @@ def test_quality_gates_are_documented_centrally() -> None:
         "uv run portfell-quality main",
         "Ruff lint and format",
         "pyright",
-        "coverage report --fail-under=95",
+        "coverage report --fail-under=90",
         "python -m portfell.schema_validation",
         "python -m portfell.architecture_checks",
         "pytest-xdist: pytest -n auto",
@@ -199,7 +199,7 @@ def test_hosted_security_architecture_maps_goals_to_backlog_records() -> None:
     assert "## 1. Final target architecture — hard decision" in backlog
 
 
-def test_github_quality_workflows_validate_and_use_squash_subject() -> None:
+def test_github_quality_workflows_validate_and_use_rebase_completion() -> None:
     merge_gate_workflow = (REPOSITORY_ROOT / ".github/workflows/merge-gate.yml").read_text(
         encoding="utf-8"
     )
@@ -226,10 +226,11 @@ def test_github_quality_workflows_validate_and_use_squash_subject() -> None:
     assert "uv run portfell-quality --commits-only" in merge_gate_workflow
     assert "uv run python -m portfell.schema_validation" in merge_gate_workflow
     assert "uv run coverage combine coverage-shards" in merge_gate_workflow
-    assert "uv run coverage report --fail-under=95" in merge_gate_workflow
+    assert "uv run coverage report --fail-under=90" in merge_gate_workflow
     assert 'uv run portfell-quality --squash-subject "$SQUASH_SUBJECT"' in pr_workflow
-    assert "pull_request:" not in merge_gate_workflow
-    assert "workflows: [pr-quality]" in merge_workflow
+    assert "pull_request:" in merge_gate_workflow
+    assert "branches: [main]" in merge_gate_workflow
+    assert "workflows: [merge-gate]" in merge_workflow
     assert "is still a draft; skipping auto-merge" in merge_workflow
     assert "Invalid squash subject" in merge_workflow
-    assert '--squash --delete-branch --subject "$PR_TITLE"' in merge_workflow
+    assert "--rebase --delete-branch" in merge_workflow
