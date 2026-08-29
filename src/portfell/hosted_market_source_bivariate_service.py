@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-import hashlib
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
 from datetime import date
 from typing import Protocol, cast
 
 from portfell.bivariate_views import build_covariance_matrix_from_rows
-from portfell.contract_versioning import canonical_json
 from portfell.hosted_api_errors import HostedApplicationError
 from portfell.hosted_api_serializers import research_run_row
 from portfell.hosted_api_service_support import opaque_id
@@ -191,11 +189,8 @@ class MarketSourceBivariateResearchService(BivariateResearchService):
 
 
 def _market_source_id(selection: UnivariateSelection, snapshot_id: str) -> str:
-    payload = {
-        "bivariate_source_id": bivariate_source_id(selection),
-        "market_source_snapshot_id": snapshot_id,
-    }
-    return hashlib.sha256(canonical_json(payload).encode("utf-8")).hexdigest()
+    """Keep both upstream-selection and source-snapshot lineage inspectable."""
+    return f"{bivariate_source_id(selection)}::{snapshot_id}"
 
 
 def _listing_keys(member_ids: tuple[str, ...]) -> tuple[ListingKey, ...]:
