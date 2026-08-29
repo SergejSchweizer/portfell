@@ -1,147 +1,177 @@
-Last reviewed: 2026-08-22
+Last reviewed: 2026-08-29
 
 # Active Backlog
 
 ## Status authority
 
-This file is the operational index for the **Portfell PostgreSQL read-plane cutover and single-user simplification only**.
+This file is the operational index for the **Portfell XETRA PostgreSQL read-plane cutover and single-user simplification**.
 
-The Portfell implementation authority is:
+Detailed Tasks / Acceptance, owned paths, parallelization, security, determinism, idempotency, and rollback are authoritative in:
 
 - [`docs/backlog/postgres-loader-single-user-cutover.md`](docs/backlog/postgres-loader-single-user-cutover.md)
 
-The XETRA loader implementation authority has moved to `SergejSchweizer/xetra-data-loader` -> `BACKLOG.md`.
-
-The old loader work orders PR297-PR307 are superseded. The active loader plan is now `XDL-PR001` through `XDL-PR033`. Portfell never implements those work orders.
+Older Portfell market-loading and EODHD backlog plans are superseded where they conflict with this file. Historical files under `docs/backlog/archive/` remain evidence only.
 
 ## Target architecture
 
 ```text
-EODHD
-  |
-  v
-SergejSchweizer/xetra-data-loader
-  Bronze -> Silver -> Gold
+SergejSchweizer/xetra-loader
+provider acquisition -> validated XETRA data
   |
   v
 PostgreSQL 10.10.1.3:54321
-  schema: portfell_market
+  schema: xetra_loader
+  tables: listings / eod_quotes / dividends / splits
   |
-  | SELECT only
+  | SELECT only as portfell_app
   v
 SergejSchweizer/portfell
-  Metadata -> Univariate -> Bivariate -> Multivariate -> portfolio optimization
+Metadata -> Univariate -> Bivariate -> Multivariate -> portfolio optimization
 ```
 
-Ownership boundary:
+Portfell contains **no EODHD/provider acquisition plane** after this series. It does not download XETRA metadata, quotes, dividends, or splits itself.
 
-- `xetra-data-loader` owns provider access, XETRA discovery, Bronze/Silver/Gold, PostgreSQL DDL/publication/sync state, Sunday 11:00 Vienna schedule, initial complete database load, and production PostgreSQL verification.
-- `portfell` owns read-only PostgreSQL gateways, analytics, portfolio optimization, one single-user workspace, and presentation.
+## Frozen PostgreSQL source contract
 
-Portfell must not contain EODHD credentials/client code, download jobs, medallion market-data persistence, PostgreSQL market-data writers, market-data cron jobs, filesystem/NAS fallbacks, users/tenants/memberships, or project-scoped authorization.
+Market business schema:
 
-## Frozen shared contract
+- `xetra_loader.listings` — key `(isin, exchange, code)`;
+- `xetra_loader.eod_quotes` — key `(isin, exchange, code, trade_date)`;
+- `xetra_loader.dividends` — key `(isin, exchange, code, event_key)`;
+- `xetra_loader.splits` — key `(isin, exchange, code, event_key)`.
 
-Portfell depends on these externally observable facts from `xetra-data-loader`:
+Endpoint/configuration:
 
-- PostgreSQL endpoint: `10.10.1.3:54321`, supplied through configuration/secrets; passwords/full DSNs are never committed.
-- Consumer schema: `portfell_market`.
-- Consumer tables: `listings`, `eod_quotes`, `dividends`, `splits`.
-- Full listing identity: `(isin, exchange, code)`.
-- Quote key: `(isin, exchange, code, trade_date)`.
-- Dividend/split key: `(isin, exchange, code, event_key)`.
-- All PostgreSQL timestamp columns are exactly `TIMESTAMPTZ(6)` and DB sessions use UTC.
-- EOD `trade_date` is a separate `DATE`; `timestamp_eod` is a canonical UTC date anchor, not a claimed physical XETRA close timestamp.
-- Database role `portfell_app` is SELECT-only on `portfell_market` and cannot mutate serving data.
-- Portfell has no provider/filesystem fallback if PostgreSQL is unavailable or incomplete.
-- The loader is not considered complete until XDL-PR033 performs a real full synchronization to `10.10.1.3:54321` and independently reconciles PostgreSQL to validated Gold.
+- production target endpoint: `10.10.1.3:54321`;
+- Portfell runtime seam: `PORTFELL_MARKET_DATABASE_URL`;
+- database name/password/full DSN are secret-supplied and never committed;
+- production reader identity: `portfell_app`;
+- all consumed PostgreSQL timestamps are timezone-aware UTC;
+- `trade_date` remains a `DATE`;
+- `timestamp_eod` is a canonical UTC midnight date anchor, not a claimed physical XETRA close timestamp;
+- full listing identity `(isin, exchange, code)` is mandatory everywhere.
 
-## Single-user Portfell invariants
+### `xetra_loader_sync` boundary
 
-- exactly one application workspace;
-- no `user_id`, `tenant_id`, membership, project membership, credential-owner, or project-bootstrap-worker authority;
-- saved portfolio/analysis domain IDs are allowed but are not security scopes;
-- canonical browser routes: `/metadata`, `/univariate`, `/bivariate`, `/multivariate`;
-- REST under `/api`;
-- production runtime uses external PostgreSQL and does not run its own PostgreSQL or loader worker;
-- legacy market-data files/tables are not migrated and may be deleted after verified PostgreSQL cutover.
+The database also contains loader control schema `xetra_loader_sync`, but it is **not a Portfell consumer schema**. Existing `xetra-loader` grants explicitly revoke `portfell_app` access to it.
 
-## Git naming and status contract
+Therefore Portfell must never query `xetra_loader_sync.sync_state` or `xetra_loader_sync.loader_runs`, must never request broader grants, and must never treat loader-internal run state as application evidence. Portfell derives only observational source status from accessible `xetra_loader` facts such as business-table reachability, row counts, `MAX(published_at_utc)`, and quote `MAX(trade_date)`.
 
-Every Portfell work order uses the exact work-order name in branch, every commit message, and PR title. Every commit follows Conventional Commits. Agents record `git status --short --branch` before editing, start from the exact merged predecessor SHA, never branch from siblings, never create compatibility fallbacks, and stay blocked while dependencies are unmerged.
+## Hard removal invariant
 
-## Revised cross-repository execution graph
+At completion Portfell must not contain executable:
+
+- EODHD client/token/endpoint/discovery/fetch logic;
+- metadata/quote/dividend/split provider-download commands;
+- provider credential storage/API/UI or provider-key encryption state;
+- market-data Bronze/Silver/Gold writer pipeline;
+- NAS/filesystem market-data fallback;
+- shared market-data publisher/cache/refresh authority;
+- market acquisition scheduler/worker/cron;
+- market-data DML/DDL;
+- fallback to another provider when PostgreSQL is unavailable.
+
+A PostgreSQL failure or insufficient market history fails closed with typed source evidence.
+
+## Single-user target
+
+The existing single-user simplification remains active:
+
+- one application workspace;
+- no user/tenant/membership/project-membership/credential-owner security authority;
+- saved analysis/portfolio/decision IDs may remain as domain identifiers but not security scopes;
+- canonical browser routes exactly `/metadata`, `/univariate`, `/bivariate`, `/multivariate`;
+- REST remains under `/api`.
+
+## Weak-agent execution contract
+
+Every implementation work order is small and atomic. Exact branch/work-order name must appear in branch, Conventional Commit scope, and PR title. Before editing, each agent records `git status --short --branch`. Sibling PRs start from the exact same merged predecessor SHA, own disjoint paths, and never branch from one another. `GATES.md` remains the sole quality/coverage authority. No agent may invent a compatibility layer, hidden provider feature flag, second market-data authority, or opportunistic refactor.
+
+## Execution graph
 
 ```text
-xetra-data-loader:
-XDL-PR001 ... XDL-PR032 -> XDL-PR033
-                               |
-                               | real target PostgreSQL full sync + PASS verification
-                               v
-
-portfell:
-XDL-PR007 -> PR308
-              |
-       PR309 || PR310 || PR311
-              |
-       PR312 || PR313 || PR314 || PR315
-              |
-            PR316 || PR317
-              |
-            PR318 -> PR319
-              |
-XDL-PR033 ------+----> PR320 -> PR321
+PR296 planning authority
+        |
+      PR308
+        |
+ PR309 || PR310 || PR311 || PR312 || PR313
+        |
+      PR314
+        |
+ PR315 || PR316 || PR317 || PR318
+        |
+      PR319
+        |
+ PR320 || PR321 || PR322 || PR323 || PR324 || PR325 || PR326
+        |
+      PR327 || PR328
+        |
+      PR329 || PR330 || PR331
+        |
+      PR332
+        |
+      PR333
+        |
+      PR334
 ```
 
-PR308 may start once the loader market schema is frozen in XDL-PR007. Portfell's final cross-repository gate PR320 is blocked until both Portfell PR319 and **XDL-PR033** are merged and green. XDL-PR032 fixture/E2E success alone is not sufficient.
+Parallel waves are intentionally wide. With fewer agents, execute any sibling subset first but keep all siblings on the same predecessor SHA.
 
 ## Active Portfell work-order index
 
-| Key | Repository | PR work-order name | Branch | Depends on | Atomic outcome | Git status |
-| --- | --- | --- | --- | --- | --- | --- |
-| PR296 | `portfell` | `pr296-postgres-loader-single-user-backlog` | `docs/pr296-postgres-loader-single-user-backlog` | current `main` | replace execution authority with xetra-loader/PostgreSQL/single-user cutover plan | pushed; validation pending |
-| PR308 | `portfell` | `pr308-portfell-postgres-read-contract` | `refactor/pr308-portfell-postgres-read-contract` | XDL-PR007 | freeze read-only Portfell market-data gateway | not started; branch absent; blocked |
-| PR309 | `portfell` | `pr309-portfell-listing-repository` | `feat/pr309-portfell-listing-repository` | PR308 | implement read-only listing repository | not started; branch absent; blocked |
-| PR310 | `portfell` | `pr310-portfell-quote-repository` | `feat/pr310-portfell-quote-repository` | PR308 | implement read-only quote repository | not started; branch absent; blocked |
-| PR311 | `portfell` | `pr311-portfell-corporate-action-repository` | `feat/pr311-portfell-corporate-action-repository` | PR308 | implement read-only dividend/split repository | not started; branch absent; blocked |
-| PR312 | `portfell` | `pr312-metadata-stage-postgres-cutover` | `refactor/pr312-metadata-stage-postgres-cutover` | PR309-PR311 | Metadata reads PostgreSQL only | not started; branch absent; blocked |
-| PR313 | `portfell` | `pr313-univariate-stage-postgres-cutover` | `refactor/pr313-univariate-stage-postgres-cutover` | PR309-PR311 | Univariate reads PostgreSQL only | not started; branch absent; blocked |
-| PR314 | `portfell` | `pr314-bivariate-stage-postgres-cutover` | `refactor/pr314-bivariate-stage-postgres-cutover` | PR309-PR311 | Bivariate reads PostgreSQL only | not started; branch absent; blocked |
-| PR315 | `portfell` | `pr315-multivariate-stage-postgres-cutover` | `refactor/pr315-multivariate-stage-postgres-cutover` | PR309-PR311 | Multivariate optimizer inputs read PostgreSQL only | not started; branch absent; blocked |
-| PR316 | `portfell` | `pr316-single-user-backend-cutover` | `refactor/pr316-single-user-backend-cutover` | PR312-PR315 | remove multi-user/project/credential backend | not started; branch absent; blocked |
-| PR317 | `portfell` | `pr317-single-user-ui-cutover` | `refactor/pr317-single-user-ui-cutover` | PR312-PR315 | remove project/user/loading UI and project routes | not started; branch absent; blocked |
-| PR318 | `portfell` | `pr318-delete-portfell-data-loading-stack` | `refactor/pr318-delete-portfell-data-loading-stack` | PR316-PR317 | physically delete EODHD/lake/loading/refresh stack | not started; branch absent; blocked |
-| PR319 | `portfell` | `pr319-simplify-portfell-runtime` | `refactor/pr319-simplify-portfell-runtime` | PR318 | collapse runtime to stable read-only app | not started; branch absent; blocked |
-| PR320 | `portfell` | `pr320-cross-repo-serving-contract-gate` | `test/pr320-cross-repo-serving-contract-gate` | XDL-PR033 + PR319 | prove verified real loader serving plane and Portfell reader compatibility | not started; branch absent; blocked |
-| PR321 | `portfell` | `pr321-production-destructive-cutover` | `docs/pr321-production-destructive-cutover` | PR320 | freeze production cutover/runbook | not started; branch absent; blocked |
+| Key | Branch | Depends on | Atomic outcome | Git status |
+| --- | --- | --- | --- | --- |
+| PR296 | `docs/pr296-postgres-loader-single-user-backlog` | current `main` | replace old EODHD/in-repo-loader plan with atomic `xetra_loader` PostgreSQL consumer plan | pushed; validation pending |
+| PR308 | `refactor/pr308-xetra-postgres-read-contract` | PR296 | freeze exact external PostgreSQL DTO/config/read-only contract | not started; branch absent; blocked |
+| PR309 | `feat/pr309-xetra-listings-repository` | PR308 | SELECT-only `xetra_loader.listings` repository | not started; branch absent; blocked |
+| PR310 | `feat/pr310-xetra-quotes-repository` | PR308 | SELECT-only `xetra_loader.eod_quotes` repository | not started; branch absent; blocked |
+| PR311 | `feat/pr311-xetra-dividends-repository` | PR308 | SELECT-only `xetra_loader.dividends` repository | not started; branch absent; blocked |
+| PR312 | `feat/pr312-xetra-splits-repository` | PR308 | SELECT-only `xetra_loader.splits` repository | not started; branch absent; blocked |
+| PR313 | `feat/pr313-xetra-source-status-read-model` | PR308 | observational business-table source status with zero sync-schema access | not started; branch absent; blocked |
+| PR314 | `feat/pr314-xetra-market-gateway-integration` | PR309-PR313 | one typed read-only MarketDataGateway and direct-SQL architecture guard | not started; branch absent; blocked |
+| PR315 | `refactor/pr315-metadata-stage-xetra-cutover` | PR314 | Metadata reads PostgreSQL listings only | not started; branch absent; blocked |
+| PR316 | `refactor/pr316-univariate-stage-xetra-cutover` | PR314 | Univariate inputs use PostgreSQL gateway only | not started; branch absent; blocked |
+| PR317 | `refactor/pr317-bivariate-stage-xetra-cutover` | PR314 | Bivariate histories use PostgreSQL gateway only | not started; branch absent; blocked |
+| PR318 | `refactor/pr318-multivariate-stage-xetra-cutover` | PR314 | Multivariate/optimizer inputs use PostgreSQL gateway only | not started; branch absent; blocked |
+| PR319 | `test/pr319-four-stage-xetra-read-integration-gate` | PR315-PR318 | prove all four analytics stages consume only the PostgreSQL gateway | not started; branch absent; blocked |
+| PR320 | `refactor/pr320-delete-eodhd-provider-client-and-fetchers` | PR319 | delete EODHD HTTP/search/fetch/token/CLI acquisition surface | not started; branch absent; blocked |
+| PR321 | `refactor/pr321-delete-portfell-market-medallion` | PR319 | delete Portfell Bronze/Silver/Gold market persistence pipeline | not started; branch absent; blocked |
+| PR322 | `refactor/pr322-delete-portfell-market-filesystem-nas-plane` | PR319 | delete market filesystem/NAS paths and fallback authority | not started; branch absent; blocked |
+| PR323 | `refactor/pr323-delete-portfell-market-refresh-scheduler` | PR319 | delete shared market refresh/publisher/scheduler authority | not started; branch absent; blocked |
+| PR324 | `refactor/pr324-delete-hosted-market-download-jobs` | PR319 | delete hosted metadata/quote/download job APIs and workers | not started; branch absent; blocked |
+| PR325 | `refactor/pr325-delete-provider-credential-backend` | PR319 | delete provider credential persistence/service/API | not started; branch absent; blocked |
+| PR326 | `refactor/pr326-delete-provider-loading-ui` | PR319 | delete provider token/fetch/progress UI | not started; branch absent; blocked |
+| PR327 | `refactor/pr327-single-user-backend-cutover` | PR320-PR326 | remove multi-user/project security/bootstrap backend | not started; branch absent; blocked |
+| PR328 | `refactor/pr328-single-user-ui-route-cutover` | PR320-PR326 | remove project/user UI and expose four canonical routes | not started; branch absent; blocked |
+| PR329 | `refactor/pr329-remove-provider-packaging-dependencies` | PR327+PR328 | prune provider/loading dependencies and package entrypoints | not started; branch absent; blocked |
+| PR330 | `refactor/pr330-external-postgres-runtime-compose` | PR327+PR328 | production/E2E runtime uses external PostgreSQL and no provider secrets | not started; branch absent; blocked |
+| PR331 | `docs/pr331-remove-eodhd-docs-and-governance` | PR327+PR328 | remove active EODHD docs/artifacts and enforce architecture guard | not started; branch absent; blocked |
+| PR332 | `test/pr332-live-xetra-postgres-readonly-contract-gate` | PR329-PR331 + prepared external DB | prove live `10.10.1.3:54321` business-table contract and least privilege | not started; branch absent; blocked |
+| PR333 | `test/pr333-full-postgres-source-replacement-e2e` | PR332 | prove complete EODHD-free four-stage application end-to-end | not started; branch absent; blocked |
+| PR334 | `docs/pr334-production-postgres-cutover-runbook` | PR333 | executable production cutover/rollback without legacy acquisition | not started; branch absent; blocked |
 
-## Loader handoff milestones
+The complete acceptance checklist for every PR above is in `docs/backlog/postgres-loader-single-user-cutover.md`; this index intentionally does not duplicate or weaken it.
 
-The loader-side milestones authoritative in `xetra-data-loader/BACKLOG.md` are:
+## Superseded implementation branches
 
-- XDL-PR007: PostgreSQL market DDL/DTO contract frozen; unblocks PR308 contract work.
-- XDL-PR008: writer/read-only role grants frozen.
-- XDL-PR032: production-like fixture E2E gate green; useful evidence but not final production handoff.
-- XDL-PR033: real full sync to `10.10.1.3:54321` plus independent Gold/PostgreSQL reconciliation PASS; mandatory final handoff to PR320.
+PR264-PR295 were designed around the old multi-project/in-repository market-loading architecture and remain historical/reference branches only. Do not merge them as-is and do not use their internal wave-base branches as predecessors for this series.
 
-The old PR297-PR307 loader IDs are historical only and must not be implemented in Portfell.
-
-## Superseded PR264-PR295 branches
-
-All PR264-PR295 branches were designed for the old multi-project/in-repository-loading architecture. They remain historical/reference branches only and must not be merged as-is. Do not branch new work from them or from old internal wave-base commits.
+The earlier draft PR308-PR321 plan using schema `portfell_market`, repository name `xetra-data-loader`, or fictional XDL-PR handoff IDs is also superseded by this revision. The authoritative upstream repository is `SergejSchweizer/xetra-loader`, and Portfell consumes its existing `xetra_loader` schema contract directly through PostgreSQL.
 
 ## Completion gate
 
-Portfell cutover is complete only when all of the following hold from clean `main`:
+Portfell cutover is complete only when a clean final `main` proves:
 
-- Metadata/Univariate/Bivariate/Multivariate read market data from PostgreSQL only;
-- `portfell_app` is used as read-only DB identity and cannot mutate serving data;
-- no EODHD/provider credential, fetch command, medallion/shared-market persistence, loader worker, scheduled market download, filesystem/NAS fallback, or hidden legacy feature flag remains in Portfell;
-- no user/tenant/membership/project runtime or credential-management authority remains;
-- project-slug routes/project selector are removed;
-- runtime is a single-user app against external PostgreSQL;
-- legacy Portfell market-data artifacts are deleted rather than migrated;
-- Portfell does not import `xetra-data-loader` as a Python package;
-- **XDL-PR033 has completed the real full XETRA -> PostgreSQL synchronization and its sanitized production reconciliation report is PASS**;
-- PR320 independently proves Portfell can consume the verified serving plane;
-- PR321 documents production cutover and rollback without reactivating legacy loader/fallback paths.
+- market source is PostgreSQL configured through `PORTFELL_MARKET_DATABASE_URL`, targeting `10.10.1.3:54321` in production;
+- Metadata/Univariate/Bivariate/Multivariate read only via `MarketDataGateway` from `xetra_loader` business tables;
+- `portfell_app` has SELECT-only access to those business tables and market mutation attempts fail;
+- access to `xetra_loader_sync` fails for `portfell_app` and executable Portfell code never queries it;
+- no EODHD/provider credential/client/fetch/download/progress surface remains;
+- no market-data Bronze/Silver/Gold writer, NAS/filesystem fallback, publisher, refresh worker, or market cron remains;
+- no provider/local fallback activates when PostgreSQL is unavailable or incomplete;
+- analytical formula/optimizer semantics are preserved by source-cutover regression evidence;
+- single-user backend/UI target and exactly four canonical routes are complete;
+- production runtime requires no EODHD/provider secret and no market-data filesystem mount;
+- PR332 live PostgreSQL contract gate passes;
+- PR333 full source-replacement E2E passes;
+- PR334 documents a production cutover and rollback that cannot reactivate legacy acquisition.
