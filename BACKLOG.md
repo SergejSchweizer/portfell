@@ -105,6 +105,22 @@ No `user_id`, tenant membership, project membership, provider credential owner, 
 - Python metadata predicate semantics are preserved rather than silently redefined by PostgreSQL collation/`ILIKE`;
 - source preflight is low-cost and never infers loader run state from full-table scans or the sync schema.
 
+### 1.5 Local PostgreSQL `config.yaml` contract
+
+PostgreSQL connection metadata must be explicit, local, and impossible to commit accidentally.
+
+- repository-root `config.yaml` is the canonical local configuration file for **non-secret PostgreSQL connection metadata** used by Portfell;
+- `config.yaml` must be listed in `.gitignore` and must never be committed, staged, copied into a Docker image, or emitted as an artifact;
+- a tracked `config.example.yaml` must document the schema with placeholders only and contain no real credentials, complete credential-bearing DSN, tokens, or passwords;
+- `config.yaml` must contain separate `postgres.app` and `postgres.market` sections so the Portfell application database and the external xetra-loader database can never collapse into one authority;
+- `postgres.app` records at least `host`, `port`, `database: portfell_dash`, `schema: portfell`, and the configured LOGIN role name;
+- `postgres.market` records at least `host: 10.10.1.3`, `port: 54321`, `database: xetra_loader`, `schema: xetra_loader`, business tables `listings`, `eod_quotes`, `dividends`, `splits`, and the configured LOGIN role name/member-of expectation for NOLOGIN group role `portfell_app`;
+- raw passwords and tokens are not PostgreSQL metadata and must remain secret-supplied outside Git. `config.yaml` may contain only the name/reference of the secret source, never the secret value itself;
+- `PORTFELL_DATABASE_URL` and `PORTFELL_MARKET_DATABASE_URL`, when used by deployment/runtime composition, remain independent secret-supplied connection authorities. Startup must verify that their non-secret host/port/database/schema/role identity is consistent with `config.yaml`; mismatch fails closed and neither DSN may fall back to the other;
+- tests must prove `git check-ignore config.yaml` succeeds, `config.example.yaml` is tracked and secret-free, and startup rejects missing/malformed/mismatched PostgreSQL metadata with a typed/redacted configuration error.
+
+PR308 owns the first implementation of this contract for the market source and the shared configuration loader. PR345/PR358 must extend/use the same contract for the new `portfell_dash` database rather than introducing another config file or configuration authority.
+
 ## 2. Global weak-agent execution contract
 
 Every active PR below is a complete work order. Agents must not infer missing architecture decisions.
@@ -164,15 +180,15 @@ Branch: `refactor/pr308-xetra-source-contract`
 
 Priority: P0.
 
-Scope: create only the new `src/portfell/market_source/` foundation (`errors.py`, `config.py`, `contracts.py`, `connection.py`, package init) plus focused tests. Define `PORTFELL_MARKET_DATABASE_URL`, exact DTOs/types/keys, the six frozen source errors, role validation, UTC session behavior, and read-only/repeatable-read transaction helpers.
+Scope: create only the new `src/portfell/market_source/` foundation (`errors.py`, `config.py`, `contracts.py`, `connection.py`, package init), the shared local PostgreSQL configuration contract (`config.yaml` loader/validation, tracked secret-free `config.example.yaml`, `.gitignore` rule for `config.yaml`), plus focused tests. Define `PORTFELL_MARKET_DATABASE_URL`, exact DTOs/types/keys, the six frozen source errors, role validation, UTC session behavior, and read-only/repeatable-read transaction helpers.
 
 Frozen errors: `market_source_config_missing`, `market_source_unavailable`, `market_source_role_invalid`, `market_source_contract_mismatch`, `market_source_duplicate_key`, `market_source_invalid_value`.
 
-Acceptance: no import of the xetra-loader Python package; no executable sync repository/API; non-superuser LOGIN membership in NOLOGIN `portfell_app` is required; market DSN never falls back to app DSN; focused tests and PR gate pass.
+Acceptance: no import of the xetra-loader Python package; no executable sync repository/API; non-superuser LOGIN membership in NOLOGIN `portfell_app` is required; market DSN never falls back to app DSN; PostgreSQL market metadata is read from the gitignored `config.yaml`; `config.example.yaml` is tracked and secret-free; `git check-ignore config.yaml` passes; DSN-vs-config identity mismatch fails closed; focused tests and PR gate pass.
 
-Security: credentials are secret-supplied and never rendered/logged.
+Security: credentials are secret-supplied and never rendered/logged or written as raw values to `config.yaml`/`config.example.yaml`.
 
-Determinism: exact connection/session settings are asserted.
+Determinism: exact connection/session settings and normalized local configuration are asserted.
 
 Idempotency: connection/preflight reads are non-mutating.
 
@@ -531,7 +547,8 @@ Tasks:
 - implement exact v1 tables for singleton workspace, `market_source_snapshots`, `metadata_universes`, `metadata_universe_members`, `analysis_runs`, `analysis_artifacts`, `univariate_selections`, `univariate_selection_members`, `decision_artifacts`, `ui_preferences`;
 - use full listing identity `(isin, exchange, code)` in universe/selection membership;
 - enforce immutable/published revision uniqueness, run-stage/status constraints, foreign keys, typed timestamps, and deterministic IDs;
-- include no tenant/user/project/provider-credential/status-event/navigation-projection tables.
+- include no tenant/user/project/provider-credential/status-event/navigation-projection tables;
+- extend the shared gitignored root `config.yaml` schema with `postgres.app` metadata for `portfell_dash`/`portfell`; do not introduce another local config file or raw credential storage.
 
 Acceptance:
 
@@ -539,9 +556,10 @@ Acceptance:
 - catalog snapshot equals frozen DDL contract exactly;
 - no migration references a legacy schema/table as an input source;
 - one clean fixture supports one universe and one completed run per stage without user/project rows;
+- `postgres.app` configuration matches the actual migration target and mismatch fails closed;
 - migration repeat is idempotent; focused tests and PR gate pass.
 
-Security: new login has only required privileges on `portfell`; no superuser requirement.
+Security: new login has only required privileges on `portfell`; no superuser requirement. Passwords remain secret-supplied and are never stored as raw values in tracked files or `config.example.yaml`.
 
 Determinism: same migration head yields same catalog fingerprint.
 
@@ -816,6 +834,8 @@ Final runtime requirements:
 - FastAPI + Dash application service(s);
 - new Portfell `portfell_dash` PostgreSQL service/database or explicit external equivalent;
 - external `PORTFELL_MARKET_DATABASE_URL` to xetra-loader;
+- repository-root `config.yaml` is mounted/read as local runtime configuration, is gitignored, never baked into an image, and its `postgres.app`/`postgres.market` identities must match the effective secret-supplied connections;
+- tracked `config.example.yaml` remains placeholder-only and secret-free;
 - no Web/Node container;
 - no old Portfell DB service/volume;
 - no provider/download/refresh worker;
@@ -826,6 +846,7 @@ Acceptance:
 
 - cold `docker compose up` from empty new DB reaches healthy state after new migrations;
 - exactly one Portfell app DB authority and one external market DB authority;
+- missing/malformed/mismatched `config.yaml` fails closed with a typed/redacted error;
 - market DML fails; sync access fails;
 - no legacy volume is mounted;
 - four Dash routes and API health pass;
@@ -849,6 +870,7 @@ Acceptance must prove all of the following:
 - no `xetra_loader_sync` access/reference as a source;
 - no direct SQL in Dash modules;
 - market SQL only under `market_source`; app-state SQL only under `app_state`;
+- root `config.yaml` is ignored by Git, absent from images/artifacts, and the tracked example contains no real connection secret;
 - clean install from empty `portfell_dash` plus contract-faithful xetra fixture completes all four stages;
 - deterministic browser journey and restart pass;
 - `uv run portfell-quality pr` and `uv run portfell-quality merge` both pass.
@@ -869,7 +891,7 @@ Required order:
 2. stop writes to the legacy Portfell application DB;
 3. create encrypted offline backup of the legacy DB and verify restoreability;
 4. provision/migrate clean `portfell_dash`;
-5. configure secret `PORTFELL_DATABASE_URL` for the new DB and independent `PORTFELL_MARKET_DATABASE_URL` for xetra-loader;
+5. create/deploy the local gitignored `config.yaml` with non-secret `postgres.app` and `postgres.market` metadata, then configure independent secret-supplied `PORTFELL_DATABASE_URL` and `PORTFELL_MARKET_DATABASE_URL` values and verify their identity matches the YAML contract;
 6. deploy FastAPI + Dash runtime;
 7. run four-page smoke and one full analytical workflow;
 8. verify market SELECT works, market DML/DDL fails, and `xetra_loader_sync` access fails;
@@ -884,6 +906,7 @@ Final acceptance:
 - no active old Portfell DB connection/service/volume exists;
 - no first-party old frontend build/libraries are required to build or run Portfell;
 - new DB and external market DB are the only production database authorities;
+- production `config.yaml` is not tracked by Git and is not present in application images/artifacts; tracked `config.example.yaml` contains placeholders only;
 - complete workflow succeeds after application restart;
 - sanitized final evidence records image digests, schema/catalog fingerprint, market-source contract version, Git SHAs, and PASS results without secrets;
 - documentation (`README.md`, `ARCHITECTURE.md`, page docs, Compose/runbook, `GATES.md`) describes only the final architecture.
@@ -924,6 +947,7 @@ A clean production-like acceptance must show:
 - no Portfell-maintained React/Vite/TypeScript/TanStack/Node frontend runtime/build;
 - no old Portfell DB runtime authority;
 - no provider acquisition or Portfell-owned market refresh plane;
+- local PostgreSQL metadata is defined in the root `config.yaml`, which is ignored by Git and excluded from images/artifacts; only secret-free `config.example.yaml` is tracked;
 - full Metadata -> Univariate -> Bivariate -> Multivariate workflow succeeds, persists, restarts, and reproduces against frozen inputs;
 - exact full listing identities are preserved;
 - missing adjusted close and missing analytical values fail/show unavailable correctly;
