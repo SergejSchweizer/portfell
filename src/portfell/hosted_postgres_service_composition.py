@@ -7,16 +7,21 @@ from typing import cast
 
 from portfell.hosted_analysis_service import HostedAnalysisService
 from portfell.hosted_api_state import HostedApiState
-from portfell.hosted_bivariate_service import BivariateResearchService
 from portfell.hosted_credential_project_service import CredentialProjectService
 from portfell.hosted_credentials import EodhdCredentialVault, KeyEncryptionKey
 from portfell.hosted_download_run_repository import PostgresDownloadRunRepository
+from portfell.hosted_market_source_bivariate_repository import (
+    BivariateMarketSourcePostgresResearchRepository,
+)
+from portfell.hosted_market_source_bivariate_service import (
+    BivariateMarketSourceData,
+    MarketSourceBivariateResearchService,
+)
 from portfell.hosted_metadata_project_service import MetadataProjectService, metadata_source_catalog
 from portfell.hosted_metadata_refresh_job_repository import PostgresMetadataRefreshJobRepository
 from portfell.hosted_multivariate_service import MultivariateResearchService
 from portfell.hosted_postgres_repository_bundle import PostgresHostedRepositoryBundle
 from portfell.hosted_postgres_request_scope import RequestScopedPostgresConnection
-from portfell.hosted_postgres_research_repository import PostgresResearchRepository
 from portfell.hosted_postgres_runtime import PostgresHostedRuntime
 from portfell.hosted_postgres_workflow import PostgresWorkflowReader
 from portfell.hosted_project_bootstrap_repository import PostgresProjectBootstrapRepository
@@ -49,6 +54,7 @@ def build_postgres_services(
     runtime = PostgresHostedRuntime(shared_data_root, market_gateway=market_gateway)
     shared_store = SharedMarketDataStore(shared_data_root)
     data = SharedMarketResearchData(shared_store)
+    bivariate_data = BivariateMarketSourceData(runtime.market_gateway)
     bootstrap = PostgresProjectBootstrapRepository(request_scope)
 
     def project_data_loaded(user_id: str, project_id: str) -> bool:
@@ -97,7 +103,7 @@ def build_postgres_services(
             return ()
         return data.selected_rows(tuple(cast(list[str], typed_members)), dataset="quotes")
 
-    research_repository = PostgresResearchRepository(
+    research_repository = BivariateMarketSourcePostgresResearchRepository(
         request_scope,
         projects=repositories.projects,
         selections=repositories.selections,
@@ -162,7 +168,7 @@ def build_postgres_services(
     )
     research = ResearchService(
         UnivariateResearchService(research_repository, data, persistence),
-        BivariateResearchService(research_repository, data, persistence),
+        MarketSourceBivariateResearchService(research_repository, bivariate_data, persistence),
         MultivariateResearchService(
             data,
             persistence,
