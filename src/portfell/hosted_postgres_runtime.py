@@ -14,6 +14,7 @@ from typing import Any
 
 from portfell.hosted_api_errors import HostedRuntimeError
 from portfell.hosted_api_ports import ProgressCallback
+from portfell.market_source.gateway import MarketDataGateway
 from portfell.selection_filters import Predicate
 from portfell.table_io import JsonRow, read_rows
 
@@ -21,8 +22,21 @@ from portfell.table_io import JsonRow, read_rows
 class PostgresHostedRuntime:
     """Read shared metadata while enforcing worker-only market mutations."""
 
-    def __init__(self, shared_data_root: Path) -> None:
+    def __init__(
+        self,
+        shared_data_root: Path,
+        *,
+        market_gateway: MarketDataGateway | None = None,
+    ) -> None:
         self._metadata_path = shared_data_root / "market-data" / "metadata" / "current.parquet"
+        self._market_gateway = market_gateway
+
+    @property
+    def market_gateway(self) -> MarketDataGateway:
+        """Return the server-owned external market reader when configured."""
+        if self._market_gateway is None:
+            raise HostedRuntimeError("market_source_not_configured")
+        return self._market_gateway
 
     def all_isins_rows(self) -> tuple[JsonRow, ...]:
         """Return the published metadata catalogue, if operations has published one."""

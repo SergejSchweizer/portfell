@@ -26,6 +26,7 @@ from portfell.hosted_research_service import ResearchService
 from portfell.hosted_shared_market_research_data import SharedMarketResearchData
 from portfell.hosted_shared_quote_publisher import SharedQuotePublisher
 from portfell.hosted_univariate_service import UnivariateResearchService
+from portfell.market_source.gateway import MarketDataGateway
 from portfell.shared_market_data import SharedMarketDataStore
 
 
@@ -35,6 +36,7 @@ def build_postgres_services(
     request_scope: RequestScopedPostgresConnection,
     shared_data_root: Path,
     key_encryption_key: KeyEncryptionKey,
+    market_gateway: MarketDataGateway | None = None,
 ) -> tuple[CredentialProjectService, MetadataProjectService, QuoteRunService, ResearchService]:
     """Compose services with PostgreSQL control records and shared payloads only."""
 
@@ -44,7 +46,7 @@ def build_postgres_services(
         key_encryption_key=key_encryption_key,
         fingerprint_secret=key_encryption_key.material,
     )
-    runtime = PostgresHostedRuntime(shared_data_root)
+    runtime = PostgresHostedRuntime(shared_data_root, market_gateway=market_gateway)
     shared_store = SharedMarketDataStore(shared_data_root)
     data = SharedMarketResearchData(shared_store)
     bootstrap = PostgresProjectBootstrapRepository(request_scope)
