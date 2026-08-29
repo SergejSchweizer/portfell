@@ -239,8 +239,9 @@ Branch: `feat/pr311-xetra-dividends-repository`
 
 Depends on: PR308.
 
-Git status: in progress from `main` at `e72415a`; the prior 451-file worktree report was
-identical executable-bit metadata noise with no content changes.
+Git status: integrated on `main` at `ede9f46`. The SELECT-only dividend repository preserves
+same-day source events and nullable `Decimal` values, applies inclusive 500-key batching, and
+passed its complete PR gate (`1010 passed`).
 
 Scope: full-identity/batched/inclusive-date reads from `dividends`.
 
