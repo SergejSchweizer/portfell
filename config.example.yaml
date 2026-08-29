@@ -11,7 +11,7 @@ postgres:
     port: 54321
     database: xetra_loader
     schema: xetra_loader
-    role: portfell_reader
+    role: portfell
     member_of: portfell_app
     tables:
       - listings

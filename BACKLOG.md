@@ -182,7 +182,8 @@ Priority: P0.
 
 Git status: integrated on `main` at `691e8db`. Focused market-source tests and the complete PR
 quality gate pass (`1001 passed`); the gate specifications are synchronized with this authoritative
-backlog's transitional architecture.
+backlog's transitional architecture. The local PostgreSQL metadata contract was subsequently
+verified with the dedicated external LOGIN role `portfell`, a member of `portfell_app`.
 
 Scope: create only the new `src/portfell/market_source/` foundation (`errors.py`, `config.py`, `contracts.py`, `connection.py`, package init), the shared local PostgreSQL configuration contract (`config.yaml` loader/validation, tracked secret-free `config.example.yaml`, `.gitignore` rule for `config.yaml`), plus focused tests. Define `PORTFELL_MARKET_DATABASE_URL`, exact DTOs/types/keys, the six frozen source errors, role validation, UTC session behavior, and read-only/repeatable-read transaction helpers.
 

@@ -20,7 +20,7 @@ def write_config(path: Path) -> None:
     port: 54321
     database: xetra_loader
     schema: xetra_loader
-    role: portfell_reader
+    role: portfell
     member_of: portfell_app
     tables:
       - listings
@@ -45,7 +45,7 @@ def test_market_source_config_requires_exact_market_contract(tmp_path: Path) -> 
 
     assert config.tables == ("listings", "eod_quotes", "dividends", "splits")
     assert validate_market_database_url(
-        config, "postgresql://portfell_reader@10.10.1.3:54321/xetra_loader"
+        config, "postgresql://portfell@10.10.1.3:54321/xetra_loader"
     ).startswith("postgresql://")
 
 
@@ -87,7 +87,7 @@ class FakeConnection:
 def test_snapshot_uses_read_only_repeatable_read_utc_and_closes_connection() -> None:
     connection = FakeConnection((True, False, True))
 
-    with repeatable_read_snapshot(connection, role="portfell_reader", member_of="portfell_app"):
+    with repeatable_read_snapshot(connection, role="portfell", member_of="portfell_app"):
         pass
 
     assert [query for query, _ in connection.cursor_value.queries] == [
@@ -105,7 +105,7 @@ def test_snapshot_rejects_superuser_or_missing_group_membership() -> None:
 
     with (
         pytest.raises(MarketSourceError, match=MARKET_SOURCE_ROLE_INVALID),
-        repeatable_read_snapshot(connection, role="portfell_reader", member_of="portfell_app"),
+        repeatable_read_snapshot(connection, role="portfell", member_of="portfell_app"),
     ):
         pass
 
