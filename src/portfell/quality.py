@@ -141,9 +141,8 @@ def commit_subjects(revision_range: str, *, runner: Runner = subprocess.run) -> 
 def validate_conventional_commits(*, runner: Runner = subprocess.run) -> int:
     """Validate that every commit in a possibly stacked branch names a PR scope."""
     subjects = commit_subjects(commit_range(runner=runner), runner=runner)
-    scoped_indexes = [index for index, subject in enumerate(subjects) if has_pr_scope(subject)]
-    enforced_subjects = subjects[: max(scoped_indexes) + 1] if scoped_indexes else subjects
-    invalid = [subject for subject in enforced_subjects if not has_pr_scope(subject)]
+    slug = branch_slug(runner=runner)
+    invalid = [subject for subject in subjects if not reflects_branch_name(subject, slug)]
     if not invalid:
         return 0
 
@@ -152,7 +151,8 @@ def validate_conventional_commits(*, runner: Runner = subprocess.run) -> int:
         f"Expected: type(optional-scope): subject, with type one of {CONVENTIONAL_COMMIT_TYPES}.",
         file=sys.stderr,
     )
-    print("Every branch commit must include its owning PR branch slug as scope.", file=sys.stderr)
+    if slug is not None:
+        print(f"Every branch commit must include the owning scope ({slug}).", file=sys.stderr)
     for subject in invalid:
         print(f"Invalid commit subject: {subject}", file=sys.stderr)
     return 1

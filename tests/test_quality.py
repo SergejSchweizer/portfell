@@ -121,6 +121,24 @@ def test_validate_conventional_commits_rejects_invalid_branch_subjects() -> None
     assert validate_conventional_commits(runner=runner) == 1
 
 
+def test_validate_conventional_commits_rejects_a_different_pr_scope() -> None:
+    def runner(command: Sequence[str], **_: object) -> subprocess.CompletedProcess[str]:
+        if command[0:2] == ("git", "merge-base"):
+            return subprocess.CompletedProcess(command, 0, stdout="abc123\n", stderr="")
+        if command[0:2] == ("git", "log"):
+            return subprocess.CompletedProcess(
+                command,
+                0,
+                stdout="feat(other-pr): add config\n",
+                stderr="",
+            )
+        if command[0:3] == ("git", "branch", "--show-current"):
+            return subprocess.CompletedProcess(command, 0, stdout="feat/config\n", stderr="")
+        raise AssertionError(f"unexpected command: {command}")
+
+    assert validate_conventional_commits(runner=runner) == 1
+
+
 def test_commit_range_uses_github_pull_request_base(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -167,14 +185,16 @@ def test_quality_gate_runs_commands_before_commit_validation(
                 stdout="feat(config): add config\n",
                 stderr="",
             )
+        if command[0:3] == ("git", "branch", "--show-current"):
+            return subprocess.CompletedProcess(command, 0, stdout="main\n", stderr="")
         return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
 
     assert run_quality_gate("pr", runner=runner) == 0
     pr_commands = list(commands_for_layer("pr"))
     assert calls[: len(pr_commands)] == pr_commands
     assert calls[-2:] == [
-        ("git", "merge-base", "HEAD", "origin/main"),
         ("git", "log", "--format=%s", "abc123..HEAD"),
+        ("git", "branch", "--show-current"),
     ]
 
 

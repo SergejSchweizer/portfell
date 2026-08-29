@@ -131,6 +131,8 @@ For every PR:
 - start from the exact merged dependency SHA; stop if a required predecessor is unmerged;
 - sibling PRs start from the same predecessor SHA, not from one another;
 - use the exact branch name and commit scope listed below;
+- every non-`main` branch commit uses Conventional Commits with the branch's exact PR slug as
+  scope (for example, `feat(pr310-xetra-quotes-repository): add quote reader`);
 - `main` accepts rebase-only automatic completion after a pull request's successful `merge-gate`;
   native GitHub branch protection is unavailable for the current private repository plan, so this
   workflow is the enforced repository automation until the plan supports protection rules;
