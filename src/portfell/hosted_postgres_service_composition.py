@@ -11,7 +11,7 @@ from portfell.hosted_bivariate_service import BivariateResearchService
 from portfell.hosted_credential_project_service import CredentialProjectService
 from portfell.hosted_credentials import EodhdCredentialVault, KeyEncryptionKey
 from portfell.hosted_download_run_repository import PostgresDownloadRunRepository
-from portfell.hosted_metadata_project_service import MetadataProjectService
+from portfell.hosted_metadata_project_service import MetadataProjectService, metadata_source_catalog
 from portfell.hosted_metadata_refresh_job_repository import PostgresMetadataRefreshJobRepository
 from portfell.hosted_multivariate_service import MultivariateResearchService
 from portfell.hosted_postgres_repository_bundle import PostgresHostedRepositoryBundle
@@ -146,6 +146,7 @@ def build_postgres_services(
         bootstrap,
         PostgresMetadataRefreshJobRepository(request_scope),
         credentials.refresh_navigation,
+        lambda: metadata_source_catalog(runtime.market_gateway),
     )
     quotes = QuoteRunService(
         state,

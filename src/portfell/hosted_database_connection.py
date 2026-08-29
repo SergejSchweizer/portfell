@@ -11,10 +11,10 @@ class HostedDatabaseConnectionError(RuntimeError):
     """Raised when the externally managed database password file is unusable."""
 
 
-def database_password() -> str | None:
+def database_password(secret_name: str = "PORTFELL_DATABASE_PASSWORD_FILE") -> str | None:
     """Read a nonempty external password file without exposing its contents."""
 
-    value = os.environ.get("PORTFELL_DATABASE_PASSWORD_FILE")
+    value = os.environ.get(secret_name)
     if value is None:
         return None
     try:
@@ -26,12 +26,14 @@ def database_password() -> str | None:
     return password
 
 
-def connect(database_url: str, *, autocommit: bool) -> Any:
+def connect(
+    database_url: str, *, autocommit: bool, password_secret: str = "PORTFELL_DATABASE_PASSWORD_FILE"
+) -> Any:
     """Connect with an optional externally managed password file."""
 
     import psycopg
 
-    password = database_password()
+    password = database_password(password_secret)
     parameters: dict[str, Any] = {"autocommit": autocommit}
     if password is not None:
         parameters["password"] = password

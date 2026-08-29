@@ -120,9 +120,39 @@ def test_postgres_runtime_composes_without_a_local_workspace(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     key_path = tmp_path / "kek"
+    config_path = tmp_path / "config.yaml"
     key_path.write_bytes(b"k" * 32)
+    config_path.write_text(
+        """postgres:
+  app:
+    host: postgres
+    port: 5432
+    database: portfell
+    schema: portfell_app
+    role: portfell_app
+    password_secret: PORTFELL_DATABASE_PASSWORD_FILE
+  market:
+    host: market-postgres
+    port: 5432
+    database: xetra_loader
+    schema: xetra_loader
+    role: portfell
+    member_of: portfell_app
+    tables:
+      - listings
+      - eod_quotes
+      - dividends
+      - splits
+    password_secret: PORTFELL_MARKET_DATABASE_PASSWORD_FILE
+""",
+        encoding="utf-8",
+    )
     monkeypatch.setenv("PORTFELL_HOSTED_AUTHORITY", "postgres")
     monkeypatch.setenv("PORTFELL_DATABASE_URL", "postgresql://portfell_app@postgres:5432/portfell")
+    monkeypatch.setenv(
+        "PORTFELL_MARKET_DATABASE_URL", "postgresql://portfell@market-postgres:5432/xetra_loader"
+    )
+    monkeypatch.setenv("PORTFELL_CONFIG_PATH", str(config_path))
     monkeypatch.setenv("PORTFELL_SHARED_DATA_ROOT", str(tmp_path / "shared"))
     monkeypatch.setenv("PORTFELL_EODHD_KEK_FILE", str(key_path))
 

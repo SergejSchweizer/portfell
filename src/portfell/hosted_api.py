@@ -48,6 +48,13 @@ from portfell.hosted_routes_research import research_router
 from portfell.hosted_routes_status_events import status_event_router
 from portfell.hosted_status_event_stream import StatusEventConnectionLimiter
 from portfell.hosted_user_repository import PostgresHostedUserRepository
+from portfell.market_source.config import (
+    load_app_database_config,
+    load_market_source_config,
+    validate_app_database_url,
+    validate_market_database_url,
+)
+from portfell.market_source.gateway import MarketDataGateway
 
 __all__ = [
     "AnalysisCreateRequest",
@@ -169,6 +176,11 @@ def create_runtime_app() -> FastAPI:
     key_path = os.environ.get("PORTFELL_EODHD_KEK_FILE")
     if not database_url or not shared_data_root or not key_path:
         raise HostedApiError("postgres_hosted_runtime_configuration_required")
+    config_path = Path(os.environ.get("PORTFELL_CONFIG_PATH", "config.yaml"))
+    app_database = load_app_database_config(config_path)
+    market_database = load_market_source_config(config_path)
+    database_url = validate_app_database_url(app_database, database_url)
+    market_database_url = validate_market_database_url(market_database)
     key_encryption_key = load_key_encryption_key(
         Path(key_path),
         version=os.environ.get("PORTFELL_EODHD_KEK_VERSION", "hosted-v1"),
@@ -184,6 +196,15 @@ def create_runtime_app() -> FastAPI:
             request_scope=request_scope,
             shared_data_root=Path(shared_data_root),
             key_encryption_key=key_encryption_key,
+            market_gateway=MarketDataGateway(
+                lambda: connect_database(
+                    market_database_url,
+                    autocommit=False,
+                    password_secret=market_database.password_secret,
+                ),
+                role=market_database.role,
+                member_of=market_database.member_of,
+            ),
         ),
         request_scope=request_scope,
         ensure_user=PostgresHostedUserRepository(request_scope).create,

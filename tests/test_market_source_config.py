@@ -2,7 +2,12 @@ from pathlib import Path
 
 import pytest
 
-from portfell.market_source.config import load_market_source_config, validate_market_database_url
+from portfell.market_source.config import (
+    load_app_database_config,
+    load_market_source_config,
+    validate_app_database_url,
+    validate_market_database_url,
+)
 from portfell.market_source.connection import repeatable_read_snapshot
 from portfell.market_source.errors import (
     MARKET_SOURCE_CONFIG_MISSING,
@@ -15,6 +20,13 @@ from portfell.market_source.errors import (
 def write_config(path: Path) -> None:
     path.write_text(
         """postgres:
+  app:
+    host: localhost
+    port: 5432
+    database: portfell_dash
+    schema: portfell
+    role: portfell_app
+    password_secret: PORTFELL_DATABASE_PASSWORD_FILE
   market:
     host: 10.10.1.3
     port: 54321
@@ -46,6 +58,20 @@ def test_market_source_config_requires_exact_market_contract(tmp_path: Path) -> 
     assert config.tables == ("listings", "eod_quotes", "dividends", "splits")
     assert validate_market_database_url(
         config, "postgresql://portfell@10.10.1.3:54321/xetra_loader"
+    ).startswith("postgresql://")
+
+
+def test_app_database_config_and_dsn_identity_are_loaded_from_local_metadata(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "config.yaml"
+    write_config(path)
+
+    app = load_app_database_config(path)
+
+    assert (app.database, app.schema, app.role) == ("portfell_dash", "portfell", "portfell_app")
+    assert validate_app_database_url(
+        app, "postgresql://portfell_app@localhost:5432/portfell_dash"
     ).startswith("postgresql://")
 
 

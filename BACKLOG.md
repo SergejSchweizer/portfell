@@ -424,6 +424,8 @@ Branch: `refactor/pr319-metadata-market-source`
 
 Depends on: PR318.
 
+Git status: in progress on `refactor/pr319-metadata-market-source`.
+
 Scope: Metadata uses active listings from gateway only.
 
 Acceptance: full identity/predicates preserved; inactive excluded from new universe; snapshot lineage persisted; no fallback.

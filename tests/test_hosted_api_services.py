@@ -51,6 +51,9 @@ from portfell.hosted_local_test_composition import run_quote_fetch_for_test
 from portfell.hosted_metadata_project_service import (
     MetadataProjectService as _MetadataProjectService,
 )
+from portfell.hosted_metadata_project_service import (
+    metadata_source_catalog,
+)
 from portfell.hosted_navigation_read_model_repository import PostgresNavigationReadModel
 from portfell.hosted_project_bootstrap_repository import DurableProjectBootstrap
 from portfell.hosted_quote_lifecycle_repository import LocalQuoteLifecycleRepository
@@ -66,6 +69,7 @@ from portfell.hosted_research_workflow import ResearchRun, UnivariateSelection
 from portfell.hosted_selection_repository import InMemorySelectionRepository
 from portfell.hosted_workspace import LocalWorkspaceStore
 from portfell.hosted_workspace_repository import persist_local_workspace, restore_local_workspace
+from portfell.market_source.contracts import Listing, ListingKey
 from portfell.paths import LakePaths
 from portfell.project_selection_bootstrap import ProjectBootstrap
 from portfell.selection_filters import Predicate
@@ -509,6 +513,56 @@ def test_metadata_builder_options_count_unique_isins_per_value() -> None:
         {"value": "LSE", "isin_count": 1},
         {"value": "XETRA", "isin_count": 1},
     ]
+
+
+def test_metadata_builder_uses_only_active_full_identity_market_catalogue() -> None:
+    class Gateway:
+        def read_active_listings(self) -> tuple[Listing, ...]:
+            return (
+                Listing(
+                    ListingKey("IE1", "XETRA", "ETF-A"),
+                    "Income ETF",
+                    "ETF",
+                    "DE",
+                    "EUR",
+                    True,
+                ),
+                Listing(
+                    ListingKey("IE1", "XETRA", "ETF-B"),
+                    "Income ETF",
+                    "ETF",
+                    "DE",
+                    "EUR",
+                    True,
+                ),
+            )
+
+    user_id = "00000000-0000-5000-8000-000000000001"
+    catalog = metadata_source_catalog(Gateway())  # type: ignore[arg-type]
+    service = MetadataProjectService(
+        HostedApiState(),
+        LocalHostedRuntime(
+            quote_workflow=_empty_workflow, metadata_workflow=_empty_workflow, cpu_count=lambda: 1
+        ),
+        market_catalog=lambda: catalog,
+    )
+
+    assert service.options(user_id)["metadata_ready"] is True
+    fetched, _ = service.start_metadata_fetch(user_id)
+    created = service.create_project_from_criteria(
+        user_id,
+        exchange="XETRA",
+        name="Income",
+        instrument_type="ETF",
+        country="DE",
+        currency="EUR",
+        idempotency_key=None,
+    )
+
+    assert fetched["snapshot_id"] == catalog.snapshot_id
+    assert created["selection"]["member_ids"] == ["IE1:XETRA:ETF-A", "IE1:XETRA:ETF-B"]
+    assert created["selected_count"] == 1
+    assert service.state.metadata_revisions_by_user[user_id] == catalog.snapshot_id
 
 
 def test_project_context_can_use_durable_data_loaded_projection() -> None:

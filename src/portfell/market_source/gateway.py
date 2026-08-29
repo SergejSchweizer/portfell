@@ -59,3 +59,10 @@ class MarketDataGateway:
                 dividends=self._dividends.read_range(cursor, keys, start=start, end=end),
                 splits=self._splits.read_range(cursor, keys, start=start, end=end),
             )
+
+    def read_active_listings(self) -> tuple[Listing, ...]:
+        """Materialize the active listing universe from one read-only snapshot."""
+        with repeatable_read_snapshot(
+            self._connection_factory(), role=self._role, member_of=self._member_of
+        ) as cursor:
+            return self._listings.active(cursor)

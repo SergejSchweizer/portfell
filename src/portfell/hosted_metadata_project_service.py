@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Protocol
 
 from portfell.hosted_api_errors import HostedApplicationError, HostedRuntimeError
@@ -28,6 +29,9 @@ from portfell.hosted_repository_importer import (
     TenantSelection,
 )
 from portfell.hosted_selection_repository import SelectionRepository
+from portfell.market_source.contracts import Listing
+from portfell.market_source.gateway import MarketDataGateway
+from portfell.market_source.snapshot import build_market_source_snapshot
 from portfell.selection_filters import Predicate, filter_rows, parse_predicates
 from portfell.table_io import JsonRow
 
@@ -36,6 +40,24 @@ class MetadataRefreshQueue(Protocol):
     """Enqueue a worker-owned metadata refresh without exposing provider credentials."""
 
     def enqueue(self, *, metadata_run_id: str, user_id: str) -> None: ...
+
+
+@dataclass(frozen=True)
+class MetadataSourceCatalog:
+    """Active source listings and their deterministic external-market lineage."""
+
+    rows: tuple[JsonRow, ...]
+    snapshot_id: str
+
+
+def metadata_source_catalog(gateway: MarketDataGateway) -> MetadataSourceCatalog:
+    """Read only active full-identity listings from the external market authority."""
+    listings = gateway.read_active_listings()
+    snapshot = build_market_source_snapshot(listings=listings, quotes=(), dividends=(), splits=())
+    return MetadataSourceCatalog(
+        rows=tuple(_listing_row(listing) for listing in listings),
+        snapshot_id=snapshot.snapshot_id,
+    )
 
 
 class MetadataProjectService:
@@ -53,6 +75,7 @@ class MetadataProjectService:
         bootstrap_repository: ProjectBootstrapRepository | None = None,
         metadata_refresh_queue: MetadataRefreshQueue | None = None,
         navigation_refresher: Callable[[str], None] | None = None,
+        market_catalog: Callable[[], MetadataSourceCatalog] | None = None,
     ) -> None:
         self.state = state
         self.runtime = runtime
@@ -64,8 +87,11 @@ class MetadataProjectService:
         self._bootstrap = bootstrap_repository
         self._metadata_refresh_queue = metadata_refresh_queue
         self._navigation_refresher = navigation_refresher
+        self._market_catalog = market_catalog
 
     def _all_isins_rows(self) -> tuple[JsonRow, ...]:
+        if self._market_catalog is not None:
+            return self._market_catalog().rows
         return self.state.all_isins_rows or self.runtime.all_isins_rows()
 
     def options(self, user_id: str) -> JsonRow:
@@ -81,7 +107,8 @@ class MetadataProjectService:
                 if value:
                     values.setdefault(value, set()).add(isin)
         return {
-            "metadata_ready": self._metadata.revision(user_id=user_id) is not None,
+            "metadata_ready": self._market_catalog is not None
+            or self._metadata.revision(user_id=user_id) is not None,
             **{
                 field: [
                     {"value": value, "isin_count": len(isins)}
@@ -92,6 +119,30 @@ class MetadataProjectService:
         }
 
     def start_metadata_fetch(self, user_id: str) -> tuple[JsonRow, Callable[[], None]]:
+        if self._market_catalog is not None:
+            catalog = self._market_catalog()
+            run_id = opaque_id("metadata-run", f"{user_id}:{catalog.snapshot_id}")
+            run = self._metadata.create(
+                MetadataRun(
+                    run_id,
+                    user_id,
+                    "succeeded",
+                    len(catalog.rows),
+                    len(catalog.rows),
+                    0,
+                    100,
+                    {
+                        "row_count": len(catalog.rows),
+                        "exchange_count": len({str(row["exchange"]) for row in catalog.rows}),
+                        "requested_exchange_count": 0,
+                        "skipped_exchanges": [],
+                        "snapshot_id": catalog.snapshot_id,
+                    },
+                )
+            )
+            self._metadata.set_revision(user_id=user_id, revision_id=catalog.snapshot_id)
+            self._audit(user_id, "fetch_all_metadata.completed")
+            return metadata_fetch_row(_metadata_row(run)), lambda: None
         if self._metadata_refresh_queue is not None:
             run_id = opaque_id("metadata-run", f"{user_id}:{uuid.uuid4()}")
             run = self._metadata.create(MetadataRun(run_id, user_id, "running", 0, 0, 0, 0, {}))
@@ -196,7 +247,8 @@ class MetadataProjectService:
         currency: str,
         idempotency_key: str | None,
     ) -> JsonRow:
-        if self._metadata.revision(user_id=user_id) is None:
+        catalog = self._market_catalog() if self._market_catalog is not None else None
+        if catalog is None and self._metadata.revision(user_id=user_id) is None:
             raise HostedApplicationError(422, "metadata_required")
         values = (
             ("exchange", "=", exchange),
@@ -212,7 +264,9 @@ class MetadataProjectService:
         )
         if not predicates:
             raise HostedApplicationError(422, "metadata_builder_required")
-        selected_rows = _unique_listings(filter_rows(self._all_isins_rows(), predicates))
+        selected_rows = _ordered_listings(
+            filter_rows(catalog.rows if catalog is not None else self._all_isins_rows(), predicates)
+        )
         if not selected_rows:
             raise HostedApplicationError(422, "metadata_builder_empty")
         project_name = (
@@ -275,6 +329,8 @@ class MetadataProjectService:
             )
         )
         self._projects.set_current_project(user_id=user_id, project_id=project_id)
+        if catalog is not None:
+            self._metadata.set_revision(user_id=user_id, revision_id=catalog.snapshot_id)
         self.runtime.write_metadata_selection(selection_id, selected_rows, predicates)
         bootstrap = (
             None
@@ -421,10 +477,10 @@ def _metadata_row(run: MetadataRun) -> JsonRow:
     }
 
 
-def _unique_listings(rows: list[JsonRow]) -> list[JsonRow]:
-    """Keep one canonical ticker for each valid ISIN/Exchange instrument."""
+def _ordered_listings(rows: list[JsonRow]) -> list[JsonRow]:
+    """Keep every valid full listing identity in deterministic source order."""
 
-    canonical: dict[tuple[str, str], JsonRow] = {}
+    identities: dict[tuple[str, str, str], JsonRow] = {}
     for row in sorted(
         rows,
         key=lambda value: (
@@ -437,8 +493,20 @@ def _unique_listings(rows: list[JsonRow]) -> list[JsonRow]:
         exchange = str(row.get("exchange", "")).strip()
         code = str(row.get("code", "")).strip()
         if isin and exchange and code:
-            canonical.setdefault((isin, exchange), row)
-    return list(canonical.values())
+            identities.setdefault((isin, exchange, code), row)
+    return list(identities.values())
+
+
+def _listing_row(listing: Listing) -> JsonRow:
+    return {
+        "isin": listing.key.isin,
+        "exchange": listing.key.exchange,
+        "code": listing.key.code,
+        "name": listing.name,
+        "instrument_type": listing.instrument_type,
+        "country": listing.country or "",
+        "currency": listing.currency or "",
+    }
 
 
 def _unique_isin_count(member_ids: tuple[str, ...]) -> int:
