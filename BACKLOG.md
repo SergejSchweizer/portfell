@@ -121,6 +121,77 @@ PostgreSQL connection metadata must be explicit, local, and impossible to commit
 
 PR308 owns the first implementation of this contract for the market source and the shared configuration loader. PR345/PR358 must extend/use the same contract for the new `portfell_dash` database rather than introducing another config file or configuration authority.
 
+### 1.6 Plotly Dash visual reference and simplicity contract
+
+The primary visual and interaction reference for the replacement UI is:
+
+`https://financial-dashboard-example.plotly.app/`
+
+The reference is used for **layout grammar and visual simplicity only**. Portfell must not copy the reference application's branding, fund-specific text, financial values, logos, images, downloadable documents, or source assets. The reference is never a runtime dependency, is never embedded by iframe, and deterministic tests must not require network access to it.
+
+The final Portfell Dash application must deliberately mirror the reference application's simple financial-dashboard composition:
+
+- persistent left navigation on desktop with one clearly highlighted active item;
+- a small product header (`Portfell`) above navigation rather than a separate dashboard/home page;
+- exactly four navigation items, in this order: `Metadata`, `Univariate`, `Bivariate`, `Multivariate`;
+- a compact sidebar context block analogous to the reference's fund-information area, but showing Portfell workflow context only: current universe/version, selected instrument count when available, current market-source snapshot short ID, and current stage readiness;
+- no resource/download section unless a later backlog contract explicitly introduces one;
+- main content begins with one page title and one short descriptive subtitle;
+- controls are grouped in one compact control strip directly below the title rather than scattered across the page;
+- important stage metrics are shown in a small KPI-card row before detailed plots/tables;
+- detailed content is grouped into white cards with a light border, modest radius, restrained shadow, clear card title, and generous whitespace;
+- use Plotly charts as the primary visualization language; avoid decorative gauges, gradients, 3D charts, carousels, marketing hero sections, or animation that does not communicate analytical state;
+- use one blue interaction/accent family, neutral grays, semantic green only for positive/success state, and semantic red only for negative/error state;
+- use a system sans-serif font stack; no externally hosted font is required;
+- pages must feel like one application: identical sidebar, title spacing, control layout, card styling, table styling, plot template, loading/error behavior, and stage footer;
+- the UI exposes exactly the capabilities frozen elsewhere in this backlog. The visual reference must never be used as justification to add unrelated fund-management, benchmark, fee, document, or market-data-download features.
+
+Frozen v1 layout tokens to be implemented by PR348 and finalized by PR354:
+
+- desktop sidebar width: `220px`;
+- desktop main padding: `24px`; tablet/mobile main padding: `16px`;
+- layout gap: `16px`;
+- card radius: `8px`;
+- background: `#f7f9fc`;
+- card/surface: `#ffffff`;
+- border: `#e3e8ef`;
+- primary text: `#172033`;
+- muted text: `#6b7280`;
+- accent: `#2f80ed`;
+- accent-soft active-navigation background: `#eaf3ff`;
+- success: `#198754`;
+- danger: `#dc3545`;
+- font stack: `system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+- no full-page horizontal scroll at supported viewport widths;
+- tables may scroll horizontally inside their own card on narrow screens;
+- Plotly figures use the shared Portfell figure template and `responsive=true` behavior.
+
+Frozen page frame:
+
+```text
++----------------------+--------------------------------------------------+
+| Portfell             | Page title                                       |
+|                      | Short subtitle                                   |
+| Metadata             | [ compact controls / primary stage action ]      |
+| Univariate           |                                                  |
+| Bivariate            | [ KPI ] [ KPI ] [ KPI ] [ KPI ]                  |
+| Multivariate         |                                                  |
+|                      | [ primary chart/table card                      ] |
+| Current analysis     | [ secondary chart/table/evidence card           ] |
+| universe / snapshot  |                                                  |
+| readiness            | [ Universe & History / stage footer             ] |
++----------------------+--------------------------------------------------+
+```
+
+Responsive contract:
+
+- desktop `>= 1100px`: fixed `220px` sidebar, four-column KPI row when four KPIs exist, main content fluid;
+- tablet `768px–1099px`: sidebar remains visible at reduced content density, KPI row becomes two columns, charts remain full-card width;
+- mobile `< 768px`: sidebar converts to a compact top navigation region using CSS/Dash only, KPI cards stack to one column, charts and controls stack, tables scroll inside cards, and the page itself has no horizontal overflow;
+- deterministic browser QA uses at least `1440x900`, `1024x768`, and `390x844` viewports.
+
+Shared presentation primitives are frozen as `PageHeader`, `ControlBar`, `KpiCard`, `ChartCard`, `TableCard`, `StatusBanner`, `HistoryCard`, and `StageFooter`. PR348 owns their first implementation. Page PR349–PR352 must consume them rather than creating page-specific substitutes. PR354 may refine only shared presentation/figure styling and must not change financial calculations or stage semantics.
+
 ## 2. Global weak-agent execution contract
 
 Every active PR below is a complete work order. Agents must not infer missing architecture decisions.
@@ -499,7 +570,7 @@ Depends on: PR342.
 
 Scope: freeze the exact merged source/runtime contracts that PR344 consumes; classify old PR264–PR295 UI/product ideas as `reuse-cleanly`, `reimplement-in-dash`, or `retire`; do **not** create a second backlog file and do not resurrect React-era architecture.
 
-Acceptance: one checked-in handoff records exact source gateway API, application service API, persisted analytical concepts, four-page workflow, objective set (`return_risk`, `return_drawdown`, `minimum_risk`), professional plot requirements, Universe & History requirements, and the deletion inventory seed used by PR344.
+Acceptance: one checked-in handoff records exact source gateway API, application service API, persisted analytical concepts, four-page workflow, objective set (`return_risk`, `return_drawdown`, `minimum_risk`), professional plot requirements, Universe & History requirements, the Plotly visual-reference contract from section 1.6, and the deletion inventory seed used by PR344.
 
 ## 4. Plotly Dash + clean database full-replacement series — PR344–PR360
 
@@ -541,7 +612,7 @@ Priority: P0.
 
 Depends on: PR343.
 
-Owned paths: `BACKLOG.md`, new `docs/contracts/plotly-dash-replacement-v1.md`, new `docs/contracts/legacy-ui-db-inventory-v1.json`, focused contract tests only.
+Owned paths: `BACKLOG.md`, new `docs/contracts/plotly-dash-replacement-v1.md`, new `docs/contracts/plotly-dash-ui-v1.md`, new `docs/contracts/legacy-ui-db-inventory-v1.json`, focused contract tests only.
 
 Tasks:
 
@@ -550,6 +621,8 @@ Tasks:
 - inventory every legacy Portfell-owned application database/schema/table/migration/repository/env var/Compose volume/service dependency;
 - inventory current FastAPI routes/application-service methods used by the four stages;
 - freeze exact Dash route/page IDs, callback service contracts, final DB authorities, and final negative-space rules;
+- write `plotly-dash-ui-v1.md` as the normative implementation copy of section 1.6, including the external reference URL, layout tokens, responsive breakpoints, shared presentation primitives, page-frame contract, page-specific content map, and explicit non-goals;
+- freeze the exact page titles/subtitles, primary action labels, KPI slots, named plots, table roles, history/evidence placement, and stage-footer behavior used by PR348–PR354;
 - classify each legacy item exactly `delete-pr356`, `delete-pr357`, `retain-backend`, or `retain-test-only`.
 
 Acceptance:
@@ -558,6 +631,8 @@ Acceptance:
 - every production React/Vite/TypeScript/TanStack/Node UI path is owned by PR356;
 - every legacy Portfell DB object/adapter/migration is owned by PR357 or explicitly proven still required by the new DB contract;
 - `xetra_loader` objects are explicitly excluded from deletion;
+- `plotly-dash-ui-v1.md` contains no feature that is absent from this backlog and no copied reference branding/content/assets;
+- reference URL is documentation-only; no code/runtime/test depends on availability of the external reference;
 - no implementation code is changed;
 - PR gate passes.
 
@@ -635,30 +710,41 @@ Acceptance:
 - no legacy DB read/write fallback; failure of new app DB fails closed;
 - focused stage regression tests and PR gate pass.
 
-### PR348 — Plotly Dash shell mounted in FastAPI
+### PR348 — Plotly Dash reference shell and shared presentation primitives
 
 Branch: `feat/pr348-plotly-dash-shell`
 
 Depends on: PR344. May execute in parallel with PR345–PR347 but must rebase on PR347 before merge if shared composition changes.
 
-Owned paths: new `src/portfell/dash_app/**` shell/navigation/layout/assets, FastAPI composition mount, focused tests. Do not change analytical calculations.
+Owned paths: new `src/portfell/dash_app/**` shell/navigation/layout/shared presentation primitives/assets, FastAPI composition mount, focused tests. Do not change analytical calculations.
+
+Visual authority: section 1.6 and `docs/contracts/plotly-dash-ui-v1.md`. The external Plotly example is reference-only and must not be fetched at runtime.
 
 Tasks:
 
-- add Dash/Plotly Python dependencies;
+- add Dash/Plotly Python dependencies only; do not add a Node/npm/Vite/TypeScript build;
 - create one Dash application mounted/integrated with the production FastAPI runtime;
-- register exactly four routes `/metadata`, `/univariate`, `/bivariate`, `/multivariate`;
-- add shared navigation, loading/error region, page title contract, responsive desktop/tablet/mobile layout foundation;
-- callbacks call typed application-service ports, never SQL;
-- no Node/npm/Vite/TypeScript build is introduced.
+- register exactly four routes `/metadata`, `/univariate`, `/bivariate`, `/multivariate`; `/` redirects deterministically to `/metadata` and is not a fifth product page;
+- implement the reference-style desktop shell with `220px` left sidebar, `Portfell` product header, four ordered navigation items, active-page highlight, workflow-context block, and main content region;
+- implement the section 1.6 CSS tokens and responsive breakpoints in Dash static assets only;
+- implement shared `PageHeader`, `ControlBar`, `KpiCard`, `ChartCard`, `TableCard`, `StatusBanner`, `HistoryCard`, and `StageFooter` primitives with stable IDs/classes and focused rendering tests;
+- implement one shared Plotly figure template for font, margins, axis grid, hover formatting baseline, transparent plot area, white card surface, and responsive rendering;
+- implement loading, empty, typed-error, disabled-action, and unavailable-data presentation primitives without financial logic;
+- implement sidebar workflow context slots for universe/version, selected-count, snapshot short ID, and stage readiness using values supplied by typed services/state only;
+- ensure callbacks call typed application-service ports, never SQL.
 
 Acceptance:
 
-- all four routes resolve and only shell/placeholders render before page PRs;
+- all four routes resolve and render the same reference-style shell with placeholder page bodies;
+- navigation order is exactly Metadata -> Univariate -> Bivariate -> Multivariate;
+- only the current route has accent-soft active styling;
+- no `Dashboard`, `Price Performance`, `Portfolio Analysis`, `Fees & Distributions`, `Resources`, or other reference-application page is introduced;
+- desktop `1440x900` shows fixed sidebar and main content with no page-level horizontal overflow;
+- tablet `1024x768` and mobile `390x844` meet the frozen responsive contract using CSS/Dash only;
 - one process/container topology is documented and tested;
 - FastAPI health/API routes remain reachable;
 - browser smoke test has zero console/page errors attributable to Portfell;
-- no import from `apps/web`;
+- no import from `apps/web`, no copied Plotly-reference branding/assets, and no network request to the example site;
 - PR gate passes.
 
 ### PR349 — Dash Metadata page
@@ -667,7 +753,22 @@ Branch: `feat/pr349-dash-metadata-page`
 
 Depends on: PR347 and PR348.
 
-Owned paths: Dash Metadata page/callbacks and focused tests only.
+Owned paths: Dash Metadata page/callbacks and focused tests only. Reuse PR348 shared presentation primitives; do not add page-local card/navigation styling.
+
+Frozen page title: `Metadata`.
+
+Frozen subtitle: `Build the active Xetra instrument universe.`
+
+Primary actions: `Reset filters`, `Create universe`, and `Continue to Univariate`. No provider fetch/download action exists.
+
+Required layout:
+
+- `PageHeader` with frozen title/subtitle;
+- one `ControlBar` containing only metadata predicates supported by the frozen backend contract plus the two metadata actions;
+- four KPI slots: `Active listings`, `Filtered listings`, `Selected listings`, `Universe version`; unavailable values render `—`, never fabricated zero;
+- one `TableCard` titled `Xetra Listings` showing the exact metadata fields required by the service contract and always preserving full identity `(isin, exchange, code)`;
+- one `HistoryCard` titled `Universe & History` showing persisted universe version, creation timestamp, source snapshot short ID, and member count from persisted data;
+- one `StageFooter` with `Continue to Univariate`, disabled until a persisted Metadata universe is ready.
 
 Business behavior: browse/filter the active Xetra listing universe, show exact metadata fields/counts, create a versioned Metadata universe, and hand it to Univariate.
 
@@ -677,9 +778,15 @@ Acceptance:
 - filtering semantics match the Python contract exactly;
 - duplicate ISINs remain distinguishable by full identity;
 - inactive historical identity can be resolved but not newly selected;
+- selected/filtered/active counts are service-derived and exact;
+- create-universe is idempotent for an identical content identity according to the app-state contract;
 - callbacks never perform direct SQL or provider refresh;
-- persisted universe reloads after restart;
-- accessible validation/loading/empty/error states; PR gate passes.
+- persisted universe reloads after restart and repopulates sidebar context/history;
+- empty results keep the table/card visible with an explicit empty message, not a blank page;
+- validation/loading/error/unavailable states use shared primitives and are keyboard reachable;
+- mobile keeps filters stacked and table scrolling inside its card only;
+- no chart or unrelated financial metric is added to Metadata merely to resemble the reference example;
+- PR gate passes.
 
 ### PR350 — Dash Univariate page
 
@@ -687,18 +794,39 @@ Branch: `feat/pr350-dash-univariate-page`
 
 Depends on: PR347 and PR348.
 
-Owned paths: Dash Univariate page/callbacks/plots/tables and focused tests.
+Owned paths: Dash Univariate page/callbacks/plots/tables and focused tests. Reuse PR348 shared presentation primitives; do not duplicate global CSS.
+
+Frozen page title: `Univariate`.
+
+Frozen subtitle: `Inspect single-instrument return and risk statistics, then persist the downstream selection.`
+
+Primary actions: `Compute univariate statistics`, `Save selection`, `Continue to Bivariate`.
+
+Required layout:
+
+- `PageHeader` with frozen title/subtitle;
+- `ControlBar` containing the primary compute action and only result filters/settings supported by the frozen service contract; no UI-only analytical parameter may be invented;
+- four KPI slots: `Input instruments`, `Available results`, `Selected instruments`, `Unavailable results`;
+- `ChartCard` titled exactly `Univariate Return / Risk Universe` with Plotly scatter data supplied by the service/artifact contract; selected instruments are visually distinguishable and hover shows full listing identity plus the backend-provided return/risk metrics;
+- `TableCard` titled `Univariate Statistics` with exact service-provided metrics and multi-row downstream selection controls;
+- `HistoryCard` titled `Universe & History` showing input Metadata universe/version, run ID/status, source snapshot short ID, algorithm version, and persisted selection version/count;
+- `StageFooter` with `Save selection` and `Continue to Bivariate`; downstream continuation is disabled until a valid persisted selection exists.
 
 Business behavior: run and inspect univariate statistics for the selected Metadata universe, apply result filters, persist the exact downstream selection.
 
 Acceptance:
 
 - formulas/annualization/return conventions remain backend-authoritative;
+- Dash callbacks do not recompute annualized return, volatility, drawdown, distribution yield, or any other financial metric solely for display;
 - missing adjusted close is shown as typed unavailable evidence, never zero/raw-close fallback;
 - distribution/income evidence does not alter adjusted-close return calculation;
-- filter/selection counts are exact;
-- professional Plotly return/risk visualization is produced from API/service values only;
-- restart restores run and selection; PR gate passes.
+- input/available/selected/unavailable KPI counts are exact service values or exact counts over returned immutable rows, never inferred from hidden client state;
+- plot axes, units, hover values, and selected-marker semantics are explicit and deterministic;
+- result filter/selection state never changes the underlying immutable run artifact;
+- persisted selection reloads after restart and repopulates table selection, KPI, history, sidebar context, and readiness;
+- empty/unavailable instrument rows remain explainable in the table/status region;
+- mobile stacks controls/KPIs and keeps chart readable without page overflow;
+- PR gate passes.
 
 ### PR351 — Dash Bivariate page
 
@@ -706,17 +834,37 @@ Branch: `feat/pr351-dash-bivariate-page`
 
 Depends on: PR347 and PR348.
 
-Owned paths: Dash Bivariate page/callbacks/plots/tables and focused tests.
+Owned paths: Dash Bivariate page/callbacks/plots/tables and focused tests. Reuse PR348 shared presentation primitives; do not add a second pair-analysis state model.
+
+Frozen page title: `Bivariate`.
+
+Frozen subtitle: `Inspect pairwise diversification evidence for the persisted Univariate selection.`
+
+Primary actions: `Compute bivariate statistics`, `Continue to Multivariate`.
+
+Required layout:
+
+- `PageHeader` with frozen title/subtitle;
+- `ControlBar` with the primary compute action and only pair-result controls supported by the frozen service contract;
+- four KPI slots: `Input instruments`, `Candidate pairs`, `Eligible pairs`, `Unavailable pairs`;
+- `ChartCard` titled exactly `Bivariate Return / Diversification Universe`; the figure consumes backend/service values only and exposes full pair identity in hover/tooltips;
+- `TableCard` titled `Bivariate Statistics` with both full listing identities and all contracted pair metrics/evidence needed for interpretation;
+- unavailable correlation/covariance/common-calendar evidence is rendered explicitly as unavailable with reason where supplied;
+- `HistoryCard` titled `Universe & History` showing upstream selection version/count, bivariate run ID/status, source snapshot short ID, algorithm version, and pair-result counts;
+- `StageFooter` with `Continue to Multivariate`, disabled until the Bivariate stage is ready according to the backend contract.
 
 Acceptance:
 
-- consumes exact persisted Univariate selection;
-- common-calendar/minimum-observation/pair eligibility rules preserved;
-- missing covariance/correlation is unavailable, never encoded as zero;
-- no same-ISIN pair where prohibited by analytical contract;
-- full listing identity visible where ambiguity exists;
-- professional Plotly diversification/relationship visualization uses backend values only;
-- large pair result handling is bounded; restart-safe; PR gate passes.
+- consumes the exact persisted Univariate selection and never a browser-only row subset;
+- common-calendar/minimum-observation/pair eligibility rules are preserved;
+- candidate/eligible/unavailable counts reconcile exactly with persisted/backend evidence;
+- missing covariance/correlation is unavailable, never encoded or plotted as zero;
+- no same-ISIN pair where prohibited by the analytical contract;
+- full listing identity is visible where ambiguity exists;
+- no financial pair metric is recomputed in Dash for plotting or sorting unless the frozen service contract explicitly designates it as presentation-only transformation;
+- large pair result handling is bounded, table rendering is paged/virtualized according to the chosen Dash-native component, and no page-level horizontal overflow occurs;
+- run state/history/readiness survive process restart;
+- PR gate passes.
 
 ### PR352 — Dash Multivariate page
 
@@ -724,19 +872,46 @@ Branch: `feat/pr352-dash-multivariate-page`
 
 Depends on: PR347 and PR348.
 
-Owned paths: Dash Multivariate page/callbacks/plots/tables and focused tests.
+Owned paths: Dash Multivariate page/callbacks/plots/tables and focused tests. Reuse PR348 shared presentation primitives and the shared Plotly template.
+
+Frozen page title: `Multivariate`.
+
+Frozen subtitle: `Optimize candidate portfolios and select the final portfolio from out-of-sample evidence.`
 
 Frozen objectives: `return_risk` default, `return_drawdown`, `minimum_risk`.
+
+Primary action: `Optimize portfolio`.
+
+Required layout:
+
+- `PageHeader` with frozen title/subtitle;
+- `ControlBar` with one objective selector exposing exactly the three frozen objective values plus `Optimize portfolio`; any additional optimizer/risk-model control may appear only if it is already part of the frozen backend service contract;
+- four KPI slots: `Winner OOS return`, `Winner OOS risk`, `Winner max drawdown`, `Production eligibility`; values come from the winning persisted artifact/DecisionArtifact and unavailable values render `—`/typed unavailable, never zero;
+- `ChartCard` titled exactly `Portfolio Candidate OOS Return / Risk`;
+- `ChartCard` titled `Cumulative Performance` using persisted backend artifact data;
+- `ChartCard` titled `Drawdown` using persisted backend artifact data;
+- `ChartCard` titled `Allocation` when weight artifacts exist;
+- `ChartCard` titled `Risk Contribution` when risk-contribution artifacts exist;
+- `TableCard` titled `Final Portfolio` showing full listing identity, final weight, and only other fields supplied by the winner artifact;
+- one decision/evidence card titled `Decision` showing objective, winning candidate ID, requested method, actual method, source snapshot short ID, algorithm version, availability, production eligibility, and persisted explanation/reason fields;
+- `HistoryCard` titled `Universe & History` showing upstream stage identities and Multivariate run history;
+- `StageFooter` shows final readiness/eligibility but does not create a fifth workflow stage.
 
 Acceptance:
 
 - Multivariate is the only optimizer page/stage;
+- objective selector defaults to `return_risk` and serializes exact frozen objective IDs;
 - OOS ranking selects the winner; no in-sample-best substitution;
-- requested and actual optimizer/risk-model method are displayed from persisted artifacts;
+- requested and actual optimizer/risk-model method are displayed from persisted artifacts rather than guessed from controls;
 - Equal Weight is never a hidden solver fallback;
-- portfolio candidate OOS return/risk, performance, drawdown, allocation/risk contribution, and required professional plots are rendered from backend artifacts;
-- DecisionArtifact explains winner and availability/production eligibility;
-- restart-safe; PR gate passes.
+- candidate OOS return/risk, performance, drawdown, allocation, risk contribution, final weights, and KPI values are rendered from backend artifacts only;
+- unavailable optional Allocation/Risk Contribution cards show a shared unavailable state rather than disappearing in a way that can be mistaken for zero exposure;
+- DecisionArtifact explains the winner and availability/production eligibility;
+- no Dash callback reruns optimization merely because the page renders, changes tabs/cards, or resizes;
+- objective changes mark prior displayed winner as stale until a matching completed run is selected/executed according to PR353 state rules;
+- restart restores the completed run, winner, plots, table, decision evidence, KPI values, and history;
+- mobile displays cards sequentially with responsive Plotly figures and no page-level horizontal overflow;
+- PR gate passes.
 
 ### PR353 — Shared Dash callback/state/job semantics
 
@@ -744,67 +919,125 @@ Branch: `feat/pr353-dash-shared-state`
 
 Depends on: PR349–PR352.
 
-Scope: remove page-local duplication by adding one typed Dash state/callback layer for current universe/selection/run IDs, job progress, cancellation/retry, stale-result invalidation, and cross-page handoff.
+Scope: add one typed Dash state/callback layer for current universe/selection/run IDs, job progress, cancellation/retry, stale-result invalidation, cross-page handoff, navigation readiness, and sidebar context. Do not redesign page visuals owned by PR348/PR354.
+
+Tasks:
+
+- define one immutable browser-state DTO containing identifiers and presentation state only;
+- wire sidebar current-analysis context and per-stage readiness from the same typed state source used by page footers;
+- define deterministic upstream/downstream invalidation: a new Metadata universe invalidates Uni/Bi/Multi readiness; a new Univariate selection invalidates Bi/Multi readiness; a new matching Bivariate run invalidates only downstream Multi readiness as specified by the service contract;
+- define one job-status presentation model for queued/running/succeeded/failed/cancelled plus optional progress supplied by the backend;
+- make retry/cancel buttons appear only when supported by the backend job contract;
+- ensure route changes are read-only with respect to analytical state.
 
 Acceptance:
 
 - no global mutable Python singleton is business authority;
-- browser `dcc.Store`/client state contains identifiers/presentation state only, never full market authority or secrets;
-- stale upstream revision invalidates downstream readiness deterministically;
+- browser `dcc.Store`/client state contains identifiers/presentation state only, never full market authority, financial result tables, database credentials, or secrets;
+- stale upstream revision invalidates downstream readiness deterministically and visibly in sidebar/footer/status banner;
 - double-click/retry does not duplicate logical runs;
 - page navigation never changes analytical state by GET/render side effect;
 - one page cannot display another revision's result after rapid navigation;
+- active sidebar item always follows the URL, while readiness/status icons follow persisted/service state;
+- job/status polling is non-mutating and stops/reduces appropriately after terminal state;
+- restart reconstructs state from persisted backend/app-state contracts rather than browser cache;
 - focused concurrency/restart tests and PR gate pass.
 
-### PR354 — Dash professional visualization and UX parity
+### PR354 — Dash reference-style professional visualization and UX parity
 
 Branch: `feat/pr354-dash-professional-visualization`
 
 Depends on: PR353.
 
-Scope: final visual/interaction layer for all four pages. Use Plotly figures and Dash components only; no React extension application.
+Scope: final shared visual/interaction layer for all four pages. Use Plotly figures and Dash components only; no React extension application. This PR aligns the implementation with the simple composition of `https://financial-dashboard-example.plotly.app/` without copying its content or adding its product features.
+
+Owned changes: shared Dash assets/CSS, shared figure template/formatters, shared presentation primitives, and page presentation-only wiring required to apply those shared pieces. Do not change application-service semantics, analytical formulas, database contracts, or page business callbacks.
+
+Required visual behavior:
+
+- desktop has the reference-style white left sidebar, clear active navigation highlight, restrained product header, workflow context block, neutral application background, and white content cards;
+- every page follows the frozen `PageHeader -> ControlBar -> KPI row -> primary cards -> Universe & History -> StageFooter` vertical hierarchy;
+- card titles are left aligned and concise; descriptive body copy is secondary/muted;
+- KPI cards contain one label, one primary value, and at most one short secondary evidence line; they are not mini dashboards;
+- tables use consistent header/body spacing, sticky header when useful, explicit empty/unavailable rows, and bounded card-local overflow;
+- buttons, dropdowns, checkboxes, radios, pagination, focus outlines, loading indicators, errors, and disabled states use one coherent style family;
+- green/red are semantic only; normal navigation/selection uses the blue accent family;
+- all plots use the shared Portfell Plotly template with explicit axis labels/units, deterministic legend placement, responsive sizing, hover labels, and no decorative 3D/gradient effects;
+- positive/negative colors in plots are used only when the underlying metric semantics justify them; categorical series otherwise use the shared Plotly categorical palette;
+- no page adds a banner/hero, giant logo, marketing copy, or reference-app document links.
 
 Required named plots include at minimum:
 
 - `Univariate Return / Risk Universe`;
 - `Bivariate Return / Diversification Universe`;
 - `Portfolio Candidate OOS Return / Risk`;
-- Multivariate cumulative performance and drawdown views;
-- allocation and risk-contribution views where artifacts exist;
+- `Cumulative Performance`;
+- `Drawdown`;
+- `Allocation` where artifacts exist;
+- `Risk Contribution` where artifacts exist;
 - Universe & History evidence views required by the final product contract.
 
 Acceptance:
 
-- desktop/tablet/mobile responsive checks;
+- deterministic visual fixtures exist for representative populated states of all four pages at `1440x900`, `1024x768`, and `390x844` without requiring the external reference site;
+- desktop composition is visibly the frozen left-sidebar/card-based financial-dashboard grammar; mobile composition is a stacked adaptation, not a separate product;
 - legends/axes/units/date ranges/hover labels are explicit and testable;
-- unavailable data shown as unavailable, not zero;
+- text/interactive controls satisfy the repository's accessibility target, keyboard focus is visible, and color is never the sole carrier of unavailable/error/readiness meaning;
+- unavailable data is shown as unavailable, not zero;
 - no financial recomputation in callbacks solely for plotting;
-- all plots derive from immutable backend/service artifacts; PR gate passes.
+- all plots derive from immutable backend/service artifacts;
+- no copied Plotly-reference logo, wording, fund data, document links, screenshot, or asset is committed into production assets;
+- the only external-reference footprint is the documentation URL/description in the UI contract;
+- PR gate passes.
 
-### PR355 — Dash four-page parity and browser QA
+### PR355 — Dash four-page parity, reference-layout and browser QA
 
 Branch: `test/pr355-dash-four-page-parity`
 
 Depends on: PR354.
 
-Scope: QA only. Establish the deletion gate for the old UI and old DB.
+Scope: QA only. Establish the deletion gate for the old UI and old DB and prove the new UI satisfies both functional parity and the frozen reference-style simplicity contract.
 
 Testing stack: Python `pytest` plus the repository-approved Python browser automation stack. Do not require an application npm/Node build. Browser binaries/test tooling may exist as test dependencies only if they do not restore a Node production UI boundary.
 
-Acceptance:
+Required deterministic journeys:
 
-- deterministic real-stack journey: Metadata -> Univariate -> Bivariate -> Multivariate;
-- desktop/tablet/mobile;
-- valid/empty/invalid/partial/unavailable/retry/restart states;
-- exact request/callback effects and persisted new-DB state;
-- no external production network access in deterministic CI fixtures;
+- Metadata: filter -> select -> create persisted universe -> reload -> continue;
+- Univariate: compute -> inspect plot/table -> select -> persist selection -> reload -> continue;
+- Bivariate: compute -> inspect plot/table/unavailable evidence -> reload -> continue;
+- Multivariate: choose objective -> optimize -> inspect OOS winner/KPIs/plots/final weights/DecisionArtifact -> reload;
+- cross-stage invalidation: change upstream revision and prove downstream stale/readiness behavior;
+- failure/retry path using typed fixture failure without exposing internals.
+
+Reference-layout assertions at `1440x900`:
+
+- `Portfell` header and four-item left navigation are visible;
+- navigation order is exact and only current page is highlighted;
+- workflow context block is present and contains only Portfell analytical context;
+- page title/subtitle precede one compact control strip;
+- KPI cards appear before detailed cards when the page defines KPIs;
+- content cards have consistent shared classes/tokens;
+- no fifth dashboard/home page or reference-app feature exists.
+
+Responsive assertions:
+
+- `1024x768`: two-column KPI layout where applicable, no page overflow, tables bounded to card;
+- `390x844`: compact top navigation, one-column KPI/cards, stacked controls, responsive plots, table card horizontal scroll allowed, no body horizontal scroll.
+
+Functional/security acceptance:
+
+- deterministic real-stack journey Metadata -> Univariate -> Bivariate -> Multivariate passes;
+- valid/empty/invalid/partial/unavailable/retry/restart states pass;
+- exact request/callback effects and persisted new-DB state are asserted;
+- no external production network access in deterministic CI fixtures, including no request to the Plotly example URL;
 - no direct market/app SQL from Dash modules;
 - no legacy DB reads/writes during the journey;
 - no route requires `apps/web`;
 - market DB is read-only and sync schema denied;
+- screenshot/evidence artifacts are generated from Portfell itself and contain no external-reference screenshot or copied asset;
 - `uv run portfell-quality merge` passes.
 
-This PR produces the immutable `dash-parity-v1` evidence artifact required by PR356 and PR357.
+This PR produces the immutable `dash-parity-v1` evidence artifact required by PR356 and PR357. The artifact must include the three viewport screenshots for all four populated pages plus machine-readable functional/layout assertions.
 
 ### PR356 — Delete legacy React/Vite/TypeScript/TanStack/Node UI
 
@@ -909,6 +1142,8 @@ Acceptance must prove all of the following:
 - root `config.yaml` is ignored by Git, absent from images/artifacts, and the tracked example contains no real connection secret;
 - clean install from empty `portfell_dash` plus contract-faithful xetra fixture completes all four stages;
 - deterministic browser journey and restart pass;
+- the frozen section 1.6 / `plotly-dash-ui-v1.md` layout contract still passes after legacy UI deletion;
+- production runtime performs no request to the visual-reference site and contains no copied reference branding/assets;
 - `uv run portfell-quality pr` and `uv run portfell-quality merge` both pass.
 
 Any production defect found here requires a separate corrective implementation PR; PR359 itself does not hide fixes.
@@ -939,13 +1174,14 @@ Required order:
 Final acceptance:
 
 - production runtime serves exactly four Dash pages and no legacy UI route;
+- the production pages conform to the frozen simple financial-dashboard visual contract and the reference URL remains documentation-only;
 - no active old Portfell DB connection/service/volume exists;
 - no first-party old frontend build/libraries are required to build or run Portfell;
 - new DB and external market DB are the only production database authorities;
 - production `config.yaml` is not tracked by Git and is not present in application images/artifacts; tracked `config.example.yaml` contains placeholders only;
 - complete workflow succeeds after application restart;
 - sanitized final evidence records image digests, schema/catalog fingerprint, market-source contract version, Git SHAs, and PASS results without secrets;
-- documentation (`README.md`, `ARCHITECTURE.md`, page docs, Compose/runbook, `GATES.md`) describes only the final architecture.
+- documentation (`README.md`, `ARCHITECTURE.md`, page docs, `docs/contracts/plotly-dash-ui-v1.md`, Compose/runbook, `GATES.md`) describes only the final architecture.
 
 Rollback: restore the last complete pre-cutover application release and the encrypted legacy DB backup only as one coordinated rollback. Never run old and new databases as simultaneous business authorities and never reactivate provider acquisition.
 
@@ -980,6 +1216,8 @@ A clean production-like acceptance must show:
 - one coherent source snapshot per analytical input assembly;
 - one clean Portfell-owned `portfell_dash` DB with no legacy tenant/control-plane schema;
 - exactly four Plotly Dash pages;
+- all four pages follow the frozen section 1.6 / `plotly-dash-ui-v1.md` simple financial-dashboard composition with consistent navigation, controls, KPI cards, content cards, evidence/history, and responsive behavior;
+- the external Plotly example is documentation/design reference only: no runtime dependency, iframe, copied branding/content/assets, or deterministic-test network dependency exists;
 - no Portfell-maintained React/Vite/TypeScript/TanStack/Node frontend runtime/build;
 - no old Portfell DB runtime authority;
 - no provider acquisition or Portfell-owned market refresh plane;
