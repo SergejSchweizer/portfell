@@ -48,6 +48,7 @@ MERGE_GATE_COMMANDS: tuple[Command, ...] = (
     ("python", "-m", "portfell.security_gates"),
     ("pyright",),
     MAIN_COVERAGE_COMMAND,
+    ("bash", "scripts/run_market_source_contract_qa.sh"),
     ("git", "diff", "--quiet"),
     ("git", "diff", "--cached", "--quiet"),
     ("git", "status", "--short", "--untracked-files=all"),

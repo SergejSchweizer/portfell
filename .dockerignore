@@ -22,6 +22,9 @@ data
 !apps/**
 !src
 !src/**
+!tests
+!tests/market_contract
+!tests/market_contract/**
 !pyproject.toml
 !uv.lock
 !README.md

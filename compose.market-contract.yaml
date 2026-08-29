@@ -1,0 +1,27 @@
+name: portfell-market-contract
+
+services:
+  market-postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: xetra_loader
+      POSTGRES_USER: market_admin
+      POSTGRES_PASSWORD: market_admin
+    volumes:
+      - ./tests/market_contract/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U market_admin -d xetra_loader"]
+      interval: 1s
+      timeout: 3s
+      retries: 20
+
+  market-contract-qa:
+    build:
+      context: .
+      dockerfile: docker/market-contract/Dockerfile
+    environment:
+      PORTFELL_MARKET_CONTRACT_ADMIN_DATABASE_URL: postgresql://market_admin:market_admin@market-postgres:5432/xetra_loader
+      PORTFELL_MARKET_CONTRACT_DATABASE_URL: postgresql://portfell:market_reader@market-postgres:5432/xetra_loader
+    depends_on:
+      market-postgres:
+        condition: service_healthy
