@@ -225,8 +225,9 @@ Branch: `feat/pr310-xetra-quotes-repository`
 
 Depends on: PR308.
 
-Git status: in progress from `main` at `e72415a`; the prior 451-file worktree report was
-identical executable-bit metadata noise with no content changes.
+Git status: integrated on `main` at `099bb91`. The SELECT-only quote repository preserves
+`date` and `Decimal` values, applies inclusive 500-key batching, and passed its complete PR gate
+(`1008 passed`).
 
 Scope: `eod_quotes` repository with full identity, inclusive date range, exact fields and `Decimal` values.
 
