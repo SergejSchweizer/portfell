@@ -253,8 +253,9 @@ Branch: `feat/pr312-xetra-splits-repository`
 
 Depends on: PR308.
 
-Git status: in progress from `main` at `e72415a`; the prior 451-file worktree report was
-identical executable-bit metadata noise with no content changes.
+Git status: integrated on `main` at `3e2596a`. The SELECT-only split repository preserves source
+`split_ratio` and optional `Decimal` factors, applies inclusive 500-key batching, and passed its
+complete PR gate (`1012 passed`).
 
 Scope: same repository contract for `splits`.
 
