@@ -12,13 +12,13 @@ from portfell.hosted_credential_project_service import CredentialProjectService
 from portfell.hosted_credentials import EodhdCredentialVault, KeyEncryptionKey
 from portfell.hosted_download_run_repository import PostgresDownloadRunRepository
 from portfell.hosted_market_source_research_data import MarketSourceResearchData
+from portfell.hosted_market_source_research_repository import MarketSourcePostgresResearchRepository
 from portfell.hosted_market_source_univariate_service import MarketSourceUnivariateResearchService
 from portfell.hosted_metadata_project_service import MetadataProjectService, metadata_source_catalog
 from portfell.hosted_metadata_refresh_job_repository import PostgresMetadataRefreshJobRepository
 from portfell.hosted_multivariate_service import MultivariateResearchService
 from portfell.hosted_postgres_repository_bundle import PostgresHostedRepositoryBundle
 from portfell.hosted_postgres_request_scope import RequestScopedPostgresConnection
-from portfell.hosted_postgres_research_repository import PostgresResearchRepository
 from portfell.hosted_postgres_runtime import PostgresHostedRuntime
 from portfell.hosted_postgres_workflow import PostgresWorkflowReader
 from portfell.hosted_project_bootstrap_repository import PostgresProjectBootstrapRepository
@@ -39,7 +39,7 @@ def build_postgres_services(
     key_encryption_key: KeyEncryptionKey,
     market_gateway: MarketDataGateway | None = None,
 ) -> tuple[CredentialProjectService, MetadataProjectService, QuoteRunService, ResearchService]:
-    """Compose services with PostgreSQL control records and shared payloads only."""
+    """Compose services with PostgreSQL control records and external market reads."""
 
     repositories = PostgresHostedRepositoryBundle.from_connection(request_scope)
     credential_vault = EodhdCredentialVault(
@@ -99,7 +99,7 @@ def build_postgres_services(
             return ()
         return data.selected_rows(tuple(cast(list[str], typed_members)), dataset="quotes")
 
-    research_repository = PostgresResearchRepository(
+    research_repository = MarketSourcePostgresResearchRepository(
         request_scope,
         projects=repositories.projects,
         selections=repositories.selections,
@@ -118,7 +118,6 @@ def build_postgres_services(
                 metadata_selection_id=metadata_selection_id,
             )
         ),
-        quote_period=data.quote_period,
     )
     persistence = PostgresResearchPersistence()
     credentials = CredentialProjectService(
