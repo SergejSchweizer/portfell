@@ -180,7 +180,7 @@ Branch: `refactor/pr308-xetra-source-contract`
 
 Priority: P0.
 
-Git status: ready for rebase and linear integration. Focused market-source tests and the complete PR
+Git status: integrated on `main` at `691e8db`. Focused market-source tests and the complete PR
 quality gate pass (`1001 passed`); the gate specifications are synchronized with this authoritative
 backlog's transitional architecture.
 
