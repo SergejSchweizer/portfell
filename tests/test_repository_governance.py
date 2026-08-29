@@ -199,37 +199,28 @@ def test_hosted_security_architecture_maps_goals_to_backlog_records() -> None:
     assert "## 1. Final target architecture — hard decision" in backlog
 
 
-def test_github_quality_workflows_validate_and_use_rebase_completion() -> None:
+def test_github_merge_gate_runs_once_and_uses_rebase_completion() -> None:
     merge_gate_workflow = (REPOSITORY_ROOT / ".github/workflows/merge-gate.yml").read_text(
         encoding="utf-8"
     )
-    pr_workflow = (REPOSITORY_ROOT / ".github/workflows/pr-quality.yml").read_text(encoding="utf-8")
     merge_workflow = (REPOSITORY_ROOT / ".github/workflows/auto-merge.yml").read_text(
         encoding="utf-8"
     )
 
-    assert "pr-lint-quality" in pr_workflow
-    assert "pr-type-quality" in pr_workflow
-    assert "pr-unit-tests-${{ matrix.shard }}" in pr_workflow
-    assert "pr-integration-tests-${{ matrix.shard }}" in pr_workflow
     assert "merge-lint-quality" in merge_gate_workflow
     assert "merge-type-quality" in merge_gate_workflow
     assert "merge-unit-tests-${{ matrix.shard }}" in merge_gate_workflow
     assert "merge-integration-tests-${{ matrix.shard }}" in merge_gate_workflow
-    assert "scripts/pytest_shard.py" in pr_workflow
     assert "scripts/pytest_shard.py" in merge_gate_workflow
-    assert "--suite unit" in pr_workflow
-    assert "--suite integration" in pr_workflow
-    assert "-n auto" in pr_workflow
     assert "-n auto" in merge_gate_workflow
-    assert "uv run portfell-quality --commits-only" in pr_workflow
     assert "uv run portfell-quality --commits-only" in merge_gate_workflow
     assert "uv run python -m portfell.schema_validation" in merge_gate_workflow
     assert "uv run coverage combine coverage-shards" in merge_gate_workflow
     assert "uv run coverage report --fail-under=90" in merge_gate_workflow
-    assert 'uv run portfell-quality --squash-subject "$SQUASH_SUBJECT"' in pr_workflow
     assert "pull_request:" in merge_gate_workflow
     assert "branches: [main]" in merge_gate_workflow
+    assert "push:" not in merge_gate_workflow
+    assert not (REPOSITORY_ROOT / ".github/workflows/pr-quality.yml").exists()
     assert "workflows: [merge-gate]" in merge_workflow
     assert "is still a draft; skipping auto-merge" in merge_workflow
     assert "Invalid squash subject" in merge_workflow

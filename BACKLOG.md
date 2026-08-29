@@ -138,6 +138,8 @@ For every PR:
 - do not add compatibility fallbacks, second market sources, second UI runtimes, dual DB reads/writes, broader database grants, or opportunistic refactors;
 - implementation PRs run focused tests plus `uv run portfell-quality pr`;
 - QA/integration PRs also run `uv run portfell-quality merge`;
+- GitHub executes the complete `merge-gate` once per pull request targeting `main`; do not add a
+  second workflow that reruns the same test, browser, container, or coverage families;
 - QA PRs own tests/evidence only. Production defects discovered by QA require a corrective implementation PR rather than hidden QA fixes;
 - browser-visible errors contain typed public codes/messages and never credentials, DSNs, SQL, paths, stack traces, or database internals;
 - completed analytical revisions are immutable; retries create/reuse exact idempotent identities instead of mutating published results;

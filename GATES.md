@@ -20,7 +20,7 @@ Last reviewed: 2026-08-29
 
 ## Current Shape
 
-Portfell uses one local validation contract. Run the applicable focused checks while changing code and the complete check before integration.
+Portfell uses one local validation contract. Run the applicable focused checks while changing code and the complete check before integration. GitHub runs the complete `merge-gate` once per pull request targeting `main`; it does not repeat the same test families in a separate PR workflow or after the rebase merge.
 
 The shard count is intentionally kept at `4` for Unit and Integration tests. Current CI runtime is dominated more by runner setup, checkout, dependency installation, and artifact handling than by individual test execution, so further splitting is not expected to improve wall-clock time yet.
 
