@@ -55,11 +55,13 @@ def _quote_row(quote: EodQuote) -> JsonRow:
 
 
 def _dividend_row(dividend: Dividend) -> JsonRow:
+    amount = _optional_float(dividend.amount)
     return {
         **_identity(dividend.key.isin, dividend.key.exchange, dividend.key.code),
         "date": dividend.event_date.isoformat(),
         "event_id": dividend.event_key,
-        "amount": _optional_float(dividend.amount),
+        "amount": amount,
+        "value": amount,
         "currency": dividend.currency,
     }
 

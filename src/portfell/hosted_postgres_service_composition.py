@@ -11,6 +11,8 @@ from portfell.hosted_bivariate_service import BivariateResearchService
 from portfell.hosted_credential_project_service import CredentialProjectService
 from portfell.hosted_credentials import EodhdCredentialVault, KeyEncryptionKey
 from portfell.hosted_download_run_repository import PostgresDownloadRunRepository
+from portfell.hosted_market_source_research_data import MarketSourceResearchData
+from portfell.hosted_market_source_univariate_service import MarketSourceUnivariateResearchService
 from portfell.hosted_metadata_project_service import MetadataProjectService, metadata_source_catalog
 from portfell.hosted_metadata_refresh_job_repository import PostgresMetadataRefreshJobRepository
 from portfell.hosted_multivariate_service import MultivariateResearchService
@@ -25,7 +27,6 @@ from portfell.hosted_research_persistence import PostgresResearchPersistence
 from portfell.hosted_research_service import ResearchService
 from portfell.hosted_shared_market_research_data import SharedMarketResearchData
 from portfell.hosted_shared_quote_publisher import SharedQuotePublisher
-from portfell.hosted_univariate_service import UnivariateResearchService
 from portfell.market_source.gateway import MarketDataGateway
 from portfell.shared_market_data import SharedMarketDataStore
 
@@ -49,6 +50,7 @@ def build_postgres_services(
     runtime = PostgresHostedRuntime(shared_data_root, market_gateway=market_gateway)
     shared_store = SharedMarketDataStore(shared_data_root)
     data = SharedMarketResearchData(shared_store)
+    market_data = MarketSourceResearchData(runtime.market_gateway)
     bootstrap = PostgresProjectBootstrapRepository(request_scope)
 
     def project_data_loaded(user_id: str, project_id: str) -> bool:
@@ -161,7 +163,7 @@ def build_postgres_services(
         None,
     )
     research = ResearchService(
-        UnivariateResearchService(research_repository, data, persistence),
+        MarketSourceUnivariateResearchService(research_repository, market_data, persistence),
         BivariateResearchService(research_repository, data, persistence),
         MultivariateResearchService(
             data,
