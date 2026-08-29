@@ -1,0 +1,14 @@
+repos:
+  - repo: local
+    hooks:
+      - id: portfell-quality-pr
+        name: portfell quality pr
+        entry: uv run portfell-quality pr
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+      - id: portfell-conventional-commit
+        name: portfell conventional commit
+        entry: uv run portfell-quality --commit-msg-file
+        language: system
+        stages: [commit-msg]

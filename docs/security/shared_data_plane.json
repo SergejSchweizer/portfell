@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "planes": {
+    "tenant_control": {
+      "owns": [
+        "users",
+        "encrypted_credential_envelopes",
+        "immutable_projects_and_memberships",
+        "project_authorization_references",
+        "jobs_runs_and_audit"
+      ]
+    },
+    "shared_payload": {
+      "owns": [
+        "immutable_market_revisions",
+        "immutable_analytical_payloads"
+      ]
+    }
+  },
+  "forbidden_shared_payload_fields": [
+    "authorization",
+    "credential_id",
+    "project_id",
+    "run_id",
+    "session_token",
+    "user_id"
+  ],
+  "identities": {
+    "listing": ["provider", "exchange", "isin", "code"],
+    "market_revision": ["dataset_type", "schema_version", "business_key_hash", "content_hash"],
+    "analytical_artifact": [
+      "input_revision_ids",
+      "parameters_hash",
+      "algorithm_version",
+      "schema_version"
+    ]
+  },
+  "authorization": {
+    "project_reference_required": true,
+    "shared_object_existence_is_authorization": false
+  },
+  "shared_ingestion_credential_role": "operations-only"
+}

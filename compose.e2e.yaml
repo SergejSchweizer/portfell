@@ -1,0 +1,92 @@
+name: portfell-e2e
+
+services:
+  postgres:
+    container_name: portfell-e2e-postgres
+    restart: "no"
+    ports: []
+    volumes:
+      - portfell-e2e-postgres:/var/lib/postgresql/data
+
+  eodhd-stub:
+    image: python:3.14-alpine
+    command: ["python", "/srv/eodhd_stub.py"]
+    volumes:
+      - ./tests/e2e/eodhd_stub.py:/srv/eodhd_stub.py:ro
+    networks:
+      - portfell-internal
+
+  seed-user:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    command:
+      - python
+      - -c
+      - >-
+        import os; from portfell.hosted_database_connection import connect;
+        c = connect(os.environ['PORTFELL_DATABASE_URL'], autocommit=False);
+        c.execute("select set_config(%s, %s, true)", ('portfell.current_user_id', '00000000-0000-5000-8000-000000000001'));
+        c.execute("insert into portfell_app.users (user_id, status) values (%s::uuid, 'active') on conflict (user_id) do nothing", ('00000000-0000-5000-8000-000000000001',)); c.commit(); c.close()
+    environment:
+      PORTFELL_DATABASE_URL: postgresql://portfell_app@postgres:5432/portfell
+      PORTFELL_DATABASE_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets:
+      - postgres_password
+    depends_on:
+      project-bootstrap-worker:
+        condition: service_healthy
+    networks:
+      - portfell-internal
+    group_add:
+      - "${PORTFELL_SECRET_GROUP_ID:-100}"
+
+  api:
+    container_name: portfell-e2e-api
+    restart: "no"
+    environment:
+      EODHD_BASE_URL: http://eodhd-stub:8080/api
+    depends_on:
+      project-bootstrap-worker:
+        condition: service_healthy
+      seed-user:
+        condition: service_completed_successfully
+      eodhd-stub:
+        condition: service_started
+    ports: !override
+      - "127.0.0.1:18000:8000"
+    volumes:
+      - portfell-e2e-shared:/srv/portfell/shared-data
+
+  web:
+    container_name: portfell-e2e-web
+    restart: "no"
+    depends_on:
+      api:
+        condition: service_healthy
+    ports: !override
+      - "127.0.0.1:13000:3000"
+
+  project-bootstrap-worker:
+    container_name: portfell-e2e-worker
+    restart: "no"
+    environment:
+      EODHD_BASE_URL: http://eodhd-stub:8080/api
+      PORTFELL_WORKER_POLL_SECONDS: "0.1"
+    depends_on:
+      eodhd-stub:
+        condition: service_started
+    volumes:
+      - portfell-e2e-shared:/srv/portfell/shared-data
+
+volumes:
+  portfell-e2e-postgres:
+  portfell-e2e-shared:
+
+secrets:
+  postgres_password:
+    file: ./tests/e2e/secrets/postgres_password.txt
+  eodhd_kek:
+    file: ./tests/e2e/secrets/eodhd_kek.txt
+  operations_eodhd_token:
+    file: ./tests/e2e/secrets/operations_eodhd_token.txt

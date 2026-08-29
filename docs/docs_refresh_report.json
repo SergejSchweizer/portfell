@@ -1,0 +1,37 @@
+{
+  "missing_review_count": 0,
+  "tracked_docs": {
+    "AGENTS.md": {
+      "exists": true,
+      "review": "Last reviewed: 2026-07-14"
+    },
+    "ARCHITECTURE.md": {
+      "exists": true,
+      "review": "Last reviewed: 2026-08-10"
+    },
+    "BACKLOG.md": {
+      "exists": true,
+      "review": "Last reviewed: 2026-08-10"
+    },
+    "CONTRACTS.md": {
+      "exists": true,
+      "review": "Last reviewed: 2026-08-10"
+    },
+    "DECISIONS.md": {
+      "exists": true,
+      "review": "Last reviewed: 2026-08-10"
+    },
+    "README.md": {
+      "exists": true,
+      "review": "Last reviewed: 2026-08-10"
+    },
+    "RISKS.md": {
+      "exists": true,
+      "review": "Last reviewed: 2026-08-10"
+    },
+    "docs/hosted_security_architecture.md": {
+      "exists": true,
+      "review": "Last reviewed: 2026-08-04"
+    }
+  }
+}

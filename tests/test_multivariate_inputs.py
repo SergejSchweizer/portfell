@@ -1,0 +1,204 @@
+from portfell.multivariate_inputs import (
+    DistributionEtfPolicy,
+    ExplicitMultivariateInputAdapter,
+    MonthlyDistributionEtfPolicy,
+    MultivariateInputDependencies,
+    MultivariateListingKey,
+    build_multivariate_input_snapshot,
+)
+
+
+def _key(n: int) -> MultivariateListingKey:
+    return MultivariateListingKey(f"IE{n}", "XETRA", f"ETF{n}")
+
+
+def _dependencies(
+    *,
+    keys: tuple[MultivariateListingKey, ...] = (_key(1), _key(2)),
+    observations: int = 100,
+    **changes: object,
+) -> MultivariateInputDependencies:
+    values: dict[str, object] = {
+        "project_id": "project-a",
+        "project_snapshot_id": "snapshot-a",
+        "metadata_selection_id": "metadata-a",
+        "univariate_run_id": "univariate-a",
+        "univariate_selection_id": "selection-a",
+        "bivariate_run_id": "bivariate-a",
+        "bivariate_status": "complete",
+        "bivariate_listing_keys": keys,
+        "aligned_calendar_id": "calendar-a",
+        "bivariate_aligned_calendar_id": "calendar-a",
+        "date_start": "2024-01-01",
+        "date_end": "2025-12-31",
+        "observation_count": observations,
+        "quote_artifact_ids": {key: f"quote-{key.code}" for key in keys},
+        "dividend_artifact_ids": {key: f"dividend-{key.code}" for key in keys},
+    }
+    values.update(changes)
+    return MultivariateInputDependencies(**values)  # type: ignore[arg-type]
+
+
+def _row(key: MultivariateListingKey, **changes: object) -> dict[str, object]:
+    row: dict[str, object] = {
+        "isin": key.isin,
+        "exchange": key.exchange,
+        "code": key.code,
+        "instrument_type": "ETF",
+        "distribution_frequency": "monthly",
+        "quote_history_production_eligible": True,
+    }
+    row.update(changes)
+    return row
+
+
+def test_snapshot_is_canonical_and_adapter_equivalent() -> None:
+    keys = (_key(2), _key(1))
+    dependencies = _dependencies(keys=tuple(sorted(keys)))
+    direct = build_multivariate_input_snapshot(
+        dependencies=dependencies, univariate_rows=[_row(keys[0]), _row(keys[1])]
+    )
+    adapter = ExplicitMultivariateInputAdapter().resolve(
+        dependencies=dependencies, univariate_rows=[_row(keys[1]), _row(keys[0])]
+    )
+    assert direct.eligible
+    assert direct.listing_keys == (_key(1), _key(2))
+    assert direct.snapshot_id == adapter.snapshot_id
+    assert direct.dependency_hash == adapter.dependency_hash
+
+
+def test_snapshot_accepts_mixed_regular_distribution_frequencies() -> None:
+    keys = (_key(1), _key(2), _key(3))
+    snapshot = build_multivariate_input_snapshot(
+        dependencies=_dependencies(keys=keys),
+        univariate_rows=[
+            _row(keys[0], distribution_frequency="monthly"),
+            _row(keys[1], distribution_frequency="quarterly"),
+            _row(keys[2], distribution_frequency="semiannual"),
+        ],
+    )
+
+    assert snapshot.eligible
+    assert snapshot.listing_keys == keys
+    assert snapshot.policy.allowed_distribution_frequencies == (
+        "monthly",
+        "quarterly",
+        "semiannual",
+    )
+
+
+def test_snapshot_rejects_unsupported_frequency_and_non_etf_values() -> None:
+    keys = (_key(1), _key(2), _key(3), _key(4))
+    snapshot = build_multivariate_input_snapshot(
+        dependencies=_dependencies(keys=(keys[0], keys[1])),
+        univariate_rows=[
+            _row(keys[0]),
+            _row(keys[1], distribution_frequency="quarterly"),
+            _row(keys[2], instrument_type="Fund"),
+            _row(keys[3], distribution_frequency="annual"),
+        ],
+    )
+    assert snapshot.eligible
+    assert snapshot.listing_keys == (keys[0], keys[1])
+    assert "non_etf" in snapshot.eligibility[2].reasons
+    assert "distribution_frequency_not_allowed" in snapshot.eligibility[3].reasons
+
+
+def test_snapshot_detects_dependency_membership_calendar_and_history_failures() -> None:
+    snapshot = build_multivariate_input_snapshot(
+        dependencies=_dependencies(
+            bivariate_status="running",
+            bivariate_listing_keys=(_key(1),),
+            bivariate_aligned_calendar_id="other",
+            observations=99,
+        ),
+        univariate_rows=[_row(_key(1)), _row(_key(2))],
+    )
+    assert set(snapshot.availability_reasons) >= {
+        "bivariate_not_complete",
+        "membership_mismatch",
+        "calendar_mismatch",
+        "insufficient_common_history",
+    }
+
+
+def test_default_policy_accepts_exactly_one_hundred_common_observations() -> None:
+    snapshot = build_multivariate_input_snapshot(
+        dependencies=_dependencies(observations=100),
+        univariate_rows=[_row(_key(1)), _row(_key(2))],
+    )
+
+    assert snapshot.eligible
+    assert snapshot.policy.minimum_common_daily_return_observations == 100
+
+
+def test_snapshot_identity_changes_with_pinned_dependency_or_policy() -> None:
+    rows = [_row(_key(1)), _row(_key(2))]
+    base = build_multivariate_input_snapshot(dependencies=_dependencies(), univariate_rows=rows)
+    changed = build_multivariate_input_snapshot(
+        dependencies=_dependencies(project_snapshot_id="snapshot-b"), univariate_rows=rows
+    )
+    policy_changed = build_multivariate_input_snapshot(
+        dependencies=_dependencies(),
+        univariate_rows=rows,
+        policy=MonthlyDistributionEtfPolicy(minimum_common_daily_return_observations=101),
+    )
+    assert base.snapshot_id != changed.snapshot_id
+    assert base.snapshot_id != policy_changed.snapshot_id
+
+    frequencies_changed = build_multivariate_input_snapshot(
+        dependencies=_dependencies(),
+        univariate_rows=rows,
+        policy=DistributionEtfPolicy(allowed_distribution_frequencies=("monthly",)),
+    )
+    assert base.snapshot_id != frequencies_changed.snapshot_id
+
+
+def test_same_isin_different_listing_key_remains_distinct() -> None:
+    first = MultivariateListingKey("IE1", "XETRA", "ETF1")
+    second = MultivariateListingKey("IE1", "LSE", "ETF1L")
+    snapshot = build_multivariate_input_snapshot(
+        dependencies=_dependencies(
+            keys=(first, second),
+            quote_artifact_ids={first: "q1", second: "q2"},
+            dividend_artifact_ids={first: "d1", second: "d2"},
+        ),
+        univariate_rows=[_row(first), _row(second)],
+    )
+    assert snapshot.eligible
+    assert len(snapshot.listing_keys) == 2
+
+
+def test_snapshot_records_stale_missing_and_duplicate_dependencies() -> None:
+    keys = (_key(1), _key(2))
+    snapshot = build_multivariate_input_snapshot(
+        dependencies=_dependencies(
+            keys=keys,
+            bivariate_run_id=None,
+            upstream_stale=True,
+            quote_artifact_ids={key: f"quote-{key.code}" for key in keys},
+            dividend_artifact_ids={key: f"dividend-{key.code}" for key in keys},
+        ),
+        univariate_rows=[
+            _row(keys[0], quote_history_production_eligible=False),
+            _row(keys[0]),
+            _row(keys[1]),
+        ],
+    )
+    assert "stale_upstream_dependency" in snapshot.availability_reasons
+    assert "missing_bivariate_dependency" in snapshot.availability_reasons
+    assert "missing_quote_artifact" in snapshot.eligibility[0].reasons
+    duplicate = build_multivariate_input_snapshot(
+        dependencies=_dependencies(keys=keys),
+        univariate_rows=[_row(keys[0]), _row(keys[0]), _row(keys[1])],
+    )
+    assert "duplicate_listing_key" in duplicate.availability_reasons
+
+
+def test_monthly_policy_rejects_impossible_listing_and_history_thresholds() -> None:
+    import pytest
+
+    with pytest.raises(ValueError, match="at least two"):
+        MonthlyDistributionEtfPolicy(minimum_listing_count=1)
+    with pytest.raises(ValueError, match="at least two"):
+        MonthlyDistributionEtfPolicy(minimum_common_daily_return_observations=1)

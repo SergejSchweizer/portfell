@@ -1,0 +1,73 @@
+# Ignore everything by default. Add explicit allowlist entries for files and
+# directories that are part of the project.
+*
+
+# Always allow Git ignore files.
+!.gitignore
+!**/.gitignore
+
+# Root project documentation.
+!AGENTS.md
+!ARCHITECTURE.md
+!BACKLOG.md
+!DECISIONS.md
+!DOCKER.md
+!README.md
+!RISKS.md
+
+# Local quality tooling.
+!.pre-commit-config.yaml
+!.python-version
+!.dockerignore
+!.github/
+!.github/workflows/
+!.github/workflows/**
+!compose.yaml
+!compose.*.yaml
+!docker/
+!docker/**
+!apps/
+!apps/**
+apps/**/node_modules/
+apps/**/dist/
+apps/**/.vite/
+apps/**/coverage/
+apps/**/test-results/
+!GATES.md
+
+# Public examples are allowed; local secrets stay ignored.
+!.env.example
+
+# Project metadata and lockfiles.
+!pyproject.toml
+!uv.lock
+!requirements.txt
+!requirements-dev.txt
+!setup.cfg
+!setup.py
+
+# Source, tests, scripts, and docs must be explicitly project-owned.
+!src/
+!src/**
+!tests/
+!tests/**
+!scripts/
+!scripts/**
+!docs/
+!docs/**
+
+# Keep local-only files ignored even if a broader allowlist is added later.
+.env
+.env.*
+!.env.example
+.venv/
+.logs/
+data/
+lake/
+*.duckdb
+*.duckdb.wal
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+__pycache__/
+*.py[cod]

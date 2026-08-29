@@ -1,0 +1,132 @@
+# Agent Workflow And Generated Risks
+
+Last reviewed: 2026-07-14
+
+## Table Of Contents
+
+- [Project Workflow Rules](#project-workflow-rules)
+- [Generated Risk Context](#generated-risk-context)
+- [R001. Exchange API reliability can silently reduce historical completeness](#r001-exchange-api-reliability-can-silently-reduce-historical-completeness)
+- [R002. Dataset naming drift can break Bronze, Silver, and Gold joins](#r002-dataset-naming-drift-can-break-bronze-silver-and-gold-joins)
+- [R003. Large refactors can blur architecture boundaries](#r003-large-refactors-can-blur-architecture-boundaries)
+- [R004. Coverage and strict typing can drift after broad edits](#r004-coverage-and-strict-typing-can-drift-after-broad-edits)
+- [R005. Documentation snapshots can become stale relative to the lake](#r005-documentation-snapshots-can-become-stale-relative-to-the-lake)
+
+This file is the workflow reference for coding agents and maintainers. It should be read after [README.md](README.md), [ARCHITECTURE.md](ARCHITECTURE.md), and the task-specific docs for the area being changed.
+
+## Project Workflow Rules
+
+- Keep work items atomic, with explicit ownership, hand-offs, machine-verifiable acceptance criteria, and validation evidence.
+- Rebase working branches onto the current `main` history before integration; do not create merge commits.
+- Use Conventional Commit subjects in the form `type(optional-scope): subject`.
+- For UI work, run `docker compose --env-file .env.local up --build --watch` from the active checkout. If Compose watch is unavailable, run `uv run portfell-compose-watch`.
+- Required quality checks, shard layout, and coverage thresholds are documented in [GATES.md](GATES.md).
+- When a dataframe library is needed and there is a choice, use `polars` rather than `pandas`.
+- Runtime Compose topology is limited to `web`, `api`, `project-bootstrap-worker`, and `postgres`. New application or operations work must execute in one of those containers; do not add services or one-off `docker compose run` containers. Test-only Compose fixtures may add isolated dependencies.
+
+## Generated Risk Context
+
+This section is generated from recurring themes in first-parent `git log`.
+
+Update command:
+
+```bash
+uv run python scripts/update_project_history_docs.py
+```
+
+Risk review rules:
+
+- Update risks when commits introduce or retire operational, data correctness, or architecture risks.
+- Prefer concrete mitigations that map to tests, logs, contracts, or docs.
+- Keep stale risks only if the mitigation still needs active attention.
+
+## R001. Exchange API reliability can silently reduce historical completeness
+
+Status: Active
+
+Signal: Deribit route errors, retry behavior, and long-running trade backfills appear repeatedly in the history.
+
+Mitigation: Keep debug logs, checkpoint keys, deterministic windows, and completeness reports aligned before changing bronze execution.
+
+Evidence:
+
+- 2026-07-10 `ccb6962` Merge pull request #72 from SergejSchweizer/codex/pr15-recent-trade-snapshot-silver
+- 2026-07-04 `ca0e922` Rename option trades dataset to options_trades
+- 2026-07-04 `11da15c` Rename options trades and perps OHLCV datasets
+- 2026-07-03 `4393c40` Rename perpetual trades dataset
+- 2026-07-01 `f55d766` [codex] Extract OHLCV symbol bronze planning (#46)
+- 2026-06-29 `7232cc4` Extract bronze head gap planning (#42)
+
+## R002. Dataset naming drift can break Bronze, Silver, and Gold joins
+
+Status: Active
+
+Signal: Dataset names have changed over time, including volatility cleanup and explicit OHLCV dataset naming.
+
+Mitigation: Rename work must update registry specs, lake paths, contracts, CLI choices, manifests, tests, and docs in one change.
+
+Evidence:
+
+- 2026-07-10 `8902f6b` Merge pull request #77 from SergejSchweizer/codex/pr18-gold-regime-feature-contract
+- 2026-07-09 `c43e3e3` Merge pull request #58 from SergejSchweizer/codex/pr01-silver-contract-registry-baseline
+- 2026-07-04 `ca0e922` Rename option trades dataset to options_trades
+- 2026-07-04 `ab5543d` Rename open_interest dataset to open interest
+- 2026-07-04 `11da15c` Rename options trades and perps OHLCV datasets
+- 2026-07-03 `c9d39e1` Rename spot_ohlcv OHLCV dataset
+
+## R003. Large refactors can blur architecture boundaries
+
+Status: Active
+
+Signal: The log contains many extraction commits across loader, lake, Silver, and Gold services.
+
+Mitigation: Keep dependency direction and side effects explicit; verify with architecture/import checks and focused regression tests.
+
+Evidence:
+
+- 2026-07-04 `ba93394` Add architecture documentation
+- 2026-07-01 `4e203fb` [codex] Complete Bronze refactor stack (#51)
+- 2026-07-01 `f55d766` [codex] Extract OHLCV symbol bronze planning (#46)
+- 2026-07-01 `a2287a1` Align architecture and coverage refactor gates
+- 2026-07-01 `a674417` Consolidate refactor boundary work
+- 2026-06-29 `febd87e` Extract silver volatility transformation (#45)
+
+## R004. Coverage and strict typing can drift after broad edits
+
+Status: Active
+
+Signal: Quality-gate commits show that type coverage and test coverage are active project risks.
+
+Mitigation: Run focused tests first, then full pytest, Ruff, and type checks before integrating behavior or boundary changes.
+
+Evidence:
+
+- 2026-07-10 `850150b` Add GitHub quality gate script
+- 2026-07-10 `c0fca84` Sync stacked PR validation policy
+- 2026-07-09 `2a57684` Extend volatility medallion coverage
+- 2026-07-01 `225a01e` Update README coverage statistics
+- 2026-07-01 `a2287a1` Align architecture and coverage refactor gates
+- 2026-06-27 `931263d` Align validation gates (#17)
+
+## R005. Documentation snapshots can become stale relative to the lake
+
+Status: Active
+
+Signal: README coverage statistics and missing-day details have been refreshed several times.
+
+Mitigation: Regenerate or explicitly date coverage snapshots when lake content, dataset names, or coverage reporting changes.
+
+Evidence:
+
+- 2026-07-01 `225a01e` Update README coverage statistics
+- 2026-06-29 `60fcfcb` Remove README missing-day detail label
+- 2026-06-29 `0d1ce23` Fix README table of contents
+- 2026-06-28 `660f9f2` Deduplicate README table of contents
+- 2026-06-26 `40cc90e` Merge branch 'codex/docs-update-missing-values'
+- 2026-05-25 `b8b5b82` Refine raw dataset docs and Deribit endpoint sections (#7)
+
+## UI changes
+
+Read `docs/ui/page-development.md` before adding or changing a React page. Keep `apps/web/src/routes.tsx`, the page component, its `docs/ui/windows/<route-slug>.md` specification, typed API contracts, and regression tests synchronized in the same change. Do not add compatibility renderers or browser-owned financial, ingestion, authentication, or authorization logic.
+
+After every UI change, rebuild and validate the web Docker image from the current branch with `docker build --file apps/web/Dockerfile --tag portfell-web:latest .`. If the local Compose configuration requires unrelated runtime secrets, do not create placeholder secrets just to build the web image; use the direct web-image build instead.

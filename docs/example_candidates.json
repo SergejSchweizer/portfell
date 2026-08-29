@@ -1,0 +1,11 @@
+[
+  {
+    "Code": "EXAMPLE",
+    "Exchange": "XETRA",
+    "Type": "ETF",
+    "Country": "DE",
+    "Currency": "EUR",
+    "Isin": "IE0000000001",
+    "Name": "Example UCITS ETF"
+  }
+]
