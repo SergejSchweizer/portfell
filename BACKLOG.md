@@ -208,7 +208,8 @@ Branch: `feat/pr309-xetra-listings-repository`
 
 Depends on: PR308.
 
-Git status: in progress from `main` at `6e75fb3`.
+Git status: blocked. This branch's dedicated worktree contains 451 uncommitted changes not
+attributable to PR309; preserve and reconcile that worktree before implementation or rebase.
 
 Scope: SELECT-only repository over `xetra_loader.listings`; full identity lookup, batch lookup, exact active-universe read; no business filtering inside SQL beyond contract fields.
 
@@ -220,7 +221,8 @@ Branch: `feat/pr310-xetra-quotes-repository`
 
 Depends on: PR308.
 
-Git status: in progress from `main` at `6e75fb3`.
+Git status: blocked. This branch's dedicated worktree contains 451 uncommitted changes not
+attributable to PR310; preserve and reconcile that worktree before implementation or rebase.
 
 Scope: `eod_quotes` repository with full identity, inclusive date range, exact fields and `Decimal` values.
 
@@ -232,7 +234,8 @@ Branch: `feat/pr311-xetra-dividends-repository`
 
 Depends on: PR308.
 
-Git status: in progress from `main` at `6e75fb3`.
+Git status: blocked. This branch's dedicated worktree contains 451 uncommitted changes not
+attributable to PR311; preserve and reconcile that worktree before implementation or rebase.
 
 Scope: full-identity/batched/inclusive-date reads from `dividends`.
 
@@ -244,7 +247,8 @@ Branch: `feat/pr312-xetra-splits-repository`
 
 Depends on: PR308.
 
-Git status: in progress from `main` at `6e75fb3`.
+Git status: blocked. This branch's dedicated worktree contains 451 uncommitted changes not
+attributable to PR312; preserve and reconcile that worktree before implementation or rebase.
 
 Scope: same repository contract for `splits`.
 
@@ -256,7 +260,8 @@ Branch: `feat/pr313-market-source-status`
 
 Depends on: PR308.
 
-Git status: in progress from `main` at `6e75fb3`.
+Git status: blocked. This branch's dedicated worktree contains 451 uncommitted changes not
+attributable to PR313; preserve and reconcile that worktree before implementation or rebase.
 
 Scope: low-cost connectivity/schema/role preflight only.
 
@@ -268,7 +273,8 @@ Branch: `refactor/pr314-market-source-projection`
 
 Depends on: PR308.
 
-Git status: in progress from `main` at `6e75fb3`.
+Git status: blocked. This branch's dedicated worktree contains 451 uncommitted changes not
+attributable to PR314; preserve and reconcile that worktree before implementation or rebase.
 
 Scope: one centralized mapping from raw market DTOs to analytical inputs.
 
