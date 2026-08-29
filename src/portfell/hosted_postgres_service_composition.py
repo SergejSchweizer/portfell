@@ -11,9 +11,12 @@ from portfell.hosted_bivariate_service import BivariateResearchService
 from portfell.hosted_credential_project_service import CredentialProjectService
 from portfell.hosted_credentials import EodhdCredentialVault, KeyEncryptionKey
 from portfell.hosted_download_run_repository import PostgresDownloadRunRepository
+from portfell.hosted_market_source_multivariate_service import (
+    MarketSourceMultivariateResearchService,
+)
+from portfell.hosted_market_source_research_data import MarketSourceResearchData
 from portfell.hosted_metadata_project_service import MetadataProjectService, metadata_source_catalog
 from portfell.hosted_metadata_refresh_job_repository import PostgresMetadataRefreshJobRepository
-from portfell.hosted_multivariate_service import MultivariateResearchService
 from portfell.hosted_postgres_repository_bundle import PostgresHostedRepositoryBundle
 from portfell.hosted_postgres_request_scope import RequestScopedPostgresConnection
 from portfell.hosted_postgres_research_repository import PostgresResearchRepository
@@ -49,6 +52,7 @@ def build_postgres_services(
     runtime = PostgresHostedRuntime(shared_data_root, market_gateway=market_gateway)
     shared_store = SharedMarketDataStore(shared_data_root)
     data = SharedMarketResearchData(shared_store)
+    market_data = MarketSourceResearchData(runtime.market_gateway)
     bootstrap = PostgresProjectBootstrapRepository(request_scope)
 
     def project_data_loaded(user_id: str, project_id: str) -> bool:
@@ -163,8 +167,8 @@ def build_postgres_services(
     research = ResearchService(
         UnivariateResearchService(research_repository, data, persistence),
         BivariateResearchService(research_repository, data, persistence),
-        MultivariateResearchService(
-            data,
+        MarketSourceMultivariateResearchService(
+            market_data,
             persistence,
             research_repository,
             repositories.projects,
