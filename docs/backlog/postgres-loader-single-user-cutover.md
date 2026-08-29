@@ -1,843 +1,1204 @@
 # PostgreSQL XETRA Read-Plane and Single-User Portfell Cutover
 
-Status: active Portfell implementation authority after PR296 is merged.
+Status: implementation authority after PR296 is merged.
 
 Last reviewed: 2026-08-29.
 
-## 1. Goal
+## 1. Goal and scope
 
-Refactor `SergejSchweizer/portfell` so that **all EODHD/provider acquisition, metadata discovery, quote download, corporate-action download, medallion market-data persistence, refresh scheduling, provider credential handling, and provider fallback paths are removed from Portfell**.
+Refactor `SergejSchweizer/portfell` so that all market data used by Metadata, Univariate, Bivariate, and Multivariate comes from the external PostgreSQL serving plane produced by `SergejSchweizer/xetra-loader`.
 
-Portfell becomes a read-only consumer of the existing PostgreSQL serving plane at `10.10.1.3:54321` produced by `SergejSchweizer/xetra-loader`.
+Portfell must contain no executable EODHD/provider acquisition plane after this series: no provider HTTP client, token, discovery, metadata/quote/corporate-action download, provider credential service, market Bronze/Silver/Gold writer, NAS/filesystem market fallback, shared-market publisher, market refresh worker, or market-download scheduler.
 
-The market-data integration boundary is PostgreSQL only. Portfell must not import `xetra-loader` as a Python package and must not call EODHD or any other market-data provider.
+The PostgreSQL integration boundary is the database contract only. Portfell must never import `xetra-loader` as a Python package.
+
+This series also retains the already-planned single-user simplification. It does **not** cancel the non-market product requirements from the older Dash/Multivariate backlog. Old PR264-PR295 implementation branches are frozen reference branches and must not be merged as-is because their market-source and multi-project assumptions conflict with this cutover. Their still-valid product requirements are explicitly reconciled in terminal planning gate PR343.
 
 ## 2. Hard ownership boundary
 
 ```text
 SergejSchweizer/xetra-loader
-provider acquisition -> validated XETRA datasets -> PostgreSQL 10.10.1.3:54321
-                                                   |
-                                                   | SELECT only as portfell_app
-                                                   v
-                                                portfell
-                  Metadata -> Univariate -> Bivariate -> Multivariate -> optimization
+provider acquisition -> Bronze/Silver/Gold -> PostgreSQL 10.10.1.3:54321
+                                             |
+                                             | SELECT-only application access
+                                             v
+                                          portfell
+          Metadata -> Univariate -> Bivariate -> Multivariate -> optimization
 ```
 
-`xetra-loader` owns provider access, download/reconciliation, market-data publication, PostgreSQL market-table writes, sync bookkeeping, and loader scheduling.
+`xetra-loader` owns provider access, market ingestion, reconciliation, serving-table DML/DDL, sync bookkeeping, and loader scheduling.
 
-`portfell` owns only read-only market-data gateways, analytics/optimization, application-domain state, and the application UI/API.
-
-Portfell must not own:
-
-- EODHD client/configuration/tokens or provider HTTP access;
-- XETRA/provider discovery or download commands;
-- Bronze/Silver/Gold market-data persistence;
-- NAS/filesystem market-data fallback;
-- market-data writers, refresh workers, publisher jobs, or market-data cron jobs;
-- loader sync-state mutation or loader administration;
-- provider credential storage/API/UI;
-- dual-read or fail-open fallback paths.
+`portfell` owns read-only market access, deterministic analysis projections, analytical/application state, portfolio analytics/optimization, and UI/API.
 
 ## 3. Frozen external PostgreSQL contract
 
-### 3.1 Endpoint and credentials
+### 3.1 Endpoint and runtime identity
 
-- target PostgreSQL endpoint: `10.10.1.3:54321`;
-- database name, username, password, TLS options, and full DSN are supplied only through runtime configuration/secrets;
-- canonical Portfell configuration seam: `PORTFELL_MARKET_DATABASE_URL`;
-- no password, complete DSN, provider key, or EODHD token may be committed;
-- production database role is `portfell_app`.
+- Production endpoint is `10.10.1.3:54321`.
+- Canonical Portfell seam is `PORTFELL_MARKET_DATABASE_URL`.
+- Database name, LOGIN username, password, TLS options, and full DSN are runtime secrets and are never committed.
+- In `xetra-loader`, `portfell_app` is a **NOLOGIN group role**, not a login account.
+- The Portfell DSN therefore authenticates as a secret-supplied LOGIN role that must be a member of `portfell_app`.
+- Portfell must fail closed if the current LOGIN role is a PostgreSQL superuser, is not a member of `portfell_app`, or has broader market/control-plane privileges than the frozen consumer contract.
+- Portfell sets UTC session semantics and uses read-only transactions. Market snapshots used by one analytical operation use `REPEATABLE READ, READ ONLY` so cross-table inputs come from one coherent PostgreSQL snapshot.
+
+No work order may invent or commit a login-role name or password.
 
 ### 3.2 Business schema
 
-Portfell may read only these business tables in schema `xetra_loader`:
+Portfell may read only these market business tables:
 
 - `xetra_loader.listings`;
 - `xetra_loader.eod_quotes`;
 - `xetra_loader.dividends`;
 - `xetra_loader.splits`.
 
-The externally observable contract is:
+Exact consumed contract:
 
 #### `xetra_loader.listings`
 
-- key: `(isin, exchange, code)`;
-- columns consumed by Portfell: `isin`, `exchange`, `code`, `name`, `instrument_type`, `currency`, `country`, `is_active`, `fetched_at_utc`, `published_at_utc`.
+Key: `(isin, exchange, code)`.
+
+Columns: `isin`, `exchange`, `code`, `name`, `instrument_type`, `currency`, `country`, `is_active`, `fetched_at_utc`, `published_at_utc`.
 
 #### `xetra_loader.eod_quotes`
 
-- key: `(isin, exchange, code, trade_date)`;
-- columns consumed by Portfell: `isin`, `exchange`, `code`, `trade_date`, `timestamp_eod`, `open`, `high`, `low`, `close`, `adjusted_close`, `volume`, `fetched_at_utc`, `published_at_utc`;
-- `trade_date` is a PostgreSQL `DATE`;
-- `timestamp_eod` is the canonical UTC midnight anchor for `trade_date`, not a claimed physical exchange close timestamp.
+Key: `(isin, exchange, code, trade_date)`.
+
+Columns: `isin`, `exchange`, `code`, `trade_date`, `timestamp_eod`, `open`, `high`, `low`, `close`, `adjusted_close`, `volume`, `fetched_at_utc`, `published_at_utc`.
+
+`trade_date` is `DATE`. `timestamp_eod` is the canonical UTC midnight anchor for the date and is not a physical XETRA close timestamp. PostgreSQL `NUMERIC` values stay `Decimal` in the raw source DTO layer.
 
 #### `xetra_loader.dividends`
 
-- key: `(isin, exchange, code, event_key)`;
-- columns consumed by Portfell: `isin`, `exchange`, `code`, `event_key`, `event_date`, `declaration_date`, `record_date`, `payment_date`, `value`, `currency`, `period`, `fetched_at_utc`, `published_at_utc`.
+Key: `(isin, exchange, code, event_key)`.
+
+Columns: `isin`, `exchange`, `code`, `event_key`, `event_date`, `declaration_date`, `record_date`, `payment_date`, `value`, `currency`, `period`, `fetched_at_utc`, `published_at_utc`.
 
 #### `xetra_loader.splits`
 
-- key: `(isin, exchange, code, event_key)`;
-- columns consumed by Portfell: `isin`, `exchange`, `code`, `event_key`, `event_date`, `split_ratio`, `split_factor`, `fetched_at_utc`, `published_at_utc`.
+Key: `(isin, exchange, code, event_key)`.
 
-All PostgreSQL timestamp columns consumed by Portfell are timezone-aware and decoded as UTC. Full listing identity `(isin, exchange, code)` is preserved everywhere; ISIN alone is never a business key.
+Columns: `isin`, `exchange`, `code`, `event_key`, `event_date`, `split_ratio`, `split_factor`, `fetched_at_utc`, `published_at_utc`.
 
-### 3.3 Loader control schema is intentionally inaccessible
+All consumed PostgreSQL timestamp columns are timezone-aware UTC. Full listing identity `(isin, exchange, code)` is mandatory end-to-end; ISIN alone is display metadata, never a business key.
 
-`xetra_loader_sync` is a loader-owned control-plane schema. Current loader RBAC explicitly revokes `portfell_app` access to that schema and its tables.
+### 3.3 `xetra_loader_sync` is not a consumer schema
 
-Therefore Portfell must:
+`xetra_loader_sync` is loader control-plane state. Existing loader RBAC explicitly denies `portfell_app` access to it.
 
-- never query `xetra_loader_sync.sync_state`;
-- never query `xetra_loader_sync.loader_runs`;
-- never request broader grants to `xetra_loader_sync`;
-- never infer application authorization from loader control-plane state.
+Executable Portfell code must never query `xetra_loader_sync.sync_state` or `xetra_loader_sync.loader_runs`, request broader grants, infer loader run IDs/status, or use loader control state for authorization/freshness.
 
-Portfell source availability/freshness is an **observational read model** derived only from accessible business-table evidence such as `MAX(trade_date)`, `MAX(published_at_utc)`, and row counts. It must not pretend to know the loader run status.
+Portfell may expose only observational source evidence from accessible business rows, such as business-table reachability, active-listing count, latest quote `trade_date`, and maximum `published_at_utc`. It must not label the loader itself `fresh`, `stale`, `applied`, or `noop` because those states are not observable under the consumer contract.
 
-### 3.4 Read-only fail-closed rule
+QA may deliberately attempt forbidden `xetra_loader_sync` access and treat permission denial as PASS evidence. Such SQL belongs only in QA tests/runbooks, never executable application source.
 
-`portfell_app` has SELECT-only access to `xetra_loader`. Portfell has no market-data DML/DDL path. If PostgreSQL is unavailable, a required table is unavailable, or required source data is insufficient, the affected stage returns a typed unavailable/incomplete state. It never downloads data, reads a local market-data cache, or switches to another provider.
+### 3.4 Raw-source to analytics projection contract
 
-## 4. Single-user target retained
+The database contract and the existing analytics contract use different field names/types. The translation is explicit and centralized; stage code must not invent local mappings.
 
-The existing single-user simplification remains part of the active plan and is orthogonal to the market-source cutover.
+Frozen rules:
 
-Delete user, tenant, membership, project-membership, credential-owner, project-bootstrap-worker, project-scoped market refresh, and multi-user authorization concepts. Domain IDs for saved portfolios, optimization runs, analysis runs, and decisions remain allowed but cannot act as security scopes.
+- raw quote `trade_date` projects to analytics `date`;
+- raw dividend `event_date` projects to analytics `date`;
+- raw PostgreSQL `Decimal` numerics are converted to `float` only at the analytics projection boundary, never in raw repositories;
+- `adjusted_close` is the authoritative price basis for returns, risk, volatility, and drawdown calculations;
+- `adjusted_close IS NULL` is **not** silently replaced by raw `close`; it produces typed `missing_adjusted_close` quality/ineligibility evidence;
+- non-positive adjusted close continues to use the existing non-positive-price quality semantics;
+- cash dividends remain income/distribution evidence only and are not added again to adjusted-close returns, preventing double counting;
+- split rows are preserved/readable source evidence, but this source-cutover series does not invent a new split-adjustment formula; existing adjusted-close return semantics remain authoritative;
+- fetched/published timestamps are provenance evidence, not analytical factors.
 
-Canonical browser routes are:
+### 3.5 Active listing policy
+
+`xetra-loader` intentionally retains historical/delisted identities with `is_active=false`. New Metadata candidate discovery in Portfell uses **active listings only**. Inactive listings remain resolvable by full identity for historical/audit evidence but must never silently enter a new portfolio universe.
+
+Metadata predicate behavior remains the existing deterministic Portfell behavior. In particular, text `name contains` keeps the existing Python `casefold()` substring semantics; it is not redefined through database collation/`ILIKE` behavior.
+
+### 3.6 Batch-read and snapshot policy
+
+- Raw repositories support one identity and a bounded batch of identities.
+- Canonical maximum identity batch is `500` listing keys per SQL statement.
+- Batch reads use parameterized SQL; no string-built identity SQL.
+- No analytical stage may issue one quote/dividend/split SQL query per listing when a batch API is available.
+- No temp table or DDL is used for batching because the consumer is read-only.
+- One analytical source snapshot keeps one repeatable-read transaction open across the business-table reads required to assemble that snapshot.
+
+### 3.7 Stable market-source error codes
+
+Infrastructure/source errors are frozen in PR308:
+
+- `market_source_config_missing`;
+- `market_source_unavailable`;
+- `market_source_role_invalid`;
+- `market_source_contract_mismatch`;
+- `market_source_duplicate_key`;
+- `market_source_invalid_value`.
+
+Analytical insufficiency such as `insufficient_history`, `missing_adjusted_close`, or an ineligible portfolio candidate is not rewritten into an infrastructure error.
+
+### 3.8 Production handoff gate from xetra-loader
+
+The older XDL-PR033 completion claim is superseded in `xetra-loader`. The current final loader production gate is XDL-PR053 plus its sanitized V2 acceptance artifact:
+
+`artifacts/acceptance/postgres-full-sync-v2.json`
+
+Portfell PR308-PR339 may proceed against contract-faithful test PostgreSQL or a development serving plane. **PR340 may not start** until the artifact exists on `xetra-loader` `main`, is marked `PASS`, and the exact loader commit SHA containing it is recorded. Until then the real target must not be treated as production-reconciled.
+
+## 4. Single-user target
+
+The application target after this series is one workspace:
+
+- no user/tenant/membership/project-membership/credential-owner security authority;
+- no project-bootstrap worker or project-scoped market refresh;
+- saved portfolio/analysis/optimization/decision identifiers may remain domain identifiers but are not security scopes;
+- canonical browser routes exactly `/metadata`, `/univariate`, `/bivariate`, `/multivariate`;
+- REST remains under `/api`.
+
+## 5. Weak-agent Git and ownership contract
+
+Every work order below is written for weak independent agents.
+
+Mandatory rules for every implementation PR:
+
+1. Record `git status --short --branch` before editing and include it in PR evidence.
+2. Start from the exact merged dependency SHA; if any dependency is unmerged, stop.
+3. Sibling branches start from the exact same predecessor SHA and never from another sibling.
+4. Exact work-order slug appears in branch name, every Conventional Commit scope, and PR title.
+5. Edit only named owned paths. A sibling-owned path is forbidden even when a local workaround appears easier.
+6. Do not add compatibility fallbacks, hidden provider flags, second market-source authority, opportunistic refactors, or broader DB grants.
+7. Focused tests and `uv run portfell-quality pr` pass from the final PR SHA.
+8. QA/integration gates additionally run `uv run portfell-quality merge` from one clean SHA because the PR gate alone does not run all architecture/schema/coverage checks.
+9. Coverage and merge policy remain governed only by `GATES.md`.
+10. A work order is not complete because code was pushed; its complete checklist and required quality evidence must pass.
+
+## 6. Dependency graph and parallel waves
 
 ```text
-/metadata
-/univariate
-/bivariate
-/multivariate
+PR296 planning authority
+   |
+ PR308  source contract / connection / errors
+   |
+ PR309 || PR310 || PR311 || PR312 || PR313 || PR314
+   |       repositories/status/projection (same PR308 SHA)
+   +---------------------------+
+                               v
+                             PR315 gateway + coherent snapshot
+                               |
+                             PR316 QA source contract gate
+                               |
+                             PR317 hosted runtime port cutover
+                               |
+                             PR318 immutable market-source lineage
+                               |
+                 PR319 || PR320 || PR321 || PR322
+                     four analytical stages
+                               |
+                             PR323 QA four-stage semantics
+                               |
+ PR324 || PR325 || PR326 || PR327 || PR328 || PR329 || PR330 || PR331
+                    deletion wave
+                               |
+                             PR332 QA negative-space gate
+                               |
+                         PR333 || PR334
+                      single-user backend/UI
+                               |
+                             PR335 QA single-user gate
+                               |
+                       PR336 || PR337 || PR338
+                     package/runtime/docs cleanup
+                               |
+                             PR339 QA clean-runtime gate
+                               |
+        xetra-loader XDL-PR053 V2 PASS artifact
+                               |
+                               +----> PR340 live PostgreSQL QA
+                                         |
+                                       PR341 final E2E
+                                         |
+                                       PR342 production runbook
+                                         |
+                                       PR343 deferred-product backlog reconciliation
 ```
 
-REST remains under `/api`.
+Safe parallel waves are exactly the sibling groups shown above. Integration/QA gates are serial barriers.
 
-## 5. Git contract for weak agents
+## 7. Atomic work orders
 
-Every work order below is intentionally small and atomic.
+### PR308 — pr308-xetra-source-contract
 
-For every work order:
+Branch: `refactor/pr308-xetra-source-contract`
 
-- exact work-order name appears in branch name, every Conventional Commit message, and PR title;
-- record `git status --short --branch` before editing and include it in PR evidence;
-- start from the exact merged dependency SHA;
-- parallel siblings start from the same predecessor SHA and never from another sibling;
-- edit only the owned paths named by the work order;
-- if an owned path contains unrelated surviving behavior, preserve it or extract it without broad opportunistic refactoring;
-- no compatibility shim, hidden feature flag, provider fallback, or second market-data authority may be introduced;
-- focused tests plus `uv run portfell-quality pr` must pass from the final PR SHA;
-- current coverage/quality thresholds remain governed only by `GATES.md`.
+Commit scope: `refactor(pr308-xetra-source-contract): ...`
 
-## 6. Execution graph
-
-```text
-PR308
-  |
-  +--> PR309 || PR310 || PR311 || PR312 || PR313
-                         |
-                       PR314
-                         |
-        PR315 || PR316 || PR317 || PR318
-                         |
-                       PR319
-                         |
-  +----------------------+---------------------------+
-  |          |          |          |          |      |
- PR320      PR321      PR322      PR323      PR324  PR325 || PR326
-  |          |          |          |          |      |
-  +----------+----------+----------+----------+------+------+
-                         |
-                PR327 || PR328
-                         |
-                PR329 || PR330 || PR331
-                         |
-                       PR332
-                         |
-                       PR333
-                         |
-                       PR334
-```
-
-Safe parallel waves:
-
-- Wave A after PR308: PR309/PR310/PR311/PR312/PR313;
-- Wave B after PR314: PR315/PR316/PR317/PR318;
-- Wave C after PR319: PR320/PR321/PR322/PR323/PR324 plus PR325/PR326;
-- Wave D after Wave C: PR327/PR328;
-- Wave E after PR327+PR328: PR329/PR330/PR331;
-- integration gates: PR314, PR319, PR332, PR333, PR334.
-
-With fewer agents, execute any subset of siblings first but keep every sibling based on the same predecessor SHA. Do not rebase an unstarted sibling onto a partially merged sibling.
-
-## 7. Work orders
-
-### PR308 — pr308-xetra-postgres-read-contract
-
-Branch: `refactor/pr308-xetra-postgres-read-contract`.
-Commit scope: `refactor(pr308-xetra-postgres-read-contract): ...`.
 Depends on: PR296 merged.
-Owned paths: new `src/portfell/market_source/config.py`, `contracts.py`, `connection.py`, package init, and focused contract/connection tests only.
+
+Owned paths: new `src/portfell/market_source/errors.py`, `config.py`, `contracts.py`, `connection.py`, package init, focused tests.
 
 Tasks / Acceptance:
 
-- [ ] Add `PORTFELL_MARKET_DATABASE_URL` as the only market-source connection seam; target endpoint is documented as `10.10.1.3:54321`, while database name/password/full DSN remain secret-supplied.
-- [ ] Freeze DTOs for the exact columns and keys of `xetra_loader.listings`, `eod_quotes`, `dividends`, and `splits` defined in section 3.
-- [ ] Preserve full listing identity `(isin, exchange, code)` and quote/action keys without ISIN-only aliases.
-- [ ] Decode all PostgreSQL timestamps as timezone-aware UTC; preserve `trade_date`/event dates as dates and do not reinterpret `timestamp_eod` as an exchange-close timestamp.
-- [ ] Add a read-only connection/session factory that sets UTC session semantics and exposes no commit/write helper.
-- [ ] Add architecture tests proving `market_source` contains no EODHD/provider HTTP client and does not import `xetra-loader` Python code.
-- [ ] Add a negative contract asserting Portfell has no `xetra_loader_sync` repository/API in this package.
-- [ ] Focused tests, Ruff, Pyright, and `uv run portfell-quality pr` pass from one SHA.
+- [ ] Implement only `PORTFELL_MARKET_DATABASE_URL`; no database credentials/full DSN in source or examples.
+- [ ] Freeze exact raw DTO fields/keys from section 3.2 and preserve `Decimal`, `date`, and UTC-aware `datetime` types.
+- [ ] Implement the six stable source error codes from section 3.7 with deterministic DB-exception mapping.
+- [ ] Connection preflight verifies current LOGIN role is non-superuser and a member of NOLOGIN group role `portfell_app`; no literal login-role name is assumed.
+- [ ] Connection/session sets UTC and opens market transactions as `REPEATABLE READ, READ ONLY`; no commit/write helper exists.
+- [ ] Unit tests reject missing config, naive timestamps, invalid keys/values, non-membership, superuser sessions, and non-UTC decoding.
+- [ ] Architecture test proves this package has no EODHD/provider HTTP dependency and no `xetra-loader` Python import.
+- [ ] Architecture test proves executable Portfell source defines no `xetra_loader_sync` repository/API.
+- [ ] Focused tests and `uv run portfell-quality pr` pass.
 
-Parallelization: foundation; no sibling starts before merge.
-Security: no hard-coded credentials; read-only authority only.
-Determinism: DTO field order, keys, date/time conversion, and ordering contracts are frozen.
-Idempotency: connection/read contract creates no market state.
-Rollback: remove the new market-source contract package.
+Parallelization: foundation; Wave A waits for merge.
+Security: least privilege and no secret literals.
+Determinism: exact DTO/error/session contracts.
+Idempotency: connection/preflight creates no state.
+Rollback: remove new package only.
 
 ### PR309 — pr309-xetra-listings-repository
 
-Branch: `feat/pr309-xetra-listings-repository`.
-Commit scope: `feat(pr309-xetra-listings-repository): ...`.
+Branch: `feat/pr309-xetra-listings-repository`
+
+Commit scope: `feat(pr309-xetra-listings-repository): ...`
+
 Depends on: PR308.
-Owned paths: new `src/portfell/market_source/listings.py` and focused tests.
+
+Owned paths: new `src/portfell/market_source/listings.py`, focused tests.
 
 Tasks / Acceptance:
 
-- [ ] Implement SELECT-only reads from `xetra_loader.listings` using the PR308 connection contract.
-- [ ] Support deterministic filters required by Metadata Builder: exchange, instrument type, country, currency, active status, and case-stable `name contains` behavior.
-- [ ] Return full `(isin, exchange, code)` identity and preserve multiple listings sharing one ISIN.
-- [ ] Use deterministic ordering with an explicit stable tie-break on full identity.
-- [ ] Empty result is a typed empty result; connection/schema errors are typed source failures and never trigger provider/filesystem fallback.
-- [ ] Tests cover duplicate ISINs across codes/exchanges, nullable metadata, active/inactive rows, filter combinations, ordering, and DB failure.
-- [ ] SQL is read-only and contains no DML/DDL.
+- [ ] SELECT only exact `xetra_loader.listings` columns through PR308 connection.
+- [ ] API supports full-identity lookup, all active rows, and bounded identity batches; business filtering remains outside this repository.
+- [ ] Preserve inactive rows when explicitly resolved by identity; `active()` returns only `is_active=true`.
+- [ ] Deterministic ordering is `(isin, exchange, code)`; multiple listings sharing one ISIN remain distinct.
+- [ ] Empty lookup is typed empty data, not source failure; DB/contract failures use PR308 errors.
+- [ ] No SQL `ILIKE`/collation rule redefines Metadata name matching.
+- [ ] Parameterized SELECT only; no DML/DDL/fallback.
+- [ ] Tests cover active/inactive, nullable metadata, duplicate ISIN identities, batching boundary 500/501, ordering, and DB failure.
 - [ ] Focused tests and `uv run portfell-quality pr` pass.
 
-Parallelization: may run with PR310-PR313 from the same PR308 merge SHA.
+Parallelization: Wave A with PR310-PR314 from same PR308 merge SHA.
 Security: SELECT only.
-Determinism: stable filters and ordering.
-Idempotency: repeated reads do not mutate state.
-Rollback: remove listing repository/tests.
+Determinism: stable identity/order.
+Idempotency: read-only.
+Rollback: remove repository/tests.
 
 ### PR310 — pr310-xetra-quotes-repository
 
-Branch: `feat/pr310-xetra-quotes-repository`.
-Commit scope: `feat(pr310-xetra-quotes-repository): ...`.
+Branch: `feat/pr310-xetra-quotes-repository`
+
+Commit scope: `feat(pr310-xetra-quotes-repository): ...`
+
 Depends on: PR308.
-Owned paths: new `src/portfell/market_source/quotes.py` and focused tests.
+
+Owned paths: new `src/portfell/market_source/quotes.py`, focused tests.
 
 Tasks / Acceptance:
 
-- [ ] Implement SELECT-only reads from `xetra_loader.eod_quotes` by full listing identity and inclusive date range.
-- [ ] Return `trade_date`, `timestamp_eod`, OHLC, `adjusted_close`, `volume`, `fetched_at_utc`, and `published_at_utc` without provider-specific renaming that loses source semantics.
-- [ ] Order deterministically by full identity then `trade_date`.
-- [ ] Reject/raise typed contract failure if a test fixture contains duplicate quote keys instead of silently deduplicating.
-- [ ] Preserve nullable OHLC/adjusted-close/volume values and require `close` according to the external contract.
-- [ ] Tests prove UTC timestamp decoding, canonical midnight anchor preservation, date-bound behavior, missing history, multiple listings, and DB failure.
-- [ ] No query or failure path reads filesystem/NAS or invokes provider HTTP.
+- [ ] SELECT quote history by full identity or bounded batches of at most 500 identities and inclusive date range.
+- [ ] Return exact source names/types, including nullable `adjusted_close`, with PostgreSQL `NUMERIC` preserved as `Decimal`.
+- [ ] Deterministic order is full identity then `trade_date`.
+- [ ] Duplicate quote keys raise `market_source_duplicate_key`; never silently deduplicate.
+- [ ] Preserve canonical UTC-midnight `timestamp_eod` semantics; no exchange-close reinterpretation.
+- [ ] Parameterized batching proves bounded query count; tests reject an N+1 implementation for 501 identities.
+- [ ] Empty history is an empty data result; DB/contract/value failures map through PR308.
+- [ ] No provider/filesystem fallback or DML/DDL.
 - [ ] Focused tests and `uv run portfell-quality pr` pass.
 
-Parallelization: may run with PR309/PR311/PR312/PR313.
+Parallelization: Wave A.
 Security: SELECT only.
-Determinism: exact key/date ordering.
+Determinism: exact source ordering/types.
 Idempotency: read-only.
-Rollback: remove quote repository/tests.
+Rollback: remove repository/tests.
 
 ### PR311 — pr311-xetra-dividends-repository
 
-Branch: `feat/pr311-xetra-dividends-repository`.
-Commit scope: `feat(pr311-xetra-dividends-repository): ...`.
+Branch: `feat/pr311-xetra-dividends-repository`
+
+Commit scope: `feat(pr311-xetra-dividends-repository): ...`
+
 Depends on: PR308.
-Owned paths: new `src/portfell/market_source/dividends.py` and focused tests.
+
+Owned paths: new `src/portfell/market_source/dividends.py`, focused tests.
 
 Tasks / Acceptance:
 
-- [ ] Implement SELECT-only reads from `xetra_loader.dividends` by full listing identity and event-date range.
-- [ ] Preserve loader `event_key` exactly; Portfell never regenerates or substitutes an event identity.
-- [ ] Preserve `value`, currency, period, declaration/record/payment dates, and UTC fetched/published timestamps.
-- [ ] Order deterministically by full identity, `event_date`, then `event_key`.
-- [ ] Duplicate action keys are typed contract failures, not silently collapsed.
-- [ ] Tests cover nullable auxiliary dates/currency/period, repeated same-day distinct events, ordering, empty history, and DB failure.
-- [ ] No provider/filesystem fallback exists.
+- [ ] SELECT dividends by full identity/batches <=500 and inclusive `event_date` range.
+- [ ] Preserve `event_key` exactly; never regenerate event identity in Portfell.
+- [ ] Preserve `Decimal value`, nullable auxiliary dates/currency/period, and UTC provenance timestamps.
+- [ ] Deterministic order is full identity, `event_date`, `event_key`.
+- [ ] Duplicate action keys raise `market_source_duplicate_key`.
+- [ ] Batching tests prove bounded query count and same-day distinct events survive.
+- [ ] No provider/filesystem fallback or DML/DDL.
 - [ ] Focused tests and `uv run portfell-quality pr` pass.
 
-Parallelization: may run with PR309/PR310/PR312/PR313.
+Parallelization: Wave A.
 Security: SELECT only.
-Determinism: stable event identity/order.
+Determinism: source event identity/order.
 Idempotency: read-only.
-Rollback: remove dividend repository/tests.
+Rollback: remove repository/tests.
 
 ### PR312 — pr312-xetra-splits-repository
 
-Branch: `feat/pr312-xetra-splits-repository`.
-Commit scope: `feat(pr312-xetra-splits-repository): ...`.
+Branch: `feat/pr312-xetra-splits-repository`
+
+Commit scope: `feat(pr312-xetra-splits-repository): ...`
+
 Depends on: PR308.
-Owned paths: new `src/portfell/market_source/splits.py` and focused tests.
+
+Owned paths: new `src/portfell/market_source/splits.py`, focused tests.
 
 Tasks / Acceptance:
 
-- [ ] Implement SELECT-only reads from `xetra_loader.splits` by full listing identity and event-date range.
-- [ ] Preserve loader `event_key`, textual `split_ratio`, optional numeric `split_factor`, and UTC fetched/published timestamps exactly.
-- [ ] Order deterministically by full identity, `event_date`, then `event_key`.
-- [ ] Duplicate event keys are typed contract failures.
-- [ ] Tests cover textual ratio preservation, nullable split factor, repeated same-day distinct events, ordering, empty history, and DB failure.
-- [ ] No local recomputation of event identity and no provider/filesystem fallback exists.
-- [ ] SQL is read-only.
+- [ ] SELECT splits by full identity/batches <=500 and inclusive `event_date` range.
+- [ ] Preserve loader `event_key`, textual `split_ratio`, optional `Decimal split_factor`, and UTC provenance exactly.
+- [ ] Deterministic order is full identity, `event_date`, `event_key`.
+- [ ] Duplicate action keys raise `market_source_duplicate_key`.
+- [ ] Batching tests prove bounded query count; textual ratios and same-day distinct events survive unchanged.
+- [ ] No provider/filesystem fallback, local split-key generation, or DML/DDL.
 - [ ] Focused tests and `uv run portfell-quality pr` pass.
 
-Parallelization: may run with PR309/PR310/PR311/PR313.
+Parallelization: Wave A.
 Security: SELECT only.
-Determinism: stable event identity/order.
+Determinism: source event identity/order.
 Idempotency: read-only.
-Rollback: remove split repository/tests.
+Rollback: remove repository/tests.
 
-### PR313 — pr313-xetra-source-status-read-model
+### PR313 — pr313-xetra-observed-source-status
 
-Branch: `feat/pr313-xetra-source-status-read-model`.
-Commit scope: `feat(pr313-xetra-source-status-read-model): ...`.
+Branch: `feat/pr313-xetra-observed-source-status`
+
+Commit scope: `feat(pr313-xetra-observed-source-status): ...`
+
 Depends on: PR308.
-Owned paths: new `src/portfell/market_source/status.py` and focused tests.
+
+Owned paths: new `src/portfell/market_source/status.py`, focused tests.
 
 Tasks / Acceptance:
 
-- [ ] Implement an observational source-status DTO using only accessible `xetra_loader` business tables.
-- [ ] Evidence may include table reachability, row counts, maximum `published_at_utc`, and quote maximum `trade_date`; field names must explicitly describe observed data rather than loader-run state.
-- [ ] Do not query `xetra_loader_sync.sync_state` or `xetra_loader_sync.loader_runs` under any code path.
-- [ ] Do not infer `applied`, `noop`, run ID, semantic fingerprint, or other loader-internal status that is not observable through the business schema.
-- [ ] Database-unavailable/schema-unavailable/empty-table states are typed separately.
-- [ ] Tests prove no sync-schema SQL appears and prove deterministic status for fresh, empty, partial, and unavailable fixtures.
-- [ ] The read model performs no writes and starts no refresh.
+- [ ] Return only observable business-plane evidence: schema/table reachability, nonempty flags, active-listing count, latest quote `trade_date`, and maximum `published_at_utc` per business table.
+- [ ] Do not expose semantic fields named loader status/run/fingerprint/applied/noop/fresh/stale.
+- [ ] Do not query `xetra_loader_sync` under any application path.
+- [ ] Avoid hot-path full `COUNT(*)` scans of large quote/action tables; status SQL uses bounded/aggregate evidence appropriate to indexed business fields and is isolated from analytical reads.
+- [ ] Empty table, contract failure, and database-unavailable are distinct deterministic states.
+- [ ] Tests prove no sync-schema SQL and no loader-state inference.
+- [ ] Read model performs no writes/refresh/download.
 - [ ] Focused tests and `uv run portfell-quality pr` pass.
 
-Parallelization: may run with PR309-PR312.
-Security: honors `portfell_app` denial on `xetra_loader_sync`.
-Determinism: same database snapshot produces same status DTO.
+Parallelization: Wave A.
+Security: business schema only.
+Determinism: same DB snapshot -> same status DTO.
 Idempotency: read-only.
-Rollback: remove status read model/tests.
+Rollback: remove status module/tests.
 
-### PR314 — pr314-xetra-market-gateway-integration
+### PR314 — pr314-market-analysis-projection-contract
 
-Branch: `feat/pr314-xetra-market-gateway-integration`.
-Commit scope: `feat(pr314-xetra-market-gateway-integration): ...`.
-Depends on: PR309-PR313.
-Owned paths: new `src/portfell/market_source/gateway.py`, package exports, architecture tests, gateway integration tests.
+Branch: `refactor/pr314-market-analysis-projection-contract`
+
+Commit scope: `refactor(pr314-market-analysis-projection-contract): ...`
+
+Depends on: PR308.
+
+Owned paths: new `src/portfell/market_source/projection.py`, focused projection/quality fixtures only.
 
 Tasks / Acceptance:
 
-- [ ] Compose listings, quotes, dividends, splits, and source-status repositories behind one typed read-only `MarketDataGateway` used by application stages.
-- [ ] Freeze gateway methods so stage code never embeds table names or raw PostgreSQL SQL.
-- [ ] Add architecture guard: direct `xetra_loader` SQL is allowed only inside `src/portfell/market_source/**`.
-- [ ] Add architecture guard: no market gateway method can write, refresh, download, publish, or accept a provider token.
-- [ ] Add architecture guard: no `xetra_loader_sync` reference is allowed in executable Portfell source.
-- [ ] Gateway errors preserve typed source-unavailable/incomplete semantics and never select another data source.
-- [ ] Integration fixtures cover all four tables and duplicate ISIN/full-identity behavior.
+- [ ] Freeze the section 3.4 projection from raw DTOs to legacy analytics field names/types.
+- [ ] Quote `trade_date -> date`; dividend `event_date -> date`; full identity retained.
+- [ ] `Decimal -> float` occurs only here for fields required by existing analytics.
+- [ ] Never `COALESCE(adjusted_close, close)`; missing adjusted close emits `missing_adjusted_close` evidence and is not fabricated.
+- [ ] Preserve non-positive adjusted-close quality semantics and deterministic ordering.
+- [ ] Dividend cashflows remain income evidence and are not added to adjusted-close returns.
+- [ ] Splits receive no new return-adjustment algorithm in this PR.
+- [ ] Tests cover nullable adjusted close, precision conversion, dividend date mapping, no double counting, and full identity.
 - [ ] Focused tests and `uv run portfell-quality pr` pass.
 
-Parallelization: integration gate; Wave B starts only after merge.
-Security: single read-only boundary.
-Determinism: repository ordering propagates unchanged.
+Parallelization: Wave A with repositories because it depends only on PR308 DTOs.
+Security: pure transformation.
+Determinism: canonical projection rules.
+Idempotency: pure function.
+Rollback: remove projection module/tests.
+
+### PR315 — pr315-xetra-market-data-gateway
+
+Branch: `feat/pr315-xetra-market-data-gateway`
+
+Commit scope: `feat(pr315-xetra-market-data-gateway): ...`
+
+Depends on: PR309-PR314.
+
+Owned paths: new `src/portfell/market_source/gateway.py`, package exports, market-source architecture checks, focused integration tests.
+
+Tasks / Acceptance:
+
+- [ ] Compose all raw repositories/status/projection behind one typed `MarketDataGateway`.
+- [ ] Gateway offers explicit `snapshot(...)` context that holds one `REPEATABLE READ, READ ONLY` transaction across required table reads.
+- [ ] Stage-facing methods return projected analytical rows plus explicit projection/quality evidence; stage code never embeds source table names.
+- [ ] Gateway batches selected listing keys using canonical <=500 policy and never uses one-query-per-listing loops.
+- [ ] Direct `xetra_loader` SQL is allowed only under `src/portfell/market_source/**`.
+- [ ] Executable source reference to `xetra_loader_sync` is forbidden.
+- [ ] No gateway method accepts a provider token or performs write/refresh/download/publish.
+- [ ] Integration fixture proves transaction snapshot consistency when a concurrent writer commits between two gateway reads.
+- [ ] Focused tests and `uv run portfell-quality pr` pass.
+
+Parallelization: serial integration gate.
+Security: one read-only market boundary.
+Determinism: coherent database snapshot and stable batches.
 Idempotency: read-only.
-Rollback: remove gateway composition while leaving repositories isolated.
+Rollback: remove gateway while leaving isolated repos.
 
-### PR315 — pr315-metadata-stage-xetra-cutover
+### PR316 — pr316-xetra-source-contract-qa
 
-Branch: `refactor/pr315-metadata-stage-xetra-cutover`.
-Commit scope: `refactor(pr315-metadata-stage-xetra-cutover): ...`.
-Depends on: PR314.
-Owned paths: Metadata Builder/backend metadata source seam and metadata-stage tests only; physical provider deletion is later.
+Branch: `test/pr316-xetra-source-contract-qa`
+
+Commit scope: `test(pr316-xetra-source-contract-qa): ...`
+
+Depends on: PR315.
+
+Owned paths: source-contract QA fixtures/tests/evidence only; no production code.
 
 Tasks / Acceptance:
 
-- [ ] Replace Metadata stage market-universe input with `MarketDataGateway.listings` only.
-- [ ] Preserve existing relevant builder filters and full listing identity.
-- [ ] Remove runtime behavior that starts metadata discovery/download/refresh from the Metadata stage.
-- [ ] Render/return source empty/unavailable evidence explicitly rather than manufacturing zero-history success.
-- [ ] Existing analytical selection semantics are regression-tested against a contract fixture with equivalent listing rows.
-- [ ] No Metadata-stage path reads Bronze/Silver/Gold/filesystem/NAS or provider HTTP.
-- [ ] Duplicate UI/API activation cannot trigger a market refresh because no such command exists after this cutover.
+- [ ] Provision contract-faithful PostgreSQL with exact four business tables and NOLOGIN group role semantics equivalent to `portfell_app`.
+- [ ] Prove raw types/keys/UTC/date semantics and `Decimal` round-trip for all four tables.
+- [ ] Prove login membership/superuser/read-only guards and failed market DML.
+- [ ] Prove <=500 batching and bounded SQL count for 1,001 identities.
+- [ ] Prove repeatable-read snapshot consistency under concurrent publication.
+- [ ] Prove missing adjusted close is not replaced with raw close and dividends are not double-counted.
+- [ ] Prove executable source contains no sync-schema query/provider fallback in the new boundary.
+- [ ] Run focused QA plus `uv run portfell-quality merge` from one clean SHA.
+
+Parallelization: serial QA barrier.
+Security: defense-in-depth and role proof.
+Determinism: contract fixture fixed.
+Idempotency: market row counts/hashes unchanged after QA.
+Rollback: tests/evidence only.
+
+### PR317 — pr317-hosted-runtime-read-plane-cutover
+
+Branch: `refactor/pr317-hosted-runtime-read-plane-cutover`
+
+Commit scope: `refactor(pr317-hosted-runtime-read-plane-cutover): ...`
+
+Depends on: PR316.
+
+Owned paths: `src/portfell/hosted_api_ports.py`, new PostgreSQL hosted runtime adapter/composition wiring, focused tests. Do not yet delete legacy provider adapter files.
+
+Tasks / Acceptance:
+
+- [ ] Replace `HostedRuntimePort` acquisition methods (`run_metadata`, `run_quotes`, provider-key arguments) with read-only market-source capabilities required by application services.
+- [ ] Wire `MarketDataGateway` through application composition; services receive a typed read port, never a DSN/raw connection.
+- [ ] Runtime has no market write/download/refresh method.
+- [ ] Preserve analytical persistence ports separately; market read-only does not imply analytical state is read-only.
+- [ ] Legacy provider/local runtime may remain physically present until deletion wave but is no longer reachable from default application composition.
+- [ ] Tests prove app composition starts with PostgreSQL market config and no provider key/lake root.
+- [ ] Tests prove unavailable PostgreSQL maps to frozen source error semantics.
 - [ ] Focused tests and `uv run portfell-quality pr` pass.
 
-Parallelization: may run with PR316-PR318 from the same PR314 merge SHA.
-Security: no provider credential enters Metadata stage.
-Determinism: database snapshot + builder criteria determine result.
-Idempotency: reads/filters only.
-Rollback: restore prior stage seam without deleting gateway.
+Parallelization: serial because it owns the shared runtime protocol.
+Security: no provider secret crosses service boundary.
+Determinism: one market runtime composition.
+Idempotency: composition/read only.
+Rollback: restore old port/composition without touching gateway.
 
-### PR316 — pr316-univariate-stage-xetra-cutover
+### PR318 — pr318-market-source-lineage-cutover
 
-Branch: `refactor/pr316-univariate-stage-xetra-cutover`.
-Commit scope: `refactor(pr316-univariate-stage-xetra-cutover): ...`.
-Depends on: PR314.
-Owned paths: Univariate service/input assembly seam and focused tests only.
+Branch: `refactor/pr318-market-source-lineage-cutover`
+
+Commit scope: `refactor(pr318-market-source-lineage-cutover): ...`
+
+Depends on: PR317.
+
+Owned paths: `hosted_research_ports.py`, research source-lineage contracts/repositories/workflow/facade, associated analytical-state schema/migration and focused tests. Excludes stage-specific service files owned by PR319-PR322.
 
 Tasks / Acceptance:
 
-- [ ] Source quote history, dividends, and splits only through `MarketDataGateway`.
-- [ ] Preserve current univariate formulas, annualization rules, date-window semantics, distribution metrics, and selection behavior; this PR changes source plumbing only.
-- [ ] Preserve full listing identity through input assembly and outputs.
-- [ ] Missing/incomplete required history yields typed unavailable/ineligible evidence according to existing analytical contracts; it never invokes a download.
-- [ ] Regression fixture proves identical analytical output for equivalent pre-cutover and PostgreSQL input rows.
-- [ ] No direct SQL/provider/lake/filesystem read remains in the Univariate stage.
-- [ ] Tests cover split/dividend inputs where those inputs affect existing formulas.
+- [ ] Remove `ProviderDownloadRun`, `quote_run_id`, `bind_quote_run`, and provider-download identity from the research port contract.
+- [ ] Introduce immutable `MarketSourceSnapshot` analytical lineage with deterministic `snapshot_id` derived from source-contract version, selected full identities, and canonical semantic rows actually consumed.
+- [ ] Snapshot records input row counts/date bounds and maximum consumed `published_at_utc` evidence; it contains no credentials/full DSN/sync state.
+- [ ] `observed_at_utc` may be recorded as non-semantic evidence and is excluded from deterministic `snapshot_id`.
+- [ ] Snapshot hash proves input identity but does not claim historical reconstruction from PostgreSQL after upstream corrections; documentation/tests state this explicitly.
+- [ ] Research run source IDs/idempotency keys use `MarketSourceSnapshot.snapshot_id` instead of download-run/shared-market magic strings.
+- [ ] Persisted analytical state may store snapshot metadata/hash but never becomes a market-source fallback.
+- [ ] Repository/service contracts compile without provider entitlement/download types.
+- [ ] Focused migration/contract tests and `uv run portfell-quality pr` pass.
+
+Parallelization: serial contract gate before stage siblings.
+Security: lineage contains no secret/control-plane data.
+Determinism: same semantic input -> same snapshot ID.
+Idempotency: repeated identical source snapshot reuses deterministic lineage.
+Rollback: reverse analytical schema/contract migration only.
+
+### PR319 — pr319-metadata-stage-xetra-cutover
+
+Branch: `refactor/pr319-metadata-stage-xetra-cutover`
+
+Commit scope: `refactor(pr319-metadata-stage-xetra-cutover): ...`
+
+Depends on: PR318.
+
+Owned paths: Metadata service/selection input seam and focused Metadata tests only; physical provider job/route/UI deletion is later.
+
+Tasks / Acceptance:
+
+- [ ] Metadata candidate universe comes from `MarketDataGateway` active listings only.
+- [ ] Existing predicates remain exchange/name~/instrument_type/country/currency with existing Python predicate semantics.
+- [ ] Full listing identity is retained; duplicate ISIN listings remain distinct.
+- [ ] Inactive listings never enter a new candidate universe but remain resolvable for existing historical identities.
+- [ ] Metadata selection source lineage uses `MarketSourceSnapshot`, not provider metadata revision/download run.
+- [ ] Empty/unavailable business data returns explicit typed evidence; no discovery/download/refresh fallback is invoked.
+- [ ] Regression fixture proves equivalent active listing rows produce equivalent selection results to pre-cutover behavior.
 - [ ] Focused tests and `uv run portfell-quality pr` pass.
 
-Parallelization: may run with PR315/PR317/PR318.
-Security: gateway-only market read.
-Determinism: existing analytical determinism preserved.
-Idempotency: calculation run may persist analytical state only; never market data.
-Rollback: restore prior stage adapter.
+Parallelization: Wave B with PR320-PR322 from same PR318 SHA.
+Security: gateway only.
+Determinism: DB snapshot + predicates.
+Idempotency: analytical selection persistence only.
+Rollback: restore metadata adapter.
 
-### PR317 — pr317-bivariate-stage-xetra-cutover
+### PR320 — pr320-univariate-stage-xetra-cutover
 
-Branch: `refactor/pr317-bivariate-stage-xetra-cutover`.
-Commit scope: `refactor(pr317-bivariate-stage-xetra-cutover): ...`.
-Depends on: PR314.
-Owned paths: Bivariate service/input-alignment seam and focused tests only.
+Branch: `refactor/pr320-univariate-stage-xetra-cutover`
+
+Commit scope: `refactor(pr320-univariate-stage-xetra-cutover): ...`
+
+Depends on: PR318.
+
+Owned paths: Univariate service/input assembly, `univariate_statistics.py`/`return_quality.py` source-shape compatibility needed for this cutover, focused tests.
 
 Tasks / Acceptance:
 
-- [ ] Source all required quote histories through `MarketDataGateway` only.
-- [ ] Preserve pairwise formulas, pair identity, common-calendar/intersection rules, minimum-observation logic, and existing diagnostics.
-- [ ] Preserve full listing identity for both sides of every pair.
-- [ ] Deterministic alignment tests cover mismatched calendars, missing dates, duplicate ISINs under different listing identities, and empty overlap.
-- [ ] Regression fixture proves equivalent pre-cutover rows and PostgreSQL rows produce equivalent bivariate results.
-- [ ] No direct SQL/provider/lake/filesystem read remains in the Bivariate stage.
-- [ ] Source failure is typed and never starts/falls back to a downloader.
+- [ ] Obtain selected quote/dividend inputs only through one `MarketDataGateway` snapshot.
+- [ ] Remove quote-download/shared-market source branching from Univariate service; lineage is snapshot ID only.
+- [ ] Preserve existing formulas, 252-day annualization, confidence semantics, income features, selection behavior, and full identity.
+- [ ] Update price-quality path so nullable adjusted close yields `missing_adjusted_close`/ineligible evidence instead of `float(None)` or raw-close fallback.
+- [ ] Dividend `event_date -> date` projection feeds existing distribution/income formulas; adjusted-close returns do not add cash dividends again.
+- [ ] Split rows do not introduce a new return transformation.
+- [ ] Regression fixture proves equivalent pre-cutover adjusted-close/dividend rows produce equivalent numerical output.
+- [ ] No direct SQL/provider/lake/filesystem market read.
 - [ ] Focused tests and `uv run portfell-quality pr` pass.
 
-Parallelization: may run with PR315/PR316/PR318.
-Security: gateway-only market read.
-Determinism: alignment and ordering are frozen.
-Idempotency: analytics persistence only; no market mutation.
-Rollback: restore prior stage adapter.
+Parallelization: Wave B.
+Security: gateway only.
+Determinism: same snapshot -> same statistics.
+Idempotency: analytical state only.
+Rollback: restore Univariate adapter.
 
-### PR318 — pr318-multivariate-stage-xetra-cutover
+### PR321 — pr321-bivariate-stage-xetra-cutover
 
-Branch: `refactor/pr318-multivariate-stage-xetra-cutover`.
-Commit scope: `refactor(pr318-multivariate-stage-xetra-cutover): ...`.
-Depends on: PR314.
-Owned paths: Multivariate/optimizer market-input assembly seam and focused tests only.
+Branch: `refactor/pr321-bivariate-stage-xetra-cutover`
+
+Commit scope: `refactor(pr321-bivariate-stage-xetra-cutover): ...`
+
+Depends on: PR318.
+
+Owned paths: Bivariate service/input source seam and focused tests only.
 
 Tasks / Acceptance:
 
-- [ ] Build the optimizer universe, aligned return matrix, and source-dependent risk inputs only from `MarketDataGateway` data.
-- [ ] Preserve existing objectives, solver interfaces, risk-model logic, walk-forward/OOS boundaries, and winner-selection semantics; no optimizer redesign is allowed here.
-- [ ] Preserve full listing identity through candidate construction and final weights.
-- [ ] Multi-asset alignment is deterministic and tests cover missing dates/insufficient common history.
-- [ ] Exact fixture matrices are asserted before optimizer invocation.
-- [ ] No direct SQL/provider/lake/filesystem read remains in Multivariate market-input assembly.
-- [ ] Missing source data yields typed unavailable/ineligible candidates and never provider fallback.
+- [ ] Build Bivariate input returns from the selected quote rows tied to the upstream `MarketSourceSnapshot`; no download-run lookup remains.
+- [ ] Preserve pair formulas, pair identity, common-calendar/intersection, minimum observation logic, pair-count guard, and diagnostics.
+- [ ] Full listing identity is preserved on both sides; existing skip-same-ISIN policy is unchanged.
+- [ ] Mismatched calendars, missing dates, duplicate ISIN identities, empty overlap, and insufficient history are deterministic tests.
+- [ ] Equivalent legacy return rows and projected PostgreSQL rows produce equivalent Bivariate output.
+- [ ] No direct SQL/provider/lake/filesystem market read.
+- [ ] Source failure never starts a downloader.
 - [ ] Focused tests and `uv run portfell-quality pr` pass.
 
-Parallelization: may run with PR315-PR317.
-Security: gateway-only market read.
-Determinism: exact matrix assembly and existing optimizer determinism preserved.
-Idempotency: analytical artifacts only; no market mutation.
-Rollback: restore prior input adapter.
+Parallelization: Wave B.
+Security: gateway/snapshot lineage only.
+Determinism: existing pair alignment retained.
+Idempotency: analytical state only.
+Rollback: restore Bivariate adapter.
 
-### PR319 — pr319-four-stage-xetra-read-integration-gate
+### PR322 — pr322-multivariate-stage-xetra-cutover
 
-Branch: `test/pr319-four-stage-xetra-read-integration-gate`.
-Commit scope: `test(pr319-four-stage-xetra-read-integration-gate): ...`.
-Depends on: PR315-PR318.
-Owned paths: cross-stage integration tests, market-source architecture tests, test fixtures only.
+Branch: `refactor/pr322-multivariate-stage-xetra-cutover`
 
-Tasks / Acceptance:
+Commit scope: `refactor(pr322-multivariate-stage-xetra-cutover): ...`
 
-- [ ] Exercise Metadata -> Univariate -> Bivariate -> Multivariate against one contract-faithful PostgreSQL fixture exposing schema `xetra_loader` and all four business tables.
-- [ ] Prove every stage obtains market inputs through `MarketDataGateway`; direct source readers outside `market_source` fail architecture tests.
-- [ ] Prove no test requires an EODHD token, EODHD stub, NAS mount, Bronze/Silver/Gold market directory, or market refresh worker.
-- [ ] Prove PostgreSQL unavailability fails closed at the affected workflow boundary and no fallback path executes.
-- [ ] Prove multiple listings with one ISIN remain distinct end-to-end.
-- [ ] Prove date/timestamp/action semantics survive all stage adapters unchanged.
-- [ ] Run focused integration suite and `uv run portfell-quality pr` successfully.
+Depends on: PR318.
 
-Parallelization: integration gate; deletion wave starts only after merge.
-Security: fixture verifies read-only market boundary.
-Determinism: same database fixture produces identical stage inputs/results.
-Idempotency: repeat run creates no market-table changes.
-Rollback: tests only.
-
-### PR320 — pr320-delete-eodhd-provider-client-and-fetchers
-
-Branch: `refactor/pr320-delete-eodhd-provider-client-and-fetchers`.
-Commit scope: `refactor(pr320-delete-eodhd-provider-client-and-fetchers): ...`.
-Depends on: PR319.
-Owned paths: `src/portfell/http.py`, `search.py`, `fetch_all_metadata.py`, `fetch_all_quotes.py`, provider-specific portions of `config.py`, `contracts.py`, `cli.py`, and their focused tests.
+Owned paths: Multivariate service/market-input assembly, extraction of any pure return helper still imported from legacy market Gold, focused tests.
 
 Tasks / Acceptance:
 
-- [ ] Delete the EODHD HTTP client, endpoint/request/retry logic, provider discovery/search, metadata fetcher, and quote fetcher from executable Portfell source.
-- [ ] Remove EODHD token configuration and CLI commands/options that start provider acquisition.
-- [ ] Preserve non-provider application configuration/contracts/CLI commands that remain required; no unrelated API removal.
-- [ ] Remove tests whose only purpose is EODHD/provider acquisition and replace any surviving analytical fixtures with provider-neutral rows where needed.
-- [ ] Source scan over executable Python fails on known EODHD endpoint/client/token symbols except an explicit historical-doc allowlist.
-- [ ] Application imports succeed without any provider token environment variable.
-- [ ] No compatibility wrapper or disabled EODHD implementation remains.
+- [ ] Resolve quote/dividend inputs by `MarketSourceSnapshot`; remove provider quote-run/shared-market magic identities.
+- [ ] Move/reuse pure return construction under an analytics-owned module so Multivariate no longer imports legacy market persistence module `portfell.gold`.
+- [ ] Build exact optimizer universe/aligned return matrix/source-dependent risk and income inputs from gateway-projected rows only.
+- [ ] Preserve objectives, solvers, risk-model logic, walk-forward/OOS boundaries, validation, and winner-selection semantics; no optimizer redesign.
+- [ ] Preserve full listing identity through candidates/final weights and source snapshot ID through input/artifact lineage.
+- [ ] Exact fixture matrices are asserted before optimizer invocation; missing common history is typed/ineligible.
+- [ ] Equivalent legacy source rows and projected PostgreSQL rows produce equivalent optimizer inputs.
+- [ ] No direct SQL/provider/lake/filesystem market read.
 - [ ] Focused tests and `uv run portfell-quality pr` pass.
 
-Parallelization: may run with PR321-PR326 from the same PR319 merge SHA; owns shared `config.py`, `contracts.py`, `cli.py` exclusively in this wave.
-Security: removes provider secrets/HTTP authority.
-Determinism: no acquisition behavior remains.
-Idempotency: deletion only.
-Rollback: revert this PR only while PR319 gateway remains usable.
+Parallelization: Wave B.
+Security: gateway/snapshot lineage only.
+Determinism: exact matrix/lineage.
+Idempotency: analytical artifacts only.
+Rollback: restore Multivariate adapter.
 
-### PR321 — pr321-delete-portfell-market-medallion
+### PR323 — pr323-four-stage-source-semantics-qa
 
-Branch: `refactor/pr321-delete-portfell-market-medallion`.
-Commit scope: `refactor(pr321-delete-portfell-market-medallion): ...`.
-Depends on: PR319.
-Owned paths: `src/portfell/bronze.py`, `silver.py`, market-data portions of `gold.py`, `pipeline.py`, their market-loading tests and imports.
+Branch: `test/pr323-four-stage-source-semantics-qa`
+
+Commit scope: `test(pr323-four-stage-source-semantics-qa): ...`
+
+Depends on: PR319-PR322.
+
+Owned paths: cross-stage QA tests/fixtures/evidence only.
 
 Tasks / Acceptance:
 
-- [ ] Delete Portfell-owned Bronze/Silver market persistence and market-data Gold publication paths.
-- [ ] Delete pipeline stages whose purpose is provider market-data ingestion/transformation/publication.
-- [ ] If `gold.py` contains a surviving analytical helper, move only that helper to an analytics-owned module before deleting the market-persistence authority; no market reader/writer survives under a renamed file.
-- [ ] Remove imports/callers of the deleted medallion market stack from executable source.
-- [ ] Keep analytical DecisionArtifacts/statistics/optimizer persistence untouched.
-- [ ] Tests prove the four-stage workflow of PR319 still runs from PostgreSQL without any medallion directory.
-- [ ] Source guard fails if `bronze`, `silver`, or legacy market Gold persistence is reintroduced as a market-source dependency.
+- [ ] Exercise Metadata -> Univariate -> Bivariate -> Multivariate through one coherent PostgreSQL fixture snapshot.
+- [ ] Prove active/inactive policy, duplicate ISIN/full identity, nullable adjusted close, dividends, split non-interference, UTC/date mapping, and Decimal projection.
+- [ ] Prove identical semantic source rows produce equivalent analytical outputs versus frozen legacy fixtures within existing numerical tolerances; no new tolerance is invented here.
+- [ ] Prove all four stages carry one deterministic source snapshot lineage and no provider download-run ID.
+- [ ] Prove database failure/partial/insufficient data fails closed and no acquisition fallback runs.
+- [ ] Prove direct source SQL outside `market_source` and executable sync-schema references fail architecture checks.
+- [ ] Prove repeated run does not mutate four market tables.
+- [ ] Run focused QA plus `uv run portfell-quality merge` from one clean SHA.
+
+Parallelization: serial QA barrier before destructive deletion.
+Security: least-privilege read path.
+Determinism: fixed source fixture/snapshot.
+Idempotency: market unchanged.
+Rollback: tests/evidence only.
+
+### PR324 — pr324-delete-eodhd-client-fetch-cli
+
+Branch: `refactor/pr324-delete-eodhd-client-fetch-cli`
+
+Commit scope: `refactor(pr324-delete-eodhd-client-fetch-cli): ...`
+
+Depends on: PR323.
+
+Owned paths: `src/portfell/http.py`, `search.py`, `fetch_all_metadata.py`, `fetch_all_quotes.py`, provider-acquisition portions of `cli.py`, their focused tests. Shared config cleanup belongs to PR331.
+
+Tasks / Acceptance:
+
+- [ ] Delete EODHD HTTP/endpoint/retry/search/discovery/fetch implementations and acquisition CLI commands.
+- [ ] Remove tests/stubs whose only purpose is provider HTTP acquisition from these owned paths.
+- [ ] Preserve unrelated CLI behavior.
+- [ ] No disabled wrapper/feature flag retains provider acquisition.
+- [ ] Imports succeed without these modules from the PR323 application path.
 - [ ] Focused tests and `uv run portfell-quality pr` pass.
 
-Parallelization: may run with PR320/PR322-PR326.
-Security: removes duplicate local market-data authority.
-Determinism: source-of-truth reduced to PostgreSQL.
-Idempotency: deletion only.
-Rollback: revert this PR without altering PostgreSQL.
+Parallelization: Wave C with PR325-PR331 from same PR323 SHA; do not edit sibling-owned paths.
+Security: removes provider HTTP authority.
+Determinism: acquisition removed.
+Idempotency: deletion.
+Rollback: revert this PR only.
 
-### PR322 — pr322-delete-portfell-market-filesystem-nas-plane
+### PR325 — pr325-delete-market-medallion-persistence
 
-Branch: `refactor/pr322-delete-portfell-market-filesystem-nas-plane`.
-Commit scope: `refactor(pr322-delete-portfell-market-filesystem-nas-plane): ...`.
-Depends on: PR319.
-Owned paths: market-data portions of `src/portfell/paths.py`, `table_io.py`, `ugreen_nas_data_root_preflight.py`, market-only persistent inventory/import code, and focused tests.
+Branch: `refactor/pr325-delete-market-medallion-persistence`
+
+Commit scope: `refactor(pr325-delete-market-medallion-persistence): ...`
+
+Depends on: PR323.
+
+Owned paths: `bronze.py`, `silver.py`, market-persistence portions of `gold.py`, `pipeline.py`, market-loading tests/imports.
 
 Tasks / Acceptance:
 
-- [ ] Remove market-data directory/NAS path configuration and preflight requirements from Portfell runtime.
-- [ ] Remove table-I/O helpers used only for market-data Bronze/Silver/Gold/local-cache persistence.
-- [ ] Preserve filesystem use that is demonstrably unrelated to market-data acquisition only when an existing surviving application feature requires it.
-- [ ] Remove startup/readiness checks that block Portfell because a market NAS path is missing.
-- [ ] Tests prove application startup and all four stages require no market-data filesystem mount.
-- [ ] Source guard rejects any market-source fallback to local files/NAS.
-- [ ] No data migration from old market files is introduced; old market files are disposable after cutover.
+- [ ] Delete Portfell-owned market Bronze/Silver/Gold ingestion/publication and provider market pipeline.
+- [ ] Any pure analytical helper needed by source-independent analytics must already have been moved by PR322; no market reader/writer survives under a renamed file.
+- [ ] Keep analytical DecisionArtifact/statistics/optimizer persistence untouched.
+- [ ] Remove imports/callers of deleted market medallion code from owned scope.
+- [ ] Four-stage PR323 fixture workflow runs without medallion directories.
 - [ ] Focused tests and `uv run portfell-quality pr` pass.
 
-Parallelization: may run with PR320/PR321/PR323-PR326; do not edit provider config files owned by PR320.
-Security: eliminates filesystem fallback authority.
-Determinism: external PostgreSQL is sole market source.
-Idempotency: deletion only.
-Rollback: revert application code only; PostgreSQL unchanged.
+Parallelization: Wave C.
+Security: removes duplicate market authority.
+Determinism: PostgreSQL only.
+Idempotency: deletion.
+Rollback: revert code only; DB unchanged.
 
-### PR323 — pr323-delete-portfell-market-refresh-scheduler
+### PR326 — pr326-delete-market-filesystem-nas-plane
 
-Branch: `refactor/pr323-delete-portfell-market-refresh-scheduler`.
-Commit scope: `refactor(pr323-delete-portfell-market-refresh-scheduler): ...`.
-Depends on: PR319.
-Owned paths: `src/portfell/shared_market_cron.py`, `shared_market_refresh.py`, `shared_market_data.py`, `shared_observations.py`, `shared_metadata_catalog.py`, `hosted_shared_coverage_bootstrap.py`, `hosted_shared_market_research_data.py`, `hosted_shared_quote_publisher.py`, related refresh docs/tests.
+Branch: `refactor/pr326-delete-market-filesystem-nas-plane`
+
+Commit scope: `refactor(pr326-delete-market-filesystem-nas-plane): ...`
+
+Depends on: PR323.
+
+Owned paths: market-data portions of `paths.py`, `table_io.py`, `ugreen_nas_data_root_preflight.py`, market-only persistent inventory/import helpers, focused tests.
 
 Tasks / Acceptance:
 
-- [ ] Delete Portfell-owned market refresh scheduling, union-refresh planning, provider refresh execution, shared quote publication, and shared market-data cache/read authority.
-- [ ] Replace any surviving analytics caller with PR314 `MarketDataGateway`; no second market read seam remains.
-- [ ] Delete Sunday/periodic market-download scheduler behavior from Portfell; loader scheduling remains external and loader-owned.
-- [ ] Remove refresh locks/status/progress concepts that are market-acquisition-specific while preserving analytical-run locking where still needed.
-- [ ] Tests prove no Portfell process starts, schedules, or retries market acquisition.
+- [ ] Remove market-data NAS/lake path requirements and market filesystem fallback/read/write helpers.
+- [ ] Preserve filesystem functionality demonstrably required by unrelated analytical/application features; do not delete generic persistence blindly.
+- [ ] Remove startup/readiness gates that require a market NAS mount.
+- [ ] No migration of legacy market files into PostgreSQL is added; loader owns serving data.
+- [ ] Tests prove app/four stages need no market filesystem mount and cannot fallback to files.
+- [ ] Focused tests and `uv run portfell-quality pr` pass.
+
+Parallelization: Wave C; do not edit provider CLI/config/UI files owned elsewhere.
+Security: removes filesystem fallback authority.
+Determinism: PostgreSQL sole market source.
+Idempotency: deletion.
+Rollback: revert Portfell code only.
+
+### PR327 — pr327-delete-shared-market-refresh-plane
+
+Branch: `refactor/pr327-delete-shared-market-refresh-plane`
+
+Commit scope: `refactor(pr327-delete-shared-market-refresh-plane): ...`
+
+Depends on: PR323.
+
+Owned paths: `shared_market_cron.py`, `shared_market_refresh.py`, `shared_market_data.py`, `shared_observations.py`, `shared_metadata_catalog.py`, `hosted_shared_coverage_bootstrap.py`, `hosted_shared_market_research_data.py`, `hosted_shared_quote_publisher.py`, related tests.
+
+Tasks / Acceptance:
+
+- [ ] Delete union refresh, provider refresh execution, shared quote publication, market cache/read authority, and Portfell market-download scheduling.
+- [ ] Remove market-specific locks/progress/retry while preserving analytical-run locking.
+- [ ] Any surviving market consumer uses PR315 gateway, not another seam.
+- [ ] Portfell starts no market acquisition schedule/process.
 - [ ] Source guard rejects imports of deleted shared-market modules.
-- [ ] Four-stage calculations remain runnable from PostgreSQL after deletion.
 - [ ] Focused tests and `uv run portfell-quality pr` pass.
 
-Parallelization: may run with PR320-PR322/PR324-PR326.
-Security: removes provider scheduling and duplicate publisher authority.
-Determinism: market snapshot is whatever PostgreSQL exposes at read time.
-Idempotency: no market refresh exists.
-Rollback: revert Portfell code only; do not change loader schedule.
+Parallelization: Wave C.
+Security: removes duplicate publisher/scheduler.
+Determinism: external DB snapshot only.
+Idempotency: no market refresh.
+Rollback: revert code only; loader schedule untouched.
 
-### PR324 — pr324-delete-hosted-market-download-jobs
+### PR328 — pr328-delete-hosted-market-download-lifecycle
 
-Branch: `refactor/pr324-delete-hosted-market-download-jobs`.
-Commit scope: `refactor(pr324-delete-hosted-market-download-jobs): ...`.
-Depends on: PR319.
-Owned paths: hosted download/metadata-refresh/quote-run job schemas, repositories, workers, services/routes, and their focused tests.
+Branch: `refactor/pr328-delete-hosted-market-download-lifecycle`
+
+Commit scope: `refactor(pr328-delete-hosted-market-download-lifecycle): ...`
+
+Depends on: PR323.
+
+Owned paths: hosted download-run, metadata-refresh, quote-run lifecycle schemas/repositories/workers/services/routes/status hooks and focused tests.
 
 Tasks / Acceptance:
 
-- [ ] Delete `hosted_download_run_*` market-download lifecycle authority.
-- [ ] Delete metadata-refresh job repository/worker/schema and provider-backed metadata refresh commands.
-- [ ] Delete quote-run lifecycle/service/routes whose purpose is downloading/publishing market quotes.
-- [ ] Remove their API routes, queue/job registration, status-event hooks, and dependency-composition bindings.
-- [ ] Preserve analytical calculation-run lifecycle/status APIs unrelated to market acquisition.
-- [ ] OpenAPI/route tests prove no market download/quote refresh/metadata refresh command endpoint remains.
-- [ ] Application composition has no market downloader worker dependency.
+- [ ] Delete hosted market-download lifecycle and metadata/quote refresh commands/endpoints/workers.
+- [ ] Delete queue/job registrations and status hooks used only by market acquisition.
+- [ ] Preserve analytical calculation run/status APIs.
+- [ ] Research lineage already uses PR318 snapshot IDs; no quote-run compatibility shim remains.
+- [ ] OpenAPI/route tests prove no market download/refresh command endpoint.
+- [ ] Application composition has no market downloader worker.
 - [ ] Focused tests and `uv run portfell-quality pr` pass.
 
-Parallelization: may run with PR320-PR323/PR325-PR326.
-Security: removes remotely triggerable provider acquisition.
-Determinism: command surface reduced to analytics only.
-Idempotency: deletion only.
+Parallelization: Wave C.
+Security: removes remotely triggerable acquisition.
+Determinism: analytics-only command plane.
+Idempotency: deletion.
 Rollback: revert this PR only.
 
-### PR325 — pr325-delete-provider-credential-backend
+### PR329 — pr329-delete-provider-credential-backend
 
-Branch: `refactor/pr325-delete-provider-credential-backend`.
-Commit scope: `refactor(pr325-delete-provider-credential-backend): ...`.
-Depends on: PR319.
-Owned paths: `src/portfell/provider_credential_schema.py`, `hosted_credentials.py`, `hosted_credential_project_service.py`, `hosted_routes_credentials.py`, provider-specific ingestion/entitlement branches, and focused tests.
+Branch: `refactor/pr329-delete-provider-credential-backend`
+
+Commit scope: `refactor(pr329-delete-provider-credential-backend): ...`
+
+Depends on: PR323.
+
+Owned paths: `provider_credential_schema.py`, `hosted_credentials.py`, `hosted_credential_project_service.py`, `hosted_routes_credentials.py`, credential-focused tests. Shared config residuals belong PR331.
 
 Tasks / Acceptance:
 
-- [ ] Delete EODHD/provider credential persistence schemas and repositories from Portfell.
-- [ ] Delete API/service operations for storing, validating, rotating, assigning, or reading provider credentials.
-- [ ] Remove provider credential ownership from project/user/domain state while preserving unrelated application state until PR327.
-- [ ] Remove KEK/encryption configuration that exists only for provider credentials.
-- [ ] OpenAPI and source tests prove no provider credential route, DTO, table, secret store, or validation service remains.
-- [ ] Runtime starts with only PostgreSQL market-source credentials and requires no EODHD/provider credential.
-- [ ] No substitute plaintext provider token setting is introduced.
+- [ ] Delete provider credential persistence/vault/services/routes and credential ownership links.
+- [ ] Delete storing/validating/rotating/assigning/reading provider credential operations.
+- [ ] Do not introduce plaintext provider token configuration.
+- [ ] Preserve unrelated application state until PR333.
+- [ ] OpenAPI/source tests prove no provider credential DTO/table/route/service.
 - [ ] Focused tests and `uv run portfell-quality pr` pass.
 
-Parallelization: may run with PR320-PR324/PR326; provider UI is owned by PR326.
-Security: eliminates provider-secret attack surface.
-Determinism: credential-dependent branches disappear.
-Idempotency: deletion only.
+Parallelization: Wave C.
+Security: removes provider secret store.
+Determinism: credential branches gone.
+Idempotency: deletion.
 Rollback: revert this PR only.
 
-### PR326 — pr326-delete-provider-loading-ui
+### PR330 — pr330-delete-provider-loading-ui
 
-Branch: `refactor/pr326-delete-provider-loading-ui`.
-Commit scope: `refactor(pr326-delete-provider-loading-ui): ...`.
-Depends on: PR319.
-Owned paths: browser/provider-loading controls including `apps/web/src/shell/metadata-fetch-context.tsx`, `quote-progress.ts`, Metadata provider fetch/token/progress controls, frontend provider-loading contracts/tests.
+Branch: `refactor/pr330-delete-provider-loading-ui`
 
-Tasks / Acceptance:
+Commit scope: `refactor(pr330-delete-provider-loading-ui): ...`
 
-- [ ] Remove provider token input/storage/display from browser code.
-- [ ] Remove metadata fetch, quote fetch, refresh, retry-download, and acquisition progress controls from the UI.
-- [ ] Metadata page becomes a view/filter over PostgreSQL-backed listings and keeps analytical selection controls only.
-- [ ] Remove frontend API calls/contracts that start or poll market acquisition while preserving analytical run controls.
-- [ ] Browser storage and network tests prove no provider credential or provider-download command is emitted.
-- [ ] Source-unavailable state is rendered as unavailable with no fallback/download CTA.
-- [ ] Existing analytical pages remain navigable and their calculation controls continue to work.
-- [ ] Focused frontend tests and repository `uv run portfell-quality pr` pass.
+Depends on: PR323.
 
-Parallelization: may run with PR320-PR325; do not edit project/user routing owned later by PR328.
-Security: no provider secret reaches browser.
-Determinism: UI renders persisted/server-read source state only.
-Idempotency: no market acquisition command exists.
-Rollback: revert provider UI removal only.
-
-### PR327 — pr327-single-user-backend-cutover
-
-Branch: `refactor/pr327-single-user-backend-cutover`.
-Commit scope: `refactor(pr327-single-user-backend-cutover): ...`.
-Depends on: PR320-PR326.
-Owned paths: backend user/tenant/membership/project-security/project-bootstrap authority and tests; excludes market-source/provider files already owned by prior PRs.
+Owned paths: current browser provider token/fetch/refresh/progress controls and frontend acquisition contracts/tests, including `metadata-fetch-context.tsx` and `quote-progress.ts`. Project/user route work belongs PR334.
 
 Tasks / Acceptance:
 
-- [ ] Remove user, tenant, membership, project-membership, credential-owner, and project-bootstrap security/runtime concepts.
-- [ ] Replace request-time multi-user/project authorization with one application workspace.
-- [ ] Preserve non-security domain IDs for saved portfolios, analysis runs, optimization runs, and decisions where required.
-- [ ] Remove project-scoped market refresh/bootstrap concepts completely; no replacement downloader exists.
-- [ ] API/service tests run without user/tenant/project membership seed data.
-- [ ] Architecture tests reject new market-source authorization or provider-credential authority hidden behind user/project code.
-- [ ] Existing analytical persistence remains scoped to the single workspace and deterministic domain IDs.
+- [ ] Remove provider token UI/storage/display and metadata/quote fetch/refresh/retry/progress controls.
+- [ ] Metadata UI becomes a filter/view over server PostgreSQL listings plus analytical selection controls.
+- [ ] Remove frontend API calls/contracts that start/poll acquisition; analytical run controls remain.
+- [ ] Source unavailable renders unavailable evidence with no download CTA.
+- [ ] Browser storage/network tests prove no provider secret/acquisition command.
+- [ ] Existing four analytical pages remain navigable.
+- [ ] Focused frontend tests and `uv run portfell-quality pr` pass.
+
+Parallelization: Wave C.
+Security: no provider secret in browser.
+Determinism: server-read state only.
+Idempotency: no acquisition command.
+Rollback: revert UI removal only.
+
+### PR331 — pr331-delete-legacy-market-runtime-residuals
+
+Branch: `refactor/pr331-delete-legacy-market-runtime-residuals`
+
+Commit scope: `refactor(pr331-delete-legacy-market-runtime-residuals): ...`
+
+Depends on: PR323.
+
+Owned paths: `hosted_api_local_runtime.py`, provider/market residuals in `config.py` and shared contracts, provider-specific entitlement/user-ingestion remnants not owned by PR324-PR330, focused tests.
+
+Tasks / Acceptance:
+
+- [ ] Delete legacy local provider/lake runtime adapter now unreachable since PR317.
+- [ ] Remove EODHD token/endpoint/KEK/provider config classes left after sibling deletions without editing sibling-owned files.
+- [ ] Remove provider-download entitlement/value types no longer referenced after PR318/PR328.
+- [ ] Preserve unrelated application configuration/contracts and user-input functionality.
+- [ ] Runtime imports/default composition use only PostgreSQL market read plane.
+- [ ] Source tests prove no executable EODHD/provider market runtime residual in owned scope.
 - [ ] Focused tests and `uv run portfell-quality pr` pass.
 
-Parallelization: may run in parallel with PR328 after deletion wave is merged.
-Security: simplifies authorization surface; does not broaden market DB grants.
-Determinism: one workspace context.
-Idempotency: repeated startup does not create duplicate workspace/domain state.
-Rollback: revert backend simplification only.
+Parallelization: Wave C. If a required residual lives in a sibling-owned file, do not edit it; report the exact path to PR332 QA instead of creating a conflict.
+Security: final provider-config/runtime removal.
+Determinism: one runtime market seam.
+Idempotency: deletion.
+Rollback: revert residual cleanup only.
 
-### PR328 — pr328-single-user-ui-route-cutover
+### PR332 — pr332-provider-removal-negative-space-qa
 
-Branch: `refactor/pr328-single-user-ui-route-cutover`.
-Commit scope: `refactor(pr328-single-user-ui-route-cutover): ...`.
-Depends on: PR320-PR326.
-Owned paths: UI shell/navigation/project selector/project slug/user-switching routes/tests only; excludes provider-loading files removed by PR326.
+Branch: `test/pr332-provider-removal-negative-space-qa`
+
+Commit scope: `test(pr332-provider-removal-negative-space-qa): ...`
+
+Depends on: PR324-PR331.
+
+Owned paths: QA/source-governance tests and evidence only; production fixes discovered here become new corrective PRs, never hidden inside QA.
 
 Tasks / Acceptance:
 
-- [ ] Canonical browser routes become exactly `/metadata`, `/univariate`, `/bivariate`, `/multivariate`.
-- [ ] Remove project selector, project-slug route prefix, user switching, and membership-dependent navigation.
-- [ ] Preserve four-stage analytics navigation and page functionality.
-- [ ] Unknown legacy project routes do not silently map to another workspace; use an explicit redirect/not-found rule frozen by tests.
-- [ ] UI tests prove no project/user/provider-loading control remains.
-- [ ] REST remains under `/api` and route snapshot tests are updated deterministically.
-- [ ] Responsive/browser smoke tests pass for all four routes.
+- [ ] Repository scan covers executable Python, package entrypoints, active frontend, Compose/workflows/scripts, active tests, and non-historical active docs for provider acquisition symbols/secrets/fallbacks.
+- [ ] Historical archive may use a narrow explicit allowlist and cannot be imported/executed.
+- [ ] Prove no EODHD client/token/fetch/discovery/provider credential flow, market medallion writer, market filesystem fallback, shared-market publisher, market refresh worker, market-download job, or market cron remains executable.
+- [ ] Prove no executable `xetra_loader_sync` reference and no direct `xetra_loader` SQL outside `market_source`.
+- [ ] OpenAPI/entrypoint snapshots contain no acquisition/credential endpoint/command.
+- [ ] Four-stage PR323 PostgreSQL workflow still passes.
+- [ ] If any residual is found, QA fails and a new atomic corrective PR is inserted before PR332 can be accepted.
+- [ ] Run focused QA plus `uv run portfell-quality merge` from one clean SHA.
+
+Parallelization: serial deletion-wave QA.
+Security: negative-space proof.
+Determinism: explicit scan allowlist.
+Idempotency: tests only.
+Rollback: tests/evidence only.
+
+### PR333 — pr333-single-user-backend-cutover
+
+Branch: `refactor/pr333-single-user-backend-cutover`
+
+Commit scope: `refactor(pr333-single-user-backend-cutover): ...`
+
+Depends on: PR332.
+
+Owned paths: backend user/tenant/membership/project-security/project-bootstrap authority and tests; excludes market/provider files already removed.
+
+Tasks / Acceptance:
+
+- [ ] Remove user, tenant, membership, project-membership, credential-owner, and project-bootstrap security/runtime authority.
+- [ ] Replace request-time multi-user/project authorization with exactly one application workspace.
+- [ ] Preserve domain IDs required for saved portfolios/analyses/optimization/decisions but they cannot authorize access.
+- [ ] Remove project-scoped market refresh/bootstrap remnants; no downloader replacement exists.
+- [ ] Backend/API tests run without user/tenant/project-membership seed data.
+- [ ] Repeated startup does not create duplicate workspace/domain state.
 - [ ] Focused tests and `uv run portfell-quality pr` pass.
 
-Parallelization: may run with PR327 from the same deletion-wave merge SHA.
-Security: URL/project identity no longer acts as authorization.
+Parallelization: Wave D with PR334 from same PR332 SHA.
+Security: smaller authority surface; market DB grants unchanged.
+Determinism: one workspace.
+Idempotency: one workspace initialization.
+Rollback: revert backend simplification.
+
+### PR334 — pr334-single-user-ui-route-cutover
+
+Branch: `refactor/pr334-single-user-ui-route-cutover`
+
+Commit scope: `refactor(pr334-single-user-ui-route-cutover): ...`
+
+Depends on: PR332.
+
+Owned paths: current UI shell/navigation/project selector/project slug/user-switching routes/tests; provider-loading UI is already owned/deleted by PR330.
+
+Tasks / Acceptance:
+
+- [ ] Canonical browser routes exactly `/metadata`, `/univariate`, `/bivariate`, `/multivariate`.
+- [ ] Remove project selector, project-slug prefix, user switcher, membership navigation.
+- [ ] Preserve four-stage analytics navigation/functionality.
+- [ ] Legacy project routes follow one explicit tested not-found/redirect rule and never silently choose another workspace.
+- [ ] REST remains under `/api`.
+- [ ] Responsive/browser smoke tests pass for four routes.
+- [ ] Focused tests and `uv run portfell-quality pr` pass.
+
+Parallelization: Wave D with PR333.
+Security: URL/project identity no longer authorization.
 Determinism: fixed route registry.
-Idempotency: navigation is read-only.
-Rollback: revert route/shell changes only.
+Idempotency: navigation read-only.
+Rollback: revert route/shell changes.
 
-### PR329 — pr329-remove-provider-packaging-dependencies
+### PR335 — pr335-single-user-authority-qa
 
-Branch: `refactor/pr329-remove-provider-packaging-dependencies`.
-Commit scope: `refactor(pr329-remove-provider-packaging-dependencies): ...`.
-Depends on: PR327+PR328.
-Owned paths: `pyproject.toml`, `uv.lock`, package/entrypoint metadata, dependency-focused tests only.
+Branch: `test/pr335-single-user-authority-qa`
+
+Commit scope: `test(pr335-single-user-authority-qa): ...`
+
+Depends on: PR333+PR334.
+
+Owned paths: single-user architecture/API/UI QA tests/evidence only.
 
 Tasks / Acceptance:
 
-- [ ] Remove dependencies used only by EODHD/provider acquisition, market medallion loading, or removed provider credential flows.
-- [ ] Remove obsolete provider/download CLI entrypoints and package extras without removing analytics/runtime dependencies still imported on `main`.
-- [ ] Regenerate `uv.lock` deterministically from the final dependency declaration.
-- [ ] Clean-environment install and import tests pass with no provider token or market-data filesystem.
-- [ ] Dependency scan proves no removed provider SDK/client is transitively required by Portfell source.
-- [ ] No dependency is added merely to recreate a second data plane.
-- [ ] `uv sync --locked` and `uv run portfell-quality pr` pass.
+- [ ] Prove startup/API/UI require no user/tenant/membership/project-membership records.
+- [ ] Prove domain IDs cannot act as security scopes and one workspace is deterministic across restart.
+- [ ] Prove exactly four canonical browser routes and `/api` REST boundary.
+- [ ] Prove no project/user/provider control remains in UI or API authority.
+- [ ] Prove PostgreSQL market role/permissions were not broadened by single-user simplification.
+- [ ] Run focused QA plus `uv run portfell-quality merge` from one clean SHA.
 
-Parallelization: may run with PR330/PR331 after PR327+PR328.
-Security: reduces provider/dependency attack surface.
+Parallelization: serial QA barrier.
+Security: authority proof.
+Determinism: one workspace/route set.
+Idempotency: restart proof.
+Rollback: tests/evidence only.
+
+### PR336 — pr336-package-entrypoint-import-boundary-cleanup
+
+Branch: `refactor/pr336-package-entrypoint-import-boundary-cleanup`
+
+Commit scope: `refactor(pr336-package-entrypoint-import-boundary-cleanup): ...`
+
+Depends on: PR335.
+
+Owned paths: `pyproject.toml`, `uv.lock`, package script metadata, import-linter contracts, dependency-focused tests.
+
+Tasks / Acceptance:
+
+- [ ] Remove obsolete provider/loading/NAS/refresh CLI entrypoints and dependencies used only by deleted behavior.
+- [ ] Update package description so it no longer describes Portfell as EODHD tooling.
+- [ ] Keep `psycopg` and every dependency still imported by analytical/runtime code; do not remove by guess.
+- [ ] Rewrite import-linter contracts to the new market-source boundary and removed modules.
+- [ ] Regenerate lock deterministically; `uv sync --locked` succeeds in clean environment.
+- [ ] Package imports with no provider token/lake root.
+- [ ] Focused tests and `uv run portfell-quality pr` pass.
+
+Parallelization: Wave E with PR337/PR338.
+Security: reduced dependency/entrypoint surface.
 Determinism: locked dependency graph.
-Idempotency: clean install reproducible.
-Rollback: restore dependency manifest/lock only.
+Idempotency: reproducible install.
+Rollback: manifest/lock only.
 
-### PR330 — pr330-external-postgres-runtime-compose
+### PR337 — pr337-external-postgres-runtime-compose
 
-Branch: `refactor/pr330-external-postgres-runtime-compose`.
-Commit scope: `refactor(pr330-external-postgres-runtime-compose): ...`.
-Depends on: PR327+PR328.
-Owned paths: `.env.example`, Compose files, deployment runtime wiring, `tests/e2e/**`, runtime/Compose tests.
+Branch: `refactor/pr337-external-postgres-runtime-compose`
+
+Commit scope: `refactor(pr337-external-postgres-runtime-compose): ...`
+
+Depends on: PR335.
+
+Owned paths: `.env.example`, Compose files, deployment runtime wiring, `tests/e2e/**`, Compose/runtime tests.
 
 Tasks / Acceptance:
 
-- [ ] Production runtime requires external `PORTFELL_MARKET_DATABASE_URL`; documented target endpoint is `10.10.1.3:54321`, but no password/full DSN is committed.
-- [ ] Remove EODHD token/KEK/provider secret variables, EODHD test stub, provider-token test secrets, and market download/refresh worker services.
-- [ ] Portfell production Compose does not own an `xetra_loader` market database or loader service; the serving database is external.
-- [ ] E2E uses a contract-faithful PostgreSQL fixture for CI/local isolation or an explicitly supplied external DSN; it never emulates EODHD.
-- [ ] Health/startup failure is explicit when required PostgreSQL configuration is absent or unreachable.
-- [ ] E2E proves the application cannot mutate `xetra_loader` when run with a read-only test role equivalent to `portfell_app`.
-- [ ] `docker compose config`, container smoke, focused E2E tests, and `uv run portfell-quality pr` pass.
+- [ ] Runtime requires external `PORTFELL_MARKET_DATABASE_URL`; target host/port documented, secret DSN/password not committed.
+- [ ] Remove EODHD/KEK/provider test secrets/stub and market download/refresh worker services.
+- [ ] Portfell Compose does not own `xetra_loader` database/loader service.
+- [ ] CI/local E2E uses contract-faithful PostgreSQL fixture with a LOGIN role that is a member of NOLOGIN `portfell_app`, or an explicitly supplied external test DSN.
+- [ ] Startup failure is explicit for missing/unreachable/invalid-role PostgreSQL config.
+- [ ] E2E proves market DML fails and no market filesystem/provider env is needed.
+- [ ] `docker compose config`, container smoke, focused E2E and `uv run portfell-quality pr` pass.
 
-Parallelization: may run with PR329/PR331.
-Security: only DB secret remains for market-source access; no provider secret.
-Determinism: fixed Compose topology/config contract.
+Parallelization: Wave E.
+Security: DB secret only for market source.
+Determinism: fixed runtime topology.
 Idempotency: restart creates no market data.
-Rollback: restore runtime manifests only.
+Rollback: runtime manifests only.
 
-### PR331 — pr331-remove-eodhd-docs-and-governance
+### PR338 — pr338-active-docs-market-source-rewrite
 
-Branch: `docs/pr331-remove-eodhd-docs-and-governance`.
-Commit scope: `docs(pr331-remove-eodhd-docs-and-governance): ...`.
-Depends on: PR327+PR328.
-Owned paths: README/ARCHITECTURE/CONTRACTS/DOCKER/GOALS/RISKS/current docs, EODHD-derived Portfell docs/CSV artifacts, governance/source-scan tests; historical archive may remain clearly marked non-authoritative.
+Branch: `docs/pr338-active-docs-market-source-rewrite`
+
+Commit scope: `docs(pr338-active-docs-market-source-rewrite): ...`
+
+Depends on: PR335.
+
+Owned paths: README/ARCHITECTURE/CONTRACTS/DOCKER/GOALS/RISKS/current active docs and obsolete EODHD-derived active CSV artifacts only; no production/test code.
 
 Tasks / Acceptance:
 
-- [ ] Update authoritative documentation to show `xetra-loader -> PostgreSQL xetra_loader -> Portfell` and no direct EODHD path inside Portfell.
-- [ ] Document exact four business tables, full keys, `trade_date`/UTC timestamp semantics, and the read-only `portfell_app` boundary.
-- [ ] Document that `xetra_loader_sync` is loader-owned and intentionally inaccessible; Portfell source status is observational only.
-- [ ] Remove obsolete EODHD discovery/provider-token/how-to-fetch documentation and non-authoritative EODHD-derived catalog CSV artifacts from active docs when no runtime/test consumes them.
-- [ ] Mark historical archived backlog documents as historical rather than allowing them to override this plan.
-- [ ] Add/refresh governance test that rejects EODHD/provider acquisition symbols in executable source and active runtime/docs, with a narrow historical archive allowlist only.
-- [ ] Documentation references no fictional `portfell_market` schema or obsolete `xetra-data-loader` repository name.
+- [ ] One authoritative architecture story: `xetra-loader -> xetra_loader PostgreSQL -> Portfell`.
+- [ ] Document four tables/keys, NOLOGIN `portfell_app` membership model, repeatable-read read-only snapshot, active-listing policy, adjusted-close policy, Decimal projection, and inaccessible sync schema.
+- [ ] Remove active EODHD token/fetch/how-to-load docs and obsolete EODHD-derived catalog CSV artifacts if no runtime/test consumes them.
+- [ ] Historical backlog archive remains clearly historical and cannot override active docs.
+- [ ] Remove fictional `portfell_market` / `xetra-data-loader` names from active docs.
+- [ ] Document that xetra-loader production reconciliation is blocked until PR053 V2 PASS artifact exists.
 - [ ] Docs validation and `uv run portfell-quality pr` pass.
 
-Parallelization: may run with PR329/PR330.
-Security: docs expose no secrets/full DSNs.
-Determinism: one authoritative architecture story.
-Idempotency: docs/test-only.
-Rollback: revert documentation/governance changes only.
+Parallelization: Wave E.
+Security: no secrets/full DSNs.
+Determinism: one active architecture story.
+Idempotency: docs only.
+Rollback: docs only.
 
-### PR332 — pr332-live-xetra-postgres-readonly-contract-gate
+### PR339 — pr339-clean-runtime-install-docs-qa
 
-Branch: `test/pr332-live-xetra-postgres-readonly-contract-gate`.
-Commit scope: `test(pr332-live-xetra-postgres-readonly-contract-gate): ...`.
-Depends on: PR329-PR331 and reachable prepared `xetra-loader` PostgreSQL serving plane.
-Owned paths: live-contract smoke tests/runbook evidence only.
+Branch: `test/pr339-clean-runtime-install-docs-qa`
+
+Commit scope: `test(pr339-clean-runtime-install-docs-qa): ...`
+
+Depends on: PR336-PR338.
+
+Owned paths: final pre-live QA tests/evidence only.
 
 Tasks / Acceptance:
 
-- [ ] Connect to the configured real target serving plane at `10.10.1.3:54321` using the production-equivalent `portfell_app` identity without committing credentials.
-- [ ] Verify SELECT works for `xetra_loader.listings`, `eod_quotes`, `dividends`, and `splits` and the observed columns/types/primary-key semantics match section 3.
-- [ ] Verify representative full identities and quote/action rows round-trip through PR314 repositories with correct UTC/date semantics.
-- [ ] Verify attempted INSERT/UPDATE/DELETE/DDL on `xetra_loader` fails for `portfell_app`.
-- [ ] Verify access to `xetra_loader_sync` fails for `portfell_app`; this failure is expected PASS evidence, not a defect.
-- [ ] Verify no Python-package coupling to `xetra-loader` is needed for the smoke test.
-- [ ] Record sanitized endpoint/schema/table/row-count/date-bound evidence and exact Portfell/xetra-loader commit SHAs; never record passwords/full DSNs.
-- [ ] Live smoke and `uv run portfell-quality pr` pass from one SHA.
+- [ ] Clean `uv sync --locked`, package import, import-linter, CLI entrypoint enumeration, Compose config, and container startup pass without provider/NAS variables.
+- [ ] Active docs/config/entrypoint/workflow/source scans agree on PostgreSQL-only market source and contain no secret/full DSN.
+- [ ] Contract-faithful PostgreSQL E2E exercises all four routes/stages under read-only role membership.
+- [ ] No obsolete market acquisition service/entrypoint/environment variable is required.
+- [ ] Run focused QA plus `uv run portfell-quality merge` from one clean SHA.
 
-Parallelization: integration gate; not parallel with PR333 because its evidence is a prerequisite.
-Security: explicitly proves least privilege.
-Determinism: queries use stable ordering and sanitized evidence format.
-Idempotency: mutation attempts fail; successful operations are SELECT only.
+Parallelization: serial pre-live barrier.
+Security: clean runtime proof.
+Determinism: clean install/runtime topology.
+Idempotency: restart/reads leave market fixture unchanged.
 Rollback: tests/evidence only.
 
-### PR333 — pr333-full-postgres-source-replacement-e2e
+### PR340 — pr340-live-xetra-postgres-v2-contract-qa
 
-Branch: `test/pr333-full-postgres-source-replacement-e2e`.
-Commit scope: `test(pr333-full-postgres-source-replacement-e2e): ...`.
-Depends on: PR332.
-Owned paths: final source-replacement integration/E2E tests and completion evidence only.
+Branch: `test/pr340-live-xetra-postgres-v2-contract-qa`
+
+Commit scope: `test(pr340-live-xetra-postgres-v2-contract-qa): ...`
+
+Depends on: PR339 **and xetra-loader XDL-PR053 V2 acceptance artifact present on `main` and marked PASS**.
+
+Owned paths: live-contract smoke tests/runbook evidence only; no production source changes.
 
 Tasks / Acceptance:
 
-- [ ] Cold-start Portfell with no EODHD/provider variables, no market NAS/filesystem, no local medallion market state, and only the configured PostgreSQL market read plane.
-- [ ] Execute Metadata -> Univariate -> Bivariate -> Multivariate successfully against contract-faithful/verified XETRA PostgreSQL data.
-- [ ] Prove all market reads are SELECTs against `xetra_loader` through `MarketDataGateway`; no direct SQL outside the source package.
-- [ ] Simulate PostgreSQL unavailable, empty required history, and partial history; every case fails closed/typed and never downloads/falls back.
-- [ ] Repository-wide executable-source scan proves no EODHD client/token/fetcher, provider credential flow, medallion market writer, market refresh scheduler, or filesystem market fallback remains.
-- [ ] Prove `xetra_loader_sync` remains unqueried by application code and inaccessible to the app role.
-- [ ] Prove repeated application/workflow execution leaves all four `xetra_loader` business tables unchanged.
-- [ ] Full focused E2E suite and `uv run portfell-quality pr` pass from one SHA.
+- [ ] Verify `xetra-loader/artifacts/acceptance/postgres-full-sync-v2.json` exists on loader `main`, is sanitized, reports PASS, targets `10.10.1.3:54321`, and record exact loader SHA.
+- [ ] Connect to real serving plane using secret-supplied production-equivalent LOGIN role; verify it is non-superuser and member of NOLOGIN `portfell_app`.
+- [ ] SELECT works for exact four business tables and observed columns/types/PKs match section 3.
+- [ ] Representative full identities and quote/action rows round-trip through PR315 gateway with exact date/UTC/Decimal/projection semantics.
+- [ ] INSERT/UPDATE/DELETE/DDL on market schema fail for application identity.
+- [ ] Deliberate `xetra_loader_sync` access fails; expected denial is PASS evidence.
+- [ ] Record sanitized endpoint/schema/table/row-count/date-bound evidence plus exact Portfell/loader SHAs; never record credentials/full DSN/raw provider data.
+- [ ] Live smoke and `uv run portfell-quality merge` pass from one clean SHA.
 
-Parallelization: final technical integration gate.
-Security: end-to-end least privilege/fail-closed proof.
-Determinism: fixed fixture/verified source snapshot and stable evidence.
-Idempotency: repeated run has zero market mutation.
+Parallelization: serial live gate.
+Security: real least-privilege proof.
+Determinism: stable ordered evidence.
+Idempotency: successful operations SELECT only; forbidden writes fail.
 Rollback: tests/evidence only.
 
-### PR334 — pr334-production-postgres-cutover-runbook
+### PR341 — pr341-full-postgres-source-replacement-e2e
 
-Branch: `docs/pr334-production-postgres-cutover-runbook`.
-Commit scope: `docs(pr334-production-postgres-cutover-runbook): ...`.
-Depends on: PR333.
-Owned paths: production cutover/rollback runbook and final operator checklist only.
+Branch: `test/pr341-full-postgres-source-replacement-e2e`
+
+Commit scope: `test(pr341-full-postgres-source-replacement-e2e): ...`
+
+Depends on: PR340.
+
+Owned paths: final source-replacement E2E tests/evidence only.
 
 Tasks / Acceptance:
 
-- [ ] Document deployment preflight for `PORTFELL_MARKET_DATABASE_URL`, endpoint reachability, four business-table SELECTs, `portfell_app` role, and UTC session behavior.
-- [ ] Require PR332 live-contract PASS and PR333 full E2E PASS before production cutover.
-- [ ] Back up only surviving Portfell analytical/application state; legacy Portfell market-data files/tables/caches are classified as disposable after verified cutover and are not migrated into the serving plane.
-- [ ] Provide deterministic smoke checks for `/metadata`, `/univariate`, `/bivariate`, `/multivariate` and representative analytical runs.
-- [ ] Rollback changes only Portfell application version/configuration; rollback must never reactivate EODHD/provider download, market medallion persistence, or filesystem fallback.
-- [ ] Include explicit verification that `xetra_loader_sync` remains inaccessible and no broader database grants are requested.
-- [ ] Operator checklist contains no secret values and can be executed without architectural guessing.
-- [ ] Documentation validation and `uv run portfell-quality pr` pass.
+- [ ] Cold-start Portfell with no EODHD/provider env, market NAS/filesystem, local market medallion state, or loader package.
+- [ ] Execute Metadata -> Univariate -> Bivariate -> Multivariate against verified PostgreSQL source successfully.
+- [ ] Prove every market read goes through `MarketDataGateway`; no direct source SQL outside market_source.
+- [ ] Simulate DB unavailable, empty required history, partial history, and missing adjusted close; each fails closed/typed with no acquisition fallback.
+- [ ] Prove inactive listings cannot enter new candidate universe and duplicate ISIN listings retain full identity.
+- [ ] Prove source snapshot lineage is deterministic and contains no provider/download/sync-control identity.
+- [ ] Prove repeated workflow execution leaves all four market tables unchanged.
+- [ ] Full focused E2E plus `uv run portfell-quality merge` pass from one clean SHA.
 
-Parallelization: terminal documentation gate.
-Security: no secret disclosure; rollback preserves least privilege.
-Determinism: ordered preflight/cutover/rollback procedure.
-Idempotency: repeating read-only preflight/smoke checks does not mutate market data.
-Rollback: defined in the runbook and never restores legacy data acquisition.
+Parallelization: final technical source-cutover gate.
+Security: end-to-end least privilege/fail closed.
+Determinism: verified source and stable lineage.
+Idempotency: zero market mutation.
+Rollback: tests/evidence only.
 
-## 8. Final completion gate
+### PR342 — pr342-production-postgres-cutover-runbook
 
-The Portfell source cutover is complete only when all of the following hold on clean `main`:
+Branch: `docs/pr342-production-postgres-cutover-runbook`
 
-- Metadata, Univariate, Bivariate, and Multivariate obtain market data exclusively through `MarketDataGateway` backed by PostgreSQL at the configured serving endpoint;
-- business source schema is exactly `xetra_loader` with `listings`, `eod_quotes`, `dividends`, and `splits`;
-- full listing identity `(isin, exchange, code)` is preserved end-to-end;
-- `portfell_app` can SELECT business tables and cannot mutate them;
-- `portfell_app` cannot access `xetra_loader_sync`, and Portfell contains no executable sync-schema query;
-- no EODHD/provider client, token, fetcher, discovery, credential storage/API/UI, acquisition progress, or provider fallback remains in Portfell;
-- no Portfell market-data Bronze/Silver/Gold writer, NAS/filesystem market fallback, shared market refresh/publisher, market-download worker, or market-data cron remains;
-- no market-data DML/DDL path exists in Portfell;
-- PostgreSQL outage/incomplete data fails closed with typed source evidence and never starts a downloader;
-- current analytical formulas/optimizer semantics are preserved by source-cutover regression tests;
-- single-user backend/UI target is complete with canonical routes `/metadata`, `/univariate`, `/bivariate`, `/multivariate`;
-- production runtime requires no EODHD/provider secret or market NAS mount;
-- PR332 proves the real serving-plane contract and least privilege;
-- PR333 proves complete source replacement end-to-end;
-- PR334 provides an executable production cutover/rollback procedure that cannot reactivate legacy acquisition.
+Commit scope: `docs(pr342-production-postgres-cutover-runbook): ...`
+
+Depends on: PR341.
+
+Owned paths: production cutover/rollback runbook and operator checklist only.
+
+Tasks / Acceptance:
+
+- [ ] Preflight exact market DSN presence, endpoint reachability, four-table SELECTs, LOGIN membership in `portfell_app`, non-superuser state, UTC, and read-only transaction behavior.
+- [ ] Require PR340 PASS and PR341 PASS before production switch.
+- [ ] Back up surviving Portfell analytical/application state only; legacy Portfell market files/caches are disposable and never migrated into loader serving plane.
+- [ ] Deterministic smoke checks cover `/metadata`, `/univariate`, `/bivariate`, `/multivariate` and representative calculations.
+- [ ] Rollback changes only Portfell app version/config; it must never reactivate provider download, medallion persistence, market NAS fallback, or broader DB grants.
+- [ ] Checklist contains no secret values and can be executed without architectural guessing.
+- [ ] Docs validation and `uv run portfell-quality pr` pass.
+
+Parallelization: terminal production source-cutover gate.
+Security: no secret disclosure; least privilege preserved on rollback.
+Determinism: ordered cutover/rollback.
+Idempotency: read-only preflights/smokes do not mutate market data.
+Rollback: explicitly defined.
+
+### PR343 — pr343-rebase-deferred-product-backlog
+
+Branch: `docs/pr343-rebase-deferred-product-backlog`
+
+Commit scope: `docs(pr343-rebase-deferred-product-backlog): ...`
+
+Depends on: PR342.
+
+Owned paths: active backlog/planning docs only; no production code.
+
+Tasks / Acceptance:
+
+- [ ] Re-audit old PR264-PR295 branches against the new PostgreSQL-only, single-user `main`; no old branch is merged wholesale by this PR.
+- [ ] Preserve still-valid product invariants: four-stage workflow; Plotly Dash target mounted in FastAPI; Multivariate as sole optimizer page/stage; three frozen objectives; objective-specific OOS winner selection; professional plots; Universe & History evidence; analytical persistence/reproducibility requirements.
+- [ ] Explicitly retire old Portfell-owned market refresh/download concepts, including old PR293-style shared market refresh, because loader owns market refresh.
+- [ ] For every old work order, classify `reuse-cleanly`, `reimplement`, `split`, or `retire` with exact evidence/path conflicts.
+- [ ] Create a new atomic dependency graph for remaining Dash/Multivariate/scheduled-analytics product work using the post-PR342 architecture and weak-agent ownership rules.
+- [ ] Scheduled analytical research, if retained, consumes PostgreSQL snapshots only and cannot trigger loader/provider refresh or query `xetra_loader_sync`.
+- [ ] No product requirement is silently lost merely because an old implementation branch is superseded.
+- [ ] Backlog/docs validation and `uv run portfell-quality pr` pass.
+
+Parallelization: planning gate for the next product series, not an implementation branch merge.
+Security: new plan inherits PostgreSQL-only least privilege.
+Determinism: every old requirement receives explicit disposition.
+Idempotency: docs only.
+Rollback: docs only.
+
+## 8. Final completion gate for this series
+
+PR342 is the production source-cutover completion gate; PR343 is the required carry-forward planning gate for deferred product work.
+
+Source cutover is accepted only when clean `main` proves:
+
+- all market inputs come through `MarketDataGateway` from exact `xetra_loader` business tables;
+- raw PostgreSQL contract preserves `Decimal`/date/UTC semantics and full listing identity;
+- analytical projection uses adjusted close without raw-close fallback, does not double-count dividends, and invents no split formula;
+- new Metadata universes use active listings only;
+- one analytical market snapshot uses repeatable-read/read-only semantics and deterministic input lineage;
+- Portfell LOGIN identity is non-superuser, member of NOLOGIN `portfell_app`, can SELECT business tables, cannot mutate them, and cannot access `xetra_loader_sync`;
+- no EODHD/provider acquisition, credential backend/UI, market medallion writer, NAS/filesystem fallback, shared-market publisher/refresh, download worker, or market cron remains executable;
+- source outages/incomplete data fail closed under frozen source/analytical error semantics;
+- single-user backend/UI is complete with `/metadata`, `/univariate`, `/bivariate`, `/multivariate` and REST `/api`;
+- clean install/runtime requires no provider secret or market NAS mount;
+- xetra-loader XDL-PR053 V2 artifact is present and PASS before live gate;
+- PR340 proves real serving-plane contract/least privilege;
+- PR341 proves complete source replacement E2E;
+- PR342 provides executable cutover/rollback without legacy acquisition reactivation;
+- PR343 preserves/replans still-valid Dash/Multivariate product requirements rather than silently discarding old PR264-PR295 scope.
