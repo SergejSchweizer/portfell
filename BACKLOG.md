@@ -202,6 +202,8 @@ Branch: `feat/pr309-xetra-listings-repository`
 
 Depends on: PR308.
 
+Git status: in progress from `main` at `6e75fb3`.
+
 Scope: SELECT-only repository over `xetra_loader.listings`; full identity lookup, batch lookup, exact active-universe read; no business filtering inside SQL beyond contract fields.
 
 Acceptance: active/inactive semantics exact; duplicate ISINs across listing identities are preserved; stable full-key ordering; 500/501 batching; parameterized SQL; no write/fallback/`ILIKE` semantic substitution.
@@ -211,6 +213,8 @@ Acceptance: active/inactive semantics exact; duplicate ISINs across listing iden
 Branch: `feat/pr310-xetra-quotes-repository`
 
 Depends on: PR308.
+
+Git status: in progress from `main` at `6e75fb3`.
 
 Scope: `eod_quotes` repository with full identity, inclusive date range, exact fields and `Decimal` values.
 
@@ -222,6 +226,8 @@ Branch: `feat/pr311-xetra-dividends-repository`
 
 Depends on: PR308.
 
+Git status: in progress from `main` at `6e75fb3`.
+
 Scope: full-identity/batched/inclusive-date reads from `dividends`.
 
 Acceptance: preserve `event_key`, nullable/Decimal fields, stable identity/event_date/event_key ordering, same-day events, bounded queries, no writes/fallback.
@@ -231,6 +237,8 @@ Acceptance: preserve `event_key`, nullable/Decimal fields, stable identity/event
 Branch: `feat/pr312-xetra-splits-repository`
 
 Depends on: PR308.
+
+Git status: in progress from `main` at `6e75fb3`.
 
 Scope: same repository contract for `splits`.
 
@@ -242,6 +250,8 @@ Branch: `feat/pr313-market-source-status`
 
 Depends on: PR308.
 
+Git status: in progress from `main` at `6e75fb3`.
+
 Scope: low-cost connectivity/schema/role preflight only.
 
 Acceptance: no full scans, no global max-timestamp freshness inference, no sync-schema access, no DDL.
@@ -251,6 +261,8 @@ Acceptance: no full scans, no global max-timestamp freshness inference, no sync-
 Branch: `refactor/pr314-market-source-projection`
 
 Depends on: PR308.
+
+Git status: in progress from `main` at `6e75fb3`.
 
 Scope: one centralized mapping from raw market DTOs to analytical inputs.
 
