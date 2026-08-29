@@ -210,8 +210,8 @@ Branch: `feat/pr309-xetra-listings-repository`
 
 Depends on: PR308.
 
-Git status: in progress from `main` at `e72415a`; the prior 451-file worktree report was
-identical executable-bit metadata noise with no content changes.
+Git status: integrated on `main` at `452e45e`. The SELECT-only listings repository preserves
+full listing identities, applies 500-key batching, and passed its complete PR gate (`1004 passed`).
 
 Scope: SELECT-only repository over `xetra_loader.listings`; full identity lookup, batch lookup, exact active-universe read; no business filtering inside SQL beyond contract fields.
 
