@@ -381,6 +381,11 @@ Branch: `test/pr316-market-source-contract-qa`
 
 Depends on: PR315.
 
+Git status: integrated on `main` at `40789a8`. An isolated Docker PostgreSQL fixture validates
+the NOLOGIN group/reader-role contract, exact source tables, 1001-record batching, repeatable-read
+isolation, projection behavior, and provider/sync negative space; `uv run portfell-quality merge`
+passed.
+
 Scope: QA only. Build a contract-faithful PostgreSQL fixture with NOLOGIN group-role semantics and exact table types/keys.
 
 Acceptance: role/read-only checks, 1001 batching, repeatable-read concurrency, projection behavior, sync/provider negative-space; `uv run portfell-quality merge` passes.
