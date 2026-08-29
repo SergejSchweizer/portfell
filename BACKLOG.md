@@ -1,1613 +1,933 @@
-Last reviewed: 2026-08-14
+# Portfell — Authoritative Backlog
 
-## Table Of Contents
+Last reviewed: 2026-08-29
 
-- [Backlog Policy](#backlog-policy)
-- [Parallel Weak-Agent PR Design](#parallel-weak-agent-pr-design)
-- [Monthly-Distribution ETF Multivariate Architecture Record](#monthly-distribution-etf-multivariate-architecture-record)
-- [Shared Market Data And Nightly Refresh Architecture Record](#shared-market-data-and-nightly-refresh-architecture-record)
-- [Active Hosted Simplicity And Interactive Performance PR Stack](#active-hosted-simplicity-and-interactive-performance-pr-stack)
-- [Current Architectural Decision](#current-architectural-decision)
-- [Series Completion Gate](#series-completion-gate)
-- [Update Rules](#update-rules)
-- [Completed PR History](#completed-pr-history)
+## 0. Single-file authority
 
-## Backlog Policy
+`BACKLOG.md` is the only executable backlog authority for Portfell. Historical backlog text, old pull-request descriptions, archived planning branches, and old UI/database architecture documents are reference material only when they conflict with this file.
 
-This file is ordered by execution relevance:
+The legacy backlog that existed immediately before this rewrite is preserved in Git at commit `35cbec2e5502bff30d57c4235ade49c8bb6e41d3`. Its PR01–PR252 history remains auditable there, but no unfinished legacy UI/database work from that snapshot may be implemented unless it is explicitly re-listed below.
 
-1. active, not-yet-finished work;
-2. current architectural constraints and completion gates;
-3. completed and superseded history at the bottom.
+`GATES.md` remains the sole authority for quality/coverage thresholds. Any PR below that changes the runtime/test stack must update `GATES.md` in the same PR or in the explicitly named gate PR.
 
-Every active item must contain `Priority`, `Depends on`, `Scope`, `Acceptance`, `Security`, `Determinism`, and `Idempotency`. An item is atomic only when it can be integrated independently with all repository checks green. An item is complete only when its acceptance criteria are machine-verifiable and no assigned scope is deferred silently.
+## 1. Final target architecture — hard decision
 
-Completed entries are never deleted. Superseded plans are moved to the historical section and explicitly marked non-active. Backlog identifiers are never reused.
+Portfell is moving to a Python-first, single-user analytical application. The final browser UI is **Plotly Dash**. The existing hand-written React/Vite/TypeScript/TanStack frontend is transitional and is deleted after Dash functional parity is proven.
 
-## Parallel Weak-Agent PR Design
-
-Every new backlog PR must be designed so that two independent agents can implement and review it in
-parallel. Assume either agent may have limited reasoning ability, incomplete conversation context, and
-no ability to infer unstated product or architectural decisions. The PR definition is therefore the
-complete executable work order, not a short reminder.
-
-Each PR must state:
-
-- one atomic business outcome and explicit non-goals;
-- stable ownership boundaries: exact modules, routes, schemas, contracts, fixtures, and documents each
-  parallel agent may change, plus files or abstractions that are shared and must be coordinated first;
-- ordered dependencies and concrete hand-off artifacts, including versioned schemas, typed interfaces,
-  fixture names, command examples, or committed contract snapshots;
-- an implementation sequence that permits independent work without duplicate migrations, conflicting
-  public contracts, or incompatible placeholder abstractions;
-- a complete acceptance list with observable inputs, expected outputs, error behavior, authorization,
-  persistence, restart, determinism, idempotency, performance limits, and exact tests/gates required;
-- explicit evidence commands for completion and a rollback or migration note whenever persistent state,
-  APIs, or deployment behavior changes.
-
-Acceptance criteria must be precise enough that one weak agent can implement the item and a second
-weak agent can verify it solely from the checked-in definition. Vague terms such as “fast”, “robust”,
-“update all callers”, or “test thoroughly” are prohibited unless accompanied by measurable limits,
-named callers, and exact test assertions. If two agents cannot work safely in parallel, split the item
-into smaller sequential PRs and record the dependency and hand-off in this file before implementation.
-
-## Monthly-Distribution ETF Multivariate Architecture Record
-
-This is the canonical first implementation series for the Multivariate Statistics module. Its
-initial product profile is a project-scoped universe of ETFs whose persisted Univariate
-Statistics selection classifies them as monthly distributing. The module explains the selected
-ETFs as one joint risk system, constructs comparable portfolio candidates, and validates those
-candidates. Monthly distribution frequency is an eligibility condition, not evidence that an ETF
-has a high, stable, sustainable, or tax-efficient income stream.
-
-The active browser workflow remains the existing three-module workflow until PR150 completes the
-cutover. PR143 through PR149 add dormant contracts, artifacts, calculations, and API capabilities
-without adding an incomplete page or navigation item. PR150 atomically changes the production
-workflow to:
+Final production topology:
 
 ```text
-metadata_builder
-    -> univariate_statistics
-    -> bivariate_statistics
-    -> multivariate_statistics
+Browser
+  |
+  v
+Plotly Dash pages + callbacks
+  |
+  v
+FastAPI / typed Portfell application services
+  |                         |
+  |                         +--> external PostgreSQL market source
+  |                              10.10.1.3:54321 / xetra_loader
+  |                              schema xetra_loader
+  |                              read-only, coherent snapshots
+  |
+  +--> NEW Portfell-owned PostgreSQL application/research database
+       database: portfell_dash
+       schema: portfell
+       single-user state and analytical persistence only
 ```
 
-Every PR in this series must consume immutable project-scoped upstream identifiers. No PR may use
-a global `current_selection` pointer as analysis authority, start an upstream calculation as a
-side effect, recalculate financial values in React, label a gross historical distribution metric
-as sustainable or net income, or expose a portfolio as investment advice.
+### 1.1 Complete UI replacement means complete replacement
 
-### Monthly-Distribution ETF Multivariate Series Completion Gate
+The final runtime must satisfy all of the following simultaneously:
 
-This series is complete only after PR143 through PR150 are merged in dependency order and every
-current pre-merge and post-merge requirement in [GATES.md](GATES.md) passes. Completion additionally
-requires all of the following evidence in one clean-main validation:
+- exactly four production Dash pages exist: `/metadata`, `/univariate`, `/bivariate`, `/multivariate`;
+- Plotly Dash is the only Portfell-owned browser application framework;
+- all first-party React pages/components/hooks/stores/providers are deleted;
+- the Vite build, TypeScript frontend build, TanStack Query cache, Vitest frontend stack, npm/pnpm/yarn application build, Node production Web image/stage, and React-specific runtime configuration are deleted;
+- `apps/web/**` is deleted after parity and negative-space QA;
+- no compatibility iframe, embedded legacy React route, proxy to the old Web container, hidden feature flag, or dual-UI runtime is allowed after cutover;
+- no new business feature may be implemented only in the legacy UI after this architecture decision;
+- Dash may of course contain transitive browser technology internally; the prohibition is on a Portfell-maintained React/Vite/TypeScript/TanStack application and Node frontend build boundary;
+- static CSS/assets required by Dash may remain under the Dash assets directory and require no JavaScript build pipeline.
 
-- a project-scoped monthly-distribution ETF input snapshot with exact authorized dependency closure;
-- one canonical validated risk-model covariance used by every covariance-dependent output;
-- deterministic structure, PCA, effective-rank, clustering, gross-income, candidate, risk-
-  contribution, walk-forward, cost, stress, and scorecard artifacts;
-- no global-current-pointer authority, upstream compute side effect, silent optimizer/risk-model
-  substitution, unavailable-as-zero behavior, or production use of toy walk-forward defaults;
-- persisted restart-safe project state, exact backend/frontend contracts, two-project isolation,
-  content-addressed reuse, stale invalidation, and resumable idempotent execution;
-- exactly four production modules with the Multivariate page consuming only API-produced values;
-- explicit gross/historical and unavailable labels wherever sustainable income, genuine NAV,
-  jurisdiction tax, or broker-cost evidence is missing;
-- focused numerical fixtures, invariant/property tests, Vitest, two-project Playwright coverage,
-  at least 95 percent aggregate coverage, production frontend build, and rebuilt Docker Web image;
-- synchronized `README.md`, `ARCHITECTURE.md`, module/page documentation, schemas, API contracts,
-  backlog status, and operational runbooks.
+### 1.2 Complete database replacement means complete replacement
 
-## Shared Market Data And Nightly Refresh Architecture Record
+The existing Portfell-owned hosted application/tenant/control-plane database model is also transitional. The final runtime uses a **new clean database** named `portfell_dash`, not an in-place evolution of the old hosted schema.
 
-This series replaces project-triggered historical-data downloads with one nightly refresh for the
-union of listings currently used by all persisted projects in the trusted local Portfell deployment.
-All projects then read quotes, dividends, and splits from one shared physical store. Project state
-contains selections, immutable input references, and analysis results, but no copied market rows.
+Hard rules:
 
-Physical deduplication uses the full listing identity `(provider, exchange, code, isin)` because two
-exchange listings of the same ISIN can have different currencies, trading calendars, and prices.
-The same full listing used by any number of projects is planned, requested, and stored once. The
-initial scheduled mode supports the existing single local principal and its encrypted EODHD
-credential. It must fail closed rather than silently broadening this model if multiple credential
-owners are introduced later.
+- `PORTFELL_DATABASE_URL` points only to the new `portfell_dash` database in the final runtime;
+- the new application schema is `portfell` and is created from new migrations owned by this series;
+- old user, tenant, membership, project-membership, encrypted-provider-credential, navigation-projection, workflow-projection, durable-status-event, legacy download/ingestion, and legacy browser-state tables are not migrated into the new schema;
+- no dual-read, dual-write, table fallback, view compatibility layer, or old-schema adapter is permitted after cutover;
+- the old Portfell application database is backed up before destructive removal, becomes rollback-only/offline, and is removed from Compose/runtime ownership after the final acceptance gate;
+- old Portfell PostgreSQL volumes/databases, legacy DB credentials, old migrations, and old repository adapters are deleted from the active runtime after the new DB is proven;
+- analytical state needed in the new application is recomputed or explicitly recreated through new contracts; legacy rows are not silently imported;
+- the external `xetra_loader` PostgreSQL database is **not** a legacy Portfell database and is not deleted. It remains the canonical market-data authority;
+- `xetra_loader_sync` remains inaccessible to the Portfell application and is never a data source;
+- `PORTFELL_MARKET_DATABASE_URL` and `PORTFELL_DATABASE_URL` are separate authorities and never fall back to one another.
 
-PR151 through PR155 are sequential. PR151 starts after PR150 to avoid changing shared workflow and
-UI contracts underneath the active Multivariate stack. PR155 may be deployed only after PR154's
-one-time initial refresh and operational verification succeed in the target environment.
+### 1.3 Final application-state model
 
-### Shared Market Data And Nightly Refresh Series Completion Gate
+The clean `portfell_dash` database is single-user and contains only state that Portfell itself owns. The v1 schema must provide these canonical concepts, with exact DDL frozen by PR345 before implementation callers depend on it:
 
-This series is complete only after PR151 through PR155 merge in dependency order, all current gates
-in [GATES.md](GATES.md) pass, and one target-environment evidence bundle proves:
+- one singleton workspace identity (`default`);
+- immutable `market_source_snapshots` lineage records;
+- versioned `metadata_universes`;
+- exact full-identity `metadata_universe_members`;
+- stage-neutral `analysis_runs` with stage, status, input snapshot, algorithm version, timestamps, and typed failure code;
+- immutable `analysis_artifacts` identified by run and artifact type;
+- versioned `univariate_selections` and exact members;
+- immutable `decision_artifacts` for Multivariate winner/diagnostic explanation;
+- small `ui_preferences` values that are genuinely presentation state and not financial authority.
 
-- one canonical physical market store with unique business keys and atomic correction handling;
-- a deduplicated union of all active project listings and request/storage work proportional to unique
-  listings rather than project count;
-- successful initial backfill, restart, nightly one-shot execution, idempotent repeat, monitored cron
-  installation, lock handling, and documented recovery;
-- immutable project analysis snapshots, exact selection filtering, no project market-row copies, and
-  no cross-project data exposure;
-- all project analyses source quotes, dividends, and splits from shared storage;
-- no browser manual historical-data action and no legacy mutation capable of provider ingestion;
-- synchronized contracts, OpenAPI snapshot, architecture, README, UI docs, runbooks, backlog status,
-  and full Python/TypeScript/Playwright/Docker validation.
+No `user_id`, tenant membership, project membership, provider credential owner, RLS tenant partition, or browser cache table exists in the new schema. Domain identifiers may exist only where they are intrinsic analytical identities, never as security scopes.
 
-## Active Hosted Simplicity And Interactive Performance PR Stack
+### 1.4 Market-source invariants that survive the replacement
 
-This series makes the hosted application simpler and keeps interactive reads responsive while
-ingestion or analysis workers are active. The target has one browser query cache, one FastAPI
-application boundary, one PostgreSQL tenant/control-plane read model, and worker-owned Parquet and
-analytical payload access:
+- external endpoint: `10.10.1.3:54321`;
+- external database: `xetra_loader`;
+- business schema: `xetra_loader`;
+- business tables: `listings`, `eod_quotes`, `dividends`, `splits`;
+- listing identity is always `(isin, exchange, code)`; ISIN alone is never a business key;
+- Portfell uses a secret-supplied non-superuser LOGIN role that is a member of external NOLOGIN group role `portfell_app`;
+- application access to `xetra_loader_sync` must fail and that failure is PASS evidence;
+- analytical input assembly uses `REPEATABLE READ, READ ONLY`, UTC session semantics, and closes the DB transaction after data materialization before CPU-heavy analysis;
+- market SQL lives only under `src/portfell/market_source/**`;
+- repository reads batch at most 500 listing identities per SQL statement and never use N+1 access where a batch API exists;
+- raw PostgreSQL `NUMERIC` remains `Decimal` until one centralized analytical projection boundary;
+- `trade_date` and `event_date` map to Python `date`;
+- `adjusted_close` is authoritative for return/risk/volatility/drawdown calculations;
+- missing adjusted close yields typed `missing_adjusted_close`, never fallback to raw `close`;
+- dividends are distribution/income evidence and are not double-counted on top of adjusted-close returns;
+- no split-return adjustment formula is introduced by the source/UI replacement;
+- new Metadata universes use only `is_active=true`; inactive listings remain historically resolvable by full identity;
+- Python metadata predicate semantics are preserved rather than silently redefined by PostgreSQL collation/`ILIKE`;
+- source preflight is low-cost and never infers loader run state from full-table scans or the sync schema.
+
+## 2. Global weak-agent execution contract
+
+Every active PR below is a complete work order. Agents must not infer missing architecture decisions.
+
+For every PR:
+
+- record `git status --short --branch` before changing files;
+- start from the exact merged dependency SHA; stop if a required predecessor is unmerged;
+- sibling PRs start from the same predecessor SHA, not from one another;
+- use the exact branch name and commit scope listed below;
+- change only owned paths plus explicitly named synchronized documentation/test manifests;
+- do not add compatibility fallbacks, second market sources, second UI runtimes, dual DB reads/writes, broader database grants, or opportunistic refactors;
+- implementation PRs run focused tests plus `uv run portfell-quality pr`;
+- QA/integration PRs also run `uv run portfell-quality merge`;
+- QA PRs own tests/evidence only. Production defects discovered by QA require a corrective implementation PR rather than hidden QA fixes;
+- browser-visible errors contain typed public codes/messages and never credentials, DSNs, SQL, paths, stack traces, or database internals;
+- completed analytical revisions are immutable; retries create/reuse exact idempotent identities instead of mutating published results;
+- no production UI callback performs direct SQL. Dash callbacks call typed application services; market SQL remains behind `MarketDataGateway`, application-state SQL remains behind the new `app_state` repository boundary.
+
+## 3. Source cutover and simplification series — PR308–PR343
+
+This series removes provider acquisition and legacy market-storage authority before the destructive Dash/database replacement. It is the prerequisite data-plane simplification.
+
+Dependency graph:
 
 ```text
-React + TanStack Query
-          |
-          v
-FastAPI page-view and command routes
-          |
-          v
-PostgreSQL tenant state + UI read projections
-          ^
-          |
-durable workers -> shared Parquet and content-addressed artifacts
+PR308
+  |
+PR309 || PR310 || PR311 || PR312 || PR313 || PR314
+  |
+PR315 -> PR316(QA) -> PR317 -> PR318
+  |
+PR319 || PR320 || PR321 || PR322
+  |
+PR323(QA)
+  |
+PR324 || PR325 || PR326 || PR327 || PR328 || PR329 || PR330 || PR331
+  |
+PR332(QA)
+  |
+PR333 || PR334
+  |
+PR335(QA)
+  |
+PR336 || PR337 || PR338
+  |
+PR339(QA)
+  |
+xetra-loader production V2 PASS artifact
+  |
+PR340(live QA) -> PR341(E2E) -> PR342(runbook) -> PR343(closeout)
 ```
 
-PR246 through PR252 are sequential. They optimize the active PostgreSQL authority only and do not
-replace React, FastAPI, PostgreSQL, Polars, or Parquet. Local CLI analysis remains supported, but no
-local repository, workspace JSON, in-memory dictionary, or shared-file scan may become a fallback
-authority for a hosted request. Every latency assertion must use a checked-in deterministic fixture
-and report request count, response bytes, database statement count, shared-file reads, and elapsed
-time; wall-clock thresholds alone are insufficient evidence.
+### PR308 — Xetra source contract foundation
 
-### PR247. PostgreSQL Navigation Read Model
+Branch: `refactor/pr308-xetra-source-contract`
 
-Branch: `feat/hosted-navigation-read-model`.
+Priority: P0.
 
-Git status: historical; see Completed PR History (PR247).
+Scope: create only the new `src/portfell/market_source/` foundation (`errors.py`, `config.py`, `contracts.py`, `connection.py`, package init) plus focused tests. Define `PORTFELL_MARKET_DATABASE_URL`, exact DTOs/types/keys, the six frozen source errors, role validation, UTC session behavior, and read-only/repeatable-read transaction helpers.
 
-PR247a (navigation foundation): https://github.com/SergejSchweizer/portfell/pull/401 — schema,
-bounded reader/writer, conditional GET, project-command writes, Metadata Builder hand-off, and
-side-effect-free absent-current-project handling. The remaining reconciliation, lifecycle, projection,
-repair, read instrumentation, and deterministic budget evidence are merged in the linked atomic steps
-below.
+Frozen errors: `market_source_config_missing`, `market_source_unavailable`, `market_source_role_invalid`, `market_source_contract_mismatch`, `market_source_duplicate_key`, `market_source_invalid_value`.
 
-PR247b branch: `feat/hosted-navigation-reconciliation` (merged as #402). It provides a single-query,
-RLS-bound, idempotent reconciliation primitive and wires it into PostgreSQL project commands and every
-initial-fill job lifecycle transition in the same durable-job transaction.
+Acceptance: no import of the xetra-loader Python package; no executable sync repository/API; non-superuser LOGIN membership in NOLOGIN `portfell_app` is required; market DSN never falls back to app DSN; focused tests and PR gate pass.
 
-PR247c1 branch: `feat/hosted-navigation-workflow-projections` (merged as #403). It removes hidden
-univariate-selection and preference writes from PostgreSQL workflow reads; completed worker commands
-remain the sole writers for those records.
+Security: credentials are secret-supplied and never rendered/logged.
 
-PR247c2a branch: `feat/hosted-navigation-lifecycle-projections` (merged as #404). It projects metadata
-revision/run state and refreshes the navigation in every metadata lifecycle write under the same
-connection transaction.
+Determinism: exact connection/session settings are asserted.
 
-PR247c2b1 branch: `feat/hosted-project-workflow-projection` (merged as #405). It adds a
-project-scoped, RLS-bound workflow projection table and deterministic read/write adapter with revision
-ETags; no lifecycle command or route behavior changes in this foundational schema step.
+Idempotency: connection/preflight reads are non-mutating.
 
-PR247c2b2 was split because its prior combination of three analytical lifecycles, project association,
-and HTTP route replacement was not safely parallelizable for two weak agents. PR247c2b2a owns only
-the durable project-to-research mapping and command-side projection writes; PR247c2b2b owns only the
-pure projection readers and route composition. PR247c2b3 was split again: PR247c2b3a owns deterministic
-repair plus restart/RLS evidence; PR247c2b3b owns route instrumentation and large-fixture performance
-evidence.
+### PR309 — Listings repository
 
-PR247c2b2a branch: `feat/hosted-project-workflow-lifecycle` (merged as #406).
+Branch: `feat/pr309-xetra-listings-repository`
 
-- Own exactly one migration and repository boundary for a forced-RLS, user-scoped mapping from each
-  univariate, bivariate, or multivariate run to its owning project. The mapping must make a completed
-  univariate selection's project explicit; it must not infer ownership from the mutable
-  user-wide `current_univariate_selection_preferences` record.
-- Add command-only projection reconciliation/writes for univariate start/progress/complete/failure,
-  bivariate start/progress/complete/failure, and multivariate start/progress/complete/failure. Each
-  write occurs in the same successful PostgreSQL transaction as its source lifecycle update and uses
-  the canonical `resolve_workflow` payload shape already exposed by the API.
-- The projection payload contains only workflow stages, process-overview counts, run IDs/statuses, and
-  a schema version; it must not contain member lists, result rows, credentials, or storage paths.
-- Required handoff: expose a typed `read(user_id, project_id)` projection port and a command-side
-  `reconcile(user_id, project_id)` callable. Do not modify `/workflow` routes in this PR.
+Depends on: PR308.
 
-Acceptance for PR247c2b2a:
+Scope: SELECT-only repository over `xetra_loader.listings`; full identity lookup, batch lookup, exact active-universe read; no business filtering inside SQL beyond contract fields.
 
-- Two projects owned by one user can run the same lifecycle concurrently without a run, selection,
-  count, or projection becoming visible on the other project. Tests use distinct project IDs and
-  identical user IDs to prove this specific isolation case.
-- Each lifecycle transition has an exact source-row and projection-row test: start, one progress
-  update, completion, failure, retry after failure, and idempotent replay. Replaying unchanged state
-  keeps the projection revision and ETag byte-identical.
-- Tests force a transaction rollback after the source write and prove neither mapping nor projection
-  change is committed. RLS tests prove guessed project IDs and cross-user IDs read/write nothing.
-- The local repository implementation remains protocol-compatible; PostgreSQL focused unit tests,
-  migration/catalog tests, architecture tests, Ruff, format, Pyright, and the applicable real-stack
-  gate pass.
+Acceptance: active/inactive semantics exact; duplicate ISINs across listing identities are preserved; stable full-key ordering; 500/501 batching; parameterized SQL; no write/fallback/`ILIKE` semantic substitution.
 
-PR247c2b2b branch: `feat/hosted-project-workflow-routes` (merged as #407).
+### PR310 — Quote repository
 
-- Depend only on PR247c2b2a's typed projection read port. Replace `/workflow` and
-  `/projects/{project_id}/workflow` with side-effect-free, bounded projection reads. The current
-  project is resolved from the existing navigation projection without rebuilding a workflow from
-  selections, runs, or shared data.
-- Define explicit no-current-project and not-yet-projected responses in the same versioned contract;
-  they contain empty stages and no implied write. Do not add a GET fallback that reads lifecycle,
-  selections, Parquet, or shared-store files.
-- Required handoff: expose route-level statement-count/response-size instrumentation only; PR247c2b3
-  owns performance fixtures, repair, and the final budget assertions.
+Branch: `feat/pr310-xetra-quotes-repository`
 
-Acceptance for PR247c2b2b:
+Depends on: PR308.
 
-- Both routes make at most two statements including RLS binding, perform zero writes and zero shared
-  file/Parquet reads, and return the exact canonical payload/ETag written by PR247c2b2a.
-- Tests cover no current project, selected project, guessed/deleted/cross-user project, a `304`
-  conditional response where applicable, and prove a GET cannot call lifecycle, selection, research,
-  or reconciliation writers.
-- API-contract, PostgreSQL adapter, route, architecture, Ruff, format, Pyright, and real-stack
-  button gates pass. The PR changes no lifecycle schema or writer.
+Scope: `eod_quotes` repository with full identity, inclusive date range, exact fields and `Decimal` values.
 
-PR247c2b3a branch: `feat/hosted-project-workflow-repair` (merged as #408).
+Acceptance: stable identity+trade_date ordering; duplicate key raises frozen typed error; UTC/date semantics; bounded query count including 501-identity test; no adjusted-close fallback.
 
-- Add an explicit deployment/maintenance callable that reconciles one authorized project's workflow
-  projection from the existing canonical workflow source. It accepts exact `user_id` and `project_id`,
-  owns one transaction, never enumerates users, and returns the canonical payload/ETag.
-- Provide a command-level restart repair entrypoint that accepts an explicit, deterministic list of
-  `(user_id, project_id)` inputs. It skips deleted or unauthorized projects, records no broad data,
-  and is idempotent when invoked repeatedly after a restart or interrupted worker.
-- Add PostgreSQL adapter tests for rollback, RLS, deleted projects, restart repair, and byte-identical
-  idempotent output. Do not add route timing instrumentation or performance fixtures here.
+### PR311 — Dividend repository
 
-Acceptance for PR247c2b3a:
+Branch: `feat/pr311-xetra-dividends-repository`
 
-- Two consecutive repairs of unchanged source state return the same payload and ETag and do not advance
-  projection revision. A source mutation followed by repair advances exactly one revision.
-- A forced exception before transaction commit leaves both source and workflow projection unchanged.
-  Guessed, cross-user, and deleted project IDs return typed absence without reading another tenant.
-- A restart fixture with one missing and one stale workflow projection restores both through only the
-  explicit supplied project IDs; it performs no shared-file reads and never creates a selection/run.
-- Focused repair, projection adapter, migration/catalog, RLS, architecture, Ruff, format, Pyright, and
-  real-stack gates pass.
+Depends on: PR308.
 
-PR247c2b3b was split for independent verification: PR247c2b3b1 owns only deterministic
-instrumentation; PR247c2b3b2 owns only the large-fixture performance evidence.
+Scope: full-identity/batched/inclusive-date reads from `dividends`.
 
-PR247c2b3b1 branch: `feat/hosted-workflow-read-instrumentation` (merged as #409).
+Acceptance: preserve `event_key`, nullable/Decimal fields, stable identity/event_date/event_key ordering, same-day events, bounded queries, no writes/fallback.
 
-- Instrument only `/workflow` and `/projects/{project_id}/workflow` with statement count, response
-  bytes, shared-file-read count, and elapsed time; expose structured test hooks without leaking these
-  values in tenant responses.
-- Do not add large performance fixtures, change projection schemas, lifecycle writers, or repair
-  behavior; PR247c2b3b2 owns that evidence.
+### PR312 — Split repository
 
-Acceptance for PR247c2b3b1:
+Branch: `feat/pr312-xetra-splits-repository`
 
-- Instrumented route tests prove at most two PostgreSQL statements including RLS binding for both
-  current and explicit-project paths, zero writes, zero shared-file/Parquet reads, and no lifecycle or
-  reconciliation invocation.
-- Reader and request-scope tests prove that an already authenticated request does not issue a duplicate
-  RLS-binding statement and that metrics are reset after each request/worker context.
-- API-contract, architecture, Ruff, format, Pyright, Playwright, and real-stack gates pass.
+Depends on: PR308.
 
-PR247c2b3b2 branch: `feat/hosted-workflow-read-performance` (merged as #410).
+Scope: same repository contract for `splits`.
 
-- Depend only on PR247c2b3b1's structured metrics hook. Add deterministic 100-project/25,000-member
-  projection fixtures and prove bounded statement counts, zero shared-file reads, no GET writes,
-  response size below 256 KiB, idle p95 below 250 ms, and loaded p95 below 1 s.
-- Include PR246's worker-contention scenario without changing application schemas, route logic, or
-  lifecycle writers. The fixture must build compact precomputed projections rather than 25,000 real
-  selection rows in a GET test.
+Acceptance: preserve textual `split_ratio`, optional Decimal split factor, no local event-key generation, stable ordering/batching, no split-return calculation.
 
-Acceptance for PR247c2b3b2:
+### PR313 — Low-cost source status
 
-- Current-project and explicit-project paths each produce the named deterministic performance report
-  from the structured metric hook; all assertion limits above are checked in CI.
-- The 100-project fixture proves response bytes are bounded independently of member count and that no
-  request touches table I/O or shared market files.
-- Performance, API-contract, architecture, Ruff, format, Pyright, Playwright, and real-stack gates
-  pass.
+Branch: `feat/pr313-market-source-status`
 
-Priority: P0 page-entry latency and architectural simplicity.
+Depends on: PR308.
 
-Depends on: PR246.
+Scope: low-cost connectivity/schema/role preflight only.
 
-Scope:
+Acceptance: no full scans, no global max-timestamp freshness inference, no sync-schema access, no DDL.
 
-- Add versioned PostgreSQL projections for published metadata summary and project navigation state.
-  The projection contains only metadata revision/count/freshness, project identity/name, current
-  selection identity and unique-ISIN count, initial-fill status/progress, active analytical stage,
-  current run references, and a monotonically increasing projection revision.
-- Update projections transactionally from the existing project, selection, durable-job, metadata-
-  publication, and research-run command paths. Define a deterministic idempotent reconciliation
-  command for deployment, repair, and tests; it must never read tenant membership across RLS scopes.
-- Rewrite `/project-context`, `/workflow`, and `/projects/{project_id}/workflow` as side-effect-free,
-  bounded PostgreSQL projection reads. Remove Parquet materialization, selection-member scans,
-  per-project repository lookups, analytical selection writes, and current-project mutation from GET
-  execution. An absent current-project preference is returned explicitly and set only by a command.
-- Return projection revision and `ETag`; honor `If-None-Match` with `304` and no response body. Cache
-  directives must remain private and revalidation-based because responses are tenant scoped.
-- Instrument these routes with statement count, shared-file read count, response size, and elapsed
-  time. Add an architecture test that fails if a navigation reader imports table I/O, shared-store,
-  analytical calculation, or command-side repository modules.
+### PR314 — Analytical projection boundary
 
-Out of scope: Returning analytical payload rows, changing project membership, replacing PostgreSQL,
-or introducing a general event-sourcing framework.
+Branch: `refactor/pr314-market-source-projection`
+
+Depends on: PR308.
+
+Scope: one centralized mapping from raw market DTOs to analytical inputs.
+
+Acceptance: `Decimal` conversion is centralized; missing adjusted close is typed; dividends not double-counted; no split return transform; regression fixtures preserve existing valid formulas.
+
+### PR315 — MarketDataGateway and coherent snapshot
+
+Branch: `feat/pr315-market-data-gateway`
+
+Depends on: PR309–PR314.
+
+Scope: only stage-level market seam; one coherent repeatable-read/read-only snapshot across required tables; batch reads only.
+
+Acceptance: market SQL only under `market_source`; transaction closes after materialization; no sync/write/refresh/download operations; concurrency fixture proves coherent snapshot.
+
+### PR316 — Source contract QA
+
+Branch: `test/pr316-market-source-contract-qa`
+
+Depends on: PR315.
+
+Scope: QA only. Build a contract-faithful PostgreSQL fixture with NOLOGIN group-role semantics and exact table types/keys.
+
+Acceptance: role/read-only checks, 1001 batching, repeatable-read concurrency, projection behavior, sync/provider negative-space; `uv run portfell-quality merge` passes.
+
+### PR317 — Hosted runtime read-plane cutover
+
+Branch: `refactor/pr317-hosted-market-read-plane`
+
+Depends on: PR316.
+
+Scope: remove provider acquisition capabilities/provider-key arguments from hosted runtime ports and wire `MarketDataGateway` through composition. Legacy acquisition code may remain physically until deletion wave but must be unreachable.
+
+Acceptance: hosted services can request market reads only through gateway; no provider command is reachable from browser/API composition.
+
+### PR318 — MarketSourceSnapshot lineage
+
+Branch: `refactor/pr318-market-source-lineage`
+
+Depends on: PR317.
+
+Scope: remove provider-download/quote-run lineage from research contracts and introduce deterministic `market_source.snapshot.v1`.
+
+Acceptance: snapshot ID hashes semantic consumed rows only; excludes observation wall-clock, provenance timestamps, DSN, credentials, sync state; streaming/canonical hash; analytical IDs use snapshot identity; no fallback market-row copies.
+
+### PR319 — Metadata source cutover
+
+Branch: `refactor/pr319-metadata-market-source`
+
+Depends on: PR318.
+
+Scope: Metadata uses active listings from gateway only.
+
+Acceptance: full identity/predicates preserved; inactive excluded from new universe; snapshot lineage persisted; no fallback.
+
+### PR320 — Univariate source cutover
+
+Branch: `refactor/pr320-univariate-market-source`
+
+Depends on: PR318.
+
+Scope: quotes/dividends through one gateway snapshot; remove download/shared-market branches.
+
+Acceptance: 252 annualization/formulas/income/selection semantics preserved; missing adjusted close typed; no split transform; regression equivalence.
+
+### PR321 — Bivariate source cutover
+
+Branch: `refactor/pr321-bivariate-market-source`
+
+Depends on: PR318.
+
+Scope: selected quote rows tied to one snapshot; no quote-run lookup.
+
+Acceptance: formulas/common-calendar/minimum-observation/pair guards/skip-same-ISIN preserved; full identity; no missing-covariance-as-zero; regression equivalence.
+
+### PR322 — Multivariate source cutover
+
+Branch: `refactor/pr322-multivariate-market-source`
+
+Depends on: PR318.
+
+Scope: snapshot quote/dividend lineage; pure return helper moved out of legacy persistence module; objectives/solvers/risk/walk-forward/OOS winner remain unchanged.
+
+Acceptance: exact matrix fixture; no source-plane redesign; Equal Weight is never a hidden failure fallback.
+
+### PR323 — Four-stage semantic QA
+
+Branch: `test/pr323-four-stage-market-source-qa`
+
+Depends on: PR319–PR322.
+
+Scope: QA only across Metadata -> Univariate -> Bivariate -> Multivariate.
+
+Acceptance: active/inactive, duplicate ISIN/full identity, missing adjusted, dividends, split non-interference, UTC/date, Decimal projection, regression equivalence, one snapshot lineage; unavailable/partial/insufficient sources fail closed; market tables unchanged; no sync refs/direct SQL outside market_source; merge gate passes.
+
+### PR324–PR331 — Legacy market/provider deletion wave
+
+All depend on PR323 and are parallel siblings.
+
+- PR324 `chore/pr324-delete-eodhd-client`: delete EODHD client/search/fetch CLI and executable provider acquisition.
+- PR325 `chore/pr325-delete-market-medallion`: delete market Bronze/Silver/Gold persistence/pipeline while retaining pure analytics moved elsewhere.
+- PR326 `chore/pr326-delete-market-filesystem-plane`: delete market NAS/filesystem authority; preserve unrelated analytical/app artifacts only.
+- PR327 `chore/pr327-delete-shared-market-refresh`: delete Portfell-owned market refresh/publisher/cron/cache plane; xetra-loader owns refresh.
+- PR328 `chore/pr328-delete-hosted-download-lifecycle`: delete hosted market download routes/workers/jobs.
+- PR329 `chore/pr329-delete-provider-credentials`: delete provider credential backend; do not replace it with plaintext config.
+- PR330 `chore/pr330-freeze-legacy-web-provider-ui`: delete provider-loading UI/actions. This PR must not add React features; it only removes provider controls and leaves the old UI transitional until PR356.
+- PR331 `chore/pr331-delete-hosted-local-market-runtime`: delete residual hosted local market runtime and EODHD/token/KEK/provider runtime config not owned by siblings.
+
+Acceptance for every sibling: owned deletion is complete, no unrelated refactor, focused tests and PR gate pass.
+
+### PR332 — Provider-removal negative-space QA
+
+Branch: `test/pr332-provider-removal-negative-space`
+
+Depends on: PR324–PR331.
+
+Scope: QA only.
+
+Acceptance: scan executable Python, entrypoints, current UI, Compose/workflows/scripts, tests/docs; no provider acquisition/credentials/medallion/market filesystem fallback/shared refresh/download/cron; no sync refs; no raw market SQL outside `market_source`; OpenAPI clean; full merge gate.
+
+### PR333 — Single-user backend simplification
+
+Branch: `refactor/pr333-single-user-backend`
+
+Depends on: PR332.
+
+Scope: remove user/tenant/membership/project-membership/credential-owner security authority from production services. Domain run/selection IDs may remain, but never as tenant scopes.
+
+Acceptance: one workspace; no authorization behavior depends on user/project membership; no provider credentials; backend tests prove single-user semantics.
+
+### PR334 — Legacy UI freeze for source-cutover compatibility
+
+Branch: `refactor/pr334-freeze-legacy-ui`
+
+Depends on: PR332.
+
+Scope: **transitional only**. Remove user/project switching and obsolete provider controls needed to keep the legacy UI usable during source cutover. Do not redesign it and do not add new React/TanStack/Vite functionality.
+
+Acceptance: canonical transitional routes `/metadata`, `/univariate`, `/bivariate`, `/multivariate`; no project selector/user switching; all new product UI work is explicitly deferred to Dash PR348–PR354.
+
+### PR335 — Single-user/source-cutover QA
+
+Branch: `test/pr335-single-user-source-cutover-qa`
+
+Depends on: PR333 and PR334.
+
+Acceptance: one workspace, no membership/security scope, four transitional routes, market PG privileges unchanged, full merge gate. This PR is not Dash parity evidence.
+
+### PR336 — Package/entrypoint cleanup
+
+Branch: `chore/pr336-market-source-package-cleanup`
+
+Depends on: PR335.
+
+Scope: remove provider/loading/NAS/refresh CLI/dependencies, update package description, retain required PostgreSQL/analytics dependencies, regenerate lock, add market import-boundary checks.
+
+### PR337 — Transitional Compose source topology
+
+Branch: `chore/pr337-market-source-compose`
+
+Depends on: PR335.
+
+Scope: keep Portfell application DB and external read-only market DB distinct during source cutover; no provider secrets/download workers; Compose never owns xetra-loader.
+
+Acceptance: required external market DSN; no market DSN fallback; fixture uses LOGIN member of NOLOGIN `portfell_app`; market DML fails. This Compose is explicitly superseded later by PR358 for the new `portfell_dash` DB + Dash runtime.
+
+### PR338 — Source architecture documentation
+
+Branch: `docs/pr338-market-source-architecture`
+
+Depends on: PR335.
+
+Scope: document xetra-loader -> external PostgreSQL -> Portfell, exact keys/tables/role/snapshot/adjusted-close/Decimal/sync denial. Mark React/Vite UI and current Portfell application DB as transitional and point to PR344–PR360.
+
+### PR339 — Clean source-cutover runtime QA
+
+Branch: `test/pr339-clean-market-source-runtime`
+
+Depends on: PR336–PR338.
+
+Acceptance: clean `uv sync`, imports, entrypoints, Compose/container without provider/NAS; two DB authorities remain separate; fixture exercises all four analytical stages; full merge gate.
+
+### PR340 — Live xetra-loader V2 QA
+
+Branch: `test/pr340-live-xetra-loader-v2`
+
+Depends on: PR339 and upstream production V2 PASS artifact.
+
+Blocker: do not start until `artifacts/acceptance/postgres-full-sync-v2.json` exists on xetra-loader `main` and is marked PASS.
+
+Acceptance: verify exact loader SHA/endpoint/database; use secret-supplied non-superuser LOGIN member; SELECT exact four business tables; representative rows through gateway; market DML/DDL fails; sync access fails and counts as PASS; sanitized evidence; full gate.
+
+### PR341 — PostgreSQL-only source E2E
+
+Branch: `test/pr341-postgres-only-source-e2e`
+
+Depends on: PR340.
+
+Acceptance: cold start without provider/NAS/medallion/xetra-loader Python package; full Metadata -> Uni -> Bi -> Multi; all market reads gateway-only; unavailable/empty/partial/missing-adjusted fail closed; duplicate ISIN full identity; snapshot lineage contains no provider/download/sync identity; repeated workflow leaves market tables unchanged; full gate.
+
+### PR342 — Source cutover runbook
+
+Branch: `docs/pr342-market-source-cutover-runbook`
+
+Depends on: PR341.
+
+Scope: preflight DSNs/tables/role/UTC/read-only; back up surviving application/analytical state only; legacy market files are disposable and never migrated; smoke four routes; rollback application/config only and never reactivate provider acquisition or broader grants.
+
+### PR343 — Source-series closeout and Dash handoff
+
+Branch: `docs/pr343-source-series-closeout`
+
+Depends on: PR342.
+
+Scope: freeze the exact merged source/runtime contracts that PR344 consumes; classify old PR264–PR295 UI/product ideas as `reuse-cleanly`, `reimplement-in-dash`, or `retire`; do **not** create a second backlog file and do not resurrect React-era architecture.
+
+Acceptance: one checked-in handoff records exact source gateway API, application service API, persisted analytical concepts, four-page workflow, objective set (`return_risk`, `return_drawdown`, `minimum_risk`), professional plot requirements, Universe & History requirements, and the deletion inventory seed used by PR344.
+
+## 4. Plotly Dash + clean database full-replacement series — PR344–PR360
+
+This series is mandatory. Completion of the source series does **not** make the product architecture final until PR360 passes.
+
+Dependency graph:
+
+```text
+PR343
+  |
+PR344
+  |
+PR345 -> PR346 -> PR347
+  |                 |
+  +------> PR348 ---+
+            |
+PR349 || PR350 || PR351 || PR352
+            |
+          PR353
+            |
+          PR354
+            |
+          PR355(QA)
+            |
+      PR356 || PR357
+            |
+          PR358
+            |
+          PR359(QA)
+            |
+          PR360
+```
+
+### PR344 — Full-replacement inventory and frozen contract
+
+Branch: `docs/pr344-dash-full-replacement-contract`
+
+Priority: P0.
+
+Depends on: PR343.
+
+Owned paths: `BACKLOG.md`, new `docs/contracts/plotly-dash-replacement-v1.md`, new `docs/contracts/legacy-ui-db-inventory-v1.json`, focused contract tests only.
+
+Tasks:
+
+- inventory every production file/path belonging to the legacy browser UI;
+- inventory every direct frontend dependency and Node/npm build/runtime surface;
+- inventory every legacy Portfell-owned application database/schema/table/migration/repository/env var/Compose volume/service dependency;
+- inventory current FastAPI routes/application-service methods used by the four stages;
+- freeze exact Dash route/page IDs, callback service contracts, final DB authorities, and final negative-space rules;
+- classify each legacy item exactly `delete-pr356`, `delete-pr357`, `retain-backend`, or `retain-test-only`.
 
 Acceptance:
 
-- Navigation responses remain contract-equivalent for no-project, selected, filling, ready, running,
-  failed, stale, and completed fixtures, with the new revision and ETag fields explicitly versioned.
-- Each route uses a constant bounded number of PostgreSQL statements independent of project count,
-  uses at most three statements including transaction-local RLS binding, performs zero shared-file/
-  Parquet reads and zero writes, and does not construct or persist an analytical selection while
-  serving GET.
-- A 100-project/25,000-member deterministic fixture satisfies the documented response-size,
-  statement-count, and latency budgets both idle and during PR246's worker contention scenario:
-  uncompressed JSON stays below 256 KiB, idle p95 stays below 250 ms, and loaded p95 stays below 1 s.
-- Every relevant command updates the projection in the same successful transaction; forced rollback
-  leaves both source state and projection unchanged. Reconciliation produces byte-equivalent rows.
-- RLS, guessed-project, deleted-project, stale-projection, ETag, restart, migration, rollback, focused
-  API, and real-stack regression tests pass with the applicable gates in `GATES.md`.
+- inventory is deterministic, schema-validated, sorted, contains no secrets, and has no `unknown` disposition;
+- every production React/Vite/TypeScript/TanStack/Node UI path is owned by PR356;
+- every legacy Portfell DB object/adapter/migration is owned by PR357 or explicitly proven still required by the new DB contract;
+- `xetra_loader` objects are explicitly excluded from deletion;
+- no implementation code is changed;
+- PR gate passes.
 
-Security: Projection tables use forced RLS and contain no credentials, storage locations, unrestricted
-membership, or cross-project analytical payloads. Authorization starts from authenticated user and
-owned project on every read.
+Security: inventory stores names only, never credentials/DSNs with passwords.
 
-Determinism: Source record identities plus a versioned projection schema produce one canonical row and
-ETag; reconciliation order cannot change serialized output.
+Determinism: identical tree produces byte-identical inventory.
 
-Idempotency: Reapplying an event or reconciliation updates the same projection revision only when its
-canonical content changes and never duplicates project or workflow rows.
+Idempotency: rerunning inventory validation changes nothing.
 
-### PR248. Page View Contracts And Lazy Analytical Sections
+### PR345 — New `portfell_dash` schema and migrations
 
-Branch: split into the atomic PR248a–PR248d sequence below.
+Branch: `feat/pr345-portfell-dash-database`
 
-Git status: merged; PR248a landed as #412, PR248b landed as #414, PR248c1 landed as #415, PR248c2 landed as #416, PR248d1 landed as #417, Bivariate adoption landed as #418, Univariate adoption landed as #441, and Multivariate adoption landed as #442.
+Priority: P0.
 
-PR: TBD; each atomic step receives its own PR.
+Depends on: PR344.
 
-Priority: P1 request fan-out and payload control.
+Owned paths: new `src/portfell/app_state/migrations/**`, new schema contracts, focused migration/catalog tests. Do not edit legacy DB adapters.
 
-Depends on: PR247.
+Tasks:
 
-PR248a branch: `feat/hosted-page-view-contract-foundation`.
-
-PR: https://github.com/SergejSchweizer/portfell/pull/412 (landed 2026-08-14).
-
-- Define the versioned Python and TypeScript-independent JSON contract envelope: `contract_version`,
-  `project_id`, navigation/workflow projection ETags, compact module status, immutable section revision
-  IDs, `sections` availability, and typed size/availability errors. The envelope must not contain
-  result rows, matrices, members, credentials, or storage paths.
-- Add only the Metadata Builder initial page-view route and its bounded PostgreSQL projection reader.
-  It authorizes the named project in one request, returns a byte-stable compact criteria/selection/
-  initial-fill summary, and exposes no file or analytical reads.
-- Required handoff: a typed route/service port and checked-in fixture builders for ready, filling, empty,
-  unauthorized, and deleted projects. Do not migrate React pages or create Univariate/Bivariate/
-  Multivariate routes in this PR.
-
-Acceptance for PR248a:
-
-- `GET /projects/{project_id}/views/metadata-builder` returns one versioned envelope with a project-
-  scoped ETag and private revalidation headers; `If-None-Match` returns `304` without a body.
-- The route uses at most two PostgreSQL statements including RLS binding, performs zero writes and zero
-  shared-file reads, and returns `404` for guessed/deleted/cross-user projects before exposing a view.
-- Fixtures assert ready, filling, empty, and unavailable sections; contract, route, RLS, ETag,
-  architecture, Ruff, format, Pyright, OpenAPI, and real-stack gates pass.
-
-PR248b branch: `feat/hosted-analysis-page-view-contracts`.
-
-PR: https://github.com/SergejSchweizer/portfell/pull/414 (landed 2026-08-14).
-
-- Depend only on PR248a's envelope and add Univariate, Bivariate, and Multivariate compact initial-view
-  routes. Each reads authorized workflow/run projections and compact persisted summaries only; large
-  result pages, pair rows, matrices, candidates, validation, and performance stay unavailable until a
-  later lazy-section route.
-- Required handoff: exact section keys and immutable revision IDs for every large section, plus fixtures
-  for absent, running, failed, stale, and complete runs. Do not modify React consumers.
-
-Acceptance for PR248b:
-
-- Each route has one compact response below 256 KiB, at most two PostgreSQL statements including RLS,
-  no file reads/writes, and deterministic ETags across repeated reads.
-- Two-project, stale-run, missing-run, and cross-user fixtures prove authorization and contract shape;
-  focused API, contract, architecture, Ruff, format, Pyright, OpenAPI, and real-stack gates pass.
-
-PR248c was split because tabular pagination and indivisible analytical payload limits have different
-authorization, transport, and failure contracts. PR248c1 supplies the tabular hand-off; PR248c2 consumes
-its revision/cursor contract for matrices and large analytical detail sections.
-
-PR248c1 branch: `feat/hosted-lazy-tabular-sections`.
-
-PR: https://github.com/SergejSchweizer/portfell/pull/415 (landed 2026-08-14).
-
-- Add only authorized lazy pages for Univariate `results` and `selection_results`, Bivariate `results`,
-  and Multivariate `components`. Resolve project and stage ownership before reading the named run or
-  selection; do not add matrices, candidate detail, validation, performance, or React changes.
-- Each page is exactly 200 rows at most and uses a stable opaque cursor bound to the initial-view section
-  revision. A changed revision returns `409 section_revision_mismatch`; malformed cursors return
-  `409 section_cursor_invalid`; a locked, running, stale, failed, or absent section returns
-  `409 section_not_available`.
-- Required hand-off: response shape is `{revision, items, total, limit, next_cursor}` and is bounded to
-  2 MiB. It is the only pagination/cursor implementation PR248c2 and PR248d may consume.
-
-Acceptance for PR248c1:
-
-- A completed three-item Univariate fixture returns its authorized project-scoped result page, no cursor
-  follows its last page, and a 201-item fixture returns 200 items followed by one immutable cursor that
-  returns the remaining item without duplicate or omission.
-- Guessed project IDs, cross-user project IDs, run IDs from another project, unknown sections, locked
-  stages, malformed cursors, and stale cursors return their exact typed outcomes without reading a result
-  payload or recomputing analysis.
-- API contract snapshot, focused route/contract tests, security/architecture tests, Ruff, format,
-  Pyright, and real-stack button gates pass. The initial-page routes remain byte-identical.
-
-PR248c2 branch: `feat/hosted-lazy-matrix-and-detail-sections`.
-
-PR: https://github.com/SergejSchweizer/portfell/pull/416 (landed 2026-08-14).
-
-- Depend only on PR248c1's section revision and cursor envelope. Add authorized lazy routes for
-  covariance/correlation matrices, tail-risk scatter, Bivariate summary, and Multivariate summary,
-  structure, candidates, candidate detail, risk contributions, income evidence, validation, artifacts,
-  and performance. Do not modify page entry or pagination behavior.
-- Enforce the 2 MiB encoded section limit before returning a response. An indivisible oversize matrix or
-  detail payload returns `413 section_too_large` with `{section, revision}`; it must never be truncated or
-  recomputed. Tabular candidate/component data continues to use only PR248c1 pagination.
-
-Acceptance for PR248c2:
-
-- A non-visible matrix/detail section is not read. A visible authorized section is fetched once per
-  immutable revision, while stale/unknown revisions, cross-user IDs, failed runs, missing artifacts, and
-  oversized fixtures produce their exact typed result without leakage.
-- Matrix and detail fixtures prove the 2 MiB measurement uses encoded response bytes and does not cut
-  rows, labels, or values. API, contract, security, Ruff, format, Pyright, and real-stack gates pass.
-
-PR248d was split by module entry point. PR248d1 owns Metadata Builder's compact page-view read; PR248d2
-owns Univariate/Bivariate/Multivariate page entries and their lazy visible sections. Both retain only
-ephemeral controls/tabs locally, cancel obsolete requests, and introduce no second query cache.
-
-PR248d1 branch: `feat/web-metadata-page-view-adoption`.
-
-PR: https://github.com/SergejSchweizer/portfell/pull/417 (landed 2026-08-14).
-
-- Replace the Metadata Builder project's independent criteria and initial-fill reads with exactly one
-  `GET /projects/{project_id}/views/metadata-builder` call. Field options and explicit job-progress
-  polling remain separate concerns; no statistics page, cache, or server contract changes are allowed.
-- On project-change and unmount, abort the obsolete page-view request and never apply its data to another
-  project. The view's unavailable initial-fill state renders the existing empty/status state rather than
-  throwing a request failure.
-
-Acceptance for PR248d1:
-
-- A project restore makes one Metadata Builder page-view request instead of the former criteria plus
-  initial-fill request pair. Project switching cannot display criteria or fill progress from the previous
-  project, and an unavailable fill state remains usable.
-- Vitest client/component tests, the Metadata Builder Playwright flow, TypeScript strict checks, Web
-  production build, Docker image build, and real-stack button gates pass.
-
-PR248d2 was completed for Bivariate only as `feat/web-statistics-page-view-adoption` in PR #418. Its
-remaining Univariate and Multivariate work is independently mergeable and therefore split into the
-following atomic steps; neither step may reintroduce the former Bivariate fan-out.
-
-PR248d2a branch: `feat/web-univariate-page-view-adoption`.
-
-PR: https://github.com/SergejSchweizer/portfell/pull/441 (merged 2026-08-14).
-
-Git status: merged.
-
-- Own only the Univariate page entry and its visible `results` lazy section. Use the compact Univariate
-  page view for stage/run state and request result pages only after the completed-results panel is visible.
-  Abort on project, run, or tab changes; retain local portfolio-selection drafts. Do not add TanStack
-  Query, change Bivariate/Multivariate, or modify analytical calculations.
-
-Acceptance for PR248d2a:
-
-- A completed Univariate restore uses one compact page-view request and makes zero result-page requests
-  until its results panel is visible. A visible panel requests only revision-bound pages required to render
-  the active statistic, and a project/run switch cannot paint rows from the old project.
-- Focused Vitest request/cancellation tests, TypeScript strict checks, Web build, API/UI contract checks,
-  and the applicable real-stack gate pass.
-
-PR248d2b branch: `feat/web-multivariate-page-view-adoption`.
-
-PR: https://github.com/SergejSchweizer/portfell/pull/442 (merged 2026-08-14).
-
-Git status: merged.
-
-- Depend on PR248d2a only for the page-entry convention. Own only the Multivariate page entry and its
-  visible overview/candidate/detail sections. Abort obsolete project/run/tab/candidate requests and retain
-  local candidate-control state. Do not add TanStack Query or change Univariate/Bivariate.
-
-Acceptance for PR248d2b:
-
-- A completed Multivariate restore uses one compact page-view request, requests no invisible section, and
-  requests exactly the selected revision-bound section. Rapid project/run/tab/candidate changes cannot
-  display another project's data. Focused Vitest, TypeScript, build, contract, and real-stack evidence pass.
-
-Scope:
-
-- Define one versioned initial view contract for each Metadata Builder, Univariate, Bivariate, and
-  Multivariate page. Each contract includes navigation revision, authorized run identity/status,
-  section availability, compact summary values, pagination cursors, and immutable section revision
-  IDs; it does not embed every large table or matrix.
-- Add project-scoped FastAPI view routes that authorize once and assemble each initial contract from
-  PostgreSQL projections plus persisted artifact manifests. Replace the browser's independent initial
-  workflow, run, summary, plan, and first-result requests with one route per page.
-- Keep large Univariate result pages, pair tables, covariance/correlation matrices, components,
-  candidate details, validation series, and performance series behind explicit section endpoints.
-  Load a section only when its visible tab/panel requires it; cancel obsolete requests after project,
-  run, metric, tab, or route changes.
-- Add stable cursor pagination and response-size limits. Do not create one unbounded `full-data`
-  endpoint, GraphQL layer, browser-side join, or server-side financial recomputation during GET.
-  Initial page views are limited to 256 KiB uncompressed; lazy sections are limited to 2 MiB and
-  tabular pages to 200 rows. Contracts return `413 section_too_large` with section metadata when an
-  intrinsically indivisible matrix exceeds the limit.
-- Synchronize typed Python responses, generated/open API snapshots, TypeScript contracts, route/page
-  specifications, fixtures, and interaction tests in the same PR.
-
-Out of scope: Visual redesign, changing analytical values, replacing REST, or moving artifact payloads
-into PostgreSQL.
+- create a clean database-target migration chain for database `portfell_dash`, schema `portfell`;
+- implement exact v1 tables for singleton workspace, `market_source_snapshots`, `metadata_universes`, `metadata_universe_members`, `analysis_runs`, `analysis_artifacts`, `univariate_selections`, `univariate_selection_members`, `decision_artifacts`, `ui_preferences`;
+- use full listing identity `(isin, exchange, code)` in universe/selection membership;
+- enforce immutable/published revision uniqueness, run-stage/status constraints, foreign keys, typed timestamps, and deterministic IDs;
+- include no tenant/user/project/provider-credential/status-event/navigation-projection tables.
 
 Acceptance:
 
-- Initial entry to each workflow page requires at most one page-view request after an already cached
-  project shell; a cold shell plus page requires at most two application-data requests before first
-  useful content. Playwright asserts exact request paths and upper bounds.
-- Bivariate initial entry no longer issues the current 11-request matrix fan-out. Non-visible matrices
-  and Multivariate detail sections issue zero requests until selected, then exactly one request per
-  immutable section revision.
-- Every response stays below its documented compressed and uncompressed byte budget; oversized tables
-  use stable pagination and oversized matrices fail with a typed availability/limit contract rather
-  than truncation.
-- Two-project authorization, stale run replacement, rapid navigation cancellation, partial section
-  failure, empty state, loading state, retry, browser back/forward, desktop, tablet, and mobile tests
-  pass without browser-owned financial or authorization logic.
-- Focused API/UI tests, OpenAPI drift validation, Playwright request-count assertions, Web image build,
-  and the applicable gates in `GATES.md` pass.
+- empty database migrates from zero to head and back only according to documented reversible/destructive boundaries;
+- catalog snapshot equals frozen DDL contract exactly;
+- no migration references a legacy schema/table as an input source;
+- one clean fixture supports one universe and one completed run per stage without user/project rows;
+- migration repeat is idempotent; focused tests and PR gate pass.
 
-Security: Page and section routes resolve user, project, run, and artifact authorization before reading
-manifests or payloads. A section or artifact identifier alone never grants access.
+Security: new login has only required privileges on `portfell`; no superuser requirement.
 
-Determinism: One projection revision, run identity, artifact manifest, pagination cursor, and contract
-version produce byte-stable view and section responses.
+Determinism: same migration head yields same catalog fingerprint.
 
-Idempotency: All view and section reads are non-mutating; retries and cancelled/restarted requests
-return the same revision without starting calculations or ingestion.
+Idempotency: migration application is repeat-safe under the migration tool contract.
 
-### PR249. Shared Browser Query Cache And Navigation Prefetch
+### PR346 — New application-state repositories
 
-Branch: split into PR249a–PR249c below.
+Branch: `feat/pr346-portfell-dash-app-state-repositories`
 
-Git status: merged; PR249a landed as #419, the shell adoption landed as #420, consumer migration landed
-as #443, and deliberate prefetch landed as #444.
+Depends on: PR345.
 
-PR: TBD.
+Owned paths: new `src/portfell/app_state/**` repositories/contracts except migrations; focused tests.
 
-Priority: P1 instant repeat navigation and frontend simplification.
+Tasks: implement typed repositories for every PR345 concept; parameterized SQL only; no import from legacy hosted PostgreSQL repository modules; no market SQL.
 
-Depends on: PR248.
+Acceptance: create/read/list exact immutable revisions, stage-run lifecycle, selection membership, artifacts, decision artifacts, preferences; transaction rollback tests; restart tests; no user/project/tenant scope; no legacy table reference; PR gate passes.
 
-PR249a branch: `feat/web-query-cache` (merged as #419).
+Security: repository errors are typed/redacted; no SQL in public UI errors.
 
-- Add the exact `@tanstack/react-query` dependency, one memory-only application `QueryClient`, canonical
-  typed key factories, and the shared retry/stale/garbage-collection policy. Do not migrate consumers,
-  add prefetch, or retain persistent browser storage in this PR.
-- Required handoff: `queryClient`, `queryTiming`, and `queryKeys` are the only shared cache primitives;
-  PR249b must use them rather than constructing any alternate client or key.
+Determinism: stable ordering and canonical serialization for all list/read methods.
 
-Acceptance for PR249a:
+Idempotency: repeated insert-by-content identity converges to the same immutable row or typed conflict.
 
-- The root renders under exactly one `QueryClientProvider`; completed data defaults to five-minute
-  freshness, volatile page data to 15 seconds at consumer selection, unused entries are collected after
-  15 minutes, GET retries cap at two with bounded backoff, and mutations never retry automatically.
-- Package lockfile, TypeScript strict check, unit coverage of key identity/default policy, production Web
-  build, and storage-safety search prove no persistent tenant cache is introduced.
+### PR347 — Application services cut over to new state DB
 
-PR249b branch: `refactor/web-query-cache-consumers` (merged as #443).
+Branch: `refactor/pr347-app-services-portfell-dash-db`
 
-- Depend only on PR249a. Migrate all production `useResource` server readers, revision counters, and
-  global refresh events to the single QueryClient and delete the superseded hook. Commands invalidate
-  only exact project/run keys after server success; logout/session invalidation clears memory.
+Depends on: PR346.
 
-Acceptance for PR249b:
-
-- No production import of `use-resource` remains. Two concurrent consumers with one canonical key make
-  one request; project switching never shows another project's page/section; failed writes create no
-  optimistic cache state; focused Vitest assertions cover exact invalidations and cancellation.
-
-PR249c branch: `feat/web-query-cache-prefetch`.
-
-PR: https://github.com/SergejSchweizer/portfell/pull/444 (merged 2026-08-14).
-
-Git status: merged.
-
-- Depend only on PR249b. Prefetch at most one deliberate sidebar destination/page view after selection
-  or hover intent, using the canonical project-specific key and ETag revalidation. Do not speculatively
-  fetch all workflow pages.
-
-Acceptance for PR249c:
-
-- Warm deliberate navigation uses fresh memory data without a blocking loader, while project/run changes
-  cancel obsolete prefetches and cannot expose old tenant data. Playwright request counts prove one
-  bounded destination prefetch only.
-
-Scope:
-
-- Adopt TanStack Query as the single browser server-state owner. Add one application query client and
-  typed key factories for project context, navigation workflow, page views, run revisions, and lazy
-  sections; keep ephemeral controls, open tabs, and form drafts as local React state.
-- Replace production `useResource` server reads, revision counters, global custom refresh events, and
-  duplicated Shell/page fetches. Remove the superseded hook after all production consumers migrate;
-  retain no second cache or stale-while-revalidate implementation.
-- Define explicit `staleTime`, garbage collection, retry, cancellation, and invalidation rules by
-  resource. Navigation and completed immutable runs use a 5-minute `staleTime`; running states and
-  page views use 15 seconds until PR250 replaces polling invalidation; unused queries are collected
-  after 15 minutes; GET retries are limited to two attempts with capped backoff; commands never retry
-  automatically. Mutations update returned canonical data and invalidate only affected user/project/
-  run keys after server success; failed or optimistic operations cannot expose uncommitted state.
-- Prefetch the destination page view on deliberate sidebar intent and after project selection, bounded
-  to one destination. Use ETags from PR247/PR248 for revalidation and preserve last successful data
-  during a background refresh without showing it for a different project or run.
-- Keep the cache memory-only. Clear it on logout/session invalidation and never persist tenant data,
-  credentials, responses, or query keys to localStorage, sessionStorage, IndexedDB, service-worker
-  caches, URLs, or logs.
-
-Out of scope: Offline mode, service workers, general client state management, visual redesign, or
-speculative prefetch of every workflow page.
+Scope: wire Metadata, Univariate, Bivariate, and Multivariate application services to the new `app_state` repositories while market reads remain through `MarketDataGateway`.
 
 Acceptance:
 
-- Shell and page components issue one network request per cold canonical query key, deduplicate
-  concurrent consumers, reuse fresh data on back/forward navigation, and revalidate stale data once.
-- Switching projects cannot display, flash, retry, or reuse the previous project's page view or lazy
-  section. Logout and `401` session invalidation synchronously remove all tenant query data.
-- Successful project, selection, ingestion, and analytical commands invalidate exactly the documented
-  keys. Unit tests fail on broad global invalidation, duplicate key construction, uncancelled obsolete
-  requests, or an unbounded retry loop.
-- Playwright proves warm navigation renders from cache without a blocking loader, background refresh
-  preserves usable content, errors retain the last matching revision, and request counts satisfy
-  PR248's budgets on desktop and mobile.
-- Package lockfile, TypeScript strict checks, Vitest, Playwright, production Web build, Docker image
-  rebuild, storage-safety checks, and the applicable gates in `GATES.md` pass.
+- all four stages can run against an empty new `portfell_dash` DB plus external market fixture;
+- no production application service imports legacy hosted DB repositories;
+- snapshot lineage, exact selections, analysis results/artifacts, and Multivariate DecisionArtifact persist/reload after process restart;
+- no legacy DB read/write fallback; failure of new app DB fails closed;
+- focused stage regression tests and PR gate pass.
 
-Security: Cache keys include authenticated scope and exact project/run identity; cache data is
-memory-only and is destroyed at the authentication boundary.
+### PR348 — Plotly Dash shell mounted in FastAPI
 
-Determinism: Canonical key factories and server revisions determine cache identity; component mount
-order does not alter fetched data or invalidation scope.
+Branch: `feat/pr348-plotly-dash-shell`
 
-Idempotency: Concurrent reads single-flight per key, and repeated successful invalidation converges on
-one refetch of the newest server revision.
+Depends on: PR344. May execute in parallel with PR345–PR347 but must rebase on PR347 before merge if shared composition changes.
 
-### PR250a. Durable Status-Event Schema
+Owned paths: new `src/portfell/dash_app/**` shell/navigation/layout/assets, FastAPI composition mount, focused tests. Do not change analytical calculations.
 
-Branch: `feat/hosted-status-event-schema`.
+Tasks:
 
-Git status: merged.
-
-PR: [#421](https://github.com/SergejSchweizer/portfell/pull/421).
-
-Delivered the RLS-protected, compact PostgreSQL event catalog and its versioned migration. The
-remaining PR250 work is deliberately split below so each change has one reviewable responsibility.
-
-### PR250b. Bounded Durable Status-Event Repository
-
-Branch: `feat/hosted-status-event-repository`.
-
-Git status: merged.
-
-PR: https://github.com/SergejSchweizer/portfell/pull/422.
-
-Priority: P1 live status with bounded request load.
-
-Depends on: PR250a.
-
-Scope:
-
-- Add the PostgreSQL adapter that appends compact events and replays an authorized user's events in
-  monotonic ID order. Bind the authenticated RLS principal before every operation and enforce a
-  maximum replay page of 1,000 rows in the adapter itself.
-- Keep this PR transport- and publisher-free: no route, SSE serialization, polling removal, or
-  lifecycle call site belongs here.
+- add Dash/Plotly Python dependencies;
+- create one Dash application mounted/integrated with the production FastAPI runtime;
+- register exactly four routes `/metadata`, `/univariate`, `/bivariate`, `/multivariate`;
+- add shared navigation, loading/error region, page title contract, responsive desktop/tablet/mobile layout foundation;
+- callbacks call typed application-service ports, never SQL;
+- no Node/npm/Vite/TypeScript build is introduced.
 
 Acceptance:
 
-- Adapter tests prove RLS binding precedes writes and reads, append writes only the compact catalog
-  fields, replay is strictly ordered after a supplied cursor, and negative, zero, or oversized
-  bounds fail with the typed validation error.
-- Focused Python tests, Ruff, Pyright, and the applicable `GATES.md` checks pass.
+- all four routes resolve and only shell/placeholders render before page PRs;
+- one process/container topology is documented and tested;
+- FastAPI health/API routes remain reachable;
+- browser smoke test has zero console/page errors attributable to Portfell;
+- no import from `apps/web`;
+- PR gate passes.
 
-### PR250c1. Transactional Workflow-Projection Event Publication
+### PR349 — Dash Metadata page
 
-Branch: `feat/hosted-status-event-publication`.
+Branch: `feat/pr349-dash-metadata-page`
 
-Git status: merged.
+Depends on: PR347 and PR348.
 
-PR: https://github.com/SergejSchweizer/portfell/pull/423.
+Owned paths: Dash Metadata page/callbacks and focused tests only.
 
-Priority: P1 live status with bounded request load.
-
-Depends on: PR250b.
-
-Scope: Make an upsert of the compact PR247 workflow projection report whether it changed under the
-same PostgreSQL statement. Publish exactly one event only for a changed projection, from the same
-request/worker transaction and with its returned revision. This covers all Uni/Bi/Multivariate
-transitions that already refresh this projection. A no-op reconciliation must publish nothing.
-
-Acceptance: Repository and projector tests prove one changed projection produces one event carrying
-the revision, no-op/retry produces none, RLS binding precedes both writes, and a failed request rolls
-back projection and event together. Focused Python tests, Ruff, Pyright, and applicable gates pass.
-
-### PR250c2. Bootstrap And Metadata Lifecycle Event Publication
-
-Branch: `feat/hosted-lifecycle-status-event-publication`.
-
-Git status: merged.
-
-PR: https://github.com/SergejSchweizer/portfell/pull/424.
-
-Priority: P1 live status with bounded request load.
-
-Depends on: PR250c1.
-
-Scope: Publish compact queued, progress, terminal, and metadata-revision events within the existing
-bootstrap-job and metadata-lifecycle transaction boundaries. Define logical transition uniqueness so
-retries cannot duplicate a logical lifecycle event; refresh workflow projections where required.
-
-Acceptance: Commit paths atomically persist bootstrap/metadata source state and one event; rollback
-persists none; worker and repository tests cover queued, running, successful, partial, failed, retry,
-and tenant-isolation cases.
-
-### PR250d1. Authenticated SSE Status-Event Transport
-
-Branch: `feat/hosted-status-event-sse`.
-
-Git status: merged.
-
-PR: https://github.com/SergejSchweizer/portfell/pull/425.
-
-Priority: P1 live status with bounded request load.
-
-Depends on: PR250c1 and PR250c2.
-
-Scope: Add one authenticated FastAPI SSE endpoint over the durable repository with `Last-Event-ID`
-replay, 15-second heartbeat comments, RLS-bound reads, proxy-safe headers, disconnect cleanup, and a
-two-stream limit per authenticated session. Events remain compact invalidation hints, not analytical
-payloads.
-
-Acceptance: Unit and API-contract tests prove strict non-negative resume parsing, compact ordered SSE
-framing, heartbeat framing, two-stream enforcement/release, and production-only route composition.
-
-### PR250d2. SSE Resume Reset Recovery
-
-Branch: `feat/hosted-status-event-sse-resilience`.
-
-Git status: merged.
-
-PR: https://github.com/SergejSchweizer/portfell/pull/426.
-
-Priority: P1 live status with bounded request load.
-
-Depends on: PR250d1.
-
-Scope: Detect an expired cursor or a replay window larger than 1,000 retained events before any
-partial replay is emitted. Send one typed reset event containing the current cursor, so the browser
-can invalidate bounded query keys and resume without silent state loss.
-
-Acceptance: Repository and framing tests prove per-user retained bounds, bounded replay detection,
-typed reset framing, and no partial stale replay.
-
-### PR250d3. SSE Retention And Transport Observability
-
-Branch: `feat/hosted-status-event-sse-operations`.
-
-Git status: merged.
-
-PR: https://github.com/SergejSchweizer/portfell/pull/428.
-
-Priority: P1 live status with bounded request load.
-
-Depends on: PR250d2.
-
-Scope: Add 24-hour retention cleanup, connection/replay/lag/reset metrics, graceful shutdown
-handling, and reverse-proxy deployment guidance.
-
-Acceptance: Worker/operations tests prove retention is bounded, metrics are recorded without event
-payloads, shutdown releases streams, and documented proxy behavior avoids buffering.
-
-### PR250e. Browser Status-Stream Adoption
-
-Branch: `feat/web-status-event-stream`.
-
-Git status: merged.
-
-PR: https://github.com/SergejSchweizer/portfell/pull/427.
-
-Priority: P1 live status with bounded request load.
-
-Depends on: PR250d1, PR250d2, and PR250d3.
-
-Scope: Connect one browser stream per authenticated application session; map received events through
-PR249's exact query keys; then remove fixed-interval polling only for states covered by the stream.
-
-Acceptance: Browser tests prove reconnect backoff, bounded key invalidation, no cross-project flash,
-status updates without polling, and no application-data requests during a 15-minute idle session.
-
-### PR250. Durable Server-Sent Job And Workflow Updates
-
-Branch: split into PR250a, PR250b, PR250c1, PR250c2, PR250d1, PR250d2, PR250d3, and PR250e above.
-
-Git status: merged (PR250a/b/c1/c2/d1/d2/d3/e all merged).
-
-PR: TBD.
-
-Priority: P1 live status with bounded request load.
-
-Depends on: PR249.
-
-Scope:
-
-- Add a user-scoped durable status-event sequence for project bootstrap, metadata publication, and
-  Uni/Bi/Multivariate run transitions. Store only compact event type, authorized aggregate reference,
-  projection revision, terminal status, timestamp, and monotonic event ID in PostgreSQL.
-- Publish events in the same transaction as source-state and PR247 projection changes. PostgreSQL
-  notification may wake stream readers, but durable rows and event IDs remain the source for replay;
-  notification delivery alone is never correctness authority.
-- Add one authenticated FastAPI Server-Sent Events endpoint with heartbeat comments, `Last-Event-ID`
-  resume, tenant filtering, connection cleanup, and proxy-safe headers. Send a heartbeat every 15
-  seconds, retain events for 24 hours, replay at most 1,000 events per connection, permit at most two
-  streams per authenticated session, and reconnect after 1, 2, 5, 10, then at most 30 seconds with
-  jitter. Expired or oversized replay cursors return a typed reset event that triggers bounded query
-  invalidation rather than silent state loss.
-- Connect one browser stream per authenticated application session. Map events through PR249's key
-  factories to exact invalidations or canonical cache updates. Remove fixed-interval metadata,
-  bootstrap, and analysis status polling after each migrated state has equivalent stream coverage.
-- Add stream connection, reconnect, lag, replay, reset, and active-client metrics plus deployment
-  guidance for reverse-proxy buffering and graceful API shutdown.
-
-Out of scope: Streaming analytical tables/matrices, bidirectional WebSockets, command submission over
-the stream, browser-selected event topics, or using events as the durable business record.
+Business behavior: browse/filter the active Xetra listing universe, show exact metadata fields/counts, create a versioned Metadata universe, and hand it to Univariate.
 
 Acceptance:
 
-- One state transition produces one ordered durable event in the same successful transaction; a
-  rolled-back command produces none. Duplicate command delivery cannot create duplicate logical
-  transition events.
-- Disconnect/reconnect with `Last-Event-ID` replays every authorized missed event in order. Reconnect
-  without an ID starts from a bounded current cursor, and retention expiry yields the documented reset
-  behavior without leaking the existence of another user's events.
-- A complete bootstrap and each analytical run update the correct UI status without periodic polling.
-  A 15-minute no-change browser session generates no application-data request beyond stream heartbeat
-  traffic and documented auth/session renewal.
-- Multi-tab behavior stays within the documented connection limit, abandoned streams release API and
-  database resources, API restart reconnects successfully, and a slow client cannot create unbounded
-  memory, cursor, or connection growth.
-- RLS/adversarial stream tests, transactional event tests, browser reconnect tests, proxy/Compose
-  real-stack tests, observability checks, and the applicable gates in `GATES.md` pass.
+- uses active listings only for new universe construction;
+- filtering semantics match the Python contract exactly;
+- duplicate ISINs remain distinguishable by full identity;
+- inactive historical identity can be resolved but not newly selected;
+- callbacks never perform direct SQL or provider refresh;
+- persisted universe reloads after restart;
+- accessible validation/loading/empty/error states; PR gate passes.
 
-Security: Authentication and forced RLS scope every connection and replay query. Events contain no
-credentials, membership lists, payload values, storage paths, lease tokens, or cross-project details.
+### PR350 — Dash Univariate page
 
-Determinism: Commit order and a monotonic PostgreSQL event ID define replay order; event schema and
-projection revision mapping are versioned.
+Branch: `feat/pr350-dash-univariate-page`
 
-Idempotency: Logical transition uniqueness prevents duplicate events, and replaying an event applies
-the same cache update/invalidation without duplicate commands or calculations.
+Depends on: PR347 and PR348.
 
-### PR251a. Explicit Hosted FastAPI Composition
+Owned paths: Dash Univariate page/callbacks/plots/tables and focused tests.
 
-Branch: `refactor/hosted-single-authority-composition`.
-
-Git status: merged.
-
-PR: https://github.com/SergejSchweizer/portfell/pull/429.
-
-Priority: P1 final hosted simplification.
-
-Depends on: PR250.
-
-Scope: Remove the implicit local/In-Memory service fallback from `create_app`. Production FastAPI
-composition must receive an explicit PostgreSQL/shared-artifact service bundle; deterministic local
-test services live only in the local test-composition module. Remove the obsolete import-time ASGI
-application fallback because the container already invokes the explicit runtime factory.
-
-Acceptance: Hosted API construction without services fails closed; runtime construction uses only the
-PostgreSQL composition; tests explicitly opt into local test services; repository searches prove the
-production API module does not import local runtime or local research adapters.
-
-### PR251b. Hosted Dependency Boundary Tests
-
-Branch: `chore/hosted-single-authority-boundaries`.
-
-Git status: merged.
-
-PR: https://github.com/SergejSchweizer/portfell/pull/436.
-
-Priority: P1 final hosted simplification.
-
-Depends on: PR251c3.
-
-Scope: Add executable architecture tests prohibiting hosted route/service imports of local workspace,
-test composition, provider client, unrestricted lake, and in-memory authority modules. Keep local CLI
-and analytical-core imports explicitly outside the hosted graph.
-
-Acceptance: Tests fail for every prohibited edge and pass for the explicit PostgreSQL/shared-artifact
-composition and independent local CLI graph.
-
-### PR251c1. Metadata Service Explicit Dependencies
-
-Branch: `refactor/hosted-metadata-explicit-dependencies`.
-
-Git status: merged.
-
-PR: https://github.com/SergejSchweizer/portfell/pull/431.
-
-Priority: P1 final hosted simplification.
-
-Depends on: PR251a.
-
-Scope: Remove local project, selection, metadata, audit, and credential defaults from
-`MetadataProjectService`. Move their construction to `hosted_local_test_composition`; update every
-focused caller to inject its dependencies explicitly.
-
-Acceptance: The service imports no `hosted_local_*` module, constructor calls cannot omit its
-repository ports, production composition remains PostgreSQL-only, and Metadata service/API tests pass.
-
-### PR251c2a. Quote Service Explicit Dependencies
-
-Branch: `refactor/hosted-project-quote-explicit-dependencies`.
-
-Git status: merged.
-
-PR: https://github.com/SergejSchweizer/portfell/pull/433.
-
-Priority: P1 final hosted simplification.
-
-Depends on: PR251c1.
-
-Scope: Remove local project, selection, audit, idempotency, quote, workspace-persistence, and
-shared-market publisher defaults from `QuoteRunService`. Move every local adapter, local workspace
-persister, and local shared-market publisher construction into `hosted_local_test_composition`; update
-every focused caller to pass an explicit port or an explicit `None` where publication/persistence is
-intentionally unavailable.
-
-Acceptance: `QuoteRunService` imports neither `hosted_local_*` nor a workspace repository; its
-constructor requires project, selection, credential, quote lifecycle, audit, idempotency, publisher,
-and workspace-persistence ports; production composition passes PostgreSQL/shared-market adapters only;
-and focused hosted API/quote tests prove local adapters are opt-in.
-
-### PR251c2b. Credential Service Explicit Dependencies
-
-Branch: `refactor/hosted-credential-explicit-dependencies`.
-
-Git status: merged as #434.
-
-PR: TBD.
-
-Priority: P1 final hosted simplification.
-
-Depends on: PR251c2a.
-
-Scope: Remove local project, selection, audit, idempotency, settings, workspace-persistence,
-workflow, navigation, and credential defaults from `CredentialProjectService`. Remove the unreachable
-direct-download, dataset, and account endpoints that depend on in-memory entitlement authority. Move
-local adapter and workspace-persistence construction into `hosted_local_test_composition`; update all
-focused callers to pass every port explicitly.
-
-Acceptance: `CredentialProjectService` imports neither `hosted_local_*`, a workspace repository, nor
-`HostedApiState`; its constructor requires every repository, reader, reconciler, and persistence port
-it consumes; production composition passes PostgreSQL/shared-artifact adapters only; `/downloads/*`,
-`/datasets`, and `/account` are absent from OpenAPI; and focused credential/API/OpenAPI tests prove all
-local adapters are opt-in.
-
-### PR251c3. Multivariate Service Explicit Dependencies
-
-Branch: `refactor/hosted-multivariate-explicit-dependencies`.
-
-Git status: merged.
-
-PR: https://github.com/SergejSchweizer/portfell/pull/435.
-
-Priority: P1 final hosted simplification.
-
-Depends on: PR251c2b.
-
-Scope: Remove local project, selection, multivariate-run, metadata-row, and workflow defaults from
-`MultivariateResearchService`; make local test composition supply the local ports explicitly.
-
-Acceptance: The service imports no local repository; production uses only PostgreSQL/shared data;
-focused multivariate service, run-view, and API tests pass.
-
-### PR251c. Hosted Legacy Adapter And Configuration Removal
-
-Branch: split into PR251c1, PR251c2a, PR251c2b, and PR251c3 above.
-
-Git status: merged.
-
-PR: https://github.com/SergejSchweizer/portfell/pull/437.
-
-Priority: P1 final hosted simplification.
-
-Depends on: PR251c3.
-
-Scope: Delete remaining unreachable hosted fallback adapters, obsolete environment switches, duplicate
-serializers/repositories, and migrated browser cache/polling code. Retain only explicit local CLI
-adapters and test factories.
-
-Acceptance: No production setting selects local/in-memory/workspace authority; all removed hosted
-paths have a named replacement or proof of being dead; API/Web composition is single-authority.
-
-### PR251d. Single-Authority Operations And Documentation
-
-Branch: `docs/hosted-single-authority-operations`.
-
-Git status: merged.
-
-PR: https://github.com/SergejSchweizer/portfell/pull/438.
-
-Priority: P1 final hosted simplification.
-
-Depends on: PR251c.
-
-Scope: Update architecture, Compose, OpenAPI, readiness, deployment, migration, rollback, and UI
-documentation to one PostgreSQL/shared-artifact authority, including exact deploy order and smoke
-checks.
-
-Acceptance: Every sidecar document has one current diagram/TOC-guided path with no fallback guidance;
-the documented preflight, deployment, and rollback commands are verified.
-
-### PR251. Single Hosted Authority And Legacy Fallback Removal
-
-Branch: split into PR251a, PR251b, PR251c1, PR251c2a, PR251c2b, PR251c3, and PR251d above.
-
-Git status: merged (PR251a/b/c1/c2a/c2b/c3/d all merged).
-
-PR: TBD.
-
-Priority: P1 final hosted simplification.
-
-Depends on: PR250.
-
-Scope:
-
-- Make PostgreSQL plus authorized shared-artifact adapters the only production hosted composition.
-  Delete hosted fallback selection among in-memory state, workspace JSON, local lake repositories,
-  browser-triggered provider workflows, and shared-file-derived navigation state.
-- Separate package composition explicitly: local CLI commands may construct local lake adapters;
-  production FastAPI routes may construct only PostgreSQL tenant/control-plane repositories and
-  authorized shared payload readers; deterministic test compositions live under test-only factories.
-- Remove dead compatibility branches, duplicate hosted serializers/repositories, obsolete environment
-  switches, migrated polling APIs, superseded `useResource` code, and documentation that describes a
-  second hosted authority. Do not remove the mathematical core or local CLI workflows.
-- Add import/architecture checks that fail when hosted routes/services depend on local workflow,
-  workspace, unrestricted lake, provider-client, or test-composition modules, or when CLI modules
-  depend on hosted authentication/runtime composition.
-- Publish a migration and rollback note covering removed environment variables/routes, required
-  catalog head, minimum Web/API version pairing, deploy order, preflight, smoke checks, and rollback to
-  the last compatible complete stack. No dual-read or dual-write compatibility window is permitted.
-- Update `ARCHITECTURE.md`, `README.md`, hosted security/readiness documents, Compose configuration,
-  OpenAPI snapshot, page specifications, and operational runbooks to one current-state diagram and
-  terminology set.
-
-Out of scope: Removing local CLI mode, rewriting mathematical code, migrating shared analytical bytes
-into PostgreSQL, replacing the four-container Compose topology, or adopting a new frontend/backend
-framework.
+Business behavior: run and inspect univariate statistics for the selected Metadata universe, apply result filters, persist the exact downstream selection.
 
 Acceptance:
 
-- Production startup has one documented hosted composition and fails closed when PostgreSQL,
-  migrations, shared-store manifests, credentials, or required secrets are unavailable. No production
-  setting can select local/in-memory/workspace authority.
-- Repository searches and executable architecture tests prove that hosted requests cannot read or
-  mutate local workspace JSON, unrestricted lake roots, in-memory authority dictionaries, or provider
-  clients; browser commands cannot trigger provider ingestion.
-- Local CLI commands and focused analytical tests remain functional without PostgreSQL or hosted auth,
-  while the Web/API real stack remains functional without a repository-local lake or workspace file.
-- The resulting production dependency graph, environment-variable inventory, route inventory, and
-  runtime module count are recorded before/after; every removed path has either a replacement named in
-  PR246-PR250 or explicit proof that it was unreachable/dead.
-- Fresh deployment, rolling-compatible deployment within the documented version window, restart,
-  backup/restore, rollback rehearsal, two-project isolation, browser workflow, Web image build, full
-  Python/TypeScript/Playwright/Docker validation, and all gates in `GATES.md` pass.
+- formulas/annualization/return conventions remain backend-authoritative;
+- missing adjusted close is shown as typed unavailable evidence, never zero/raw-close fallback;
+- distribution/income evidence does not alter adjusted-close return calculation;
+- filter/selection counts are exact;
+- professional Plotly return/risk visualization is produced from API/service values only;
+- restart restores run and selection; PR gate passes.
 
-Security: Removing fallback authority must narrow access. Missing tenant records, manifests, config,
-or migrations fail closed; local files and object existence can never authorize hosted access.
+### PR351 — Dash Bivariate page
 
-Determinism: Explicit composition and versioned API/projection/event contracts select one dependency
-graph for a given release; startup performs no implicit migration or data import.
+Branch: `feat/pr351-dash-bivariate-page`
 
-Idempotency: Repeated startup, readiness, reconciliation, deployment smoke, and rollback checks do not
-duplicate state or mutate analytical payloads outside declared commands.
+Depends on: PR347 and PR348.
 
-### PR252. Exhaustive User Interaction Manifest, Real-Stack Journeys, And Latency Merge Gate
-
-Branch: `test/exhaustive-user-interaction-merge-gate`.
-
-Git status: in progress on `test/exhaustive-user-interaction-merge-gate`; the deterministic real-stack
-Metadata Builder → Univariate → Bivariate → Multivariate user journey is implemented as the first
-PR252 slice, including the persisted Monthly dividend selection. The remaining exhaustive manifest,
-viewport, failure/retry, and latency-budget scope below is not yet complete.
-
-PR: TBD.
-
-Priority: P0 prevent functional and interactive-performance regressions at merge time.
-
-Depends on: PR251. PR247-PR251 change navigation projections, page contracts, browser caching,
-status delivery, and production composition; their final checked-in contracts are mandatory PR252
-inputs and PR252 may not preserve superseded controls or fallback routes solely to keep old tests
-green.
-
-Business outcome: Every production user-operable Web control has a stable identity and at least one
-deterministic browser case that performs the same action a user can perform, verifies its observable
-effect, and records bounded interaction latency. An unregistered control, stale manifest entry,
-missing behavior assertion, unexpected request, browser error, or exceeded hard budget fails both the
-pre-merge and post-merge aggregate gates.
-
-Scope and ownership boundaries:
-
-- Introduce a versioned `ui-interaction-manifest-v1` contract and committed manifest under
-  `apps/web/tests/interactions/`. Each record owns exactly one stable interaction ID and declares route,
-  viewport applicability, prerequisite fixture state, accessible role/name, control type, enabled or
-  disabled state, user operation, sanitized input class, expected UI transition, expected request
-  method/path/count, persistence check, keyboard equivalent, and latency-budget ID. IDs are stable
-  semantic names and never array indexes, DOM paths, generated CSS selectors, project IDs, or labels
-  containing tenant data.
-- Add stable `data-portfell-interaction-id` attributes only at production interaction boundaries in
-  `apps/web/src/`. The attribute is test identity, not authorization or business state. Buttons, links,
-  tabs, text/search/number/date inputs, selects, textareas, checkboxes, radios, menu/drawer controls,
-  form submission, retry/cancel actions, draggable controls, and keyboard-only commands are in scope.
-  Read-only text, charts without an interaction, browser-native scrolling, and decorative elements are
-  excluded by an explicit checked-in allowlist with a reason per exclusion.
-- Add test-only structured interaction telemetry with schema
-  `ui-interaction-log-v1`. Set `PORTFELL_UI_TEST_LOG_LEVEL=debug` only in Playwright and deterministic
-  real-stack jobs; production and ordinary development defaults remain `info`. Browser, Web server,
-  API, worker, PostgreSQL-test instrumentation, and Playwright reporters emit JSON Lines containing
-  test/run ID, interaction ID, route, fixture state, viewport, operation class, redacted outcome,
-  request method plus route template, request/response byte counts, database statement count,
-  shared-file read count, timestamps, and elapsed milliseconds. Never log entered values, EODHD keys,
-  cookies, authorization headers, request/response bodies, project names, ISIN membership, SQL text,
-  filesystem roots, or secrets.
-- Implement a deterministic manifest collector that reads only schema-valid redacted test logs,
-  normalizes and sorts records, and proposes the committed manifest. Logs are discovery and evidence,
-  not runtime or test authority: generation fails on malformed/redaction-unsafe records, and the
-  committed reviewed manifest plus live DOM inventory remain authoritative. A missing log cannot remove
-  a manifest entry; `--check` fails on additions, removals, changed behavior, or exclusions until the
-  committed manifest is deliberately updated.
-- Extend Playwright with deterministic fixtures for no-project, project-filling, ready, running,
-  complete, failed, stale, empty-result, validation-error, authorization-error, server-error, retry,
-  and reconnect states. Exercise desktop `1440x1080`, tablet `1024x1366`, and mobile `390x844` with the
-  repository-pinned Chromium version, timezone `Europe/Amsterdam`, fixed locale, reduced motion, fixed
-  clock, deterministic IDs, and no production network access.
-- Add one case per manifest interaction and distinct behavior state. Fields receive valid, empty,
-  malformed, minimum, maximum, over-limit, paste, clear, and keyboard-submit cases where the production
-  contract permits them. Actions assert visible feedback, exact canonical request effects, final UI
-  state, focus, accessibility state, persisted server state where applicable, reload behavior, project
-  isolation, back/forward behavior, and duplicate/double activation. Disabled controls prove zero
-  command requests and zero mutation.
-- Keep mocked browser tests exhaustive and fast, then run critical complete journeys against the real
-  Docker Web, API, PostgreSQL, worker, persistent test lake, and deterministic EODHD stub. The real-stack
-  suite covers credential save/replace without exposing plaintext, metadata refresh, project creation
-  and bootstrap, project switch, Uni/Bi/Multivariate execution, all result tabs and filters, reload,
-  restart/reconnect, one injected failure/retry, and verification that no browser action invokes a real
-  provider or writes outside the test data root.
-- Add versioned latency budgets under `apps/web/tests/interactions/latency-budgets.v1.json`. Measure ten
-  samples after one discarded warm-up per deterministic action class and publish nearest-rank p50/p95
-  plus maximum. Immediate validation/loading/disabled feedback has p95 `<=250 ms` and maximum `<=500
-  ms`; warm cached navigation has p95 `<=750 ms` and maximum `<=1,500 ms`; cold local page readiness has
-  p95 `<=2,000 ms` and maximum `<=4,000 ms`; real-stack command acknowledgement has p95 `<=2,000 ms`
-  and maximum `<=4,000 ms`. Long-running analysis completion uses its deterministic fixture SLO rather
-  than the acknowledgement budget, but must show progress within `5,000 ms`, complete within `60,000
-  ms`, and reconcile its terminal result. A budget may be loosened only by an explicit manifest/budget
-  diff with measured before/after evidence and PR rationale.
-- Add required `pr-ui-user-journeys` and `merge-ui-user-journeys` jobs, sharded by page and viewport,
-  to `.github/workflows/pr-quality.yml` and `.github/workflows/merge-gate.yml`. Both stable aggregates
-  depend on their corresponding job. The jobs run manifest generation in `--check` mode, exhaustive
-  mocked interactions, keyboard/accessibility checks, real-stack journeys, request/resource counters,
-  and latency budgets. Upload sanitized JSONL, coverage, timing summary, trace, screenshot, video,
-  console, and network artifacts only on failure with seven-day retention; upload a redacted timing and
-  coverage summary on success with thirty-day retention.
-- Update `GATES.md`, Web test documentation, UI specifications, real-stack runbook, package scripts,
-  `.gitignore`, and branch-protection instructions. Existing focused Vitest and Playwright tests remain;
-  remove duplication only when the manifest case asserts the same behavior and the removal is visible
-  in the PR diff.
-
-Parallel implementation sequence and hand-off:
-
-1. Agent A owns the versioned manifest/log schemas, redaction validator, stable interaction-ID
-   convention, collector, exclusions, and fixtures. Agent B may review but must not independently add a
-   second schema, logger, manifest format, or control-ID convention. The first hand-off is committed
-   schema examples plus a golden normalized manifest fixture and exact validation command.
-2. After that hand-off, Agent A instruments production controls and test-only logging while Agent B
-   builds data-driven Playwright executors, action/effect assertions, latency reporter, and mock
-   fixtures. Shared edits to `package.json`, Playwright configuration, and existing workflow specs are
-   coordinated before either agent changes them.
-3. Agent B adds real-stack journeys and CI shards only after Agent A's redaction and deterministic
-   collector tests pass. Both agents independently run manifest `--check`, inspect the zero-uncovered
-   report, and review sanitized artifacts before the final workflow and documentation update.
-
-Out of scope: Production user analytics, session replay, logging field values or financial payloads,
-random monkey testing as acceptance evidence, replacing Playwright, changing financial calculations,
-changing product behavior only to simplify tests, contacting production EODHD, or treating screenshots
-and wall-clock time alone as proof of functional correctness.
+Owned paths: Dash Bivariate page/callbacks/plots/tables and focused tests.
 
 Acceptance:
 
-- A live runtime inventory visits every declared route and fixture state and reports exactly `0`
-  unregistered user-operable controls, `0` duplicate interaction IDs, `0` missing manifest controls,
-  `0` unexplained exclusions, and `100%` manifest entries with an executed action/effect case. Adding a
-  production control without a manifest record and test makes both UI jobs fail with its route, state,
-  role, accessible name, and interaction ID; deleting a control leaves a stale-entry failure.
-- Every button, link, tab, field, select, checkbox, radio, drawer/menu action, form operation, retry,
-  cancel, drag/drop, and keyboard command reachable in the deterministic states is either tested or
-  appears once in the reviewed exclusion file with a machine-checked non-empty reason. Dynamic controls
-  are covered in each state that changes enabledness, request behavior, or result behavior.
-- Every enabled manifest action proves the declared visible intermediate feedback, exact request
-  method/template/count, response handling, final accessible UI state, and persistent effect. Every
-  disabled or invalid case proves no command request, no database mutation, no shared-store write, and
-  a specific accessible explanation. Double-click, Enter, retry, reload, browser back/forward, and
-  project-switch cases create no duplicate logical command or cross-project state flash.
-- Test logs validate against `ui-interaction-log-v1`, regenerate byte-identically after stable sorting,
-  and produce the same manifest proposal from equivalent runs regardless of Playwright worker order.
-  Deliberate fixtures containing a provider key, cookie, authorization header, project name, ISIN,
-  SQL/body content, or absolute data path are rejected before artifact upload. Repository and artifact
-  secret scans report zero findings.
-- Desktop, tablet, and mobile cases assert mouse/pointer and keyboard behavior, visible focus,
-  accessible names, labels, roles, selected/expanded/disabled states, modal/drawer focus restoration,
-  and zero critical or serious automated accessibility violations. Responsive controls are neither
-  omitted nor counted as covered by an invisible desktop element.
-- The mocked suite blocks every non-local network origin, uses condition-based assertions without
-  sleeps, passes with `fullyParallel`, and produces the same control/action coverage under one worker
-  and the configured shard count. No test depends on execution order, retained browser state, a real
-  provider, production credentials, or an existing developer database/lake.
-- The real-stack journey starts from empty isolated PostgreSQL and lake state, reaches successful
-  metadata/project/Uni/Bi/Multivariate terminal states, exercises every critical control class, then
-  survives browser reload and API/worker recreation with exact project isolation and persisted results.
-  The deterministic provider call count, command/job identities, database changes, and lake business
-  keys reconcile; duplicate logical command and duplicate full business-key counts are zero.
-- Each timed sample records elapsed time together with request count, response bytes, database
-  statement count, shared-file reads, fixture state, and runner identity. Every hard p95 and maximum
-  budget passes. Navigation assertions preserve PR248 request budgets, PR249 cache behavior, PR250 SSE
-  behavior, and PR246 loaded-worker capacity; a timing result without the associated resource counters
-  fails evidence validation.
-- Browser `pageerror`, unhandled rejection, unexpected `console.error`, failed/unexpected request,
-  response contract error, React warning, hydration error, or uncaught API/worker exception fails the
-  responsible interaction case. Expected injected failures are matched by interaction ID and exact
-  typed error contract rather than globally ignored.
-- `pr-quality` cannot succeed unless `pr-ui-user-journeys` succeeds, and `merge-gate` cannot succeed
-  unless `merge-ui-user-journeys` succeeds. A workflow contract test proves both dependencies and all
-  required shards, real-stack execution, artifact redaction, and latency checks are present; no
-  `continue-on-error`, optional job, unpinned browser image, or production secret is used.
-- Completion evidence includes successful executions of
-  `cd apps/web && npm run interactions:manifest:check`,
-  `cd apps/web && npm run test:user-interactions`,
-  `cd apps/web && npm run test:user-latency`,
-  `bash scripts/run_real_stack_e2e.sh --suite user-interactions`,
-  `uv run portfell-quality pr`, and `uv run portfell-quality merge`, plus a redacted coverage/timing
-  summary listing total controls, actions, states, viewport shards, exclusions, p50/p95/max, request
-  counts, response bytes, database statements, shared-file reads, Git SHA, image/browser digests, and
-  zero secret findings.
+- consumes exact persisted Univariate selection;
+- common-calendar/minimum-observation/pair eligibility rules preserved;
+- missing covariance/correlation is unavailable, never encoded as zero;
+- no same-ISIN pair where prohibited by analytical contract;
+- full listing identity visible where ambiguity exists;
+- professional Plotly diversification/relationship visualization uses backend values only;
+- large pair result handling is bounded; restart-safe; PR gate passes.
 
-Security: Interaction IDs and logs are untrusted diagnostics, never authorization input. Test logging
-is opt-in and fail-closed outside production defaults; all values, bodies, credentials, tenant
-identifiers, market membership, SQL, and paths remain absent or redacted. Real-stack jobs use isolated
-ephemeral credentials and test roots, least-privilege containers, no production network, and no
-long-lived artifact containing tenant data.
+### PR352 — Dash Multivariate page
 
-Determinism: Versioned schemas, stable IDs, canonical sorting, fixed fixtures, clock, locale, timezone,
-viewport, browser digest, test data, route templates, action semantics, sample count, percentile rule,
-and budgets determine byte-stable manifest and evidence output. Equivalent application behavior yields
-the same coverage and timing classifications independent of worker/shard order.
+Branch: `feat/pr352-dash-multivariate-page`
 
-Idempotency: Re-running collection, manifest checking, mocked interactions, real-stack journeys, and
-latency samples from the same fixture state neither changes the committed manifest nor duplicates
-projects, jobs, runs, revisions, settings, or lake business keys. Failed and retried tests clean their
-isolated state and never reuse production or another shard's database, lake, browser profile, log, or
-artifact directory.
+Depends on: PR347 and PR348.
 
-Rollback: PR252 adds no production data migration or user tracking. Rollback removes the two UI jobs,
-test-only log switch, reporter, interaction attributes, manifest, and fixtures together; restores the
-previous aggregate dependencies and `GATES.md`; and leaves production API/database/shared-store
-contracts unchanged. A rollback must not leave verbose test logging enabled in production or retain a
-partial manifest as a non-blocking check.
+Owned paths: Dash Multivariate page/callbacks/plots/tables and focused tests.
 
-### Hosted Simplicity And Interactive Performance Series Completion Gate
+Frozen objectives: `return_risk` default, `return_drawdown`, `minimum_risk`.
 
-This series is complete only after PR246 through PR252 merge in order and the current gates in
-[GATES.md](GATES.md) pass. One clean production-like evidence run must prove:
+Acceptance:
 
-- health, project navigation, and workflow remain responsive throughout a deterministic large
-  bootstrap and analytical workload, with idle/loaded latency, errors, resource occupancy, database
-  statements, shared-file reads, response bytes, and worker throughput captured together;
-- navigation GETs are bounded, side-effect-free PostgreSQL projection reads with zero Parquet/shared-
-  file access, constant statement count, private ETag revalidation, and forced-RLS isolation;
-- cold shell/page entry respects the two-request budget, warm navigation does not block on the network,
-  and hidden analytical sections perform no request until opened;
-- TanStack Query is the only production browser server-state cache, tenant data is memory-only, exact
-  invalidation and cancellation prevent cross-project flashes, and logout clears all cached data;
-- one resumable SSE stream replaces periodic status polling, survives API/browser reconnect, bounds
-  replay and slow-client resources, and leaks no cross-user event or aggregate identity;
-- hosted production has one PostgreSQL/shared-artifact authority with no local, in-memory, workspace,
-  unrestricted-lake, or provider-client fallback, while local CLI analysis remains independently
-  supported;
-- synchronized migrations, contracts, OpenAPI, architecture, UI specifications, observability,
-  deployment/rollback runbooks, focused regressions, full quality gates, rebuilt Web image, and
-  production-like browser evidence are complete.
+- Multivariate is the only optimizer page/stage;
+- OOS ranking selects the winner; no in-sample-best substitution;
+- requested and actual optimizer/risk-model method are displayed from persisted artifacts;
+- Equal Weight is never a hidden solver fallback;
+- portfolio candidate OOS return/risk, performance, drawdown, allocation/risk contribution, and required professional plots are rendered from backend artifacts;
+- DecisionArtifact explains winner and availability/production eligibility;
+- restart-safe; PR gate passes.
 
-## Current Architectural Decision
+### PR353 — Shared Dash callback/state/job semantics
 
-Portfell remains a public open-source repository, while the hosted deployment is a private runtime environment.
+Branch: `feat/pr353-dash-shared-state`
 
-The target system has these non-negotiable properties:
+Depends on: PR349–PR352.
 
-- Google is the only end-user authentication provider.
-- PostgreSQL is the primary application database for users, identities, encrypted provider
-  credentials, project create/delete history, immutable selection versions and listing membership,
-  ingestion/analysis jobs, audit events, and project-to-artifact authorization references.
-- EODHD keys are encrypted at rest with envelope encryption. The key-encryption key is never stored in Git, PostgreSQL, container images, build artifacts, logs, or GitHub Actions.
-- Runtime secrets live outside the repository checkout and are mounted only into services that require them.
-- EODHD market observations are stored once in a canonical shared physical store with unique
-  dataset/listing/business keys, atomic publication, deterministic hashes, and explicit correction
-  semantics.
-- A project selection may read globally shared observations for exactly its full listing members.
-  Object existence alone grants nothing; API authorization always starts from an owned PostgreSQL
-  project and immutable selection version.
-- Project creation may request one server-owned initial delta fill for its immutable exact selection,
-  using the operations EODHD credential inside the worker. A fully covered selection makes no
-  provider request; user credentials never feed the globally shared corpus.
-- After initial fill, only the operations-owned nightly cron may refresh quotes, dividends, and
-  splits, using a dedicated service credential and the unique active-project listing union.
-- Every analysis is pinned to exact immutable shared market revisions and artifact dependencies.
-- Univariate, bivariate, multivariate, portfolio, backtest, and report payloads are globally
-  deduplicated by exact input hashes and algorithm versions, while visibility is granted only through
-  user-owned PostgreSQL project/run references.
-- Hosted analytical code must consume resolved scoped inputs and must never scan unrestricted global Silver or Gold data.
-- The local CLI and analytical core remain usable without Google authentication or PostgreSQL through explicit local adapters.
-- Public hosting remains blocked until provider licensing explicitly permits cross-customer shared
-  storage/derived reuse/service-credential refresh and privacy, backup, credential, migration,
-  reconciliation, and security readiness gates pass.
+Scope: remove page-local duplication by adding one typed Dash state/callback layer for current universe/selection/run IDs, job progress, cancellation/retry, stale-result invalidation, and cross-page handoff.
 
-## Series Completion Gate
+Acceptance:
 
-PR143 through PR150 are the first active series. Until PR150 lands, the production browser continues
-to expose exactly the current three modules. PR150 may change that invariant to exactly
-four modules only after every dormant contract, calculation, artifact, persistence, API, and test
-dependency in the preceding PRs is complete. PR151 through PR155 then implement
-the shared-data and nightly-refresh cutover without changing the four-module order.
+- no global mutable Python singleton is business authority;
+- browser `dcc.Store`/client state contains identifiers/presentation state only, never full market authority or secrets;
+- stale upstream revision invalidates downstream readiness deterministically;
+- double-click/retry does not duplicate logical runs;
+- page navigation never changes analytical state by GET/render side effect;
+- one page cannot display another revision's result after rapid navigation;
+- focused concurrency/restart tests and PR gate pass.
 
-The authoritative completion criteria are both active Series Completion Gates above and the current
-pre-merge and post-merge requirements in [GATES.md](GATES.md). Hosted deployment remains
-independently subject to the existing security, licensing, privacy, backup, credential, and
-readiness gates.
+### PR354 — Dash professional visualization and UX parity
 
-## Update Rules
+Branch: `feat/pr354-dash-professional-visualization`
 
-- Put new active PR entries above architecture and history sections.
-- Move an entry to completed history immediately after merge or explicit implementation without a dedicated PR.
-- Record the final GitHub PR URL and merge status.
-- Update `Last reviewed` whenever active ordering, dependencies, status, or acceptance criteria change.
-- Never describe a superseded UI plan as current architecture.
-- Keep implementation, tests, contracts, and documentation in the same PR when they define one behavior.
+Depends on: PR353.
 
-## Completed PR History
+Scope: final visual/interaction layer for all four pages. Use Plotly figures and Dash components only; no React extension application.
 
-These entries are historical and not active work. They are kept to preserve completed scope, PR links, and stable
-backlog identifiers.
+Required named plots include at minimum:
 
-| ID | Title | Final status |
-| --- | --- | --- |
-| PR245 | Mixed Distribution Frequency Portfolios | completed; merged in PR https://github.com/SergejSchweizer/portfell/pull/398 |
-| PR244 | Multivariate Calculation Correctness | completed in PRs https://github.com/SergejSchweizer/portfell/pull/394 and https://github.com/SergejSchweizer/portfell/pull/396 |
-| PR243 | Bivariate Calculation Correctness | completed in PR https://github.com/SergejSchweizer/portfell/pull/395; PR #393 closed without merge |
-| PR242 | Univariate Calculation Correctness | completed; merged in PR https://github.com/SergejSchweizer/portfell/pull/392 |
-| PR241 | Univariate Overview Narrow Bars | completed; merged in PR https://github.com/SergejSchweizer/portfell/pull/391 |
-| PR240 | Multivariate Minimum Variance Convergence | completed; merged in PR https://github.com/SergejSchweizer/portfell/pull/390 |
-| PR239 | Multivariate Overview Metric Labels | completed; merged in PR https://github.com/SergejSchweizer/portfell/pull/389 |
-| PR238 | Multivariate Overview Portfolio Controls | completed; merged in PR https://github.com/SergejSchweizer/portfell/pull/388 |
-| PR237 | Multivariate Overview Cumulative Axis | completed; merged in PR https://github.com/SergejSchweizer/portfell/pull/387 |
-| PR236 | Multivariate Overview Portfolio Colors | completed; merged in PR https://github.com/SergejSchweizer/portfell/pull/386 |
-| PR235 | Multivariate Overview Facts Removal | completed; merged in PR https://github.com/SergejSchweizer/portfell/pull/385 |
-| PR234 | Multivariate Overview Portfolio Summary | completed; merged in PR https://github.com/SergejSchweizer/portfell/pull/384 |
-| PR233 | Multivariate Overview Tabs | completed; merged in PR https://github.com/SergejSchweizer/portfell/pull/383 |
-| PR232 | Automatic Compose Stack Rebuilds | completed; merged in PR https://github.com/SergejSchweizer/portfell/pull/382 |
-| PR231 | Multivariate Performance Series Controls | completed; merged in PR https://github.com/SergejSchweizer/portfell/pull/381 |
-| PR230 | Condense Finished Backlog Records | completed; merged in PR https://github.com/SergejSchweizer/portfell/pull/380 |
-| D017 draft PR168-PR175 | Duplicate durable-authority draft sequence | superseded and discarded as non-active; implemented outcomes are represented by the merged D017 records below |
-| PR168 operational follow-up | Production Cron Installation And First Scheduled Run Evidence | remaining operational backlog discarded by user direction on 2026-08-14; implementation PR #329 remains merged and no natural-run acceptance is claimed |
-| PR246 | Worker Admission Control And Interactive Capacity | merged 2026-08-14. PR: https://github.com/SergejSchweizer/portfell/pull/400; commit `2e2663299ae2e7806774176d8e7f261b6aefac60` |
-| PR247 | PostgreSQL Navigation Read Model | merged through atomic PRs #401–#410 on 2026-08-14; includes bounded projection reads, reconciliation, lifecycle repair, instrumentation, and deterministic budget evidence. |
-| PR248a | Hosted Page-View Contract Foundation | landed 2026-08-14. PR: https://github.com/SergejSchweizer/portfell/pull/412; versioned Metadata Builder page-view envelope, typed unavailable initial-fill state, conditional GET, and OpenAPI contract evidence. |
-| PR248b | Hosted Analysis Page-View Contracts | landed 2026-08-14. PR: https://github.com/SergejSchweizer/portfell/pull/414; compact conditional-GET views for Univariate, Bivariate, and Multivariate stage/section metadata. |
-| PR248c1 | Hosted Lazy Tabular Sections | landed 2026-08-14. PR: https://github.com/SergejSchweizer/portfell/pull/415; project-authorized 200-row pages with opaque revision-bound cursors. |
-| PR248c2 | Hosted Lazy Matrix And Detail Sections | landed 2026-08-14. PR: https://github.com/SergejSchweizer/portfell/pull/416; authorized analytical detail endpoints with immutable revisions and a 2 MiB encoded-response limit. |
-| PR248d1 | Web Metadata Page-View Adoption | landed 2026-08-14. PR: https://github.com/SergejSchweizer/portfell/pull/417; Metadata Builder restores criteria and initial-fill state from one compact page-view response. |
-| PR248d2 | Web Statistics Page-View Adoption | completed through PRs #418, #441, and #442; Bivariate, Univariate, and Multivariate page entries use compact views and visible lazy sections. |
-| PR249 | Shared Browser Query Cache And Navigation Prefetch | completed through PRs #419, #420, #443, and #444; one memory-only TanStack Query client, exact invalidation, cancellation, and one deliberate page-view prefetch. |
-| PR250 | Durable Server-Sent Job And Workflow Updates | completed through PRs #421–#428; durable status-event schema, repository, lifecycle publication, SSE replay/recovery, retention, and browser adoption. |
-| PR251 | Single Hosted Authority And Legacy Fallback Removal | completed through PRs #429, #431, and #433–#439; explicit production composition and no hosted local-authority fallback. |
-| PR01 | Project Package And Quality Baseline | merged. PR: https://github.com/SergejSchweizer/portfell/pull/1 |
-| PR02 | Shared Configuration, HTTP, And Contract Primitives | merged. PR: https://github.com/SergejSchweizer/portfell/pull/3 |
-| PR03 | Simple Bronze/Silver/Gold Lake Layout Contract | merged. PR: https://github.com/SergejSchweizer/portfell/pull/3 |
-| PR04 | Search Module: EODHD Query And Raw Candidate Capture | merged. PR: https://github.com/SergejSchweizer/portfell/pull/3 |
-| PR05 | Search Module: Canonical ISIN Selection Contract | merged. PR: https://github.com/SergejSchweizer/portfell/pull/3 |
-| PR06 | Search Module: Review Artifacts And Active Universe Pointer | merged. PR: https://github.com/SergejSchweizer/portfell/pull/3 |
-| PR07 | Bronze Module: Input Contract Validation And Planning | merged. PR: https://github.com/SergejSchweizer/portfell/pull/3 |
-| PR08 | Bronze Module: EOD Quote Download To Bronze | merged. PR: https://github.com/SergejSchweizer/portfell/pull/3 |
-| PR09 | Silver Quote Build Baseline | merged. PR: https://github.com/SergejSchweizer/portfell/pull/3 |
-| PR10 | Bronze Module: Identifier Mapping Capture | merged. PR: https://github.com/SergejSchweizer/portfell/pull/3 |
-| PR11 | Bronze Module: Coverage, Errors, And Monthly Refresh Behavior | merged. PR: https://github.com/SergejSchweizer/portfell/pull/3 |
-| PR12 | Gold Inputs: Returns, Correlation, And Covariance Baseline | merged. PR: https://github.com/SergejSchweizer/portfell/pull/3 |
-| PR13 | Finalization: End-To-End Dry Run, Docs, And Release Checklist | merged. PR: https://github.com/SergejSchweizer/portfell/pull/3 |
-| PR14 | Bronze Process: Cron-Safe Bronze Ingestion And Medallion Builds | merged. PR: https://github.com/SergejSchweizer/portfell/pull/13 |
-| PR15 | Gold Evaluation Dataset Contracts And Paths | merged. PR: https://github.com/SergejSchweizer/portfell/pull/20 |
-| PR16 | Evaluation Module: Return Matrix And Asset Metrics | merged. PR: https://github.com/SergejSchweizer/portfell/pull/21 |
-| PR17 | Evaluation Module: Portfolio Returns And Drawdown Metrics | merged. PR: https://github.com/SergejSchweizer/portfell/pull/24 |
-| PR18 | Portfolio Module: Core Optimization Objectives And Target Weights | merged. PR: https://github.com/SergejSchweizer/portfell/pull/26 |
-| PR19 | Portfolio Module: Risk Parity And Equal Risk Contribution | merged. PR: https://github.com/SergejSchweizer/portfell/pull/32 |
-| PR20 | Evaluation Module: Walk-Forward Backtesting | merged. PR: https://github.com/SergejSchweizer/portfell/pull/34 |
-| PR21 | Evaluation Module: Rebalancing Simulation | merged. PR: https://github.com/SergejSchweizer/portfell/pull/34 |
-| PR22 | Portfolio Module: Hierarchical Risk Parity | merged. PR: https://github.com/SergejSchweizer/portfell/pull/34 |
-| PR23 | Portfolio Module: Maximum Diversification Objective | merged. PR: https://github.com/SergejSchweizer/portfell/pull/34 |
-| PR24 | Evaluation Module: Efficient Frontier Generator | merged. PR: https://github.com/SergejSchweizer/portfell/pull/34 |
-| PR25 | Portfolio Module: CVaR And Tail-Risk Optimization | merged. PR: https://github.com/SergejSchweizer/portfell/pull/34 |
-| PR26 | Evaluation CLI And Dry-Run Integration | merged. PR: https://github.com/SergejSchweizer/portfell/pull/34 |
-| PR27 | Gold Correlation Edge Dataset Baseline | merged. PR: https://github.com/SergejSchweizer/portfell/pull/28 |
-| PR28 | Gold Spearman Correlation Edges | merged. PR: https://github.com/SergejSchweizer/portfell/pull/30 |
-| PR29 | Gold Correlation Edges: Skip Same-ISIN Pairs | merged. PR: https://github.com/SergejSchweizer/portfell/pull/40 |
-| PR30 | Gold Pair Statistics Boundary Refactor | merged. PR: https://github.com/SergejSchweizer/portfell/pull/44 |
-| PR31 | Dataset Contract Registry Refactor | merged. PR: https://github.com/SergejSchweizer/portfell/pull/44 |
-| PR32 | Evaluation And Portfolio Package Boundary Refactor | merged. PR: https://github.com/SergejSchweizer/portfell/pull/44 |
-| PR33 | Unified Run State And Job Manifest Refactor | merged. PR: https://github.com/SergejSchweizer/portfell/pull/44 |
-| PR34 | Production Optimizer Interface And Diagnostics Refactor | merged. PR: https://github.com/SergejSchweizer/portfell/pull/44 |
-| PR35 | Enforce Real Evaluation And Portfolio Package Boundaries | merged. PR: https://github.com/SergejSchweizer/portfell/pull/46 |
-| PR36 | Extract Scalable Gold Pair Statistics Engine | merged. PR: https://github.com/SergejSchweizer/portfell/pull/46 |
-| PR37 | Type Critical Dataset Rows And Contract Validation | merged. PR: https://github.com/SergejSchweizer/portfell/pull/46 |
-| PR38 | Split CLI Parsing From Workflow Execution | merged. PR: https://github.com/SergejSchweizer/portfell/pull/46 |
-| PR39 | Add Import-Boundary And Scale-Guard Quality Gates | merged. PR: https://github.com/SergejSchweizer/portfell/pull/46 |
-| PR40 | Three-Module Boundaries And Public Contract Skeleton | merged. PR: https://github.com/SergejSchweizer/portfell/pull/51 |
-| PR41 | Refresh Catalog Contracts And Stable Instrument Identities | merged. PR: https://github.com/SergejSchweizer/portfell/pull/51 |
-| PR42 | Selection Predicate And Metric-Requirement Contracts | merged. PR: https://github.com/SergejSchweizer/portfell/pull/51 |
-| PR43 | Selection Identity, Candidate And Final Membership Contracts | merged. PR: https://github.com/SergejSchweizer/portfell/pull/51 |
-| PR44 | Update Contracts, Pinned Inputs, And Shared Work Planner | merged. PR: https://github.com/SergejSchweizer/portfell/pull/51 |
-| PR45 | Refresh Complete EODHD Catalog Synchronization | merged. PR: https://github.com/SergejSchweizer/portfell/pull/53 |
-| PR46 | Refresh All-ISIN Market Data And Versioned Inputs | merged. PR: https://github.com/SergejSchweizer/portfell/pull/53 |
-| PR47 | Refresh Service, Standalone CLI, And Atomic Publication | merged. PR: https://github.com/SergejSchweizer/portfell/pull/53 |
-| PR48 | Selection Service, Current Pointer, And Standalone CLI | merged. PR: https://github.com/SergejSchweizer/portfell/pull/53 |
-| PR49 | Update Incremental Per-ISIN Metric Cache | merged. PR: https://github.com/SergejSchweizer/portfell/pull/53 |
-| PR50 | Update Screening Classifications And Selection Finalization | merged. PR: https://github.com/SergejSchweizer/portfell/pull/53 |
-| PR51 | Update Selection Calendar And Comparable Metric Cache | merged. PR: https://github.com/SergejSchweizer/portfell/pull/53 |
-| PR52 | Update Incremental Pair Metric Cache | merged. PR: https://github.com/SergejSchweizer/portfell/pull/53 |
-| PR53 | Update Evaluation Profiles And Selection Analysis Manifests | merged. PR: https://github.com/SergejSchweizer/portfell/pull/53 |
-| PR54 | Update Service, Standalone CLI, And Atomic Publication | merged. PR: https://github.com/SergejSchweizer/portfell/pull/53 |
-| PR55 | Three-Module Cutover, Legacy Migration, And Documentation | merged. PR: https://github.com/SergejSchweizer/portfell/pull/53 |
-| PR56 | Return Semantics And Data-Quality Gate | merged. PR: https://github.com/SergejSchweizer/portfell/pull/83 |
-| PR57 | Instrument-Level Rebalancing Drift And Cost Basis | merged. PR: https://github.com/SergejSchweizer/portfell/pull/85 |
-| PR58 | Risk Model Package And Covariance Diagnostics | merged. PR: https://github.com/SergejSchweizer/portfell/pull/89 |
-| PR59 | Production Numerical Solver Boundary | addressed; no dedicated PR under this branch name |
-| PR60 | Production Minimum Variance And Equal Risk Contribution | merged. PR: https://github.com/SergejSchweizer/portfell/pull/101 |
-| PR61 | True HRP And Minimum CVaR Optimizers | merged. PR: https://github.com/SergejSchweizer/portfell/pull/104 and https://github.com/SergejSchweizer/portfell/pull/109 |
-| PR62A | Jurisdiction-Neutral Tax, Cost, And Cash-Flow Contracts | merged. PR: https://github.com/SergejSchweizer/portfell/pull/112 |
-| PR63 | Portfolio Profile Contracts And Balanced Ensemble Candidate | merged. PR: https://github.com/SergejSchweizer/portfell/pull/113 |
-| PR64 | Walk-Forward Model Comparison Scorecard | merged. PR: https://github.com/SergejSchweizer/portfell/pull/114 |
-| PR65 | Stress, Bootstrap, And Sensitivity Analysis | merged. PR: https://github.com/SergejSchweizer/portfell/pull/115 |
-| PR66 | Explainable Recommendation Report | merged. PR: https://github.com/SergejSchweizer/portfell/pull/116 |
-| PR69 | Multivariate Statistics Baseline Module And CLI | merged. PR: https://github.com/SergejSchweizer/portfell/pull/79 |
-| PR70 | Multivariate Production Portfolio Adapter | merged. PR: https://github.com/SergejSchweizer/portfell/pull/117 |
-| PR71 | Multivariate Income And Recommendation Outputs | merged. PR: https://github.com/SergejSchweizer/portfell/pull/118 |
-| PR72 | Multivariate Trading And Monitoring Handoff | merged. PR: https://github.com/SergejSchweizer/portfell/pull/119 |
-| PR73 | Generic Listing And Pair Statistics Cache | merged. PR: https://github.com/SergejSchweizer/portfell/pull/80 |
-| PR74 | Selection Statistics Views | merged. PR: https://github.com/SergejSchweizer/portfell/pull/120 |
-| PR75 | Multivariate Selection Cache Consumption | merged. PR: https://github.com/SergejSchweizer/portfell/pull/121 |
-| PR110 | Canonical Workflow State And Four-Page API Contract | merged. PR: https://github.com/SergejSchweizer/portfell/pull/190 |
-| PR111 | Metadata Header, Metadata Builder, And Real Quote Progress | merged. PR: https://github.com/SergejSchweizer/portfell/pull/197 |
-| PR112 | Functional Univariate Statistics Page | merged. PR: https://github.com/SergejSchweizer/portfell/pull/192 |
-| PR113 | Functional Univariate Selection Page | merged. PR: https://github.com/SergejSchweizer/portfell/pull/193 |
-| PR114 | Functional Bivariate Statistics Page | merged. PR: https://github.com/SergejSchweizer/portfell/pull/194 |
-| PR115 | Sequential Navigation, Final Legacy Deletion, And End-To-End Gate | merged. PR: https://github.com/SergejSchweizer/portfell/pull/195 |
-| PR116 | Remove Google Authentication Runtime | merged. PR: https://github.com/SergejSchweizer/portfell/pull/196 |
-| PR124 | Stable Local Principal And Credential Repository Ports | merged. PR: https://github.com/SergejSchweizer/portfell/pull/210 |
-| PR125 | PostgreSQL Encrypted Credential Repository And Schema Migration | merged. PR: https://github.com/SergejSchweizer/portfell/pull/211 |
-| PR126 | Persistent Credential Runtime Wiring And Secret Configuration | merged. PR: https://github.com/SergejSchweizer/portfell/pull/213 |
-| PR127 | Saved Credential Status, Replace, Delete, And Keyless Refresh UI | merged. PR: https://github.com/SergejSchweizer/portfell/pull/214 |
-| PR129 | Hosted API Routers, Application Services, And State Ports | merged. PR: https://github.com/SergejSchweizer/portfell/pull/218 |
-| PR132 | Stage-Owned Ingestion Controls | merged. PR: https://github.com/SergejSchweizer/portfell/pull/222 |
-| PR133 | Hosted Research Service Boundary Completion | merged. PR: https://github.com/SergejSchweizer/portfell/pull/238 |
-| PR134 | Hosted Research Boundary Coverage Completion | merged. PR: https://github.com/SergejSchweizer/portfell/pull/240 |
-| PR135 | Stateful Two-Project UI Workflow Coverage | merged. PR: https://github.com/SergejSchweizer/portfell/pull/242 |
-| PR136 | Result-Driven Dividends Window Visibility | merged. PR: https://github.com/SergejSchweizer/portfell/pull/244 |
-| PR137 | Workflow Module Boundaries | merged. PR: https://github.com/SergejSchweizer/portfell/pull/245 |
-| PR138 | Parallel Metadata Downloads | merged. PR: https://github.com/SergejSchweizer/portfell/pull/246 |
-| PR139 | Browser Module Route Names | merged. PR: https://github.com/SergejSchweizer/portfell/pull/247 |
-| PR140 | Three-Module Backend And Persistence Contracts | merged. PR: https://github.com/SergejSchweizer/portfell/pull/248 |
-| PR141 | Aligned Statistics Time Ranges | merged. PR: https://github.com/SergejSchweizer/portfell/pull/249 |
-| PR92 | Content-Addressed Univariate And Return Artifact Cache | merged. PR: https://github.com/SergejSchweizer/portfell/pull/135 |
-| PR93 | Content-Addressed Bivariate Cache And Exact Alignment Identity | merged. PR: https://github.com/SergejSchweizer/portfell/pull/136 |
-| PR95 | Docker Compose PostgreSQL, API, Web, And Shared Runtime Storage | merged. PR: https://github.com/SergejSchweizer/portfell/pull/140 |
-| PR96 | FastAPI User, Credential, Download, Dataset, Project, And Analysis API | merged. PR: https://github.com/SergejSchweizer/portfell/pull/142 |
-| PR97 | Google-Authenticated Web UI And User-Scoped Research Funnel | merged. PR: https://github.com/SergejSchweizer/portfell/pull/143 |
-| PR98 | Public-Repository CI, Supply-Chain, Secret-Scanning, And Deployment Hardening | merged. PR: https://github.com/SergejSchweizer/portfell/pull/145 |
-| PR99 | Licensing, Privacy, Retention, Backup, Restore, And Key-Rotation Gate | merged. PR: https://github.com/SergejSchweizer/portfell/pull/146 |
-| PR100 | End-To-End Multi-User Isolation, Reproducibility, And Hosted Cutover | merged. PR: https://github.com/SergejSchweizer/portfell/pull/147 |
-| PR101 | Web Design System, Application Shell, And Visual Baseline | merged. PR: https://github.com/SergejSchweizer/portfell/pull/152 |
-| PR143 | Monthly-Distribution ETF Multivariate Input Snapshot | completed. Integrated through the branch reconciliation in PR #377. |
-| PR144 | Canonical Multivariate Risk-Model Artifact And Optimizer Wiring | completed. Integrated through the branch reconciliation in PR #377. |
-| PR145 | Multivariate Portfolio-Structure Statistics | completed. Integrated through the branch reconciliation in PR #377. |
-| PR146 | Gross Distribution History And Monthly Income Quality | completed. Integrated through the branch reconciliation in PR #377. |
-| PR147 | Monthly-Distribution ETF Portfolio Candidate Set | completed. Integrated through the branch reconciliation in PR #377. |
-| PR148 | Multivariate Walk-Forward, Stress, And Candidate Scorecard | completed. Integrated through the branch reconciliation in PR #377. |
-| PR149 | Project-Persisted Multivariate Service And API Contract | completed. Integrated through the branch reconciliation in PR #377. |
-| PR150 | Multivariate Statistics React Module And Four-Module Cutover | completed. Integrated through the branch reconciliation in PR #377. |
-| PR151 | Canonical Shared Market Store And Active Project Inventory | merged. PR: https://github.com/SergejSchweizer/portfell/pull/269 |
-| PR152 | Idempotent Shared Market Refresh Command And Initial Backfill | merged. PR: https://github.com/SergejSchweizer/portfell/pull/269 |
-| PR153 | Project Analysis Cutover To Shared Market Snapshots | merged. PR: https://github.com/SergejSchweizer/portfell/pull/269 |
-| PR154 | Docker Compose Nightly Cron Installer And Operations Gate | merged. PR: https://github.com/SergejSchweizer/portfell/pull/269 |
-| PR155 | Remove Manual Historical-Data Actions And Legacy Quote Runs | merged. PR: https://github.com/SergejSchweizer/portfell/pull/269 |
-| PR156 | Shared Data Licensing Decision And Plane Contracts | merged. PR: https://github.com/SergejSchweizer/portfell/pull/274 |
-| PR157 | PostgreSQL Tenant Schema And Row-Level Security | merged. PR: https://github.com/SergejSchweizer/portfell/pull/275 |
-| PR158 | PostgreSQL Repositories And Hosted State Importer | merged. PR: https://github.com/SergejSchweizer/portfell/pull/287 |
-| PR159 | PostgreSQL Durable Jobs, Outbox, And Worker Claims | merged. PR: https://github.com/SergejSchweizer/portfell/pull/288 |
-| PR160 | Immutable Shared Market Revisions And Dataset Delta Planner | merged. PR: https://github.com/SergejSchweizer/portfell/pull/290 |
-| PR161 | Exact-Selection One-Time Project Data Bootstrap | merged. PR: https://github.com/SergejSchweizer/portfell/pull/292 |
-| PR162 | Shared Univariate Artifact Cutover | merged. PR: https://github.com/SergejSchweizer/portfell/pull/294 |
-| PR163 | Bucketed Shared Bivariate Artifact Cutover | merged. PR: https://github.com/SergejSchweizer/portfell/pull/295 |
-| PR164 | Shared Multivariate Artifact Cutover | merged. PR: https://github.com/SergejSchweizer/portfell/pull/282 |
-| PR165 | Cron-Only Ongoing Refresh And User Update Closure | merged. PR: https://github.com/SergejSchweizer/portfell/pull/283 |
-| PR166 | Operations Readiness, Recovery, And Cutover Rehearsal | merged. PR: https://github.com/SergejSchweizer/portfell/pull/296 |
-| PR167 | Hosted Repository Injection Baseline | merged. PR: https://github.com/SergejSchweizer/portfell/pull/325 |
-| PR169 | Exhaustive Button Interaction Tests And Required Merge Gates | merged. PR: https://github.com/SergejSchweizer/portfell/pull/327 |
-| PR170 | UGREEN NAS Persistent Data Root And Safe Volume Migration | merged. PR: https://github.com/SergejSchweizer/portfell/pull/330 |
-| PR171 | Multivariate Risk Structure Facts Table | completed. PR: https://github.com/SergejSchweizer/portfell/pull/376 |
-| PR176 | Dependency Baseline Update | merged. PR: https://github.com/SergejSchweizer/portfell/pull/336 |
-| PR177 | Node 26 Runtime Update | merged. PR: https://github.com/SergejSchweizer/portfell/pull/337 |
-| PR178 | Initial-Fill Status Projection Synchronization | merged. PR: https://github.com/SergejSchweizer/portfell/pull/338 |
-| PR179 | Batched Shared Delta Publication | merged. PR: https://github.com/SergejSchweizer/portfell/pull/339 |
-| PR180 | Quote Run Success Reuse | merged. PR: https://github.com/SergejSchweizer/portfell/pull/340 |
-| PR181 | Initial-Fill Lease Resilience And Observability | merged. PR: https://github.com/SergejSchweizer/portfell/pull/341 |
-| PR182 | GitHub Actions Node 24 Runtime | merged. PR: https://github.com/SergejSchweizer/portfell/pull/342 |
-| PR183 | Empty Market-Response Coverage | completed. PR: https://github.com/SergejSchweizer/portfell/pull/343 |
-| PR184 | Faster EODHD Shared Refresh | completed. PR: https://github.com/SergejSchweizer/portfell/pull/344 |
-| PR185 | Remove Default EODHD Client Pacing | completed. PR: https://github.com/SergejSchweizer/portfell/pull/345 |
-| PR186 | Per-Fetch Coverage Persistence | completed. PR: https://github.com/SergejSchweizer/portfell/pull/346 |
-| PR187 | EODHD Event Business Keys | completed. PR: https://github.com/SergejSchweizer/portfell/pull/347 |
-| PR188 | Retry Failed Initial Fill | completed. PR: https://github.com/SergejSchweizer/portfell/pull/348 |
-| PR189 | Preserve Initial-Fill Attempt History | completed. PR: https://github.com/SergejSchweizer/portfell/pull/349 |
-| PR190 | Initial-Fill Failed ISIN Status | completed. PR: https://github.com/SergejSchweizer/portfell/pull/350 |
-| PR191 | Commit Univariate Progress | completed. PR: https://github.com/SergejSchweizer/portfell/pull/351 |
-| PR192 | Visual Univariate Progress And Tab Layout | completed. PR: https://github.com/SergejSchweizer/portfell/pull/352 |
-| PR193 | Statistics Result Completion Visibility | completed. PR: https://github.com/SergejSchweizer/portfell/pull/353 |
-| PR194 | Bivariate Compute Lifecycle | completed. PR: https://github.com/SergejSchweizer/portfell/pull/354 |
-| PR195 | Sidebar Workflow Status Colors | merged. PR: https://github.com/SergejSchweizer/portfell/pull/355 |
-| PR196 | Shared Statistics Tab Layout | completed. PR: https://github.com/SergejSchweizer/portfell/pull/356 |
-| PR197 | Bivariate Filtered Univariate Selection | merged. PR: https://github.com/SergejSchweizer/portfell/pull/357 |
-| PR198 | Desktop-Only UI Tests | merged. PR: https://github.com/SergejSchweizer/portfell/pull/358 |
-| PR199 | Bivariate Shared-Market Quote Fallback | completed. PR: https://github.com/SergejSchweizer/portfell/pull/359 |
-| PR200 | Multivariate Compute Layout | merged. PR: https://github.com/SergejSchweizer/portfell/pull/360 |
-| PR201 | Multivariate Run Recovery | merged. PR: https://github.com/SergejSchweizer/portfell/pull/361 |
-| PR202 | Multivariate Statistics Completeness | completed. PR: https://github.com/SergejSchweizer/portfell/pull/362 |
-| PR203 | Persisted Univariate Filter Feedback | completed. PR: https://github.com/SergejSchweizer/portfell/pull/363 |
-| PR204 | Multivariate History Eligibility | merged. PR: https://github.com/SergejSchweizer/portfell/pull/364 |
-| PR205 | Multivariate History Guidance | completed. PR: https://github.com/SergejSchweizer/portfell/pull/365 |
-| PR206 | Multivariate Minimum History Policy | completed. Integrated through the branch reconciliation in PR #377. |
-| PR207 | Market-Price NAV Proxy | completed. Integrated through the branch reconciliation in PR #377. |
-| PR208 | Statistics Progress Height | completed. Integrated through the branch reconciliation in PR #377. |
-| PR209 | Metadata Option ISIN Counts | completed. Integrated through the branch reconciliation in PR #377. |
-| PR210 | Portfolio Selection Counts | completed. Integrated through the branch reconciliation in PR #377. |
-| PR211 | Multivariate CPU Parallelism | completed. Integrated through the branch reconciliation in PR #377. |
-| PR212 | Univariate Compute Progress | completed. Integrated through the branch reconciliation in PR #377. |
-| PR213 | Project-Scoped Statistics State | completed. Integrated through the branch reconciliation in PR #377. |
-| PR214 | Multivariate Stall Recovery | completed. Integrated through the branch reconciliation in PR #377. |
-| PR215 | Parallel Walk-Forward Refits | completed. Integrated through the branch reconciliation in PR #377. |
-| PR216 | Polars Dataframe Preference | completed. Integrated through the branch reconciliation in PR #377. |
-| PR217 | Polars Statistics Pipelines | completed. Integrated through the branch reconciliation in PR #377. |
-| PR218 | Multivariate Validation Budget | completed. Integrated through the branch reconciliation in PR #377. |
-| PR219 | Main Branch Consolidation | merged. PR: https://github.com/SergejSchweizer/portfell/pull/366 |
-| PR220 | Multivariate Performance And CVaR Recovery | merged. PR: https://github.com/SergejSchweizer/portfell/pull/367 |
-| PR221 | Multivariate Monthly-Return Candidate And Performance Inspection | merged. PR: https://github.com/SergejSchweizer/portfell/pull/368 |
-| PR222 | Multivariate Portfolio Return Averages | merged. PR: https://github.com/SergejSchweizer/portfell/pull/369 |
-| PR223 | Multivariate All-Portfolio Performance Plot | merged. PR: https://github.com/SergejSchweizer/portfell/pull/370 |
-| PR224 | Multivariate Portfolio Color Hierarchy | merged. PR: https://github.com/SergejSchweizer/portfell/pull/371 |
-| PR225 | Multivariate Overview Facts Table | completed. PR: https://github.com/SergejSchweizer/portfell/pull/375 |
-| PR225 | Multivariate Performance Aligned-Period X-Axis | merged. PR: https://github.com/SergejSchweizer/portfell/pull/372 |
-| PR226 | Project-Scoped Canonical Workflow URLs | completed. PR: https://github.com/SergejSchweizer/portfell/pull/374 |
-| PR227 | All Branch Historical Reconciliation | completed. PR: https://github.com/SergejSchweizer/portfell/pull/377 |
-| PR228 | Evaluate All Multivariate Portfolio Candidates | completed. PR: https://github.com/SergejSchweizer/portfell/pull/378 |
-| PR229 | Multivariate Overview Monthly Performance | completed. PR: https://github.com/SergejSchweizer/portfell/pull/379 |
+- `Univariate Return / Risk Universe`;
+- `Bivariate Return / Diversification Universe`;
+- `Portfolio Candidate OOS Return / Risk`;
+- Multivariate cumulative performance and drawdown views;
+- allocation and risk-contribution views where artifacts exist;
+- Universe & History evidence views required by the final product contract.
+
+Acceptance:
+
+- desktop/tablet/mobile responsive checks;
+- legends/axes/units/date ranges/hover labels are explicit and testable;
+- unavailable data shown as unavailable, not zero;
+- no financial recomputation in callbacks solely for plotting;
+- all plots derive from immutable backend/service artifacts; PR gate passes.
+
+### PR355 — Dash four-page parity and browser QA
+
+Branch: `test/pr355-dash-four-page-parity`
+
+Depends on: PR354.
+
+Scope: QA only. Establish the deletion gate for the old UI and old DB.
+
+Testing stack: Python `pytest` plus the repository-approved Python browser automation stack. Do not require an application npm/Node build. Browser binaries/test tooling may exist as test dependencies only if they do not restore a Node production UI boundary.
+
+Acceptance:
+
+- deterministic real-stack journey: Metadata -> Univariate -> Bivariate -> Multivariate;
+- desktop/tablet/mobile;
+- valid/empty/invalid/partial/unavailable/retry/restart states;
+- exact request/callback effects and persisted new-DB state;
+- no external production network access in deterministic CI fixtures;
+- no direct market/app SQL from Dash modules;
+- no legacy DB reads/writes during the journey;
+- no route requires `apps/web`;
+- market DB is read-only and sync schema denied;
+- `uv run portfell-quality merge` passes.
+
+This PR produces the immutable `dash-parity-v1` evidence artifact required by PR356 and PR357.
+
+### PR356 — Delete legacy React/Vite/TypeScript/TanStack/Node UI
+
+Branch: `chore/pr356-delete-legacy-web-ui`
+
+Depends on: PR355 PASS artifact.
+
+Owned deletion scope: exactly every `delete-pr356` item in `legacy-ui-db-inventory-v1.json`.
+
+Tasks:
+
+- delete `apps/web/**`;
+- delete first-party React/ReactDOM/TanStack/Vite/TypeScript/Vitest application dependencies/config;
+- delete npm/pnpm/yarn lock/build scripts when no non-legacy use remains;
+- delete Node Web Docker stage/container/service and old static-web proxy configuration;
+- delete legacy browser contract generators/tests that exist only for React UI;
+- update CI so no production frontend build is expected.
+
+Acceptance:
+
+- inventory check reports zero undeleted `delete-pr356` entries;
+- repository has no production import/path to `apps/web`;
+- no Node frontend container/build is present;
+- four Dash routes still pass browser smoke and full PR gate;
+- no analytical/backend code is deleted merely because old UI called it.
+
+Rollback: revert this PR only while the old DB still exists and before PR360 destructive finalization; no dual-UI production deployment is permitted.
+
+### PR357 — Delete legacy Portfell database plane
+
+Branch: `chore/pr357-delete-legacy-portfell-db`
+
+Depends on: PR355 PASS artifact.
+
+Owned deletion scope: exactly every `delete-pr357` item in `legacy-ui-db-inventory-v1.json`.
+
+Tasks:
+
+- delete legacy hosted DB migrations/repositories/models for user/tenant/membership/project membership/provider credentials/navigation/workflow projections/status events/download lifecycle and any other inventory-owned legacy table;
+- delete old DB bootstrap/import/repair utilities;
+- delete compatibility SQL/views and old-schema feature flags;
+- remove runtime code paths that can connect to the old Portfell DB;
+- retain the generic PostgreSQL driver only if required by the new `app_state` and `market_source` layers.
+
+Acceptance:
+
+- all four stages and Dash UI operate only with clean `portfell_dash` + external `xetra_loader` fixture;
+- starting with only the old DB and no new DB fails closed rather than falling back;
+- legacy database/table names from the inventory have zero production references;
+- no legacy migration is required on fresh install;
+- new DB migration/catalog/restart/backup tests pass; full PR gate passes.
+
+Rollback: old database backup remains offline/read-only and is not mounted into the runtime.
+
+### PR358 — Final Compose/runtime cutover
+
+Branch: `chore/pr358-dash-runtime-compose`
+
+Depends on: PR356 and PR357.
+
+Final runtime requirements:
+
+- FastAPI + Dash application service(s);
+- new Portfell `portfell_dash` PostgreSQL service/database or explicit external equivalent;
+- external `PORTFELL_MARKET_DATABASE_URL` to xetra-loader;
+- no Web/Node container;
+- no old Portfell DB service/volume;
+- no provider/download/refresh worker;
+- no provider credentials/secrets;
+- analytical worker only if still required by the frozen service contract.
+
+Acceptance:
+
+- cold `docker compose up` from empty new DB reaches healthy state after new migrations;
+- exactly one Portfell app DB authority and one external market DB authority;
+- market DML fails; sync access fails;
+- no legacy volume is mounted;
+- four Dash routes and API health pass;
+- restart preserves new app-state data; PR gate passes.
+
+### PR359 — Final negative-space and clean-install QA
+
+Branch: `test/pr359-dash-clean-runtime-qa`
+
+Depends on: PR358.
+
+Scope: QA only.
+
+Acceptance must prove all of the following:
+
+- no first-party React/Vite/TypeScript/TanStack production UI;
+- no `apps/web` production directory/reference;
+- no Node production Web build/container;
+- no legacy Portfell DB schema/table/migration/repository/runtime connection;
+- no provider/EODHD acquisition/credential/medallion/Portfell market refresh plane;
+- no `xetra_loader_sync` access/reference as a source;
+- no direct SQL in Dash modules;
+- market SQL only under `market_source`; app-state SQL only under `app_state`;
+- clean install from empty `portfell_dash` plus contract-faithful xetra fixture completes all four stages;
+- deterministic browser journey and restart pass;
+- `uv run portfell-quality pr` and `uv run portfell-quality merge` both pass.
+
+Any production defect found here requires a separate corrective implementation PR; PR359 itself does not hide fixes.
+
+### PR360 — Production cutover, destructive removal, rollback runbook and final acceptance
+
+Branch: `docs/pr360-dash-production-cutover`
+
+Depends on: PR359.
+
+Scope: exact production transition from the transitional runtime to Plotly Dash + clean `portfell_dash` DB.
+
+Required order:
+
+1. record exact application/source SHAs and current runtime inventory;
+2. stop writes to the legacy Portfell application DB;
+3. create encrypted offline backup of the legacy DB and verify restoreability;
+4. provision/migrate clean `portfell_dash`;
+5. configure secret `PORTFELL_DATABASE_URL` for the new DB and independent `PORTFELL_MARKET_DATABASE_URL` for xetra-loader;
+6. deploy FastAPI + Dash runtime;
+7. run four-page smoke and one full analytical workflow;
+8. verify market SELECT works, market DML/DDL fails, and `xetra_loader_sync` access fails;
+9. verify new app-state restart persistence and DecisionArtifact retrieval;
+10. remove old UI service/container/image references from deployment;
+11. detach/delete legacy active DB service/volume/database from runtime ownership after the acceptance window defined by the runbook;
+12. retain only the encrypted offline backup for the documented rollback retention period.
+
+Final acceptance:
+
+- production runtime serves exactly four Dash pages and no legacy UI route;
+- no active old Portfell DB connection/service/volume exists;
+- no first-party old frontend build/libraries are required to build or run Portfell;
+- new DB and external market DB are the only production database authorities;
+- complete workflow succeeds after application restart;
+- sanitized final evidence records image digests, schema/catalog fingerprint, market-source contract version, Git SHAs, and PASS results without secrets;
+- documentation (`README.md`, `ARCHITECTURE.md`, page docs, Compose/runbook, `GATES.md`) describes only the final architecture.
+
+Rollback: restore the last complete pre-cutover application release and the encrypted legacy DB backup only as one coordinated rollback. Never run old and new databases as simultaneous business authorities and never reactivate provider acquisition.
+
+## 5. Product/quantitative invariants carried into Dash
+
+These rules are not negotiable UI details:
+
+- workflow is exactly Metadata -> Univariate -> Bivariate -> Multivariate -> final portfolio decision;
+- Multivariate is the only optimizer stage/page;
+- objectives are exactly `return_risk` (default), `return_drawdown`, `minimum_risk` unless a future backlog PR explicitly versions the contract;
+- OOS metrics drive winner selection; in-sample best is never silently substituted;
+- simple returns compound geometrically; log returns remain a separate concept;
+- missing/undefined analytical values are never encoded as plausible zero;
+- pairwise-calendar covariance is not presented as a coherent portfolio covariance unless the risk-model contract explicitly makes it so;
+- missing covariance is never zero;
+- future leakage is prohibited in walk-forward/OOS evaluation;
+- production walk-forward settings are versioned and cannot silently use tiny fixture defaults;
+- `requested_method` and `actual_method`, source snapshot, algorithm version, availability, and production eligibility are retained in artifacts;
+- stable candidate configuration identity is required;
+- long-running runs have durable ownership/idempotency and status reads are non-mutating;
+- published revisions are immutable;
+- Universe & History evidence remains part of the product;
+- jurisdiction/tax/cost modeling remains deferred unless a later explicit backlog series implements the already-defined jurisdiction-neutral architecture. Unsupported jurisdiction/fund-tax/broker/cost inputs must never be silently assumed zero.
+
+## 6. Final series completion gate
+
+The architecture is considered complete only when both source and replacement series are complete and PR360 final evidence is PASS.
+
+A clean production-like acceptance must show:
+
+- Xetra market data comes only from external read-only `xetra_loader` business tables;
+- one coherent source snapshot per analytical input assembly;
+- one clean Portfell-owned `portfell_dash` DB with no legacy tenant/control-plane schema;
+- exactly four Plotly Dash pages;
+- no Portfell-maintained React/Vite/TypeScript/TanStack/Node frontend runtime/build;
+- no old Portfell DB runtime authority;
+- no provider acquisition or Portfell-owned market refresh plane;
+- full Metadata -> Univariate -> Bivariate -> Multivariate workflow succeeds, persists, restarts, and reproduces against frozen inputs;
+- exact full listing identities are preserved;
+- missing adjusted close and missing analytical values fail/show unavailable correctly;
+- OOS portfolio winner and DecisionArtifact are reproducible;
+- clean install, restart, backup/restore, browser tests, source privilege tests, negative-space tests, PR gate, and merge gate all pass.
+
+No item is complete because code merely exists. Completion requires its named acceptance evidence and merged dependency order.
