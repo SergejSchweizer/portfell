@@ -367,6 +367,10 @@ Branch: `feat/pr315-market-data-gateway`
 
 Depends on: PR309–PR314.
 
+Git status: integrated on `main` at `3a13e68`. `MarketDataGateway` materializes listings,
+quotes, dividends, and splits through one short-lived repeatable-read/read-only transaction and
+closes it after materialization; its complete PR gate passed (`1020 passed`).
+
 Scope: only stage-level market seam; one coherent repeatable-read/read-only snapshot across required tables; batch reads only.
 
 Acceptance: market SQL only under `market_source`; transaction closes after materialization; no sync/write/refresh/download operations; concurrency fixture proves coherent snapshot.
