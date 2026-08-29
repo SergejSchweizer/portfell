@@ -267,8 +267,9 @@ Branch: `feat/pr313-market-source-status`
 
 Depends on: PR308.
 
-Git status: in progress from `main` at `e72415a`; the prior 451-file worktree report was
-identical executable-bit metadata noise with no content changes.
+Git status: integrated on `main` at `d1e3b5e`. The low-cost preflight verifies database/schema,
+the exact source table catalog, and reader-role membership without reading source data, scanning
+tables, accessing the sync schema, or issuing DDL; its complete PR gate passed (`1017 passed`).
 
 Scope: low-cost connectivity/schema/role preflight only.
 
