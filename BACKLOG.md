@@ -410,6 +410,10 @@ Branch: `refactor/pr318-market-source-lineage`
 
 Depends on: PR317.
 
+Git status: integrated on `main` at `4468f84`. `MarketSourceSnapshot` derives deterministic
+`market_source.snapshot@v1` IDs from canonical semantic source DTOs only, excluding runtime,
+provenance, DSN, credential, and sync metadata; its complete PR gate passed (`1024 passed`).
+
 Scope: remove provider-download/quote-run lineage from research contracts and introduce deterministic `market_source.snapshot.v1`.
 
 Acceptance: snapshot ID hashes semantic consumed rows only; excludes observation wall-clock, provenance timestamps, DSN, credentials, sync state; streaming/canonical hash; analytical IDs use snapshot identity; no fallback market-row copies.
