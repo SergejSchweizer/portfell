@@ -10,20 +10,18 @@ from portfell.hosted_api_state import HostedApiState
 from portfell.hosted_credential_project_service import CredentialProjectService
 from portfell.hosted_credentials import EodhdCredentialVault, KeyEncryptionKey
 from portfell.hosted_download_run_repository import PostgresDownloadRunRepository
-from portfell.hosted_market_source_bivariate_repository import (
-    BivariateMarketSourcePostgresResearchRepository,
-)
 from portfell.hosted_market_source_bivariate_service import (
     BivariateMarketSourceData,
     MarketSourceBivariateResearchService,
 )
+from portfell.hosted_market_source_multivariate_service import (
+    MarketSourceMultivariateResearchService,
+)
 from portfell.hosted_market_source_research_data import MarketSourceResearchData
-from portfell.hosted_market_source_research_repository import MarketSourcePostgresResearchRepository
 from portfell.hosted_market_source_research_repository import MarketSourcePostgresResearchRepository
 from portfell.hosted_market_source_univariate_service import MarketSourceUnivariateResearchService
 from portfell.hosted_metadata_project_service import MetadataProjectService, metadata_source_catalog
 from portfell.hosted_metadata_refresh_job_repository import PostgresMetadataRefreshJobRepository
-from portfell.hosted_multivariate_service import MultivariateResearchService
 from portfell.hosted_postgres_repository_bundle import PostgresHostedRepositoryBundle
 from portfell.hosted_postgres_request_scope import RequestScopedPostgresConnection
 from portfell.hosted_postgres_runtime import PostgresHostedRuntime
@@ -172,8 +170,8 @@ def build_postgres_services(
     research = ResearchService(
         MarketSourceUnivariateResearchService(research_repository, market_data, persistence),
         MarketSourceBivariateResearchService(research_repository, bivariate_data, persistence),
-        MultivariateResearchService(
-            data,
+        MarketSourceMultivariateResearchService(
+            market_data,
             persistence,
             research_repository,
             repositories.projects,
