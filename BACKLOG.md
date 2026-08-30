@@ -1,6 +1,6 @@
 # Portfell — Authoritative Backlog
 
-Last reviewed: 2026-08-29
+Last reviewed: 2026-08-30
 
 ## 0. Single-file authority
 
@@ -251,6 +251,14 @@ xetra-loader production V2 PASS artifact
   |
 PR340(live QA) -> PR341(E2E) -> PR342(runbook) -> PR343(closeout)
 ```
+
+### Execution status — 2026-08-30
+
+- PR320 is implemented in GitHub PR #496 (`refactor/pr320-univariate-market-source`, head `32d3d19`). It is mergeable, but the required `merge-gate` is infrastructure-blocked: repeated runs fail all 14 jobs before any executable step starts and no runner is assigned. This is **not** a PASS and PR320 must not be integrated until the required gate succeeds.
+- PR321 is implemented in GitHub PR #497 (`refactor/pr321-bivariate-market-source`, head `ac1e624`). It is mergeable and has the same pre-step/pre-runner `merge-gate` failure. It remains a sibling branch from the PR318 predecessor and must be rebased after PR320 integrates so the shared workflow/repository composition is combined without regression.
+- PR322 is implemented in GitHub PR #498 (`refactor/pr322-multivariate-market-source`, head `0a73d60`). It is mergeable and has the same pre-step/pre-runner `merge-gate` failure. It must be rebased after PR320 and PR321 integrate before final validation/integration.
+- PR323 and all downstream source/Dash PRs are intentionally not started while their merged-predecessor contract is unmet. This preserves the exact dependency order in section 2 rather than stacking unvalidated production changes.
+- The external xetra-loader production V2 artifact gate is now cleared: `artifacts/acceptance/postgres-full-sync-v2.json` exists on xetra-loader `main` and reports `status: PASS`. PR340 is therefore no longer blocked by the external artifact itself, but it still cannot start until PR339 is merged.
 
 ### PR308 — Xetra source contract foundation
 
@@ -565,7 +573,7 @@ Branch: `test/pr340-live-xetra-loader-v2`
 
 Depends on: PR339 and upstream production V2 PASS artifact.
 
-Blocker: do not start until `artifacts/acceptance/postgres-full-sync-v2.json` exists on xetra-loader `main` and is marked PASS.
+External artifact gate: cleared on 2026-08-30. `artifacts/acceptance/postgres-full-sync-v2.json` exists on xetra-loader `main` and reports `status: PASS`. Do not start PR340 until PR339 is merged.
 
 Acceptance: verify exact loader SHA/endpoint/database; use secret-supplied non-superuser LOGIN member; SELECT exact four business tables; representative rows through gateway; market DML/DDL fails; sync access fails and counts as PASS; sanitized evidence; full gate.
 
