@@ -23,9 +23,7 @@ def build_returns(quote_rows: Sequence[Mapping[str, Any]]) -> list[JsonRow]:
         "isin", "exchange", "code", "date"
     ).partition_by("isin", "exchange", "code", maintain_order=True):
         ordered = listing_rows.to_dicts()
-        isin, exchange, code = (
-            str(ordered[0][field]) for field in ("isin", "exchange", "code")
-        )
+        isin, exchange, code = (str(ordered[0][field]) for field in ("isin", "exchange", "code"))
         valid_quotes, _quarantined = filter_valid_price_points(ordered)
         for previous, current in zip(valid_quotes, valid_quotes[1:], strict=False):
             previous_close = float(previous["adjusted_close"])

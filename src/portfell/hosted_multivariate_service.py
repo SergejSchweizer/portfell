@@ -64,6 +64,7 @@ class MultivariateResearchService(MultivariateRunViews):
         "build_candidates",
         "validate_candidates",
     )
+
     def __init__(
         self,
         data: ResearchDataPort,
@@ -87,6 +88,7 @@ class MultivariateResearchService(MultivariateRunViews):
         self._lifecycle = MultivariateRunLifecycle(
             self._runs, workflow_projector, persistence.persist
         )
+
     def start(
         self, user_id: str, project_id: str, bivariate_run_id: str, settings: JsonRow
     ) -> JsonRow:
@@ -141,6 +143,7 @@ class MultivariateResearchService(MultivariateRunViews):
         self._lifecycle.save(run, make_current=True)
         self._persistence.persist()
         return multivariate_run_row(run)
+
     def plan(
         self, user_id: str, project_id: str, bivariate_run_id: str, settings: JsonRow
     ) -> JsonRow:

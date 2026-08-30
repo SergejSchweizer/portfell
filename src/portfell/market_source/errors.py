@@ -42,8 +42,6 @@ def market_source_required() -> Never:
 class UnavailableMarketDataClient:
     """Minimal non-network seam for transitional lifecycle owners."""
 
-    def get_json(
-        self, path: str, params: Mapping[str, str | int | float] | None = None
-    ) -> Never:
+    def get_json(self, path: str, params: Mapping[str, str | int | float] | None = None) -> Never:
         del path, params
         market_source_required()

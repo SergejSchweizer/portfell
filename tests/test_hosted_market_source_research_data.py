@@ -114,9 +114,7 @@ def test_market_source_research_data_fails_closed_for_partial_or_invalid_identit
     source = _source_snapshot()
     empty_listings = MarketDataSnapshot((), source.quotes, source.dividends, source.splits)
     with pytest.raises(MarketSourceError, match=MARKET_SOURCE_CONTRACT_MISMATCH):
-        MarketSourceResearchData(FakeGateway(empty_listings)).read(
-            ("IE00TEST0001:XETRA:TEST",)
-        )
+        MarketSourceResearchData(FakeGateway(empty_listings)).read(("IE00TEST0001:XETRA:TEST",))
 
     empty_quotes = MarketDataSnapshot(source.listings, (), source.dividends, source.splits)
     with pytest.raises(MarketSourceError, match=MARKET_SOURCE_UNAVAILABLE):

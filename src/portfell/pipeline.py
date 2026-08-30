@@ -150,18 +150,17 @@ def run_dry_run(root: Path) -> JsonRow:
     return summary
 
 
-def _canonical_fixture(
-    candidates: tuple[dict[str, str], ...], search_run_id: str
-) -> list[JsonRow]:
+def _canonical_fixture(candidates: tuple[dict[str, str], ...], search_run_id: str) -> list[JsonRow]:
     """Build the fixed dry-run universe without a discovery implementation."""
 
     selected: dict[str, dict[str, str]] = {}
     for candidate in candidates:
         isin = candidate["Isin"]
         current = selected.get(isin)
-        if current is None or (
-            candidate["Exchange"].upper(), candidate["Code"]
-        ) < (current["Exchange"].upper(), current["Code"]):
+        if current is None or (candidate["Exchange"].upper(), candidate["Code"]) < (
+            current["Exchange"].upper(),
+            current["Code"],
+        ):
             selected[isin] = candidate
     return [
         {
