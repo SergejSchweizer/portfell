@@ -615,6 +615,10 @@ Scope: keep Portfell application DB and external read-only market DB distinct du
 
 Acceptance: required external market DSN; no market DSN fallback; fixture uses LOGIN member of NOLOGIN `portfell_app`; market DML fails. This Compose is explicitly superseded later by PR358 for the new `portfell_dash` DB + Dash runtime.
 
+Git status: integrated on `main` at `1717932` after rebase. Compose requires an explicit,
+distinct external market DSN and secret, while the disposable Docker contract fixture proves
+read-only role membership and market DML denial (852 local tests; Compose and Docker fixture pass).
+
 ### PR338 — Source architecture documentation
 
 Branch: `docs/pr338-market-source-architecture`
