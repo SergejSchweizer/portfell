@@ -545,6 +545,10 @@ Scope: QA only.
 
 Acceptance: scan executable Python, entrypoints, current UI, Compose/workflows/scripts, tests/docs; no provider acquisition/credentials/medallion/market filesystem fallback/shared refresh/download/cron; no sync refs; no raw market SQL outside `market_source`; OpenAPI clean; full merge gate.
 
+Git status: integrated on `main` at `7a980af`; executable negative-space checks cover the
+retired provider/refresh module and CLI inventories, OpenAPI lifecycle surface, and raw market
+SQL boundary. Full parallel test suite passes.
+
 ### PR333 — Single-user backend simplification
 
 Branch: `refactor/pr333-single-user-backend`
