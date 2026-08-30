@@ -231,7 +231,6 @@ class MetadataProjectService:
         self._projects.set_current_project(user_id=user_id, project_id=project_id)
         if catalog is not None:
             self._metadata.set_revision(user_id=user_id, revision_id=catalog.snapshot_id)
-        self.runtime.write_metadata_selection(selection_id, selected_rows, predicates)
         if idempotency_key is not None:
             self._metadata.remember_idempotency(
                 user_id=user_id,

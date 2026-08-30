@@ -20,10 +20,8 @@ RESEARCH_SERVICE_MODULES = frozenset(
 FORBIDDEN_ROUTE_IMPORTS = frozenset(
     {
         "portfell.bronze",
-        "portfell.hosted_api_local_runtime",
         "portfell.hosted_workspace",
         "portfell.hosted_workspace_repository",
-        "portfell.hosted_local_test_composition",
         "portfell.metadata_builder",
         "portfell.paths",
         "portfell.silver",
@@ -36,9 +34,7 @@ FORBIDDEN_SERVICE_IMPORTS = frozenset(
     {
         "fastapi",
         "portfell.hosted_api",
-        "portfell.hosted_api_local_runtime",
         "portfell.hosted_local_",
-        "portfell.hosted_local_test_composition",
         "portfell.hosted_workspace",
         "portfell.hosted_workspace_repository",
         "portfell.hosted_routes_common",
@@ -54,8 +50,6 @@ FORBIDDEN_SERVICE_IMPORTS = frozenset(
 )
 FORBIDDEN_PRODUCTION_API_IMPORTS = frozenset(
     {
-        "portfell.hosted_api_local_runtime",
-        "portfell.hosted_local_test_composition",
         "portfell.hosted_workspace",
         "portfell.hosted_workspace_repository",
         "portfell.http",
@@ -179,10 +173,6 @@ def test_research_implementation_is_split_and_covered_by_hosted_service_gates() 
         ("from portfell.paths import LakePaths", "portfell.paths"),
         ("from portfell.workflows import run_fetch_all_quotes_workflow", "portfell.workflows"),
         ("from portfell.table_io import read_rows", "portfell.table_io"),
-        (
-            "from portfell.hosted_local_test_composition import local_test_services",
-            "portfell.hosted_local_test_composition",
-        ),
     ],
 )
 def test_route_import_fixture_violations_are_detected(source: str, violation: str) -> None:
@@ -205,10 +195,6 @@ def test_route_mutable_state_fixture_violations_are_detected(source: str) -> Non
     ("source", "violation"),
     [
         ("from fastapi import HTTPException", "fastapi"),
-        (
-            "from portfell.hosted_api_local_runtime import LocalHostedRuntime",
-            "portfell.hosted_api_local_runtime",
-        ),
         (
             "from portfell.hosted_local_project_repository import LocalProjectRepository",
             "portfell.hosted_local_project_repository",

@@ -7,8 +7,9 @@ import re
 from pathlib import Path
 from typing import Any, cast
 
+from hosted_test_support import build_services
+
 from portfell.hosted_api import HostedApiState, create_app
-from portfell.hosted_local_test_composition import local_test_services
 from portfell.hosted_postgres_request_scope import RequestScopedPostgresConnection
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -21,7 +22,7 @@ def _app():
     state = HostedApiState()
     return create_app(
         state,
-        services=local_test_services(state),
+        services=build_services(state),
         request_scope=RequestScopedPostgresConnection(lambda: object()),  # type: ignore[arg-type]
     )
 

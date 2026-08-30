@@ -15,9 +15,9 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 import pytest
+from hosted_test_support import InMemoryRuntime
 
 from portfell.hosted_api_errors import HostedApplicationError
-from portfell.hosted_api_local_runtime import LocalHostedRuntime
 from portfell.hosted_api_state import HostedApiState
 from portfell.hosted_local_audit_event_repository import LocalAuditEventRepository
 from portfell.hosted_local_metadata_repository import LocalMetadataLifecycleRepository
@@ -39,10 +39,6 @@ from portfell.hosted_research_repository import HostedResearchRepository
 from portfell.market_source.contracts import Dividend, EodQuote, Listing, ListingKey, Split
 from portfell.market_source.gateway import MarketDataSnapshot
 from portfell.market_source.projection import MISSING_ADJUSTED_CLOSE
-
-
-def _empty_workflow(**_kwargs: object) -> dict[str, object]:
-    return {}
 
 
 @dataclass
@@ -140,9 +136,7 @@ def _fixture(*, missing_adjusted: bool = False) -> ImmutableGateway:
 def _metadata_service(state: HostedApiState, gateway: ImmutableGateway) -> MetadataProjectService:
     return MetadataProjectService(
         state,
-        LocalHostedRuntime(
-            quote_workflow=_empty_workflow, metadata_workflow=_empty_workflow, cpu_count=lambda: 1
-        ),
+        InMemoryRuntime(state),
         LocalProjectRepository(state),
         LocalSelectionRepository(state),
         LocalMetadataLifecycleRepository(state),

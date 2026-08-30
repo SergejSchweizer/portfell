@@ -1,11 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
 
 import pytest
 
-import portfell.hosted_api_local_runtime as local_runtime_module
 import portfell.hosted_bivariate_service as bivariate_service_module
 from portfell.bivariate_diagnostics import (
     bivariate_metric_summary,
@@ -16,7 +14,6 @@ from portfell.bivariate_diagnostics import (
 )
 from portfell.bivariate_views import build_bivariate_summary, build_covariance_matrix
 from portfell.hosted_api_errors import HostedApplicationError
-from portfell.hosted_api_local_runtime import LocalHostedRuntime
 from portfell.hosted_api_service_support import stable_hash
 from portfell.hosted_api_state import HostedApiState, SelectionRecord
 from portfell.hosted_bivariate_service import BivariateResearchService
@@ -29,8 +26,7 @@ from portfell.hosted_research_workflow import (
     bivariate_source_id,
 )
 from portfell.hosted_univariate_service import UnivariateResearchService
-from portfell.paths import LakePaths
-from portfell.table_io import JsonRow, read_rows, write_rows
+from portfell.table_io import JsonRow
 
 
 @dataclass
@@ -313,96 +309,6 @@ def test_bivariate_service_uses_shared_market_quotes_without_a_quote_run(
     assert state.bivariate_runs_by_id[str(started["run_id"])].status == "complete"
     assert captured["quote_rows"] == shared_quotes
     assert data.selected_calls == [(selection.member_ids, "quotes")]
-
-
-def test_local_research_adapter_builds_rows_and_reports_progress(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setenv("PORTFELL_LAKE_ROOT", str(tmp_path))
-    runtime = LocalHostedRuntime(
-        quote_workflow=lambda **_kwargs: {},
-        metadata_workflow=lambda **_kwargs: {},
-        cpu_count=lambda: 2,
-    )
-
-    class InlineExecutor:
-        def __init__(self, *, max_workers: int) -> None:
-            assert max_workers == 2
-
-        def __enter__(self) -> InlineExecutor:
-            return self
-
-        def __exit__(self, *_args: object) -> None:
-            return None
-
-        def map(self, *_args: object) -> tuple[JsonRow | None, ...]:
-            return (None, {"isin": "IE2"})
-
-    monkeypatch.setattr(local_runtime_module, "ProcessPoolExecutor", InlineExecutor)
-    progress: list[int] = []
-
-    rows = runtime.build_univariate_rows(
-        ("IE1:XETRA:AAA", "IE2:XETRA:BBB"), on_progress=progress.append
-    )
-
-    assert rows == ({"isin": "IE2"},)
-    assert progress == [1, 2]
-
-
-def test_local_univariate_worker_handles_missing_computed_and_cached_rows(tmp_path: Path) -> None:
-    paths = LakePaths(root=tmp_path)
-    member_id = "IE1:XETRA:AAA"
-    assert local_runtime_module._build_scoped_univariate_listing(tmp_path, member_id) is None
-
-    quote_rows = [
-        {
-            "isin": "IE1",
-            "exchange": "XETRA",
-            "code": "AAA",
-            "date": f"2026-01-0{day}",
-            "adjusted_close": 100.0 + day,
-        }
-        for day in range(1, 5)
-    ]
-    write_rows(paths.silver_quote_file("XETRA", "IE1"), quote_rows)
-    computed = local_runtime_module._build_scoped_univariate_listing(tmp_path, member_id)
-    assert computed is not None
-    write_rows(
-        paths.gold_univariate_statistics("XETRA", "IE1"),
-        [
-            {
-                **computed,
-                "distribution_frequency": "stale",
-                "annual_dividend_yield": -1.0,
-            }
-        ],
-    )
-
-    cached = local_runtime_module._build_scoped_univariate_listing(tmp_path, member_id)
-
-    assert cached is not None
-    assert cached["distribution_frequency"] == "accumulating"
-    assert read_rows(paths.gold_univariate_statistics("XETRA", "IE1")) == [cached]
-
-    legacy = {key: value for key, value in cached.items() if key != "calculation_contract"}
-    legacy["total_return"] = -1.0
-    write_rows(paths.gold_univariate_statistics("XETRA", "IE1"), [legacy])
-
-    recomputed = local_runtime_module._build_scoped_univariate_listing(tmp_path, member_id)
-
-    assert recomputed is not None
-    assert recomputed["calculation_contract"] == "univariate.statistics.v2"
-    assert recomputed["total_return"] != -1.0
-
-    revised_quotes = [
-        {**row, "adjusted_close": float(row["adjusted_close"]) + 10.0} for row in quote_rows
-    ]
-    write_rows(paths.silver_quote_file("XETRA", "IE1"), revised_quotes)
-
-    revised = local_runtime_module._build_scoped_univariate_listing(tmp_path, member_id)
-
-    assert revised is not None
-    assert revised["quote_input_id"] != recomputed["quote_input_id"]
 
 
 def test_bivariate_read_models_cover_empty_and_constant_inputs() -> None:

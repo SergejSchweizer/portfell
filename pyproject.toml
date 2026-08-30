@@ -115,7 +115,6 @@ source_modules = [
 forbidden_modules = [
     "portfell.bronze",
     "portfell.hosted_api",
-    "portfell.hosted_api_local_runtime",
     "portfell.hosted_credentials",
     "portfell.hosted_workspace",
     "portfell.metadata_builder",
@@ -141,7 +140,6 @@ source_modules = [
 ]
 forbidden_modules = [
     "portfell.hosted_api",
-    "portfell.hosted_api_local_runtime",
     "portfell.hosted_routes_common",
     "portfell.hosted_routes_credentials",
     "portfell.hosted_routes_metadata_projects",
@@ -166,7 +164,6 @@ source_modules = [
 ]
 forbidden_modules = [
     "portfell.hosted_api",
-    "portfell.hosted_api_local_runtime",
     "portfell.hosted_api_service_support",
     "portfell.hosted_analysis_service",
     "portfell.hosted_bivariate_service",

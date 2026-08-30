@@ -9,6 +9,7 @@ from uuid import UUID
 
 import pytest
 from fastapi.testclient import TestClient
+from hosted_test_support import build_research_service, build_services
 
 import portfell.hosted_api as hosted_api
 from portfell.entitlements import ProviderDownloadRun
@@ -22,9 +23,6 @@ from portfell.hosted_api import (
     create_app,
 )
 from portfell.hosted_api_state import LocalWorkspaceUserProvider
-from portfell.hosted_local_test_composition import (
-    local_test_services,
-)
 from portfell.hosted_postgres_request_scope import RequestScopedPostgresConnection
 from portfell.hosted_research_workflow import ResearchRun, UnivariateSelection
 from portfell.market_source.contracts import EodQuote, Listing, ListingKey
@@ -74,14 +72,14 @@ def _client(
     return TestClient(
         create_app(
             resolved_state,
-            services=local_test_services(resolved_state, market_gateway=market_gateway),
+            services=build_services(resolved_state, market_gateway=market_gateway),
         )
     )
 
 
 def _test_app(state: HostedApiState | None = None, **kwargs: object) -> Any:
     resolved_state = state or HostedApiState()
-    return create_app(resolved_state, services=local_test_services(resolved_state), **kwargs)
+    return create_app(resolved_state, services=build_services(resolved_state), **kwargs)
 
 
 def _headers(
@@ -161,9 +159,7 @@ def test_postgres_runtime_requires_its_explicit_runtime_dependencies(
 def test_postgres_runtime_composes_without_a_local_workspace(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    key_path = tmp_path / "kek"
     config_path = tmp_path / "config.yaml"
-    key_path.write_bytes(b"k" * 32)
     config_path.write_text(
         """postgres:
   app:
@@ -195,8 +191,6 @@ def test_postgres_runtime_composes_without_a_local_workspace(
         "PORTFELL_MARKET_DATABASE_URL", "postgresql://portfell@market-postgres:5432/xetra_loader"
     )
     monkeypatch.setenv("PORTFELL_CONFIG_PATH", str(config_path))
-    monkeypatch.setenv("PORTFELL_EODHD_KEK_FILE", str(key_path))
-
     application = hosted_api.create_runtime_app()
 
     assert application.state.portfell_state.workspace_store is None
@@ -985,9 +979,7 @@ def test_bivariate_statistics_read_quotes_from_the_market_source_snapshot() -> N
             json={"univariate_selection_id": filtered.selection_id},
         )
     )
-    from portfell.hosted_local_test_composition import local_research_service, local_runtime
-
-    research = local_research_service(state, local_runtime(), market_gateway=market_gateway)
+    research = build_research_service(state, market_gateway=market_gateway)
     research.complete_bivariate(DEFAULT_LOCAL_WORKSPACE_USER_ID, filtered.selection_id)
     completed = _json(
         client.get(f"/bivariate-statistics/runs/{run['run_id']}", headers=_headers(csrf=False))

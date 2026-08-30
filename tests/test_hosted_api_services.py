@@ -6,12 +6,11 @@ from typing import Any
 from uuid import UUID
 
 import pytest
+from hosted_test_support import InMemoryRuntime
 
-import portfell.hosted_api_local_runtime as local_runtime_module
 from portfell.entitlements import ProviderDownloadRun
 from portfell.hosted_analysis_service import HostedAnalysisService
-from portfell.hosted_api_errors import HostedApplicationError, HostedRuntimeError
-from portfell.hosted_api_local_runtime import LocalHostedRuntime
+from portfell.hosted_api_errors import HostedApplicationError
 from portfell.hosted_api_service_support import (
     _apply_univariate_selection_settings,
     current_project,
@@ -58,13 +57,12 @@ from portfell.hosted_selection_repository import InMemorySelectionRepository
 from portfell.hosted_workspace import LocalWorkspaceStore
 from portfell.hosted_workspace_repository import persist_local_workspace, restore_local_workspace
 from portfell.market_source.contracts import Listing, ListingKey
-from portfell.paths import LakePaths
 from portfell.selection_filters import Predicate
 from portfell.table_io import JsonRow
 
 
 def MetadataProjectService(
-    state: HostedApiState, runtime: LocalHostedRuntime, **dependencies: Any
+    state: HostedApiState, runtime: InMemoryRuntime, **dependencies: Any
 ) -> _MetadataProjectService:
     return _MetadataProjectService(
         state,
@@ -107,22 +105,6 @@ INVALID_WORKSPACE_PAYLOADS: tuple[dict[str, object], ...] = (
     {"current_project_id_by_user": []},
     {"current_project_id_by_user": {"user-a": 1}},
 )
-
-
-def _empty_workflow(**_kwargs: Any) -> dict[str, Any]:
-    return {}
-
-
-def _permission_denied_workflow(**_kwargs: Any) -> dict[str, Any]:
-    raise PermissionError("lake is read-only")
-
-
-def _discard_progress(_completed: int, _total: int, _skipped: int) -> None:
-    return None
-
-
-def _one_isin_row(_path: Path) -> list[JsonRow]:
-    return [{"isin": "IE1"}]
 
 
 def test_opaque_ids_are_stable_postgres_uuid_values() -> None:
@@ -170,43 +152,6 @@ def test_workspace_repository_round_trips_durable_state(tmp_path: Path) -> None:
 def test_local_workspace_principal_rejects_non_uuid_user_id() -> None:
     with pytest.raises(ValueError, match="user id must be a UUID"):
         LocalWorkspaceUserProvider(" ")
-
-
-def test_local_runtime_validates_metadata_manifests(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setenv("PORTFELL_LAKE_ROOT", str(tmp_path))
-    runtime = LocalHostedRuntime(
-        quote_workflow=_empty_workflow,
-        metadata_workflow=_empty_workflow,
-        cpu_count=lambda: 1,
-    )
-    manifest = LakePaths(root=tmp_path).metadata_builder_manifest("selection-1")
-
-    assert runtime.metadata_builder_predicates("selection-1") == ()
-    manifest.parent.mkdir(parents=True, exist_ok=True)
-    manifest.write_text('{"predicates": {}}', encoding="utf-8")
-    with pytest.raises(ValueError, match="manifest is invalid"):
-        runtime.metadata_builder_predicates("selection-1")
-    manifest.write_text('{"predicates": [1]}', encoding="utf-8")
-    with pytest.raises(ValueError, match="manifest is invalid"):
-        runtime.metadata_builder_predicates("selection-1")
-    manifest.write_text('{"predicates": ["country=DE"]}', encoding="utf-8")
-    assert runtime.metadata_builder_predicates("selection-1") == (Predicate("country", "=", "DE"),)
-
-    monkeypatch.setattr(local_runtime_module, "read_rows", _one_isin_row)
-    assert runtime.all_isins_rows() == ({"isin": "IE1"},)
-
-
-def test_local_runtime_reports_metadata_lake_permission_errors() -> None:
-    runtime = LocalHostedRuntime(
-        quote_workflow=_empty_workflow,
-        metadata_workflow=_permission_denied_workflow,
-        cpu_count=lambda: 1,
-    )
-
-    with pytest.raises(HostedRuntimeError, match="lake_write_permission_denied"):
-        runtime.run_metadata(provider_key="secret", concurrency=1, on_progress=_discard_progress)
 
 
 @pytest.mark.parametrize(
@@ -332,11 +277,7 @@ def test_metadata_builder_project_can_use_an_injected_project_repository() -> No
     )
     user_id = "00000000-0000-5000-8000-000000000001"
     state.metadata_revisions_by_user[user_id] = "revision-1"
-    runtime = LocalHostedRuntime(
-        quote_workflow=_empty_workflow,
-        metadata_workflow=_empty_workflow,
-        cpu_count=lambda: 1,
-    )
+    runtime = InMemoryRuntime(state)
     repository = InMemoryProjectRepository()
     service = MetadataProjectService(state, runtime, project_repository=repository)
 
@@ -380,11 +321,7 @@ def test_metadata_builder_options_count_unique_isins_per_value() -> None:
             },
         )
     )
-    runtime = LocalHostedRuntime(
-        quote_workflow=_empty_workflow,
-        metadata_workflow=_empty_workflow,
-        cpu_count=lambda: 1,
-    )
+    runtime = InMemoryRuntime(state)
 
     assert MetadataProjectService(state, runtime).options("user-a")["exchange"] == [
         {"value": "LSE", "isin_count": 1},
@@ -416,13 +353,8 @@ def test_metadata_builder_uses_only_active_full_identity_market_catalogue() -> N
 
     user_id = "00000000-0000-5000-8000-000000000001"
     catalog = metadata_source_catalog(Gateway())  # type: ignore[arg-type]
-    service = MetadataProjectService(
-        HostedApiState(),
-        LocalHostedRuntime(
-            quote_workflow=_empty_workflow, metadata_workflow=_empty_workflow, cpu_count=lambda: 1
-        ),
-        market_catalog=lambda: catalog,
-    )
+    state = HostedApiState()
+    service = MetadataProjectService(state, InMemoryRuntime(state), market_catalog=lambda: catalog)
 
     assert service.options(user_id)["metadata_ready"] is True
     fetched, _ = service.start_metadata_fetch(user_id)
@@ -585,11 +517,7 @@ def test_metadata_builder_can_use_an_injected_selection_repository() -> None:
     )
     user_id = "00000000-0000-5000-8000-000000000001"
     state.metadata_revisions_by_user[user_id] = "revision-1"
-    runtime = LocalHostedRuntime(
-        quote_workflow=_empty_workflow,
-        metadata_workflow=_empty_workflow,
-        cpu_count=lambda: 1,
-    )
+    runtime = InMemoryRuntime(state)
     projects = InMemoryProjectRepository()
     selections = InMemorySelectionRepository()
     service = MetadataProjectService(
@@ -641,9 +569,7 @@ def test_metadata_builder_project_refreshes_navigation_projection() -> None:
     state.metadata_revisions_by_user["user-1"] = "metadata-v1"
     service = MetadataProjectService(
         state,
-        LocalHostedRuntime(
-            quote_workflow=_empty_workflow, metadata_workflow=_empty_workflow, cpu_count=lambda: 1
-        ),
+        InMemoryRuntime(state),
         navigation_refresher=refreshed.append,
     )
 
@@ -678,9 +604,7 @@ def test_metadata_builder_reuses_an_immutable_selection_after_catalog_changes() 
     state.metadata_revisions_by_user[user_id] = "revision-1"
     service = MetadataProjectService(
         state,
-        LocalHostedRuntime(
-            quote_workflow=_empty_workflow, metadata_workflow=_empty_workflow, cpu_count=lambda: 1
-        ),
+        InMemoryRuntime(state),
     )
 
     created = service.create_project_from_criteria(
