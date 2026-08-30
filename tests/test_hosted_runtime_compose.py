@@ -35,7 +35,7 @@ def test_production_override_keeps_only_postgres_durable_storage() -> None:
     assert "volumes: !reset {}" in source
 
 
-def test_compose_defines_persistent_internal_postgres_without_market_filesystem() -> None:
+def test_final_runtime_has_only_python_application_and_clean_app_database() -> None:
     compose = _compose()
     services = cast(ComposeMapping, compose["services"])
     volumes = cast(ComposeMapping, compose["volumes"])
@@ -51,8 +51,10 @@ def test_compose_defines_persistent_internal_postgres_without_market_filesystem(
     assert postgres["networks"] == ["portfell-internal"]
     assert "ports" not in postgres
     assert "5432" in postgres["expose"]
-    assert api["container_name"] == "portfell-api"
+
+    assert api["container_name"] == "portfell-app"
     environment = cast(ComposeMapping, api["environment"])
+    assert environment["PORTFELL_ENV"] == "production"
     assert "PORTFELL_HOSTED_AUTHORITY" not in environment
     assert (
         environment["PORTFELL_DATABASE_URL"]
@@ -65,13 +67,20 @@ def test_compose_defines_persistent_internal_postgres_without_market_filesystem(
     assert api["group_add"] == ["${PORTFELL_SECRET_GROUP_ID:-100}"]
 
 
-def test_compose_exposes_only_api_development_port() -> None:
+def test_final_runtime_has_one_loopback_application_surface() -> None:
     services = cast(ComposeMapping, _compose()["services"])
-
-    assert cast(ComposeMapping, services["api"])["ports"] == [
-        "0.0.0.0:${PORTFELL_API_PORT:-8000}:8000"
-    ]
+    api = cast(ComposeMapping, services["api"])
+    assert api["ports"] == ["127.0.0.1:${PORTFELL_PORT:-8080}:8000"]
     assert "ports" not in cast(ComposeMapping, services["postgres"])
+
+
+def test_final_runtime_has_no_node_or_legacy_database_plane() -> None:
+    rendered = (REPOSITORY_ROOT / "compose.yaml").read_text(encoding="utf-8").lower()
+    assert "apps/web" not in rendered
+    assert "node" not in rendered
+    assert "portfell_web_port" not in rendered
+    assert "portfell-postgres-data" not in rendered
+    assert "postgresql://portfell_app@postgres:5432/portfell\n" not in rendered
 
 
 def test_runtime_secrets_are_external_paths_and_not_build_arguments() -> None:

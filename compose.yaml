@@ -33,13 +33,13 @@ services:
       - no-new-privileges:true
 
   api:
-    container_name: portfell-api
+    container_name: portfell-app
     build:
       context: .
       dockerfile: apps/api/Dockerfile
     restart: unless-stopped
     environment:
-      PORTFELL_ENV: development
+      PORTFELL_ENV: production
       PORTFELL_CONFIG_PATH: /run/portfell/config.yaml
       PORTFELL_DATABASE_URL: postgresql://portfell_app@postgres:5432/portfell_dash
       PORTFELL_DATABASE_PASSWORD_FILE: /run/secrets/postgres_password
@@ -54,7 +54,7 @@ services:
       postgres:
         condition: service_healthy
     ports:
-      - "0.0.0.0:${PORTFELL_API_PORT:-8000}:8000"
+      - "127.0.0.1:${PORTFELL_PORT:-8080}:8000"
     healthcheck:
       test: ["CMD", "python", "-m", "portfell.hosted_runtime", "health"]
       interval: 10s
