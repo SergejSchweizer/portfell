@@ -59,7 +59,7 @@ def test_dash_four_page_journey_and_visual_evidence(tmp_path: Path) -> None:
             page.goto(f"{base_url}/metadata", wait_until="networkidle")
             _assert_shell(page, "Metadata")
             page.locator("#metadata-create-universe").click()
-            page.wait_for_function("document.body.innerText.includes('fixture-universe-1')")
+            page.locator("#metadata-continue-univariate[aria-disabled='false']").wait_for()
             page.locator("#metadata-continue-univariate").click()
 
             page.wait_for_url(f"{base_url}/univariate")
@@ -67,13 +67,13 @@ def test_dash_four_page_journey_and_visual_evidence(tmp_path: Path) -> None:
             page.locator("#univariate-compute").click()
             page.wait_for_function("document.body.innerText.includes('DE000TEST01')")
             page.locator("#univariate-save-selection").click()
-            page.wait_for_function("document.body.innerText.includes('Selection version')")
+            page.locator("#univariate-continue-bivariate[aria-disabled='false']").wait_for()
             page.locator("#univariate-continue-bivariate").click()
 
             page.wait_for_url(f"{base_url}/bivariate")
             _assert_shell(page, "Bivariate")
             page.locator("#bivariate-compute").click()
-            page.wait_for_function("document.body.innerText.includes('Eligible pairs')")
+            page.locator("#bivariate-continue-multivariate[aria-disabled='false']").wait_for()
             page.locator("#bivariate-continue-multivariate").click()
 
             page.wait_for_url(f"{base_url}/multivariate")
