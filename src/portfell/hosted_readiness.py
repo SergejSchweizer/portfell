@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any, Protocol, cast
 
 from portfell.app_state.migration import APP_STATE_MIGRATIONS
+from portfell.app_state.readiness import AppStateReadConnection, read_applied_migration_versions
 from portfell.hosted_data_planes import REQUIRED_SHARED_DATA_LICENSE_USES
 from portfell.hosted_database_connection import connect as connect_database
 
@@ -80,6 +81,7 @@ def validate_readiness(
     today: date | None = None,
 ) -> list[ReadinessResult]:
     """Validate operator/security decisions without coupling to the retired DB catalog."""
+
     resolved = payload or load_readiness()
     resolved_today = today or date.today()
     decisions = _decision_map(resolved)
@@ -127,11 +129,11 @@ def validate_readiness(
         )
         if identifier == "shared-data-provider-license":
             approved = decision.get("approved_uses")
-            approved_set = {
-                value
-                for value in cast(list[object], approved)
-                if isinstance(value, str)
-            } if isinstance(approved, list) else set()
+            approved_set = (
+                {value for value in cast(list[object], approved) if isinstance(value, str)}
+                if isinstance(approved, list)
+                else set()
+            )
             results.append(
                 ReadinessResult(
                     "decision.shared-data-provider-license.approved_uses",
@@ -173,6 +175,7 @@ def validate_runtime_readiness(
     environment: Mapping[str, str] | None = None,
 ) -> list[ReadinessResult]:
     """Require the clean app database URL; no legacy authority selector exists."""
+
     resolved = environment if environment is not None else os.environ
     return [
         ReadinessResult(
@@ -183,12 +186,7 @@ def validate_runtime_readiness(
     ]
 
 
-class DatabaseCursor(Protocol):
-    def fetchall(self) -> list[Sequence[object]]: ...
-
-
-class DatabaseConnection(Protocol):
-    def execute(self, sql: str) -> DatabaseCursor: ...
+class DatabaseConnection(AppStateReadConnection, Protocol):
     def close(self) -> None: ...
 
 
@@ -204,7 +202,8 @@ def validate_database_readiness(
     *,
     connect: DatabaseConnector | None = None,
 ) -> list[ReadinessResult]:
-    """Probe only the clean ``portfell.schema_migrations`` catalog."""
+    """Probe only the clean app-state migration catalog through the app-state boundary."""
+
     resolved_url = database_url or os.environ.get("PORTFELL_DATABASE_URL")
     if not _postgres_database_url(resolved_url):
         return _database_unavailable_results()
@@ -212,14 +211,11 @@ def validate_database_readiness(
     try:
         connection = (connect or _connect_database)(resolved_url)
         try:
-            rows = connection.execute(
-                "select version from portfell.schema_migrations order by version"
-            ).fetchall()
+            versions = read_applied_migration_versions(connection)
         finally:
             connection.close()
     except Exception:
         return _database_unavailable_results()
-    versions = tuple(int(row[0]) for row in rows)
     expected = tuple(migration.version for migration in APP_STATE_MIGRATIONS)
     return [
         ReadinessResult(
