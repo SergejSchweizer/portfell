@@ -16,7 +16,7 @@ from portfell.market_source.gateway import MarketDataGateway
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG_PATH = Path(os.environ.get("PORTFELL_CONFIG_PATH", ROOT / "config.yaml"))
 LIVE = os.environ.get("PORTFELL_LIVE_XETRA_LOADER_V2") == "1"
-pytestmark = pytest.mark.skipif(
+requires_live = pytest.mark.skipif(
     not LIVE,
     reason="live xetra-loader V2 acceptance requires PORTFELL_LIVE_XETRA_LOADER_V2=1",
 )
@@ -44,6 +44,7 @@ def _market_config():
     return load_market_source_config(CONFIG_PATH)
 
 
+@requires_live
 def test_live_gate_is_pinned_to_expected_loader_sha_and_endpoint() -> None:
     expected_sha = _required("PORTFELL_EXPECTED_XETRA_LOADER_SHA")
     observed_sha = _required("PORTFELL_LIVE_XETRA_LOADER_SHA")
@@ -63,6 +64,7 @@ def test_live_gate_is_pinned_to_expected_loader_sha_and_endpoint() -> None:
     assert config.tables == ("listings", "eod_quotes", "dividends", "splits")
 
 
+@requires_live
 def test_live_reader_is_non_superuser_group_member_and_selects_all_business_tables() -> None:
     config = _market_config()
     with closing(_market_connection()) as connection:
@@ -80,6 +82,7 @@ def test_live_reader_is_non_superuser_group_member_and_selects_all_business_tabl
         connection.rollback()
 
 
+@requires_live
 def test_live_gateway_materializes_representative_rows() -> None:
     config = _market_config()
     gateway = MarketDataGateway(
@@ -110,6 +113,7 @@ def _expect_insufficient_privilege(sql: str) -> None:
         connection.rollback()
 
 
+@requires_live
 def test_live_market_dml_and_ddl_are_denied() -> None:
     _expect_insufficient_privilege(
         'UPDATE "xetra_loader"."listings" SET isin = isin WHERE false'
@@ -119,6 +123,7 @@ def test_live_market_dml_and_ddl_are_denied() -> None:
     )
 
 
+@requires_live
 def test_live_sync_schema_access_is_denied_and_counts_as_pass() -> None:
     with closing(_market_connection()) as connection:
         cursor = connection.cursor()
@@ -131,7 +136,7 @@ def test_live_sync_schema_access_is_denied_and_counts_as_pass() -> None:
 
 def test_live_qa_source_contains_no_secret_or_full_dsn_evidence_output() -> None:
     source = Path(__file__).read_text(encoding="utf-8")
-    assert "print(" not in source
-    assert "logger." not in source
-    assert "password=" not in source.lower()
-    assert "postgresql://" not in source.lower()
+    assert ("print" + "(") not in source
+    assert ("logger" + ".") not in source
+    assert ("password" + "=") not in source.lower()
+    assert ("postgres" + "ql://") not in source.lower()
