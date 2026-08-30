@@ -1,171 +1,111 @@
-# Docker Operations
+# Docker operations
 
-This sidecar explains how to run Portfell's containerized PostgreSQL, API, and
-Web runtime. It is the canonical Docker guide. For deployment readiness
-decisions, see [docs/security/hosted_readiness.md](docs/security/hosted_readiness.md).
+This is the canonical container guide for the final Portfell runtime.
 
-## Table Of Contents
+## Topology
 
-- [1. Runtime Model](#1-runtime-model)
-- [2. Prerequisites](#2-prerequisites)
-- [3. External Secrets](#3-external-secrets)
-- [4. Configure The Environment](#4-configure-the-environment)
-- [5. Deploy And Verify](#5-deploy-and-verify)
-- [6. Day-To-Day Commands](#6-day-to-day-commands)
-- [7. Troubleshooting](#7-troubleshooting)
+`compose.yaml` owns exactly two services:
 
-## 1. Runtime Model
+- `postgres`: clean Portfell application database `portfell_dash`;
+- `api`: the Python FastAPI + Plotly Dash application.
 
-Compose starts the PostgreSQL control plane used for the Portfell application.
-Market observations are read from the configured
-external market database; no market NAS or filesystem volume is mounted into the
-hosted runtime. The API starts only when
-`PORTFELL_HOSTED_AUTHORITY=postgres`; it has no local or in-memory runtime mode.
+The external xetra-loader PostgreSQL database is not Compose-owned by Portfell. There is no production Web/Node service, provider/download/refresh worker, or retired Portfell application database service.
 
-```text
-browser
-   |
-   v
-+----------------+       +-------------------+
-| portfell-web   | ----> | portfell-api      |
-+----------------+       +-------------------+
-                                  |
-                       request-scoped RLS transaction
-                                  |
-                                  v
-                         +--------------------+
-                         | portfell-postgress |
-                         | PostgreSQL         |
-                         +--------------------+
-                                  |
-                       read-only gateway query
-                                  |
-                                  v
-                         +--------------------+
-                         | configured market  |
-                         | PostgreSQL source  |
-                         +--------------------+
-```
+## Required local files
 
-`portfell-postgress`, `portfell-api`, and `portfell-web` are intentional fixed
-container names. PostgreSQL is the only Compose-managed durable volume.
+Create repository-root `config.yaml` from `config.example.yaml`. `config.yaml` is intentionally gitignored and must remain outside image layers/artifacts. It contains non-secret PostgreSQL identity metadata only.
 
-## 2. Prerequisites
+Create two external password files outside the repository:
 
-Install Docker Engine and the Docker Compose v2 plugin on the host. The service
-user must be able to run `docker compose` and read the external secret files.
-Check the installation before configuring Portfell:
+- Portfell app-database password file;
+- external xetra-loader market-reader password file.
 
-```bash
-docker --version
-docker compose version
-docker info
-```
-
-Run all commands below from the immutable checkout root:
-
-```bash
-cd /home/dev_portfell/portfell
-```
-
-## 3. External Secrets
-
-Keep secrets outside the repository and grant read access only to the service
-user. Compose mounts their contents as Docker secrets; do not put values in
-`compose.yaml`, image layers, command lines, logs, or Git.
+Point the following environment variables at the effective authorities/files:
 
 ```text
-/run/host-secrets/portfell/
-└── postgres-password.txt          PostgreSQL password
+PORTFELL_PORT=8080
+PORTFELL_POSTGRES_PASSWORD_FILE=/absolute/host/path/postgres-password.txt
+PORTFELL_MARKET_DATABASE_URL=postgresql://<market-login>@10.10.1.3:54321/xetra_loader
+PORTFELL_MARKET_POSTGRES_PASSWORD_FILE=/absolute/host/path/market-postgres-password.txt
 ```
 
-The API receives only the application-database password. The external market
-database is an independent read-only authority configured through `config.yaml`
-and its separate runtime secret reference.
+`PORTFELL_DATABASE_URL` is composed internally for the local Compose-managed `portfell_dash` service. Production may provide an explicit external equivalent only when it still identifies database `portfell_dash`, schema `portfell`, and passes the same config identity validation.
 
-## 4. Configure The Environment
+Never place raw passwords in `.env.example`, `config.yaml`, tracked Compose files, image build arguments, logs, or acceptance evidence.
 
-Copy the variable names from `.env.example` to the ignored `.env.local` file.
-Every secret entry is an absolute host-file path.
-
-```dotenv
-PORTFELL_API_PORT=8000
-PORTFELL_WEB_PORT=3000
-PORTFELL_HOSTED_AUTHORITY=postgres
-PORTFELL_POSTGRES_PASSWORD_FILE=/run/host-secrets/portfell/postgres-password.txt
-```
-
-Validate interpolation without showing secret values:
+## Start
 
 ```bash
-docker compose --env-file .env.local config --quiet
-docker compose --env-file .env.local config --services
+docker compose up --build
 ```
 
-## 5. Deploy And Verify
+The default application binding is:
 
-Apply the catalog migrations before starting the application stack, then build
-and start PostgreSQL, the API, and the Web application. The API and Web images
-must come from the same verified source revision;
-there is no mixed-version or dual-authority compatibility window.
+```text
+127.0.0.1:8080 -> api:8000
+```
+
+Override the host port with `PORTFELL_PORT` when required.
+
+The app container mounts only:
+
+```text
+./config.yaml:/run/portfell/config.yaml:ro
+```
+
+plus the two external Compose secrets. It runs read-only with a tmpfs for `/tmp`, drops all Linux capabilities, and uses `no-new-privileges`.
+
+The PostgreSQL service persists only the clean `portfell_dash` database in `portfell-dash-postgres-data`. The production override may bind this to `${PORTFELL_DATA_ROOT}/postgres`; it must not reactivate a legacy Portfell database volume.
+
+## Startup contract
+
+The Python application:
+
+1. loads `postgres.app` and `postgres.market` from the mounted root config;
+2. validates the effective app and market DSN identities independently;
+3. connects to `portfell_dash` and migrates `portfell` app-state schema to head;
+4. composes `PostgresAppStateRepository`;
+5. composes the external read-only `MarketDataGateway`;
+6. creates the typed four-stage application service;
+7. mounts FastAPI routes and the four Plotly Dash pages.
+
+A missing/malformed/mismatched config or database authority fails closed with a redacted runtime error.
+
+## Health
+
+Container health uses:
 
 ```bash
-uv run python -m portfell.hosted_catalog_migration
-uv run python -m portfell.hosted_readiness --require-database
-docker compose --env-file .env.local up --build --detach
-docker compose --env-file .env.local ps
-docker compose --env-file .env.local logs --tail 100 api web
+python -m portfell.hosted_runtime health
 ```
 
-Wait until `portfell-postgress`, `portfell-api`, and `portfell-web` are healthy.
-Open `http://localhost:3000` for the Web UI and
-`http://localhost:8000/health` for the API health response.
+A healthy process is necessary but not sufficient for production acceptance. Production cutover also requires database/config preflight, market read-only checks, full analytical workflow, browser acceptance, and restart persistence.
 
-Smoke-check the deployed API without exposing credentials:
+## Market authority
+
+Expected external identity:
+
+```text
+host: 10.10.1.3
+port: 54321
+database: xetra_loader
+schema: xetra_loader
+tables: listings, eod_quotes, dividends, splits
+```
+
+The Portfell reader must be non-superuser, must receive only the required read privileges through group role `portfell_app`, and must not access `xetra_loader_sync`. Market DML/DDL must fail.
+
+## Local validation
 
 ```bash
-curl --fail --silent --show-error http://localhost:8000/health
+uv run portfell-quality pr
+uv run portfell-quality merge
 ```
 
-If a deployment fails after migrations or image startup, stop the new stack,
-restore the last compatible PostgreSQL backup, then start the matching prior
-Web/API image pair. Do not run an old image against a newer catalog head or
-introduce a dual-read/dual-write fallback.
+The merge gate includes the isolated market-source PostgreSQL contract. GitHub additionally executes deterministic Python Playwright browser acceptance.
 
-## 6. Day-To-Day Commands
+## Production cutover and rollback
 
-Use these commands for safe routine operations:
+Do not remove the retired deployment ad hoc. Follow `docs/runbooks/dash-production-cutover.md` in order. Back up and verify the old database before destructive removal; provision a fresh `portfell_dash`; validate the complete new workflow and restart; only then detach the old UI/database runtime.
 
-```bash
-# Follow one service without exposing secrets.
-docker compose --env-file .env.local logs --follow api
-
-# Rebuild only the API after backend changes.
-docker compose --env-file .env.local up --build --detach api
-
-# Recreate only the Web container after UI changes.
-docker compose --env-file .env.local up --detach --no-deps --force-recreate web
-
-# Inspect persistent-volume-backed service status.
-docker compose --env-file .env.local ps
-```
-
-Do not remove named volumes during normal deployment: they contain the PostgreSQL
-catalog.
-
-## 7. Troubleshooting
-
-If Compose configuration reports a missing secret variable, add the *path* to
-`.env.local`, confirm that the path is absolute, and verify that the file is
-readable by the service user. Never replace a path variable with a token value.
-
-If an API healthcheck fails after a backend change, rebuild the API and inspect
-only the final log lines:
-
-```bash
-docker compose --env-file .env.local up --build --detach api
-docker compose --env-file .env.local logs --tail 100 api
-```
-
-If an analytical computation is pending, inspect the API logs and its status
-through the UI/API.
+Rollback restores the matching retired application release and its encrypted database backup as one unit. Never run old and new Portfell databases in dual-read, dual-write, or fallback mode.
