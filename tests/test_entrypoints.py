@@ -32,8 +32,6 @@ def test_portfell_console_scripts_are_registered() -> None:
         "portfell-compose-web-watch",
         "portfell-docs-refresh",
         "portfell-quality",
-        "portfell-refresh-shared-market-data",
-        "portfell-shared-market-cron",
     }
 
 

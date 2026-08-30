@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 from portfell.hosted_analysis_service import HostedAnalysisService
 from portfell.hosted_api_state import HostedApiState
 from portfell.hosted_credential_project_service import CredentialProjectService
@@ -32,7 +30,6 @@ def build_postgres_services(
     state: HostedApiState,
     *,
     request_scope: RequestScopedPostgresConnection,
-    shared_data_root: Path,
     key_encryption_key: KeyEncryptionKey,
     market_gateway: MarketDataGateway | None = None,
 ) -> tuple[CredentialProjectService, MetadataProjectService, ResearchService]:
@@ -44,7 +41,7 @@ def build_postgres_services(
         key_encryption_key=key_encryption_key,
         fingerprint_secret=key_encryption_key.material,
     )
-    runtime = PostgresHostedRuntime(shared_data_root, market_gateway=market_gateway)
+    runtime = PostgresHostedRuntime(market_gateway=market_gateway)
     bivariate_data = BivariateMarketSourceData(runtime.market_gateway)
     market_data = MarketSourceResearchData(runtime.market_gateway)
 

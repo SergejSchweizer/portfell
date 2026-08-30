@@ -21,7 +21,6 @@ from portfell.hosted_local_selection_repository import LocalSelectionRepository
 from portfell.hosted_repository_importer import ProjectRepository
 from portfell.hosted_research_workflow import ResearchRun, UnivariateSelection
 from portfell.hosted_selection_repository import SelectionRepository, selection_record
-from portfell.shared_market_data import SharedListingKey
 from portfell.table_io import JsonRow
 
 
@@ -52,13 +51,6 @@ class HostedResearchRepository:
         return require_user_row(self._state.downloads_by_id, run_id, user_id)
 
     def quote_rows(self, run_id: str) -> tuple[JsonRow, ...]:
-        run = self._state.downloads_by_id.get(run_id)
-        store = self._state.shared_market_data_store
-        if run is not None and store is not None:
-            rows: list[JsonRow] = []
-            for member_id in run.returned_observation_ids:
-                rows.extend(store.read("quotes", SharedListingKey.from_member_id(member_id)))
-            return tuple(rows)
         return self._state.quote_rows_by_run_id.get(run_id, ())
 
     def univariate_run(self, run_id: str, user_id: str) -> ResearchRun:

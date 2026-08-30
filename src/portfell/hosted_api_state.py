@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import Any, Protocol
 from uuid import UUID
 
 from portfell.entitlements import InMemoryEntitlementStore, ProviderDownloadRun
@@ -17,9 +17,6 @@ from portfell.hosted_research_workflow import ResearchRun, UnivariateSelection
 from portfell.hosted_workflow_read_metrics import WorkflowReadMetrics
 from portfell.hosted_workspace import LocalWorkspaceStore
 from portfell.table_io import JsonRow
-
-if TYPE_CHECKING:
-    from portfell.shared_market_data import SharedMarketDataStore
 
 DEFAULT_LOCAL_WORKSPACE_USER_ID = "00000000-0000-5000-8000-000000000001"
 
@@ -199,7 +196,6 @@ class HostedApiState:
     current_project_id_by_user: dict[str, str] = field(default_factory=lambda: dict[str, str]())
     workflow_read_metrics: WorkflowReadMetrics = field(default_factory=WorkflowReadMetrics)
     workspace_store: LocalWorkspaceStore | None = None
-    shared_market_data_store: SharedMarketDataStore | None = None
 
     def credential_vault(self) -> EodhdCredentialVault:
         """Return the vault configured for this API state."""

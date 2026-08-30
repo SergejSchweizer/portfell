@@ -1,34 +1,25 @@
-"""Shared-store runtime adapter used by the PostgreSQL hosted application.
-
-The hosted HTTP process deliberately has no lake or workspace dependency.  Market
-refreshes are worker-owned; this adapter can only read the published shared
-catalogue and rejects legacy, user-triggered provider workflows.
-"""
+"""Gateway-backed runtime adapter used by the PostgreSQL hosted application."""
 
 from __future__ import annotations
 
 import os
 from collections.abc import Iterable, Mapping
-from pathlib import Path
 from typing import Any
 
 from portfell.hosted_api_errors import HostedRuntimeError
 from portfell.hosted_api_ports import ProgressCallback
 from portfell.market_source.gateway import MarketDataGateway
 from portfell.selection_filters import Predicate
-from portfell.table_io import JsonRow, read_rows
+from portfell.table_io import JsonRow
 
 
 class PostgresHostedRuntime:
-    """Read shared metadata while enforcing worker-only market mutations."""
+    """Read source metadata while rejecting legacy user-triggered mutations."""
 
     def __init__(
         self,
-        shared_data_root: Path,
-        *,
         market_gateway: MarketDataGateway | None = None,
     ) -> None:
-        self._metadata_path = shared_data_root / "market-data" / "metadata" / "current.parquet"
         self._market_gateway = market_gateway
 
     @property
@@ -39,9 +30,21 @@ class PostgresHostedRuntime:
         return self._market_gateway
 
     def all_isins_rows(self) -> tuple[JsonRow, ...]:
-        """Return the published metadata catalogue, if operations has published one."""
+        """Return the active source metadata catalogue when configured."""
 
-        return tuple(read_rows(self._metadata_path)) if self._metadata_path.exists() else ()
+        return tuple(
+            {
+                "isin": listing.key.isin,
+                "exchange": listing.key.exchange,
+                "code": listing.key.code,
+                "name": listing.name,
+                "instrument_type": listing.instrument_type,
+                "country": listing.country,
+                "currency": listing.currency,
+                "is_active": listing.is_active,
+            }
+            for listing in self.market_gateway.read_active_listings()
+        )
 
     def write_metadata_selection(
         self,

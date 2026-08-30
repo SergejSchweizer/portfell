@@ -197,13 +197,11 @@ def test_postgres_runtime_composes_without_a_local_workspace(
         "PORTFELL_MARKET_DATABASE_URL", "postgresql://portfell@market-postgres:5432/xetra_loader"
     )
     monkeypatch.setenv("PORTFELL_CONFIG_PATH", str(config_path))
-    monkeypatch.setenv("PORTFELL_SHARED_DATA_ROOT", str(tmp_path / "shared"))
     monkeypatch.setenv("PORTFELL_EODHD_KEK_FILE", str(key_path))
 
     application = hosted_api.create_runtime_app()
 
     assert application.state.portfell_state.workspace_store is None
-    assert application.state.portfell_state.shared_market_data_store is None
 
 
 def test_database_runtime_requires_explicit_authority(

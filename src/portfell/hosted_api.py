@@ -164,9 +164,8 @@ def create_runtime_app() -> FastAPI:
     if os.environ.get("PORTFELL_HOSTED_AUTHORITY") != "postgres":
         raise HostedApiError("postgres_hosted_authority_required")
     database_url = os.environ.get("PORTFELL_DATABASE_URL")
-    shared_data_root = os.environ.get("PORTFELL_SHARED_DATA_ROOT")
     key_path = os.environ.get("PORTFELL_EODHD_KEK_FILE")
-    if not database_url or not shared_data_root or not key_path:
+    if not database_url or not key_path:
         raise HostedApiError("postgres_hosted_runtime_configuration_required")
     config_path = Path(os.environ.get("PORTFELL_CONFIG_PATH", "config.yaml"))
     app_database = load_app_database_config(config_path)
@@ -186,7 +185,6 @@ def create_runtime_app() -> FastAPI:
         services=build_postgres_services(
             state,
             request_scope=request_scope,
-            shared_data_root=Path(shared_data_root),
             key_encryption_key=key_encryption_key,
             market_gateway=MarketDataGateway(
                 lambda: connect_database(
