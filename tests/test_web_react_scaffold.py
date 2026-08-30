@@ -10,10 +10,10 @@ WEB_ROOT = REPOSITORY_ROOT / "apps" / "web"
 def test_web_has_exactly_four_research_modules() -> None:
     routes = (WEB_ROOT / "src" / "routes.tsx").read_text(encoding="utf-8")
     expected = (
-        "/metadata-builder",
-        "/univariate-statistics",
-        "/bivariate-statistics",
-        "/multivariate-statistics",
+        "/metadata",
+        "/univariate",
+        "/bivariate",
+        "/multivariate",
     )
     for route in expected:
         assert f'path: "{route}"' in routes
@@ -47,7 +47,7 @@ def test_workflow_pages_use_the_server_owned_market_catalog() -> None:
     assert "quoteStatus" not in univariate_page
     assert "/quote-runs" not in univariate_page
     assert "!metadata.quote_run_id" not in univariate_page
-    assert 'page.id === "univariate_statistics"' in frame
+    assert 'pageId === "univariate_statistics"' in frame
     assert "metricDefinitions" in univariate_page
     assert "univariate-group-card" in univariate_page
     assert "univariate-group-card__label" in univariate_page
@@ -209,11 +209,11 @@ def test_mobile_drawer_reuses_the_canonical_project_sidebar() -> None:
     styles = (WEB_ROOT / "styles" / "app.css").read_text(encoding="utf-8")
 
     assert frame.count("<ProjectSidebar") == 1
-    assert 'aria-label="Open project navigation"' in frame
+    assert 'aria-label="Open workflow navigation"' in frame
     assert 'aria-controls="project-navigation-drawer"' in frame
     assert 'document.body.style.overflow = "hidden"' in frame
     assert 'event.key === "Escape"' in frame
-    assert "projectSelector?.disabled ? focusable()[0]" in frame
+    assert "focusable()[0]?.focus()" in frame
     assert "project-navigation-drawer" in sidebar
     assert "workflowPages" in sidebar
     assert "@media (max-width: 900px)" in styles

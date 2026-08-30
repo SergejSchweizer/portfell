@@ -151,7 +151,7 @@ def test_quality_gates_are_documented_centrally() -> None:
 
     for gates_text in (
         "## Rebase Workflow",
-        "rebase onto current main",
+        "rebase/retarget onto current main before integration",
         "uv run portfell-quality main",
         "Ruff lint and format",
         "pyright",
@@ -216,7 +216,10 @@ def test_github_merge_gate_runs_once_and_uses_rebase_completion() -> None:
     assert "uv run coverage combine coverage-shards" in merge_gate_workflow
     assert "uv run coverage report --fail-under=90" in merge_gate_workflow
     assert "pull_request:" in merge_gate_workflow
-    assert "branches: [main]" in merge_gate_workflow
+    # Stacked PRs must also be gated against their immediate base. The final rebase to main
+    # triggers the same pull-request workflow again against the integration base.
+    assert "branches: [main]" not in merge_gate_workflow
+    assert "workflow_dispatch:" in merge_gate_workflow
     assert "push:" not in merge_gate_workflow
     assert not (REPOSITORY_ROOT / ".github/workflows/pr-quality.yml").exists()
     assert "workflows: [merge-gate]" in merge_workflow
