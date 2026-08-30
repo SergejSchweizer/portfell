@@ -1,7 +1,5 @@
 [
   {"method":"GET","path":"/api/workflow","responseType":"ApiWorkflow"},
-  {"method":"GET","path":"/api/credentials/eodhd","responseType":"ApiCredentialStatus"},
-  {"method":"POST","path":"/api/credentials/eodhd","requestSchema":"CredentialSetRequest","requestFields":["provider_key"],"responseType":"ApiCredentialStatus"},
   {"method":"GET","path":"/api/project-context","responseType":"ApiProjectContext"},
   {"method":"PUT","path":"/api/project-context/current-project","requestSchema":"CurrentProjectRequest","requestFields":["project_id"],"responseType":"ApiProjectContext"},
   {"method":"GET","path":"/api/projects/{project_id}/metadata-builder","responseType":"ApiProjectMetadataBuilder"},

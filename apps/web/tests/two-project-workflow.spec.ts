@@ -133,8 +133,6 @@ async function installTwoProjectApi(
     calls.push(`${method} ${path}`);
     const body = method === "GET" ? {} : request.postDataJSON() as Record<string, unknown>;
 
-    if (method === "GET" && path === "/api/credentials/eodhd") return response(route, { credential_id: "credential-1", provider: "eodhd", status: "active", key_version: "1", masked_label: "dummy…key" });
-    if (method === "POST" && path === "/api/credentials/eodhd") return response(route, { credential_id: "credential-1", provider: "eodhd", status: "active", key_version: "1", masked_label: "dummy…key" });
     if (method === "GET" && path === "/api/metadata-builder/options") return response(route, { metadata_ready: true, exchange: [{ value: "XETRA", isin_count: 3 }, { value: "LSE", isin_count: 1 }], instrument_type: [{ value: "ETF", isin_count: 3 }, { value: "FUND", isin_count: 1 }], country: [{ value: "IE", isin_count: 3 }, { value: "LU", isin_count: 1 }], currency: [{ value: "EUR", isin_count: 3 }, { value: "USD", isin_count: 1 }] });
     if (method === "GET" && path === "/api/project-context") return response(route, context());
     if (method === "PUT" && path === "/api/project-context/current-project") {
@@ -287,8 +285,8 @@ test("workflow URLs are canonical, project-scoped, and persist across every page
   await expect(page).toHaveURL(/\/projects\/alpha-income\/univariate-statistics$/);
   await page.getByRole("tab", { name: "Dividends" }).click();
   await expect(page.getByRole("img", { name: "Annual dividend yield distribution for 3 ISINs" })).toBeVisible();
-});
   await expect(page.getByText("Independent metadata selections")).toBeVisible();
+});
 
 test("sidebar workflow links navigate without a document reload", async ({ page }) => {
   await installTwoProjectApi(page);

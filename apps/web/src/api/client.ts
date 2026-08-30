@@ -1,6 +1,5 @@
 
 import type {
-  ApiCredentialStatus,
   ApiMetadataBuilderPageView,
   ApiProjectContext,
   ApiProjectMetadataBuilder,
@@ -66,11 +65,6 @@ export function postJson<TResponse>(path: string, body: unknown): Promise<TRespo
 
 export function loadWorkflow(signal?: AbortSignal): Promise<ApiWorkflow> {
   return requestJson<ApiWorkflow>("/api/workflow", { signal });
-}
-
-export function loadEodhdCredentialStatus(signal?: AbortSignal): Promise<ApiCredentialStatus> {
-  if (signal === undefined) return requestJson<ApiCredentialStatus>("/api/credentials/eodhd");
-  return requestJson<ApiCredentialStatus>("/api/credentials/eodhd", { signal });
 }
 
 export function loadProjectContext(signal?: AbortSignal): Promise<ApiProjectContext> {

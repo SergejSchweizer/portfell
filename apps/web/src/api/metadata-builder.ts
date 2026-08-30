@@ -1,14 +1,12 @@
 /** Metadata Builder's complete browser-to-API contract. */
 
 import {
-  loadEodhdCredentialStatus,
   loadMetadataBuilderPageView,
   loadProjectMetadataBuilder,
   postJson,
   requestJson,
 } from "./client";
 import type {
-  ApiCredentialStatus,
   ApiFieldOptions,
   ApiMetadataBuilderPageView,
   ApiMetadataProject,
@@ -24,7 +22,6 @@ export type MetadataBuilderCriteriaRequest = Readonly<{
 }>;
 
 export const metadataBuilderApi = {
-  loadCredentialStatus: (): Promise<ApiCredentialStatus> => loadEodhdCredentialStatus(),
   loadProjectCriteria: (projectId: string): Promise<ApiProjectMetadataBuilder> => (
     loadProjectMetadataBuilder(projectId)
   ),
@@ -32,9 +29,6 @@ export const metadataBuilderApi = {
     loadMetadataBuilderPageView(projectId, signal)
   ),
   loadFieldOptions: (): Promise<ApiFieldOptions> => requestJson<ApiFieldOptions>("/api/metadata-builder/options"),
-  saveCredential: (providerKey: string): Promise<ApiCredentialStatus> => (
-    postJson<ApiCredentialStatus>("/api/credentials/eodhd", { provider_key: providerKey })
-  ),
   createProject: (request: MetadataBuilderCriteriaRequest): Promise<ApiMetadataProject> => (
     postJson<ApiMetadataProject>("/api/metadata-builder", request)
   ),

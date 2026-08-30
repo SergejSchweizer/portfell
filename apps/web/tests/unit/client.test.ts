@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   ApiError,
-  loadEodhdCredentialStatus,
   loadProjectContext,
   loadProjectMetadataBuilder,
   loadProjectWorkflow,
@@ -73,11 +72,11 @@ describe("API client", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await Promise.all([
-      loadWorkflow(), loadEodhdCredentialStatus(), loadProjectContext(), loadProjectMetadataBuilder("project/a"), selectCurrentProject("project/a"), loadProjectWorkflow("project/a"),
+      loadWorkflow(), loadProjectContext(), loadProjectMetadataBuilder("project/a"), selectCurrentProject("project/a"), loadProjectWorkflow("project/a"),
     ]);
 
     expect(fetchMock.mock.calls.map(([path]) => path)).toEqual([
-      "/api/workflow", "/api/credentials/eodhd", "/api/project-context", "/api/projects/project%2Fa/metadata-builder", "/api/project-context/current-project", "/api/projects/project%2Fa/workflow",
+      "/api/workflow", "/api/project-context", "/api/projects/project%2Fa/metadata-builder", "/api/project-context/current-project", "/api/projects/project%2Fa/workflow",
     ]);
   });
 
@@ -91,8 +90,7 @@ describe("API client", () => {
     const multivariateRequest = { project_id: "project/a", bivariate_run_id: "run/a", settings: { target: "monthly-income" } };
 
     await Promise.all([
-      metadataBuilderApi.loadCredentialStatus(),
-      metadataBuilderApi.loadProjectCriteria("project/a"), metadataBuilderApi.loadPageView("project/a"), metadataBuilderApi.loadFieldOptions(), metadataBuilderApi.saveCredential("key"),
+      metadataBuilderApi.loadProjectCriteria("project/a"), metadataBuilderApi.loadPageView("project/a"), metadataBuilderApi.loadFieldOptions(),
       metadataBuilderApi.createProject(metadataRequest),
       univariateStatisticsApi.startRun(univariateRequest), univariateStatisticsApi.loadRun("run/a"), univariateStatisticsApi.loadResults("run/a", 10, 5),
       univariateStatisticsApi.loadPageView("project/a"), univariateStatisticsApi.loadResultsSection("project/a", "cursor/a"),

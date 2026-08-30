@@ -40,14 +40,6 @@ export type ApiWorkflow = Readonly<{
   }>;
 }>;
 
-export type ApiCredentialStatus = Readonly<{
-  credential_id: string;
-  provider: "eodhd";
-  status: "active" | "revoked" | "deleted";
-  key_version: string;
-  masked_label: string;
-}>;
-
 export type ApiMetadataProject = Readonly<{
   project: Readonly<{ project_id: string; name: string }>;
   selection: Readonly<{ selection_id: string; name: string }>;
