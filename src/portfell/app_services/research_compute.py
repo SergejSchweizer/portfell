@@ -48,6 +48,29 @@ def opaque_id(kind: str, payload: Mapping[str, object]) -> str:
     return f"{kind}-{stable_hash(payload)[:24]}"
 
 
+def univariate_source_id(*, universe_id: str, market_snapshot_id: str) -> str:
+    return stable_hash(
+        {
+            "universe_id": universe_id,
+            "market_snapshot_id": market_snapshot_id,
+            "calculation_contract": UNIVARIATE_CALCULATION_CONTRACT.qualified_name,
+        }
+    )
+
+
+def bivariate_source_id(
+    *, selection_id: str, member_ids: Sequence[str], market_snapshot_id: str
+) -> str:
+    return stable_hash(
+        {
+            "selection_id": selection_id,
+            "member_ids": list(sorted(member_ids)),
+            "market_snapshot_id": market_snapshot_id,
+            "algorithm_version": BIVARIATE_STATISTICS_VERSION,
+        }
+    )
+
+
 def compute_univariate(
     *,
     universe_id: str,
@@ -64,17 +87,13 @@ def compute_univariate(
             on_progress=on_progress,
         )
     )
-    source_id = stable_hash(
-        {
-            "universe_id": universe_id,
-            "market_snapshot_id": market_snapshot_id,
-            "calculation_contract": UNIVARIATE_CALCULATION_CONTRACT,
-        }
+    source_id = univariate_source_id(
+        universe_id=universe_id, market_snapshot_id=market_snapshot_id
     )
     return ComputedRun(
         run_id=opaque_id("univariate-run", {"source_id": source_id}),
         source_id=source_id,
-        algorithm_version=str(UNIVARIATE_CALCULATION_CONTRACT),
+        algorithm_version=UNIVARIATE_CALCULATION_CONTRACT.qualified_name,
         rows=tuple(dict(row) for row in rows),
     )
 
@@ -157,13 +176,10 @@ def compute_bivariate(
             ),
         )
     )
-    source_id = stable_hash(
-        {
-            "selection_id": selection.selection_id,
-            "member_ids": list(selection.member_ids),
-            "market_snapshot_id": market_snapshot_id,
-            "algorithm_version": BIVARIATE_STATISTICS_VERSION,
-        }
+    source_id = bivariate_source_id(
+        selection_id=selection.selection_id,
+        member_ids=selection.member_ids,
+        market_snapshot_id=market_snapshot_id,
     )
     return ComputedRun(
         run_id=opaque_id("bivariate-run", {"source_id": source_id}),
