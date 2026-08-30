@@ -41,10 +41,16 @@ services:
     environment:
       PORTFELL_ENV: development
       PORTFELL_HOSTED_AUTHORITY: postgres
+      PORTFELL_CONFIG_PATH: /run/portfell/config.yaml
       PORTFELL_DATABASE_URL: postgresql://portfell_app@postgres:5432/portfell
       PORTFELL_DATABASE_PASSWORD_FILE: /run/secrets/postgres_password
+      PORTFELL_MARKET_DATABASE_URL: ${PORTFELL_MARKET_DATABASE_URL:?set the external xetra-loader PostgreSQL DSN}
+      PORTFELL_MARKET_DATABASE_PASSWORD_FILE: /run/secrets/market_postgres_password
     secrets:
       - postgres_password
+      - market_postgres_password
+    volumes:
+      - ./config.yaml:/run/portfell/config.yaml:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -118,3 +124,5 @@ volumes:
 secrets:
   postgres_password:
     file: ${PORTFELL_POSTGRES_PASSWORD_FILE:?set an absolute external secret path}
+  market_postgres_password:
+    file: ${PORTFELL_MARKET_POSTGRES_PASSWORD_FILE:?set an absolute external market secret path}
