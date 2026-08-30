@@ -1,9 +1,7 @@
 
 import type {
   ApiCredentialStatus,
-  ApiInitialFill,
   ApiMetadataBuilderPageView,
-  ApiMetadataFetch,
   ApiProjectContext,
   ApiProjectMetadataBuilder,
   ApiWorkflow,
@@ -75,20 +73,12 @@ export function loadEodhdCredentialStatus(signal?: AbortSignal): Promise<ApiCred
   return requestJson<ApiCredentialStatus>("/api/credentials/eodhd", { signal });
 }
 
-export function loadMetadataFetchRun(metadataRunId: string): Promise<ApiMetadataFetch> {
-  return requestJson<ApiMetadataFetch>(`/api/metadata/fetch-all/${encodeURIComponent(metadataRunId)}`);
-}
-
 export function loadProjectContext(signal?: AbortSignal): Promise<ApiProjectContext> {
   return requestJson<ApiProjectContext>("/api/project-context", { signal });
 }
 
 export function loadProjectMetadataBuilder(projectId: string): Promise<ApiProjectMetadataBuilder> {
   return requestJson<ApiProjectMetadataBuilder>(`/api/projects/${encodeURIComponent(projectId)}/metadata-builder`);
-}
-
-export function loadProjectInitialFill(projectId: string): Promise<ApiInitialFill> {
-  return requestJson<ApiInitialFill>(`/api/projects/${encodeURIComponent(projectId)}/initial-fill`);
 }
 
 export function loadMetadataBuilderPageView(projectId: string, signal?: AbortSignal): Promise<ApiMetadataBuilderPageView> {

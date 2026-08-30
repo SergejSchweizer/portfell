@@ -8,7 +8,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Response
+from fastapi import APIRouter, Depends, Header, Response
 from fastapi.responses import JSONResponse
 
 from portfell.hosted_api_contracts import (
@@ -18,7 +18,6 @@ from portfell.hosted_api_contracts import (
     SelectionCreateRequest,
     UnivariateSelectionSettingsRequest,
 )
-from portfell.hosted_api_errors import HostedApplicationError
 from portfell.hosted_api_state import ApiUser
 from portfell.hosted_credential_project_service import CredentialProjectService
 from portfell.hosted_metadata_project_service import MetadataProjectService
@@ -96,29 +95,17 @@ def metadata_project_router(
     ) -> Response:
         project, selection = call(projects.project_metadata_builder, user.user_id, str(project_id))
         criteria = call(metadata.project_criteria_row, project, selection)
-        try:
-            initial_fill = metadata.initial_fill_status(user.user_id, str(project_id))
-        except HostedApplicationError as error:
-            if error.status_code != 404 or error.code != "initial_fill_not_found":
-                raise HTTPException(
-                    status_code=error.status_code, detail={"code": error.code}
-                ) from error
-            initial_fill = None
         workflow = call(projects.workflow, user.user_id, str(project_id))
         row, etag = metadata_builder_page_view(
             project_id=str(project_id),
             criteria=criteria,
-            initial_fill=initial_fill,
+            initial_fill=None,
             workflow=workflow,
         )
         headers = {"ETag": f'"{etag}"', "Cache-Control": "private, max-age=0, must-revalidate"}
         if if_none_match == headers["ETag"]:
             return Response(status_code=304, headers=headers)
         return JSONResponse(content=row, headers=headers)
-
-    @router.get("/projects/{project_id}/initial-fill")
-    def initial_fill_status(project_id: UUID, user: ApiUser = Depends(current_user)) -> JsonRow:
-        return call(metadata.initial_fill_status, user.user_id, str(project_id))
 
     @router.get("/projects/{project_id}/univariate-selection-settings")
     def univariate_selection_settings(
@@ -146,21 +133,6 @@ def metadata_project_router(
     @router.get("/metadata-builder/options")
     def metadata_builder_options(user: ApiUser = Depends(current_user)) -> JsonRow:
         return call(metadata.options, user.user_id)
-
-    @router.post("/metadata/fetch-all")
-    def fetch_all_metadata(
-        background_tasks: BackgroundTasks,
-        user: ApiUser = Depends(workspace_user),
-    ) -> JsonRow:
-        row, task = call(metadata.start_metadata_fetch, user.user_id)
-        background_tasks.add_task(task)
-        return row
-
-    @router.get("/metadata/fetch-all/{metadata_run_id}")
-    def metadata_fetch_status(
-        metadata_run_id: str, user: ApiUser = Depends(workspace_user)
-    ) -> JsonRow:
-        return call(metadata.metadata_fetch_status, user.user_id, metadata_run_id)
 
     @router.post("/metadata-builder")
     def create_metadata_builder_project(

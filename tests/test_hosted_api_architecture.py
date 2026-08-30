@@ -45,7 +45,6 @@ FORBIDDEN_SERVICE_IMPORTS = frozenset(
         "portfell.hosted_routes_common",
         "portfell.hosted_routes_credentials",
         "portfell.hosted_routes_metadata_projects",
-        "portfell.hosted_routes_quote_runs",
         "portfell.hosted_routes_research",
         "portfell.hosted_research_persistence",
         "portfell.hosted_research_repository",

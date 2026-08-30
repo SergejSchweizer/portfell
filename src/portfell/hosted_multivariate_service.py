@@ -22,7 +22,6 @@ from portfell.hosted_research_ports import (
 from portfell.hosted_research_workflow import (
     UnivariateSelection,
     bivariate_run_matches_selection,
-    univariate_source_id,
 )
 from portfell.hosted_selection_repository import SelectionRepository, selection_record
 from portfell.income import (
@@ -245,14 +244,11 @@ class MultivariateResearchService(MultivariateRunViews):
         selection = self._selection_for_bivariate(run.user_id, run.bivariate_run_id)
         source_run = self._research.univariate_run(selection.source_run_id, run.user_id)
         metadata_selection = self._metadata_selection_for_project(run.user_id, run.project_id)
-        quote_run_id = self._research.quote_run_id(source_run.run_id)
-        source_quote_id = quote_run_id or "shared-market"
-        expected_source_id = univariate_source_id(metadata_selection.selection_id, source_quote_id)
-        if source_run.source_id != expected_source_id:
+        if len(source_run.source_id) != 64 or any(
+            character not in "0123456789abcdef" for character in source_run.source_id
+        ):
             raise HostedApplicationError(422, "project_univariate_dependency_mismatch")
-        quotes = self._research.quote_rows(quote_run_id) or self._data.selected_rows(
-            selection.member_ids, dataset="quotes"
-        )
+        quotes = self._data.selected_rows(selection.member_ids, dataset="quotes")
         dividends = self._data.selected_rows(selection.member_ids, dataset="dividends")
         metadata = {
             (str(row.get("isin", "")), str(row.get("exchange", "")), str(row.get("code", ""))): row
@@ -283,7 +279,8 @@ class MultivariateResearchService(MultivariateRunViews):
             date_end=calendar_dates[-1] if calendar_dates else None,
             observation_count=len(calendar_dates),
             quote_artifact_ids={
-                key: f"quote:{source_quote_id}:{key.isin}:{key.exchange}:{key.code}" for key in keys
+                key: (f"quote:{source_run.source_id}:{key.isin}:{key.exchange}:{key.code}")
+                for key in keys
             },
             dividend_artifact_ids={
                 key: f"dividend:{key.isin}:{key.exchange}:{key.code}" for key in keys

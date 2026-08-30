@@ -20,7 +20,7 @@ def test_web_has_exactly_four_research_modules() -> None:
     assert routes.count('path: "/') == len(expected)
 
 
-def test_workflow_pages_place_ingestion_actions_before_their_stage_controls() -> None:
+def test_workflow_pages_use_the_server_owned_market_catalog() -> None:
     metadata_page = (WEB_ROOT / "src" / "pages" / "metadata-builder.tsx").read_text(
         encoding="utf-8"
     )
@@ -28,19 +28,13 @@ def test_workflow_pages_place_ingestion_actions_before_their_stage_controls() ->
     univariate_page = (WEB_ROOT / "src" / "pages" / "univariate-statistics.tsx").read_text(
         encoding="utf-8"
     )
-    assert "Fetch all metadata" in metadata_page
-    assert metadata_page.index('<Panel title="Download Metadata">') < metadata_page.index(
-        '<Panel title="Metadata Builder">'
-    )
-    assert "EODHD key" in frame
-    assert "Fetch all metadata" not in frame
+    assert '<Panel title="Metadata Builder">' in metadata_page
+    assert "Fetch all metadata" not in metadata_page
+    assert "EODHD key" not in frame
     assert '"/univariate-statistics"' not in metadata_page
     assert '"portfell:workflow-updated"' in metadata_page
-    assert "initialFillButtonLabel" in metadata_page
-    assert "Loading quotes:" in metadata_page
     assert '<Panel title="Historical Data">' not in metadata_page
     assert "Download Historical Data" not in metadata_page
-    assert "loadInitialFill" in metadata_page
     assert "startQuoteRun" not in metadata_page
     assert "historicalDataUpdateLabel" not in metadata_page
     assert (
@@ -113,9 +107,7 @@ def test_three_module_ui_uses_canonical_server_owned_workflow_contracts() -> Non
 
     for endpoint in (
         "/api/workflow",
-        "/api/metadata/fetch-all",
         "/api/metadata-builder",
-        "/api/projects/${encodeURIComponent(projectId)}/initial-fill",
         "/api/univariate-statistics/runs",
         "/api/bivariate-statistics/plan",
         "/api/bivariate-statistics/runs",
@@ -178,65 +170,12 @@ def test_metadata_builder_restores_saved_project_criteria() -> None:
     assert "setName(criteria.name)" in page
 
 
-def test_metadata_refresh_saves_a_typed_key_before_starting() -> None:
-    context = (WEB_ROOT / "src" / "shell" / "metadata-fetch-context.tsx").read_text(
-        encoding="utf-8"
-    )
-
-    assert 'postJson<ApiMetadataFetch>("/api/metadata/fetch-all", {})' in context
-    assert 'postJson<ApiCredentialStatus>("/api/credentials/eodhd", {' in context
-    assert 'setProviderKey("")' in context
-
-
-def test_metadata_header_uses_masked_saved_credential_without_browser_secret_persistence() -> None:
-    frame = (WEB_ROOT / "src" / "shell" / "frame.tsx").read_text(encoding="utf-8")
-    context = (WEB_ROOT / "src" / "shell" / "metadata-fetch-context.tsx").read_text(
-        encoding="utf-8"
-    )
-    client = (WEB_ROOT / "src" / "api" / "client.ts").read_text(encoding="utf-8")
-
-    assert "loadEodhdCredentialStatus" in context
-    assert "loadEodhdCredentialValue" not in context
-    assert "Saved: {maskedCredentialLabel}" in frame
-    assert "if (fetching || !canFetchMetadata) return;" in context
-    assert 'setProviderKey("")' in context
-    assert 'type="password"' in frame
-    assert 'requestJson<ApiCredentialStatus>("/api/credentials/eodhd")' in client
-    assert "credentials/eodhd/value" not in client
-
-
 def test_post_requests_support_browsers_without_crypto_random_uuid() -> None:
     client = (WEB_ROOT / "src" / "api" / "client.ts").read_text(encoding="utf-8")
 
     assert "function createIdempotencyKey" in client
     assert "globalThis.crypto?.randomUUID" in client
     assert '"Idempotency-Key": createIdempotencyKey()' in client
-
-
-def test_metadata_panel_uses_the_historical_data_progress_status_action_layout() -> None:
-    frame = (WEB_ROOT / "src" / "shell" / "frame.tsx").read_text(encoding="utf-8")
-    page = (WEB_ROOT / "src" / "pages" / "metadata-builder.tsx").read_text(encoding="utf-8")
-    context = (WEB_ROOT / "src" / "shell" / "metadata-fetch-context.tsx").read_text(
-        encoding="utf-8"
-    )
-    styles = (WEB_ROOT / "styles" / "app.css").read_text(encoding="utf-8")
-
-    assert 'fetching ? <progress className="metadata-fetch__progress"' not in frame
-    assert 'id="metadata-progress"' in page
-    assert "max={100} value={metadataProgress}" in page
-    metadata_panel = page.index('<Panel title="Download Metadata">')
-    progress = page.index("metadata-progress", metadata_panel)
-    action = page.index("Fetch all metadata", metadata_panel)
-    assert progress < action
-    assert "metadataStatus" not in frame
-    assert "metadataStatus" in page
-    status_output = '<output className="status-line" aria-live="polite">{metadataStatus}</output>'
-    assert progress < page.index(status_output, metadata_panel)
-    assert page.index(status_output, metadata_panel) < action
-    assert "loadMetadataFetchRun" in context
-    assert "exchanges completed" in context
-    assert "--progress-height: 10px;" in styles
-    assert ".metadata-fetch__progress { height: var(--progress-height);" in styles
 
 
 def test_bivariate_facts_show_the_universe_aligned_data_period() -> None:

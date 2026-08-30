@@ -6,7 +6,6 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Literal
 
-from portfell.hosted_project_bootstrap_repository import ProjectBootstrapRepository
 from portfell.hosted_selection_repository import SelectionRepository
 from portfell.table_io import JsonRow
 from portfell.workflow_state import resolve_workflow
@@ -33,13 +32,11 @@ class PostgresWorkflowReader:
         self,
         *,
         selections: SelectionRepository,
-        bootstrap: ProjectBootstrapRepository,
         metadata_rows: Callable[[], tuple[JsonRow, ...]],
         research_state: Callable[[str, str, str], WorkflowResearchState] | None = None,
         quote_period: Callable[[tuple[str, ...]], tuple[str | None, str | None]] | None = None,
     ) -> None:
         self._selections = selections
-        self._bootstrap = bootstrap
         self._metadata_rows = metadata_rows
         self._research_state = research_state
         self._quote_period = quote_period
@@ -67,8 +64,7 @@ class PostgresWorkflowReader:
                 ),
                 "process_overview": {"metadata_downloaded_isins": metadata_count},
             }
-        fill = self._bootstrap.status(user_id=user_id, project_id=project_id)
-        is_ready = fill is not None and fill.status == "ready"
+        is_ready = True
         quote_start, quote_end = (
             self._quote_period(selection.member_ids)
             if self._quote_period is not None

@@ -220,8 +220,8 @@ def test_four_stage_market_source_contract_has_full_identity_and_one_lineage() -
 
     univariate, bivariate, multivariate = _research_services(state, gateway)
     metadata_selection_id = str(metadata_selection["selection_id"])
-    univariate_started = univariate.start(user_id, metadata_selection_id, None)
-    univariate.complete(user_id, metadata_selection_id, None)
+    univariate_started = univariate.start(user_id, metadata_selection_id)
+    univariate.complete(user_id, metadata_selection_id)
     univariate_run = state.univariate_runs_by_id[str(univariate_started["run_id"])]
     current_selection_id = state.current_univariate_selection_by_user[user_id]
     assert univariate_run.status == "complete"
@@ -297,7 +297,7 @@ def test_four_stage_market_source_fails_closed_for_missing_adjusted_close() -> N
     univariate, _, _ = _research_services(state, gateway)
 
     with pytest.raises(HostedApplicationError, match=MISSING_ADJUSTED_CLOSE):
-        univariate.start("qa-user", str(project["selection"]["selection_id"]), None)
+        univariate.start("qa-user", str(project["selection"]["selection_id"]))
 
 
 def test_bivariate_fails_closed_when_the_source_has_no_common_return_history() -> None:
@@ -324,8 +324,8 @@ def test_bivariate_fails_closed_when_the_source_has_no_common_return_history() -
     )
     univariate, bivariate, _ = _research_services(state, gateway)
     selection_id = str(project["selection"]["selection_id"])
-    started = univariate.start(user_id, selection_id, None)
-    univariate.complete(user_id, selection_id, None)
+    started = univariate.start(user_id, selection_id)
+    univariate.complete(user_id, selection_id)
     assert state.univariate_runs_by_id[str(started["run_id"])].status == "complete"
     univariate_selection_id = state.current_univariate_selection_by_user[user_id]
     bivariate_started = bivariate.start(user_id, univariate_selection_id)

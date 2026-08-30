@@ -12,7 +12,6 @@ from portfell.hosted_metadata_repository import PostgresMetadataLifecycleReposit
 from portfell.hosted_multivariate_run_repository import PostgresMultivariateRunRepository
 from portfell.hosted_navigation_read_model_repository import PostgresNavigationReadModel
 from portfell.hosted_project_settings_repository import PostgresProjectSettingsRepository
-from portfell.hosted_quote_lifecycle_repository import PostgresQuoteLifecycleRepository
 from portfell.hosted_repository_importer import PostgresProjectRepository
 from portfell.hosted_selection_repository import PostgresSelectionRepository
 from portfell.hosted_user_repository import PostgresHostedUserRepository
@@ -27,7 +26,6 @@ class PostgresHostedRepositoryBundle:
     projects: PostgresProjectRepository
     selections: PostgresSelectionRepository
     metadata: PostgresMetadataLifecycleRepository
-    quotes: PostgresQuoteLifecycleRepository
     idempotency: PostgresIdempotencyRepository
     audit: PostgresAuditEventRepository
     settings: PostgresProjectSettingsRepository
@@ -45,7 +43,6 @@ class PostgresHostedRepositoryBundle:
             projects=PostgresProjectRepository(connection),  # type: ignore[arg-type]
             selections=PostgresSelectionRepository(connection),  # type: ignore[arg-type]
             metadata=PostgresMetadataLifecycleRepository(connection),  # type: ignore[arg-type]
-            quotes=PostgresQuoteLifecycleRepository(connection),  # type: ignore[arg-type]
             idempotency=PostgresIdempotencyRepository(connection),  # type: ignore[arg-type]
             audit=PostgresAuditEventRepository(connection),  # type: ignore[arg-type]
             settings=PostgresProjectSettingsRepository(connection),  # type: ignore[arg-type]

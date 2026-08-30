@@ -123,7 +123,7 @@ def _fixtures() -> tuple[HostedApiState, _Data, str, str]:
             univariate_run_id: ResearchRun(
                 univariate_run_id,
                 user_id,
-                univariate_source_id("metadata-selection-a", "quote-a"),
+                univariate_source_id("metadata-selection-a", "shared-market"),
                 "complete",
                 rows,
                 5,
@@ -507,7 +507,7 @@ def test_multivariate_service_accepts_a_published_shared_market_univariate_run()
     assert completed["status"] == "complete"
     artifacts = service.artifacts("user-a", str(started["run_id"]))
     quote_ids = artifacts["input_snapshot"]["quote_artifact_ids"]
-    assert all("shared-market" in artifact_id for _, artifact_id in quote_ids)
+    assert all(source in artifact_id for _, artifact_id in quote_ids)
 
 
 def test_multivariate_service_refits_candidates_for_walk_forward_validation() -> None:

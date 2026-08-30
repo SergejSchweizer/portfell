@@ -2,9 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   ApiError,
   loadEodhdCredentialStatus,
-  loadMetadataFetchRun,
   loadProjectContext,
-  loadProjectInitialFill,
   loadProjectMetadataBuilder,
   loadProjectWorkflow,
   loadWorkflow,
@@ -75,11 +73,11 @@ describe("API client", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await Promise.all([
-      loadWorkflow(), loadEodhdCredentialStatus(), loadMetadataFetchRun("run/a"), loadProjectContext(), loadProjectMetadataBuilder("project/a"), loadProjectInitialFill("project/a"), selectCurrentProject("project/a"), loadProjectWorkflow("project/a"),
+      loadWorkflow(), loadEodhdCredentialStatus(), loadProjectContext(), loadProjectMetadataBuilder("project/a"), selectCurrentProject("project/a"), loadProjectWorkflow("project/a"),
     ]);
 
     expect(fetchMock.mock.calls.map(([path]) => path)).toEqual([
-      "/api/workflow", "/api/credentials/eodhd", "/api/metadata/fetch-all/run%2Fa", "/api/project-context", "/api/projects/project%2Fa/metadata-builder", "/api/projects/project%2Fa/initial-fill", "/api/project-context/current-project", "/api/projects/project%2Fa/workflow",
+      "/api/workflow", "/api/credentials/eodhd", "/api/project-context", "/api/projects/project%2Fa/metadata-builder", "/api/project-context/current-project", "/api/projects/project%2Fa/workflow",
     ]);
   });
 
@@ -87,15 +85,15 @@ describe("API client", () => {
     const fetchMock = vi.fn().mockResolvedValue(response({}));
     vi.stubGlobal("fetch", fetchMock);
     const metadataRequest = { exchange: "XETRA", name: "fund", instrument_type: "ETF", country: "DE", currency: "EUR" };
-    const univariateRequest = { metadata_selection_id: "selection/a", quote_run_id: "quote/a" };
+    const univariateRequest = { metadata_selection_id: "selection/a" };
     const settings: ApiUnivariateSelectionSettings = { dividend_frequencies: ["monthly"], statistic_labels: {}, statistic_ranges: {} };
     const bivariateRequest = { univariate_selection_id: "selection/a" };
     const multivariateRequest = { project_id: "project/a", bivariate_run_id: "run/a", settings: { target: "monthly-income" } };
 
     await Promise.all([
-      metadataBuilderApi.loadCredentialStatus(), metadataBuilderApi.loadFetchRun("run/a"),
+      metadataBuilderApi.loadCredentialStatus(),
       metadataBuilderApi.loadProjectCriteria("project/a"), metadataBuilderApi.loadPageView("project/a"), metadataBuilderApi.loadFieldOptions(), metadataBuilderApi.saveCredential("key"),
-      metadataBuilderApi.fetchAll(), metadataBuilderApi.createProject(metadataRequest), metadataBuilderApi.loadInitialFill("project/a"),
+      metadataBuilderApi.createProject(metadataRequest),
       univariateStatisticsApi.startRun(univariateRequest), univariateStatisticsApi.loadRun("run/a"), univariateStatisticsApi.loadResults("run/a", 10, 5),
       univariateStatisticsApi.loadPageView("project/a"), univariateStatisticsApi.loadResultsSection("project/a", "cursor/a"),
       univariateStatisticsApi.loadSelectionSettings("project/a"),
@@ -114,7 +112,7 @@ describe("API client", () => {
     ]);
 
     expect(fetchMock.mock.calls.map(([path]) => path)).toEqual(expect.arrayContaining([
-      "/api/metadata-builder/options", "/api/metadata-builder", "/api/projects/project%2Fa/views/metadata-builder", "/api/projects/project%2Fa/initial-fill", "/api/univariate-statistics/runs",
+      "/api/metadata-builder/options", "/api/metadata-builder", "/api/projects/project%2Fa/views/metadata-builder", "/api/univariate-statistics/runs",
       "/api/univariate-statistics/runs/run%2Fa/results?limit=10&offset=5", "/api/bivariate-statistics/plan", "/api/projects/project%2Fa/views/bivariate-statistics",
       "/api/projects/project%2Fa/views/univariate-statistics",
       "/api/projects/project%2Fa/views/univariate_statistics/sections/results?cursor=cursor%2Fa",

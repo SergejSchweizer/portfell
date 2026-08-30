@@ -7,7 +7,6 @@ import { LoadingState } from "../../src/components/loading-state";
 import { Panel } from "../../src/components/panel";
 import { StatusBadge } from "../../src/components/status-badge";
 import { nextProgressSnapshot, progressPercent } from "../../src/computation-progress";
-import { initialFillStatusMessage } from "../../src/pages/metadata-builder";
 import { univariateProgress } from "../../src/pages/univariate-statistics";
 import { ProjectSidebar } from "../../src/shell/project-sidebar";
 
@@ -39,28 +38,6 @@ describe("shared React components", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("Failed");
     expect(screen.getByText("Idle")).toHaveClass("portfell-status-badge--neutral");
     expect(screen.getByText("Running")).toHaveClass("portfell-status-badge--running");
-  });
-
-  it("adds failed ISINs to a terminal initial-fill status", () => {
-    const fill = {
-      bootstrap_id: "bootstrap-1",
-      job_id: "job-1",
-      status: "failed" as const,
-      completed_units: 2,
-      total_units: 2,
-      selected_listing_count: 2,
-      failed_listing_count: 1,
-      terminal_code: "initial_fill_failed",
-      started_at: null,
-      last_progress_at: null,
-    };
-
-    expect(initialFillStatusMessage("2 unique ISINs selected.", fill)).toBe(
-      "2 unique ISINs selected. 1 ISIN failed to load.",
-    );
-    expect(initialFillStatusMessage("2 unique ISINs selected.", { ...fill, status: "running" })).toBe(
-      "2 unique ISINs selected.",
-    );
   });
 
   it("uses processed listings as the univariate progress bar scale", () => {

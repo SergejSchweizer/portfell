@@ -73,7 +73,6 @@ def test_hosted_catalog_contracts_validate_security_invariants() -> None:
         "portfell_app.project_selection_versions",
         "portfell_app.project_selection_members",
         "portfell_app.project_artifact_refs",
-        "portfell_app.project_initial_fills",
     ):
         assert required_table in table_names
 
@@ -91,17 +90,13 @@ def test_hosted_migration_sql_defines_rls_and_immutable_catalog_shape() -> None:
         6,
         7,
         8,
-        9,
         10,
         11,
         12,
         13,
         14,
-        15,
-        16,
         17,
         18,
-        19,
         20,
     ]
     assert len({migration.checksum for migration in migrations}) == len(migrations)
@@ -134,8 +129,6 @@ def test_hosted_migration_sql_defines_rls_and_immutable_catalog_shape() -> None:
     assert "force row level security" in sql
     assert "portfell_worker" in sql
     assert "create table if not exists portfell_app.jobs" in sql
-    assert "download_runs_status_check" in sql
-    assert "'partial'" in sql
     assert "create table if not exists portfell_app.job_attempts" in sql
     assert "create table if not exists portfell_app.outbox_events" in sql
     assert "unique (job_kind, input_hash)" in sql
@@ -148,9 +141,6 @@ def test_hosted_migration_sql_defines_rls_and_immutable_catalog_shape() -> None:
     assert "create table if not exists portfell_app.project_univariate_settings" in sql
     assert "create table if not exists portfell_app.multivariate_runs" in sql
     assert "create table if not exists portfell_app.hosted_analysis_records" in sql
-    assert "create table if not exists portfell_app.project_initial_fills" in sql
-    assert "bootstrap_job_id uuid not null unique" in sql
-    assert "create table if not exists portfell_app.metadata_refresh_jobs" in sql
     assert "if tg_table_name = 'project_selection_versions' then" in sql
     assert "if tg_table_name = 'project_selection_members' then" in sql
 

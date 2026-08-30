@@ -49,7 +49,7 @@ def test_compose_defines_persistent_internal_postgres_without_market_filesystem(
     assert "ports" not in postgres
     assert "5432" in postgres["expose"]
     assert "portfell-postgres-data:/var/lib/postgresql/data" in postgres["volumes"]
-    assert set(services) == {"api", "postgres", "project-bootstrap-worker", "web"}
+    assert set(services) == {"api", "postgres", "web"}
     assert "volumes" not in api
     assert api["container_name"] == "portfell-api"
     assert api["environment"]["PORTFELL_HOSTED_AUTHORITY"] == "postgres"
@@ -82,32 +82,6 @@ def test_web_has_no_shared_data_mount_or_authentication_secret() -> None:
     assert "PORTFELL_API_BASE_URL" in web["environment"]
 
 
-def test_project_initial_fill_worker_is_internal_and_operations_credential_only() -> None:
-    worker = cast(
-        ComposeMapping, cast(ComposeMapping, _compose()["services"])["project-bootstrap-worker"]
-    )
-    assert worker["container_name"] == "portfell-worker"
-    assert worker["command"] == [
-        "sh",
-        "-c",
-        "python -m portfell.hosted_catalog_migration && "
-        "touch /tmp/catalog-migrated && "
-        "exec python -m portfell.hosted_project_bootstrap_worker",
-    ]
-    assert worker["healthcheck"]["test"] == ["CMD-SHELL", "test -f /tmp/catalog-migrated"]
-    assert worker["secrets"] == ["operations_eodhd_token", "postgres_password"]
-    assert "volumes" not in worker
-    assert worker["networks"] == ["portfell-internal", "portfell-public"]
-    assert worker["group_add"] == ["${PORTFELL_SECRET_GROUP_ID:-100}"]
-    assert "ports" not in worker
-
-
-def test_compose_uses_one_combined_project_worker() -> None:
-    services = cast(ComposeMapping, _compose()["services"])
-
-    assert "metadata-refresh-worker" not in services
-
-
 def test_web_compose_develop_watch_rebuilds_local_ui_changes() -> None:
     services = cast(ComposeMapping, _compose()["services"])
     web = cast(ComposeMapping, services["web"])
@@ -131,9 +105,6 @@ def test_runtime_secrets_are_external_paths_and_not_build_arguments() -> None:
     )
     assert cast(ComposeMapping, secrets["eodhd_kek"])["file"].startswith(
         "${PORTFELL_EODHD_KEK_FILE:?"
-    )
-    assert cast(ComposeMapping, secrets["operations_eodhd_token"])["file"].startswith(
-        "${PORTFELL_OPERATIONS_EODHD_TOKEN_FILE:?"
     )
     assert "api_token" not in rendered.lower()
     assert "build:" in rendered
@@ -162,8 +133,6 @@ def test_compose_uses_health_checks_startup_order_hardening_and_no_resource_limi
     api_depends = cast(ComposeMapping, cast(ComposeMapping, services["api"])["depends_on"])
     web_depends = cast(ComposeMapping, cast(ComposeMapping, services["web"])["depends_on"])
     assert cast(ComposeMapping, api_depends["postgres"])["condition"] == "service_healthy"
-    worker_dependency = cast(ComposeMapping, api_depends["project-bootstrap-worker"])
-    assert worker_dependency["condition"] == "service_healthy"
     assert cast(ComposeMapping, web_depends["api"])["condition"] == "service_healthy"
 
 

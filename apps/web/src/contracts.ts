@@ -40,20 +40,6 @@ export type ApiWorkflow = Readonly<{
   }>;
 }>;
 
-export type ApiMetadataFetch = Readonly<{
-  metadata_run_id: string;
-  status: "running" | "succeeded" | "failed";
-  total: number;
-  completed: number;
-  percent: number;
-  row_count?: number;
-  exchange_count?: number;
-  requested_exchange_count?: number;
-  skipped_exchange_count?: number;
-  skipped_exchanges?: readonly string[];
-  error_code?: string;
-}>;
-
 export type ApiCredentialStatus = Readonly<{
   credential_id: string;
   provider: "eodhd";
@@ -66,20 +52,6 @@ export type ApiMetadataProject = Readonly<{
   project: Readonly<{ project_id: string; name: string }>;
   selection: Readonly<{ selection_id: string; name: string }>;
   selected_count: number;
-  initial_fill?: ApiInitialFill;
-}>;
-
-export type ApiInitialFill = Readonly<{
-  bootstrap_id: string;
-  job_id: string;
-  status: "not_started" | "planning" | "running" | "ready" | "partial" | "failed";
-  completed_units: number;
-  total_units: number;
-  selected_listing_count: number;
-  failed_listing_count: number;
-  terminal_code: string | null;
-  started_at: number | null;
-  last_progress_at: number | null;
 }>;
 
 export type ApiQuoteFetch = Readonly<{
@@ -138,7 +110,6 @@ export type ApiMetadataBuilderPageView = Readonly<{
   project_id: string;
   summary: Readonly<{
     criteria: ApiProjectMetadataBuilder;
-    initial_fill: ApiInitialFill | null;
   }>;
   sections: Readonly<Record<string, Readonly<{ available: boolean; revision?: string }>>>;
 }>;

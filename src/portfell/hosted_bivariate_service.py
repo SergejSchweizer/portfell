@@ -89,11 +89,7 @@ class BivariateResearchService:
             run = self._repository.bivariate_run(run_id, user_id)
             if run.status != "running":
                 return
-            source_run = self._repository.univariate_run(selection.source_run_id, user_id)
-            quote_run_id = self._repository.quote_run_id(source_run.run_id)
-            quote_rows = self._repository.quote_rows(quote_run_id)
-            if not quote_rows:
-                quote_rows = self._data.selected_rows(selection.member_ids, dataset="quotes")
+            quote_rows = self._data.selected_rows(selection.member_ids, dataset="quotes")
             if not quote_rows:
                 self._fail(run, user_id)
                 return

@@ -15,7 +15,6 @@ import { queryClient, queryTiming } from "../query/client";
 import { queryKeys } from "../query/keys";
 import { useQueryResource } from "../query/use-query-resource";
 import { projectSlug, projectSlugFromPath, projectWorkflowPath, workflowPages, type WorkflowPageId } from "../routes";
-import { MetadataFetchProvider, useMetadataFetch } from "./metadata-fetch-context";
 import { ProjectSidebar } from "./project-sidebar";
 
 export type ShellFrameProps = Readonly<{
@@ -33,11 +32,7 @@ const emptyWorkflow: ApiWorkflow = {
 };
 
 export function ShellFrame({ currentPage, children }: ShellFrameProps) {
-  return (
-    <MetadataFetchProvider>
-      <ShellFrameContent currentPage={currentPage}>{children}</ShellFrameContent>
-    </MetadataFetchProvider>
-  );
+  return <ShellFrameContent currentPage={currentPage}>{children}</ShellFrameContent>;
 }
 
 function ShellFrameContent({ currentPage, children }: ShellFrameProps) {
@@ -45,11 +40,6 @@ function ShellFrameContent({ currentPage, children }: ShellFrameProps) {
   const [switchError, setSwitchError] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
-  const {
-    providerKey,
-    setProviderKey,
-    maskedCredentialLabel,
-  } = useMetadataFetch();
   const context = useQueryResource(queryKeys.projectContext(), loadProjectContext, queryTiming.volatile);
   const projectId = context.status === "ready" ? context.data.current_project_id : null;
   const workflow = useQueryResource(
@@ -223,15 +213,6 @@ function ShellFrameContent({ currentPage, children }: ShellFrameProps) {
               <small>5 · Multivariate statistics</small>
               <strong>—</strong>
             </div>
-          </div>
-        </div>
-        <div className="app-header__metadata">
-          <div className="metadata-fetch__credential-input">
-            <label>
-              EODHD key
-              <input type="password" autoComplete="off" value={providerKey} onChange={(event) => setProviderKey(event.target.value)} placeholder="Enter provider key" />
-            </label>
-            {maskedCredentialLabel ? <span className="metadata-fetch__credential">Saved: {maskedCredentialLabel}</span> : null}
           </div>
         </div>
         <button

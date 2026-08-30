@@ -115,12 +115,6 @@ class _Selections:
         return None
 
 
-class _Quotes:
-    def get(self, *, user_id: str, run_id: str) -> None:
-        del user_id, run_id
-        return None
-
-
 class _Analyses:
     def get(self, *, user_id: str, run_id: str) -> None:
         del user_id, run_id
@@ -135,8 +129,6 @@ def _repository(connection: _Connection) -> PostgresResearchRepository:
         connection,
         projects=_Projects(),  # type: ignore[arg-type]
         selections=_Selections(),  # type: ignore[arg-type]
-        quotes=_Quotes(),  # type: ignore[arg-type]
-        quote_rows=lambda _: (),
         analyses=_Analyses(),  # type: ignore[arg-type]
     )
 
@@ -210,26 +202,6 @@ def test_postgres_research_repository_persists_selection_rows_and_preferences() 
         for statement, parameters in connection.calls
         if "research_run_rows" in statement and "insert" in statement
     )
-
-
-def test_postgres_research_repository_binds_quote_reference_to_run_owner() -> None:
-    connection = _Connection()
-
-    _repository(connection).bind_quote_run(
-        "univariate-run-1", "00000000-0000-5000-8000-000000000010"
-    )
-
-    statement, parameters = connection.calls[0]
-    assert "select research_run_id, user_id" in statement
-    assert "research_run_quote_bindings" in statement
-    assert parameters == ("00000000-0000-5000-8000-000000000010", "univariate-run-1")
-
-
-def test_postgres_research_repository_skips_empty_quote_run_ids() -> None:
-    connection = _Connection()
-
-    assert _repository(connection).quote_rows("") == ()
-    assert connection.calls == []
 
 
 def test_postgres_workflow_reads_a_missing_univariate_selection_without_writing() -> None:

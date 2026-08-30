@@ -98,34 +98,18 @@ function multivariatePerformance() { return { instrument_series: [{ isin: "IE00A
 
 async function installTwoProjectApi(
   page: Page,
-  initialFillStatus: "ready" | "planning" | "running" = "ready",
   omitSelectionIdFromContext = false,
   bivariateCompletesAfterPoll = false,
   multivariateCompletesAfterPoll = false,
   unavailableMultivariateEvidence = false,
-  metadataInitiallyReady = true,
-  credentialInitiallyActive = true,
 ): Promise<WorkflowFixture> {
   const projects = new Map<string, Project>();
   const settingsWrites = new Map<string, number>();
   const calls: string[] = [];
   let currentProjectId: string | null = null;
-  let metadataPolls = 0;
   const univariatePolls = new Map<string, number>();
-  let metadataReady = metadataInitiallyReady;
   let bivariatePolls = 0;
   let multivariatePolls = 0;
-  const initialFillStartedAt = Math.floor(Date.now() / 1_000) - 60;
-  const initialFillRow = (projectId: string) => ({
-    bootstrap_id: `bootstrap-${projectId}`,
-    job_id: `job-${projectId}`,
-    status: initialFillStatus,
-      completed_units: initialFillStatus === "running" ? 1 : 3,
-    total_units: 3,
-    selected_listing_count: 3,
-    terminal_code: null,
-    started_at: initialFillStartedAt,
-  });
 
   const current = () => currentProjectId ? projects.get(currentProjectId) : undefined;
   const context = () => {
@@ -149,15 +133,9 @@ async function installTwoProjectApi(
     calls.push(`${method} ${path}`);
     const body = method === "GET" ? {} : request.postDataJSON() as Record<string, unknown>;
 
-    if (method === "GET" && path === "/api/credentials/eodhd") return response(route, { credential_id: "credential-1", provider: "eodhd", status: credentialInitiallyActive ? "active" : "revoked", key_version: "1", masked_label: credentialInitiallyActive ? "dummy…key" : "" });
+    if (method === "GET" && path === "/api/credentials/eodhd") return response(route, { credential_id: "credential-1", provider: "eodhd", status: "active", key_version: "1", masked_label: "dummy…key" });
     if (method === "POST" && path === "/api/credentials/eodhd") return response(route, { credential_id: "credential-1", provider: "eodhd", status: "active", key_version: "1", masked_label: "dummy…key" });
-    if (method === "POST" && path === "/api/metadata/fetch-all") return response(route, { metadata_run_id: "metadata-run", status: "running", total: 1, completed: 0, percent: 0 });
-    if (method === "GET" && path === "/api/metadata/fetch-all/metadata-run") {
-      metadataPolls += 1;
-      if (metadataPolls > 1) metadataReady = true;
-      return response(route, { metadata_run_id: "metadata-run", status: metadataPolls === 1 ? "running" : "succeeded", total: 1, completed: metadataPolls === 1 ? 0 : 1, percent: metadataPolls === 1 ? 0 : 100, row_count: 4, exchange_count: 1, requested_exchange_count: 1, skipped_exchange_count: 0, skipped_exchanges: [] });
-    }
-    if (method === "GET" && path === "/api/metadata-builder/options") return response(route, { metadata_ready: metadataReady, exchange: [{ value: "XETRA", isin_count: 3 }, { value: "LSE", isin_count: 1 }], instrument_type: [{ value: "ETF", isin_count: 3 }, { value: "FUND", isin_count: 1 }], country: [{ value: "IE", isin_count: 3 }, { value: "LU", isin_count: 1 }], currency: [{ value: "EUR", isin_count: 3 }, { value: "USD", isin_count: 1 }] });
+    if (method === "GET" && path === "/api/metadata-builder/options") return response(route, { metadata_ready: true, exchange: [{ value: "XETRA", isin_count: 3 }, { value: "LSE", isin_count: 1 }], instrument_type: [{ value: "ETF", isin_count: 3 }, { value: "FUND", isin_count: 1 }], country: [{ value: "IE", isin_count: 3 }, { value: "LU", isin_count: 1 }], currency: [{ value: "EUR", isin_count: 3 }, { value: "USD", isin_count: 1 }] });
     if (method === "GET" && path === "/api/project-context") return response(route, context());
     if (method === "PUT" && path === "/api/project-context/current-project") {
       currentProjectId = String(body.project_id);
@@ -171,24 +149,17 @@ async function installTwoProjectApi(
       const project = projects.get(projectCriteria[1])!;
       return response(route, { project_id: project.id, selection_id: `selection-${project.id}`, selected_count: 3, ...project.criteria });
     }
-    const initialFill = path.match(/^\/api\/projects\/([^/]+)\/initial-fill$/);
-    if (method === "GET" && initialFill) {
-      return response(route, initialFillRow(initialFill[1]));
-    }
     if (method === "POST" && path === "/api/metadata-builder") {
       const id = `project-${projects.size + 1}`;
       const project: Project = {
         id,
         name: String(body.name),
         criteria: { exchange: String(body.exchange), instrument_type: String(body.instrument_type), country: String(body.country), currency: String(body.currency), name: String(body.name) },
-        activeRun: initialFillStatus === "ready" ? undefined : {
-          status: initialFillStatus === "running" ? "running" : "waiting",
-        },
         settings: { dividend_frequencies: [], statistic_labels: {}, statistic_ranges: {} },
       };
       projects.set(id, project);
       currentProjectId = id;
-      return response(route, { project: { project_id: id, name: project.name }, selection: { selection_id: `selection-${id}`, name: project.name }, selected_count: 3, initial_fill: initialFillRow(id) });
+      return response(route, { project: { project_id: id, name: project.name }, selection: { selection_id: `selection-${id}`, name: project.name }, selected_count: 3 });
     }
     const selectionSettings = path.match(/^\/api\/projects\/([^/]+)\/univariate-selection-settings$/);
     if (selectionSettings) {
@@ -317,6 +288,7 @@ test("workflow URLs are canonical, project-scoped, and persist across every page
   await page.getByRole("tab", { name: "Dividends" }).click();
   await expect(page.getByRole("img", { name: "Annual dividend yield distribution for 3 ISINs" })).toBeVisible();
 });
+  await expect(page.getByText("Independent metadata selections")).toBeVisible();
 
 test("sidebar workflow links navigate without a document reload", async ({ page }) => {
   await installTwoProjectApi(page);
@@ -376,15 +348,6 @@ test("selecting a project restores its Metadata Builder fields", async ({ page }
   await expect(page.getByLabel("Name contains")).toHaveValue("Alpha income");
 });
 
-test("Metadata Builder reports and blocks duplicate submission while a project fill is running", async ({ page }) => {
-  await installTwoProjectApi(page, "running");
-  await page.goto("/metadata-builder");
-  await page.getByLabel("Exchange").selectOption("XETRA");
-  await page.getByRole("button", { name: "Create new project" }).click();
-
-  await expect(page.getByRole("button", { name: /Loading quotes:/ })).toBeDisabled();
-});
-
 test("compact header keeps all projects directly selectable", async ({ page }) => {
   await installTwoProjectApi(page);
   await page.goto("/metadata-builder");
@@ -413,7 +376,7 @@ test("workflow sidebar colors complete, ready, and locked statuses", async ({ pa
 });
 
 test("Bivariate compute button polls through completion without a terminal failure", async ({ page }) => {
-  const fixture = await installTwoProjectApi(page, "ready", false, true);
+  const fixture = await installTwoProjectApi(page, false, true);
   await page.goto("/metadata-builder");
   await createProject(page, { exchange: "XETRA", instrumentType: "ETF", country: "IE", currency: "EUR", name: "Bivariate lifecycle" });
   await page.goto("/univariate-statistics");
@@ -436,7 +399,7 @@ test("Bivariate compute button polls through completion without a terminal failu
 });
 
 test("Multivariate compute button polls resolve_inputs through completion", async ({ page }) => {
-  const fixture = await installTwoProjectApi(page, "ready", false, false, true);
+  const fixture = await installTwoProjectApi(page, false, false, true);
   await page.goto("/metadata-builder");
   await createProject(page, { exchange: "XETRA", instrumentType: "ETF", country: "IE", currency: "EUR", name: "Multivariate lifecycle" });
   await page.goto("/univariate-statistics");
@@ -532,7 +495,7 @@ test("Multivariate state resets when switching to another project", async ({ pag
 });
 
 test("Multivariate unavailable statistics never render as zero or failed diagnostics", async ({ page }) => {
-  await installTwoProjectApi(page, "ready", false, false, false, true);
+  await installTwoProjectApi(page, false, false, false, true);
   await page.goto("/metadata-builder");
   await createProject(page, { exchange: "XETRA", instrumentType: "ETF", country: "IE", currency: "EUR", name: "Unavailable multivariate evidence" });
   await page.goto("/univariate-statistics");
@@ -550,15 +513,13 @@ test("Multivariate unavailable statistics never render as zero or failed diagnos
 });
 
 test("every workflow button completes its browser action for two isolated projects", async ({ page }) => {
-  const fixture = await installTwoProjectApi(page, "ready", false, false, false, false, false);
+  const fixture = await installTwoProjectApi(page, false, false, false);
   await page.goto("/metadata-builder");
   await expect(page).toHaveURL(/\/metadata-builder$/);
   await expect(page.getByText("2 · Metadata Builder")).toBeVisible();
   await expect(page.getByLabel("Exchange").locator("option", { hasText: "XETRA (3 ISINs)" })).toHaveCount(1);
   await expect(page.locator("form button[type=submit]")).toBeDisabled();
 
-  await page.getByRole("button", { name: "Fetch all metadata" }).click();
-  await expect(page.getByText("4 metadata rows from 1 exchanges loaded.")).toBeVisible();
   await expect(page.locator("form button[type=submit]")).toBeEnabled();
 
   await createProject(page, { exchange: "XETRA", instrumentType: "ETF", country: "IE", currency: "EUR", name: "Alpha income" });
@@ -656,7 +617,6 @@ test("every workflow button completes its browser action for two isolated projec
 
   expect([...fixture.projects.values()].map((project) => project.name)).toEqual(["Alpha income", "Beta growth"]);
   expect(fixture.calls).toEqual(expect.arrayContaining([
-    "POST /api/metadata/fetch-all",
     "POST /api/metadata-builder",
     "POST /api/univariate-statistics/runs",
     "POST /api/bivariate-statistics/plan",
@@ -680,72 +640,4 @@ test("mobile project navigation buttons open and close the drawer", async ({ pag
   if (!backdropBox) throw new Error("project navigation backdrop has no clickable area");
   await page.mouse.click(backdropBox.x + backdropBox.width - 8, backdropBox.y + backdropBox.height / 2);
   await expect(navigation).toHaveAttribute("data-open", "false");
-});
-
-test("metadata fetch requires a key and retains only its encrypted label", async ({ page }) => {
-  await installTwoProjectApi(page, "ready", false, false, false, false, true, false);
-  await page.goto("/metadata-builder");
-
-  const fetchButton = page.getByRole("button", { name: "Fetch all metadata" });
-  const keyField = page.getByLabel("EODHD key");
-  await expect(fetchButton).toBeDisabled();
-
-  await keyField.fill("secret-provider-token");
-  await expect(fetchButton).toBeEnabled();
-  await fetchButton.click();
-
-  await expect(page.getByText("4 metadata rows from 1 exchanges loaded.")).toBeVisible();
-  await expect(keyField).toHaveValue("");
-  await expect(page.getByText("Encrypted: dummy…key")).toBeVisible();
-  await expect(keyField).toHaveAttribute("placeholder", "Encrypted key: dummy…key");
-});
-
-test("Create new project disables submission while historical data loads", async ({ page }) => {
-  await installTwoProjectApi(page, "running", true);
-  await page.goto("/metadata-builder");
-  await page.getByLabel("Exchange").selectOption("XETRA");
-  await page.getByLabel("Instrument type").selectOption("ETF");
-  await page.getByLabel("Country").selectOption("IE");
-  await page.getByLabel("Currency").selectOption("EUR");
-  await page.getByLabel("Name contains").fill("Progress");
-  await page.getByRole("button", { name: "Create new project" }).click();
-
-  const action = page.getByRole("button", { name: /Loading quotes: 1 \/ 3 - about .* remaining/ });
-  await expect(action).toBeDisabled();
-  await page.reload();
-  await expect(page.getByLabel("Exchange")).toHaveValue("XETRA");
-  await expect(page.getByLabel("Instrument type")).toHaveValue("ETF");
-  await expect(page.getByLabel("Country")).toHaveValue("IE");
-  await expect(page.getByLabel("Currency")).toHaveValue("EUR");
-  await expect(page.getByLabel("Name contains")).toHaveValue("Progress");
-  await expect(action).toBeDisabled();
-  await expect(page.getByRole("heading", { name: "Historical Data" })).toHaveCount(0);
-});
-
-test("Metadata Builder disables submission while historical data is preparing", async ({ page }) => {
-  await installTwoProjectApi(page, "planning", true);
-  await page.goto("/metadata-builder");
-  await page.getByLabel("Exchange").selectOption("XETRA");
-  await page.getByLabel("Instrument type").selectOption("ETF");
-  await page.getByLabel("Country").selectOption("IE");
-  await page.getByLabel("Currency").selectOption("EUR");
-  await page.getByLabel("Name contains").fill("Preparing");
-  await page.getByRole("button", { name: "Create new project" }).click();
-
-  await expect(page.getByRole("button", { name: "Preparing historical data..." })).toBeDisabled();
-});
-
-test("sidebar project selector shows a project historical-data run", async ({ page }) => {
-  await installTwoProjectApi(page, "running", true);
-  await page.goto("/metadata-builder");
-  await page.getByLabel("Exchange").selectOption("XETRA");
-  await page.getByLabel("Instrument type").selectOption("ETF");
-  await page.getByLabel("Country").selectOption("IE");
-  await page.getByLabel("Currency").selectOption("EUR");
-  await page.getByLabel("Name contains").fill("Progress");
-  await page.getByRole("button", { name: "Create new project" }).click();
-  await expect(page.getByRole("button", { name: /Loading quotes:/ })).toBeDisabled();
-
-  await expect(page.getByLabel("Project", { exact: true })).toHaveAttribute("data-run-status", "running");
-  await expect(page.getByLabel("Project", { exact: true }).locator("option:checked")).toHaveText("Progress");
 });

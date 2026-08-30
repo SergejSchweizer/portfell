@@ -265,7 +265,6 @@ def research_router(
             service.start_univariate,
             user.user_id,
             payload.metadata_selection_id,
-            payload.quote_run_id,
         )
         if row["status"] == "running":
             if request_scope is None:
@@ -273,13 +272,12 @@ def research_router(
                     service.complete_univariate,
                     user.user_id,
                     payload.metadata_selection_id,
-                    payload.quote_run_id,
                 )
             else:
                 request_scope.spawn_after_commit(
                     user_id=user.user_id,
                     operation=lambda: service.complete_univariate(
-                        user.user_id, payload.metadata_selection_id, payload.quote_run_id
+                        user.user_id, payload.metadata_selection_id
                     ),
                 )
         return row

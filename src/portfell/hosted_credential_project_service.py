@@ -5,21 +5,15 @@ from __future__ import annotations
 import uuid
 from collections.abc import Callable
 
-from portfell.entitlements import (
-    ProviderDownloadRun,
-    delete_user_entitlements,
-    publish_user_data_snapshot,
-)
+from portfell.entitlements import delete_user_entitlements
 from portfell.hosted_api_errors import HostedApplicationError
 from portfell.hosted_api_ports import HostedRuntimePort
 from portfell.hosted_api_serializers import (
     credential_status_row,
-    download_row,
     project_row,
     selection_row,
 )
 from portfell.hosted_api_service_support import (
-    opaque_id,
     page,
     project_data_loaded,
     stable_hash,
@@ -28,13 +22,11 @@ from portfell.hosted_api_service_support import (
 from portfell.hosted_api_state import HostedApiState, ProjectRecord, SelectionRecord
 from portfell.hosted_audit_event_repository import AuditEventRepository, HostedAuditEvent
 from portfell.hosted_credentials import EodhdCredentialVault
-from portfell.hosted_download_run_repository import DownloadRunRepository
 from portfell.hosted_idempotency_repository import (
     IdempotencyRepository,
     LocalIdempotencyRepository,
 )
 from portfell.hosted_local_audit_event_repository import LocalAuditEventRepository
-from portfell.hosted_local_download_run_repository import LocalDownloadRunRepository
 from portfell.hosted_local_project_repository import LocalProjectRepository
 from portfell.hosted_local_selection_repository import LocalSelectionRepository
 from portfell.hosted_project_settings_repository import (
@@ -64,7 +56,6 @@ class CredentialProjectService:
         project_settings_repository: ProjectSettingsRepository | None = None,
         credential_vault: EodhdCredentialVault | None = None,
         audit_repository: AuditEventRepository | None = None,
-        download_run_repository: DownloadRunRepository | None = None,
         idempotency_repository: IdempotencyRepository | None = None,
         workflow_reader: Callable[[str, str | None], JsonRow] | None = None,
         project_data_loaded_reader: Callable[[str, str], bool] | None = None,
@@ -81,7 +72,6 @@ class CredentialProjectService:
         )
         self._credentials = credential_vault or state.credential_vault()
         self._audit_events = audit_repository or LocalAuditEventRepository(state)
-        self._download_runs = download_run_repository or LocalDownloadRunRepository(state)
         self._idempotency = idempotency_repository or LocalIdempotencyRepository(state)
         self._workflow_reader = workflow_reader
         self._project_data_loaded_reader = project_data_loaded_reader
@@ -150,61 +140,6 @@ class CredentialProjectService:
             raise HostedApplicationError(404, "credential_not_found") from error
         self._audit(user_id, "credential.delete")
         return credential_status_row(value)
-
-    def plan_download(self, user_id: str, symbols: list[str]) -> JsonRow:
-        request_hash = stable_hash({"user_id": user_id, "symbols": sorted(symbols)})
-        return {"download_run_id": opaque_id("download-plan", request_hash), "status": "planned"}
-
-    def run_download(
-        self, user_id: str, symbols: list[str], idempotency_key: str | None
-    ) -> JsonRow:
-        idempotency_hash = stable_hash({"symbols": sorted(symbols)})
-        cached = self._idempotency.lookup(
-            user_id=user_id,
-            operation="download-run",
-            key=idempotency_key,
-            request_hash=idempotency_hash,
-        )
-        if cached is not None:
-            return download_row(self._require_download_run(user_id, cached))
-        observation_ids = tuple(opaque_id("observation", value) for value in sorted(set(symbols)))
-        try:
-            credential_id = self._credentials.status(user_id=user_id).credential_id
-        except Exception as error:
-            raise HostedApplicationError(422, "eodhd_credential_required") from error
-        request_hash = stable_hash({"user_id": user_id, "symbols": list(observation_ids)})
-        run = ProviderDownloadRun(
-            download_run_id=opaque_id("download-run", request_hash),
-            user_id=user_id,
-            credential_id=credential_id,
-            provider="eodhd",
-            status="succeeded",
-            returned_observation_ids=observation_ids,
-            request_hash=request_hash,
-            requested_scope={"symbols": sorted(set(symbols))},
-        )
-        run = self._download_runs.create(run)
-        publish_user_data_snapshot(store=self.state.entitlements, run=run)
-        self._idempotency.remember(
-            user_id=user_id,
-            operation="download-run",
-            key=idempotency_key,
-            request_hash=idempotency_hash,
-            response_ref=run.download_run_id,
-        )
-        self._audit(user_id, "download.run")
-        return download_row(run)
-
-    def download_status(self, user_id: str, run_id: str) -> JsonRow:
-        return download_row(self._require_download_run(user_id, run_id))
-
-    def visible_datasets(self, user_id: str) -> JsonRow:
-        return {
-            "items": [
-                {"dataset_id": row_id, "dataset_type": "eodhd_observation"}
-                for row_id in self.state.entitlements.visible_observation_ids(user_id)
-            ]
-        }
 
     def create_project(self, user_id: str, name: str, idempotency_key: str | None) -> JsonRow:
         operation = f"project:{name}"
@@ -370,12 +305,6 @@ class CredentialProjectService:
             return self._credentials.status(user_id=user_id).credential_id
         except Exception as error:
             raise HostedApplicationError(422, "eodhd_credential_required") from error
-
-    def _require_download_run(self, user_id: str, run_id: str) -> ProviderDownloadRun:
-        run = self._download_runs.get(user_id=user_id, download_run_id=run_id)
-        if run is None:
-            raise HostedApplicationError(404, "not_found")
-        return run
 
     @staticmethod
     def _record(project: TenantProject) -> ProjectRecord:

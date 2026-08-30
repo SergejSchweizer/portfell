@@ -6,12 +6,11 @@ import { Button } from "../components/button";
 import { EmptyState } from "../components/empty-state";
 import { LoadingIndicator, LoadingState } from "../components/loading-state";
 import { Panel } from "../components/panel";
-import type { ApiInitialFill, ApiProjectSummary } from "../contracts";
+import type { ApiProjectSummary } from "../contracts";
 import { queryClient, queryTiming } from "../query/client";
 import { queryKeys } from "../query/keys";
 import { useQueryResource } from "../query/use-query-resource";
 import { projectWorkflowPath, workflowPages } from "../routes";
-import { useMetadataFetch } from "../shell/metadata-fetch-context";
 
 export function MetadataBuilderPage() {
   const options = useQueryResource(
@@ -19,14 +18,12 @@ export function MetadataBuilderPage() {
     metadataBuilderApi.loadFieldOptions,
     queryTiming.completed,
   );
-  const { fetchMetadata, fetching, canFetchMetadata, metadataProgress, metadataStatus } = useMetadataFetch();
   const [exchange, setExchange] = useState("");
   const [instrumentType, setInstrumentType] = useState("");
   const [country, setCountry] = useState("");
   const [currency, setCurrency] = useState("");
   const [name, setName] = useState("");
   const [selectionStatus, setSelectionStatus] = useState("Choose at least one Metadata Builder criterion.");
-  const [initialFill, setInitialFill] = useState<ApiInitialFill | null>(null);
   const [creatingProject, setCreatingProject] = useState(false);
 
   useEffect(() => {
@@ -40,7 +37,6 @@ export function MetadataBuilderPage() {
 
     const resetProjectState = () => {
       setSelectionStatus("Choose at least one Metadata Builder criterion.");
-      setInitialFill(null);
       setCreatingProject(false);
     };
 
@@ -64,7 +60,6 @@ export function MetadataBuilderPage() {
         setCurrency(criteria.currency);
         setName(criteria.name);
         setSelectionStatus(`${criteria.selected_count.toLocaleString()} unique ISINs selected.`);
-        setInitialFill(pageView.summary.initial_fill);
       } catch (error) {
         if (cancelled) return;
         resetProjectState();
@@ -88,46 +83,9 @@ export function MetadataBuilderPage() {
     };
   }, []);
 
-  useEffect(() => {
-    if (!initialFill || !["not_started", "planning", "running"].includes(initialFill.status)) return;
-    let cancelled = false;
-    let refreshInFlight = false;
-
-    const refreshInitialFill = async () => {
-      if (refreshInFlight) return;
-      refreshInFlight = true;
-      try {
-        const context = await loadProjectContext();
-        if (!context.current_project) return;
-        const nextFill = await metadataBuilderApi.loadInitialFill(context.current_project.project_id);
-        if (cancelled) return;
-        setInitialFill(nextFill);
-        if (!["not_started", "planning", "running"].includes(nextFill.status)) {
-          window.dispatchEvent(new Event("portfell:workflow-updated"));
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setSelectionStatus(error instanceof Error ? error.message : "Initial historical-data status could not be loaded.");
-        }
-      } finally {
-        refreshInFlight = false;
-      }
-    };
-
-    void refreshInitialFill();
-    const fallbackPoll = window.setInterval(() => void refreshInitialFill(), 1_000);
-    const onStatusEvent = () => void refreshInitialFill();
-    window.addEventListener("portfell:status-event", onStatusEvent);
-    return () => {
-      cancelled = true;
-      window.clearInterval(fallbackPoll);
-      window.removeEventListener("portfell:status-event", onStatusEvent);
-    };
-  }, [initialFill]);
-
   async function createProject(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (creatingProject || initialFillIsActive(initialFill)) return;
+    if (creatingProject) return;
     setCreatingProject(true);
     setSelectionStatus("Building the project selection…");
     try {
@@ -139,7 +97,6 @@ export function MetadataBuilderPage() {
         currency,
       });
       setSelectionStatus(`${result.selected_count.toLocaleString()} unique ISINs selected.`);
-      setInitialFill(result.initial_fill ?? null);
       window.history.pushState({}, "", projectWorkflowPath(result.project, workflowPages[0]));
       window.dispatchEvent(new Event("portfell:navigation"));
       window.dispatchEvent(new Event("portfell:workflow-updated"));
@@ -154,7 +111,7 @@ export function MetadataBuilderPage() {
     return options.status === "error" ? (
       <EmptyState
         title="Metadata unavailable"
-        description="Fetch all metadata to load the shared catalogue first."
+        description="The server-side market catalogue is not available."
       />
     ) : <LoadingState label="Loading metadata options" />;
   }
@@ -163,18 +120,6 @@ export function MetadataBuilderPage() {
   return (
     <section className="metadata-builder-page" data-route="metadata-builder-page">
       {options.refreshing ? <LoadingIndicator label="Refreshing metadata options" compact /> : null}
-      <Panel title="Download Metadata">
-        <div className="quote-fetch quote-fetch--panel metadata-download">
-          <label htmlFor="metadata-progress">Metadata download progress</label>
-          <progress id="metadata-progress" max={100} value={metadataProgress} />
-          <output className="status-line" aria-live="polite">{metadataStatus}</output>
-          <div className="quote-fetch__action">
-          <Button type="button" variant="primary" disabled={fetching || !canFetchMetadata} onClick={() => void fetchMetadata()}>
-            {fetching ? "Fetching…" : "Fetch all metadata"}
-          </Button>
-          </div>
-        </div>
-      </Panel>
       <Panel title="Metadata Builder">
         <form className="metadata-builder-form" onSubmit={createProject}>
           <label>
@@ -213,18 +158,18 @@ export function MetadataBuilderPage() {
             <Button
               type="submit"
               variant="primary"
-              disabled={!optionData.metadata_ready || creatingProject || initialFillIsActive(initialFill)}
-              aria-busy={creatingProject || initialFillIsActive(initialFill)}
+              disabled={!optionData.metadata_ready || creatingProject}
+              aria-busy={creatingProject}
               aria-live="polite"
             >
-              {creatingProject ? "Creating project..." : initialFillButtonLabel(initialFill)}
+              {creatingProject ? "Creating project..." : "Create new project"}
             </Button>
           </div>
         </form>
         <p className="status-line" aria-live="polite">
           {optionData.metadata_ready
-            ? initialFillStatusMessage(selectionStatus, initialFill)
-            : "Download metadata successfully before building a project."}
+            ? selectionStatus
+            : "The server-side market catalogue is not available."}
         </p>
       </Panel>
     </section>
@@ -233,43 +178,4 @@ export function MetadataBuilderPage() {
 
 function fieldOptionLabel(value: string, isinCount: number): string {
   return `${value} (${isinCount.toLocaleString()} ${isinCount === 1 ? "ISIN" : "ISINs"})`;
-}
-
-function initialFillIsActive(fill: ApiInitialFill | null): boolean {
-  return fill !== null && ["not_started", "planning", "running"].includes(fill.status);
-}
-
-function initialFillButtonLabel(fill: ApiInitialFill | null): string {
-  if (fill === null) return "Create new project";
-  if (fill.status === "not_started" || fill.status === "planning") {
-    return "Preparing historical data...";
-  }
-  if (fill.status === "running") {
-    return `Loading quotes: ${fill.completed_units.toLocaleString()} / ${fill.total_units.toLocaleString()}${initialFillRemainingTime(fill)}`;
-  }
-  if (fill.status === "ready") return "Quotes ready - Create new project";
-  if (fill.status === "partial") return "Quotes partially loaded - Create new project";
-  return "Quote load failed - Retry quote load";
-}
-
-export function initialFillStatusMessage(selectionStatus: string, fill: ApiInitialFill | null): string {
-  if (fill === null || !["partial", "failed"].includes(fill.status)) return selectionStatus;
-  const failedIsins = `${fill.failed_listing_count.toLocaleString()} ${fill.failed_listing_count === 1 ? "ISIN" : "ISINs"}`;
-  return `${selectionStatus} ${failedIsins} failed to load.`;
-}
-
-function initialFillRemainingTime(fill: ApiInitialFill): string {
-  if (fill.started_at === null || fill.completed_units <= 0 || fill.total_units <= fill.completed_units) {
-    return " - estimating time...";
-  }
-  if (fill.last_progress_at !== null && Date.now() - fill.last_progress_at * 1_000 > 60_000) {
-    return " - waiting for provider progress...";
-  }
-  const elapsedSeconds = (Date.now() - fill.started_at * 1_000) / 1_000;
-  if (elapsedSeconds <= 0) return " - estimating time...";
-  const remainingSeconds = Math.ceil((elapsedSeconds / fill.completed_units) * (fill.total_units - fill.completed_units));
-  if (remainingSeconds < 60) return " - less than 1 min remaining";
-  const hours = Math.floor(remainingSeconds / 3_600);
-  const minutes = Math.ceil((remainingSeconds % 3_600) / 60);
-  return hours > 0 ? ` - about ${hours}h ${minutes}m remaining` : ` - about ${minutes} min remaining`;
 }

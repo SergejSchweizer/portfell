@@ -39,11 +39,9 @@ from portfell.hosted_database_connection import connect as connect_database
 from portfell.hosted_metadata_project_service import MetadataProjectService
 from portfell.hosted_postgres_request_scope import RequestScopedPostgresConnection
 from portfell.hosted_postgres_service_composition import build_postgres_services
-from portfell.hosted_quote_run_service import QuoteRunService
 from portfell.hosted_research_service import ResearchService
 from portfell.hosted_routes_credentials import credential_router
 from portfell.hosted_routes_metadata_projects import metadata_project_router
-from portfell.hosted_routes_quote_runs import quote_run_router
 from portfell.hosted_routes_research import research_router
 from portfell.hosted_routes_status_events import status_event_router
 from portfell.hosted_status_event_stream import StatusEventConnectionLimiter
@@ -93,13 +91,11 @@ def create_app(
     services: tuple[
         CredentialProjectService,
         MetadataProjectService,
-        QuoteRunService,
         ResearchService,
     ]
     | None = None,
     request_scope: RequestScopedPostgresConnection | None = None,
     ensure_user: Callable[[str], object] | None = None,
-    include_quote_routes: bool = True,
 ) -> FastAPI:
     """Compose the hosted application and its concern-specific route adapters."""
 
@@ -109,7 +105,7 @@ def create_app(
     )
     if services is None:
         raise HostedApiError("hosted_services_must_be_explicit")
-    credentials, metadata, quotes, research = services
+    credentials, metadata, research = services
 
     def current_user() -> ApiUser:
         return provider.current_user()
@@ -142,10 +138,6 @@ def create_app(
             workspace_user=workspace_user,
         )
     )
-    if include_quote_routes:
-        application.include_router(
-            quote_run_router(quotes, current_user=current_user, workspace_user=workspace_user)
-        )
     application.include_router(
         research_router(
             research,
@@ -208,7 +200,6 @@ def create_runtime_app() -> FastAPI:
         ),
         request_scope=request_scope,
         ensure_user=PostgresHostedUserRepository(request_scope).create,
-        include_quote_routes=False,
     )
 
 

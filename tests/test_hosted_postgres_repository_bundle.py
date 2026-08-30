@@ -13,5 +13,4 @@ def test_composes_all_control_plane_repositories_on_one_connection() -> None:
     bundle = PostgresHostedRepositoryBundle.from_connection(connection)
 
     assert bundle.projects._connection is connection  # type: ignore[attr-defined]
-    assert bundle.quotes._connection is connection  # type: ignore[attr-defined]
     assert bundle.analyses._connection is connection  # type: ignore[attr-defined]

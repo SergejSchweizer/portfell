@@ -15,7 +15,6 @@ from portfell.bivariate_diagnostics import (
     spearman_diagnostics,
 )
 from portfell.bivariate_views import build_bivariate_summary, build_covariance_matrix
-from portfell.entitlements import ProviderDownloadRun
 from portfell.hosted_api_errors import HostedApplicationError
 from portfell.hosted_api_local_runtime import LocalHostedRuntime
 from portfell.hosted_api_service_support import stable_hash
@@ -73,13 +72,7 @@ class RecordingPersistence:
 def test_univariate_service_uses_injected_data_and_persistence_ports() -> None:
     member_id = "IE1:XETRA:AAA"
     selection = SelectionRecord("selection-1", "user-a", "project-1", "UCITS", (member_id,))
-    quote_run = ProviderDownloadRun(
-        "quote-1", "user-a", "credential-1", "eodhd", "succeeded", (), "hash-1"
-    )
-    state = HostedApiState(
-        selections_by_id={selection.selection_id: selection},
-        downloads_by_id={quote_run.download_run_id: quote_run},
-    )
+    state = HostedApiState(selections_by_id={selection.selection_id: selection})
     data = FakeResearchData(
         univariate_rows=(
             {
@@ -90,87 +83,62 @@ def test_univariate_service_uses_injected_data_and_persistence_ports() -> None:
             },
         ),
         selected_calls=[],
+        selected_result=({"isin": "IE1", "exchange": "XETRA", "code": "AAA"},),
     )
     persistence = RecordingPersistence()
     service = UnivariateResearchService(HostedResearchRepository(state), data, persistence)
 
-    started = service.start("user-a", selection.selection_id, quote_run.download_run_id)
-    service.complete("user-a", selection.selection_id, quote_run.download_run_id)
+    started = service.start("user-a", selection.selection_id)
+    service.complete("user-a", selection.selection_id)
 
     completed = state.univariate_runs_by_id[str(started["run_id"])]
     assert completed.status == "complete"
     assert completed.rows == data.univariate_rows
     assert state.current_univariate_selection_by_user["user-a"] in state.univariate_selections_by_id
-    assert data.selected_calls == []
+    assert data.selected_calls == [(selection.member_ids, "quotes")]
     assert persistence.calls == 1
 
 
 def test_univariate_service_covers_reuse_failure_and_in_memory_paths() -> None:
     member_id = "IE1:XETRA:AAA"
     selection = SelectionRecord("selection-1", "user-a", "project-1", "UCITS", (member_id,))
-    quote_run = ProviderDownloadRun(
-        "quote-1", "user-a", "credential-1", "eodhd", "succeeded", (), "hash-1"
+    state = HostedApiState(selections_by_id={selection.selection_id: selection})
+    data = FakeResearchData(
+        (),
+        [],
+        selected_result=({"isin": "IE1", "exchange": "XETRA", "code": "AAA"},),
     )
-    state = HostedApiState(
-        selections_by_id={selection.selection_id: selection},
-        downloads_by_id={quote_run.download_run_id: quote_run},
-    )
-    data = FakeResearchData((), [])
     persistence = RecordingPersistence()
     repository = HostedResearchRepository(state)
     service = UnivariateResearchService(repository, data, persistence)
 
-    started = service.start("user-a", selection.selection_id, quote_run.download_run_id)
+    started = service.start("user-a", selection.selection_id)
     run_id = str(started["run_id"])
     source_id = state.univariate_runs_by_id[run_id].source_id
     state.univariate_runs_by_id[run_id] = ResearchRun(
         run_id, "user-a", source_id, "failed", (), 1, 0, 1
     )
-    restarted = service.start("user-a", selection.selection_id, quote_run.download_run_id)
+    restarted = service.start("user-a", selection.selection_id)
     assert restarted["status"] == "running"
-    service.complete("user-a", selection.selection_id, quote_run.download_run_id)
+    service.complete("user-a", selection.selection_id)
     assert state.univariate_runs_by_id[run_id].status == "failed"
     assert persistence.calls == 1
 
     state.univariate_runs_by_id[run_id] = ResearchRun(
         run_id, "user-a", source_id, "running", (), 1, 0
     )
-    state.quote_rows_by_run_id[quote_run.download_run_id] = tuple(
-        {
-            "isin": "IE1",
-            "exchange": "XETRA",
-            "code": "AAA",
-            "date": f"2026-01-0{day}",
-            "adjusted_close": 100.0 + day,
-        }
-        for day in range(1, 5)
+    data.univariate_rows = (
+        {"isin": "IE1", "exchange": "XETRA", "code": "AAA", "observation_count": 4},
     )
-    service.complete("user-a", selection.selection_id, quote_run.download_run_id)
-    service.complete("user-a", selection.selection_id, quote_run.download_run_id)
+    service.complete("user-a", selection.selection_id)
+    service.complete("user-a", selection.selection_id)
     assert state.univariate_runs_by_id[run_id].status == "complete"
-    assert data.selected_calls[-1] == (selection.member_ids, "dividends")
+    assert data.selected_calls[-1] == (selection.member_ids, "quotes")
     assert service.results("user-a", run_id, 10, 0)["total"] == 1
     with pytest.raises(HostedApplicationError, match="predicates_required"):
         service.apply_selection("user-a", run_id, [])
     current_id = state.current_univariate_selection_by_user["user-a"]
     assert service.selection_results("user-a", current_id, 10, 0)["total"] == 1
-
-
-def test_univariate_service_rejects_incomplete_quote_run() -> None:
-    selection = SelectionRecord("selection-1", "user-a", "project-1", "UCITS", ("IE1:XETRA:AAA",))
-    quote_run = ProviderDownloadRun(
-        "quote-1", "user-a", "credential-1", "eodhd", "running", (), "hash-1"
-    )
-    state = HostedApiState(
-        selections_by_id={selection.selection_id: selection},
-        downloads_by_id={quote_run.download_run_id: quote_run},
-    )
-    service = UnivariateResearchService(
-        HostedResearchRepository(state), FakeResearchData((), []), RecordingPersistence()
-    )
-
-    with pytest.raises(HostedApplicationError, match="quote_run_incomplete"):
-        service.start("user-a", selection.selection_id, quote_run.download_run_id)
 
 
 def test_univariate_service_marks_the_run_failed_when_computation_raises() -> None:
@@ -190,9 +158,9 @@ def test_univariate_service_marks_the_run_failed_when_computation_raises() -> No
     persistence = RecordingPersistence()
     service = UnivariateResearchService(HostedResearchRepository(state), data, persistence)
 
-    started = service.start("user-a", selection.selection_id, None)
+    started = service.start("user-a", selection.selection_id)
     with pytest.raises(RuntimeError, match="lake unavailable"):
-        service.complete("user-a", selection.selection_id, None)
+        service.complete("user-a", selection.selection_id)
 
     assert state.univariate_runs_by_id[str(started["run_id"])].status == "failed"
     assert persistence.calls == 1
@@ -210,8 +178,8 @@ def test_univariate_service_uses_published_shared_rows_without_a_quote_run() -> 
         HostedResearchRepository(state), data, RecordingPersistence()
     )
 
-    started = service.start("user-a", selection.selection_id, None)
-    service.complete("user-a", selection.selection_id, None)
+    started = service.start("user-a", selection.selection_id)
+    service.complete("user-a", selection.selection_id)
 
     assert started["status"] == "running"
     assert state.univariate_runs_by_id[str(started["run_id"])].status == "complete"
@@ -226,13 +194,13 @@ def test_univariate_service_versions_the_calculation_run_identity() -> None:
         HostedResearchRepository(state), data, RecordingPersistence()
     )
 
-    started = service.start("user-a", selection.selection_id, None)
+    started = service.start("user-a", selection.selection_id)
     run = state.univariate_runs_by_id[str(started["run_id"])]
 
     assert run.source_id == stable_hash(
         {
             "selection_id": selection.selection_id,
-            "quote_run_id": "shared-market",
+            "quote_run_id": "market-source",
             "calculation_contract": "univariate.statistics.v2",
         }
     )
@@ -275,7 +243,6 @@ def test_bivariate_service_covers_plan_reuse_and_failure_transitions(
     state = HostedApiState(
         univariate_runs_by_id={univariate.run_id: univariate},
         univariate_selections_by_id={one.selection_id: one, two.selection_id: two},
-        quote_run_by_univariate_run_id={univariate.run_id: "quote-1"},
     )
     data = FakeResearchData((), [])
     persistence = RecordingPersistence()

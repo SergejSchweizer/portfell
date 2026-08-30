@@ -45,9 +45,7 @@ class MarketSourceUnivariateResearchService(UnivariateResearchService):
         super().__init__(repository, cast(ResearchDataPort, data), persistence, workflow_projector)
         self._market_data = data
 
-    def start(self, user_id: str, selection_id: str, quote_run_id: str | None) -> JsonRow:
-        if quote_run_id is not None:
-            raise HostedApplicationError(422, "quote_run_not_supported")
+    def start(self, user_id: str, selection_id: str) -> JsonRow:
         selection = self._repository.metadata_selection(selection_id, user_id)
         market = self._read_market(selection.member_ids)
         source_id = univariate_source_id(selection.selection_id, market.snapshot_id)
@@ -74,10 +72,8 @@ class MarketSourceUnivariateResearchService(UnivariateResearchService):
         self._repository.audit(user_id, "univariate_statistics.start")
         return research_run_row(run)
 
-    def complete(self, user_id: str, selection_id: str, quote_run_id: str | None) -> None:
+    def complete(self, user_id: str, selection_id: str) -> None:
         """Compute from a freshly materialized coherent snapshot outside the DB transaction."""
-        if quote_run_id is not None:
-            raise HostedApplicationError(422, "quote_run_not_supported")
 
         run: ResearchRun | None = None
         try:

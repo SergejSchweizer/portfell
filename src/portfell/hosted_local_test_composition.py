@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any, Never, cast
+from typing import Never, cast
 
 from portfell.hosted_analysis_service import HostedAnalysisService
 from portfell.hosted_api_local_runtime import LocalHostedRuntime
@@ -22,23 +22,21 @@ from portfell.hosted_market_source_bivariate_service import (
     BivariateMarketSourceData,
     MarketSourceBivariateResearchService,
 )
+from portfell.hosted_market_source_research_data import MarketSourceResearchData
+from portfell.hosted_market_source_univariate_service import MarketSourceUnivariateResearchService
 from portfell.hosted_metadata_project_service import MetadataProjectService
 from portfell.hosted_multivariate_run_repository import LocalMultivariateRunRepository
 from portfell.hosted_multivariate_service import MultivariateResearchService
 from portfell.hosted_project_settings_repository import LocalProjectSettingsRepository
-from portfell.hosted_quote_lifecycle_repository import LocalQuoteLifecycleRepository
-from portfell.hosted_quote_run_service import QuoteRunService
 from portfell.hosted_research_persistence import LocalResearchPersistence
 from portfell.hosted_research_ports import ResearchDataPort
 from portfell.hosted_research_repository import HostedResearchRepository
 from portfell.hosted_research_service import ResearchService
-from portfell.hosted_shared_quote_publisher import SharedQuotePublisher
 from portfell.hosted_univariate_service import UnivariateResearchService
 from portfell.hosted_workspace import LocalWorkspaceStore
-from portfell.hosted_workspace_repository import persist_local_workspace, restore_local_workspace
+from portfell.hosted_workspace_repository import restore_local_workspace
 from portfell.market_source.errors import market_source_required
 from portfell.market_source.gateway import MarketDataGateway
-from portfell.shared_market_data import SharedMarketDataStore
 
 
 def _retired_market_acquisition(**_: object) -> Never:
@@ -63,8 +61,15 @@ def local_research_service(
 ) -> ResearchService:
     repository = HostedResearchRepository(state)
     persistence = LocalResearchPersistence(state)
+    univariate = (
+        UnivariateResearchService(repository, data, persistence)
+        if market_gateway is None
+        else MarketSourceUnivariateResearchService(
+            repository, MarketSourceResearchData(market_gateway), persistence
+        )
+    )
     return ResearchService(
-        UnivariateResearchService(repository, data, persistence),
+        univariate,
         MarketSourceBivariateResearchService(
             repository,
             BivariateMarketSourceData(cast(MarketDataGateway, market_gateway)),
@@ -83,17 +88,6 @@ def local_research_service(
         ),
         HostedAnalysisService(repository, persistence),
     )
-
-
-def _local_quote_publisher(state: HostedApiState) -> SharedQuotePublisher | None:
-    if state.shared_market_data_store is None:
-        return None
-    return SharedQuotePublisher(state.shared_market_data_store)
-
-
-def _persist_local_workspace_if_configured(state: HostedApiState) -> None:
-    if state.workspace_store is not None:
-        persist_local_workspace(state)
 
 
 def local_credential_project_service(state: HostedApiState) -> CredentialProjectService:
@@ -119,7 +113,7 @@ def local_credential_project_service(state: HostedApiState) -> CredentialProject
 
 def local_test_services(
     state: HostedApiState, *, market_gateway: MarketDataGateway | None = None
-) -> tuple[CredentialProjectService, MetadataProjectService, QuoteRunService, ResearchService]:
+) -> tuple[CredentialProjectService, MetadataProjectService, ResearchService]:
     """Compose non-production adapters for explicit API tests only."""
 
     runtime = local_runtime()
@@ -134,18 +128,6 @@ def local_test_services(
             state.credential_vault(),
             LocalAuditEventRepository(state),
         ),
-        QuoteRunService(
-            state,
-            runtime,
-            LocalProjectRepository(state),
-            LocalSelectionRepository(state),
-            state.credential_vault(),
-            LocalQuoteLifecycleRepository(state),
-            LocalAuditEventRepository(state),
-            LocalIdempotencyRepository(state),
-            _local_quote_publisher(state),
-            lambda: _persist_local_workspace_if_configured(state),
-        ),
         local_research_service(state, runtime, market_gateway=market_gateway),
     )
 
@@ -158,26 +140,6 @@ def create_persistent_local_workspace_state(
         credentials=FileCredentialStore(shared_data_root / "encrypted-credentials.json"),
         credential_key_encryption_key=key_encryption_key,
         workspace_store=workspace_store,
-        shared_market_data_store=SharedMarketDataStore(shared_data_root),
     )
     restore_local_workspace(state, workspace_store.load())
     return state
-
-
-def run_quote_fetch_for_test(
-    state: HostedApiState, run: Any, selection_id: str, provider_key: str
-) -> None:
-    from portfell.hosted_quote_run_service import QuoteRunService
-
-    QuoteRunService(
-        state,
-        local_runtime(),
-        LocalProjectRepository(state),
-        LocalSelectionRepository(state),
-        state.credential_vault(),
-        LocalQuoteLifecycleRepository(state),
-        LocalAuditEventRepository(state),
-        LocalIdempotencyRepository(state),
-        _local_quote_publisher(state),
-        lambda: _persist_local_workspace_if_configured(state),
-    ).run_quote_fetch(run, selection_id, provider_key)

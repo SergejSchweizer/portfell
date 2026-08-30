@@ -3,14 +3,10 @@ from __future__ import annotations
 from collections.abc import Sequence
 from datetime import date
 from decimal import Decimal
-from typing import cast
 
 import pytest
 
-from portfell.hosted_api_errors import HostedApplicationError
 from portfell.hosted_market_source_research_data import MarketSourceResearchData
-from portfell.hosted_market_source_univariate_service import MarketSourceUnivariateResearchService
-from portfell.hosted_research_ports import ResearchPersistencePort, ResearchRunRepository
 from portfell.market_source.contracts import Dividend, EodQuote, Listing, ListingKey, Split
 from portfell.market_source.errors import (
     MARKET_SOURCE_CONTRACT_MISMATCH,
@@ -129,17 +125,3 @@ def test_market_source_research_data_preserves_typed_missing_adjusted_close() ->
         MarketSourceResearchData(FakeGateway(_source_snapshot(adjusted_close=None))).read(
             ("IE00TEST0001:XETRA:TEST",)
         )
-
-
-def test_market_source_univariate_rejects_legacy_quote_run_before_repository_access() -> None:
-    gateway = FakeGateway(_source_snapshot())
-    data = MarketSourceResearchData(gateway)
-    service = MarketSourceUnivariateResearchService(
-        cast(ResearchRunRepository, object()),
-        data,
-        cast(ResearchPersistencePort, object()),
-    )
-
-    with pytest.raises(HostedApplicationError, match="quote_run_not_supported"):
-        service.start("user", "selection", "legacy-quote-run")
-    assert gateway.calls == []

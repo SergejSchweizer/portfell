@@ -6,17 +6,15 @@ from __future__ import annotations
 
 import json
 import uuid
-from collections.abc import Callable, Mapping
+from collections.abc import Mapping
 from typing import Literal, Protocol, cast
 
-from portfell.entitlements import ProviderDownloadRun
 from portfell.hosted_analysis_record_repository import AnalysisRecordRepository
 from portfell.hosted_api_errors import HostedApplicationError
 from portfell.hosted_api_service_support import opaque_id
 from portfell.hosted_api_state import AnalysisRecord, ProjectRecord, SelectionRecord
 from portfell.hosted_catalog import set_authenticated_user_sql
 from portfell.hosted_postgres_workflow import WorkflowResearchState
-from portfell.hosted_quote_lifecycle_repository import QuoteLifecycleRepository
 from portfell.hosted_repository_importer import ProjectRepository
 from portfell.hosted_research_workflow import (
     ResearchRun,
@@ -40,9 +38,6 @@ class ResearchConnection(Protocol):
     def execute(self, sql: str, parameters: tuple[object, ...] = ()) -> ResearchCursor: ...
 
 
-QuoteRowsReader = Callable[[str], tuple[JsonRow, ...]]
-
-
 class PostgresResearchRepository:
     """Persist univariate and bivariate runs without a process-local authority."""
 
@@ -52,15 +47,11 @@ class PostgresResearchRepository:
         *,
         projects: ProjectRepository,
         selections: SelectionRepository,
-        quotes: QuoteLifecycleRepository,
-        quote_rows: QuoteRowsReader,
         analyses: AnalysisRecordRepository,
     ) -> None:
         self._connection = connection
         self._projects = projects
         self._selections = selections
-        self._quotes = quotes
-        self._quote_rows = quote_rows
         self._analyses = analyses
 
     def metadata_selection(self, selection_id: str, user_id: str) -> SelectionRecord:
@@ -68,15 +59,6 @@ class PostgresResearchRepository:
         if selection is None:
             raise HostedApplicationError(404, "not_found")
         return selection_record(selection)
-
-    def quote_run(self, run_id: str, user_id: str) -> ProviderDownloadRun:
-        run = self._quotes.get(user_id=user_id, run_id=run_id)
-        if run is None:
-            raise HostedApplicationError(404, "not_found")
-        return run
-
-    def quote_rows(self, run_id: str) -> tuple[JsonRow, ...]:
-        return () if not run_id else self._quote_rows(run_id)
 
     def univariate_run(self, run_id: str, user_id: str) -> ResearchRun:
         return self._run(run_id=run_id, user_id=user_id, kind="univariate", required=True)
@@ -91,18 +73,6 @@ class PostgresResearchRepository:
         self._connection.execute(
             "delete from portfell_app.research_runs where research_run_id = %s and run_kind = 'univariate'",
             (run_id,),
-        )
-
-    def bind_quote_run(self, univariate_run_id: str, quote_run_id: str) -> None:
-        self._connection.execute(
-            """
-insert into portfell_app.research_run_quote_bindings (research_run_id, user_id, quote_run_id)
-select research_run_id, user_id, %s::uuid
-from portfell_app.research_runs
-where research_run_id = %s and run_kind = 'univariate'
-on conflict (research_run_id) do update set quote_run_id = excluded.quote_run_id
-""",
-            (quote_run_id, univariate_run_id),
         )
 
     def bind_project_run(self, *, user_id: str, project_id: str, run_id: str) -> None:
@@ -124,13 +94,6 @@ where portfell_app.project_research_run_mappings.user_id = excluded.user_id
             (run_id,),
         ).fetchone()
         return None if row is None or len(row) != 1 or not isinstance(row[0], str) else row[0]
-
-    def quote_run_id(self, univariate_run_id: str) -> str:
-        row = self._connection.execute(
-            "select quote_run_id::text from portfell_app.research_run_quote_bindings where research_run_id = %s",
-            (univariate_run_id,),
-        ).fetchone()
-        return "" if row is None or len(row) != 1 or not isinstance(row[0], str) else row[0]
 
     def univariate_selection(self, selection_id: str, user_id: str) -> UnivariateSelection:
         self._bind(user_id)

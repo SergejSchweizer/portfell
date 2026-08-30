@@ -25,15 +25,11 @@ class ResearchService:
         self._multivariate = multivariate
         self._analysis = analysis
 
-    def start_univariate(
-        self, user_id: str, selection_id: str, quote_run_id: str | None
-    ) -> JsonRow:
-        return self._univariate.start(user_id, selection_id, quote_run_id)
+    def start_univariate(self, user_id: str, selection_id: str) -> JsonRow:
+        return self._univariate.start(user_id, selection_id)
 
-    def complete_univariate(
-        self, user_id: str, selection_id: str, quote_run_id: str | None
-    ) -> None:
-        self._univariate.complete(user_id, selection_id, quote_run_id)
+    def complete_univariate(self, user_id: str, selection_id: str) -> None:
+        self._univariate.complete(user_id, selection_id)
 
     def univariate_status(self, user_id: str, run_id: str) -> JsonRow:
         return self._univariate.status(user_id, run_id)

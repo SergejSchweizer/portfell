@@ -7,17 +7,14 @@ from __future__ import annotations
 import hashlib
 from dataclasses import dataclass
 
-from portfell import project_bootstrap_schema as bootstrap_schema
 from portfell.analysis_lifecycle_schema import ANALYSIS_LIFECYCLE_SCHEMA_SQL
 from portfell.catalog_contract_validation import validate_catalog_contracts
 from portfell.hosted_catalog_ports import CatalogConnection
 from portfell.hosted_catalog_ports import CatalogResult as CatalogResult
-from portfell.hosted_download_run_schema import DOWNLOAD_RUN_PARTIAL_STATUS_SQL
 from portfell.hosted_navigation_read_model_schema import NAVIGATION_READ_MODEL_SCHEMA_SQL
 from portfell.legacy_import_schema import LEGACY_IMPORT_LEDGER_SQL
 from portfell.metadata_builder_criteria_schema import METADATA_BUILDER_CRITERIA_SCHEMA_SQL
 from portfell.metadata_lifecycle_schema import METADATA_LIFECYCLE_SCHEMA_SQL
-from portfell.metadata_refresh_job_schema import METADATA_REFRESH_JOB_SCHEMA_SQL
 from portfell.multivariate_lifecycle_schema import MULTIVARIATE_LIFECYCLE_SCHEMA_SQL
 from portfell.project_membership_trigger_schema import PROJECT_MEMBERSHIP_TRIGGER_REPAIR_SQL
 from portfell.project_settings_schema import PROJECT_SETTINGS_SCHEMA_SQL
@@ -459,22 +456,14 @@ MIGRATIONS: tuple[HostedMigration, ...] = (
     HostedMigration(6, "d017_tenant_control_schema", D017_TENANT_CONTROL_SCHEMA_SQL),
     HostedMigration(7, "d017_durable_job_queue", D017_DURABLE_JOB_SCHEMA_SQL),
     HostedMigration(8, "legacy_import_ledger", LEGACY_IMPORT_LEDGER_SQL),
-    HostedMigration(9, "download_run_partial_status", DOWNLOAD_RUN_PARTIAL_STATUS_SQL),
     HostedMigration(10, "durable_metadata_lifecycle", METADATA_LIFECYCLE_SCHEMA_SQL),
     HostedMigration(11, "durable_research_lifecycle", RESEARCH_LIFECYCLE_SCHEMA_SQL),
     HostedMigration(12, "durable_project_settings", PROJECT_SETTINGS_SCHEMA_SQL),
     HostedMigration(13, "durable_multivariate_lifecycle", MULTIVARIATE_LIFECYCLE_SCHEMA_SQL),
     HostedMigration(14, "durable_analysis_records", ANALYSIS_LIFECYCLE_SCHEMA_SQL),
-    HostedMigration(
-        15, "durable_project_initial_fills", bootstrap_schema.PROJECT_BOOTSTRAP_SCHEMA_SQL
-    ),
-    HostedMigration(16, "durable_shared_metadata_refresh_jobs", METADATA_REFRESH_JOB_SCHEMA_SQL),
     HostedMigration(17, "repair_project_membership_trigger", PROJECT_MEMBERSHIP_TRIGGER_REPAIR_SQL),
     HostedMigration(
         18, "metadata_builder_selection_criteria", METADATA_BUILDER_CRITERIA_SCHEMA_SQL
-    ),
-    HostedMigration(
-        19, "initial_fill_failure_count", bootstrap_schema.PROJECT_INITIAL_FILL_FAILURE_SCHEMA_SQL
     ),
     HostedMigration(20, "navigation_read_model", NAVIGATION_READ_MODEL_SCHEMA_SQL),
 )

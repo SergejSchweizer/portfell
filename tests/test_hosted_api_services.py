@@ -7,7 +7,6 @@ from uuid import UUID
 
 import pytest
 
-import portfell.hosted_api as hosted_api
 import portfell.hosted_api_local_runtime as local_runtime_module
 from portfell.entitlements import ProviderDownloadRun
 from portfell.hosted_analysis_service import HostedAnalysisService
@@ -41,13 +40,10 @@ from portfell.hosted_credentials import (
     InMemoryCredentialStore,
     KeyEncryptionKey,
 )
-from portfell.hosted_download_run_repository import DownloadRunRepository
-from portfell.hosted_idempotency_repository import LocalIdempotencyRepository
 from portfell.hosted_local_audit_event_repository import LocalAuditEventRepository
 from portfell.hosted_local_metadata_repository import LocalMetadataLifecycleRepository
 from portfell.hosted_local_project_repository import LocalProjectRepository
 from portfell.hosted_local_selection_repository import LocalSelectionRepository
-from portfell.hosted_local_test_composition import run_quote_fetch_for_test
 from portfell.hosted_metadata_project_service import (
     MetadataProjectService as _MetadataProjectService,
 )
@@ -55,9 +51,6 @@ from portfell.hosted_metadata_project_service import (
     metadata_source_catalog,
 )
 from portfell.hosted_navigation_read_model_repository import PostgresNavigationReadModel
-from portfell.hosted_project_bootstrap_repository import DurableProjectBootstrap
-from portfell.hosted_quote_lifecycle_repository import LocalQuoteLifecycleRepository
-from portfell.hosted_quote_run_service import QuoteRunService as _QuoteRunService
 from portfell.hosted_repository_importer import (
     InMemoryProjectRepository,
     TenantProject,
@@ -71,7 +64,6 @@ from portfell.hosted_workspace import LocalWorkspaceStore
 from portfell.hosted_workspace_repository import persist_local_workspace, restore_local_workspace
 from portfell.market_source.contracts import Listing, ListingKey
 from portfell.paths import LakePaths
-from portfell.project_selection_bootstrap import ProjectBootstrap
 from portfell.selection_filters import Predicate
 from portfell.table_io import JsonRow
 
@@ -87,24 +79,6 @@ def MetadataProjectService(
         dependencies.pop("metadata_repository", LocalMetadataLifecycleRepository(state)),
         dependencies.pop("credential_vault", state.credential_vault()),
         dependencies.pop("audit_repository", LocalAuditEventRepository(state)),
-        **dependencies,
-    )
-
-
-def QuoteRunService(
-    state: HostedApiState, runtime: LocalHostedRuntime, **dependencies: Any
-) -> _QuoteRunService:
-    return _QuoteRunService(
-        state,
-        runtime,
-        dependencies.pop("project_repository", LocalProjectRepository(state)),
-        dependencies.pop("selection_repository", LocalSelectionRepository(state)),
-        dependencies.pop("credential_vault", state.credential_vault()),
-        dependencies.pop("quote_repository", LocalQuoteLifecycleRepository(state)),
-        dependencies.pop("audit_repository", LocalAuditEventRepository(state)),
-        dependencies.pop("idempotency_repository", LocalIdempotencyRepository(state)),
-        dependencies.pop("quote_publisher", None),
-        dependencies.pop("workspace_persister", None),
         **dependencies,
     )
 
@@ -241,27 +215,6 @@ def test_local_runtime_reports_metadata_lake_permission_errors() -> None:
         runtime.run_metadata(provider_key="secret", concurrency=1, on_progress=_discard_progress)
 
 
-def test_quote_fetch_compatibility_hook_delegates(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    calls: list[tuple[str, str, str]] = []
-
-    def fake_run_quote_fetch(
-        _service: object,
-        run: ProviderDownloadRun,
-        selection_id: str,
-        provider_key: str,
-    ) -> None:
-        calls.append((run.download_run_id, selection_id, provider_key))
-
-    monkeypatch.setattr(hosted_api.QuoteRunService, "run_quote_fetch", fake_run_quote_fetch)
-    run = ProviderDownloadRun("run-1", "user-a", "credential-1", "eodhd", "running", (), "hash-1")
-
-    run_quote_fetch_for_test(HostedApiState(), run, "selection-1", "secret")
-
-    assert calls == [("run-1", "selection-1", "secret")]
-
-
 @pytest.mark.parametrize(
     "payload",
     INVALID_WORKSPACE_PAYLOADS,
@@ -299,21 +252,11 @@ def test_service_support_enforces_scope_paging_and_idempotency() -> None:
     )
 
 
-def test_services_fail_closed_without_credentials_or_quote_selection() -> None:
+def test_services_fail_closed_without_credentials() -> None:
     state = HostedApiState()
     credentials = CredentialProjectService(state)
-    runtime = LocalHostedRuntime(
-        quote_workflow=_empty_workflow,
-        metadata_workflow=_empty_workflow,
-        cpu_count=lambda: 1,
-    )
-
     with pytest.raises(HostedApplicationError, match="credential_not_found"):
         credentials.credential_status("user-a")
-    with pytest.raises(HostedApplicationError, match="metadata_selection_required"):
-        QuoteRunService(state, runtime).start(
-            "user-a", project_id=None, selection_id=None, idempotency_key=None
-        )
 
 
 def test_credential_commands_can_use_an_injected_vault_without_state_authority() -> None:
@@ -332,41 +275,6 @@ def test_credential_commands_can_use_an_injected_vault_without_state_authority()
     assert service.credential_status(user_id)["masked_label"] == status["masked_label"]
     with pytest.raises(Exception, match="credential not found"):
         state.credential_vault().status(user_id=user_id)
-
-
-def test_download_commands_can_use_an_injected_repository_without_state_authority() -> None:
-    class DownloadRepository(DownloadRunRepository):
-        def __init__(self) -> None:
-            self.runs: dict[str, ProviderDownloadRun] = {}
-
-        def create(self, run: ProviderDownloadRun) -> ProviderDownloadRun:
-            self.runs[run.download_run_id] = run
-            return run
-
-        def get(self, *, user_id: str, download_run_id: str) -> ProviderDownloadRun | None:
-            run = self.runs.get(download_run_id)
-            return run if run is not None and run.user_id == user_id else None
-
-    state = HostedApiState()
-    vault = EodhdCredentialVault(
-        store=InMemoryCredentialStore(),
-        key_encryption_key=KeyEncryptionKey("test-v1", b"1" * 32),
-        fingerprint_secret=b"test-fingerprint-secret",
-    )
-    user_id = "00000000-0000-5000-8000-000000000001"
-    credential = vault.set_credential(user_id=user_id, provider_key="test-key")
-    repository = DownloadRepository()
-    service = CredentialProjectService(
-        state,
-        credential_vault=vault,
-        download_run_repository=repository,
-    )
-
-    created = service.run_download(user_id, ["AAA"], idempotency_key=None)
-
-    assert state.downloads_by_id == {}
-    assert repository.runs[created["download_run_id"]].credential_id == credential.credential_id
-    assert service.download_status(user_id, created["download_run_id"]) == created
 
 
 def test_project_commands_can_use_an_injected_audit_repository_without_state_authority() -> None:
@@ -783,99 +691,6 @@ def test_metadata_builder_project_refreshes_navigation_projection() -> None:
     assert refreshed == ["user-1"]
 
 
-def test_metadata_refresh_queue_does_not_require_a_browser_credential() -> None:
-    class QueueRecorder:
-        calls: list[tuple[str, str]] = []
-
-        def enqueue(self, *, metadata_run_id: str, user_id: str) -> None:
-            self.calls.append((metadata_run_id, user_id))
-
-    user_id = "00000000-0000-5000-8000-000000000001"
-    queue = QueueRecorder()
-    service = MetadataProjectService(
-        HostedApiState(),
-        LocalHostedRuntime(
-            quote_workflow=_empty_workflow, metadata_workflow=_empty_workflow, cpu_count=lambda: 1
-        ),
-        metadata_refresh_queue=queue,
-    )
-
-    run, background = service.start_metadata_fetch(user_id)
-
-    assert run["status"] == "running"
-    assert queue.calls == [(run["metadata_run_id"], user_id)]
-    assert background() is None
-
-
-def test_metadata_builder_enqueues_the_exact_initial_fill_when_configured() -> None:
-    class BootstrapRecorder:
-        calls: list[tuple[str, str, str, tuple[str, ...]]] = []
-
-        def start(
-            self, *, user_id: str, project_id: str, selection_id: str, member_ids: tuple[str, ...]
-        ) -> DurableProjectBootstrap:
-            self.calls.append((user_id, project_id, selection_id, member_ids))
-            return DurableProjectBootstrap(
-                ProjectBootstrap(
-                    "bootstrap-1", user_id, project_id, selection_id, member_ids, len(member_ids)
-                ),
-                "job-1",
-            )
-
-    state = HostedApiState(
-        all_isins_rows=(
-            {
-                "isin": "IE1",
-                "exchange": "XETRA",
-                "code": "AAA",
-                "name": "Example",
-                "instrument_type": "ETF",
-                "country": "IE",
-                "currency": "EUR",
-            },
-        )
-    )
-    state.metadata_revisions_by_user["00000000-0000-5000-8000-000000000001"] = "revision-1"
-    recorder = BootstrapRecorder()
-    service = MetadataProjectService(
-        state,
-        LocalHostedRuntime(
-            quote_workflow=_empty_workflow, metadata_workflow=_empty_workflow, cpu_count=lambda: 1
-        ),
-        bootstrap_repository=recorder,
-    )
-
-    created = service.create_project_from_criteria(
-        "00000000-0000-5000-8000-000000000001",
-        exchange="XETRA",
-        name="Example",
-        instrument_type="ETF",
-        country="IE",
-        currency="EUR",
-        idempotency_key=None,
-    )
-
-    assert recorder.calls == [
-        (
-            "00000000-0000-5000-8000-000000000001",
-            created["project"]["project_id"],
-            created["selection"]["selection_id"],
-            ("IE1:XETRA:AAA",),
-        )
-    ]
-    assert created["initial_fill"] == {
-        "bootstrap_id": "bootstrap-1",
-        "job_id": "job-1",
-        "status": "not_started",
-        "completed_units": 0,
-        "total_units": 1,
-        "selected_listing_count": 1,
-        "failed_listing_count": 0,
-        "terminal_code": None,
-        "started_at": None,
-    }
-
-
 def test_metadata_builder_reuses_an_immutable_selection_after_catalog_changes() -> None:
     user_id = "00000000-0000-5000-8000-000000000001"
     state = HostedApiState(
@@ -934,49 +749,6 @@ def test_metadata_builder_reuses_an_immutable_selection_after_catalog_changes() 
     assert repeated == created
 
 
-def test_quote_run_can_use_injected_project_repository_and_credential_vault() -> None:
-    state = HostedApiState()
-    user_id = "00000000-0000-5000-8000-000000000001"
-    project_id = "00000000-0000-5000-8000-000000000002"
-    selection_id = "00000000-0000-5000-8000-000000000003"
-    vault = EodhdCredentialVault(
-        store=InMemoryCredentialStore(),
-        key_encryption_key=KeyEncryptionKey("test-v1", b"1" * 32),
-        fingerprint_secret=b"test-fingerprint-secret",
-    )
-    vault.set_credential(user_id=user_id, provider_key="test-key")
-    repository = InMemoryProjectRepository()
-    repository.create_project(TenantProject(project_id, user_id, "Income"))
-    selections = InMemorySelectionRepository()
-    selections.create(TenantSelection(selection_id, project_id, user_id, "Income", ("IE1",)))
-    runtime = LocalHostedRuntime(
-        quote_workflow=_empty_workflow,
-        metadata_workflow=_empty_workflow,
-        cpu_count=lambda: 1,
-    )
-    service = QuoteRunService(
-        state,
-        runtime,
-        project_repository=repository,
-        selection_repository=selections,
-        credential_vault=vault,
-    )
-
-    run, task = service.start(
-        user_id,
-        project_id=project_id,
-        selection_id=selection_id,
-        idempotency_key=None,
-    )
-
-    assert state.projects_by_id == {}
-    assert state.selections_by_id == {}
-    with pytest.raises(Exception, match="credential not found"):
-        state.credential_vault().status(user_id=user_id)
-    assert run["status"] == "running"
-    assert task is not None
-
-
 def test_analysis_can_authorize_an_injected_project_repository() -> None:
     state = HostedApiState()
     user_id = "00000000-0000-5000-8000-000000000001"
@@ -1004,63 +776,6 @@ def test_analysis_can_authorize_an_injected_project_repository() -> None:
     assert state.projects_by_id == {}
     assert state.selections_by_id == {}
     assert analysis["status"] == "succeeded"
-
-
-def test_quote_run_reuses_an_active_run_without_an_idempotency_key() -> None:
-    state = HostedApiState()
-    state.projects_by_id["project-1"] = ProjectRecord("project-1", "user-a", "Income")
-    state.selections_by_id["selection-1"] = SelectionRecord(
-        "selection-1", "user-a", "project-1", "Income", ("IE1",)
-    )
-    state.credential_vault().set_credential(user_id="user-a", provider_key="test-key")
-    runtime = LocalHostedRuntime(
-        quote_workflow=_empty_workflow,
-        metadata_workflow=_empty_workflow,
-        cpu_count=lambda: 4,
-    )
-    service = QuoteRunService(state, runtime)
-
-    first, first_task = service.start(
-        "user-a", project_id="project-1", selection_id=None, idempotency_key=None
-    )
-    second, second_task = service.start(
-        "user-a", project_id="project-1", selection_id=None, idempotency_key=None
-    )
-
-    assert first["status"] == "running"
-    assert first_task is not None
-    assert second["download_run_id"] == first["download_run_id"]
-    assert second["status"] == "running"
-    assert second_task is None
-
-
-def test_quote_run_reuses_a_succeeded_run_without_an_idempotency_key() -> None:
-    state = HostedApiState()
-    state.projects_by_id["project-1"] = ProjectRecord("project-1", "user-a", "Income")
-    state.selections_by_id["selection-1"] = SelectionRecord(
-        "selection-1", "user-a", "project-1", "Income", ("IE1",)
-    )
-    state.credential_vault().set_credential(user_id="user-a", provider_key="test-key")
-    runtime = LocalHostedRuntime(
-        quote_workflow=_empty_workflow,
-        metadata_workflow=_empty_workflow,
-        cpu_count=lambda: 4,
-    )
-    service = QuoteRunService(state, runtime)
-
-    first, first_task = service.start(
-        "user-a", project_id="project-1", selection_id=None, idempotency_key=None
-    )
-    assert first_task is not None
-    first_task()
-
-    second, second_task = service.start(
-        "user-a", project_id="project-1", selection_id=None, idempotency_key=None
-    )
-
-    assert second["download_run_id"] == first["download_run_id"]
-    assert second["status"] == "succeeded"
-    assert second_task is None
 
 
 def test_project_context_cleans_discontinued_projects_and_tracks_loaded_data() -> None:

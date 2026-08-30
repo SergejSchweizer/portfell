@@ -50,8 +50,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      project-bootstrap-worker:
-        condition: service_healthy
     ports:
       - "0.0.0.0:${PORTFELL_API_PORT:-8000}:8000"
     healthcheck:
@@ -111,47 +109,6 @@ services:
     cap_drop:
       - ALL
 
-  project-bootstrap-worker:
-    container_name: portfell-worker
-    build:
-      context: .
-      dockerfile: apps/api/Dockerfile
-    restart: unless-stopped
-    command:
-      - sh
-      - -c
-      - >-
-        python -m portfell.hosted_catalog_migration && touch /tmp/catalog-migrated
-        && exec python -m portfell.hosted_project_bootstrap_worker
-    environment:
-      PORTFELL_DATABASE_URL: postgresql://portfell_app@postgres:5432/portfell
-      PORTFELL_DATABASE_PASSWORD_FILE: /run/secrets/postgres_password
-      PORTFELL_OPERATIONS_EODHD_TOKEN_FILE: /run/secrets/operations_eodhd_token
-    secrets:
-      - operations_eodhd_token
-      - postgres_password
-    depends_on:
-      postgres:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "test -f /tmp/catalog-migrated"]
-      interval: 2s
-      timeout: 2s
-      retries: 15
-      start_period: 10s
-    networks:
-      - portfell-internal
-      - portfell-public
-    group_add:
-      - "${PORTFELL_SECRET_GROUP_ID:-100}"
-    read_only: true
-    tmpfs:
-      - /tmp
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-
 networks:
   portfell-internal:
     internal: true
@@ -165,5 +122,3 @@ secrets:
     file: ${PORTFELL_POSTGRES_PASSWORD_FILE:?set an absolute external secret path}
   eodhd_kek:
     file: ${PORTFELL_EODHD_KEK_FILE:?set an absolute external secret path}
-  operations_eodhd_token:
-    file: ${PORTFELL_OPERATIONS_EODHD_TOKEN_FILE:?set an absolute external secret path}

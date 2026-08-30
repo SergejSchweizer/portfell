@@ -137,7 +137,7 @@ def test_hosted_api_requires_an_explicit_service_composition() -> None:
 
 
 def test_postgres_composition_excludes_legacy_user_quote_routes() -> None:
-    application = _test_app(include_quote_routes=False)
+    application = _test_app()
 
     assert "/quote-runs" not in application.openapi()["paths"]
 
@@ -502,24 +502,6 @@ def test_metadata_builder_options_and_project_creation_use_all_isins_reference()
     )
 
 
-def test_quote_run_requires_an_existing_selection() -> None:
-    response = _client(HostedApiState()).post(
-        "/quote-runs",
-        headers=_headers(idempotency="legacy-quote-run"),
-        json={"metadata_selection_id": "selection-1"},
-    )
-
-    assert response.status_code == 404
-    assert _json(response) == {"detail": {"code": "not_found"}}
-
-
-def test_metadata_fetch_status_rejects_a_malformed_run_id_without_a_server_error() -> None:
-    response = _client().get("/metadata/fetch-all/not-a-uuid", headers=_headers(csrf=False))
-
-    assert response.status_code == 404
-    assert _json(response)["detail"]["code"] == "metadata_run_not_found"
-
-
 def test_projects_selections_and_analyses_use_the_local_workspace() -> None:
     client = _client()
     project = _json(
@@ -867,15 +849,6 @@ def test_scoped_research_runs_filter_and_build_unique_pairs() -> None:
         name="Research",
         member_ids=("IE1:XETRA:AAA", "IE2:XETRA:BBB", "IE3:XETRA:CCC"),
     )
-    quote_run = ProviderDownloadRun(
-        download_run_id="quote-run-a",
-        user_id=DEFAULT_LOCAL_WORKSPACE_USER_ID,
-        credential_id="credential-a",
-        provider="eodhd",
-        status="succeeded",
-        returned_observation_ids=selection.member_ids,
-        request_hash="quote-request-a",
-    )
     quote_rows = tuple(
         {
             "isin": isin,
@@ -894,30 +867,16 @@ def test_scoped_research_runs_filter_and_build_unique_pairs() -> None:
     state = HostedApiState(
         projects_by_id={project.project_id: project},
         selections_by_id={selection.selection_id: selection},
-        downloads_by_id={quote_run.download_run_id: quote_run},
-        quote_rows_by_run_id={quote_run.download_run_id: quote_rows},
     )
     state.metadata_revisions_by_user[DEFAULT_LOCAL_WORKSPACE_USER_ID] = "metadata-revision-a"
-    state.idempotency_refs[
-        (DEFAULT_LOCAL_WORKSPACE_USER_ID, f"fetch-all-quotes:{project.project_id}", "fixture")
-    ] = quote_run.download_run_id
     client = _client(state, market_gateway=_market_gateway(quote_rows))
 
-    request = {
-        "metadata_selection_id": selection.selection_id,
-        "quote_run_id": quote_run.download_run_id,
-    }
+    request = {"metadata_selection_id": selection.selection_id}
     univariate = _json(client.post("/univariate-statistics/runs", headers=_headers(), json=request))
     repeated = _json(client.post("/univariate-statistics/runs", headers=_headers(), json=request))
     univariate_status = _json(
         client.get(f"/univariate-statistics/runs/{univariate['run_id']}", headers=_headers())
     )
-    univariate_page_response = client.get(
-        f"/projects/{project.project_id}/views/univariate_statistics/sections/results",
-        headers=_headers(csrf=False),
-    )
-    assert univariate_page_response.status_code == 200
-    univariate_page = _json(univariate_page_response)
     filtered = _json(
         client.post(
             "/univariate-selection",
@@ -982,9 +941,6 @@ def test_scoped_research_runs_filter_and_build_unique_pairs() -> None:
 
     assert repeated["run_id"] == univariate["run_id"]
     assert univariate_status["status"] == "complete"
-    assert univariate_page["total"] == 3
-    assert len(univariate_page["items"]) == 3
-    assert univariate_page["next_cursor"] is None
     assert filtered["input_count"] == filtered["selected_count"] == 3
     assert filtered["excluded_count"] == 0
     assert plan["theoretical_pair_count"] == 3

@@ -5,9 +5,8 @@ from __future__ import annotations
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Protocol
 
-from portfell.hosted_api_errors import HostedApplicationError, HostedRuntimeError
+from portfell.hosted_api_errors import HostedApplicationError
 from portfell.hosted_api_ports import HostedRuntimePort
 from portfell.hosted_api_serializers import (
     metadata_fetch_row,
@@ -20,9 +19,8 @@ from portfell.hosted_api_service_support import (
 )
 from portfell.hosted_api_state import HostedApiState, ProjectRecord, SelectionRecord
 from portfell.hosted_audit_event_repository import AuditEventRepository, HostedAuditEvent
-from portfell.hosted_credentials import CredentialVaultError, EodhdCredentialVault
+from portfell.hosted_credentials import EodhdCredentialVault
 from portfell.hosted_metadata_repository import MetadataLifecycleRepository, MetadataRun
-from portfell.hosted_project_bootstrap_repository import ProjectBootstrapRepository
 from portfell.hosted_repository_importer import (
     ProjectRepository,
     TenantProject,
@@ -34,12 +32,6 @@ from portfell.market_source.gateway import MarketDataGateway
 from portfell.market_source.snapshot import build_market_source_snapshot
 from portfell.selection_filters import Predicate, filter_rows, parse_predicates
 from portfell.table_io import JsonRow
-
-
-class MetadataRefreshQueue(Protocol):
-    """Enqueue a worker-owned metadata refresh without exposing provider credentials."""
-
-    def enqueue(self, *, metadata_run_id: str, user_id: str) -> None: ...
 
 
 @dataclass(frozen=True)
@@ -72,8 +64,6 @@ class MetadataProjectService:
         metadata_repository: MetadataLifecycleRepository,
         credential_vault: EodhdCredentialVault,
         audit_repository: AuditEventRepository,
-        bootstrap_repository: ProjectBootstrapRepository | None = None,
-        metadata_refresh_queue: MetadataRefreshQueue | None = None,
         navigation_refresher: Callable[[str], None] | None = None,
         market_catalog: Callable[[], MetadataSourceCatalog] | None = None,
     ) -> None:
@@ -84,8 +74,6 @@ class MetadataProjectService:
         self._metadata = metadata_repository
         self._credentials = credential_vault
         self._audit_events = audit_repository
-        self._bootstrap = bootstrap_repository
-        self._metadata_refresh_queue = metadata_refresh_queue
         self._navigation_refresher = navigation_refresher
         self._market_catalog = market_catalog
 
@@ -143,98 +131,13 @@ class MetadataProjectService:
             self._metadata.set_revision(user_id=user_id, revision_id=catalog.snapshot_id)
             self._audit(user_id, "fetch_all_metadata.completed")
             return metadata_fetch_row(_metadata_row(run)), lambda: None
-        if self._metadata_refresh_queue is not None:
-            run_id = opaque_id("metadata-run", f"{user_id}:{uuid.uuid4()}")
-            run = self._metadata.create(MetadataRun(run_id, user_id, "running", 0, 0, 0, 0, {}))
-            self._metadata_refresh_queue.enqueue(metadata_run_id=run_id, user_id=user_id)
-            self._audit(user_id, "fetch_all_metadata.queued")
-            return metadata_fetch_row(_metadata_row(run)), lambda: None
-        try:
-            provider_key = self._credentials.unwrap_for_provider_call(user_id=user_id)
-        except CredentialVaultError as error:
-            raise HostedApplicationError(422, "eodhd_key_required") from error
-        run_id = opaque_id("metadata-run", f"{user_id}:{uuid.uuid4()}")
-        run = self._metadata.create(MetadataRun(run_id, user_id, "running", 0, 0, 0, 0, {}))
-        self._audit(user_id, "fetch_all_metadata.started")
-        return metadata_fetch_row(_metadata_row(run)), lambda: self.run_metadata_fetch(
-            user_id, run_id, provider_key
-        )
+        raise HostedApplicationError(503, "market_source_not_configured")
 
     def metadata_fetch_status(self, user_id: str, run_id: str) -> JsonRow:
         run = self._metadata.status(user_id=user_id, run_id=run_id)
         if run is None:
             raise HostedApplicationError(404, "metadata_run_not_found")
         return metadata_fetch_row(_metadata_row(run))
-
-    def run_metadata_fetch(self, user_id: str, run_id: str, provider_key: str) -> None:
-        def update_progress(completed: int, total: int, skipped: int) -> None:
-            percent = round((completed / total) * 100) if total else 0
-            current = self._metadata.status(user_id=user_id, run_id=run_id)
-            if current is not None:
-                self._metadata.update(
-                    MetadataRun(
-                        run_id,
-                        user_id,
-                        "running",
-                        total,
-                        completed,
-                        skipped,
-                        percent,
-                        current.summary,
-                    )
-                )
-
-        try:
-            summary = self.runtime.run_metadata(
-                provider_key=provider_key,
-                concurrency=self.runtime.process_cpu_count(),
-                on_progress=update_progress,
-            )
-        except HostedRuntimeError as error:
-            self._fail_metadata_fetch(user_id, run_id, error.code)
-            return
-        except Exception:
-            self._fail_metadata_fetch(user_id, run_id, "metadata_fetch_failed")
-            return
-        revision_id = opaque_id("metadata-revision", stable_hash(summary))
-        self._metadata.set_revision(user_id=user_id, revision_id=revision_id)
-        current = self._metadata.status(user_id=user_id, run_id=run_id)
-        if current is not None:
-            self._metadata.update(
-                MetadataRun(
-                    run_id,
-                    user_id,
-                    "succeeded",
-                    current.total,
-                    current.completed,
-                    int(summary["skipped_exchange_count"]),
-                    100,
-                    {
-                        "row_count": int(summary["all_isins_rows"]),
-                        "exchange_count": int(summary["exchange_count"]),
-                        "requested_exchange_count": int(summary["requested_exchange_count"]),
-                        "skipped_exchanges": list(summary["skipped_exchanges"]),
-                    },
-                )
-            )
-        self._audit(user_id, "fetch_all_metadata.completed")
-
-    def _fail_metadata_fetch(self, user_id: str, run_id: str, code: str) -> None:
-        current = self._metadata.status(user_id=user_id, run_id=run_id)
-        if current is not None:
-            self._metadata.update(
-                MetadataRun(
-                    run_id,
-                    user_id,
-                    "failed",
-                    current.total,
-                    current.completed,
-                    current.skipped_exchange_count,
-                    current.percent,
-                    {**current.summary, "error_code": code},
-                )
-            )
-        self._audit(user_id, "fetch_all_metadata.failed")
 
     def create_project_from_criteria(
         self,
@@ -332,16 +235,6 @@ class MetadataProjectService:
         if catalog is not None:
             self._metadata.set_revision(user_id=user_id, revision_id=catalog.snapshot_id)
         self.runtime.write_metadata_selection(selection_id, selected_rows, predicates)
-        bootstrap = (
-            None
-            if self._bootstrap is None
-            else self._bootstrap.start(
-                user_id=user_id,
-                project_id=project_id,
-                selection_id=selection_id,
-                member_ids=selection.member_ids,
-            )
-        )
         if idempotency_key is not None:
             self._metadata.remember_idempotency(
                 user_id=user_id,
@@ -352,20 +245,7 @@ class MetadataProjectService:
             )
         self._audit(user_id, "metadata_builder.project.create")
         self._refresh_navigation(user_id)
-        result = self._project_selection_row(project, selection)
-        if bootstrap is not None:
-            result["initial_fill"] = {
-                "bootstrap_id": bootstrap.bootstrap.bootstrap_id,
-                "job_id": bootstrap.job_id,
-                "status": bootstrap.bootstrap.status,
-                "completed_units": 0,
-                "total_units": bootstrap.bootstrap.selected_listing_count,
-                "selected_listing_count": bootstrap.bootstrap.selected_listing_count,
-                "failed_listing_count": 0,
-                "terminal_code": None,
-                "started_at": None,
-            }
-        return result
+        return self._project_selection_row(project, selection)
 
     def _refresh_navigation(self, user_id: str) -> None:
         if self._navigation_refresher is not None:
@@ -401,28 +281,6 @@ class MetadataProjectService:
             "selection_id": selection.selection_id,
             "selected_count": _unique_isin_count(selection.member_ids),
             **fields,
-        }
-
-    def initial_fill_status(self, user_id: str, project_id: str) -> JsonRow:
-        """Return the owned bootstrap lifecycle without exposing shared inventory."""
-
-        self._project(user_id, project_id)
-        if self._bootstrap is None:
-            raise HostedApplicationError(404, "initial_fill_not_found")
-        status = self._bootstrap.status(user_id=user_id, project_id=project_id)
-        if status is None:
-            raise HostedApplicationError(404, "initial_fill_not_found")
-        return {
-            "bootstrap_id": status.bootstrap.bootstrap.bootstrap_id,
-            "job_id": status.bootstrap.job_id,
-            "status": status.status,
-            "completed_units": status.completed_units,
-            "total_units": status.total_units,
-            "selected_listing_count": status.bootstrap.bootstrap.selected_listing_count,
-            "failed_listing_count": status.failed_listing_count,
-            "terminal_code": status.terminal_code,
-            "started_at": status.started_at_epoch,
-            "last_progress_at": status.last_progress_at_epoch,
         }
 
     @staticmethod
