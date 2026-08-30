@@ -97,91 +97,23 @@ forbidden_modules = [
 ]
 
 [[tool.importlinter.contracts]]
-name = "Hosted API contracts and state do not depend on API composition"
-type = "forbidden"
-source_modules = [
-    "portfell.hosted_api_contracts",
-    "portfell.hosted_api_state",
-]
-forbidden_modules = [
-    "portfell.hosted_api",
-]
-
-[[tool.importlinter.contracts]]
-name = "Hosted routes do not depend on runtime implementations"
+name = "Clean application services do not depend on HTTP composition or Dash"
 type = "forbidden"
 allow_indirect_imports = true
-source_modules = [
-    "portfell.hosted_routes_common",
-    "portfell.hosted_routes_credentials",
+source_modules = ["portfell.app_services"]
+forbidden_modules = [
+    "portfell.dash_app",
+    "portfell.hosted_api",
     "portfell.hosted_routes_metadata_projects",
-    "portfell.hosted_routes_quote_runs",
     "portfell.hosted_routes_research",
-]
-forbidden_modules = [
-    "portfell.bronze",
-    "portfell.hosted_api",
-    "portfell.hosted_credentials",
-    "portfell.hosted_workspace",
-    "portfell.metadata_builder",
-    "portfell.paths",
-    "portfell.silver",
-    "portfell.table_io",
-    "portfell.workflows",
 ]
 
 [[tool.importlinter.contracts]]
-name = "Hosted application services do not depend on HTTP or concrete runtime adapters"
+name = "Dash does not depend on concrete database connection adapters"
 type = "forbidden"
 allow_indirect_imports = true
-source_modules = [
-    "portfell.hosted_api_service_support",
-    "portfell.hosted_credential_project_service",
-    "portfell.hosted_metadata_project_service",
-    "portfell.hosted_quote_run_service",
-    "portfell.hosted_analysis_service",
-    "portfell.hosted_bivariate_service",
-    "portfell.hosted_research_service",
-    "portfell.hosted_univariate_service",
-]
+source_modules = ["portfell.dash_app"]
 forbidden_modules = [
-    "portfell.hosted_api",
-    "portfell.hosted_routes_common",
-    "portfell.hosted_routes_credentials",
-    "portfell.hosted_routes_metadata_projects",
-    "portfell.hosted_routes_quote_runs",
-    "portfell.hosted_routes_research",
-    "portfell.hosted_research_persistence",
-    "portfell.hosted_research_repository",
-    "portfell.metadata_builder",
-    "portfell.paths",
-    "portfell.workflows",
-]
-
-[[tool.importlinter.contracts]]
-name = "Hosted ports and values do not depend on services or routes"
-type = "forbidden"
-allow_indirect_imports = true
-source_modules = [
-    "portfell.hosted_api_contracts",
-    "portfell.hosted_api_errors",
-    "portfell.hosted_api_ports",
-    "portfell.hosted_research_ports",
-]
-forbidden_modules = [
-    "portfell.hosted_api",
-    "portfell.hosted_api_service_support",
-    "portfell.hosted_analysis_service",
-    "portfell.hosted_bivariate_service",
-    "portfell.hosted_credential_project_service",
-    "portfell.hosted_metadata_project_service",
-    "portfell.hosted_quote_run_service",
-    "portfell.hosted_research_persistence",
-    "portfell.hosted_research_repository",
-    "portfell.hosted_research_service",
-    "portfell.hosted_univariate_service",
-    "portfell.hosted_routes_common",
-    "portfell.hosted_routes_credentials",
-    "portfell.hosted_routes_quote_runs",
-    "portfell.hosted_routes_research",
+    "portfell.hosted_database_connection",
+    "portfell.market_source.connection",
 ]
