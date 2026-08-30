@@ -21,7 +21,9 @@ Last reviewed: 2026-08-30
 
 ## Current Shape
 
-Portfell uses one local validation contract. Run the applicable focused checks while changing code and the complete check before integration. GitHub runs the complete `merge-gate` once per pull request targeting `main`; it does not repeat the same test families in a separate PR workflow or after the rebase merge.
+Portfell uses one local validation contract. Run the applicable focused checks while changing code and the complete check before integration. GitHub runs the complete `merge-gate` for every pull request, including stacked pull requests whose base is another feature branch. The workflow validates the GitHub pull-request merge candidate against that pull request's current base. When a stacked pull request is later retargeted or rebased onto `main`, the gate must run again against the final integration base.
+
+The merge-gate workflow also supports manual `workflow_dispatch` execution for CI diagnostics. Manual execution does not replace the required pull-request gate for integration.
 
 The shard count is intentionally kept at `4` for Unit and Integration tests. Current CI runtime is dominated more by runner setup, checkout, dependency installation, and artifact handling than by individual test execution, so further splitting is not expected to improve wall-clock time yet.
 
@@ -34,22 +36,25 @@ Required check families:
 - Playwright interaction-inventory tests on desktop.
 - Real Docker browser tests for worker-owned metadata refreshes on desktop.
 - Pytest Unit and Integration shards.
-- Coverage threshold enforcement on `main`.
+- Coverage threshold enforcement on every merge-gate candidate.
 - Architecture checks.
 - Dataset schema validation.
-- Conventional Commit validation.
+- Conventional Commit validation relative to the current PR base.
 - Independent financial numerical-oracle validation before Dash parity/final production acceptance.
 
 ## Rebase Workflow
 
 ```text
-working branch
+working or stacked branch
         |
         v
-rebase onto current main
+validate against current PR base
         |
         v
-run complete validation
+rebase/retarget onto current main before integration
+        |
+        v
+run complete validation again
         |
         v
 integrated linear main history
@@ -185,7 +190,7 @@ Allowed types:
 build chore ci docs feat fix perf refactor revert style test
 ```
 
-The rule applies to every commit subject.
+The rule applies to every commit subject. In GitHub Actions the commit range is resolved relative to `GITHUB_BASE_REF`, so a stacked child validates only commits introduced above its current PR base.
 
 ## Sharding Policy
 
@@ -202,6 +207,7 @@ Do not increase shard count by default. Reconsider only when at least one Unit o
 
 Update `GATES.md` whenever any of these change:
 
+- `.github/workflows/merge-gate.yml` trigger or base-relative validation behavior
 - `src/portfell/quality.py`
 - local pre-commit gate behavior
 - shard count, coverage threshold, or required quality tools
