@@ -257,7 +257,7 @@ PR340(live QA) -> PR341(E2E) -> PR342(runbook) -> PR343(closeout)
 - PR320 is integrated on `main` at `03cec1a`. It reads each Univariate computation from one coherent market snapshot and its complete local merge gate passes (`1034 passed`).
 - PR321 is integrated on `main` at `8172ed4`. It reads each Bivariate computation from one coherent market snapshot and its complete local merge gate passes (`1029 passed`).
 - PR322 is integrated on `main` at `511a32c`. It consumes source-pinned Multivariate inputs, preserves solver and validation semantics, and its complete local merge gate passes (`1037 passed`).
-- PR323 and all downstream source/Dash PRs are intentionally not started while their merged-predecessor contract is unmet. This preserves the exact dependency order in section 2 rather than stacking unvalidated production changes.
+- PR323 is integrated on `main` at `c106498`; the four-stage semantic QA passes (`1040 passed`). The PR324–PR331 deletion-wave siblings are now unblocked and may proceed in parallel; later PRs remain governed by their explicit dependencies.
 - The external xetra-loader production V2 artifact gate is now cleared: `artifacts/acceptance/postgres-full-sync-v2.json` exists on xetra-loader `main` and reports `status: PASS`. PR340 is therefore no longer blocked by the external artifact itself, but it still cannot start until PR339 is merged.
 
 ### PR308 — Xetra source contract foundation
@@ -487,6 +487,11 @@ Acceptance: exact matrix fixture; no source-plane redesign; Equal Weight is neve
 Branch: `test/pr323-four-stage-market-source-qa`
 
 Depends on: PR319–PR322.
+
+Git status: integrated on `main` at `c106498`. End-to-end Metadata → Univariate → Bivariate
+→ Multivariate source QA verifies full identity, source lineage, Decimal/date projection,
+corporate-action non-interference, immutable reads, and fail-closed partial/insufficient input
+behavior; the complete local merge gate passes (`1040 passed`).
 
 Scope: QA only across Metadata -> Univariate -> Bivariate -> Multivariate.
 
