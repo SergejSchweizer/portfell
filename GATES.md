@@ -1,178 +1,120 @@
-# Quality Checks
+# Portfell quality gates
 
-## Table Of Contents
+`GATES.md` is the quality/coverage authority for the final Python-only Portfell runtime.
 
-- [Purpose](#purpose)
-- [Current Shape](#current-shape)
-- [Rebase Workflow](#rebase-workflow)
-- [Validation Commands](#validation-commands)
-- [Conventional Commits](#conventional-commits)
-- [Sharding Policy](#sharding-policy)
-- [PR Definition Readiness](#pr-definition-readiness)
-- [Update Rules](#update-rules)
+## Local PR gate
 
-Last reviewed: 2026-08-30
-
-## Purpose
-
-`GATES.md` is the canonical documentation for Portfell quality checks and local validation commands. Other repository documents should link here instead of repeating the validation contract.
-
-## Current Shape
-
-Portfell uses one local validation contract. Run the applicable focused checks while changing code and the complete check before integration. GitHub runs the complete `merge-gate` once per pull request targeting the integration branch required by the active stack; final integration must rebase/retarget onto current main before integration and run the complete gate again.
-
-The shard count is intentionally kept at `4` for Unit and Integration tests. Current CI runtime is dominated more by runner setup, checkout, dependency installation, and artifact handling than by individual test execution, so further splitting is not expected to improve wall-clock time yet.
-
-The Plotly Dash replacement uses Python Playwright for browser acceptance. PR356 removes the first-party React/Vite/Node browser application and its npm/Vitest/Playwright/real-stack CI jobs. The Dash browser gate is Python-only, uses a deterministic fixture service, makes no external production-network request, and writes `dash-parity-v1` evidence only after every assertion in the same browser run succeeds.
-
-Required check families:
-
-- Ruff lint and format.
-- Hosted public-repository security gates while legacy hosted code remains.
-- Hosted readiness records while the legacy hosted plane remains.
-- Pyright strict typing.
-- Python Playwright Dash interaction/layout tests on desktop, tablet, and mobile.
-- Pytest Unit and Integration shards.
-- Coverage threshold enforcement on `main`.
-- Architecture checks.
-- Dataset schema validation.
-- Conventional Commit validation.
-
-## Rebase Workflow
-
-```text
-working or stacked branch
-        |
-        v
-rebase onto required integration predecessor
-        |
-        v
-run complete validation against that predecessor
-        |
-        v
-rebase/retarget onto current main before integration
-        |
-        v
-run complete validation again
-        |
-        v
-integrated linear main history after gates pass
-```
-
-## Validation Commands
-
-Focused and browser validation commands:
+Run before every implementation PR update:
 
 ```bash
 uv run portfell-quality pr
-uv run playwright install chromium
-uv run pytest -m browser tests/browser -q
 ```
 
-Before final integration after rebasing onto current `main`, run the complete Python check:
+This executes, in order:
+
+- Ruff lint;
+- Ruff format check;
+- repository security gates;
+- strict Pyright;
+- the pytest suite in parallel;
+- Conventional Commit validation for the branch commit range.
+
+A non-zero result is a failed PR gate. Do not bypass it.
+
+## Local merge gate
+
+Run before a branch is considered merge-ready:
 
 ```bash
-uv run portfell-quality main
+uv run portfell-quality merge
 ```
 
-The complete check includes Ruff lint and format validation, strict Pyright, architecture and schema validation, security gates while they remain applicable, four Unit and four Integration pytest-xdist shards, and coverage enforcement:
+`main` is retained as an alias for the same complete command set, but new documentation and automation should use `merge`.
+
+The merge layer executes:
+
+- Ruff lint and formatting;
+- architecture boundary validation;
+- dataset schema validation;
+- security validation;
+- strict Pyright;
+- parallel pytest with `--cov=portfell` and `--cov-fail-under=90`;
+- isolated Docker PostgreSQL market-source contract QA;
+- clean working-tree checks;
+- Conventional Commit validation.
+
+The Python coverage threshold is **90% minimum**. A result below 90% fails the merge gate.
+
+## GitHub `merge-gate`
+
+Every pull request targeting the merge line must obtain a successful GitHub workflow named `merge-gate`. It is the repository merge authority and must not be replaced by a second overlapping workflow.
+
+The final workflow runs these independent families:
+
+1. `merge-lint-quality` — Ruff, architecture, dataset-schema, security, branch-subject and clean-tree checks.
+2. `merge-type-quality` — strict Pyright.
+3. `merge-dash-browser` — Python Playwright Chromium acceptance for the four Plotly Dash pages; uploads `dash-parity-v1` evidence.
+4. `merge-unit-tests-1..4` — four deterministic unit-test shards with coverage data.
+5. `merge-integration-tests-1..4` — four deterministic integration-test shards with coverage data.
+6. final `merge-gate` aggregation — requires all preceding families to succeed, combines coverage shards, and enforces 90% coverage.
+
+All third-party GitHub Actions are pinned to full commit SHAs. Workflow permissions are top-level read-only unless a narrowly scoped workflow explicitly requires more.
+
+## Dash browser acceptance
+
+The browser gate is Python Playwright only. No Node/Vite/Vitest/React browser gate exists in the final runtime.
+
+Required browser evidence covers:
+
+- one Metadata → Univariate → Bivariate → Multivariate journey;
+- persistence after page reload;
+- typed/redacted failure followed by retry;
+- upstream revision invalidation of downstream readiness;
+- exactly four navigation items/routes;
+- zero Portfell page errors and console errors;
+- zero runtime requests to `financial-dashboard-example.plotly.app`;
+- no page-level horizontal overflow;
+- screenshots for all four routes at `1440x900`, `1024x768`, and `390x844` (12 screenshots total).
+
+The `dash-parity-v1` PASS artifact is valid only when produced by an actually executed successful browser job for the exact commit. A manually created JSON file or a workflow that failed before runner assignment is not PASS evidence.
+
+## Market-source contract gate
+
+The merge layer runs:
+
+```bash
+bash scripts/run_market_source_contract_qa.sh
+```
+
+The isolated PostgreSQL fixture validates the external-market contract without requiring the live production host. The contract must keep market access read-only, preserve full listing identity, enforce coherent snapshot semantics, and reject forbidden writes/sync authority.
+
+Live xetra-loader acceptance remains a separate explicitly enabled environment check and never leaks credentials or complete credential-bearing DSNs into evidence.
+
+## SQL and runtime boundaries
+
+Quality checks must keep these boundaries true:
+
+- Dash modules execute no SQL;
+- xetra-loader SQL exists only under `src/portfell/market_source/**`;
+- Portfell application-state SQL exists only under `src/portfell/app_state/**`;
+- no provider/EODHD acquisition runtime exists;
+- no first-party React/Vite/TypeScript/TanStack/Node Web runtime exists;
+- no retired hosted Portfell database repository/control plane exists;
+- root `config.yaml` is gitignored and excluded from images/artifacts;
+- tracked `config.example.yaml` is secret-free.
+
+## Commit and branch contract
+
+Non-main branches use the typed branch format frozen by `AGENTS.md`/`BACKLOG.md`. Every branch commit uses Conventional Commits and the owning branch slug as scope. Example:
 
 ```text
-ruff check .
-ruff format --check .
-pyright
-python -m portfell.architecture_checks
-python -m portfell.schema_validation
-python -m portfell.security_gates
-scripts/pytest_shard.py --suite unit --shard-index N --shard-count 4 -- -q -n auto
-scripts/pytest_shard.py --suite integration --shard-index N --shard-count 4 -- -q -n auto
-coverage report --fail-under=90
+test(pr359-dash-clean-runtime-qa): enforce clean runtime negative space
 ```
 
-The Dash parity gate is separate from the ordinary pytest shards because it installs and launches a browser. A successful run must produce all 12 populated-page screenshots (four routes across 1440x900, 1024x768, and 390x844) plus machine-readable `dash-parity-v1.json`. The evidence file may say `PASS` only when the real browser journey, stage reload persistence, typed failure/retry, upstream invalidation, layout assertions, console/page error assertions, reference-network negative-space assertion, and screenshot completeness all pass in that same run.
+Do not merge a branch whose required predecessor acceptance is missing. Synthetic stack bases may be used for pre-staging only; they do not substitute for the real predecessor PASS/merge evidence.
 
-Release cutover can require the stricter public-hosted readiness mode while the old hosted plane exists:
+## Merge policy
 
-```bash
-uv run python -m portfell.hosted_readiness --require-public-hosted
-```
+Repository automation is rebase-oriented. A pull request may complete only after the successful `merge-gate`; failed/skipped/zero-step workflow runs are never treated as success.
 
-Before a hosted cutover rehearsal, require both the approved policy and configured deployment secrets without printing their values:
-
-```bash
-uv run python -m portfell.hosted_readiness --require-public-hosted --require-runtime
-```
-
-Apply the idempotent PostgreSQL catalog migrations only through an externally managed, migration-capable `PORTFELL_DATABASE_URL`; the command never prints that URL:
-
-```bash
-uv run python -m portfell.hosted_catalog_migration
-```
-
-Verify the migrated catalog is reachable before an import rehearsal:
-
-```bash
-uv run python -m portfell.hosted_readiness --require-database
-```
-
-Plan a local control-plane import from an operator-provided workspace file without mutating PostgreSQL. Add `--apply` only after reviewing the dry-run checksum and counts; the applied command returns count-only normalized project-parity evidence:
-
-```bash
-uv run python -m portfell.hosted_import_rehearsal --workspace /secure/local-workspace.json
-uv run python -m portfell.hosted_import_rehearsal --workspace /secure/local-workspace.json --apply
-```
-
-The deterministic hosted cutover proof remains applicable only while those legacy hosted surfaces are present:
-
-```bash
-uv run python -m portfell.hosted_cutover
-```
-
-The local pre-commit hook runs the focused validation contract before accepting commits.
-
-Coverage equivalent:
-
-```text
-pytest -n auto --cov=portfell --cov-report=term-missing --cov-fail-under=90
-```
-
-## Conventional Commits
-
-Required subject shape:
-
-```text
-type(optional-scope): subject
-```
-
-Allowed types:
-
-```text
-build chore ci docs feat fix perf refactor revert style test
-```
-
-The rule applies to every commit subject.
-
-## Sharding Policy
-
-Current setting:
-
-```text
-PYTEST_SHARD_COUNT=4
-pytest-xdist: pytest -n auto inside every test shard
-```
-
-Do not increase shard count by default. Reconsider only when at least one Unit or Integration shard regularly exceeds 5 minutes after setup caching is already healthy.
-
-## PR Definition Readiness
-
-A PR is not definition-ready merely because implementation code exists. Its named focused tests must exist, all required runtime/test dependencies must be locked, and every required acceptance artifact must be generated by an actually executed passing check. Synthetic stack bases and pre-staged descendants never convert a missing predecessor PASS artifact into acceptance evidence.
-
-## Update Rules
-
-Update `GATES.md` whenever any of these change:
-
-- `src/portfell/quality.py`
-- local pre-commit gate behavior
-- shard count, coverage threshold, or required quality tools
-- browser version, interaction manifest, or browser-artifact retention policy
-- Dash parity routes, viewports, browser test runner, or `dash-parity-v1` evidence contract
+The destructive production cutover in PR360 has additional evidence requirements in `docs/runbooks/dash-production-cutover.md`. Those operational checks are not replaced by ordinary unit-test success.
