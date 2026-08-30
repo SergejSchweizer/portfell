@@ -8,7 +8,7 @@ from datetime import date
 from typing import Protocol
 
 from portfell.app_state.contracts import ListingIdentity
-from portfell.market_source.contracts import ListingKey
+from portfell.market_source.contracts import Listing, ListingKey
 from portfell.market_source.errors import (
     MARKET_SOURCE_CONTRACT_MISMATCH,
     MARKET_SOURCE_UNAVAILABLE,
@@ -30,6 +30,7 @@ class MarketSnapshotGateway(Protocol):
 class AnalyticalMarketSnapshot:
     snapshot_id: str
     source_fingerprint: str
+    listings: tuple[Listing, ...]
     quotes: tuple[JsonRow, ...]
     dividends: tuple[JsonRow, ...]
     splits: tuple[JsonRow, ...]
@@ -65,6 +66,7 @@ class AnalyticalMarketData:
         return AnalyticalMarketSnapshot(
             snapshot_id=lineage.snapshot_id,
             source_fingerprint=lineage.snapshot_id,
+            listings=source.listings,
             quotes=projected.quotes,
             dividends=projected.dividends,
             splits=projected.splits,
