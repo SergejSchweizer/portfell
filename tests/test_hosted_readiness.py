@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import copy
 from datetime import date
-from pathlib import Path
 
 import pytest
 
@@ -104,51 +103,10 @@ def test_local_only_mode_can_remain_available_while_public_mode_is_disabled() ->
     assert local_only_mode_allowed(payload, today=date(2026, 8, 10))
 
 
-def test_runtime_readiness_fails_closed_for_missing_worker_secret_files(tmp_path: Path) -> None:
-    environment = {
-        "PORTFELL_EODHD_KEK_FILE": str(tmp_path / "missing-kek"),
-        "PORTFELL_OPERATIONS_EODHD_TOKEN_FILE": str(tmp_path / "missing-token"),
-    }
-
-    failures = failed_results(validate_runtime_readiness(environment))
-
-    assert {failure.name for failure in failures} == {
-        "runtime.external_kek_available",
-        "runtime.operations_credential_available",
-        "runtime.database_url_configured",
-    }
-
-
-def test_runtime_readiness_accepts_nonempty_worker_secret_files(tmp_path: Path) -> None:
-    kek = tmp_path / "kek"
-    token = tmp_path / "operations-token"
-    kek.write_text("kek-material", encoding="utf-8")
-    token.write_text("operations-token", encoding="utf-8")
-
-    assert not failed_results(
-        validate_runtime_readiness(
-            {
-                "PORTFELL_EODHD_KEK_FILE": str(kek),
-                "PORTFELL_OPERATIONS_EODHD_TOKEN_FILE": str(token),
-                "PORTFELL_DATABASE_URL": "postgresql://portfell_app@postgres:5432/portfell",
-            }
-        )
-    )
-
-
-def test_runtime_readiness_rejects_a_non_postgres_database_url(tmp_path: Path) -> None:
-    kek = tmp_path / "kek"
-    token = tmp_path / "operations-token"
-    kek.write_text("kek-material", encoding="utf-8")
-    token.write_text("operations-token", encoding="utf-8")
-
+def test_runtime_readiness_requires_a_postgres_database_url() -> None:
     failures = failed_results(
         validate_runtime_readiness(
-            {
-                "PORTFELL_EODHD_KEK_FILE": str(kek),
-                "PORTFELL_OPERATIONS_EODHD_TOKEN_FILE": str(token),
-                "PORTFELL_DATABASE_URL": "sqlite:///portfell.db",
-            }
+            {"PORTFELL_DATABASE_URL": "sqlite:///portfell.db"}
         )
     )
 
@@ -197,18 +155,10 @@ def test_database_readiness_cli_does_not_load_policy_evidence(
 
 
 def test_runtime_readiness_accepts_postgres_authority_when_hosting_is_approved(
-    tmp_path: Path,
 ) -> None:
-    kek = tmp_path / "kek"
-    token = tmp_path / "operations-token"
-    kek.write_text("kek-material", encoding="utf-8")
-    token.write_text("operations-token", encoding="utf-8")
-
     failures = failed_results(
         validate_runtime_readiness(
             {
-                "PORTFELL_EODHD_KEK_FILE": str(kek),
-                "PORTFELL_OPERATIONS_EODHD_TOKEN_FILE": str(token),
                 "PORTFELL_DATABASE_URL": "postgresql://portfell_app@postgres:5432/portfell",
                 "PORTFELL_HOSTED_AUTHORITY": "postgres",
             }
@@ -218,27 +168,19 @@ def test_runtime_readiness_accepts_postgres_authority_when_hosting_is_approved(
     assert not failures
 
 
-def test_runtime_readiness_cli_requires_nonempty_secret_files(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
+def test_runtime_readiness_cli_requires_postgres_database_url(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    monkeypatch.setenv("PORTFELL_EODHD_KEK_FILE", str(tmp_path / "missing-kek"))
-    monkeypatch.setenv("PORTFELL_OPERATIONS_EODHD_TOKEN_FILE", str(tmp_path / "missing-token"))
-    monkeypatch.setenv("PORTFELL_DATABASE_URL", "postgresql://portfell_app@postgres:5432/portfell")
+    monkeypatch.setenv("PORTFELL_DATABASE_URL", "sqlite:///portfell.db")
 
     assert main(("--require-runtime",)) == 1
 
-    assert "runtime.external_kek_available" in capsys.readouterr().err
+    assert "runtime.database_url_configured" in capsys.readouterr().err
 
 
 def test_runtime_readiness_cli_accepts_configured_postgres_authority(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    kek = tmp_path / "kek"
-    token = tmp_path / "operations-token"
-    kek.write_text("kek-material", encoding="utf-8")
-    token.write_text("operations-token", encoding="utf-8")
-    monkeypatch.setenv("PORTFELL_EODHD_KEK_FILE", str(kek))
-    monkeypatch.setenv("PORTFELL_OPERATIONS_EODHD_TOKEN_FILE", str(token))
     monkeypatch.setenv("PORTFELL_DATABASE_URL", "postgresql://portfell_app@postgres:5432/portfell")
     monkeypatch.setenv("PORTFELL_HOSTED_AUTHORITY", "postgres")
 

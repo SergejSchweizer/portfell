@@ -54,7 +54,7 @@ def test_compose_defines_persistent_internal_postgres_without_market_filesystem(
     assert api["container_name"] == "portfell-api"
     assert api["environment"]["PORTFELL_HOSTED_AUTHORITY"] == "postgres"
     assert api["environment"]["PORTFELL_DATABASE_PASSWORD_FILE"] == "/run/secrets/postgres_password"
-    assert api["secrets"] == ["eodhd_kek", "postgres_password"]
+    assert api["secrets"] == ["postgres_password"]
     assert api["group_add"] == [
         "${PORTFELL_SECRET_GROUP_ID:-100}",
     ]
@@ -103,10 +103,8 @@ def test_runtime_secrets_are_external_paths_and_not_build_arguments() -> None:
     assert cast(ComposeMapping, secrets["postgres_password"])["file"].startswith(
         "${PORTFELL_POSTGRES_PASSWORD_FILE:?"
     )
-    assert cast(ComposeMapping, secrets["eodhd_kek"])["file"].startswith(
-        "${PORTFELL_EODHD_KEK_FILE:?"
-    )
     assert "api_token" not in rendered.lower()
+    assert "eodhd" not in rendered.lower()
     assert "build:" in rendered
     assert "args:" not in rendered
 

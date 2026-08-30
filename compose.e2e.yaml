@@ -8,14 +8,6 @@ services:
     volumes:
       - portfell-e2e-postgres:/var/lib/postgresql/data
 
-  eodhd-stub:
-    image: python:3.14-alpine
-    command: ["python", "/srv/eodhd_stub.py"]
-    volumes:
-      - ./tests/e2e/eodhd_stub.py:/srv/eodhd_stub.py:ro
-    networks:
-      - portfell-internal
-
   seed-user:
     build:
       context: .
@@ -41,17 +33,11 @@ services:
   api:
     container_name: portfell-e2e-api
     restart: "no"
-    environment:
-      EODHD_BASE_URL: http://eodhd-stub:8080/api
     depends_on:
       seed-user:
         condition: service_completed_successfully
-      eodhd-stub:
-        condition: service_started
     ports: !override
       - "127.0.0.1:18000:8000"
-    volumes:
-      - portfell-e2e-shared:/srv/portfell/shared-data
 
   web:
     container_name: portfell-e2e-web
@@ -64,10 +50,7 @@ services:
 
 volumes:
   portfell-e2e-postgres:
-  portfell-e2e-shared:
 
 secrets:
   postgres_password:
     file: ./tests/e2e/secrets/postgres_password.txt
-  eodhd_kek:
-    file: ./tests/e2e/secrets/eodhd_kek.txt

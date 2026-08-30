@@ -805,7 +805,6 @@ Named volumes:
 ```text
 postgres_password  -> PostgreSQL only
 session_secret     -> API only
-eodhd_kek          -> API only
 google_client_secret -> API only
 
 Web receives none of these secrets.
@@ -976,7 +975,6 @@ The catalogue below groups modules by responsibility. Public modules should depe
 | Module | Responsibility |
 | --- | --- |
 | `portfell.__init__` | Import-safe package/version surface. |
-| `portfell.config` | Local EODHD configuration, timeouts, retries, spacing, and backoff. |
 | `portfell.http` | Tokenized EODHD requests, pacing, retry, `Retry-After`, and redaction. |
 | `portfell.logging` | Uniform logs and retention. |
 | `portfell.paths` | Deterministic local lake and export paths. |

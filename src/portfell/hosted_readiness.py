@@ -108,21 +108,11 @@ def failed_results(results: Iterable[ReadinessResult]) -> list[ReadinessResult]:
 def validate_runtime_readiness(
     environment: Mapping[str, str] | None = None,
 ) -> list[ReadinessResult]:
-    """Verify deployment-only worker secrets exist and are nonempty before cutover."""
+    """Verify the remaining deployment runtime contract before cutover."""
 
     resolved = environment if environment is not None else os.environ
     authority = resolved.get("PORTFELL_HOSTED_AUTHORITY", "local")
     return [
-        _secret_file_result(
-            "runtime.external_kek_available",
-            resolved.get("PORTFELL_EODHD_KEK_FILE"),
-            "external KEK secret file is required",
-        ),
-        _secret_file_result(
-            "runtime.operations_credential_available",
-            resolved.get("PORTFELL_OPERATIONS_EODHD_TOKEN_FILE"),
-            "operations market-data credential file is required",
-        ),
         ReadinessResult(
             name="runtime.database_url_configured",
             passed=_postgres_database_url(resolved.get("PORTFELL_DATABASE_URL")),
@@ -197,14 +187,6 @@ def _database_unavailable_results() -> list[ReadinessResult]:
             "database.catalog_current", False, "hosted catalog migrations are incomplete"
         ),
     ]
-
-
-def _secret_file_result(name: str, value: str | None, message: str) -> ReadinessResult:
-    path = Path(value) if value else None
-    available = bool(
-        path is not None and path.is_file() and path.read_text(encoding="utf-8").strip()
-    )
-    return ReadinessResult(name=name, passed=available, message=message)
 
 
 def _postgres_database_url(value: str | None) -> bool:

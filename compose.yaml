@@ -43,9 +43,7 @@ services:
       PORTFELL_HOSTED_AUTHORITY: postgres
       PORTFELL_DATABASE_URL: postgresql://portfell_app@postgres:5432/portfell
       PORTFELL_DATABASE_PASSWORD_FILE: /run/secrets/postgres_password
-      PORTFELL_EODHD_KEK_FILE: /run/secrets/eodhd_kek
     secrets:
-      - eodhd_kek
       - postgres_password
     depends_on:
       postgres:
@@ -120,5 +118,3 @@ volumes:
 secrets:
   postgres_password:
     file: ${PORTFELL_POSTGRES_PASSWORD_FILE:?set an absolute external secret path}
-  eodhd_kek:
-    file: ${PORTFELL_EODHD_KEK_FILE:?set an absolute external secret path}

@@ -12,7 +12,6 @@ SRC_ROOT = REPO_ROOT / "src" / "portfell"
 INGESTION_MODULES = {
     "portfell.search",
     "portfell.cli",
-    "portfell.config",
     "portfell.http",
 }
 SHARED_MODULES = {

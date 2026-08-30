@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "portfell"
 version = "0.1.0"
-description = "Minimum-risk ETF portfolio tooling using EODHD EOD data."
+description = "Risk-aware ETF portfolio research tooling backed by PostgreSQL market data."
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
@@ -64,7 +64,6 @@ source_modules = ["portfell.evaluation", "portfell.evaluation_parts"]
 forbidden_modules = [
     "portfell.bronze",
     "portfell.cli",
-    "portfell.config",
     "portfell.http",
     "portfell.search",
     "portfell.silver",
