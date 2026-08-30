@@ -531,7 +531,7 @@ YYYY-MM-DDTHH:MM:SSZ LEVEL logger.name message
 
 ## Hosted Development Runtime
 
-The hosted development runtime is defined in [compose.yaml](compose.yaml). It starts internal PostgreSQL, the API container, and the Web container with named persistent PostgreSQL and shared-data volumes. Runtime secret file paths come from `.env.example` variables and must point to absolute host paths outside this repository.
+The hosted development runtime is defined in [compose.yaml](compose.yaml). It starts internal PostgreSQL, the API container, and the Web container with one named persistent PostgreSQL volume. Market observations are read through the configured external market database, not a mounted filesystem. Runtime secret file paths come from `.env.example` variables and must point to absolute host paths outside this repository.
 
 ```bash
 docker compose --env-file .env.local up --build
@@ -558,13 +558,13 @@ Whenever one of those inputs changes, it rebuilds the complete Compose stack wit
 docker compose --env-file .env.local up --build -d
 ```
 
-The hosted API is exposed by `portfell.hosted_api` and uses PostgreSQL as its only control-plane authority. The API reads published market-data revisions from the named shared-data volume; it never mounts a repository `lake` or a user workspace. Metadata Builder creates an immutable selection and queues its exact initial fill. The internal `project-bootstrap-worker`, which alone receives the operations EODHD token, publishes shared revisions and updates the durable job status. Set `PORTFELL_OPERATIONS_EODHD_TOKEN_FILE` to an absolute, external secret-file path alongside the PostgreSQL password and EODHD KEK paths.
+The hosted API is exposed by `portfell.hosted_api` and uses PostgreSQL as its control-plane authority. It reads market observations through the configured external market-data gateway; it never mounts a repository `lake`, NAS market directory, or user workspace. Metadata Builder creates an immutable selection and queues its exact initial fill. The internal `project-bootstrap-worker` updates durable job status.
 
 The Web container serves the four-module research workspace: Metadata Builder, Univariate Statistics, Bivariate Statistics, and Multivariate Statistics. Desktop layouts expose the server-owned project selector and workflow hierarchy in a persistent sidebar; at `900px` and below, the same hierarchy is available through the accessible project-navigation drawer. Workflow state, credentials, selections, and calculations remain server-owned in PostgreSQL and published shared revisions.
 
 Browser state is derived from API responses. The Web surface must not store EODHD keys, ciphertext, fingerprints, or sensitive API responses in `localStorage`, `sessionStorage`, URLs, analytics, logs, or rendered error output.
 
-Hosted deployment readiness is described by `docs/security/hosted_readiness.json` and `docs/security/hosted_readiness.md`. The container runtime uses PostgreSQL and the authorized shared-data volume as its only authority; deterministic local adapters are test/CLI-only. Release cutover must additionally pass `uv run python -m portfell.hosted_readiness --require-public-hosted`.
+Hosted deployment readiness is described by `docs/security/hosted_readiness.json` and `docs/security/hosted_readiness.md`. The container runtime uses PostgreSQL plus the configured external market-data gateway; deterministic local adapters are test/CLI-only. Release cutover must additionally pass `uv run python -m portfell.hosted_readiness --require-public-hosted`.
 
 Run the deterministic hosted cutover proof with:
 

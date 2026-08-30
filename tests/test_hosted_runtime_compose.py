@@ -24,18 +24,18 @@ def _production_compose_source() -> str:
     return (REPOSITORY_ROOT / "compose.production.yaml").read_text(encoding="utf-8")
 
 
-def test_production_override_uses_one_explicit_ugreen_nas_data_root() -> None:
+def test_production_override_keeps_only_postgres_durable_storage() -> None:
     source = _production_compose_source()
 
-    assert source.count("${PORTFELL_DATA_ROOT:?set an absolute production Portfell data root}") == 3
+    assert source.count("${PORTFELL_DATA_ROOT:?set an absolute production Portfell data root}") == 1
     assert "}/postgres:/var/lib/postgresql/data" in source
-    assert source.count("}/lake:/srv/portfell/shared-data") == 2
     assert "portfell-postgres-data:" not in source
-    assert "portfell-shared-data:" not in source
+    assert "shared-data" not in source
+    assert "/lake:" not in source
     assert "volumes: !reset {}" in source
 
 
-def test_compose_defines_persistent_internal_postgres_and_shared_data() -> None:
+def test_compose_defines_persistent_internal_postgres_without_market_filesystem() -> None:
     compose = _compose()
     services = cast(ComposeMapping, compose["services"])
     volumes = cast(ComposeMapping, compose["volumes"])
@@ -43,16 +43,15 @@ def test_compose_defines_persistent_internal_postgres_and_shared_data() -> None:
     api = cast(ComposeMapping, services["api"])
 
     assert "portfell-postgres-data" in volumes
-    assert "portfell-shared-data" in volumes
+    assert "portfell-shared-data" not in volumes
     assert postgres["container_name"] == "portfell-postgress"
     assert postgres["networks"] == ["portfell-internal"]
     assert "ports" not in postgres
     assert "5432" in postgres["expose"]
     assert "portfell-postgres-data:/var/lib/postgresql/data" in postgres["volumes"]
     assert set(services) == {"api", "postgres", "project-bootstrap-worker", "web"}
-    assert "portfell-shared-data:/srv/portfell/shared-data" in api["volumes"]
+    assert "volumes" not in api
     assert api["container_name"] == "portfell-api"
-    assert "./lake:/srv/portfell/lake" not in api["volumes"]
     assert api["environment"]["PORTFELL_HOSTED_AUTHORITY"] == "postgres"
     assert api["environment"]["PORTFELL_DATABASE_PASSWORD_FILE"] == "/run/secrets/postgres_password"
     assert api["secrets"] == ["eodhd_kek", "postgres_password"]
@@ -97,7 +96,7 @@ def test_project_initial_fill_worker_is_internal_and_operations_credential_only(
     ]
     assert worker["healthcheck"]["test"] == ["CMD-SHELL", "test -f /tmp/catalog-migrated"]
     assert worker["secrets"] == ["operations_eodhd_token", "postgres_password"]
-    assert worker["volumes"] == ["portfell-shared-data:/srv/portfell/shared-data"]
+    assert "volumes" not in worker
     assert worker["networks"] == ["portfell-internal", "portfell-public"]
     assert worker["group_add"] == ["${PORTFELL_SECRET_GROUP_ID:-100}"]
     assert "ports" not in worker

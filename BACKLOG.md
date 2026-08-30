@@ -504,6 +504,12 @@ All depend on PR323 and are parallel siblings.
 - PR324 `chore/pr324-delete-eodhd-client`: delete EODHD client/search/fetch CLI and executable provider acquisition.
 - PR325 `chore/pr325-delete-market-medallion`: delete market Bronze/Silver/Gold persistence/pipeline while retaining pure analytics moved elsewhere.
 - PR326 `chore/pr326-delete-market-filesystem-plane`: delete market NAS/filesystem authority; preserve unrelated analytical/app artifacts only.
+
+  Git status: implemented on branch `chore/pr326-delete-market-filesystem-plane`; pending
+  rebase/integration after parallel deletion siblings. Removed the NAS bind-mounted market
+  volume, preflight/inventory entry points, and their tests/docs. As the narrowly required
+  cross-sibling adaptation, the retained legacy cron entry point is fail-closed and disabled
+  without any filesystem, Compose, or market refresh action; PR327 owns its final deletion.
 - PR327 `chore/pr327-delete-shared-market-refresh`: delete Portfell-owned market refresh/publisher/cron/cache plane; xetra-loader owns refresh.
 - PR328 `chore/pr328-delete-hosted-download-lifecycle`: delete hosted market download routes/workers/jobs.
 - PR329 `chore/pr329-delete-provider-credentials`: delete provider credential backend; do not replace it with plaintext config.

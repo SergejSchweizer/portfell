@@ -11,18 +11,15 @@ market refresh operations, continue with [docs/shared-market-refresh.md](docs/sh
 - [3. External Secrets](#3-external-secrets)
 - [4. Configure The Environment](#4-configure-the-environment)
 - [5. Deploy And Verify](#5-deploy-and-verify)
-- [6. UGREEN NAS Production Storage](#6-ugreen-nas-production-storage)
-- [7. Non-Destructive Storage Migration](#7-non-destructive-storage-migration)
-- [8. Day-To-Day Commands](#8-day-to-day-commands)
-- [9. Troubleshooting](#9-troubleshooting)
+- [6. Day-To-Day Commands](#6-day-to-day-commands)
+- [7. Troubleshooting](#7-troubleshooting)
 
 ## 1. Runtime Model
 
-Compose starts one PostgreSQL control plane and one immutable shared-data plane.
-PostgreSQL is the authority for users, projects, selections, jobs, and research
-run metadata. The shared-data volume holds published market-data revisions. No
-repository `lake`, user workspace JSON, or user-owned quote download is mounted
-into the hosted runtime. The API starts only when
+Compose starts the PostgreSQL control plane used for users, projects, selections,
+jobs, and research-run metadata. Market observations are read from the configured
+external market database; no market NAS or filesystem volume is mounted into the
+hosted runtime. The API starts only when
 `PORTFELL_HOSTED_AUTHORITY=postgres`; it has no local or in-memory runtime mode.
 
 ```text
@@ -41,19 +38,19 @@ browser
                          | PostgreSQL         |
                          +--------------------+
                                   |
-                  durable initial-fill job    |    published revisions
-                                  v            v
-                 +---------------------+  +-------------------+
-| bootstrap worker    |  | shared-data plane |
-                 | operations token    |  | market-data/      |
-                 +---------------------+  +-------------------+
+                  durable workflow jobs
+                                  |
+                                  v
+                         +--------------------+
+                         | configured market  |
+                         | PostgreSQL source  |
+                         +--------------------+
 ```
 
 `portfell-postgress`, `portfell-api`, `portfell-web`, and `portfell-worker` are
 intentional fixed container names. `portfell-worker` runs the
-`project-bootstrap-worker` Compose service. Development uses Compose-managed
-durable volumes; production uses the explicit UGREEN NAS bind mounts described
-below.
+`project-bootstrap-worker` Compose service. PostgreSQL is the only Compose-managed
+durable volume.
 
 ## 2. Prerequisites
 
@@ -138,76 +135,11 @@ curl --fail --silent --show-error http://localhost:8000/health
 ```
 
 If a deployment fails after migrations or image startup, stop the new stack,
-restore the last compatible complete PostgreSQL backup and shared-data revision,
-then start the matching prior Web/API image pair. Do not run an old image against
-a newer catalog head or introduce a dual-read/dual-write fallback.
+restore the last compatible PostgreSQL backup, then start the matching prior
+Web/API image pair. Do not run an old image against a newer catalog head or
+introduce a dual-read/dual-write fallback.
 
-## 6. UGREEN NAS Production Storage
-
-Production data lives below one host root and is never mixed with repository
-files or Docker's global engine data root.
-
-```text
-/volume2/docker/portfell
-├── postgres/   PostgreSQL bind mount
-├── lake/       shared immutable market-data revisions
-├── logs/       operations logs
-└── backups/    encrypted logical backups
-```
-
-Set `PORTFELL_DATA_ROOT=/volume2/docker/portfell` in the production-only
-environment file and render the explicit override before starting services:
-
-```bash
-docker compose --env-file .env.local -f compose.yaml -f compose.production.yaml config
-portfell-ugreen-nas-data-root-preflight --root "$PORTFELL_DATA_ROOT"
-docker compose --env-file .env.local -f compose.yaml -f compose.production.yaml up --build --detach
-```
-
-The override resets the development named-volume declarations. API, bootstrap
-worker, and the one-shot refresh service share only `lake/`; Web receives none
-of these mounts. The preflight rejects a non-canonical root, missing required
-directories, world-writable storage, no free inodes, failed write probes, or a
-lake that does not support atomic replacement. Keep secrets outside this tree.
-
-## 7. Non-Destructive Storage Migration
-
-Moving an existing runtime to the UGREEN NAS bind root is an operator-controlled
-cutover. It must be performed from the verified `main` checkout by `dev_portfell`;
-do not copy live PostgreSQL files, run `docker compose down -v`, or prune the
-old named volumes.
-
-```text
-old named volumes -- logical dump + checksummed lake copy --> bind-root restore
-       ^                                                        |
-       |---------------- rollback checkpoint -------------------|
-```
-
-1. Stop new write traffic, wait for bootstrap, analysis, and refresh jobs to
-   become terminal, and record the deployed Git SHA, image digests, migration
-   head, volume ids, catalog hash, and normalized PostgreSQL counts.
-2. Run the production-root preflight. Create an encrypted logical PostgreSQL
-   dump below `backups/`, record its SHA-256, and copy the quiesced lake with
-   metadata-preserving, checksum-verified tooling. Database files themselves
-   are never a backup format. Use `portfell-persistent-data-inventory
-   reconcile --source <quiesced-source> --target "$PORTFELL_DATA_ROOT/lake"
-   --output "$PORTFELL_DATA_ROOT/backups/<cutover>/lake-reconciliation.json"`
-   and accept the copy only when it exits successfully with `"passed":true`.
-3. Preserve the old volumes read-only. Restore into the new empty bind mounts,
-   start using `compose.production.yaml`, then compare schema head, normalized
-   tenant counts, lake paths/bytes/content hashes, coverage catalog, and
-   duplicate business-key count before enabling writes.
-4. Recreate services and perform a Docker/DSM restart smoke check. A synthetic
-   bootstrap and refresh may write only below `postgres/` and `lake/`.
-5. Retain the old volumes through the approved rollback and backup-retention
-   window. Deleting them is a separate destructive operation requiring explicit
-   approval.
-
-The rollback checkpoint stops the new stack, restores the prior Compose mount
-configuration, verifies the preserved source counts and catalog, and only then
-resumes the previous stack. Do not overwrite either copy during a rollback.
-
-## 8. Day-To-Day Commands
+## 6. Day-To-Day Commands
 
 Use these commands for safe routine operations:
 
@@ -226,11 +158,11 @@ docker compose --env-file .env.local ps
 ```
 
 Do not remove named volumes during normal deployment: they contain the PostgreSQL
-catalog and published shared-market revisions. Scheduled refresh, log rotation,
+catalog. Scheduled refresh, log rotation,
 and cron installation are documented only in
 [docs/shared-market-refresh.md](docs/shared-market-refresh.md).
 
-## 9. Troubleshooting
+## 7. Troubleshooting
 
 If Compose configuration reports a missing secret variable, add the *path* to
 `.env.local`, confirm that the path is absolute, and verify that the file is

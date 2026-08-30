@@ -43,13 +43,10 @@ services:
       PORTFELL_HOSTED_AUTHORITY: postgres
       PORTFELL_DATABASE_URL: postgresql://portfell_app@postgres:5432/portfell
       PORTFELL_DATABASE_PASSWORD_FILE: /run/secrets/postgres_password
-      PORTFELL_SHARED_DATA_ROOT: /srv/portfell/shared-data
       PORTFELL_EODHD_KEK_FILE: /run/secrets/eodhd_kek
     secrets:
       - eodhd_kek
       - postgres_password
-    volumes:
-      - portfell-shared-data:/srv/portfell/shared-data
     depends_on:
       postgres:
         condition: service_healthy
@@ -127,15 +124,12 @@ services:
         python -m portfell.hosted_catalog_migration && touch /tmp/catalog-migrated
         && exec python -m portfell.hosted_project_bootstrap_worker
     environment:
-      PORTFELL_SHARED_DATA_ROOT: /srv/portfell/shared-data
       PORTFELL_DATABASE_URL: postgresql://portfell_app@postgres:5432/portfell
       PORTFELL_DATABASE_PASSWORD_FILE: /run/secrets/postgres_password
       PORTFELL_OPERATIONS_EODHD_TOKEN_FILE: /run/secrets/operations_eodhd_token
     secrets:
       - operations_eodhd_token
       - postgres_password
-    volumes:
-      - portfell-shared-data:/srv/portfell/shared-data
     depends_on:
       postgres:
         condition: service_healthy
@@ -165,7 +159,6 @@ networks:
 
 volumes:
   portfell-postgres-data:
-  portfell-shared-data:
 
 secrets:
   postgres_password:

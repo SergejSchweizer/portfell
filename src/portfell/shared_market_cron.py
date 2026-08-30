@@ -1,4 +1,4 @@
-"""Install and operate the local weekly shared-market refresh cron job."""
+"""Disabled compatibility entry point for the retired market-filesystem cron."""
 
 from __future__ import annotations
 
@@ -7,8 +7,6 @@ import json
 import subprocess
 from collections.abc import Sequence
 from pathlib import Path
-
-from portfell.ugreen_nas_data_root_preflight import validate_data_root
 
 BEGIN_MARKER = "# BEGIN PORTFELL SHARED MARKET REFRESH"
 END_MARKER = "# END PORTFELL SHARED MARKET REFRESH"
@@ -61,41 +59,27 @@ def replace_managed_block(current: str, replacement: str | None) -> str:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Install, inspect, run once, or remove the managed local cron entry."""
+    """Fail closed: the market filesystem cron is no longer an executable plane.
+
+    The console-script name remains temporarily so existing operator automation
+    receives a deterministic disabled result until PR327 removes the legacy
+    refresh surface completely.  It must not inspect paths, install a cron
+    block, execute Compose, or start a provider refresh.
+    """
 
     parser = argparse.ArgumentParser(
-        description="Manage Portfell's shared-market refresh cron job."
+        description="The retired Portfell shared-market cron is disabled."
     )
     parser.add_argument("action", choices=("install", "status", "run-once", "uninstall"))
-    parser.add_argument("--project-root", type=Path, default=Path.cwd())
-    parser.add_argument("--data-root", type=Path, default=PRODUCTION_DATA_ROOT)
-    parser.add_argument(
-        "--log-path",
-        type=Path,
-        default=PRODUCTION_DATA_ROOT / "logs" / PRODUCTION_LOG_NAME,
-    )
+    parser.add_argument("--project-root", type=Path, help=argparse.SUPPRESS)
+    parser.add_argument("--data-root", type=Path, help=argparse.SUPPRESS)
+    parser.add_argument("--log-path", type=Path, help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
-    root = _absolute(args.project_root, "project root")
-    log_path = _absolute(args.log_path, "log path")
-    if not (root / "compose.yaml").is_file():
-        raise SystemExit("project root must contain compose.yaml")
-    if args.action == "run-once":
-        _validate_production_paths(args.data_root, log_path)
-        _validate_project_data_root(root, args.data_root)
-        return _run_once(root, log_path)
-    current = _read_crontab()
-    installed = BEGIN_MARKER in current and END_MARKER in current
     if args.action == "status":
-        print(json.dumps({"installed": installed, "schedule": SCHEDULE, "timezone": TIMEZONE}))
-        return 0 if installed else 1
-    replacement = cron_block(root, log_path) if args.action == "install" else None
-    if args.action == "install":
-        _validate_production_paths(args.data_root, log_path)
-        _validate_project_data_root(root, args.data_root)
-        _compose_config(root)
-        _run_once(root, log_path, dry_run=True)
-    _write_crontab(replace_managed_block(current, replacement))
-    return 0
+        print(json.dumps({"enabled": False, "reason": "market_filesystem_plane_removed"}))
+        return 0
+    print("shared_market_cron_disabled: market_filesystem_plane_removed")
+    return 2
 
 
 def _run_once(project_root: Path, log_path: Path, *, dry_run: bool = False) -> int:
@@ -167,38 +151,17 @@ def _compose_command(project_root: Path) -> tuple[str, ...]:
 
 
 def _validate_production_paths(data_root: Path, log_path: Path) -> None:
-    """Reject a cron mutation or refresh outside the one approved bind root."""
+    """Reject the retired NAS validation path without reading the filesystem."""
 
-    root = _absolute(data_root, "data root")
-    expected_log = root / "logs" / PRODUCTION_LOG_NAME
-    if log_path != expected_log:
-        raise ValueError(f"log path must be {expected_log}")
-    checks = validate_data_root(
-        root, minimum_free_bytes=20 * 1024**3, expected_root=PRODUCTION_DATA_ROOT
-    )
-    if not all(check.passed for check in checks):
-        raise ValueError("production data-root preflight failed")
+    del data_root, log_path
+    raise ValueError("market_filesystem_plane_removed")
 
 
 def _validate_project_data_root(project_root: Path, data_root: Path) -> None:
-    """Require Compose's env file to select the same approved data root."""
+    """Reject the retired NAS configuration path without reading `.env.local`."""
 
-    environment_file = project_root / ".env.local"
-    try:
-        lines = environment_file.read_text(encoding="utf-8").splitlines()
-    except OSError as error:
-        raise ValueError("production environment file is unavailable") from error
-    expected = str(_absolute(data_root, "data root"))
-    configured = next(
-        (
-            line.partition("=")[2].strip().strip("\"'")
-            for line in lines
-            if line.strip().startswith("PORTFELL_DATA_ROOT=")
-        ),
-        None,
-    )
-    if configured != expected:
-        raise ValueError("PORTFELL_DATA_ROOT must match the approved production data root")
+    del project_root, data_root
+    raise ValueError("market_filesystem_plane_removed")
 
 
 if __name__ == "__main__":
