@@ -14,7 +14,9 @@ from portfell.hosted_market_source_research_data import (
     MarketResearchSnapshot,
     MarketSourceResearchData,
 )
+from portfell.hosted_multivariate_run_repository import MultivariateRunRepository
 from portfell.hosted_multivariate_service import MultivariateResearchService
+from portfell.hosted_repository_importer import ProjectRepository
 from portfell.hosted_research_ports import (
     ResearchDataPort,
     ResearchPersistencePort,
@@ -25,9 +27,7 @@ from portfell.hosted_research_workflow import (
     bivariate_source_id,
     univariate_source_id,
 )
-from portfell.hosted_repository_importer import ProjectRepository
 from portfell.hosted_selection_repository import SelectionRepository
-from portfell.hosted_multivariate_run_repository import MultivariateRunRepository
 from portfell.income import (
     build_income_artifacts,
     build_income_evidence,
@@ -182,15 +182,11 @@ class MarketSourceMultivariateResearchService(MultivariateResearchService):
             date_end=calendar_dates[-1] if calendar_dates else None,
             observation_count=len(calendar_dates),
             quote_artifact_ids={
-                key: (
-                    f"quote:{market.snapshot_id}:{key.isin}:{key.exchange}:{key.code}"
-                )
+                key: (f"quote:{market.snapshot_id}:{key.isin}:{key.exchange}:{key.code}")
                 for key in keys
             },
             dividend_artifact_ids={
-                key: (
-                    f"dividend:{market.snapshot_id}:{key.isin}:{key.exchange}:{key.code}"
-                )
+                key: (f"dividend:{market.snapshot_id}:{key.isin}:{key.exchange}:{key.code}")
                 for key in keys
             },
         )
@@ -380,9 +376,7 @@ class MarketSourceMultivariateResearchService(MultivariateResearchService):
                 **structure.summary(),
                 "eigenvalues": list(structure.eigenvalues),
                 "explained_variance": list(structure.explained_variance),
-                "cumulative_explained_variance": list(
-                    structure.cumulative_explained_variance
-                ),
+                "cumulative_explained_variance": list(structure.cumulative_explained_variance),
                 "clusters": [
                     {
                         "isin": key.isin,
@@ -421,9 +415,7 @@ class MarketSourceMultivariateResearchService(MultivariateResearchService):
         )
 
 
-def _bivariate_market_snapshot_id(
-    selection: UnivariateSelection, source_id: str
-) -> str | None:
+def _bivariate_market_snapshot_id(selection: UnivariateSelection, source_id: str) -> str | None:
     prefix = f"{bivariate_source_id(selection)}::"
     if not source_id.startswith(prefix):
         return None

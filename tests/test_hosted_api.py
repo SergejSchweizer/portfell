@@ -32,7 +32,7 @@ from portfell.hosted_local_test_composition import (
 from portfell.hosted_postgres_request_scope import RequestScopedPostgresConnection
 from portfell.hosted_research_workflow import ResearchRun, UnivariateSelection
 from portfell.market_source.contracts import EodQuote, Listing, ListingKey
-from portfell.market_source.gateway import MarketDataSnapshot, MarketDataGateway
+from portfell.market_source.gateway import MarketDataGateway, MarketDataSnapshot
 
 
 @dataclass
@@ -44,9 +44,7 @@ class _FixtureMarketGateway:
     ) -> MarketDataSnapshot:
         selected = set(keys)
         return MarketDataSnapshot(
-            listings=tuple(
-                Listing(key, key.code, "ETF", "Germany", "EUR", True) for key in keys
-            ),
+            listings=tuple(Listing(key, key.code, "ETF", "Germany", "EUR", True) for key in keys),
             quotes=tuple(
                 quote
                 for quote in self.quotes
@@ -1454,9 +1452,8 @@ def test_bivariate_statistics_read_quotes_from_the_market_source_snapshot() -> N
     )
     from portfell.hosted_local_test_composition import local_research_service, local_runtime
 
-    local_research_service(state, local_runtime(), market_gateway=market_gateway).complete_bivariate(
-        DEFAULT_LOCAL_WORKSPACE_USER_ID, filtered.selection_id
-    )
+    research = local_research_service(state, local_runtime(), market_gateway=market_gateway)
+    research.complete_bivariate(DEFAULT_LOCAL_WORKSPACE_USER_ID, filtered.selection_id)
     completed = _json(
         client.get(f"/bivariate-statistics/runs/{run['run_id']}", headers=_headers(csrf=False))
     )

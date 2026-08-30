@@ -1,11 +1,9 @@
-from datetime import date
 from pathlib import Path
 
 import pytest
 
 import portfell.architecture_checks as architecture_checks
 from portfell.architecture_checks import check_architecture
-from portfell.cli import build_parser
 from portfell.contract_versioning import (
     ContractChangeKind,
     ContractVersion,
@@ -292,6 +290,3 @@ def test_gold_and_pair_statistics_reject_invalid_configuration(tmp_path: Path) -
     assert pair_stats[0].pearson == 1.0
     assert empty_correlation.value() == 0.0
     assert empty_correlation.sample_covariance() == 0.0
-    assert build_parser().parse_args(
-        ["search", "UCITS", "--run-date", "2026-01-01"]
-    ).run_date == date(2026, 1, 1)

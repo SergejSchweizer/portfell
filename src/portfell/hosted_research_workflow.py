@@ -230,7 +230,11 @@ def bivariate_run_matches_selection(
         for row in run.rows
         if isinstance(row.get("market_source_snapshot_id"), str)
     }
-    return len(snapshot_ids) == 1 and run.source_id == f"{selection_source}::{next(iter(snapshot_ids))}"
+    return len(snapshot_ids) == 1 and run.source_id == (
+        f"{selection_source}::{next(iter(snapshot_ids))}"
+    )
+
+
 def create_bivariate_run(
     *,
     user_id: str,

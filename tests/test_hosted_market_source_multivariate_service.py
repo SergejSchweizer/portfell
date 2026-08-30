@@ -52,7 +52,9 @@ class _LegacyData:
     def has_selected_rows(self, member_ids: tuple[str, ...], *, dataset: str) -> bool:
         return bool(self.selected_rows(member_ids, dataset=dataset))
 
-    def build_univariate_rows(self, member_ids: tuple[str, ...], **kwargs: object) -> tuple[JsonRow, ...]:
+    def build_univariate_rows(
+        self, member_ids: tuple[str, ...], **kwargs: object
+    ) -> tuple[JsonRow, ...]:
         del member_ids, kwargs
         return ()
 
@@ -245,9 +247,7 @@ def test_market_source_multivariate_matches_legacy_calculation_on_exact_fixture(
         projected.snapshot_id, market_bivariate=False
     )
     market_state, _, _ = _state(projected.snapshot_id, market_bivariate=True)
-    legacy = _legacy_service(
-        legacy_state, _LegacyData(projected.quotes, projected.dividends)
-    )
+    legacy = _legacy_service(legacy_state, _LegacyData(projected.quotes, projected.dividends))
     market = _market_service(market_state, market_data)
 
     legacy_started = legacy.start("user-a", project_id, bivariate_run_id, {})
@@ -287,9 +287,7 @@ def test_market_source_multivariate_matches_legacy_calculation_on_exact_fixture(
     }
     assert all(
         projected.snapshot_id in artifact_id
-        for _listing, artifact_id in market_result.artifacts["input_snapshot"][
-            "quote_artifact_ids"
-        ]
+        for _listing, artifact_id in market_result.artifacts["input_snapshot"]["quote_artifact_ids"]
     )
     assert all(
         projected.snapshot_id in artifact_id
@@ -311,11 +309,13 @@ def test_market_source_multivariate_fails_closed_when_snapshot_changes() -> None
     started = service.start("user-a", project_id, bivariate_run_id, {})
     run = state.multivariate_runs_by_id[str(started["run_id"])]
 
-    with ThreadPoolExecutor(max_workers=1) as executor:
-        with pytest.raises(HostedApplicationError, match="market_source_snapshot_changed"):
-            service._compute(  # pyright: ignore[reportPrivateUsage]
-                run, executor=executor, on_phase=lambda *_args: None
-            )
+    with (
+        ThreadPoolExecutor(max_workers=1) as executor,
+        pytest.raises(HostedApplicationError, match="market_source_snapshot_changed"),
+    ):
+        service._compute(  # pyright: ignore[reportPrivateUsage]
+            run, executor=executor, on_phase=lambda *_args: None
+        )
 
 
 def test_market_source_multivariate_has_no_legacy_source_fallbacks() -> None:
