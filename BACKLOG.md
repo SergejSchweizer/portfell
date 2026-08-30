@@ -619,6 +619,10 @@ Depends on: PR335.
 
 Scope: document xetra-loader -> external PostgreSQL -> Portfell, exact keys/tables/role/snapshot/adjusted-close/Decimal/sync denial. Mark React/Vite UI and current Portfell application DB as transitional and point to PR344–PR360.
 
+Git status: integrated on `main` at `0b56d77` after rebase. The navigable source-architecture
+sidecar defines the external PostgreSQL authority, immutable snapshot contract, adjusted-close
+and Decimal rules, sync denial, and the transitional application/UI boundary (4 focused QA tests pass).
+
 ### PR339 — Clean source-cutover runtime QA
 
 Branch: `test/pr339-clean-market-source-runtime`
