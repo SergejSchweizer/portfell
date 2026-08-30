@@ -10,6 +10,7 @@ from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
 from starlette.middleware.wsgi import WSGIMiddleware
 
+from portfell.dash_app.callbacks import register_callbacks
 from portfell.dash_app.contracts import DEFAULT_ROUTE
 from portfell.dash_app.shell import root_layout, route_renderer
 
@@ -27,10 +28,15 @@ def create_dash_app(*, services: object | None = None) -> Dash:
     app.layout = root_layout()
     render = route_renderer(services)
 
-    @app.callback(Output("pf-route-content", "children"), Input("pf-location", "pathname"))
-    def _render_route(pathname: str | None) -> Any:
-        return render(pathname)
+    @app.callback(
+        Output("pf-route-content", "children"),
+        Input("pf-location", "pathname"),
+        Input("pf-browser-state", "data"),
+    )
+    def _render_route(pathname: str | None, browser_state: object) -> Any:
+        return render(pathname, browser_state)
 
+    register_callbacks(app, services)
     return app
 
 
