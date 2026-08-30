@@ -1,6 +1,5 @@
 # Quality Checks
 
-
 ## Table Of Contents
 
 - [Purpose](#purpose)
@@ -12,7 +11,7 @@
 - [PR Definition Readiness](#pr-definition-readiness)
 - [Update Rules](#update-rules)
 
-Last reviewed: 2026-08-29
+Last reviewed: 2026-08-30
 
 ## Purpose
 
@@ -20,18 +19,20 @@ Last reviewed: 2026-08-29
 
 ## Current Shape
 
-Portfell uses one local validation contract. Run the applicable focused checks while changing code and the complete check before integration. GitHub runs the complete `merge-gate` once per pull request targeting `main`; it does not repeat the same test families in a separate PR workflow or after the rebase merge.
+Portfell uses one local validation contract. Run the applicable focused checks while changing code and the complete check before integration. GitHub runs the complete `merge-gate` once per pull request targeting the integration branch required by the active stack; final integration to `main` still requires the complete gate.
 
 The shard count is intentionally kept at `4` for Unit and Integration tests. Current CI runtime is dominated more by runner setup, checkout, dependency installation, and artifact handling than by individual test execution, so further splitting is not expected to improve wall-clock time yet.
+
+The Plotly Dash replacement series adds a Python Playwright browser acceptance path. During PR355 the legacy npm/Playwright Web tests remain transitional until PR356 deletes the old browser application. The new Dash browser test is Python-only, generates its own deterministic fixture service, makes no external production-network request, and writes the `dash-parity-v1` evidence only after all assertions pass.
 
 Required check families:
 
 - Ruff lint and format.
-- Hosted public-repository security gates.
-- Hosted readiness records for licensing, privacy, retention, backup, restore, and key rotation.
+- Hosted public-repository security gates while legacy hosted code remains.
+- Hosted readiness records while the legacy plane remains.
 - Pyright strict typing.
-- Playwright interaction-inventory tests on desktop.
-- Real Docker browser tests for worker-owned metadata refreshes on desktop.
+- Python Playwright Dash interaction/layout tests on desktop, tablet, and mobile.
+- Transitional legacy npm Playwright and real Docker browser tests only until PR356 removes them.
 - Pytest Unit and Integration shards.
 - Coverage threshold enforcement on `main`.
 - Architecture checks.
@@ -44,13 +45,13 @@ Required check families:
 working branch
         |
         v
-rebase onto current main
+rebase onto required integration predecessor
         |
         v
 run complete validation
         |
         v
-integrated linear main history
+integrated linear main history after gates pass
 ```
 
 ## Validation Commands
@@ -59,11 +60,18 @@ Focused and complete validation commands:
 
 ```bash
 uv run portfell-quality pr
+uv run playwright install chromium
+uv run pytest -m browser tests/browser -q
+```
+
+During the transitional window before PR356, the old Web checks also remain applicable:
+
+```bash
 cd apps/web && npm run e2e
 bash scripts/run_real_stack_e2e.sh
 ```
 
-Before integration after rebasing onto current `main`, run the complete check:
+Before integration after rebasing onto the required predecessor, run the complete Python check:
 
 ```bash
 uv run portfell-quality main
@@ -85,7 +93,9 @@ scripts/pytest_shard.py --suite integration --shard-index N --shard-count 4 -- -
 coverage report --fail-under=90
 ```
 
-Release cutover can require the stricter public-hosted readiness mode:
+The Dash parity gate is intentionally separate from the ordinary pytest shards because it installs and launches a browser. A successful run must produce all 12 populated-page screenshots (four routes across 1440x900, 1024x768, and 390x844) plus machine-readable `dash-parity-v1.json`. The evidence file may say `PASS` only when the real browser journey, layout assertions, console/page error assertions, reference-network negative-space assertion, and screenshot completeness all pass in that same run.
+
+Release cutover can require the stricter public-hosted readiness mode while the old hosted plane exists:
 
 ```bash
 uv run python -m portfell.hosted_readiness --require-public-hosted
@@ -120,8 +130,7 @@ uv run python -m portfell.hosted_import_rehearsal --workspace /secure/local-work
 uv run python -m portfell.hosted_import_rehearsal --workspace /secure/local-workspace.json --apply
 ```
 
-The deterministic hosted cutover proof composes multi-user auth, credentials, entitlements, scoped analytics, artifact
-reuse, Web storage safety, local CLI compatibility, and readiness checks:
+The deterministic hosted cutover proof composes multi-user auth, credentials, entitlements, scoped analytics, artifact reuse, Web storage safety, local CLI compatibility, and readiness checks while those legacy surfaces are still present:
 
 ```bash
 uv run python -m portfell.hosted_cutover
@@ -162,6 +171,10 @@ pytest-xdist: pytest -n auto inside every test shard
 
 Do not increase shard count by default. Reconsider only when at least one Unit or Integration shard regularly exceeds 5 minutes after setup caching is already healthy.
 
+## PR Definition Readiness
+
+A PR is not definition-ready merely because implementation code exists. Its named focused tests must exist, all required runtime/test dependencies must be locked, and every required acceptance artifact must be generated by an actually executed passing check. Synthetic stack bases and pre-staged descendants never convert a missing predecessor PASS artifact into acceptance evidence.
+
 ## Update Rules
 
 Update `GATES.md` whenever any of these change:
@@ -170,3 +183,4 @@ Update `GATES.md` whenever any of these change:
 - local pre-commit gate behavior
 - shard count, coverage threshold, or required quality tools
 - browser version, interaction manifest, or browser-artifact retention policy
+- Dash parity routes, viewports, browser test runner, or `dash-parity-v1` evidence contract
