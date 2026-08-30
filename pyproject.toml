@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "portfell"
 version = "0.1.0"
-description = "Risk-aware ETF portfolio research tooling backed by PostgreSQL market data."
+description = "Single-user ETF portfolio research tooling with external read-only PostgreSQL market data."
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
@@ -17,7 +17,6 @@ dependencies = [
 ]
 
 [project.scripts]
-portfell = "portfell.cli:main"
 portfell-docs-refresh = "portfell.docs_refresh:main"
 portfell-quality = "portfell.quality:main"
 portfell-compose-web-watch = "portfell.compose_web_watch:main"
