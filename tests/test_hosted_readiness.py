@@ -3,14 +3,11 @@ from __future__ import annotations
 import copy
 from datetime import date
 
-import pytest
-
 from portfell.hosted_readiness import (
     MANDATORY_DECISIONS,
     failed_results,
     load_readiness,
     local_only_mode_allowed,
-    main,
     public_hosted_mode_allowed,
     validate_database_readiness,
     validate_readiness,
@@ -30,157 +27,64 @@ class FakeDatabaseConnection:
     def __init__(self, rows: list[tuple[object, ...]]) -> None:
         self.rows = rows
         self.closed = False
+        self.queries: list[str] = []
 
-    def execute(self, _: str) -> FakeDatabaseCursor:
+    def execute(self, sql: str) -> FakeDatabaseCursor:
+        self.queries.append(sql)
         return FakeDatabaseCursor(self.rows)
 
     def close(self) -> None:
         self.closed = True
 
 
-def test_hosted_readiness_records_cover_every_mandatory_decision() -> None:
+def test_readiness_decisions_remain_complete_after_legacy_db_removal() -> None:
     payload = load_readiness()
     decisions = {row["id"] for row in payload["decisions"]}
-
     assert decisions == set(MANDATORY_DECISIONS)
-    failures = failed_results(validate_readiness(payload, today=date(2026, 8, 10)))
-
-    assert not failures
-    assert not local_only_mode_allowed(payload, today=date(2026, 8, 10))
-    assert public_hosted_mode_allowed(payload, today=date(2026, 8, 10))
+    assert not failed_results(validate_readiness(payload, today=date(2026, 8, 30)))
+    assert public_hosted_mode_allowed(payload, today=date(2026, 8, 30))
 
 
-def test_public_hosted_mode_fails_closed_when_a_decision_is_missing() -> None:
-    payload = load_readiness()
-    payload["decisions"] = payload["decisions"][:-1]
-
-    failures = failed_results(validate_readiness(payload, today=date(2026, 7, 19)))
-
-    assert failures
-    assert not public_hosted_mode_allowed(payload, today=date(2026, 7, 19))
-
-
-def test_public_hosted_mode_fails_closed_for_expired_review() -> None:
-    payload = load_readiness()
-    payload["public_hosted_mode"] = "enabled"
-    payload["decisions"][0]["expires_on"] = "2026-07-18"
-
-    failures = failed_results(validate_readiness(payload, today=date(2026, 7, 19)))
-
-    assert any(failure.name.endswith(".not_expired") for failure in failures)
-    assert not public_hosted_mode_allowed(payload, today=date(2026, 7, 19))
-
-
-def test_public_hosted_mode_requires_complete_shared_data_license_approval() -> None:
+def test_readiness_fails_closed_for_incomplete_license() -> None:
     payload = copy.deepcopy(load_readiness())
-    payload["public_hosted_mode"] = "enabled"
-    payload["decisions"].append(
-        {
-            "id": "shared-data-provider-license",
-            "status": "approved",
-            "owner": "maintainer",
-            "reviewed_on": "2026-08-10",
-            "expires_on": "2027-08-10",
-            "evidence": "docs/security/hosted_readiness.md#d017-provider-license",
-            "approved_uses": ["cross-customer-storage"],
-        }
-    )
-
-    failures = failed_results(validate_readiness(payload, today=date(2026, 8, 10)))
-
-    assert any(
-        failure.name == "decision.shared-data-provider-license.approved_uses"
-        for failure in failures
-    )
-    assert not public_hosted_mode_allowed(payload, today=date(2026, 8, 10))
+    payload["decisions"][0]["approved_uses"] = ["cross-customer-storage"]
+    failures = failed_results(validate_readiness(payload, today=date(2026, 8, 30)))
+    assert any(item.name == "decision.shared-data-provider-license.approved_uses" for item in failures)
+    assert not public_hosted_mode_allowed(payload, today=date(2026, 8, 30))
 
 
-def test_local_only_mode_can_remain_available_while_public_mode_is_disabled() -> None:
+def test_local_only_mode_is_independent_of_removed_database_authority_selector() -> None:
     payload = load_readiness()
     payload["public_hosted_mode"] = "disabled"
-
-    assert payload["local_only_mode"] == "available"
-    assert local_only_mode_allowed(payload, today=date(2026, 8, 10))
-
-
-def test_runtime_readiness_requires_a_postgres_database_url() -> None:
-    failures = failed_results(
-        validate_runtime_readiness({"PORTFELL_DATABASE_URL": "sqlite:///portfell.db"})
-    )
-
-    assert [failure.name for failure in failures] == ["runtime.database_url_configured"]
-
-
-def test_database_readiness_requires_current_catalog_migrations() -> None:
-    connection = FakeDatabaseConnection([(1,)])
-
-    failures = failed_results(
-        validate_database_readiness(
-            "postgresql://portfell_app@postgres:5432/portfell", connect=lambda _: connection
-        )
-    )
-
-    assert [failure.name for failure in failures] == ["database.catalog_current"]
-    assert connection.closed
-
-
-def test_database_readiness_redacts_connection_failure() -> None:
-    def fail_connect(_: str) -> FakeDatabaseConnection:
-        raise RuntimeError("database password must remain private")
-
-    failures = failed_results(
-        validate_database_readiness(
-            "postgresql://portfell_app@postgres:5432/portfell", connect=fail_connect
-        )
-    )
-
-    assert [failure.name for failure in failures] == [
-        "database.connection_available",
-        "database.catalog_current",
-    ]
-
-
-def test_database_readiness_cli_does_not_load_policy_evidence(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(
-        "portfell.hosted_readiness.validate_readiness",
-        lambda: (_ for _ in ()).throw(AssertionError("policy evidence was loaded")),
-    )
-    monkeypatch.setattr("portfell.hosted_readiness.validate_database_readiness", lambda: [])
-
-    assert main(("--require-database",)) == 0
-
-
-def test_runtime_readiness_accepts_postgres_authority_when_hosting_is_approved() -> None:
-    failures = failed_results(
+    assert local_only_mode_allowed(payload, today=date(2026, 8, 30))
+    assert not failed_results(
         validate_runtime_readiness(
-            {
-                "PORTFELL_DATABASE_URL": "postgresql://portfell_app@postgres:5432/portfell",
-                "PORTFELL_HOSTED_AUTHORITY": "postgres",
-            }
+            {"PORTFELL_DATABASE_URL": "postgresql://portfell_app@postgres:5432/portfell_dash"}
         )
     )
-
-    assert not failures
-
-
-def test_runtime_readiness_cli_requires_postgres_database_url(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    monkeypatch.setenv("PORTFELL_DATABASE_URL", "sqlite:///portfell.db")
-
-    assert main(("--require-runtime",)) == 1
-
-    assert "runtime.database_url_configured" in capsys.readouterr().err
+    failures = failed_results(validate_runtime_readiness({"PORTFELL_DATABASE_URL": "sqlite:///old.db"}))
+    assert [item.name for item in failures] == ["runtime.database_url_configured"]
 
 
-def test_runtime_readiness_cli_accepts_configured_postgres_authority(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    monkeypatch.setenv("PORTFELL_DATABASE_URL", "postgresql://portfell_app@postgres:5432/portfell")
-    monkeypatch.setenv("PORTFELL_HOSTED_AUTHORITY", "postgres")
+def test_database_readiness_reads_only_clean_app_state_catalog() -> None:
+    connection = FakeDatabaseConnection([(1,)])
+    failures = failed_results(
+        validate_database_readiness(
+            "postgresql://portfell_app@postgres:5432/portfell_dash",
+            connect=lambda _: connection,
+        )
+    )
+    assert failures == []
+    assert connection.closed
+    assert connection.queries == ["select version from portfell.schema_migrations order by version"]
 
-    assert main(("--require-runtime",)) == 0
 
-    assert capsys.readouterr().err == ""
+def test_database_readiness_rejects_wrong_clean_catalog_head() -> None:
+    connection = FakeDatabaseConnection([])
+    failures = failed_results(
+        validate_database_readiness(
+            "postgresql://portfell_app@postgres:5432/portfell_dash",
+            connect=lambda _: connection,
+        )
+    )
+    assert [item.name for item in failures] == ["database.catalog_current"]

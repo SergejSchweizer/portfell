@@ -2,20 +2,20 @@ name: portfell
 
 services:
   postgres:
-    container_name: portfell-postgress
+    container_name: portfell-postgres
     image: postgres:17-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: portfell
+      POSTGRES_DB: portfell_dash
       POSTGRES_USER: portfell_app
       POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
       PGDATA: /var/lib/postgresql/data/pgdata
     secrets:
       - postgres_password
     volumes:
-      - portfell-postgres-data:/var/lib/postgresql/data
+      - portfell-dash-postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U portfell_app -d portfell"]
+      test: ["CMD-SHELL", "pg_isready -U portfell_app -d portfell_dash"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -40,9 +40,8 @@ services:
     restart: unless-stopped
     environment:
       PORTFELL_ENV: development
-      PORTFELL_HOSTED_AUTHORITY: postgres
       PORTFELL_CONFIG_PATH: /run/portfell/config.yaml
-      PORTFELL_DATABASE_URL: postgresql://portfell_app@postgres:5432/portfell
+      PORTFELL_DATABASE_URL: postgresql://portfell_app@postgres:5432/portfell_dash
       PORTFELL_DATABASE_PASSWORD_FILE: /run/secrets/postgres_password
       PORTFELL_MARKET_DATABASE_URL: ${PORTFELL_MARKET_DATABASE_URL:?set the external xetra-loader PostgreSQL DSN}
       PORTFELL_MARKET_DATABASE_PASSWORD_FILE: /run/secrets/market_postgres_password
@@ -81,7 +80,7 @@ networks:
   portfell-public:
 
 volumes:
-  portfell-postgres-data:
+  portfell-dash-postgres-data:
 
 secrets:
   postgres_password:
