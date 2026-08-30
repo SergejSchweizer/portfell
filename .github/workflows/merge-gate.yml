@@ -2,7 +2,7 @@ name: merge-gate
 
 on:
   pull_request:
-    branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -158,6 +158,45 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  merge-dash-browser:
+    name: merge-dash-browser
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          fetch-depth: 0
+          ref: ${{ github.sha }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86
+        with:
+          enable-cache: true
+
+      - name: Install Python
+        run: uv python install
+
+      - name: Install dependencies
+        run: uv sync --dev
+
+      - name: Install Chromium
+        run: uv run playwright install --with-deps chromium
+
+      - name: Run Dash parity acceptance
+        env:
+          PORTFELL_DASH_PARITY_EVIDENCE_DIR: ${{ github.workspace }}/artifacts/dash-parity-v1
+        run: uv run pytest -m browser tests/browser -q
+
+      - name: Upload Dash parity evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: dash-parity-v1
+          path: artifacts/dash-parity-v1
+          if-no-files-found: ignore
+          retention-days: 14
+
   merge-unit-tests:
     name: merge-unit-tests-${{ matrix.shard }}
     runs-on: ubuntu-latest
@@ -263,6 +302,7 @@ jobs:
       - merge-web-unit-quality
       - merge-web-button-e2e
       - merge-real-stack-buttons
+      - merge-dash-browser
       - merge-unit-tests
       - merge-integration-tests
     if: always()
@@ -299,11 +339,12 @@ jobs:
           WEB_UNIT_RESULT: ${{ needs.merge-web-unit-quality.result }}
           WEB_BUTTON_E2E_RESULT: ${{ needs.merge-web-button-e2e.result }}
           REAL_STACK_BUTTONS_RESULT: ${{ needs.merge-real-stack-buttons.result }}
+          DASH_BROWSER_RESULT: ${{ needs.merge-dash-browser.result }}
           UNIT_RESULT: ${{ needs.merge-unit-tests.result }}
           INTEGRATION_RESULT: ${{ needs.merge-integration-tests.result }}
         run: |
-          if [[ "$LINT_RESULT" != "success" || "$TYPE_RESULT" != "success" || "$WEB_UNIT_RESULT" != "success" || "$WEB_BUTTON_E2E_RESULT" != "success" || "$REAL_STACK_BUTTONS_RESULT" != "success" || "$UNIT_RESULT" != "success" || "$INTEGRATION_RESULT" != "success" ]]; then
-            echo "merge-gate failed: lint=$LINT_RESULT type=$TYPE_RESULT web_unit=$WEB_UNIT_RESULT web_button_e2e=$WEB_BUTTON_E2E_RESULT real_stack_buttons=$REAL_STACK_BUTTONS_RESULT unit=$UNIT_RESULT integration=$INTEGRATION_RESULT" >&2
+          if [[ "$LINT_RESULT" != "success" || "$TYPE_RESULT" != "success" || "$WEB_UNIT_RESULT" != "success" || "$WEB_BUTTON_E2E_RESULT" != "success" || "$REAL_STACK_BUTTONS_RESULT" != "success" || "$DASH_BROWSER_RESULT" != "success" || "$UNIT_RESULT" != "success" || "$INTEGRATION_RESULT" != "success" ]]; then
+            echo "merge-gate failed: lint=$LINT_RESULT type=$TYPE_RESULT web_unit=$WEB_UNIT_RESULT web_button_e2e=$WEB_BUTTON_E2E_RESULT real_stack_buttons=$REAL_STACK_BUTTONS_RESULT dash_browser=$DASH_BROWSER_RESULT unit=$UNIT_RESULT integration=$INTEGRATION_RESULT" >&2
             exit 1
           fi
           echo "merge-gate prerequisites passed."
