@@ -35,7 +35,7 @@ def test_production_override_keeps_only_postgres_durable_storage() -> None:
     assert "volumes: !reset {}" in source
 
 
-def test_compose_defines_persistent_internal_postgres_without_market_filesystem() -> None:
+def test_compose_defines_persistent_app_postgres_and_external_market_contract() -> None:
     compose = _compose()
     services = cast(ComposeMapping, compose["services"])
     volumes = cast(ComposeMapping, compose["volumes"])
@@ -50,11 +50,19 @@ def test_compose_defines_persistent_internal_postgres_without_market_filesystem(
     assert "5432" in postgres["expose"]
     assert "portfell-postgres-data:/var/lib/postgresql/data" in postgres["volumes"]
     assert set(services) == {"api", "postgres", "web"}
-    assert "volumes" not in api
     assert api["container_name"] == "portfell-api"
     assert api["environment"]["PORTFELL_HOSTED_AUTHORITY"] == "postgres"
     assert api["environment"]["PORTFELL_DATABASE_PASSWORD_FILE"] == "/run/secrets/postgres_password"
-    assert api["secrets"] == ["postgres_password"]
+    assert api["environment"]["PORTFELL_MARKET_DATABASE_URL"].startswith(
+        "${PORTFELL_MARKET_DATABASE_URL:?"
+    )
+    assert (
+        api["environment"]["PORTFELL_MARKET_DATABASE_PASSWORD_FILE"]
+        == "/run/secrets/market_postgres_password"
+    )
+    assert api["secrets"] == ["postgres_password", "market_postgres_password"]
+    assert api["volumes"] == ["./config.yaml:/run/portfell/config.yaml:ro"]
+    assert "market_postgres_password" in cast(ComposeMapping, compose["secrets"])
     assert api["group_add"] == [
         "${PORTFELL_SECRET_GROUP_ID:-100}",
     ]

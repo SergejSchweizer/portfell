@@ -1,27 +1,43 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any, cast
 
+import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_compose_keeps_app_postgres_local_and_market_postgres_external() -> None:
-    compose = (ROOT / "compose.yaml").read_text(encoding="utf-8")
+def _compose() -> dict[str, Any]:
+    return cast(dict[str, Any], yaml.safe_load((ROOT / "compose.yaml").read_text(encoding="utf-8")))
 
-    assert "  postgres:\n" in compose
-    assert "POSTGRES_DB: portfell" in compose
-    assert "PORTFELL_DATABASE_URL: postgresql://portfell_app@postgres:5432/portfell" in compose
-    assert "PORTFELL_MARKET_DATABASE_URL: ${PORTFELL_MARKET_DATABASE_URL:?" in compose
-    assert "PORTFELL_MARKET_DATABASE_PASSWORD_FILE: /run/secrets/market_postgres_password" in compose
-    assert "PORTFELL_CONFIG_PATH: /run/portfell/config.yaml" in compose
-    assert "./config.yaml:/run/portfell/config.yaml:ro" in compose
+
+def test_compose_keeps_app_postgres_local_and_market_postgres_external() -> None:
+    compose = _compose()
+    services = cast(dict[str, dict[str, Any]], compose["services"])
+    postgres = services["postgres"]
+    api = services["api"]
+
+    assert postgres["environment"]["POSTGRES_DB"] == "portfell"
+    assert (
+        api["environment"]["PORTFELL_DATABASE_URL"]
+        == "postgresql://portfell_app@postgres:5432/portfell"
+    )
+    assert api["environment"]["PORTFELL_MARKET_DATABASE_URL"].startswith(
+        "${PORTFELL_MARKET_DATABASE_URL:?"
+    )
+    assert api["environment"]["PORTFELL_MARKET_DATABASE_PASSWORD_FILE"] == (
+        "/run/secrets/market_postgres_password"
+    )
+    assert api["environment"]["PORTFELL_CONFIG_PATH"] == "/run/portfell/config.yaml"
+    assert api["volumes"] == ["./config.yaml:/run/portfell/config.yaml:ro"]
 
     # xetra-loader is an external authority. Compose must never create or own it.
-    assert "  xetra-loader:" not in compose
-    assert "  market-postgres:" not in compose
-    assert "POSTGRES_DB: xetra_loader" not in compose
-    assert "xetra-loader-data" not in compose
+    assert set(services) == {"api", "postgres", "web"}
+    assert "xetra-loader" not in services
+    assert "market-postgres" not in services
+    assert "xetra_loader" not in str(postgres)
+    assert "xetra-loader-data" not in cast(dict[str, Any], compose["volumes"])
 
 
 def test_market_connection_has_no_app_database_fallback() -> None:
@@ -32,7 +48,7 @@ def test_market_connection_has_no_app_database_fallback() -> None:
     assert 'environment_name="PORTFELL_DATABASE_URL"' in config_source
     assert "PORTFELL_MARKET_DATABASE_URL" in config_source
     assert "PORTFELL_DATABASE_URL" in config_source
-    assert "or os.environ.get(\"PORTFELL_DATABASE_URL\")" not in config_source
+    assert 'or os.environ.get("PORTFELL_DATABASE_URL")' not in config_source
 
 
 def test_compose_contains_no_provider_or_download_worker_secret() -> None:
