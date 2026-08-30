@@ -17,7 +17,7 @@ def test_production_runtime_freezes_one_workspace_principal() -> None:
 
     assert "PORTFELL_LOCAL_WORKSPACE_USER_ID" not in source
     assert "PostgresHostedUserRepository" not in source
-    assert DEFAULT_LOCAL_WORKSPACE_USER_ID in source
+    assert "DEFAULT_LOCAL_WORKSPACE_USER_ID" in source
     assert ConfiguredUserProvider().current_user().user_id == DEFAULT_LOCAL_WORKSPACE_USER_ID
 
 
