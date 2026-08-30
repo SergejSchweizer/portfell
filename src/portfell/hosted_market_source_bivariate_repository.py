@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import cast
-
 from portfell.hosted_api_service_support import opaque_id
 from portfell.hosted_postgres_research_repository import PostgresResearchRepository
 from portfell.hosted_postgres_workflow import WorkflowResearchState
@@ -61,7 +59,7 @@ limit 1
         ).fetchone()
         if row is None or len(row) != 1 or not isinstance(row[0], str):
             return None
-        return cast(ResearchRun | None, self._run_row(row[0], kind))
+        return self._run_row(row[0], kind)
 
 
 __all__ = ["BivariateMarketSourcePostgresResearchRepository"]

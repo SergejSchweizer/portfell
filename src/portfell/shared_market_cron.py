@@ -1,5 +1,7 @@
 """Disabled compatibility entry point for the retired market-filesystem cron."""
 
+# pyright: reportUnusedFunction=false
+
 from __future__ import annotations
 
 import argparse
