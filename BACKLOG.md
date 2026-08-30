@@ -530,7 +530,8 @@ All depend on PR323 and are parallel siblings.
   unit tests, TypeScript check, and production build).
 - PR331 `chore/pr331-delete-hosted-local-market-runtime`: delete residual hosted local market runtime and EODHD/token/KEK/provider runtime config not owned by siblings.
 
-  Git status: integrated on `main` at `2be3c8f`; focused hosted API tests pass (`31 passed`).
+  Git status: integrated on `main` at `b13eb0f`; the remaining local hosted runtime and local
+  test composition are removed, with test-only in-memory composition replacing them (`61 passed`).
 
 Acceptance for every sibling: owned deletion is complete, no unrelated refactor, focused tests and PR gate pass.
 
