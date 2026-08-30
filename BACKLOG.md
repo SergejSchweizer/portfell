@@ -522,6 +522,8 @@ All depend on PR323 and are parallel siblings.
 - PR327 `chore/pr327-delete-shared-market-refresh`: integrated on `main` at `0921245`; Portfell-owned market refresh/publisher/cron/cache plane is deleted and xetra-loader owns refresh.
 - PR328 `chore/pr328-delete-hosted-download-lifecycle`: integrated on `main` at `3549ad8`; hosted market download routes/workers/jobs are deleted.
 - PR329 `chore/pr329-delete-provider-credentials`: delete provider credential backend; do not replace it with plaintext config.
+
+  Git status: integrated on `main` at `ba8a3d4`; focused hosted API/catalog tests pass (`33 passed`).
 - PR330 `chore/pr330-freeze-legacy-web-provider-ui`: delete provider-loading UI/actions. This PR must not add React features; it only removes provider controls and leaves the old UI transitional until PR356.
 
   Git status: integrated on `main` at `893af0e`; local Docker Node validation passes (19/19
