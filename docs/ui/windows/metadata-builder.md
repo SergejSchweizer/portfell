@@ -1,42 +1,32 @@
-Each non-empty exchange, instrument type, country, and currency option includes its server-computed
-count of unique catalog ISINs.
-# Metadata Builder page
+# Metadata
 
+Route: `/metadata`
 
-## Table Of Contents
+Subtitle: `Build the active Xetra instrument universe.`
 
-- [Purpose](#purpose)
-- [Inputs and actions](#inputs-and-actions)
-- [States](#states)
-- [Acceptance](#acceptance)
+The final Metadata page is a Plotly Dash page. It reads active listings only through the typed application service/`MarketDataGateway`; callbacks execute no SQL and expose no provider fetch/download action.
 
-- Route: `/metadata-builder`
-- Page ID: `metadata_builder`
-- Component: `apps/web/src/pages/metadata-builder.tsx`
+## Layout
 
-## Purpose
+The shared Portfell shell contains the four ordered navigation items Metadata, Univariate, Bivariate, Multivariate and the current-analysis context block.
 
-Create a server-owned project selection from the read-only market catalogue. This is the Metadata
-Builder module's only browser page; its output is the persisted selection consumed by Univariate
-Statistics.
+The page contains:
 
-## Inputs and actions
+- `PageHeader` with the frozen title/subtitle;
+- one `ControlBar` with supported metadata predicates plus `Reset filters` and `Create universe`;
+- KPI cards `Active listings`, `Filtered listings`, `Selected listings`, `Universe version`;
+- `TableCard` `Xetra Listings` preserving full identity `(isin, exchange, code)`;
+- `HistoryCard` `Universe & History` with persisted universe version, creation timestamp, source snapshot short ID, and member count;
+- `StageFooter` with `Continue to Univariate`, disabled until a persisted universe is ready.
 
-The Metadata Builder panel exposes exchange, instrument type, country, currency, and name filters from
-the server-owned, read-only market catalogue. Its `Create new project` action persists the frozen
-selection. Statistical calculations read the selected market data directly in later modules.
+## Behavioral contract
 
-## States
+New universes use only `is_active=true` listings. Inactive identities may remain historically resolvable but cannot be newly selected. Metadata predicate semantics are backend-authoritative and must not be redefined by browser state or PostgreSQL collation behavior. Duplicate ISINs remain distinct when exchange/code differ.
 
-Filtering, selection-ready, metadata-empty, and metadata-unavailable states must be explicit.
+Create-universe is idempotent for an identical content identity. A persisted universe reloads after application restart and repopulates page/sidebar/history state. Empty results remain explicit rather than rendering a blank table/card.
 
-The selected project is shown in the persistent sidebar. A project switch, or
-opening this page after a switch, loads the saved server-owned filter values and listing count.
+## Responsive/accessibility contract
 
-## Acceptance
+Desktop uses the shared 220px sidebar; tablet keeps navigation visible at reduced density; mobile converts to the shared compact top-navigation layout. Controls stack on narrow screens and table overflow stays inside its card. Page-level horizontal overflow is forbidden. Actions and validation/status states remain keyboard reachable.
 
-The metadata action panel precedes the filter dropdowns. Metadata refresh displays its exchange progress and remains disabled from the initial request until the fetch reaches a terminal state. The project action is disabled before metadata is available, then shows project creation, planning, and quote-loading status and remains disabled from submission through the initial historical-data fill. The required real-stack gate proves the XETRA, ETF, Germany, EUR, and `UCITS ETF` selection can complete this hand-off before the user continues through all three statistics modules. All fields have visible labels, status changes use `aria-live`, and no filtering or ingestion business logic is implemented in the browser.
-
-The stateful two-project browser journey creates two selections through this
-form and verifies that their saved metadata builders are restored after a
-project switch.
+No unrelated financial chart/metric is added to Metadata merely to resemble the external visual reference.
