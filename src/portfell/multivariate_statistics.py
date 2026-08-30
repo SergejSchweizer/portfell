@@ -23,13 +23,13 @@ from portfell.evaluation import (
     write_walk_forward_backtest,
 )
 from portfell.gold_pair_stats import DEFAULT_BUCKET_COUNT, sort_pair_rows
+from portfell.market_analytics import build_correlation_and_covariance, build_returns
 from portfell.paths import LakePaths
 from portfell.portfolio import (
     PortfolioConstraints,
     covariance_map,
     listing_keys,
     listing_rows,
-    read_covariances,
     require_complete_covariance,
     write_hierarchical_risk_parity,
     write_maximum_diversification,
@@ -50,7 +50,6 @@ from portfell.recommendation import (
     build_recommendation_report,
 )
 from portfell.return_quality import evaluate_quote_quality
-from portfell.return_series import build_returns
 from portfell.risk_model import estimate_risk_model
 from portfell.scorecard import ScorecardCandidate, build_model_comparison_scorecard
 from portfell.statistics_views import DEFAULT_BIVARIATE_VERSION, read_selection_statistics
@@ -683,7 +682,7 @@ def write_production_multivariate_statistics(
 
     listings = listing_rows(matrix)
     ordered = listing_keys(listings)
-    covariance_rows = read_covariances(paths, listings)
+    _, covariance_rows = build_correlation_and_covariance(returns)
     covariances = covariance_map(covariance_rows)
     require_complete_covariance(ordered, covariances)
 
@@ -801,7 +800,8 @@ def write_multivariate_recommendation(
 
     matrix = read_rows(paths.gold_return_matrix(production_config.evaluation_id))
     listings = listing_rows(matrix)
-    covariance_rows = read_covariances(paths, listings)
+    quotes = _filter_quotes_to_selection(_read_legacy_quote_rows(paths), selected_rows)
+    _, covariance_rows = build_correlation_and_covariance(build_returns(quotes))
 
     candidate_reports: list[CandidateReport] = []
     for profile_name in production_config.profile_names:
