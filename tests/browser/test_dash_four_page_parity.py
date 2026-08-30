@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import socket
 from pathlib import Path
 from threading import Thread
@@ -12,6 +13,8 @@ from fastapi import FastAPI
 from playwright.sync_api import Page, sync_playwright
 
 from portfell.dash_app.app import mount_dash_app
+from portfell.dash_app.callbacks import execute_action
+from portfell.dash_app.state import BrowserState
 from portfell.dash_app.visual_contract import PAGE_ROUTES, REFERENCE_URL, VISUAL_VIEWPORTS
 from tests.browser.dash_fixture_service import DashParityFixtureService
 
@@ -34,8 +37,11 @@ def test_dash_four_page_journey_and_visual_evidence(tmp_path: Path) -> None:
     thread.start()
     _wait_started(server)
     base_url = f"http://127.0.0.1:{port}"
-    evidence_dir = tmp_path / "dash-parity-v1"
-    evidence_dir.mkdir(parents=True)
+    configured_evidence = os.environ.get("PORTFELL_DASH_PARITY_EVIDENCE_DIR")
+    evidence_dir = (
+        Path(configured_evidence) if configured_evidence else tmp_path / "dash-parity-v1"
+    )
+    evidence_dir.mkdir(parents=True, exist_ok=True)
     screenshots: list[dict[str, object]] = []
     console_errors: list[str] = []
     page_errors: list[str] = []
@@ -46,7 +52,9 @@ def test_dash_four_page_journey_and_visual_evidence(tmp_path: Path) -> None:
             page = browser.new_page(viewport={"width": 1440, "height": 900})
             page.on(
                 "console",
-                lambda message: console_errors.append(message.text) if message.type == "error" else None,
+                lambda message: console_errors.append(message.text)
+                if message.type == "error"
+                else None,
             )
             page.on("pageerror", lambda error: page_errors.append(str(error)))
             page.on(
@@ -60,20 +68,36 @@ def test_dash_four_page_journey_and_visual_evidence(tmp_path: Path) -> None:
             _assert_shell(page, "Metadata")
             page.locator("#metadata-create-universe").click()
             page.locator("#metadata-continue-univariate[aria-disabled='false']").wait_for()
+            page.reload(wait_until="networkidle")
+            _assert_shell(page, "Metadata")
+            assert page.locator("#pf-context-universe").inner_text() == "1"
             page.locator("#metadata-continue-univariate").click()
 
             page.wait_for_url(f"{base_url}/univariate")
             _assert_shell(page, "Univariate")
+            service.fail_next_univariate = True
+            page.locator("#univariate-compute").click()
+            _wait_until(lambda: service.failure_count == 1)
+            body_after_failure = page.locator("body").inner_text()
+            assert "fixture-secret" not in body_after_failure
+            assert "postgres://" not in body_after_failure
             page.locator("#univariate-compute").click()
             page.wait_for_function("document.body.innerText.includes('DE000TEST01')")
             page.locator("#univariate-save-selection").click()
             page.locator("#univariate-continue-bivariate[aria-disabled='false']").wait_for()
+            page.reload(wait_until="networkidle")
+            _assert_shell(page, "Univariate")
+            assert "DE000TEST01" in page.locator("body").inner_text()
             page.locator("#univariate-continue-bivariate").click()
 
             page.wait_for_url(f"{base_url}/bivariate")
             _assert_shell(page, "Bivariate")
             page.locator("#bivariate-compute").click()
             page.locator("#bivariate-continue-multivariate[aria-disabled='false']").wait_for()
+            page.reload(wait_until="networkidle")
+            _assert_shell(page, "Bivariate")
+            assert "Eligible pairs" in page.locator("body").inner_text()
+            assert "Unavailable pairs" in page.locator("body").inner_text()
             page.locator("#bivariate-continue-multivariate").click()
 
             page.wait_for_url(f"{base_url}/multivariate")
@@ -81,6 +105,11 @@ def test_dash_four_page_journey_and_visual_evidence(tmp_path: Path) -> None:
             page.locator("#multivariate-optimize").click()
             page.wait_for_function("document.body.innerText.includes('candidate-fixture')")
             assert "minimum_variance" in page.locator("body").inner_text()
+            page.reload(wait_until="networkidle")
+            _assert_shell(page, "Multivariate")
+            multivariate_body = page.locator("body").inner_text()
+            assert "candidate-fixture" in multivariate_body
+            assert "minimum_variance" in multivariate_body
 
             for viewport in VISUAL_VIEWPORTS:
                 page.set_viewport_size({"width": viewport.width, "height": viewport.height})
@@ -102,6 +131,17 @@ def test_dash_four_page_journey_and_visual_evidence(tmp_path: Path) -> None:
                             "file": screenshot.name,
                         }
                     )
+
+            # A new Metadata revision invalidates all downstream current-stage projections.
+            service.advance_universe_revision()
+            page.set_viewport_size({"width": 1440, "height": 900})
+            page.goto(f"{base_url}/univariate", wait_until="networkidle")
+            page.locator("#pf-context-universe").wait_for()
+            _wait_until(lambda: page.locator("#pf-context-universe").inner_text() == "2")
+            assert page.locator("#pf-context-readiness").inner_text() == "Not ready"
+            assert page.locator("#univariate-continue-bivariate").get_attribute(
+                "aria-disabled"
+            ) == "true"
             browser.close()
 
         assert not console_errors
@@ -117,6 +157,9 @@ def test_dash_four_page_journey_and_visual_evidence(tmp_path: Path) -> None:
             "page_errors": page_errors,
             "assertions": {
                 "workflow_journey": True,
+                "stage_reload_persistence": True,
+                "typed_failure_retry": service.failure_count == 1,
+                "cross_stage_invalidation": service.universe_revision == 2,
                 "exact_four_routes": True,
                 "reference_network_dependency_absent": True,
                 "body_horizontal_overflow_absent": True,
@@ -127,10 +170,28 @@ def test_dash_four_page_journey_and_visual_evidence(tmp_path: Path) -> None:
         (evidence_dir / "dash-parity-v1.json").write_text(
             json.dumps(evidence, sort_keys=True, indent=2) + "\n", encoding="utf-8"
         )
-        assert evidence["assertions"]["screenshots_complete"] is True
+        assert all(evidence["assertions"].values())
     finally:
         server.should_exit = True
         thread.join(timeout=10)
+
+
+def test_typed_failure_is_redacted_and_retryable() -> None:
+    service = DashParityFixtureService(level=1, fail_next_univariate=True)
+    initial = BrowserState(
+        universe_id="fixture-universe-1",
+        universe_version=1,
+    )
+    failed = execute_action(service, initial, action="univariate-compute")
+    assert failed.message_code == "fixture_univariate_failed"
+    serialized = json.dumps(failed.to_store(), sort_keys=True)
+    assert "fixture-secret" not in serialized
+    assert "postgres://" not in serialized
+
+    retried = execute_action(service, failed, action="univariate-compute")
+    assert retried.univariate_run_id == "fixture-univariate-run"
+    assert retried.message_code is None
+    assert service.failure_count == 1
 
 
 def _assert_shell(page: Page, title: str) -> None:
@@ -152,8 +213,14 @@ def _free_port() -> int:
 
 
 def _wait_started(server: uvicorn.Server) -> None:
-    deadline = monotonic() + 10
-    while not server.started and monotonic() < deadline:
+    _wait_until(lambda: server.started)
+
+
+def _wait_until(predicate: object, timeout: float = 10.0) -> None:
+    callback = predicate
+    deadline = monotonic() + timeout
+    while monotonic() < deadline:
+        if callable(callback) and callback():
+            return
         sleep(0.05)
-    if not server.started:
-        raise RuntimeError("dash parity server did not start")
+    raise RuntimeError("dash parity condition did not become true")
