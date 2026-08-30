@@ -639,6 +639,12 @@ Depends on: PR336–PR338.
 
 Acceptance: clean `uv sync`, imports, entrypoints, Compose/container without provider/NAS; two DB authorities remain separate; fixture exercises all four analytical stages; full merge gate.
 
+Git status: integrated on `main` at `d8c538f` after rebase. The clean runtime guard covers
+imports, entrypoints, exact two-PostgreSQL Compose authority, no provider/NAS/refresh runtime,
+four-stage source fixtures, raw-market SQL confinement, and removal of unreachable legacy
+multi-user/local-market modules. `uv sync --frozen`, Docker contract checks, and 859 tests pass;
+coverage is 91.06%.
+
 ### PR340 — Live xetra-loader V2 QA
 
 Branch: `test/pr340-live-xetra-loader-v2`
