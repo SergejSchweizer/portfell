@@ -256,7 +256,7 @@ PR340(live QA) -> PR341(E2E) -> PR342(runbook) -> PR343(closeout)
 
 - PR320 is integrated on `main` at `03cec1a`. It reads each Univariate computation from one coherent market snapshot and its complete local merge gate passes (`1034 passed`).
 - PR321 is integrated on `main` at `8172ed4`. It reads each Bivariate computation from one coherent market snapshot and its complete local merge gate passes (`1029 passed`).
-- PR322 is implemented in GitHub PR #498 (`refactor/pr322-multivariate-market-source`, head `0a73d60`). It is mergeable and has the same pre-step/pre-runner `merge-gate` failure. It must be rebased after PR320 and PR321 integrate before final validation/integration.
+- PR322 is integrated on `main` at `511a32c`. It consumes source-pinned Multivariate inputs, preserves solver and validation semantics, and its complete local merge gate passes (`1037 passed`).
 - PR323 and all downstream source/Dash PRs are intentionally not started while their merged-predecessor contract is unmet. This preserves the exact dependency order in section 2 rather than stacking unvalidated production changes.
 - The external xetra-loader production V2 artifact gate is now cleared: `artifacts/acceptance/postgres-full-sync-v2.json` exists on xetra-loader `main` and reports `status: PASS`. PR340 is therefore no longer blocked by the external artifact itself, but it still cannot start until PR339 is merged.
 
@@ -473,6 +473,10 @@ Acceptance: formulas/common-calendar/minimum-observation/pair guards/skip-same-I
 Branch: `refactor/pr322-multivariate-market-source`
 
 Depends on: PR318.
+
+Git status: integrated on `main` at `511a32c`. Multivariate reads are pinned to the Bivariate
+market-source snapshot and the pure return-series helper is storage-independent; the complete
+local merge gate passes (`1037 passed`).
 
 Scope: snapshot quote/dividend lineage; pure return helper moved out of legacy persistence module; objectives/solvers/risk/walk-forward/OOS winner remain unchanged.
 
