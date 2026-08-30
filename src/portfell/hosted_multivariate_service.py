@@ -7,7 +7,7 @@ from concurrent.futures import Executor, ProcessPoolExecutor
 from dataclasses import replace
 from time import time
 
-from portfell.gold import build_returns
+from portfell.return_series import build_returns
 from portfell.hosted_api_errors import HostedApplicationError
 from portfell.hosted_api_service_support import opaque_id, stable_hash
 from portfell.hosted_api_state import MultivariateRunRecord, SelectionRecord

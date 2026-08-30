@@ -16,8 +16,8 @@ from portfell.bivariate_diagnostics import (
     spearman_diagnostics,
     tail_dependence_diagnostics,
 )
-from portfell.gold import build_returns
 from portfell.gold_pair_stats import sample_covariance
+from portfell.return_series import build_returns
 from portfell.table_io import JsonRow
 
 _SUMMARY_METRICS = (

@@ -10,8 +10,8 @@ from dataclasses import dataclass
 from typing import Any, Literal
 
 from portfell.bivariate_statistics import BIVARIATE_STATISTICS_VERSION, build_bivariate_statistics
-from portfell.gold import build_returns
 from portfell.gold_pair_stats import DEFAULT_MAX_PAIR_COUNT
+from portfell.return_series import build_returns
 from portfell.selection_filters import Predicate, filter_rows
 from portfell.table_io import JsonRow
 from portfell.univariate_statistics import (

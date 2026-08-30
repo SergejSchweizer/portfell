@@ -22,7 +22,6 @@ from portfell.evaluation import (
     write_tail_risk_evaluation,
     write_walk_forward_backtest,
 )
-from portfell.gold import build_returns, write_gold_inputs
 from portfell.gold_pair_stats import DEFAULT_BUCKET_COUNT, sort_pair_rows
 from portfell.paths import LakePaths
 from portfell.portfolio import (
@@ -53,7 +52,7 @@ from portfell.recommendation import (
 from portfell.return_quality import evaluate_quote_quality
 from portfell.risk_model import estimate_risk_model
 from portfell.scorecard import ScorecardCandidate, build_model_comparison_scorecard
-from portfell.silver import read_silver_quotes
+from portfell.return_series import build_returns
 from portfell.statistics_views import DEFAULT_BIVARIATE_VERSION, read_selection_statistics
 from portfell.stress import (
     block_bootstrap_scenarios,
@@ -110,7 +109,7 @@ def write_multivariate_statistics(
     downstream Gold, Evaluation, and Portfolio artifacts from that pinned set.
     """
     resolved_config = config or MultivariateStatisticsConfig()
-    quotes = _filter_quotes_to_selection(read_silver_quotes(paths), selected_rows)
+    quotes = _filter_quotes_to_selection(_read_legacy_quote_rows(paths), selected_rows)
     cache_summary: JsonRow = {"cache_status": "disabled"}
     if resolved_config.use_selection_statistics_cache:
         returns, cache_summary = _prepare_selection_cached_inputs(
@@ -121,11 +120,7 @@ def write_multivariate_statistics(
         if reused_summary is not None:
             return reused_summary
     else:
-        returns, _correlations, _covariances, _features = write_gold_inputs(
-            paths,
-            quotes,
-            concurrency=resolved_config.concurrency,
-        )
+        returns = build_returns(quotes)
         portfolio_run_id = ""
     matrix = build_return_matrix(returns, resolved_config.evaluation_id)
     asset_metrics = build_asset_metrics(
@@ -578,6 +573,21 @@ def _write_portfolio_bundle(
     )
 
 
+def _read_legacy_quote_rows(paths: LakePaths) -> list[JsonRow]:
+    """Read transitional analytical artifacts until PR326 removes the lake plane.
+
+    This is not a market-source fallback: active hosted workflows obtain their
+    snapshot through ``MarketDataGateway``.  The temporary reader exists only
+    so historical portfolio-artifact inspection remains importable while the
+    generic filesystem plane is removed in its dedicated PR.
+    """
+
+    rows: list[JsonRow] = []
+    for path in sorted((paths.silver / "quotes").glob("*/*.parquet")):
+        rows.extend(read_rows(path))
+    return rows
+
+
 def _filter_quotes_to_selection(
     quotes: Sequence[Mapping[str, Any]],
     selected_rows: Sequence[Mapping[str, Any]],
@@ -654,7 +664,7 @@ def write_production_multivariate_statistics(
     if unknown_profiles:
         raise ValueError(f"unknown profile_names: {sorted(unknown_profiles)}")
 
-    quotes = _filter_quotes_to_selection(read_silver_quotes(paths), selected_rows)
+    quotes = _filter_quotes_to_selection(_read_legacy_quote_rows(paths), selected_rows)
     quality_by_listing = _quote_quality_by_listing(quotes)
     failing_quality = sorted(
         f"{isin}/{exchange}/{code}:{quality['data_quality_reason']}"
@@ -664,9 +674,7 @@ def write_production_multivariate_statistics(
     if failing_quality:
         raise ValueError("production_data_quality_gate_failed: " + ", ".join(failing_quality))
 
-    returns, _correlations, _covariances, _features = write_gold_inputs(
-        paths, quotes, concurrency=resolved_config.concurrency
-    )
+    returns = build_returns(quotes)
     matrix = build_return_matrix(returns, resolved_config.evaluation_id)
     if not matrix:
         raise ValueError("insufficient_history: no aligned return matrix rows for the selection")
@@ -941,7 +949,7 @@ def write_multivariate_trading_handoff(
             for isin in sorted(isins)
         ]
 
-    quotes = _filter_quotes_to_selection(read_silver_quotes(paths), selected_rows)
+    quotes = _filter_quotes_to_selection(_read_legacy_quote_rows(paths), selected_rows)
     quality_by_listing = _quote_quality_by_listing(quotes)
     stale_data_detected = any(
         quality["stale_price_detected"] for quality in quality_by_listing.values()

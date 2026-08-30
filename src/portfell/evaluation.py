@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from math import sqrt
 from typing import Any
 
-from portfell.gold import covariance
+from portfell.gold_pair_stats import sample_covariance as covariance
 from portfell.paths import LakePaths
 from portfell.portfolio import (
     PortfolioConstraints,

@@ -10,8 +10,6 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 SRC_ROOT = REPO_ROOT / "src" / "portfell"
 
 INGESTION_MODULES = {
-    "portfell.bronze",
-    "portfell.silver",
     "portfell.search",
     "portfell.cli",
     "portfell.config",
@@ -26,9 +24,6 @@ SHARED_MODULES = {
     "portfell.logging",
 }
 LAYER_HEAVY_MODULES = {
-    "portfell.bronze",
-    "portfell.silver",
-    "portfell.gold",
     "portfell.evaluation",
     "portfell.portfolio",
     "portfell.search",
@@ -62,16 +57,6 @@ def check_architecture(root: Path = SRC_ROOT) -> list[str]:
             if forbidden:
                 violations.append(
                     f"{module_name} imports ingestion modules: {', '.join(forbidden)}"
-                )
-        if module_name == "portfell.silver":
-            private_bronze = sorted(
-                name
-                for module, name in imports
-                if module == "portfell.bronze" and name.startswith("_")
-            )
-            if private_bronze:
-                violations.append(
-                    f"{module_name} imports private Bronze helpers: {', '.join(private_bronze)}"
                 )
         if module_name != "portfell.cli" and "portfell.cli" in imported_from:
             violations.append(f"{module_name} must not import portfell.cli")

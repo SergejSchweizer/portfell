@@ -1,6 +1,6 @@
-"""Shared price-quality gate and return-type primitives for Gold and Statistics.
+"""Shared price-quality gate and return-type primitives for analytics and statistics.
 
-This module gives every return-producing builder (`portfell.gold`,
+This module gives every return-producing builder (`portfell.return_series`,
 `portfell.univariate_statistics`) one shared definition of a valid price point so
 that invalid prices are quarantined instead of silently becoming a fabricated
 zero return. It also defines the minimum-history thresholds used to decide

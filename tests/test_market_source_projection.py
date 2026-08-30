@@ -5,7 +5,7 @@ from decimal import Decimal
 
 import pytest
 
-from portfell.gold import build_returns
+from portfell.return_series import build_returns
 from portfell.market_source.contracts import Dividend, EodQuote, ListingKey, Split
 from portfell.market_source.projection import (
     MISSING_ADJUSTED_CLOSE,
