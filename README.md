@@ -1,611 +1,112 @@
 # Portfell
 
-Last reviewed: 2026-08-10
+Portfell is a Python-first, single-user ETF research and portfolio-construction application. The production browser interface is Plotly Dash mounted on FastAPI. Market data is read from an external read-only PostgreSQL authority; Portfell owns a separate clean PostgreSQL database for application and analytical state.
 
-## Table Of Contents
-
-- [Onboarding Path](#onboarding-path)
-- [Current Facts](#current-facts)
-- [ETF Discovery Statistics](#etf-discovery-statistics)
-- [Intended Workflow](#intended-workflow)
-- [Portfolio Objective](#portfolio-objective)
-- [Portfolio Analysis And Evaluation Plan](#portfolio-analysis-and-evaluation-plan)
-- [Documentation Map](#documentation-map)
-- [Research Module Architecture](#research-module-architecture)
-- [Scheduled Portfell Cron](#scheduled-portfell-cron)
-- [EODHD Request Safety](#eodhd-request-safety)
-- [Logging And Debugging](#logging-and-debugging)
-- [Quality Gates](#quality-gates)
-- [Documentation Refresh](#documentation-refresh)
-- [Keep This README Up To Date](#keep-this-readme-up-to-date)
-
-Portfell is a fund portfolio builder for exchange-traded funds. The project goal is to analyze EODHD end-of-day quotes for multiple thousands of ETFs and build risk-aware fund portfolio weights. The name comes from the CVaR risk metric for portfolio optimization and nods to the similarly sounding samovar.
-
-The primary data source is the EODHD subscription for EOD Historical Data. Flatex will be used as the trading exchange/broker venue for turning portfolio weights into executable ETF trades. Local API credentials must stay in ignored secret files such as `.secrets/eodhd.yaml` or `.env.local`; never commit real tokens.
-
-## Onboarding Path
-
-New contributors should read the documentation in this order:
-
-1. Start here to understand the goal, data source, current facts, and local commands.
-2. Read [ARCHITECTURE.md](ARCHITECTURE.md) for the module diagram and one-paragraph purpose of each package module.
-3. Read [CONTRACTS.md](CONTRACTS.md) before changing paths, schemas, or storage formats.
-4. Check [RISKS.md](RISKS.md), [DECISIONS.md](DECISIONS.md), and [BACKLOG.md](BACKLOG.md) before opening a PR-sized change.
-5. Follow [AGENTS.md](AGENTS.md) for workflow rules and PR status tracking; use [GATES.md](GATES.md) for quality gates and merge policy.
-
-## Current Facts
-
-- The local Python environment uses Python 3.14.6 in `.venv/`.
-- The main market data source is the EODHD subscription for EOD Historical Data.
-- The intended trading venue/broker is Flatex.
-- `fetch_all_metadata` enumerates EODHD exchange symbol lists and stores the complete ISIN-bearing metadata universe once under `lake/reference/all_isins/`.
-- `metadata_builder` and `univariate_selection` create referencable selections from that reference metadata or from Gold univariate statistics.
-- Portfolio loads should use explicit persisted selections, not ad hoc discovery files.
-- EODHD HTTP requests are paced by the shared client and retry rate-limit responses with `Retry-After` support.
-
-## ETF Discovery Statistics
-
-The `UCITS ETF` discovery set contains EODHD listings, not yet deduplicated portfolio instruments. Multiple exchange listings can share the same ISIN, so optimization must deduplicate or choose primary listings before building weights.
-
-- Total listings: 8,165.
-- Type split: 8,063 `ETF` rows and 102 `FUND` rows.
-- Exchanges represented: 26.
-- Countries represented: 21.
-- Currencies represented: 16.
-- Rows with ISIN: 6,660.
-- Rows missing ISIN: 1,505.
-- Unique non-empty ISINs: 3,104.
-- Canonical no-duplicate-ISIN universe: 3,104 rows.
-- Canonical selections from `XETRA`: 1,759.
-- Canonical fallback selections from other exchanges: 1,345.
-
-Top exchanges by listing count:
-
-| Exchange | Listings |
-| --- | ---: |
-| XETRA | 2,569 |
-| LSE | 2,091 |
-| F | 1,123 |
-| SW | 1,038 |
-| PA | 570 |
-| AS | 291 |
-| PINK | 107 |
-| EUFUND | 102 |
-| MU | 73 |
-| OTCGREY | 62 |
-
-Top countries by listing count:
-
-| Country | Listings |
-| --- | ---: |
-| Germany | 3,860 |
-| UK | 2,091 |
-| Switzerland | 1,035 |
-| France | 574 |
-| Netherlands | 290 |
-| USA | 170 |
-| Unknown | 97 |
-
-Top currencies by listing count:
-
-| Currency | Listings |
-| --- | ---: |
-| EUR | 4,843 |
-| USD | 1,613 |
-| GBX | 628 |
-| GBP | 594 |
-| CHF | 428 |
-
-Top canonical exchanges after one-row-per-ISIN selection:
-
-| Exchange | Canonical ISINs |
-| --- | ---: |
-| XETRA | 1,759 |
-| LSE | 626 |
-| SW | 292 |
-| PA | 230 |
-| F | 114 |
-| AS | 66 |
-
-## Intended Workflow
-
-1. Discover ETF and fund instruments from EODHD without committing credentials.
-2. Deduplicate the universe to one canonical listing per ISIN, preferring `XETRA` when available.
-3. Fetch Bronze end-of-day quotes for the latest `metadata_builder` selection with `fetch-all-quotes`.
-4. Build Silver quotes into a reproducible local dataset.
-5. Validate coverage, missing dates, currencies, identifiers, and duplicate listings.
-6. Estimate return and risk inputs from validated quote history.
-7. Compare risk-aware portfolio candidates and build selected target weights under explicit constraints.
-8. Report weights, assumptions, coverage gaps, and validation results.
-9. Export approved target weights into Flatex trade-preparation rows.
-
-## Portfolio Objective
-
-The initial production optimization objective is constrained minimum portfolio variance:
-
-$$
-\min_w \; w^T \Sigma w
-$$
-
-Subject to constraints that will be made explicit before implementation, such as:
-
-- weights sum to 1;
-- long-only or bounded weights;
-- maximum concentration per ETF, issuer, currency, country, or asset class;
-- minimum quote-history coverage;
-- duplicate listing and duplicate ISIN handling.
-
-This objective is intentionally risk-first because ETF expected-return estimates are noisy and many UCITS ETF candidates are highly correlated.
-
-## Portfolio Analysis And Evaluation Plan
-
-Portfell aims to compare optimization techniques with reproducible Gold datasets before any target weights are used for trading. The evaluation layer consumes Gold daily adjusted-close log returns, `ln(P_t / P_{t-1})`, and should not call EODHD or mutate Bronze and Silver market data.
-
-Portfolio analysis and evaluation computations include:
-
-- aligned return matrices by date and listing;
-- asset metrics such as observation count, mean return, annualized return, annualized volatility, downside deviation, Sharpe ratio, Sortino ratio, and historical daily-loss CVaR at an explicit confidence level;
-- portfolio return series, cumulative wealth, drawdown series, maximum drawdown, drawdown duration, recovery duration, Calmar ratio, and ulcer index;
-- efficient-frontier points and long-format frontier weights;
-- constrained minimum-variance, maximum-Sharpe comparison, and target-return minimum-variance weights;
-- risk parity and equal-risk-contribution diagnostics;
-- hierarchical risk parity clusters, ordering, and weights;
-- maximum-diversification ratio and target weights;
-- walk-forward backtests with rolling or expanding train/test windows;
-- rebalancing simulations with turnover, transaction-cost estimates, and post-cost returns;
-- historical VaR, CVaR, tail scenario diagnostics, and optional CVaR-minimizing weights.
-
-The first trusted portfolio candidates should be constrained minimum variance and risk parity, with hierarchical risk parity and maximum diversification as robust alternatives for larger ETF universes. Maximum Sharpe should be treated as a comparison technique until the expected-return model is deliberately chosen and tested out of sample.
-
-The current refactor target keeps portfolio optimization downstream from the ISIN data modules. Portfolio optimization remains analysis work and is not exposed as a first-class module in this cut.
-
-## Documentation Map
-
-- [ARCHITECTURE.md](ARCHITECTURE.md) explains how modules connect and where responsibilities live.
-- [CONTRACTS.md](CONTRACTS.md) defines lake layers and table contracts.
-- [GATES.md](GATES.md) documents GitHub quality gates, branch protection, auto-merge, shards, and local validation commands.
-- [DOCKER.md](DOCKER.md) is the canonical container installation and operations guide.
-- [DECISIONS.md](DECISIONS.md) records why durable technical choices were made.
-- [RISKS.md](RISKS.md) tracks active project risks and mitigations.
-- [BACKLOG.md](BACKLOG.md) tracks PR-sized work and implementation status.
-- [AGENTS.md](AGENTS.md) defines agent workflow rules and generated project-history risks.
-
-## Research Module Architecture
-
-The active browser workflow currently has four modules: Metadata Builder,
-Univariate Statistics, Bivariate Statistics, and Multivariate Statistics. Their persisted input/output
-boundaries and extension rules are documented in
-[`docs/ui/workflow-modules.md`](docs/ui/workflow-modules.md).
-
-The local ISIN pipeline remains organized around these five deterministic stages:
+## Final production topology
 
 ```text
-fetch_all_metadata
-  -> metadata_builder
-  -> univariate_statistics
-  -> univariate_selection
-  -> bivariate_statistics
+Browser
+  |
+  v
+FastAPI + Plotly Dash
+  |
+  +--> Portfell application database
+  |    database: portfell_dash
+  |    schema: portfell
+  |
+  +--> external market database
+       10.10.1.3:54321
+       database/schema: xetra_loader
+       tables: listings, eod_quotes, dividends, splits
+       read-only
 ```
 
-`fetch_all_metadata` is the only source of the full EODHD ISIN universe. It refreshes missing exchange datasets in parallel using the available runtime CPUs, with provider request pacing, and writes the shared result once for every later module:
+There is no first-party React/Vite/TypeScript/TanStack application, Node production Web service, provider-download worker, Portfell market-refresh plane, legacy Portfell database fallback, or dual-database authority.
+
+## Browser workflow
+
+The product has exactly four pages and one analytical flow:
+
+1. `/metadata` — build and persist a versioned active-listing universe.
+2. `/univariate` — compute single-instrument statistics and persist the downstream selection.
+3. `/bivariate` — compute pairwise diversification evidence for the persisted Univariate selection.
+4. `/multivariate` — optimize portfolio candidates, rank them by out-of-sample evidence, and persist the final decision artifact.
+
+The route `/` redirects to `/metadata`; it is not a fifth product page. Dash callbacks consume typed application services and do not execute SQL directly.
+
+## Data authorities
+
+### Market source
+
+The canonical market source is external PostgreSQL `xetra_loader` at `10.10.1.3:54321`. Portfell reads only `xetra_loader.listings`, `eod_quotes`, `dividends`, and `splits` through `MarketDataGateway` using short-lived `REPEATABLE READ, READ ONLY` snapshots.
+
+Listing identity is always `(isin, exchange, code)`. Adjusted close is authoritative for return/risk calculations. Missing adjusted close is a typed unavailable condition; raw close is never a fallback. Dividends are income evidence and are not double-counted on top of adjusted-close returns. Split events do not introduce a second return adjustment. Market SQL is confined to `src/portfell/market_source/**`.
+
+### Application state
+
+Portfell owns only database `portfell_dash`, schema `portfell`. The clean v1 state model contains the singleton workspace, immutable market-source snapshot lineage, versioned metadata universes and members, stage-neutral analysis runs/artifacts, versioned Univariate selections, Multivariate decision artifacts, and small UI preferences.
+
+The retired hosted tenant/control-plane database is not a runtime dependency and is never used as a read/write fallback. Application-state SQL is confined to `src/portfell/app_state/**`.
+
+## Local configuration
+
+Repository-root `config.yaml` is the canonical non-secret local PostgreSQL metadata file. It is intentionally gitignored and must not be copied into an image or artifact. Start from the tracked, secret-free `config.example.yaml` and keep separate sections for `postgres.app` and `postgres.market`.
+
+The effective connection authorities are also separate:
+
+- `PORTFELL_DATABASE_URL` — must identify only `portfell_dash`.
+- `PORTFELL_MARKET_DATABASE_URL` — must identify only external `xetra_loader`.
+- `PORTFELL_POSTGRES_PASSWORD_FILE` — external secret file for the Portfell application login.
+- `PORTFELL_MARKET_POSTGRES_PASSWORD_FILE` — external secret file for the market reader login.
+
+Startup verifies that DSN identity matches `config.yaml` and fails closed on missing, malformed, or mismatched configuration. Raw passwords/tokens are never stored in tracked YAML, `.env.example`, logs, browser state, or evidence.
+
+## Run with Docker Compose
+
+Create the ignored root config and external password files, then set the required environment variables documented in `.env.example`.
 
 ```bash
-uv run portfell fetch-all-metadata
+docker compose up --build
 ```
 
-`fetch-all-quotes` is the quote refresh module. It reads the latest persisted `metadata_builder` selection, fetches EODHD quotes plus companion dividends and splits by default, writes Bronze inputs, rebuilds Silver quotes, and updates coverage manifests:
+The final local application surface is loopback-bound by default at `127.0.0.1:8080`; override with `PORTFELL_PORT` when required. The Compose stack owns only the Python application and the clean `portfell_dash` PostgreSQL service. The external xetra-loader database is never Compose-owned by Portfell.
+
+For a destructive production transition from the retired deployment, follow `docs/runbooks/dash-production-cutover.md`. Do not improvise the cutover order and do not run old/new Portfell databases as simultaneous business authorities.
+
+## Quality gates
+
+Fast development gate:
 
 ```bash
-uv run portfell fetch-all-quotes
+uv run portfell-quality pr
 ```
 
-Available `fetch-all-quotes` options:
-
-```text
---debug
-  Write verbose DEBUG logs.
-
---root <path>
-  Lake root to write to. Defaults to lake.
-
---run-id <id>
-  Optional stable run id. Defaults to fetch-all-quotes plus the end date.
-
---start-date <YYYY-MM-DD>
-  Optional first quote date. Empty means full provider history.
-
---end-date <YYYY-MM-DD>
-  Optional last quote date. Defaults to today.
-
---limit <n>
-  Optional maximum approved listings to fetch.
-
---isin <ISIN>
-  Fetch only one ISIN from the latest metadata-builder selection.
-
---no-gap-aware
-  Disable Silver-based gap planning and request the whole requested date window.
-
---no-raw-datasets
-  Do not fetch companion raw dividends and splits datasets.
-
---concurrency <workers>
-  Worker thread count for EODHD requests and Silver writes. Defaults to 2.
-```
-
-`metadata_builder` reads only the all-ISIN source, applies conjunctive metadata predicates, and writes a hash-addressable selection with `isins.parquet` and `manifest.json`:
+Full pre-merge gate:
 
 ```bash
-uv run portfell metadata-builder --where instrument_type=ETF --where currency=EUR --where exchange=XETRA
-uv run portfell metadata-builder --name-contains "UCITS ETF"
+uv run portfell-quality merge
 ```
 
-Available `metadata-builder` options:
+The merge gate includes lint/format, architecture/schema/security checks, strict Pyright, parallel pytest with at least 90% coverage, the isolated market-source PostgreSQL contract, and clean-working-tree checks. GitHub's `merge-gate` additionally executes the deterministic Dash browser acceptance.
 
-```text
---debug
-  Write verbose DEBUG logs.
+Browser acceptance covers the complete Metadata → Univariate → Bivariate → Multivariate journey, reload persistence, typed failure/retry, upstream invalidation, zero application console/page errors, zero runtime requests to the external visual-reference site, no page-level horizontal overflow, and screenshots for `1440x900`, `1024x768`, and `390x844` across all four routes.
 
---root <path>
-  Lake root to read from. Defaults to lake.
+## Repository map
 
---where <predicate>
-  Add one conjunctive predicate. Repeat this option for multiple predicates.
+- `src/portfell/app_state/**` — clean `portfell_dash` schema, migrations, repositories, and app-state SQL.
+- `src/portfell/market_source/**` — external xetra-loader contracts, read-only PostgreSQL access, coherent snapshots, and market SQL.
+- `src/portfell/app_services/**` — typed four-stage application services and analytical orchestration.
+- `src/portfell/dash_app/**` — Plotly Dash shell, pages, callbacks, state, figures, and CSS assets.
+- `src/portfell/hosted_api.py` — final FastAPI + Dash composition root.
+- `tests/browser/**` — Python Playwright browser acceptance.
+- `docs/contracts/plotly-dash-ui-v1.md` — frozen visual/product UI contract.
+- `docs/contracts/plotly-dash-replacement-v1.md` — replacement/negative-space contract.
+- `docs/runbooks/dash-production-cutover.md` — destructive production transition and rollback.
+- `BACKLOG.md` — authoritative executable backlog.
+- `GATES.md` — quality and merge-gate authority.
 
---name-contains <text>
-  Case-insensitive text search in the instrument name. Repeat this option to require multiple name fragments.
+## Financial-engineering invariants
 
---selection-name <name>
-  Optional stable human-readable name used in the generated selection id.
-```
+Portfell preserves the analytical contracts independently of the UI/runtime replacement. Full listing identity is preserved; missing values are never encoded as plausible zero; covariance availability is explicit; future leakage is prohibited in walk-forward evaluation; requested and actual optimizer methods remain distinguishable; Equal Weight is never a hidden solver fallback; and Multivariate winner selection is driven by out-of-sample evidence with a persisted decision artifact.
 
-At least one `--where` or `--name-contains` option is required. All filters are conjunctive.
-
-`metadata-builder` CLI filter reference:
-
-| CLI filter | Repeatable | Applies to | Semantics | Example |
-| --- | --- | --- | --- | --- |
-| `--where <field><operator><value>` | Yes | Any `all_isins` metadata field listed below. | Adds one predicate; all predicates must match. Text comparisons are exact except `~`; numeric operators parse both sides as numbers. | `--where instrument_type=ETF` |
-| `--name-contains <text>` | Yes | `name` | Case-insensitive substring search. Repeating it requires every fragment to occur in the name. Equivalent to adding `name~<text>` predicates. | `--name-contains "UCITS ETF"` |
-| `--selection-name <name>` | No | Selection id only | Stable human-readable prefix for the generated selection id. It does not change membership. | `--selection-name ucits-etf` |
-| `--root <path>` | No | Lake location | Reads `reference/all_isins/all_isins.parquet` below this root and writes the selection below `silver/metadata_builder/`. | `--root lake` |
-| `--debug` | No | Logging | Enables verbose DEBUG logs for the command. | `--debug` |
-
-Supported predicate operators:
-
-```text
-field=value      exact text match
-field!=value     exact text mismatch
-field~value      case-insensitive substring match
-field>value      numeric greater-than
-field>=value     numeric greater-than-or-equal
-field<value      numeric less-than
-field<=value     numeric less-than-or-equal
-```
-
-Filterable metadata fields are the `all_isins` columns:
-
-| Field | Type | Typical use with `metadata-builder` |
-| --- | --- | --- |
-| `isin` | Text | Select one ISIN or exclude a known ISIN: `--where isin=IE0000000001`. |
-| `exchange` | Text | Restrict to one listing exchange: `--where exchange=XETRA`. |
-| `code` | Text | Restrict to one exchange-local symbol/code: `--where code=SXR8`. |
-| `name` | Text | Filter by fund or instrument name; prefer `--name-contains` or `--where name~UCITS`. |
-| `instrument_type` | Text | Restrict instrument class, for example `--where instrument_type=ETF`. |
-| `country` | Text | Restrict country metadata when EODHD provides it: `--where country=DE`. |
-| `currency` | Text | Restrict listing currency: `--where currency=EUR`. |
-| `source_exchange` | Text | Restrict the EODHD exchange list that produced the row: `--where source_exchange=XETRA`. |
-| `fetched_at` | ISO timestamp text | Audit or advanced snapshot filtering. Text operators work; numeric operators are not appropriate. |
-
-`univariate_statistics` builds reusable per-ISIN statistics from validated Silver quote files. Returns are daily log returns, `ln(P_t / P_{t-1})`, based on adjusted close:
-
-```bash
-uv run portfell univariate-statistics
-```
-
-`univariate_statistics` only runs for the latest persisted `metadata_builder` selection. It does not scan every Silver quote file by default. Use `--selection-id <metadata_builder_selection_id>` only when intentionally rebuilding an older metadata selection.
-
-Univariate Statistics parallelizes per-listing work across all CPU cores visible to the system by default. Use `--concurrency <workers>` to cap worker processes, for example `--concurrency 1` for deterministic single-process debugging.
-
-`univariate_selection` reads the univariate statistics table, applies conjunctive metric predicates, and writes the same referencable selection shape as `metadata_builder`:
-
-```bash
-uv run portfell univariate-selection --where sharpe_ratio>0 --where sortino_ratio>0 --where max_drawdown>-0.3
-```
-
-Available `univariate-selection` options:
-
-```text
---debug
-  Write verbose DEBUG logs.
-
---root <path>
-  Lake root to read from. Defaults to lake.
-
---where <predicate>
-  Required. Add one conjunctive predicate. Repeat this option for multiple predicates.
-
---selection-name <name>
-  Optional stable human-readable name used in the generated selection id.
-```
-
-Supported predicate operators are the same as `metadata-builder`:
-
-```text
-field=value      exact text match
-field!=value     exact text mismatch
-field~value      case-insensitive substring match
-field>value      numeric greater-than
-field>=value     numeric greater-than-or-equal
-field<value      numeric less-than
-field<=value     numeric less-than-or-equal
-```
-
-The current Univariate Statistics UI intentionally presents only the following portfolio-facing
-statistics. Their exact definitions are also shown in the UI; additional Gold fields below remain
-available as cached technical/schema data but are not user-facing statistics for now:
-
-| UI statistic | Field | Unit |
-| --- | --- | --- |
-| Annual Return | `annualized_geometric_return` | % |
-| Value at Risk | `var` | % |
-| Sortino Ratio | `sortino_ratio` | ratio |
-| Expected Shortfall | `expected_shortfall` | % |
-| Tail Observations | `tail_observation_count` | observations |
-| Sharpe Ratio | `sharpe_ratio` | ratio |
-| Maximum Drawdown | `max_drawdown` | % |
-| Trend R-squared | `trend_r_squared` | ratio |
-| Dividends | `distribution_frequency`, `annual_dividend_yield` | payout type, % |
-
-Filterable univariate fields are the full `univariate_statistics` schema. For portfolio compilation they are grouped by decision use:
-
-| Portfolio category | Purpose | Fields |
-| --- | --- | --- |
-| Instrument Identity | Identify the listing before deduplication, broker mapping, and portfolio display. | `isin`, `exchange`, `code` |
-| History Coverage | Decide whether a listing has enough aligned history for portfolio inputs. | `first_quote_date`, `last_quote_date`, `quote_observation_count`, `first_return_date`, `last_return_date`, `return_observation_count`, `meets_min_history_252`, `meets_min_history_504`, `meets_min_history_756` |
-| Return Level | Rank and sanity-check absolute performance without treating it as a forecast. | `start_adjusted_close`, `end_adjusted_close`, `total_return`, `cagr`, `cumulative_log_return`, `annualized_return`, `annualized_log_return`, `annualized_simple_return`, `annualized_geometric_return` |
-| Return Distribution | Inspect day-to-day return shape before risk and allocation decisions. | `mean_log_return`, `median_log_return`, `min_log_return`, `max_log_return`, `mean_simple_return`, `median_simple_return`, `min_simple_return`, `max_simple_return`, `positive_day_ratio` |
-| Volatility And Downside Risk | Screen unstable instruments before covariance, risk-parity, and frontier work. | `daily_log_return_std`, `daily_simple_return_std`, `annualized_volatility`, `realized_variance`, `realized_volatility`, `downside_deviation` |
-| Risk-Adjusted Performance | Compare return per unit of broad or downside risk while avoiding single-metric selection. | `sharpe_ratio`, `sortino_ratio` |
-| Tail Risk | Filter instruments with unacceptable historical loss tails for defensive profiles. | `confidence_level`, `var`, `expected_shortfall`, `tail_observation_count` |
-| Drawdown And Trend | Assess NAV erosion, recovery risk, and trend quality before portfolio inclusion. | `max_drawdown`, `log_price_slope`, `trend_r_squared` |
-| Income Distribution | Support income-oriented portfolios and distinguish distributing from accumulating funds. | `distribution_frequency`, `distribution_events_per_year`, `last_distribution_date`, `distribution_observation_count` |
-| Data Quality And Production Readiness | Exclude unreliable listings before bivariate statistics and portfolio optimization. | `availability_reason`, `quarantined_price_count`, `non_positive_price_detected`, `duplicate_date_detected`, `stale_price_detected`, `unexplained_gap_detected`, `production_eligible`, `data_quality_reason` |
-
-Univariate feature semantics, ranges, and units. The empirical column is computed from the current local `lake/gold/univariate_statistics` snapshot with 1,759 rows. It is a descriptive `mean +/- 3 std` band and is not clipped to the valid technical range:
-
-| Feature | Meaning | Range | Unit | Empirical mean [mean - 3 std, mean + 3 std] |
-| --- | --- | --- | --- | --- |
-| `isin` | Instrument ISIN identifier. | Text. | Identifier | n/a |
-| `exchange` | Listing exchange code. | Text. | Identifier | n/a |
-| `code` | EODHD listing code/ticker. | Text. | Identifier | n/a |
-| `confidence_level` | Tail-risk confidence level used for `var` and `expected_shortfall`. | `0 < x < 1`; default `0.975`. | Ratio | `0.975000 [0.975000, 0.975000]` |
-| `first_quote_date` | First adjusted-close quote date used. | ISO date or empty only if input is invalid. | Date | n/a |
-| `last_quote_date` | Last adjusted-close quote date used. | ISO date or empty only if input is invalid. | Date | n/a |
-| `quote_observation_count` | Number of quote rows for the listing. | Integer `>= 1`. | Rows | `2142.04 [-2257.06, 6541.13]` |
-| `first_return_date` | First daily return date after the first quote. | ISO date, or empty when no return exists. | Date | n/a |
-| `last_return_date` | Last daily return date. | ISO date, or empty when no return exists. | Date | n/a |
-| `return_observation_count` | Number of daily return observations. | Integer `>= 0`. | Rows | `2141.04 [-2258.06, 6540.13]` |
-| `start_adjusted_close` | First adjusted close in the quote window. | Price value; normally `> 0`. | Quote currency | `36.4431 [-243.38, 316.27]` |
-| `end_adjusted_close` | Last adjusted close in the quote window. | Price value; normally `> 0`. | Quote currency | `71.1315 [-313.50, 455.76]` |
-| `total_return` | Full-period simple return, `end_adjusted_close / start_adjusted_close - 1`. | `[-1, +inf)` for positive start prices; `0` when start price is non-positive. | Return ratio | `1.1820 [-5.7049, 8.0689]` |
-| `cagr` | Compound annual growth rate from `total_return` and elapsed calendar days. | `[-1, +inf)` in normal cases; `0` when elapsed days are invalid. | Return ratio per year | `0.077467 [-0.278795, 0.433729]` |
-| `cumulative_log_return` | Sum of daily log returns. | `(-inf, +inf)`. | Log-return | `0.536784 [-1.6418, 2.7154]` |
-| `mean_log_return` | Arithmetic mean of daily log returns. | `(-inf, +inf)`. | Log-return per trading day | `0.000214 [-0.006451, 0.006879]` |
-| `median_log_return` | Median daily log return. | `(-inf, +inf)`. | Log-return per trading day | `0.000491 [-0.002391, 0.003372]` |
-| `min_log_return` | Worst daily log return. | `(-inf, +inf)`. | Log-return per trading day | `-0.106668 [-1.1257, 0.912378]` |
-| `max_log_return` | Best daily log return. | `(-inf, +inf)`. | Log-return per trading day | `0.075366 [-0.354978, 0.505709]` |
-| `mean_simple_return` | Arithmetic mean of daily simple returns. | `[-1, +inf)` for positive prices. | Return ratio per trading day | `0.000996 [-0.082198, 0.084191]` |
-| `median_simple_return` | Median daily simple return. | `[-1, +inf)` for positive prices. | Return ratio per trading day | `0.000491 [-0.002360, 0.003343]` |
-| `min_simple_return` | Worst daily simple return. | `[-1, +inf)` for positive prices. | Return ratio per trading day | `-0.083130 [-0.344142, 0.177882]` |
-| `max_simple_return` | Best daily simple return. | `[-1, +inf)` for positive prices. | Return ratio per trading day | `0.179605 [-12.4563, 12.8155]` |
-| `daily_log_return_std` | Sample standard deviation of daily log returns. | `[0, +inf)`. | Log-return per trading day | `0.011412 [-0.061499, 0.084322]` |
-| `daily_simple_return_std` | Sample standard deviation of daily simple returns. | `[0, +inf)`. | Return ratio per trading day | `0.017311 [-0.845750, 0.880371]` |
-| `annualized_return` | Alias of `annualized_log_return`. | `(-inf, +inf)`. | Log-return per year | `0.053898 [-1.6257, 1.7335]` |
-| `annualized_log_return` | Mean daily log return multiplied by `252`. | `(-inf, +inf)`. | Log-return per year | `0.053898 [-1.6257, 1.7335]` |
-| `annualized_simple_return` | Mean daily simple return multiplied by `252`. | `(-inf, +inf)`. | Return ratio per year | `0.251049 [-20.7140, 21.2161]` |
-| `annualized_geometric_return` | `exp(annualized_log_return) - 1`. | `[-1, +inf)`. | Return ratio per year | `0.078848 [-0.280280, 0.437976]` |
-| `annualized_volatility` | Daily log-return standard deviation multiplied by `sqrt(252)`. | `[0, +inf)`. | Log-return volatility per year | `0.181154 [-0.976263, 1.3386]` |
-| `realized_variance` | Sum of squared daily log returns over the observed window. | `[0, +inf)`. | Squared log-return | `1.5105 [-136.76, 139.78]` |
-| `realized_volatility` | Square root of `realized_variance`. | `[0, +inf)`. | Log-return | `0.498391 [-2.8729, 3.8697]` |
-| `downside_deviation` | Annualized downside deviation from negative daily log returns. | `[0, +inf)`. | Log-return downside volatility per year | `0.133032 [-0.884647, 1.1507]` |
-| `sharpe_ratio` | `annualized_log_return / annualized_volatility`; risk-free rate is not subtracted. | `(-inf, +inf)`; `0` when denominator is `0`. | Unitless ratio | `0.556117 [-2.0657, 3.1780]` |
-| `sortino_ratio` | `annualized_log_return / downside_deviation`; risk-free rate is not subtracted. | `(-inf, +inf)`; `0` when denominator is `0`. | Unitless ratio | `0.864118 [-5.1227, 6.8509]` |
-| `var` | Historical loss quantile from negative daily log returns at `confidence_level`. | `(-inf, +inf)` technically; positive values are losses, negative values are gains at the quantile. | Daily log-return loss | `0.020483 [-0.016485, 0.057450]` |
-| `expected_shortfall` | Mean historical loss in the tail at or beyond `var`. | `(-inf, +inf)` technically; positive values are tail losses. | Daily log-return loss | `0.033034 [-0.202473, 0.268540]` |
-| `tail_observation_count` | Number of return observations in the tail used for expected shortfall. | Integer `>= 0`. | Rows | `54.0119 [-56.0055, 164.03]` |
-| `max_drawdown` | Worst peak-to-trough adjusted-close drawdown. | `[-1, 0]` for positive prices. | Return ratio | `-0.304281 [-0.861031, 0.252469]` |
-| `positive_day_ratio` | Share of daily log returns greater than `0`. | `[0, 1]`. | Ratio | `0.524554 [0.418500, 0.630608]` |
-| `log_price_slope` | Linear-regression slope of `ln(adjusted_close)` over quote index. | `(-inf, +inf)`. | Log-price change per quote row | `0.000253 [-0.001997, 0.002502]` |
-| `trend_r_squared` | R-squared of the log-price trend regression. | `[0, 1]` in normal cases. | Unitless ratio | `0.642729 [-0.291661, 1.5771]` |
-| `availability_reason` | Basic availability status for the statistic row. | `ok` or `insufficient_returns`. | Category | n/a |
-| `quarantined_price_count` | Count of invalid price rows excluded by the shared return-quality policy. | Integer `>= 0`. | Rows | n/a |
-| `non_positive_price_detected` | Whether any non-positive price was detected. | `true` or `false`. | Boolean | n/a |
-| `duplicate_date_detected` | Whether duplicate quote dates were detected. | `true` or `false`. | Boolean | n/a |
-| `stale_price_detected` | Whether stale repeated prices were detected by the quality gate. | `true` or `false`. | Boolean | n/a |
-| `unexplained_gap_detected` | Whether unexplained quote-date gaps were detected. | `true` or `false`. | Boolean | n/a |
-| `meets_min_history_252` | Whether the listing has at least 252 valid observations. | `true` or `false`. | Boolean | n/a |
-| `meets_min_history_504` | Whether the listing has at least 504 valid observations. | `true` or `false`. | Boolean | n/a |
-| `meets_min_history_756` | Whether the listing has at least 756 valid observations. | `true` or `false`. | Boolean | n/a |
-| `production_eligible` | Whether the listing passes the current production-quality gate. | `true` or `false`. | Boolean | n/a |
-| `data_quality_reason` | Main reason explaining production eligibility or exclusion. | Category text such as `ok` or a quality-failure reason. | Category | n/a |
-| `distribution_frequency` | Inferred dividend distribution cadence from Bronze dividend dates. | `monthly`, `quarterly`, `semiannual`, `annual`, `irregular`, `accumulating`, or `unknown`. | Category | `accumulating=1104`, `irregular=349`, `quarterly=94`, `semiannual=91`, `annual=77`, `unknown=24`, `monthly=20` |
-| `distribution_events_per_year` | Annualized event rate from first to last positive dividend event. | `[0, +inf)`. | Events per year | `1.0295 [-4.8443, 6.9032]` |
-| `last_distribution_date` | Latest positive dividend event date. | ISO date, or empty when no dividend event exists. | Date | n/a |
-| `distribution_observation_count` | Number of positive dividend events used for distribution inference. | Integer `>= 0`. | Rows | `8.7322 [-43.8037, 61.2681]` |
-
-`bivariate_statistics` computes reusable pairwise statistics for the latest persisted `univariate_selection` selection by default. Pair metrics are computed once per unordered ISIN pair and only on the intersection of shared return dates:
-
-```bash
-uv run portfell bivariate-statistics
-```
-
-Use `--selection-id <selection_id>` only when intentionally rebuilding a specific `univariate_selection` or `metadata_builder` selection.
-
-Bivariate Statistics aligns every selected listing to one shared return-date intersection before pair work begins, so every covariance, correlation, tail, rolling, and drawdown statistic in a run represents the same period. API summaries and matrices report that period as `date_start` and `date_end`. Pair work then runs across all CPU cores visible to the system by default; use `--concurrency <workers>` to cap worker processes.
-
-`multivariate_statistics` computes portfolio-level analytics for the latest persisted `univariate_selection` selection by default. It filters Silver quotes to the selected listings, builds one universe-wide aligned return matrix, and uses only that shared calendar for asset, risk-model, optimization, frontier, walk-forward, rebalance, and tail-risk outputs. Both research and production summaries expose `date_start`, `date_end`, and `observation_count` for the matrix used:
-
-```bash
-uv run portfell multivariate-statistics
-```
-
-Multivariate Statistics parallelizes the selected Gold input build across all CPU cores visible to the system by default, and cache mode also passes the same worker count to univariate and bivariate cache refreshes. Use `--concurrency <workers>` to cap worker processes, for example `--concurrency 1` for deterministic single-process debugging. Use `--use-selection-statistics-cache` to consume reusable selection statistics views and reuse unchanged portfolio runs.
-
-Module outputs are intentionally reusable:
-
-```text
-lake/reference/all_isins/
-lake/silver/metadata_builder/{selection_id}/
-lake/gold/univariate_statistics/{exchange}/{ISIN}.parquet
-lake/silver/univariate_selection/{selection_id}/
-lake/gold/bivariate_statistics/{left_exchange}/{left_ISIN}/{left_code}/{right_exchange}__{right_ISIN}__{right_code}.parquet
-```
-
-Statistic paths deliberately do not include a selection id. Later metadata or univariate selections can therefore reuse already computed per-ISIN and pair statistics for unchanged listings and unchanged pairs instead of recomputing them.
-
-## Scheduled Portfell Cron
-
-The hosted/local-app runtime refreshes canonical shared market data inside the
-`project-bootstrap-worker` container. The Metadata Builder can request the initial
-historical download for a new project's selected listings; server-side workflow code calls EODHD
-and reuses an active run. Install the idempotent managed cron block from the absolute repository
-root:
-
-```bash
-portfell-shared-market-cron run-once --project-root "$(pwd)"
-portfell-shared-market-cron install --project-root "$(pwd)"
-portfell-shared-market-cron status --project-root "$(pwd)"
-```
-
-The job runs weekly on Sunday at `09:00 Europe/Amsterdam`, uses `/usr/bin/flock -n`, and appends output to
-`/var/log/portfell/shared-market-refresh.log`. It executes inside the existing worker, which refreshes the de-duplicated active-project inventory with bounded
-correction overlap. See [Shared Market Refresh Operations](docs/shared-market-refresh.md) for
-initial backfill, verification, recovery, log rotation, and uninstall instructions.
-
-## EODHD Request Safety
-
-Portfell sends EODHD requests without a default client-side delay and retries transient failures. Bronze is safe for unattended cron execution with bounded EODHD parallelism capped at a default concurrency of `2`. Cron runs respect provider `Retry-After` responses, use stable run ids, resume safely after partial failures, and avoid overlapping writes for the same lake root.
-
-Prefer `.secrets/eodhd.yaml` for the API token:
-
-```yaml
-eodhd:
-  api_key: "your-token"
-```
-
-`.env.local` remains supported for non-secret local tuning and fallback token loading. Tune these values there when the subscription limit changes:
-
-```text
-EODHD_TIMEOUT_SECONDS=30
-EODHD_MAX_RETRIES=2
-EODHD_MIN_REQUEST_INTERVAL_SECONDS=0
-EODHD_RETRY_BACKOFF_SECONDS=0.5
-```
-
-Set `EODHD_MIN_REQUEST_INTERVAL_SECONDS` to a positive value only when an EODHD subscription requires client-side pacing. HTTP `429` responses are retried when retries remain. If EODHD sends `Retry-After`, Portfell waits for that duration before retrying; otherwise it uses incremental backoff.
-
-## Logging And Debugging
-
-Portfell writes uniformly formatted logs under `.logs/`. Plain log files are kept for seven days, then zipped; zipped logs older than one month are deleted. `.logs/` is ignored by Git.
-
-Target module commands should support `--debug` for more detailed module logs:
-
-```bash
-uv run portfell fetch-all-metadata --debug
-uv run portfell metadata-builder --debug
-uv run portfell univariate-statistics --debug
-uv run portfell univariate-selection --debug
-uv run portfell bivariate-statistics --debug
-```
-
-The log format is consistent across Portfell modules:
-
-```text
-YYYY-MM-DDTHH:MM:SSZ LEVEL logger.name message
-```
-
-## Quality Gates
-
-[GATES.md](GATES.md) is the source of truth for GitHub quality gates, branch protection, auto-merge, shard layout, coverage policy, and local validation commands.
-
-## Hosted Development Runtime
-
-The hosted development runtime is defined in [compose.yaml](compose.yaml). It starts internal PostgreSQL, the API container, and the Web container with one named persistent PostgreSQL volume. Market observations are read through the configured external market database, not a mounted filesystem. Runtime secret file paths come from `.env.example` variables and must point to absolute host paths outside this repository.
-
-```bash
-docker compose --env-file .env.local up --build
-```
-
-During local development, start the complete application stack with Compose watch:
-
-```bash
-docker compose --env-file .env.local up --build --watch
-```
-
-For stacked UI PR development, check out the active UI branch before starting Compose watch. The application containers rebuild from that branch state, so each UI stack change is visible locally without landing the branch on `main`.
-
-The Compose watch contract rebuilds the Web service when its inputs change and rebuilds API, migration, and worker services when their shared runtime inputs change. If Compose watch is not available, keep a second terminal running:
-
-```bash
-uv run portfell-compose-watch
-```
-
-The fallback watcher tracks `apps/web`, `apps/api`, `src`, `compose.yaml`, `.dockerignore`, `pyproject.toml`, and `uv.lock`.
-Whenever one of those inputs changes, it rebuilds the complete Compose stack with:
-
-```bash
-docker compose --env-file .env.local up --build -d
-```
-
-The hosted API is exposed by `portfell.hosted_api` and uses PostgreSQL as its control-plane authority. It reads market observations through the configured external market-data gateway; it never mounts a repository `lake`, NAS market directory, or user workspace. Metadata Builder creates an immutable selection and queues its exact initial fill. The internal `project-bootstrap-worker` updates durable job status.
-
-The Web container serves the four-module research workspace: Metadata Builder, Univariate Statistics, Bivariate Statistics, and Multivariate Statistics. Desktop layouts expose the server-owned project selector and workflow hierarchy in a persistent sidebar; at `900px` and below, the same hierarchy is available through the accessible project-navigation drawer. Workflow state, credentials, selections, and calculations remain server-owned in PostgreSQL and published shared revisions.
-
-Browser state is derived from API responses. The Web surface must not store EODHD keys, ciphertext, fingerprints, or sensitive API responses in `localStorage`, `sessionStorage`, URLs, analytics, logs, or rendered error output.
-
-Hosted deployment readiness is described by `docs/security/hosted_readiness.json` and `docs/security/hosted_readiness.md`. The container runtime uses PostgreSQL plus the configured external market-data gateway; deterministic local adapters are test/CLI-only. Release cutover must additionally pass `uv run python -m portfell.hosted_readiness --require-public-hosted`.
-
-Run the deterministic hosted cutover proof with:
-
-```bash
-uv run python -m portfell.hosted_cutover
-```
-
-Install dependencies with:
-
-```bash
-uv sync --dev
-```
-
-Install the pre-commit hook with:
-
-```bash
-uv run pre-commit install
-```
-
-Run all hooks manually with:
-
-```bash
-uv run pre-commit run --all-files
-```
-
-## Documentation Refresh
-
-Generate the tracked documentation review report with:
-
-```bash
-uv run portfell-docs-refresh
-```
-
-The command writes `docs/docs_refresh_report.json` and reports which top-level project docs are present and whether their `Last reviewed:` marker is current enough to inspect manually.
-
-## Keep This README Up To Date
-
-Update this file whenever:
-
-- the project goal or portfolio objective changes;
-- the EODHD universe count or discovery method changes;
-- quote ingestion, validation, or optimization workflows are implemented;
-- tracked datasets, commands, or configuration conventions change;
-- architecture, risks, backlog, or decisions add facts that affect user-facing project understanding.
+No broker execution or provider acquisition is part of the final runtime.
