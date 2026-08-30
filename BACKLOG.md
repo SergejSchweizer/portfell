@@ -502,6 +502,10 @@ Acceptance: active/inactive, duplicate ISIN/full identity, missing adjusted, div
 All depend on PR323 and are parallel siblings.
 
 - PR324 `chore/pr324-delete-eodhd-client`: delete EODHD client/search/fetch CLI and executable provider acquisition.
+
+  Git status: integrated on `main` at `54eb044`; the complete PR quality gate passes (`972 passed`).
+  The main gate remains blocked at `89%` coverage until PR325 and PR327 remove the corresponding
+  legacy persistence and shared-refresh implementation.
 - PR325 `chore/pr325-delete-market-medallion`: delete market Bronze/Silver/Gold persistence/pipeline while retaining pure analytics moved elsewhere.
 - PR326 `chore/pr326-delete-market-filesystem-plane`: delete market NAS/filesystem authority; preserve unrelated analytical/app artifacts only.
 
