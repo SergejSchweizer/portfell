@@ -5,9 +5,21 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
+class FixturePublicError(RuntimeError):
+    """Typed fixture failure carrying a public code and deliberately sensitive detail."""
+
+    code = "fixture_univariate_failed"
+
+    def __init__(self) -> None:
+        super().__init__("internal fixture detail postgres://fixture-secret@localhost")
+
+
 @dataclass
 class DashParityFixtureService:
     level: int = 0
+    universe_revision: int = 1
+    fail_next_univariate: bool = False
+    failure_count: int = 0
 
     def metadata_options(self) -> dict[str, object]:
         return {
@@ -19,8 +31,11 @@ class DashParityFixtureService:
         }
 
     def active_listings(self, **filters: object) -> tuple[dict[str, object], ...]:
-        del filters
-        return (
+        exchange = filters.get("exchange")
+        instrument_type = filters.get("instrument_type")
+        country = filters.get("country")
+        currency = filters.get("currency")
+        rows = (
             {
                 "isin": "DE000TEST01",
                 "exchange": "XETRA",
@@ -40,17 +55,33 @@ class DashParityFixtureService:
                 "currency": "EUR",
             },
         )
+        expected = {
+            "exchange": exchange,
+            "instrument_type": instrument_type,
+            "country": country,
+            "currency": currency,
+        }
+        return tuple(
+            row
+            for row in rows
+            if all(value in {None, row[name]} for name, value in expected.items())
+        )
 
     def metadata_history(self) -> tuple[dict[str, object], ...]:
         return () if self.level < 1 else (self._universe(),)
 
     def create_metadata_universe(self, **filters: object) -> object:
-        del filters
+        if not self.active_listings(**filters):
+            raise RuntimeError("fixture_universe_empty")
         self.level = max(self.level, 1)
         return self._universe()
 
     def run_univariate(self, universe_id: str) -> dict[str, object]:
-        assert universe_id == "fixture-universe-1"
+        assert universe_id == self._universe_id()
+        if self.fail_next_univariate:
+            self.fail_next_univariate = False
+            self.failure_count += 1
+            raise FixturePublicError()
         self.level = max(self.level, 2)
         return self._univariate_run()
 
@@ -77,6 +108,11 @@ class DashParityFixtureService:
         assert objective in {"return_risk", "return_drawdown", "minimum_risk"}
         self.level = max(self.level, 5)
         return self._multivariate_run(objective)
+
+    def advance_universe_revision(self) -> None:
+        """Publish a new upstream revision and remove stale descendants from current projection."""
+        self.universe_revision += 1
+        self.level = 1
 
     def workflow_state(self) -> dict[str, object]:
         universe = self._universe() if self.level >= 1 else None
@@ -159,12 +195,14 @@ class DashParityFixtureService:
             return self._multivariate_detail()
         raise KeyError(run_id)
 
-    @staticmethod
-    def _universe() -> dict[str, object]:
+    def _universe_id(self) -> str:
+        return f"fixture-universe-{self.universe_revision}"
+
+    def _universe(self) -> dict[str, object]:
         return {
-            "universe_id": "fixture-universe-1",
-            "version": 1,
-            "source_snapshot_id": "market_source_snapshot_fixture",
+            "universe_id": self._universe_id(),
+            "version": self.universe_revision,
+            "source_snapshot_id": f"market_source_snapshot_fixture_{self.universe_revision}",
             "member_count": 2,
             "created_at": "2026-08-30T00:00:00+00:00",
             "published_at": "2026-08-30T00:00:00+00:00",
@@ -181,7 +219,7 @@ class DashParityFixtureService:
             "stage": "univariate",
             "status": "succeeded",
             "input_ref": "fixture-universe-1",
-            "input_snapshot_id": "market_source_snapshot_fixture",
+            "input_snapshot_id": "market_source_snapshot_fixture_1",
             "algorithm_version": "univariate.statistics.v2",
         }
 
@@ -207,7 +245,7 @@ class DashParityFixtureService:
             "stage": "bivariate",
             "status": "succeeded",
             "input_ref": "fixture-selection-1",
-            "input_snapshot_id": "market_source_snapshot_fixture",
+            "input_snapshot_id": "market_source_snapshot_fixture_1",
             "algorithm_version": "bivariate.statistics.v1",
         }
 
@@ -218,7 +256,7 @@ class DashParityFixtureService:
             "stage": "multivariate",
             "status": "succeeded",
             "input_ref": "fixture-bivariate-run",
-            "input_snapshot_id": "market_source_snapshot_fixture",
+            "input_snapshot_id": "market_source_snapshot_fixture_1",
             "algorithm_version": "multivariate_execution.clean.v1",
             "objective": objective,
         }
@@ -248,8 +286,18 @@ class DashParityFixtureService:
                             "method": "minimum_variance",
                             "max_drawdown": -0.13,
                             "weights": [
-                                {"isin": "DE000TEST01", "exchange": "XETRA", "code": "AAA", "weight": 0.55},
-                                {"isin": "DE000TEST02", "exchange": "XETRA", "code": "BBB", "weight": 0.45},
+                                {
+                                    "isin": "DE000TEST01",
+                                    "exchange": "XETRA",
+                                    "code": "AAA",
+                                    "weight": 0.55,
+                                },
+                                {
+                                    "isin": "DE000TEST02",
+                                    "exchange": "XETRA",
+                                    "code": "BBB",
+                                    "weight": 0.45,
+                                },
                             ],
                         }
                     ]
@@ -303,3 +351,6 @@ class DashParityFixtureService:
                 },
             },
         }
+
+
+__all__ = ["DashParityFixtureService", "FixturePublicError"]
