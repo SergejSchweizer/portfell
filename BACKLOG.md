@@ -254,8 +254,8 @@ PR340(live QA) -> PR341(E2E) -> PR342(runbook) -> PR343(closeout)
 
 ### Execution status — 2026-08-30
 
-- PR320 is implemented in GitHub PR #496 (`refactor/pr320-univariate-market-source`, head `32d3d19`). It is mergeable, but the required `merge-gate` is infrastructure-blocked: repeated runs fail all 14 jobs before any executable step starts and no runner is assigned. This is **not** a PASS and PR320 must not be integrated until the required gate succeeds.
-- PR321 is implemented in GitHub PR #497 (`refactor/pr321-bivariate-market-source`, head `ac1e624`). It is mergeable and has the same pre-step/pre-runner `merge-gate` failure. It remains a sibling branch from the PR318 predecessor and must be rebased after PR320 integrates so the shared workflow/repository composition is combined without regression.
+- PR320 is integrated on `main` at `03cec1a`. It reads each Univariate computation from one coherent market snapshot and its complete local merge gate passes (`1034 passed`).
+- PR321 is integrated on `main` at `8172ed4`. It reads each Bivariate computation from one coherent market snapshot and its complete local merge gate passes (`1029 passed`).
 - PR322 is implemented in GitHub PR #498 (`refactor/pr322-multivariate-market-source`, head `0a73d60`). It is mergeable and has the same pre-step/pre-runner `merge-gate` failure. It must be rebased after PR320 and PR321 integrate before final validation/integration.
 - PR323 and all downstream source/Dash PRs are intentionally not started while their merged-predecessor contract is unmet. This preserves the exact dependency order in section 2 rather than stacking unvalidated production changes.
 - The external xetra-loader production V2 artifact gate is now cleared: `artifacts/acceptance/postgres-full-sync-v2.json` exists on xetra-loader `main` and reports `status: PASS`. PR340 is therefore no longer blocked by the external artifact itself, but it still cannot start until PR339 is merged.
@@ -445,6 +445,10 @@ Acceptance: full identity/predicates preserved; inactive excluded from new unive
 Branch: `refactor/pr320-univariate-market-source`
 
 Depends on: PR318.
+
+Git status: integrated on `main` at `03cec1a`. Univariate reads are pinned to a coherent
+external-market snapshot with deterministic lineage; the complete local merge gate passes
+(`1034 passed`).
 
 Scope: quotes/dividends through one gateway snapshot; remove download/shared-market branches.
 
