@@ -8,7 +8,6 @@ from typing import Any
 import pytest
 
 from portfell.architecture_checks import check_architecture
-from portfell.gold import write_gold_inputs
 from portfell.gold_pair_stats import bucket_correlation_edges, index_returns, iter_pair_observations
 from portfell.paths import LakePaths
 from portfell.portfolio import (
@@ -205,12 +204,12 @@ def test_gold_pair_engine_assigns_deterministic_edge_buckets() -> None:
     assert by_bucket[1][0]["bucket"] == 1
 
 
-def test_job_manifest_redacts_secrets_and_gold_writes_compatibility_manifest(
+def test_job_manifest_redacts_secrets_without_market_pipeline_output(
     tmp_path: Path,
 ) -> None:
     paths = LakePaths(root=tmp_path / "lake")
     manifest = build_job_manifest(
-        job_type="bronze",
+        job_type="analytics",
         run_id="run-1",
         status="failed",
         input_paths=["b", "a"],
@@ -224,33 +223,7 @@ def test_job_manifest_redacts_secrets_and_gold_writes_compatibility_manifest(
 
     assert payload["input_paths"] == ["a", "b"]
     assert payload["error_summary"][0]["api_token"] == "<redacted>"
-    assert read_job_manifest(paths, "bronze", "run-1") == payload
-
-    write_gold_inputs(
-        paths,
-        [
-            {
-                "isin": "IE1",
-                "exchange": "XETRA",
-                "code": "AAA",
-                "date": "2026-07-10",
-                "adjusted_close": 100,
-            },
-            {
-                "isin": "IE1",
-                "exchange": "XETRA",
-                "code": "AAA",
-                "date": "2026-07-11",
-                "adjusted_close": 101,
-            },
-        ],
-        concurrency=1,
-    )
-
-    gold_manifest = read_job_manifest(paths, "gold", "gold-2026-07-11")
-    assert gold_manifest["status"] == "completed"
-    assert gold_manifest["row_counts"]["returns"] == 1
-    assert gold_manifest["concurrency"] == 1
+    assert read_job_manifest(paths, "analytics", "run-1") == payload
 
 
 def test_optimizer_diagnostics_are_deterministic_metadata(tmp_path: Path) -> None:

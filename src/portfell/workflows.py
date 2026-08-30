@@ -19,7 +19,6 @@ from portfell.paths import LakePaths
 from portfell.portfolio import PortfolioConstraints
 from portfell.run_locks import module_run_lock
 from portfell.selection_filters import parse_predicates
-from portfell.silver import read_silver_quotes
 from portfell.table_io import read_json, read_rows
 from portfell.univariate_selection import run_univariate_selection, selection_rows
 from portfell.univariate_statistics import (
@@ -72,7 +71,7 @@ def run_univariate_statistics_workflow(
             fields={"root": root, "selection_id": resolved_selection_id},
         )
         selected_rows = _metadata_selection_rows(paths, resolved_selection_id)
-        quotes = _filter_quotes_to_selection(read_silver_quotes(paths), selected_rows)
+        quotes = _filter_quotes_to_selection(_read_transitional_quote_rows(paths), selected_rows)
         dividends = _filter_quotes_to_selection(_read_bronze_dividends(paths), selected_rows)
         rows = write_univariate_statistics(
             paths,
@@ -132,7 +131,7 @@ def run_bivariate_statistics_workflow(
             event="started",
             fields={"root": root, "selection_id": resolved_selection_id},
         )
-        quotes = read_silver_quotes(paths)
+        quotes = _read_transitional_quote_rows(paths)
         quotes = _filter_quotes_to_selection(quotes, selection_rows(paths, resolved_selection_id))
         returns = build_quote_returns(quotes)
         rows = write_bivariate_statistics(paths, returns, concurrency=concurrency)
@@ -240,6 +239,19 @@ def _metadata_selection_rows(paths: LakePaths, selection_id: str) -> list[dict[s
 def _read_bronze_dividends(paths: LakePaths) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for path in sorted((paths.bronze / "dividends").glob("*/*/*.parquet")):
+        rows.extend(read_rows(path))
+    return rows
+
+
+def _read_transitional_quote_rows(paths: LakePaths) -> list[dict[str, Any]]:
+    """Read historical analytical artifacts pending PR326 lake removal.
+
+    Hosted production research does not use this transitional CLI helper; it
+    obtains one coherent snapshot from ``MarketDataGateway`` instead.
+    """
+
+    rows: list[dict[str, Any]] = []
+    for path in sorted((paths.silver / "quotes").glob("*/*.parquet")):
         rows.extend(read_rows(path))
     return rows
 
