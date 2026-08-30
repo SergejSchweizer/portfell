@@ -26,6 +26,23 @@ def test_clean_runtime_imports_without_legacy_market_cli() -> None:
         assert importlib.import_module(module) is not None
 
 
+def test_unreachable_legacy_market_and_multi_tenant_runtime_modules_are_absent() -> None:
+    """The clean runtime must not carry unimported legacy authority just for compatibility."""
+
+    retired_modules = (
+        "hosted_cutover.py",
+        "hosted_download_run_schema.py",
+        "hosted_market_source_bivariate_repository.py",
+        "hosted_navigation_reconciler.py",
+        "hosted_project_workflow_projection_schema.py",
+        "hosted_status_event_retention_schema.py",
+        "hosted_status_event_schema.py",
+        "metadata_builder.py",
+        "univariate_selection.py",
+    )
+    assert all(not (PACKAGE / module).exists() for module in retired_modules)
+
+
 def test_locked_runtime_has_no_provider_or_loader_python_dependency() -> None:
     pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8").lower()
     lock = (ROOT / "uv.lock").read_text(encoding="utf-8").lower()
