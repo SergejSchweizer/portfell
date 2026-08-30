@@ -1335,30 +1335,16 @@ Frozen v2 parameters unless a later versioned backlog PR changes them:
 Dependency graph:
 
 ```text
-PR360
-  |
-PR361
-  |
-PR362
-  |-------------------------------|
-  |               |               |
-PR363           PR364           PR367
-  |               |               |
-PR366           PR365           PR368
-  |                               |
-  +-------------> PR369 <----------+
-                    |
-                  PR370
-                    |
-PR371 --------------+
-  |                  |
-  +-------> PR372 <--+-- PR365 -- PR366 -- PR368
-             |
-      PR373 || PR374
-             |
-           PR375
-             |
-           PR376(QA)
+PR360 -> PR361 -> PR362
+PR362 -> PR363
+PR362 -> PR364 -> PR365
+PR363 -> PR366
+PR363 -> PR367 -> PR368
+PR363 + PR367 -> PR369 -> PR370
+PR367 -> PR371
+PR365 + PR366 + PR368 + PR370 + PR371 -> PR372
+PR372 -> PR373 || PR374 || PR375
+PR373 + PR374 + PR375 -> PR376(QA)
 ```
 
 ### PR361 — Freeze Multivariate Structure v2 quantitative contract
@@ -1500,7 +1486,7 @@ Acceptance:
 
 Branch: `feat/pr367-hierarchical-risk-clusters`
 
-Depends on: PR362.
+Depends on: PR363.
 
 Owned paths: new pure cluster module, structure adapter and focused tests. HRP implementation is explicitly out of scope.
 
