@@ -12,7 +12,6 @@ from portfell.market_source.connection import (
     validate_reader_role,
 )
 
-
 ROOT = Path(__file__).resolve().parents[1]
 WEB = ROOT / "apps" / "web"
 
@@ -68,7 +67,14 @@ def test_market_postgres_contract_remains_read_only_non_superuser_group_membersh
     assert "rolsuper" in role_validation
     assert "row != (True, False, True)" in role_validation
 
-    forbidden_dml = ("INSERT INTO", "UPDATE ", "DELETE FROM", "TRUNCATE ", "ALTER TABLE", "DROP TABLE")
+    forbidden_dml = (
+        "INSERT INTO",
+        "UPDATE ",
+        "DELETE FROM",
+        "TRUNCATE ",
+        "ALTER TABLE",
+        "DROP TABLE",
+    )
     for statement in forbidden_dml:
         assert statement not in preflight.upper()
         assert statement not in snapshot.upper()
