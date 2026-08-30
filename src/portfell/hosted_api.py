@@ -42,7 +42,6 @@ from portfell.hosted_routes_metadata_projects import metadata_project_router
 from portfell.hosted_routes_research import research_router
 from portfell.hosted_routes_status_events import status_event_router
 from portfell.hosted_status_event_stream import StatusEventConnectionLimiter
-from portfell.hosted_user_repository import PostgresHostedUserRepository
 from portfell.market_source.config import (
     load_app_database_config,
     load_market_source_config,
@@ -77,7 +76,7 @@ __all__ = [
 
 
 class HostedApiError(RuntimeError):
-    """Raised when the hosted API cannot satisfy a user-scoped request."""
+    """Raised when the hosted API cannot satisfy a workspace request."""
 
 
 def create_app(
@@ -93,12 +92,15 @@ def create_app(
     request_scope: RequestScopedPostgresConnection | None = None,
     ensure_user: Callable[[str], object] | None = None,
 ) -> FastAPI:
-    """Compose the hosted application and its concern-specific route adapters."""
+    """Compose the trusted single-workspace application and route adapters.
+
+    ``current_user_provider`` and ``ensure_user`` remain injectable for deterministic legacy
+    tests only. Production composition does not expose either as runtime authority: every request
+    uses the one frozen workspace principal and no hosted-user lifecycle repository is composed.
+    """
 
     resolved_state = state or HostedApiState()
-    provider = current_user_provider or ConfiguredUserProvider(
-        user_id=os.environ.get("PORTFELL_LOCAL_WORKSPACE_USER_ID", DEFAULT_LOCAL_WORKSPACE_USER_ID)
-    )
+    provider = current_user_provider or ConfiguredUserProvider()
     if services is None:
         raise HostedApiError("hosted_services_must_be_explicit")
     credentials, metadata, research = services
@@ -152,7 +154,7 @@ def create_app(
 
 
 def create_runtime_app() -> FastAPI:
-    """Create the persistent container application when secrets are configured."""
+    """Create the persistent single-workspace container application."""
 
     if os.environ.get("PORTFELL_HOSTED_AUTHORITY") != "postgres":
         raise HostedApiError("postgres_hosted_authority_required")
@@ -170,6 +172,9 @@ def create_runtime_app() -> FastAPI:
     state = HostedApiState()
     return create_app(
         state,
+        current_user_provider=ConfiguredUserProvider(
+            user_id=DEFAULT_LOCAL_WORKSPACE_USER_ID
+        ),
         services=build_postgres_services(
             state,
             request_scope=request_scope,
@@ -184,7 +189,6 @@ def create_runtime_app() -> FastAPI:
             ),
         ),
         request_scope=request_scope,
-        ensure_user=PostgresHostedUserRepository(request_scope).create,
     )
 
 

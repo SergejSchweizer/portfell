@@ -13,14 +13,17 @@ from portfell.hosted_navigation_read_model_repository import PostgresNavigationR
 from portfell.hosted_project_settings_repository import PostgresProjectSettingsRepository
 from portfell.hosted_repository_importer import PostgresProjectRepository
 from portfell.hosted_selection_repository import PostgresSelectionRepository
-from portfell.hosted_user_repository import PostgresHostedUserRepository
 
 
 @dataclass(frozen=True)
 class PostgresHostedRepositoryBundle:
-    """All control-plane repositories sharing one request-scoped connection."""
+    """Transitional analytical repositories sharing one workspace connection.
 
-    users: PostgresHostedUserRepository
+    The production bundle intentionally contains no hosted-user, tenant-membership, project-
+    membership, or provider-credential repository. Legacy database objects may remain until the
+    destructive database replacement wave, but they are no longer runtime authorities here.
+    """
+
     projects: PostgresProjectRepository
     selections: PostgresSelectionRepository
     metadata: PostgresMetadataLifecycleRepository
@@ -36,7 +39,6 @@ class PostgresHostedRepositoryBundle:
         """Compose adapters without opening a second connection or transaction."""
 
         return cls(
-            users=PostgresHostedUserRepository(connection),  # type: ignore[arg-type]
             projects=PostgresProjectRepository(connection),  # type: ignore[arg-type]
             selections=PostgresSelectionRepository(connection),  # type: ignore[arg-type]
             metadata=PostgresMetadataLifecycleRepository(connection),  # type: ignore[arg-type]
