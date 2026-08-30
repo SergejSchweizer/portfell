@@ -12,11 +12,7 @@ export type WorkflowPageId =
   | "bivariate_statistics"
   | "multivariate_statistics";
 
-export type WorkflowModuleId =
-  | "metadata_builder"
-  | "univariate_statistics"
-  | "bivariate_statistics"
-  | "multivariate_statistics";
+export type WorkflowModuleId = WorkflowPageId;
 
 export type WorkflowPage = Readonly<{
   id: WorkflowPageId;
@@ -36,23 +32,23 @@ export type WorkflowModule = Readonly<{
 export const workflowModules: readonly WorkflowModule[] = [
   {
     id: "metadata_builder",
-    title: "Metadata Builder",
-    boundary: "Builds one project-scoped metadata selection; it does not calculate financial statistics.",
+    title: "Metadata",
+    boundary: "Builds the current workspace metadata selection; it does not calculate financial statistics.",
   },
   {
     id: "univariate_statistics",
-    title: "Univariate Statistics",
-    boundary: "Calculates and filters per-ISIN statistics from the selected project's historical data.",
+    title: "Univariate",
+    boundary: "Calculates and filters per-instrument statistics from the current workspace selection.",
   },
   {
     id: "bivariate_statistics",
-    title: "Bivariate Statistics",
-    boundary: "Calculates pairwise statistics from the univariate module's selected ISIN set.",
+    title: "Bivariate",
+    boundary: "Calculates pairwise statistics from the persisted univariate selection.",
   },
   {
     id: "multivariate_statistics",
-    title: "Multivariate Statistics",
-    boundary: "Consumes the completed bivariate ISIN universe for portfolio-level analysis.",
+    title: "Multivariate",
+    boundary: "Consumes the completed bivariate universe for portfolio-level analysis.",
   },
 ];
 
@@ -61,38 +57,50 @@ export const workflowPages: readonly WorkflowPage[] = [
     id: "metadata_builder",
     moduleId: "metadata_builder",
     stageId: "metadata_builder",
-    title: "Metadata Builder",
-    path: "/metadata-builder",
+    title: "Metadata",
+    path: "/metadata",
     component: MetadataBuilderPage,
   },
   {
     id: "univariate_statistics",
     moduleId: "univariate_statistics",
     stageId: "univariate_statistics",
-    title: "Univariate Statistics",
-    path: "/univariate-statistics",
+    title: "Univariate",
+    path: "/univariate",
     component: UnivariateStatisticsPage,
   },
   {
     id: "bivariate_statistics",
     moduleId: "bivariate_statistics",
     stageId: "bivariate_statistics",
-    title: "Bivariate Statistics",
-    path: "/bivariate-statistics",
+    title: "Bivariate",
+    path: "/bivariate",
     component: BivariateStatisticsPage,
   },
   {
     id: "multivariate_statistics",
     moduleId: "multivariate_statistics",
     stageId: "multivariate_statistics",
-    title: "Multivariate Statistics",
-    path: "/multivariate-statistics",
+    title: "Multivariate",
+    path: "/multivariate",
     component: MultivariateStatisticsPage,
   },
 ];
 
-const projectPathPattern = /^\/projects\/([^/]+)(\/[^/?#]+)$/;
+/** Transitional compatibility helper: project identity no longer changes browser routing. */
+export function projectWorkflowPath(
+  _project: Pick<ApiProjectSummary, "project_id" | "name">,
+  page: WorkflowPage,
+): string {
+  return page.path;
+}
 
+/** Project slugs are retired from the canonical single-workspace browser routes. */
+export function projectSlugFromPath(_pathname: string): string | null {
+  return null;
+}
+
+/** Retained only for callers compiled during the legacy-UI freeze; it is not a route authority. */
 export function projectSlug(name: string): string {
   const slug = name
     .normalize("NFKD")
@@ -103,21 +111,6 @@ export function projectSlug(name: string): string {
   return slug || "project";
 }
 
-export function projectWorkflowPath(project: Pick<ApiProjectSummary, "project_id" | "name">, page: WorkflowPage): string {
-  return `/projects/${projectSlug(project.name)}${page.path}`;
-}
-
-export function projectSlugFromPath(pathname: string): string | null {
-  const match = pathname.match(projectPathPattern);
-  if (!match) return null;
-  try {
-    return decodeURIComponent(match[1]);
-  } catch {
-    return null;
-  }
-}
-
 export function currentWorkflowPage(pathname: string): WorkflowPage {
-  const workflowPath = pathname.match(projectPathPattern)?.[2] ?? pathname;
-  return workflowPages.find((page) => page.path === workflowPath) ?? workflowPages[0];
+  return workflowPages.find((page) => page.path === pathname) ?? workflowPages[0];
 }
