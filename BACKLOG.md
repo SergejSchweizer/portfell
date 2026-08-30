@@ -258,6 +258,7 @@ PR340(live QA) -> PR341(E2E) -> PR342(runbook) -> PR343(closeout)
 - PR321 is integrated on `main` at `8172ed4`. It reads each Bivariate computation from one coherent market snapshot and its complete local merge gate passes (`1029 passed`).
 - PR322 is integrated on `main` at `511a32c`. It consumes source-pinned Multivariate inputs, preserves solver and validation semantics, and its complete local merge gate passes (`1037 passed`).
 - PR323 is integrated on `main` at `c106498`; the four-stage semantic QA passes (`1040 passed`). The PR324–PR331 deletion-wave siblings are now unblocked and may proceed in parallel; later PRs remain governed by their explicit dependencies.
+- PR328 is integrated on `main` at `3549ad8`. It removes hosted provider-download, metadata-refresh, bootstrap, and quote-run lifecycle surfaces while retaining source-backed analytics; the complete PR gate passes (`911 passed`).
 - The external xetra-loader production V2 artifact gate is now cleared: `artifacts/acceptance/postgres-full-sync-v2.json` exists on xetra-loader `main` and reports `status: PASS`. PR340 is therefore no longer blocked by the external artifact itself, but it still cannot start until PR339 is merged.
 
 ### PR308 — Xetra source contract foundation
@@ -518,7 +519,7 @@ All depend on PR323 and are parallel siblings.
   cross-sibling adaptation, the retained legacy cron entry point is fail-closed and disabled
   without any filesystem, Compose, or market refresh action; PR327 owns its final deletion.
 - PR327 `chore/pr327-delete-shared-market-refresh`: delete Portfell-owned market refresh/publisher/cron/cache plane; xetra-loader owns refresh.
-- PR328 `chore/pr328-delete-hosted-download-lifecycle`: delete hosted market download routes/workers/jobs.
+- PR328 `chore/pr328-delete-hosted-download-lifecycle`: integrated on `main` at `3549ad8`; hosted market download routes/workers/jobs are deleted.
 - PR329 `chore/pr329-delete-provider-credentials`: delete provider credential backend; do not replace it with plaintext config.
 - PR330 `chore/pr330-freeze-legacy-web-provider-ui`: delete provider-loading UI/actions. This PR must not add React features; it only removes provider controls and leaves the old UI transitional until PR356.
 - PR331 `chore/pr331-delete-hosted-local-market-runtime`: delete residual hosted local market runtime and EODHD/token/KEK/provider runtime config not owned by siblings.
