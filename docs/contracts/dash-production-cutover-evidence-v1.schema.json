@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://portfell.local/contracts/dash-production-cutover-evidence-v1.schema.json",
+  "title": "Portfell Dash production cutover evidence v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract",
+    "status",
+    "deployed_commit_sha",
+    "browser_parity",
+    "clean_runtime_qa",
+    "backup",
+    "app_database",
+    "market_database",
+    "workflow",
+    "browser_acceptance",
+    "restart_acceptance",
+    "negative_space"
+  ],
+  "properties": {
+    "contract": {"const": "dash-production-cutover-evidence-v1"},
+    "status": {"enum": ["PASS", "FAIL"]},
+    "deployed_commit_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "browser_parity": {"$ref": "#/$defs/gateEvidence"},
+    "clean_runtime_qa": {"$ref": "#/$defs/gateEvidence"},
+    "backup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["identifier", "checksum", "created_at"],
+      "properties": {
+        "identifier": {"type": "string", "minLength": 1},
+        "checksum": {"type": "string", "minLength": 1},
+        "created_at": {"type": "string", "format": "date-time"}
+      }
+    },
+    "app_database": {"$ref": "#/$defs/databaseIdentity"},
+    "market_database": {"$ref": "#/$defs/databaseIdentity"},
+    "workflow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["metadata_run", "univariate_run", "bivariate_run", "multivariate_run", "decision_artifact"],
+      "properties": {
+        "metadata_run": {"type": "string", "minLength": 1},
+        "univariate_run": {"type": "string", "minLength": 1},
+        "bivariate_run": {"type": "string", "minLength": 1},
+        "multivariate_run": {"type": "string", "minLength": 1},
+        "decision_artifact": {"type": "string", "minLength": 1}
+      }
+    },
+    "browser_acceptance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["evidence_id", "screenshots"],
+      "properties": {
+        "evidence_id": {"type": "string", "minLength": 1},
+        "screenshots": {
+          "type": "array",
+          "minItems": 12,
+          "maxItems": 12,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "restart_acceptance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "observed_at"],
+      "properties": {
+        "status": {"const": "PASS"},
+        "observed_at": {"type": "string", "format": "date-time"}
+      }
+    },
+    "negative_space": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["legacy_web_absent", "legacy_database_absent", "provider_acquisition_absent", "dash_sql_absent", "sync_schema_inaccessible"],
+      "properties": {
+        "legacy_web_absent": {"const": true},
+        "legacy_database_absent": {"const": true},
+        "provider_acquisition_absent": {"const": true},
+        "dash_sql_absent": {"const": true},
+        "sync_schema_inaccessible": {"const": true}
+      }
+    }
+  },
+  "$defs": {
+    "gateEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["run_id", "status"],
+      "properties": {
+        "run_id": {"type": "string", "minLength": 1},
+        "status": {"const": "PASS"}
+      }
+    },
+    "databaseIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["host", "port", "database", "schema", "role"],
+      "properties": {
+        "host": {"type": "string", "minLength": 1},
+        "port": {"type": "integer", "minimum": 1, "maximum": 65535},
+        "database": {"type": "string", "minLength": 1},
+        "schema": {"type": "string", "minLength": 1},
+        "role": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}
