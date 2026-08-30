@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import Protocol, cast
 
-from dash import Dash, Input, Output, State, ctx, no_update
+from dash import Dash, Input, Output, State, no_update
 
 from portfell.dash_app.state import BrowserState, browser_state_from_workflow
 
@@ -66,21 +66,25 @@ def execute_action(
                 bivariate_run_id=state.bivariate_run_id,
                 objective=objective,
             )
-        elif action in {"pf-location", "pf-job-poll"}:
+        elif action == "refresh":
             pass
         else:
             return state
         return persisted_browser_state(service)
     except Exception as error:
         code = getattr(error, "code", None)
+        try:
+            persisted = persisted_browser_state(service)
+        except Exception:
+            persisted = state
         return replace(
-            persisted_browser_state(service),
+            persisted,
             message_code=str(code) if isinstance(code, str) else "action_failed",
         )
 
 
 def register_callbacks(app: Dash, services: object | None) -> None:
-    """Register one shared mutation callback; route renders themselves remain read-only."""
+    """Register route-safe page actions; GET/render paths never mutate analytical state."""
     if services is None:
         return
     service = cast(CallbackService, services)
@@ -89,49 +93,102 @@ def register_callbacks(app: Dash, services: object | None) -> None:
         Output("pf-browser-state", "data"),
         Input("pf-location", "pathname"),
         Input("pf-job-poll", "n_intervals"),
+        prevent_initial_call=False,
+    )
+    def _refresh_state(_pathname: str | None, _poll: int) -> dict[str, object]:
+        return execute_action(service, BrowserState(), action="refresh").to_store()
+
+    @app.callback(
+        Output("pf-browser-state", "data", allow_duplicate=True),
         Input("metadata-create-universe", "n_clicks"),
-        Input("univariate-compute", "n_clicks"),
-        Input("univariate-save-selection", "n_clicks"),
-        Input("bivariate-compute", "n_clicks"),
-        Input("multivariate-optimize", "n_clicks"),
         State("pf-browser-state", "data"),
         State("metadata-filter-exchange", "value"),
         State("metadata-filter-instrument-type", "value"),
         State("metadata-filter-country", "value"),
         State("metadata-filter-currency", "value"),
-        State("multivariate-objective", "value"),
-        prevent_initial_call=False,
+        prevent_initial_call=True,
     )
-    def _shared_action(
-        _pathname: str | None,
-        _poll: int,
-        _metadata_create: int | None,
-        _univariate_compute: int | None,
-        _univariate_save: int | None,
-        _bivariate_compute: int | None,
-        _multivariate_optimize: int | None,
+    def _create_universe(
+        n_clicks: int | None,
         store: object,
         exchange: str | None,
         instrument_type: str | None,
         country: str | None,
         currency: str | None,
-        objective: str | None,
-    ) -> dict[str, object]:
-        state = BrowserState.from_store(store)
-        action = str(ctx.triggered_id or "pf-location")
-        updated = execute_action(
+    ) -> dict[str, object] | object:
+        if not n_clicks:
+            return no_update
+        return execute_action(
             service,
-            state,
-            action=action,
+            BrowserState.from_store(store),
+            action="metadata-create-universe",
             filters={
                 "exchange": exchange,
                 "instrument_type": instrument_type,
                 "country": country,
                 "currency": currency,
             },
+        ).to_store()
+
+    @app.callback(
+        Output("pf-browser-state", "data", allow_duplicate=True),
+        Input("univariate-compute", "n_clicks"),
+        State("pf-browser-state", "data"),
+        prevent_initial_call=True,
+    )
+    def _compute_univariate(n_clicks: int | None, store: object) -> dict[str, object] | object:
+        if not n_clicks:
+            return no_update
+        return execute_action(
+            service, BrowserState.from_store(store), action="univariate-compute"
+        ).to_store()
+
+    @app.callback(
+        Output("pf-browser-state", "data", allow_duplicate=True),
+        Input("univariate-save-selection", "n_clicks"),
+        State("pf-browser-state", "data"),
+        prevent_initial_call=True,
+    )
+    def _save_univariate_selection(
+        n_clicks: int | None, store: object
+    ) -> dict[str, object] | object:
+        if not n_clicks:
+            return no_update
+        return execute_action(
+            service, BrowserState.from_store(store), action="univariate-save-selection"
+        ).to_store()
+
+    @app.callback(
+        Output("pf-browser-state", "data", allow_duplicate=True),
+        Input("bivariate-compute", "n_clicks"),
+        State("pf-browser-state", "data"),
+        prevent_initial_call=True,
+    )
+    def _compute_bivariate(n_clicks: int | None, store: object) -> dict[str, object] | object:
+        if not n_clicks:
+            return no_update
+        return execute_action(
+            service, BrowserState.from_store(store), action="bivariate-compute"
+        ).to_store()
+
+    @app.callback(
+        Output("pf-browser-state", "data", allow_duplicate=True),
+        Input("multivariate-optimize", "n_clicks"),
+        State("pf-browser-state", "data"),
+        State("multivariate-objective", "value"),
+        prevent_initial_call=True,
+    )
+    def _optimize_multivariate(
+        n_clicks: int | None, store: object, objective: str | None
+    ) -> dict[str, object] | object:
+        if not n_clicks:
+            return no_update
+        return execute_action(
+            service,
+            BrowserState.from_store(store),
+            action="multivariate-optimize",
             objective=objective or "return_risk",
-        )
-        return updated.to_store()
+        ).to_store()
 
     @app.callback(
         Output("pf-job-poll", "disabled"),
