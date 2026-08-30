@@ -10,7 +10,9 @@ readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
     "cryptography>=45.0.0",
+    "dash>=4.4.1",
     "fastapi>=0.116.0",
+    "plotly>=6.5.0",
     "polars>=1.43.2",
     "psycopg[binary]>=3.2.9",
     "uvicorn>=0.35.0",
@@ -175,7 +177,6 @@ forbidden_modules = [
     "portfell.hosted_univariate_service",
     "portfell.hosted_routes_common",
     "portfell.hosted_routes_credentials",
-    "portfell.hosted_routes_metadata_projects",
     "portfell.hosted_routes_quote_runs",
     "portfell.hosted_routes_research",
 ]
