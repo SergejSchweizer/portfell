@@ -6,137 +6,26 @@ import argparse
 import json
 import logging
 from collections.abc import Sequence
-from datetime import date
 from pathlib import Path
 
 from portfell.logging import get_logger, log_event, setup_logging
 from portfell.univariate_statistics import DEFAULT_CONFIDENCE_LEVEL
 from portfell.workflows import (
     run_bivariate_statistics_workflow,
-    run_fetch_all_metadata_workflow,
-    run_fetch_all_quotes_workflow,
     run_metadata_builder_workflow,
     run_multivariate_statistics_workflow,
-    run_search_workflow,
     run_univariate_selection_workflow,
     run_univariate_statistics_workflow,
 )
 
 DEFAULT_ROOT = Path("lake")
-DEFAULT_SEARCH_INPUT = Path("docs/eodhd_ucits_etf_matches.csv")
 LOGGER = get_logger(__name__)
-
-
-def _parse_date(value: str) -> date:
-    return date.fromisoformat(value)
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Portfell portfolio data tooling.")
     parser.add_argument("--debug", action="store_true", help="Write verbose DEBUG logs.")
     subparsers = parser.add_subparsers(dest="command")
-    search = subparsers.add_parser("search", help="Run Search for a discovery query.")
-    search.add_argument(
-        "--debug",
-        action="store_true",
-        default=argparse.SUPPRESS,
-        help="Write verbose DEBUG logs.",
-    )
-    search.add_argument(
-        "query", help="Search string to find in candidate names, for example UCITS ETF."
-    )
-    search.add_argument(
-        "--root", default=str(DEFAULT_ROOT), help="Lake root for generated artifacts."
-    )
-    search.add_argument(
-        "--input",
-        default=str(DEFAULT_SEARCH_INPUT),
-        help="CSV/JSON candidate source. Defaults to the checked-in UCITS ETF dataset.",
-    )
-    search.add_argument(
-        "--search-run-id",
-        help="Optional stable identifier. Generated from query and date by default.",
-    )
-    search.add_argument("--run-date", type=_parse_date, help="Optional search run date YYYY-MM-DD.")
-    search.add_argument(
-        "--no-approve", action="store_true", help="Do not approve the generated canonical universe."
-    )
-    fetch_all_metadata = subparsers.add_parser(
-        "fetch-all-metadata",
-        help="Fetch the full EODHD ISIN metadata universe.",
-    )
-    fetch_all_metadata.add_argument(
-        "--debug",
-        action="store_true",
-        default=argparse.SUPPRESS,
-        help="Write verbose DEBUG logs.",
-    )
-    fetch_all_metadata.add_argument(
-        "--root", default=str(DEFAULT_ROOT), help="Lake root to write to."
-    )
-    fetch_all_metadata.add_argument(
-        "--exchange-code",
-        action="append",
-        default=[],
-        help="Exchange code to fetch. May be repeated. Defaults to all EODHD exchanges.",
-    )
-    fetch_all_metadata.add_argument(
-        "--include-delisted",
-        action="store_true",
-        help="Include delisted symbols when EODHD provides them.",
-    )
-    fetch_all_quotes = subparsers.add_parser(
-        "fetch-all-quotes",
-        help="Fetch quote, dividend, and split data for the latest metadata-builder selection.",
-    )
-    fetch_all_quotes.add_argument(
-        "--debug",
-        action="store_true",
-        default=argparse.SUPPRESS,
-        help="Write verbose DEBUG logs.",
-    )
-    fetch_all_quotes.add_argument(
-        "--root", default=str(DEFAULT_ROOT), help="Lake root to write to."
-    )
-    fetch_all_quotes.add_argument(
-        "--run-id",
-        help="Optional stable run id. Defaults to fetch-all-quotes plus the end date.",
-    )
-    fetch_all_quotes.add_argument(
-        "--start-date",
-        type=_parse_date,
-        help="Optional first quote date YYYY-MM-DD. Empty means full provider history.",
-    )
-    fetch_all_quotes.add_argument(
-        "--end-date",
-        type=_parse_date,
-        help="Optional last quote date YYYY-MM-DD. Defaults to today.",
-    )
-    fetch_all_quotes.add_argument(
-        "--limit",
-        type=int,
-        help="Optional maximum approved listings to fetch.",
-    )
-    fetch_all_quotes.add_argument(
-        "--isin",
-        help="Optional single ISIN from the latest metadata-builder selection to fetch.",
-    )
-    fetch_all_quotes.add_argument(
-        "--no-gap-aware",
-        action="store_true",
-        help="Disable Silver-based gap planning and request the whole requested date window.",
-    )
-    fetch_all_quotes.add_argument(
-        "--no-raw-datasets",
-        action="store_true",
-        help="Do not fetch companion raw dividends and splits datasets.",
-    )
-    fetch_all_quotes.add_argument(
-        "--concurrency",
-        type=int,
-        default=2,
-        help="Worker thread count for EODHD requests and Silver writes. Defaults to 2.",
-    )
     metadata_builder = subparsers.add_parser(
         "metadata-builder",
         help="Create a metadata-based ISIN selection.",
@@ -361,34 +250,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         event="args_parsed",
         fields={"command": args.command},
     )
-    if args.command == "search":
-        summary = run_search_workflow(
-            root=Path(args.root),
-            input_path=Path(args.input),
-            query=args.query,
-            search_run_id=args.search_run_id,
-            run_date=args.run_date,
-            approve=not args.no_approve,
-        )
-    elif args.command == "fetch-all-metadata":
-        summary = run_fetch_all_metadata_workflow(
-            root=Path(args.root),
-            exchange_codes=tuple(args.exchange_code),
-            include_delisted=args.include_delisted,
-        )
-    elif args.command == "fetch-all-quotes":
-        summary = run_fetch_all_quotes_workflow(
-            root=Path(args.root),
-            run_id=args.run_id,
-            start_date=args.start_date,
-            end_date=args.end_date,
-            limit=args.limit,
-            isin=args.isin,
-            gap_aware=not args.no_gap_aware,
-            include_raw_datasets=not args.no_raw_datasets,
-            concurrency=args.concurrency,
-        )
-    elif args.command == "metadata-builder":
+    if args.command == "metadata-builder":
         summary = run_metadata_builder_workflow(
             root=Path(args.root),
             predicates=tuple(args.where),

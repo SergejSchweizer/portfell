@@ -15,7 +15,6 @@ from portfell.evaluation import write_evaluation_outputs, write_portfolio_evalua
 from portfell.gold import write_gold_inputs
 from portfell.paths import LakePaths
 from portfell.portfolio import PortfolioConstraints, write_optimized_weights
-from portfell.search import approve_universe, write_canonical_universe, write_search_run
 from portfell.silver import write_silver_quotes
 from portfell.table_io import JsonRow, write_json, write_rows
 
@@ -89,15 +88,17 @@ def run_dry_run(root: Path) -> JsonRow:
     search_run_id = "search-2026-07-12"
     now = datetime(2026, 7, 12, tzinfo=UTC)
 
-    write_search_run(
-        SAMPLE_CANDIDATES,
-        paths=paths,
-        search_run_id=search_run_id,
-        run_date=date(2026, 7, 12),
-        found_at=now,
-    )
-    canonical = write_canonical_universe(paths, search_run_id)
-    pointer = approve_universe(paths, search_run_id, approved_at=now)
+    # The dry run is a deterministic analytical fixture, not discovery.  It
+    # writes its explicit canonical universe directly so it cannot revive the
+    # retired provider-search surface.
+    canonical = _canonical_fixture(SAMPLE_CANDIDATES, search_run_id)
+    write_rows(paths.canonical_universe(search_run_id), canonical)
+    pointer = {
+        "search_run_id": search_run_id,
+        "canonical_universe_path": str(paths.canonical_universe(search_run_id)),
+        "approved_at": now.isoformat(),
+    }
+    write_json(paths.current_universe(), pointer)
     plan = build_bronze_plan(
         canonical,
         run_id=run_id,
@@ -147,3 +148,36 @@ def run_dry_run(root: Path) -> JsonRow:
     }
     write_json(paths.dry_run_summary(), summary)
     return summary
+
+
+def _canonical_fixture(
+    candidates: tuple[dict[str, str], ...], search_run_id: str
+) -> list[JsonRow]:
+    """Build the fixed dry-run universe without a discovery implementation."""
+
+    selected: dict[str, dict[str, str]] = {}
+    for candidate in candidates:
+        isin = candidate["Isin"]
+        current = selected.get(isin)
+        if current is None or (
+            candidate["Exchange"].upper(), candidate["Code"]
+        ) < (current["Exchange"].upper(), current["Code"]):
+            selected[isin] = candidate
+    return [
+        {
+            "search_run_id": search_run_id,
+            "isin": isin,
+            "code": row["Code"],
+            "exchange": row["Exchange"],
+            "instrument_type": row["Type"],
+            "country": row["Country"],
+            "currency": row["Currency"],
+            "name": row["Name"],
+            "normalized_name": " ".join(row["Name"].casefold().split()),
+            "selection_reason": (
+                "preferred_xetra" if row["Exchange"].upper() == "XETRA" else "fallback_exchange"
+            ),
+            "selected_for_bronze": True,
+        }
+        for isin, row in sorted(selected.items())
+    ]

@@ -9,11 +9,10 @@ from itertools import repeat
 from pathlib import Path
 from typing import Any, cast
 
-from portfell.config import EodhdConfig
 from portfell.hosted_api_errors import HostedRuntimeError
 from portfell.hosted_api_ports import ProgressCallback, Workflow
 from portfell.hosted_research_ports import ResearchDataset, UnivariateProgress
-from portfell.http import EodhdHttpError
+from portfell.market_source.errors import MarketSourceError
 from portfell.metadata_builder import write_metadata_selection
 from portfell.paths import LakePaths
 from portfell.selection_filters import Predicate, parse_predicates
@@ -92,7 +91,6 @@ class LocalHostedRuntime:
             run_id=run_id,
             selection_id=selection_id,
             concurrency=concurrency,
-            eodhd_config=EodhdConfig(api_token=provider_key),
             capture_scoped_rows=True,
             memory_safe=True,
             on_progress=on_progress,
@@ -104,17 +102,11 @@ class LocalHostedRuntime:
         try:
             return self._metadata_workflow(
                 root=self._paths().root,
-                eodhd_config=EodhdConfig(api_token=provider_key),
                 concurrency=concurrency,
                 on_progress=on_progress,
             )
-        except EodhdHttpError as error:
-            code = (
-                "eodhd_key_rejected"
-                if error.status_code in {401, 403}
-                else "eodhd_metadata_unavailable"
-            )
-            raise HostedRuntimeError(code) from error
+        except MarketSourceError as error:
+            raise HostedRuntimeError(error.code) from error
         except PermissionError as error:
             raise HostedRuntimeError("lake_write_permission_denied") from error
         except ValueError as error:

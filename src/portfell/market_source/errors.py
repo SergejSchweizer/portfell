@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+from typing import Never
+
 
 class MarketSourceError(RuntimeError):
     """Typed, redacted market-source failure."""
@@ -28,3 +31,19 @@ FROZEN_ERROR_CODES = frozenset(
         MARKET_SOURCE_INVALID_VALUE,
     }
 )
+
+
+def market_source_required() -> Never:
+    """Fail closed when a retired local acquisition path is invoked."""
+
+    raise MarketSourceError(MARKET_SOURCE_UNAVAILABLE)
+
+
+class UnavailableMarketDataClient:
+    """Minimal non-network seam for transitional lifecycle owners."""
+
+    def get_json(
+        self, path: str, params: Mapping[str, str | int | float] | None = None
+    ) -> Never:
+        del path, params
+        market_source_required()

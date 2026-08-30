@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Never, cast
 
 from portfell.hosted_analysis_service import HostedAnalysisService
 from portfell.hosted_api_local_runtime import LocalHostedRuntime
@@ -18,11 +18,11 @@ from portfell.hosted_local_audit_event_repository import LocalAuditEventReposito
 from portfell.hosted_local_metadata_repository import LocalMetadataLifecycleRepository
 from portfell.hosted_local_project_repository import LocalProjectRepository
 from portfell.hosted_local_selection_repository import LocalSelectionRepository
-from portfell.hosted_metadata_project_service import MetadataProjectService
 from portfell.hosted_market_source_bivariate_service import (
     BivariateMarketSourceData,
     MarketSourceBivariateResearchService,
 )
+from portfell.hosted_metadata_project_service import MetadataProjectService
 from portfell.hosted_multivariate_run_repository import LocalMultivariateRunRepository
 from portfell.hosted_multivariate_service import MultivariateResearchService
 from portfell.hosted_project_settings_repository import LocalProjectSettingsRepository
@@ -34,17 +34,23 @@ from portfell.hosted_research_repository import HostedResearchRepository
 from portfell.hosted_research_service import ResearchService
 from portfell.hosted_shared_quote_publisher import SharedQuotePublisher
 from portfell.hosted_univariate_service import UnivariateResearchService
-from portfell.market_source.gateway import MarketDataGateway
 from portfell.hosted_workspace import LocalWorkspaceStore
 from portfell.hosted_workspace_repository import persist_local_workspace, restore_local_workspace
+from portfell.market_source.errors import market_source_required
+from portfell.market_source.gateway import MarketDataGateway
 from portfell.shared_market_data import SharedMarketDataStore
-from portfell.workflows import run_fetch_all_metadata_workflow, run_fetch_all_quotes_workflow
+
+
+def _retired_market_acquisition(**_: object) -> Never:
+    """Keep legacy lifecycle wiring non-executable until its owner is deleted."""
+
+    market_source_required()
 
 
 def local_runtime() -> LocalHostedRuntime:
     return LocalHostedRuntime(
-        quote_workflow=cast(Workflow, run_fetch_all_quotes_workflow),
-        metadata_workflow=cast(Workflow, run_fetch_all_metadata_workflow),
+        quote_workflow=cast(Workflow, _retired_market_acquisition),
+        metadata_workflow=cast(Workflow, _retired_market_acquisition),
         cpu_count=lambda: os.process_cpu_count(),
     )
 

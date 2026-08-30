@@ -13,13 +13,12 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import date, timedelta
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
-from portfell.config import runtime_eodhd_config
 from portfell.hosted_database_connection import connect
 from portfell.hosted_postgres_active_inventory import PostgresActiveProjectInventory
-from portfell.http import EodhdClient
 from portfell.logging import get_logger, log_event, setup_logging
+from portfell.market_source.errors import market_source_required
 from portfell.shared_market_data import (
     SharedListingKey,
     SharedMarketDataStore,
@@ -357,11 +356,9 @@ def _run_postgres_refresh(
     finally:
         connection.close()
     store = SharedMarketDataStore(root)
-    fetch = (
-        _empty_fetch
-        if args.dry_run
-        else eodhd_fetch(EodhdClient(runtime_eodhd_config(operations_token)))
-    )
+    if not args.dry_run:
+        market_source_required()
+    fetch = _empty_fetch
     result = refresh_shared_market_data(
         store=store,
         listings=listings,
@@ -386,33 +383,6 @@ def operations_token_from_environment() -> str:
         except OSError:
             return ""
     return os.environ.get("PORTFELL_OPERATIONS_EODHD_TOKEN", "").strip()
-
-
-def eodhd_fetch(client: EodhdClient) -> ProviderFetch:
-    endpoints = {"quotes": "eod", "dividends": "div", "splits": "splits"}
-
-    def fetch(request: RefreshRequest) -> Iterable[Mapping[str, Any]]:
-        params: dict[str, str] = {"fmt": "json", "to": request.end_date}
-        if request.start_date:
-            params["from"] = request.start_date
-        payload = client.get_json(
-            f"/{endpoints[request.dataset_type]}/{request.listing.code}.{request.listing.exchange}",
-            params,
-        )
-        if not isinstance(payload, list):
-            raise SharedMarketRefreshError("provider_response_invalid")
-        payload_rows = cast(list[object], payload)
-        return [
-            {**request.listing.as_row(), **dict(cast(Mapping[str, Any], row))}
-            for row in payload_rows
-            if isinstance(row, Mapping)
-        ]
-
-    return fetch
-
-
-# Backward-compatible test seam; production consumers use ``eodhd_fetch``.
-_eodhd_fetch = eodhd_fetch
 
 
 if __name__ == "__main__":

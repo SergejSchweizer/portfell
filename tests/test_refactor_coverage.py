@@ -25,7 +25,6 @@ from portfell.run_locks import layer_run_lock, module_run_lock
 from portfell.silver import build_silver_quotes, read_bronze_quote_rows, write_silver_quotes
 from portfell.table_io import read_json, read_rows, write_rows
 from portfell.univariate_statistics import build_quote_returns, build_univariate_statistics
-from portfell.workflows import generated_run_id, run_search_workflow
 
 
 def _silver_quote(
@@ -84,16 +83,13 @@ def test_module_run_lock_writes_metadata_and_rejects_workflow_contention(
 ) -> None:
     root = tmp_path / "lake"
     paths = LakePaths(root=root)
-    input_path = tmp_path / "candidates.csv"
-    input_path.write_text(
-        "Code,Exchange,Type,Country,Currency,Isin,Name\nAAA,XETRA,ETF,DE,EUR,IE1,Alpha UCITS ETF\n",
-        encoding="utf-8",
-    )
-
     with module_run_lock(paths, "search") as lock_path:
         assert "pid=" in lock_path.read_text(encoding="utf-8")
-        with pytest.raises(RuntimeError, match="search run already active"):
-            run_search_workflow(root=root, input_path=input_path, query="UCITS")
+        with (
+            pytest.raises(RuntimeError, match="search run already active"),
+            module_run_lock(paths, "search"),
+        ):
+            pass
 
 
 def test_silver_reads_bronze_partitions_and_writes_listing_files(tmp_path: Path) -> None:
@@ -165,34 +161,6 @@ def test_silver_builds_independent_listings_with_configured_concurrency(tmp_path
     assert len(read_rows(paths.silver_quote_file("XETRA", "IE1"))) == 1
     assert len(read_rows(paths.silver_quote_file("XETRA", "IE2"))) == 1
     assert len(completed_listings) == 2
-
-
-def test_workflow_search_supports_csv_and_rejects_invalid_json(tmp_path: Path) -> None:
-    root = tmp_path / "lake"
-    csv_path = tmp_path / "candidates.csv"
-    csv_path.write_text(
-        "Code,Exchange,Type,Country,Currency,Isin,Name\nAAA,XETRA,ETF,DE,EUR,IE1,Alpha UCITS ETF\n",
-        encoding="utf-8",
-    )
-
-    summary = run_search_workflow(
-        root=root,
-        input_path=csv_path,
-        query="UCITS",
-        run_date=date(2026, 1, 1),
-    )
-
-    assert summary["search_run_id"] == "search-ucits-20260101"
-    assert generated_run_id("manual", run_date=date(2026, 1, 1)) == "manual-20260101"
-
-    invalid_path = tmp_path / "invalid.json"
-    invalid_path.write_text('{"responses": [1]}', encoding="utf-8")
-    with pytest.raises(ValueError, match="JSON objects"):
-        run_search_workflow(root=root, input_path=invalid_path, query="UCITS")
-
-    invalid_path.write_text('{"unexpected": true}', encoding="utf-8")
-    with pytest.raises(ValueError, match="JSON list"):
-        run_search_workflow(root=root, input_path=invalid_path, query="UCITS")
 
 
 def test_univariate_statistics_cover_invalid_prices_and_single_quote() -> None:

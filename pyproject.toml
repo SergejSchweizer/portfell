@@ -19,7 +19,6 @@ dependencies = [
 [project.scripts]
 portfell = "portfell.cli:main"
 portfell-docs-refresh = "portfell.docs_refresh:main"
-portfell-fetch-all-quotes = "portfell.fetch_all_quotes:main"
 portfell-quality = "portfell.quality:main"
 portfell-compose-web-watch = "portfell.compose_web_watch:main"
 portfell-compose-watch = "portfell.compose_web_watch:main"

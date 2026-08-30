@@ -17,9 +17,8 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from time import monotonic
-from typing import Any, cast
+from typing import Any
 
-from portfell.http import EodhdClient
 from portfell.logging import get_logger, log_event
 from portfell.paths import LakePaths
 from portfell.run_locks import layer_run_lock
@@ -537,41 +536,6 @@ def write_eodhd_dataset_to_bronze(
         },
     )
     return successes, errors
-
-
-def eodhd_quote_loader(client: EodhdClient) -> QuoteLoader:
-    """Wrap `EodhdClient` as a `QuoteLoader` for planned EOD requests."""
-
-    return eodhd_dataset_loader(client, QUOTE_DATASET)
-
-
-def eodhd_dataset_loader(client: EodhdClient, strategy: EodhdDatasetStrategy) -> QuoteLoader:
-    """Wrap `EodhdClient` for one strategy-driven EODHD dataset."""
-
-    def bronze(item: Mapping[str, Any]) -> Sequence[Mapping[str, Any]]:
-        params: dict[str, str] = {"fmt": "json"}
-        start_date = str(item.get("start_date", ""))
-        end_date = str(item.get("end_date", ""))
-        if start_date:
-            params["from"] = start_date
-        if end_date:
-            params["to"] = end_date
-        payload = client.get_json(f"/{strategy.endpoint}/{item['symbol']}", params)
-        if not isinstance(payload, list):
-            raise ValueError(f"expected EODHD {strategy.name} list")
-        payload_rows = cast(list[object], payload)
-        return [cast(Mapping[str, Any], row) for row in payload_rows if isinstance(row, dict)]
-
-    return bronze
-
-
-def eodhd_raw_data_loader(client: EodhdClient, endpoint: str) -> RawDataLoader:
-    """Wrap `EodhdClient` for raw per-symbol EODHD datasets."""
-    strategy = next(
-        (item for item in ADDITIONAL_EODHD_DATASETS if item.endpoint == endpoint),
-        EodhdDatasetStrategy(endpoint, endpoint, _dataset_bronze_path(endpoint)),
-    )
-    return eodhd_dataset_loader(client, strategy)
 
 
 def write_raw_eodhd_datasets_to_bronze(

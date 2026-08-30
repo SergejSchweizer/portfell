@@ -8,8 +8,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
-from portfell.config import runtime_eodhd_config
-from portfell.fetch_all_metadata import fetch_all_metadata
 from portfell.hosted_metadata_refresh_job_repository import (
     ClaimedMetadataRefresh,
     PostgresMetadataRefreshJobRepository,
@@ -17,8 +15,7 @@ from portfell.hosted_metadata_refresh_job_repository import (
 from portfell.hosted_metadata_repository import MetadataRun, PostgresMetadataLifecycleRepository
 from portfell.hosted_navigation_reconciler import PostgresNavigationReconciler
 from portfell.hosted_status_event_repository import PostgresStatusEventRepository
-from portfell.hosted_worker_capacity import resolve_worker_concurrency
-from portfell.http import EodhdClient
+from portfell.market_source.errors import UnavailableMarketDataClient, market_source_required
 from portfell.shared_metadata_catalog import SharedMetadataCatalog
 
 
@@ -99,33 +96,8 @@ class MetadataRefreshWorker:
                 )
             )
 
-        result = fetch_all_metadata(
-            self._client,
-            concurrency=resolve_worker_concurrency(
-                self._cpu_count() or os.cpu_count(), configured_concurrency=self._concurrency
-            ),
-            on_progress=progress,
-        )
-        rows = self._catalog.publish(result.rows)
-        current = self._require_run(claim)
-        self._runs.set_revision(user_id=claim.user_id, revision_id=str(len(rows)))
-        self._runs.update(
-            MetadataRun(
-                current.metadata_run_id,
-                current.user_id,
-                "succeeded",
-                len(result.requested_exchanges),
-                len(result.requested_exchanges),
-                len(result.skipped_exchanges),
-                100,
-                {
-                    "row_count": len(rows),
-                    "exchange_count": len({str(row["source_exchange"]) for row in rows}),
-                    "requested_exchange_count": len(result.requested_exchanges),
-                    "skipped_exchanges": list(result.skipped_exchanges),
-                },
-            )
-        )
+        del progress
+        market_source_required()
 
     def _require_run(self, claim: ClaimedMetadataRefresh) -> MetadataRun:
         run = self._runs.status(user_id=claim.user_id, run_id=claim.metadata_run_id)
@@ -172,6 +144,6 @@ def build_metadata_refresh_worker(
         jobs=jobs,
         runs=runs,
         catalog=SharedMetadataCatalog(shared_data_root),
-        client=EodhdClient(runtime_eodhd_config(operations_token)),
+        client=UnavailableMarketDataClient(),
         concurrency=concurrency,
     )

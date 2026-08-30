@@ -13,9 +13,8 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 from threading import Event, Lock, Thread
-from typing import Protocol
+from typing import Never, Protocol
 
-from portfell.config import runtime_eodhd_config
 from portfell.durable_job_repository import ClaimedJob, PostgresDurableJobRepository
 from portfell.hosted_catalog import set_authenticated_user_sql
 from portfell.hosted_database_connection import connect
@@ -35,14 +34,13 @@ from portfell.hosted_worker_capacity import (
     resolve_worker_concurrency,
     worker_concurrency_from_environment,
 )
-from portfell.http import EodhdClient
 from portfell.logging import get_logger, log_event, setup_logging
+from portfell.market_source.errors import market_source_required
 from portfell.shared_market_data import SharedListingKey, SharedMarketDataStore
 from portfell.shared_market_refresh import (
     ProviderFetch,
     RefreshResult,
     SharedMarketRefreshError,
-    eodhd_fetch,
     operations_token_from_environment,
     refresh_shared_market_data,
 )
@@ -293,6 +291,12 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _retired_market_acquisition(_: object) -> Never:
+    """Keep the retained bootstrap lifecycle unable to acquire market data."""
+
+    market_source_required()
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run worker-owned initial fills and metadata refreshes with the operations credential."""
 
@@ -355,7 +359,7 @@ def main(argv: list[str] | None = None) -> int:
             jobs=bootstrap_jobs,
             members_for_selection=PostgresSelectionMembers(bootstrap_connection),
             store=SharedMarketDataStore(Path(root)),
-            fetch=eodhd_fetch(EodhdClient(runtime_eodhd_config(token))),
+            fetch=_retired_market_acquisition,
             end_date=date.today(),
             concurrency=concurrency,
         )

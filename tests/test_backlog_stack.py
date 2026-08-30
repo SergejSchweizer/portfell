@@ -1,7 +1,5 @@
-import csv
 from datetime import UTC, date, datetime
 from math import log
-from pathlib import Path
 
 import pytest
 
@@ -25,15 +23,8 @@ from portfell.gold import (
 from portfell.paths import LakePaths
 from portfell.pipeline import run_dry_run
 from portfell.schemas import dataset_contract, required_fields, validate_fields, validate_rows
-from portfell.search import (
-    approve_universe,
-    resolve_current_universe,
-    select_canonical,
-    write_canonical_universe,
-    write_search_run,
-)
 from portfell.silver import write_silver_quotes
-from portfell.table_io import read_json, read_rows, write_rows
+from portfell.table_io import read_rows, write_rows
 
 
 def test_lake_schemas_and_paths_cover_backlog_tables(tmp_path) -> None:  # type: ignore[no-untyped-def]
@@ -72,121 +63,9 @@ def test_dataset_contract_registry_preserves_required_fields() -> None:
         dataset_contract("missing")
 
 
-def test_search_writes_candidates_selects_canonical_and_approves_universe(tmp_path) -> None:  # type: ignore[no-untyped-def]
-    paths = LakePaths(root=tmp_path / "lake")
-    raw = [
-        {
-            "Code": "LSE1",
-            "Exchange": "LSE",
-            "Type": "ETF",
-            "Country": "UK",
-            "Currency": "GBP",
-            "Isin": "IE1",
-            "Name": "Fund A",
-        },
-        {
-            "Code": "XET1",
-            "Exchange": "XETRA",
-            "Type": "ETF",
-            "Country": "DE",
-            "Currency": "EUR",
-            "Isin": "IE1",
-            "Name": "Fund A",
-        },
-        {
-            "Code": "MISS",
-            "Exchange": "XETRA",
-            "Type": "ETF",
-            "Country": "DE",
-            "Currency": "EUR",
-            "Name": "Missing ISIN",
-        },
-        {
-            "Code": "AMS1",
-            "Exchange": "AS",
-            "Type": "ETF",
-            "Country": "NL",
-            "Currency": "EUR",
-            "Isin": "IE2",
-            "Name": "Fund B",
-        },
-    ]
-
-    candidates = write_search_run(
-        raw,
-        paths=paths,
-        search_run_id="search-1",
-        run_date=date(2026, 7, 12),
-        found_at=datetime(2026, 7, 12, tzinfo=UTC),
-    )
-    canonical = write_canonical_universe(paths, "search-1")
-    pointer = approve_universe(paths, "search-1")
-
-    assert len(candidates) == 4
-    assert [row["isin"] for row in canonical] == ["IE1", "IE2"]
-    assert canonical[0]["exchange"] == "XETRA"
-    assert canonical[1]["selection_reason"] == "fallback_exchange"
-    assert read_json(paths.search_summary("search-1"))["missing_isin_rows"] == 1
-    assert resolve_current_universe(paths).as_posix() == pointer["canonical_universe_path"]
-
-
-def test_resolve_current_universe_fails_for_stale_pointer(tmp_path) -> None:  # type: ignore[no-untyped-def]
-    paths = LakePaths(root=tmp_path / "lake")
-    write_search_run(
-        [
-            {
-                "Code": "XET1",
-                "Exchange": "XETRA",
-                "Type": "ETF",
-                "Country": "DE",
-                "Currency": "EUR",
-                "Isin": "IE1",
-                "Name": "Fund A",
-            }
-        ],
-        paths=paths,
-        search_run_id="search-1",
-        run_date=date(2026, 7, 12),
-        found_at=datetime(2026, 7, 12, tzinfo=UTC),
-    )
-    write_canonical_universe(paths, "search-1")
-    approve_universe(paths, "search-1")
-    paths.canonical_universe("search-1").unlink()
-
-    with pytest.raises(FileNotFoundError, match="approved canonical universe does not exist"):
-        resolve_current_universe(paths)
-
-
-def test_search_ucits_etf_dataset_finds_expected_fund_counts(tmp_path) -> None:  # type: ignore[no-untyped-def]
-    paths = LakePaths(root=tmp_path / "lake")
-    dataset = Path("docs/eodhd_ucits_etf_matches.csv")
-
-    with dataset.open(encoding="utf-8", newline="") as csv_file:
-        raw = [row for row in csv.DictReader(csv_file) if "ucits etf" in row["name"].casefold()]
-
-    candidates = write_search_run(
-        raw,
-        paths=paths,
-        search_run_id="search-ucits-etf",
-        query="UCITS ETF",
-        run_date=date(2026, 7, 12),
-        found_at=datetime(2026, 7, 12, tzinfo=UTC),
-    )
-    canonical = write_canonical_universe(paths, "search-ucits-etf")
-
-    assert len(candidates) == 8_165
-    assert len(canonical) == 3_104
-    assert read_json(paths.search_summary("search-ucits-etf")) == {
-        "candidate_rows": 8_165,
-        "canonical_rows": 3_104,
-        "missing_isin_rows": 1_505,
-        "search_run_id": "search-ucits-etf",
-    }
-
-
 def test_bronze_plan_quotes_and_coverage(tmp_path) -> None:  # type: ignore[no-untyped-def]
     paths = LakePaths(root=tmp_path / "lake")
-    canonical = select_canonical(
+    canonical = list(
         [
             {
                 "search_run_id": "search-1",
@@ -198,6 +77,8 @@ def test_bronze_plan_quotes_and_coverage(tmp_path) -> None:  # type: ignore[no-u
                 "currency": "EUR",
                 "name": "A",
                 "normalized_name": "a",
+                "selection_reason": "preferred_xetra",
+                "selected_for_bronze": True,
             },
             {
                 "search_run_id": "search-1",
@@ -209,6 +90,8 @@ def test_bronze_plan_quotes_and_coverage(tmp_path) -> None:  # type: ignore[no-u
                 "currency": "EUR",
                 "name": "B",
                 "normalized_name": "b",
+                "selection_reason": "fallback_exchange",
+                "selected_for_bronze": True,
             },
         ]
     )
