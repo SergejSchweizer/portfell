@@ -15,6 +15,12 @@ export function App(): ReactNode {
   }, [page.title]);
 
   useEffect(() => {
+    if (pathname === page.path) return;
+    window.history.replaceState({}, "", `${page.path}${window.location.search}${window.location.hash}`);
+    setPathname(page.path);
+  }, [page.path, pathname]);
+
+  useEffect(() => {
     const updatePathname = () => setPathname(window.location.pathname);
     window.addEventListener("popstate", updatePathname);
     window.addEventListener("portfell:navigation", updatePathname);
