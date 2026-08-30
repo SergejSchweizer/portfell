@@ -18,7 +18,7 @@ def _compose() -> ComposeMapping:
     )
 
 
-def test_combined_replacement_runtime_has_only_clean_python_services() -> None:
+def test_final_runtime_has_only_python_application_and_clean_app_database() -> None:
     compose = _compose()
     services = cast(ComposeMapping, compose["services"])
     volumes = cast(ComposeMapping, compose["volumes"])
@@ -32,7 +32,9 @@ def test_combined_replacement_runtime_has_only_clean_python_services() -> None:
     assert postgres["volumes"] == ["portfell-dash-postgres-data:/var/lib/postgresql/data"]
     assert "portfell_dash" in str(cast(ComposeMapping, postgres["healthcheck"])["test"])
 
+    assert api["container_name"] == "portfell-app"
     environment = cast(ComposeMapping, api["environment"])
+    assert environment["PORTFELL_ENV"] == "production"
     assert "PORTFELL_HOSTED_AUTHORITY" not in environment
     assert environment["PORTFELL_DATABASE_URL"] == "postgresql://portfell_app@postgres:5432/portfell_dash"
     assert "PORTFELL_MARKET_DATABASE_URL" in environment
@@ -40,7 +42,14 @@ def test_combined_replacement_runtime_has_only_clean_python_services() -> None:
     assert api["volumes"] == ["./config.yaml:/run/portfell/config.yaml:ro"]
 
 
-def test_combined_replacement_runtime_has_no_node_or_legacy_database_plane() -> None:
+def test_final_runtime_has_one_loopback_application_surface() -> None:
+    services = cast(ComposeMapping, _compose()["services"])
+    api = cast(ComposeMapping, services["api"])
+    assert api["ports"] == ["127.0.0.1:${PORTFELL_PORT:-8080}:8000"]
+    assert "ports" not in cast(ComposeMapping, services["postgres"])
+
+
+def test_final_runtime_has_no_node_or_legacy_database_plane() -> None:
     rendered = (REPOSITORY_ROOT / "compose.yaml").read_text(encoding="utf-8").lower()
     assert "apps/web" not in rendered
     assert "node" not in rendered
