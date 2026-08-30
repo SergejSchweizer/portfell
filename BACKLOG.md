@@ -507,6 +507,10 @@ All depend on PR323 and are parallel siblings.
   The main gate remains blocked at `89%` coverage until PR325 and PR327 remove the corresponding
   legacy persistence and shared-refresh implementation.
 - PR325 `chore/pr325-delete-market-medallion`: delete market Bronze/Silver/Gold persistence/pipeline while retaining pure analytics moved elsewhere.
+
+  Git status: integrated on `main` at `3b88d30`; the complete PR quality gate passes (`944 passed`).
+  The main gate remains blocked at `88.48%` coverage while the PR327 shared-refresh plane and
+  later deletion siblings still retain legacy implementation.
 - PR326 `chore/pr326-delete-market-filesystem-plane`: delete market NAS/filesystem authority; preserve unrelated analytical/app artifacts only.
 
   Git status: integrated on `main` at `109e2d9`; focused validation passes (`44 passed`). Removed the NAS bind-mounted market
