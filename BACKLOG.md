@@ -523,6 +523,9 @@ All depend on PR323 and are parallel siblings.
 - PR328 `chore/pr328-delete-hosted-download-lifecycle`: integrated on `main` at `3549ad8`; hosted market download routes/workers/jobs are deleted.
 - PR329 `chore/pr329-delete-provider-credentials`: delete provider credential backend; do not replace it with plaintext config.
 - PR330 `chore/pr330-freeze-legacy-web-provider-ui`: delete provider-loading UI/actions. This PR must not add React features; it only removes provider controls and leaves the old UI transitional until PR356.
+
+  Git status: integrated on `main` at `893af0e`; local Docker Node validation passes (19/19
+  unit tests, TypeScript check, and production build).
 - PR331 `chore/pr331-delete-hosted-local-market-runtime`: delete residual hosted local market runtime and EODHD/token/KEK/provider runtime config not owned by siblings.
 
 Acceptance for every sibling: owned deletion is complete, no unrelated refactor, focused tests and PR gate pass.
