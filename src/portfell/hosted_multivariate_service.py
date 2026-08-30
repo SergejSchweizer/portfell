@@ -7,7 +7,6 @@ from concurrent.futures import Executor, ProcessPoolExecutor
 from dataclasses import replace
 from time import time
 
-from portfell.return_series import build_returns
 from portfell.hosted_api_errors import HostedApplicationError
 from portfell.hosted_api_service_support import opaque_id, stable_hash
 from portfell.hosted_api_state import MultivariateRunRecord, SelectionRecord
@@ -50,6 +49,7 @@ from portfell.multivariate_validation import (
     validate_candidates,
     walk_forward_validation_row,
 )
+from portfell.return_series import build_returns
 from portfell.table_io import JsonRow
 
 

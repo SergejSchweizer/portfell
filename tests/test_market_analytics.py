@@ -56,7 +56,13 @@ def test_retained_analytics_preserves_return_pair_and_feature_semantics() -> Non
 
 def test_retained_correlation_edges_keep_pair_count_guard() -> None:
     returns = [
-        {"isin": f"IE{index}", "exchange": "XETRA", "code": "ETF", "date": "2026-01-01", "return": 0.1}
+        {
+            "isin": f"IE{index}",
+            "exchange": "XETRA",
+            "code": "ETF",
+            "date": "2026-01-01",
+            "return": 0.1,
+        }
         for index in range(40)
     ]
 

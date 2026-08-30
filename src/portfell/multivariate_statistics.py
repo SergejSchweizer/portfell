@@ -50,9 +50,9 @@ from portfell.recommendation import (
     build_recommendation_report,
 )
 from portfell.return_quality import evaluate_quote_quality
+from portfell.return_series import build_returns
 from portfell.risk_model import estimate_risk_model
 from portfell.scorecard import ScorecardCandidate, build_model_comparison_scorecard
-from portfell.return_series import build_returns
 from portfell.statistics_views import DEFAULT_BIVARIATE_VERSION, read_selection_statistics
 from portfell.stress import (
     block_bootstrap_scenarios,

@@ -5,7 +5,6 @@ from pathlib import Path
 import pytest
 
 from portfell.bivariate_statistics import build_bivariate_statistics, write_bivariate_statistics
-from portfell.market_analytics import build_correlation_and_covariance, build_correlation_edges
 from portfell.gold_pair_stats import (
     DEFAULT_BYTES_PER_PAIR,
     DEFAULT_MAX_WORKERS,
@@ -16,6 +15,7 @@ from portfell.gold_pair_stats import (
     iter_pair_observations,
     resolve_worker_count,
 )
+from portfell.market_analytics import build_correlation_and_covariance, build_correlation_edges
 from portfell.paths import LakePaths
 
 
