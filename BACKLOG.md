@@ -448,6 +448,10 @@ Branch: `refactor/pr321-bivariate-market-source`
 
 Depends on: PR318.
 
+Git status: integrated on `main` at `8172ed4`. Bivariate computations now consume one
+coherent external-market snapshot through the gateway, retain the source-snapshot lineage, and
+the complete parallel test suite passes (`1029 passed`).
+
 Scope: selected quote rows tied to one snapshot; no quote-run lookup.
 
 Acceptance: formulas/common-calendar/minimum-observation/pair guards/skip-same-ISIN preserved; full identity; no missing-covariance-as-zero; regression equivalence.
