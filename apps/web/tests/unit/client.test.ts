@@ -93,7 +93,7 @@ describe("API client", () => {
       metadataBuilderApi.loadProjectCriteria("project/a"), metadataBuilderApi.loadPageView("project/a"), metadataBuilderApi.loadFieldOptions(),
       metadataBuilderApi.createProject(metadataRequest),
       univariateStatisticsApi.startRun(univariateRequest), univariateStatisticsApi.loadRun("run/a"), univariateStatisticsApi.loadResults("run/a", 10, 5),
-      univariateStatisticsApi.loadPageView("project/a"), univariateStatisticsApi.loadResultsSection("project/a", "cursor/a"),
+      univariateStatisticsApi.loadPageView("project/a"), univariateStatisticsApi.loadResultsSection("project/a"), univariateStatisticsApi.loadResultsSection("project/a", "cursor/a"),
       univariateStatisticsApi.loadSelectionSettings("project/a"),
       univariateStatisticsApi.saveSelectionSettings("project/a", settings),
       bivariateStatisticsApi.plan(bivariateRequest), bivariateStatisticsApi.startRun(bivariateRequest), bivariateStatisticsApi.loadRun("run/a"), bivariateStatisticsApi.loadPageView("project/a"),
@@ -101,12 +101,13 @@ describe("API client", () => {
       bivariateStatisticsApi.loadSection("project/a", "summary"),
       bivariateStatisticsApi.loadSection("project/a", "correlation_matrix", "downside"),
       multivariateStatisticsApi.startRun(multivariateRequest), multivariateStatisticsApi.loadRun("run/a"),
-      multivariateStatisticsApi.loadPageView("project/a"), multivariateStatisticsApi.loadSection("project/a", "summary"),
+      multivariateStatisticsApi.loadPageView("project/a"), multivariateStatisticsApi.loadSection("project/a", "summary"), multivariateStatisticsApi.loadSection("project/a", "candidates", { candidateId: "candidate/a" }),
       multivariateStatisticsApi.loadSummary("run/a"), multivariateStatisticsApi.loadStructure("run/a"),
       multivariateStatisticsApi.loadCandidates("run/a"), multivariateStatisticsApi.loadValidation("run/a"),
       multivariateStatisticsApi.loadArtifacts("run/a"), multivariateStatisticsApi.loadPerformance("run/a"), multivariateStatisticsApi.loadComponents("run/a", 10, 5),
       multivariateStatisticsApi.loadRiskContributions("run/a"), multivariateStatisticsApi.loadRiskContributions("run/a", "candidate/a"),
       multivariateStatisticsApi.loadIncomeEvidence("run/a"),
+      multivariateStatisticsApi.saveSelectedCandidates("run/a", ["candidate/a"]),
     ]);
 
     expect(fetchMock.mock.calls.map(([path]) => path)).toEqual(expect.arrayContaining([
@@ -114,6 +115,7 @@ describe("API client", () => {
       "/api/univariate-statistics/runs/run%2Fa/results?limit=10&offset=5", "/api/bivariate-statistics/plan", "/api/projects/project%2Fa/views/bivariate-statistics",
       "/api/projects/project%2Fa/views/univariate-statistics",
       "/api/projects/project%2Fa/views/univariate_statistics/sections/results?cursor=cursor%2Fa",
+      "/api/projects/project%2Fa/views/univariate_statistics/sections/results",
       "/api/bivariate-statistics/runs/run%2Fa/covariance-matrix",
       "/api/bivariate-statistics/runs/run%2Fa/correlation-matrix?metric=downside",
       "/api/bivariate-statistics/runs/run%2Fa/correlation-matrix?metric=lower_tail_dependence",
@@ -127,6 +129,7 @@ describe("API client", () => {
       "/api/multivariate-statistics/runs/run%2Fa",
       "/api/projects/project%2Fa/views/multivariate-statistics",
       "/api/projects/project%2Fa/views/multivariate_statistics/sections/summary",
+      "/api/projects/project%2Fa/views/multivariate_statistics/sections/candidates?candidate_id=candidate%2Fa",
       "/api/multivariate-statistics/runs/run%2Fa/summary",
       "/api/multivariate-statistics/runs/run%2Fa/structure",
       "/api/multivariate-statistics/runs/run%2Fa/candidates",
@@ -137,6 +140,7 @@ describe("API client", () => {
       "/api/multivariate-statistics/runs/run%2Fa/risk-contributions",
       "/api/multivariate-statistics/runs/run%2Fa/risk-contributions?candidate_id=candidate%2Fa",
       "/api/multivariate-statistics/runs/run%2Fa/income-evidence",
+      "/api/multivariate-statistics/runs/run%2Fa/settings",
     ]));
   });
 });

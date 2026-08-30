@@ -11,6 +11,12 @@ const port = Number.parseInt(process.env.PORT || "3000", 10);
 const apiBaseUrl = process.env.PORTFELL_API_BASE_URL || "http://api:8000";
 const distRoot = path.resolve(__dirname, "dist");
 const spaRoutes = new Set([
+  "/metadata",
+  "/univariate",
+  "/bivariate",
+  "/multivariate",
+  // Old URLs remain server-reachable solely so the browser can replace them with the canonical
+  // single-workspace route. They are not navigation authorities.
   "/metadata-builder",
   "/univariate-statistics",
   "/bivariate-statistics",
@@ -81,7 +87,7 @@ const server = http.createServer((request, response) => {
     return;
   }
   if (requestUrl.pathname === "/") {
-    response.writeHead(303, { location: "/metadata-builder" });
+    response.writeHead(303, { location: "/metadata" });
     response.end();
     return;
   }

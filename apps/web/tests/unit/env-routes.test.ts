@@ -1,6 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { canSelectUiFixture, readPublicRuntimeEnv } from "../../src/env";
-import { currentWorkflowPage, workflowModules, workflowPages } from "../../src/routes";
+import {
+  currentWorkflowPage,
+  projectSlug,
+  projectSlugFromPath,
+  projectWorkflowPath,
+  workflowModules,
+  workflowPages,
+} from "../../src/routes";
 
 describe("runtime environment and routes", () => {
   afterEach(() => {
@@ -49,6 +56,15 @@ describe("runtime environment and routes", () => {
     for (const page of workflowPages) expect(currentWorkflowPage(page.path)).toBe(page);
     expect(currentWorkflowPage("/projects/legacy/metadata-builder")).toBe(workflowPages[0]);
     expect(currentWorkflowPage("/not-a-route")).toBe(workflowPages[0]);
+  });
+
+  it("keeps legacy project helpers non-authoritative", () => {
+    const project = { project_id: "project-1", name: "Global Portfolio" };
+
+    expect(projectWorkflowPath(project, workflowPages[2])).toBe("/bivariate");
+    expect(projectSlugFromPath("/projects/global-portfolio/univariate-statistics")).toBeNull();
+    expect(projectSlug("München Global ETF")).toBe("munchen-global-etf");
+    expect(projectSlug("---")).toBe("project");
   });
 
   it("assigns every browser page to one explicit workflow module", () => {
