@@ -6,7 +6,8 @@ from dataclasses import dataclass
 from decimal import Decimal
 
 from portfell.market_source.contracts import Dividend, EodQuote, Split
-from portfell.table_io import JsonRow
+
+type JsonRow = dict[str, object]
 
 MISSING_ADJUSTED_CLOSE = "missing_adjusted_close"
 

@@ -61,11 +61,8 @@ name = "Evaluation does not depend on ingestion"
 type = "forbidden"
 source_modules = ["portfell.evaluation", "portfell.evaluation_parts"]
 forbidden_modules = [
-    "portfell.bronze",
-    "portfell.cli",
     "portfell.http",
     "portfell.search",
-    "portfell.silver",
 ]
 
 [[tool.importlinter.contracts]]
@@ -80,13 +77,9 @@ source_modules = [
     "portfell.table_io",
 ]
 forbidden_modules = [
-    "portfell.bronze",
-    "portfell.cli",
     "portfell.evaluation",
-    "portfell.gold",
     "portfell.portfolio",
     "portfell.search",
-    "portfell.silver",
 ]
 
 [[tool.importlinter.contracts]]
@@ -106,21 +99,15 @@ type = "forbidden"
 allow_indirect_imports = true
 source_modules = [
     "portfell.hosted_routes_common",
-    "portfell.hosted_routes_credentials",
     "portfell.hosted_routes_metadata_projects",
-    "portfell.hosted_routes_quote_runs",
     "portfell.hosted_routes_research",
 ]
 forbidden_modules = [
-    "portfell.bronze",
     "portfell.hosted_api",
-    "portfell.hosted_credentials",
     "portfell.hosted_workspace",
     "portfell.metadata_builder",
     "portfell.paths",
-    "portfell.silver",
     "portfell.table_io",
-    "portfell.workflows",
 ]
 
 [[tool.importlinter.contracts]]
@@ -131,7 +118,6 @@ source_modules = [
     "portfell.hosted_api_service_support",
     "portfell.hosted_credential_project_service",
     "portfell.hosted_metadata_project_service",
-    "portfell.hosted_quote_run_service",
     "portfell.hosted_analysis_service",
     "portfell.hosted_bivariate_service",
     "portfell.hosted_research_service",
@@ -140,15 +126,12 @@ source_modules = [
 forbidden_modules = [
     "portfell.hosted_api",
     "portfell.hosted_routes_common",
-    "portfell.hosted_routes_credentials",
     "portfell.hosted_routes_metadata_projects",
-    "portfell.hosted_routes_quote_runs",
     "portfell.hosted_routes_research",
     "portfell.hosted_research_persistence",
     "portfell.hosted_research_repository",
     "portfell.metadata_builder",
     "portfell.paths",
-    "portfell.workflows",
 ]
 
 [[tool.importlinter.contracts]]
@@ -174,8 +157,6 @@ forbidden_modules = [
     "portfell.hosted_research_service",
     "portfell.hosted_univariate_service",
     "portfell.hosted_routes_common",
-    "portfell.hosted_routes_credentials",
     "portfell.hosted_routes_metadata_projects",
-    "portfell.hosted_routes_quote_runs",
     "portfell.hosted_routes_research",
 ]

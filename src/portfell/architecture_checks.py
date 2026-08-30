@@ -11,7 +11,6 @@ SRC_ROOT = REPO_ROOT / "src" / "portfell"
 
 INGESTION_MODULES = {
     "portfell.search",
-    "portfell.cli",
     "portfell.http",
 }
 SHARED_MODULES = {
@@ -26,7 +25,6 @@ LAYER_HEAVY_MODULES = {
     "portfell.evaluation",
     "portfell.portfolio",
     "portfell.search",
-    "portfell.cli",
 }
 
 
@@ -57,8 +55,6 @@ def check_architecture(root: Path = SRC_ROOT) -> list[str]:
                 violations.append(
                     f"{module_name} imports ingestion modules: {', '.join(forbidden)}"
                 )
-        if module_name != "portfell.cli" and "portfell.cli" in imported_from:
-            violations.append(f"{module_name} must not import portfell.cli")
         if module_name in SHARED_MODULES:
             forbidden = sorted(imported_from & LAYER_HEAVY_MODULES)
             if forbidden:

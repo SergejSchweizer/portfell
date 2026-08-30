@@ -10,9 +10,8 @@ from __future__ import annotations
 import ast
 import json
 import re
+import tomllib
 from pathlib import Path
-
-from portfell.cli import build_parser
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 PACKAGE_ROOT = REPOSITORY_ROOT / "src" / "portfell"
@@ -68,15 +67,15 @@ def _module_imports(path: Path) -> set[str]:
 
 def test_retired_provider_runtime_modules_and_commands_are_absent() -> None:
     assert all(not (PACKAGE_ROOT / module).exists() for module in RETIRED_MODULES)
+    assert not (PACKAGE_ROOT / "cli.py").exists()
+    pyproject = tomllib.loads((REPOSITORY_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    scripts = pyproject["project"].get("scripts", {})
+    assert "portfell" not in scripts
+    assert "portfell.cli:main" not in scripts.values()
 
-    parser = build_parser()
-    command_actions = {
-        action.dest
-        for action in parser._actions  # noqa: SLF001 - CLI parser is the public command inventory.
-    }
-    assert "command" in command_actions
-    for command in RETIRED_CLI_COMMANDS:
-        assert command not in parser._subparsers._group_actions[0].choices  # noqa: SLF001
+    # The entire legacy umbrella CLI was retired, so no individual provider
+    # acquisition command can remain reachable through package entry points.
+    assert all(command not in scripts for command in RETIRED_CLI_COMMANDS)
 
 
 def test_production_code_has_no_retired_provider_or_refresh_import() -> None:

@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pytest
 
-from portfell.cli import build_parser
 from portfell.market_source.errors import MARKET_SOURCE_UNAVAILABLE, MarketSourceError
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
@@ -22,13 +21,14 @@ def test_retired_provider_client_and_executable_fetch_modules_are_absent() -> No
     )
 
 
-def test_umbrella_cli_does_not_expose_retired_acquisition_commands() -> None:
-    parser = build_parser()
+def test_retired_acquisition_cli_is_not_an_executable_surface() -> None:
+    """The legacy umbrella CLI was deleted with the provider acquisition flow."""
 
-    for command in ("search", "fetch-all-metadata", "fetch-all-quotes"):
-        with pytest.raises(SystemExit) as error:
-            parser.parse_args([command])
-        assert error.value.code == 2
+    source = REPOSITORY_ROOT / "src" / "portfell"
+    pyproject = (REPOSITORY_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+
+    assert not (source / "cli.py").exists()
+    assert "portfell.cli:main" not in pyproject
 
 
 def test_transitional_non_acquisition_seam_fails_closed() -> None:
