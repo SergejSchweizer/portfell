@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import inspect
+import json
 from collections.abc import Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -226,6 +227,13 @@ def _strip_lineage_ids(value: object) -> object:
     return value
 
 
+def _canonical_rows(rows: object) -> list[object]:
+    """Compare unordered concurrent analytical rows by semantic content."""
+    normalized = _strip_lineage_ids(rows)
+    assert isinstance(normalized, list)
+    return sorted(normalized, key=lambda row: json.dumps(row, sort_keys=True, default=str))
+
+
 def test_market_source_multivariate_matches_legacy_calculation_on_exact_fixture() -> None:
     gateway = _Gateway(_source_snapshot())
     market_data = MarketSourceResearchData(gateway)
@@ -262,19 +270,15 @@ def test_market_source_multivariate_matches_legacy_calculation_on_exact_fixture(
     assert market_risk["return_type"] == legacy_risk["return_type"] == "log"
     assert market_risk["covariance"] == legacy_risk["covariance"]
     assert _strip_lineage_ids(market_risk) == _strip_lineage_ids(legacy_risk)
-    assert _strip_lineage_ids(market_result.candidates) == _strip_lineage_ids(
-        legacy_result.candidates
-    )
-    assert _strip_lineage_ids(market_result.validation) == _strip_lineage_ids(
-        legacy_result.validation
-    )
+    assert _canonical_rows(market_result.candidates) == _canonical_rows(legacy_result.candidates)
+    assert _canonical_rows(market_result.validation) == _canonical_rows(legacy_result.validation)
     market_scorecards = tuple(
         row for row in market_result.validation if row.get("kind") == "scorecard"
     )
     legacy_scorecards = tuple(
         row for row in legacy_result.validation if row.get("kind") == "scorecard"
     )
-    assert _strip_lineage_ids(market_scorecards) == _strip_lineage_ids(legacy_scorecards)
+    assert _canonical_rows(market_scorecards) == _canonical_rows(legacy_scorecards)
     assert market_result.summary["market_source_snapshot_id"] == projected.snapshot_id
     assert market_result.artifacts["market_source"] == {
         "snapshot_id": projected.snapshot_id,
