@@ -80,9 +80,7 @@ def test_retired_provider_runtime_modules_and_commands_are_absent() -> None:
 
 
 def test_production_code_has_no_retired_provider_or_refresh_import() -> None:
-    forbidden_roots = {
-        f"portfell.{module.removesuffix('.py')}" for module in RETIRED_MODULES
-    }
+    forbidden_roots = {f"portfell.{module.removesuffix('.py')}" for module in RETIRED_MODULES}
     for path in PACKAGE_ROOT.rglob("*.py"):
         imports = _module_imports(path)
         violations = {

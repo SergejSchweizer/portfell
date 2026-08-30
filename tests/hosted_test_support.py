@@ -54,9 +54,7 @@ class InMemoryRuntime:
 class EmptyResearchData:
     """Fail-closed test data port for routes that do not request market data."""
 
-    def has_selected_rows(
-        self, member_ids: tuple[str, ...], *, dataset: ResearchDataset
-    ) -> bool:
+    def has_selected_rows(self, member_ids: tuple[str, ...], *, dataset: ResearchDataset) -> bool:
         del member_ids, dataset
         return False
 
@@ -86,9 +84,7 @@ def build_research_service(
     repository = HostedResearchRepository(state)
     persistence = LocalResearchPersistence(state)
     data: ResearchDataPort = (
-        EmptyResearchData()
-        if market_gateway is None
-        else MarketSourceResearchData(market_gateway)
+        EmptyResearchData() if market_gateway is None else MarketSourceResearchData(market_gateway)
     )
     univariate = (
         UnivariateResearchService(repository, data, persistence)

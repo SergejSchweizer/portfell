@@ -105,9 +105,7 @@ def test_local_only_mode_can_remain_available_while_public_mode_is_disabled() ->
 
 def test_runtime_readiness_requires_a_postgres_database_url() -> None:
     failures = failed_results(
-        validate_runtime_readiness(
-            {"PORTFELL_DATABASE_URL": "sqlite:///portfell.db"}
-        )
+        validate_runtime_readiness({"PORTFELL_DATABASE_URL": "sqlite:///portfell.db"})
     )
 
     assert [failure.name for failure in failures] == ["runtime.database_url_configured"]
@@ -154,8 +152,7 @@ def test_database_readiness_cli_does_not_load_policy_evidence(
     assert main(("--require-database",)) == 0
 
 
-def test_runtime_readiness_accepts_postgres_authority_when_hosting_is_approved(
-) -> None:
+def test_runtime_readiness_accepts_postgres_authority_when_hosting_is_approved() -> None:
     failures = failed_results(
         validate_runtime_readiness(
             {
