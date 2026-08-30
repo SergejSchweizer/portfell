@@ -601,6 +601,10 @@ Depends on: PR335.
 
 Scope: remove provider/loading/NAS/refresh CLI/dependencies, update package description, retain required PostgreSQL/analytics dependencies, regenerate lock, add market import-boundary checks.
 
+Git status: integrated on `main` at `2a1ed48` after rebase. Retired local-market CLI and
+workflow modules are deleted; packaging retains only PostgreSQL and analytics requirements and
+negative-space/import-boundary checks enforce the removal (848 local tests, Ruff, and Pyright pass).
+
 ### PR337 — Transitional Compose source topology
 
 Branch: `chore/pr337-market-source-compose`
