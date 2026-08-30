@@ -556,7 +556,10 @@ Branch: `refactor/pr333-single-user-backend`
 
 Depends on: PR332.
 
-Git status: implemented in GitHub PR #499 at head `97c25be`; mergeable but not integrated because the required GitHub `merge-gate` has no executable runner steps and is failing at infrastructure level. No PASS is recorded.
+Git status: integrated on `main` at `fe2b672` after rebase. Production composition now fixes
+one canonical workspace principal and no longer composes a hosted-user lifecycle repository.
+Focused API, architecture, contract, Ruff, and Pyright checks pass locally. The GitHub workflow
+also now accepts stacked pull requests and documents the required final rebase-and-rerun gate.
 
 Scope: remove user/tenant/membership/project-membership/credential-owner security authority from production services. Domain run/selection IDs may remain, but never as tenant scopes.
 
