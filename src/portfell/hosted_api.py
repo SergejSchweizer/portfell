@@ -172,9 +172,7 @@ def create_runtime_app() -> FastAPI:
     state = HostedApiState()
     return create_app(
         state,
-        current_user_provider=ConfiguredUserProvider(
-            user_id=DEFAULT_LOCAL_WORKSPACE_USER_ID
-        ),
+        current_user_provider=ConfiguredUserProvider(user_id=DEFAULT_LOCAL_WORKSPACE_USER_ID),
         services=build_postgres_services(
             state,
             request_scope=request_scope,
