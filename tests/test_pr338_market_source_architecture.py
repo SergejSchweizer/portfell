@@ -1,7 +1,4 @@
-from __future__ import annotations
-
 from pathlib import Path
-
 
 ROOT = Path(__file__).resolve().parents[1]
 DOC = ROOT / "docs" / "market-source-architecture.md"
@@ -23,6 +20,26 @@ def test_market_source_architecture_freezes_external_postgres_contract() -> None
         "NOLOGIN group role `portfell_app`",
     ):
         assert required in text
+
+
+def test_market_source_architecture_is_a_navigable_nonduplicating_sidecar() -> None:
+    text = DOC.read_text(encoding="utf-8")
+    assert "## Table Of Contents" in text
+    expected_sections = (
+        "1. Production Data Flow",
+        "2. Database Authorities",
+        "3. Market Reader Role And Privilege Boundary",
+        "4. Listing Identity",
+        "5. Coherent Snapshot Semantics",
+        "6. Numeric And Date Projection",
+        "7. SQL Ownership",
+        "8. Transitional Browser And Application Database",
+        "9. Final Topology Handoff",
+    )
+    for section in expected_sections:
+        assert f"- [{section}]" in text
+        assert text.count(f"## {section}") == 1
+    assert "does not duplicate the runtime\ncommands in `DOCKER.md`" in text
 
 
 def test_market_source_architecture_marks_both_legacy_planes_transitional() -> None:
