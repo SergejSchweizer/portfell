@@ -28,6 +28,7 @@ portfell-compose-watch = "portfell.compose_web_watch:main"
 dev = [
     "httpx2>=0.28.0",
     "import-linter>=2.13",
+    "playwright>=1.50.0",
     "pre-commit>=4.2.0",
     "pyright>=1.1.411",
     "pytest>=8.4.0",
@@ -49,6 +50,9 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 [tool.pytest.ini_options]
 addopts = "--strict-markers --strict-config"
 testpaths = ["tests"]
+markers = [
+    "browser: deterministic Python Playwright browser acceptance",
+]
 
 [tool.pyright]
 include = ["src"]
