@@ -63,16 +63,11 @@ describe("shared React components", () => {
     expect(progressPercent(12, 10)).toBe(100);
   });
 
-  it("navigates workflow stages without a browser reload", () => {
+  it("navigates the canonical single-workspace stages without project switching", () => {
     const onWorkflowPageChange = vi.fn();
     const onCloseDrawer = vi.fn();
     render(<ProjectSidebar
       currentPage="metadata_builder"
-      context={{
-        current_project_id: "project-1",
-        current_project: { project_id: "project-1", name: "Income", selection_id: "selection-1", selected_count: 3, data_loaded: true },
-        projects: [{ project_id: "project-1", name: "Income", selection_id: "selection-1", selected_count: 3, data_loaded: true }],
-      }}
       workflow={{ stages: {
         metadata_builder: { status: "complete" },
         univariate_statistics: { status: "ready" },
@@ -80,17 +75,16 @@ describe("shared React components", () => {
         multivariate_statistics: { status: "locked" },
       } }}
       loading={false}
-      switching={false}
       error={null}
       drawerOpen={false}
       onCloseDrawer={onCloseDrawer}
-      onProjectChange={async () => false}
       onWorkflowPageChange={onWorkflowPageChange}
       onWorkflowPageIntent={() => undefined}
     />);
 
-    expect(fireEvent.click(screen.getByRole("link", { name: /Univariate Statistics/ }))).toBe(false);
-    expect(onWorkflowPageChange).toHaveBeenCalledWith("/projects/income/univariate-statistics");
+    expect(screen.queryByRole("combobox", { name: /project/i })).not.toBeInTheDocument();
+    expect(fireEvent.click(screen.getByRole("link", { name: /Univariate/ }))).toBe(false);
+    expect(onWorkflowPageChange).toHaveBeenCalledWith("/univariate");
     expect(onCloseDrawer).toHaveBeenCalledOnce();
   });
 });

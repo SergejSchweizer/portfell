@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { canSelectUiFixture, readPublicRuntimeEnv } from "../../src/env";
-import { currentWorkflowPage, projectSlug, projectSlugFromPath, projectWorkflowPath, workflowModules, workflowPages } from "../../src/routes";
+import { currentWorkflowPage, workflowModules, workflowPages } from "../../src/routes";
 
 describe("runtime environment and routes", () => {
   afterEach(() => {
@@ -39,22 +39,15 @@ describe("runtime environment and routes", () => {
     expect(readPublicRuntimeEnv()).toMatchObject({ uiFixture: "", uiFixtureMode: "local-dev" });
   });
 
-  it("registers and resolves every workflow page with a metadata fallback", () => {
+  it("registers exactly the four canonical single-workspace workflow routes", () => {
     expect(workflowPages.map((page) => page.path)).toEqual([
-      "/metadata-builder",
-      "/univariate-statistics",
-      "/bivariate-statistics",
-      "/multivariate-statistics",
+      "/metadata",
+      "/univariate",
+      "/bivariate",
+      "/multivariate",
     ]);
     for (const page of workflowPages) expect(currentWorkflowPage(page.path)).toBe(page);
-    const projectPath = projectWorkflowPath({ project_id: "project/a", name: "Income & Growth" }, workflowPages[2]);
-    expect(projectPath).toBe("/projects/income-growth/bivariate-statistics");
-    expect(projectSlugFromPath(projectPath)).toBe("income-growth");
-    expect(projectSlugFromPath("/projects/%E0%A4%A/univariate-statistics")).toBeNull();
-    expect(projectSlugFromPath("/not-a-route")).toBeNull();
-    expect(currentWorkflowPage(projectPath)).toBe(workflowPages[2]);
-    expect(projectSlug("Änderung 2026")).toBe("anderung-2026");
-    expect(projectSlug("!!!")).toBe("project");
+    expect(currentWorkflowPage("/projects/legacy/metadata-builder")).toBe(workflowPages[0]);
     expect(currentWorkflowPage("/not-a-route")).toBe(workflowPages[0]);
   });
 
