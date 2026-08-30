@@ -2,13 +2,13 @@ name: portfell-market-contract
 
 services:
   market-postgres:
-    image: postgres:17-alpine
+    build:
+      context: .
+      dockerfile: tests/market_contract/postgres.Dockerfile
     environment:
       POSTGRES_DB: xetra_loader
       POSTGRES_USER: market_admin
       POSTGRES_PASSWORD: market_admin
-    volumes:
-      - ./tests/market_contract/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U market_admin -d xetra_loader"]
       interval: 1s
