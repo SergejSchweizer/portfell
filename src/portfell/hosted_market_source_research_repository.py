@@ -4,10 +4,9 @@ from __future__ import annotations
 
 from typing import cast
 
-from portfell.hosted_api_service_support import opaque_id
 from portfell.hosted_postgres_research_repository import PostgresResearchRepository
 from portfell.hosted_postgres_workflow import WorkflowResearchState
-from portfell.hosted_research_workflow import ResearchRun, bivariate_source_id
+from portfell.hosted_research_workflow import ResearchRun
 
 
 class MarketSourcePostgresResearchRepository(PostgresResearchRepository):
@@ -27,10 +26,10 @@ class MarketSourcePostgresResearchRepository(PostgresResearchRepository):
                 univariate_run_id=univariate.run_id,
                 univariate_status=univariate.status,
             )
-        bivariate_source = bivariate_source_id(selection)
-        bivariate_run_id = opaque_id("bivariate-run", f"{user_id}:{bivariate_source}")
-        bivariate = self._run_row(bivariate_run_id, "bivariate")
-        multivariate = self._current_multivariate(project_id, bivariate_run_id)
+        bivariate = self._latest_project_run(project_id=project_id, kind="bivariate")
+        multivariate = (
+            None if bivariate is None else self._current_multivariate(project_id, bivariate.run_id)
+        )
         return WorkflowResearchState(
             univariate_run_id=univariate.run_id,
             univariate_status=univariate.status,
