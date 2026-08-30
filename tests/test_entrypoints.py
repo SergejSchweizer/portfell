@@ -31,7 +31,6 @@ def test_portfell_console_scripts_are_registered() -> None:
         "portfell-compose-watch",
         "portfell-compose-web-watch",
         "portfell-docs-refresh",
-        "portfell-fetch-all-quotes",
         "portfell-quality",
         "portfell-refresh-shared-market-data",
         "portfell-shared-market-cron",
@@ -76,9 +75,6 @@ def test_umbrella_cli_help_lists_every_subcommand() -> None:
     assert subparsers_actions, "expected the umbrella CLI to register subcommands"
     subcommands = set(subparsers_actions[0].choices)
     assert subcommands == {
-        "search",
-        "fetch-all-metadata",
-        "fetch-all-quotes",
         "metadata-builder",
         "univariate-statistics",
         "univariate-selection",
@@ -90,9 +86,6 @@ def test_umbrella_cli_help_lists_every_subcommand() -> None:
 @pytest.mark.parametrize(
     "subcommand",
     [
-        "search",
-        "fetch-all-metadata",
-        "fetch-all-quotes",
         "metadata-builder",
         "univariate-statistics",
         "univariate-selection",

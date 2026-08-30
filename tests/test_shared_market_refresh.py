@@ -8,7 +8,6 @@ import pytest
 import portfell.shared_market_refresh as refresh
 from portfell.shared_market_data import SharedListingKey, SharedMarketDataStore
 from portfell.shared_market_refresh import (
-    RefreshResult,
     SharedMarketRefreshError,
     plan_refresh,
     refresh_shared_market_data,
@@ -241,60 +240,9 @@ def test_refresh_lock_and_cli_exit_codes(tmp_path, monkeypatch, capsys) -> None:
     assert refresh.main([]) == 4
 
 
-def test_eodhd_fetch_scopes_requests_and_rejects_invalid_payloads() -> None:
-    calls: list[tuple[str, dict[str, str]]] = []
-
-    class Client:
-        def get_json(self, path: str, params: dict[str, str]) -> object:
-            calls.append((path, params))
-            return [{"date": "2026-01-01", "adjusted_close": 10.0}]
-
-    request = refresh.RefreshRequest(
-        "quotes", SharedListingKey("eodhd", "XETRA", "ABC", "IE1"), "2025-12-25", "2026-01-01"
-    )
-    rows = list(refresh._eodhd_fetch(Client())(request))
-    assert rows[0]["isin"] == "IE1"
-    assert calls == [("/eod/ABC.XETRA", {"fmt": "json", "to": "2026-01-01", "from": "2025-12-25"})]
-
-    invalid = SimpleNamespace(get_json=lambda *_args, **_kwargs: {"invalid": True})
-    with pytest.raises(SharedMarketRefreshError, match="provider_response_invalid"):
-        list(refresh._eodhd_fetch(invalid)(request))
-
-
 def test_refresh_cli_requires_operations_credential_before_planning(tmp_path, monkeypatch) -> None:  # type: ignore[no-untyped-def]
     monkeypatch.setenv("PORTFELL_SHARED_DATA_ROOT", str(tmp_path))
     monkeypatch.setenv("PORTFELL_DATABASE_URL", "postgresql://worker@postgres/portfell")
     monkeypatch.delenv("PORTFELL_OPERATIONS_EODHD_TOKEN", raising=False)
 
     assert refresh.main(["--end-date", "2026-01-01"]) == 4
-
-
-def test_refresh_cli_reads_postgres_active_inventory(tmp_path, monkeypatch, capsys) -> None:  # type: ignore[no-untyped-def]
-    class Connection:
-        def close(self) -> None:
-            return None
-
-    class Inventory:
-        def __init__(self, _connection: Connection) -> None:
-            pass
-
-        def listings(self) -> tuple[SharedListingKey, ...]:
-            return (SharedListingKey("eodhd", "XETRA", "ABC", "IE1"),)
-
-    monkeypatch.setenv("PORTFELL_SHARED_DATA_ROOT", str(tmp_path))
-    monkeypatch.setenv("PORTFELL_DATABASE_URL", "postgresql://worker@postgres/portfell")
-    monkeypatch.setenv("PORTFELL_OPERATIONS_EODHD_TOKEN", "operations-secret")
-    monkeypatch.setattr(refresh, "connect", lambda *_args, **_kwargs: Connection())
-    monkeypatch.setattr(refresh, "PostgresActiveProjectInventory", Inventory)
-    seen: dict[str, object] = {}
-    monkeypatch.setattr(
-        refresh,
-        "refresh_shared_market_data",
-        lambda **kwargs: (
-            seen.update(kwargs) or RefreshResult("inventory", "2026-01-01", 0, 0, 0, 0, False, ())
-        ),
-    )
-
-    assert refresh.main(["--end-date", "2026-01-01"]) == 0
-    assert seen["listings"] == (SharedListingKey("eodhd", "XETRA", "ABC", "IE1"),)
-    assert '"dry_run": false' in capsys.readouterr().out

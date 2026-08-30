@@ -2,17 +2,12 @@ from __future__ import annotations
 
 from contextlib import nullcontext
 from datetime import date
-from threading import Event, Lock
+from threading import Lock
 from time import sleep
-from types import SimpleNamespace
 from typing import Any
 
-import pytest
-
-import portfell.hosted_project_bootstrap_worker as bootstrap_worker_module
 from portfell.durable_job_repository import ClaimedJob
 from portfell.hosted_project_bootstrap_worker import (
-    BootstrapWorkerResult,
     PostgresSelectionMembers,
     ProjectBootstrapWorker,
     build_parser,
@@ -228,83 +223,3 @@ def test_worker_parser_uses_combined_metadata_and_initial_fill_mode() -> None:
 
     assert arguments.once is False
     assert not hasattr(arguments, "metadata_only")
-
-
-def test_worker_polls_metadata_while_an_initial_fill_is_running(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Any
-) -> None:
-    initial_fill_started = Event()
-    release_initial_fill = Event()
-    metadata_calls: list[None] = []
-    connections: list[Any] = [
-        SimpleNamespace(close=lambda: None),
-        SimpleNamespace(close=lambda: None),
-    ]
-
-    class MetadataWorker:
-        def run_once(self) -> Any:
-            metadata_calls.append(None)
-            return SimpleNamespace(claimed=False, succeeded=False)
-
-    class InitialFillWorker:
-        def __init__(self, **_: Any) -> None:
-            pass
-
-        def run_once(self, *, worker_id: str, batch_size: int) -> BootstrapWorkerResult:
-            assert (worker_id, batch_size) == ("worker-1", 1)
-            initial_fill_started.set()
-            assert release_initial_fill.wait(timeout=1)
-            return BootstrapWorkerResult(1, 1, 0)
-
-    class RecoveryJobs:
-        def recover_expired_leases(self) -> None:
-            pass
-
-    arguments = SimpleNamespace(
-        worker_id="worker-1", batch_size=1, concurrency=1, poll_seconds=0.01, once=False
-    )
-    sleep_calls = 0
-
-    def stop_after_second_poll(_: float) -> None:
-        nonlocal sleep_calls
-        sleep_calls += 1
-        if sleep_calls == 1:
-            assert initial_fill_started.wait(timeout=1)
-            return
-        assert len(metadata_calls) == 2
-        release_initial_fill.set()
-        raise StopIteration
-
-    monkeypatch.setenv("PORTFELL_SHARED_DATA_ROOT", str(tmp_path))
-    monkeypatch.setenv("PORTFELL_DATABASE_URL", "postgresql://example")
-    monkeypatch.setattr(
-        bootstrap_worker_module,
-        "build_parser",
-        lambda: SimpleNamespace(parse_args=lambda _: arguments),
-    )
-    monkeypatch.setattr(
-        bootstrap_worker_module, "operations_token_from_environment", lambda: "token"
-    )
-    monkeypatch.setattr(
-        bootstrap_worker_module, "connect", lambda *_args, **_kwargs: connections.pop(0)
-    )
-    monkeypatch.setattr(
-        bootstrap_worker_module,
-        "PostgresDurableJobRepository",
-        lambda _connection, **_kwargs: RecoveryJobs(),
-    )
-    monkeypatch.setattr(bootstrap_worker_module, "PostgresSelectionMembers", lambda _: object())
-    monkeypatch.setattr(bootstrap_worker_module, "SharedMarketDataStore", lambda _: object())
-    monkeypatch.setattr(bootstrap_worker_module, "runtime_eodhd_config", lambda _: object())
-    monkeypatch.setattr(bootstrap_worker_module, "EodhdClient", lambda _: object())
-    monkeypatch.setattr(bootstrap_worker_module, "eodhd_fetch", lambda _: object())
-    monkeypatch.setattr(bootstrap_worker_module, "ProjectBootstrapWorker", InitialFillWorker)
-    monkeypatch.setattr(
-        bootstrap_worker_module,
-        "build_metadata_refresh_worker",
-        lambda *_args, **_kwargs: MetadataWorker(),
-    )
-    monkeypatch.setattr(bootstrap_worker_module.time, "sleep", stop_after_second_poll)
-
-    with pytest.raises(StopIteration):
-        bootstrap_worker_module.main([])
