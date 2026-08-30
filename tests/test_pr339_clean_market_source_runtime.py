@@ -4,6 +4,7 @@ import ast
 import importlib
 from pathlib import Path
 
+import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGE = ROOT / "src" / "portfell"
@@ -33,14 +34,16 @@ def test_locked_runtime_has_no_provider_or_loader_python_dependency() -> None:
         assert forbidden not in pyproject
         assert forbidden not in lock
 
-    assert 'psycopg[binary]' in pyproject
+    assert "psycopg[binary]" in pyproject
 
 
 def test_transitional_compose_has_exactly_two_database_authorities() -> None:
     compose = (ROOT / "compose.yaml").read_text(encoding="utf-8")
+    manifest = yaml.safe_load(compose)
 
     # One Portfell-owned application PostgreSQL service remains during source cutover.
-    assert compose.count("  postgres:\n") == 1
+    assert set(manifest["services"]) == {"postgres", "api", "web"}
+    assert set(manifest.get("volumes", {})) == {"portfell-postgres-data"}
     assert "PORTFELL_DATABASE_URL: postgresql://portfell_app@postgres:5432/portfell" in compose
 
     # Market data is an external required authority, never a Compose-owned database.
