@@ -1,0 +1,426 @@
+{
+  "excluded_authorities": [
+    {
+      "identifier": "external-db:xetra_loader",
+      "reason": "Externally owned canonical market database; Portfell never deletes it."
+    },
+    {
+      "identifier": "external-schema:xetra_loader",
+      "reason": "Externally owned business schema containing listings/eod_quotes/dividends/splits."
+    },
+    {
+      "identifier": "external-schema:xetra_loader_sync",
+      "reason": "Externally owned synchronization schema; Portfell must be denied access rather than delete it."
+    },
+    {
+      "identifier": "external-role:xetra_loader.portfell_app",
+      "reason": "Externally owned NOLOGIN group role used only for read-only market authorization."
+    }
+  ],
+  "items": [
+    {
+      "disposition": "delete-pr356",
+      "identifier": ".env.example#PORTFELL_WEB_PORT",
+      "kind": "environment-variable",
+      "reason": "Legacy Node Web service port."
+    },
+    {
+      "disposition": "delete-pr356",
+      "identifier": ".github/workflows/merge-gate.yml#merge-real-stack-buttons",
+      "kind": "ci-surface",
+      "reason": "Legacy React/Node real-stack browser gate; replaced by Dash browser QA."
+    },
+    {
+      "disposition": "delete-pr356",
+      "identifier": ".github/workflows/merge-gate.yml#merge-web-button-e2e",
+      "kind": "ci-surface",
+      "reason": "Legacy npm/Playwright Web application gate."
+    },
+    {
+      "disposition": "delete-pr356",
+      "identifier": ".github/workflows/merge-gate.yml#merge-web-unit-quality",
+      "kind": "ci-surface",
+      "reason": "Legacy npm/Vitest/TypeScript Web application gate."
+    },
+    {
+      "disposition": "retain-backend",
+      "identifier": ".gitignore#config.yaml",
+      "kind": "configuration-rule",
+      "reason": "Final runtime requires the local non-secret PostgreSQL metadata file to remain ignored."
+    },
+    {
+      "disposition": "retain-backend",
+      "identifier": "apps/api/**",
+      "kind": "path-prefix",
+      "reason": "FastAPI/backend container remains part of the replacement runtime."
+    },
+    {
+      "disposition": "delete-pr356",
+      "identifier": "apps/web/**",
+      "kind": "path-prefix",
+      "reason": "Complete first-party React/Vite/TypeScript/TanStack/Node browser application, including package files, source, tests, configs, Node server and Dockerfile."
+    },
+    {
+      "disposition": "retain-test-only",
+      "identifier": "compose.e2e.yaml",
+      "kind": "path",
+      "reason": "Test topology may remain only after legacy Web service references are removed/replaced by Dash QA."
+    },
+    {
+      "disposition": "retain-test-only",
+      "identifier": "compose.market-contract.yaml",
+      "kind": "path",
+      "reason": "Contract-faithful external market test fixture remains test-only."
+    },
+    {
+      "disposition": "delete-pr356",
+      "identifier": "compose.prod.example.yaml#legacy-web-service",
+      "kind": "compose-surface",
+      "reason": "Any Node Web example-service reference is retired with the old UI."
+    },
+    {
+      "disposition": "delete-pr356",
+      "identifier": "compose.production.yaml#legacy-web-service",
+      "kind": "compose-surface",
+      "reason": "Any production Node Web service reference is retired with the old UI."
+    },
+    {
+      "disposition": "delete-pr357",
+      "identifier": "compose.yaml#legacy-app-database:portfell",
+      "kind": "compose-surface",
+      "reason": "Old Portfell database identity is replaced by clean database portfell_dash."
+    },
+    {
+      "disposition": "delete-pr357",
+      "identifier": "compose.yaml#legacy-app-volume:portfell-postgres-data",
+      "kind": "compose-surface",
+      "reason": "Old hosted application DB volume cannot become the clean replacement DB."
+    },
+    {
+      "disposition": "delete-pr356",
+      "identifier": "compose.yaml#services.web",
+      "kind": "compose-surface",
+      "reason": "Legacy Node Web container/service."
+    },
+    {
+      "disposition": "retain-backend",
+      "identifier": "config.example.yaml",
+      "kind": "path",
+      "reason": "Tracked secret-free example remains the final local PostgreSQL metadata contract."
+    },
+    {
+      "disposition": "delete-pr357",
+      "identifier": "database:portfell",
+      "kind": "database",
+      "reason": "Legacy Portfell application/control-plane database; final database is portfell_dash."
+    },
+    {
+      "disposition": "delete-pr357",
+      "identifier": "database:portfell/schema:portfell_app",
+      "kind": "database-schema",
+      "reason": "Legacy hosted application schema is not migrated."
+    },
+    {
+      "disposition": "delete-pr357",
+      "identifier": "database:portfell/schema:portfell_private",
+      "kind": "database-schema",
+      "reason": "Legacy hosted private/migration schema is not migrated."
+    },
+    {
+      "disposition": "delete-pr357",
+      "identifier": "database:portfell/tables:analysis_runs|artifacts|artifact_inputs|audit_events|current_*|dataset_snapshots|download_runs|external_identities|hosted_analysis_records|jobs|job_attempts|market_objects|metadata_*|multivariate_runs|navigation_projections|outbox_events|project_*|research_*|selections|sessions|univariate_*|user_grants|users",
+      "kind": "database-object-family",
+      "reason": "Legacy hosted tenant/control-plane/research persistence is replaced by the clean PR345 schema."
+    },
+    {
+      "disposition": "delete-pr357",
+      "identifier": "database:portfell/tenant-rls-policies",
+      "kind": "database-object-family",
+      "reason": "Final single-user app-state schema has no tenant/user RLS partition."
+    },
+    {
+      "disposition": "retain-backend",
+      "identifier": "dependency:fastapi",
+      "kind": "python-dependency",
+      "reason": "Typed API/application-service boundary remains."
+    },
+    {
+      "disposition": "retain-backend",
+      "identifier": "dependency:psycopg[binary]",
+      "kind": "python-dependency",
+      "reason": "Required by clean app_state and external market_source PostgreSQL boundaries."
+    },
+    {
+      "disposition": "retain-backend",
+      "identifier": "env:PORTFELL_DATABASE_URL",
+      "kind": "environment-variable",
+      "reason": "Name is retained but final semantics point only to portfell_dash."
+    },
+    {
+      "disposition": "delete-pr357",
+      "identifier": "env:PORTFELL_HOSTED_AUTHORITY",
+      "kind": "environment-variable",
+      "reason": "Legacy hosted authority selector is forbidden after clean DB cutover."
+    },
+    {
+      "disposition": "retain-backend",
+      "identifier": "env:PORTFELL_MARKET_DATABASE_URL",
+      "kind": "environment-variable",
+      "reason": "Independent external xetra_loader market authority remains."
+    },
+    {
+      "disposition": "delete-pr356",
+      "identifier": "npm:@playwright/test",
+      "kind": "frontend-direct-dependency",
+      "reason": "Current dependency belongs to the legacy npm Web test stack; replacement browser tooling is Python/test-only."
+    },
+    {
+      "disposition": "delete-pr356",
+      "identifier": "npm:@tanstack/react-query",
+      "kind": "frontend-direct-dependency",
+      "reason": "Legacy React query/cache boundary."
+    },
+    {
+      "disposition": "delete-pr356",
+      "identifier": "npm:@testing-library/jest-dom",
+      "kind": "frontend-direct-dependency",
+      "reason": "Legacy React/Vitest test dependency."
+    },
+    {
+      "disposition": "delete-pr356",
+      "identifier": "npm:@testing-library/react",
+      "kind": "frontend-direct-dependency",
+      "reason": "Legacy React test dependency."
+    },
+    {
+      "disposition": "delete-pr356",
+      "identifier": "npm:@types/node",
+      "kind": "frontend-direct-dependency",
+      "reason": "Legacy Node/TypeScript Web build dependency."
+    },
+    {
+      "disposition": "delete-pr356",
+      "identifier": "npm:@types/react",
+      "kind": "frontend-direct-dependency",
+      "reason": "Legacy React/TypeScript dependency."
+    },
+    {
+      "disposition": "delete-pr356",
+      "identifier": "npm:@types/react-dom",
+      "kind": "frontend-direct-dependency",
+      "reason": "Legacy ReactDOM/TypeScript dependency."
+    },
+    {
+      "disposition": "delete-pr356",
+      "identifier": "npm:@vitejs/plugin-react",
+      "kind": "frontend-direct-dependency",
+      "reason": "Legacy Vite React build dependency."
+    },
+    {
+      "disposition": "delete-pr356",
+      "identifier": "npm:@vitest/coverage-v8",
+      "kind": "frontend-direct-dependency",
+      "reason": "Legacy Vitest coverage dependency."
+    },
+    {
+      "disposition": "delete-pr356",
+      "identifier": "npm:jsdom",
+      "kind": "frontend-direct-dependency",
+      "reason": "Legacy Web unit-test DOM dependency."
+    },
+    {
+      "disposition": "delete-pr356",
+      "identifier": "npm:lucide-react",
+      "kind": "frontend-direct-dependency",
+      "reason": "Legacy React presentation dependency."
+    },
+    {
+      "disposition": "delete-pr356",
+      "identifier": "npm:react",
+      "kind": "frontend-direct-dependency",
+      "reason": "First-party React application dependency."
+    },
+    {
+      "disposition": "delete-pr356",
+      "identifier": "npm:react-dom",
+      "kind": "frontend-direct-dependency",
+      "reason": "First-party ReactDOM application dependency."
+    },
+    {
+      "disposition": "delete-pr356",
+      "identifier": "npm:typescript",
+      "kind": "frontend-direct-dependency",
+      "reason": "Legacy first-party TypeScript frontend build."
+    },
+    {
+      "disposition": "delete-pr356",
+      "identifier": "npm:vite",
+      "kind": "frontend-direct-dependency",
+      "reason": "Legacy first-party frontend build tool."
+    },
+    {
+      "disposition": "delete-pr356",
+      "identifier": "npm:vitest",
+      "kind": "frontend-direct-dependency",
+      "reason": "Legacy npm frontend unit-test runner."
+    },
+    {
+      "disposition": "delete-pr356",
+      "identifier": "pyproject.toml#project.scripts.portfell-compose-watch",
+      "kind": "python-entrypoint",
+      "reason": "Legacy Web Compose watch alias."
+    },
+    {
+      "disposition": "delete-pr356",
+      "identifier": "pyproject.toml#project.scripts.portfell-compose-web-watch",
+      "kind": "python-entrypoint",
+      "reason": "Legacy Web Compose watch entrypoint."
+    },
+    {
+      "disposition": "delete-pr356",
+      "identifier": "scripts/run_real_stack_e2e.sh",
+      "kind": "path",
+      "reason": "Legacy Node/Playwright Web real-stack driver."
+    },
+    {
+      "disposition": "delete-pr357",
+      "identifier": "src/portfell/analysis_lifecycle_schema.py",
+      "kind": "path",
+      "reason": "Legacy hosted analysis-record schema."
+    },
+    {
+      "disposition": "delete-pr356",
+      "identifier": "src/portfell/compose_web_watch.py",
+      "kind": "path",
+      "reason": "Legacy React Web image/watch helper."
+    },
+    {
+      "disposition": "delete-pr357",
+      "identifier": "src/portfell/durable_job_schema.py",
+      "kind": "path",
+      "reason": "Legacy hosted durable job/outbox schema."
+    },
+    {
+      "disposition": "delete-pr357",
+      "identifier": "src/portfell/hosted_catalog.py",
+      "kind": "path",
+      "reason": "Legacy hosted DB catalog/migration authority."
+    },
+    {
+      "disposition": "delete-pr357",
+      "identifier": "src/portfell/hosted_catalog_migration.py",
+      "kind": "path",
+      "reason": "Legacy hosted DB migration runner."
+    },
+    {
+      "disposition": "delete-pr357",
+      "identifier": "src/portfell/hosted_catalog_ports.py",
+      "kind": "path",
+      "reason": "Legacy hosted catalog port."
+    },
+    {
+      "disposition": "delete-pr357",
+      "identifier": "src/portfell/hosted_*persistence.py",
+      "kind": "path-pattern",
+      "reason": "Legacy hosted PostgreSQL persistence adapters."
+    },
+    {
+      "disposition": "delete-pr357",
+      "identifier": "src/portfell/hosted_*repository.py",
+      "kind": "path-pattern",
+      "reason": "Legacy hosted PostgreSQL repositories replaced by app_state."
+    },
+    {
+      "disposition": "delete-pr357",
+      "identifier": "src/portfell/hosted_navigation_read_model_schema.py",
+      "kind": "path",
+      "reason": "Legacy navigation projection persistence."
+    },
+    {
+      "disposition": "delete-pr357",
+      "identifier": "src/portfell/hosted_postgres_*.py",
+      "kind": "path-pattern",
+      "reason": "Legacy hosted application DB adapters/composition; market SQL remains separately under market_source."
+    },
+    {
+      "disposition": "delete-pr357",
+      "identifier": "src/portfell/hosted_project_workflow_projection_schema.py",
+      "kind": "path",
+      "reason": "Legacy project workflow projection persistence."
+    },
+    {
+      "disposition": "retain-backend",
+      "identifier": "src/portfell/hosted_routes_metadata_projects.py",
+      "kind": "path",
+      "reason": "Transitional FastAPI capability reference retained until PR347 rewires service/state authority; legacy project/user semantics are not retained."
+    },
+    {
+      "disposition": "retain-backend",
+      "identifier": "src/portfell/hosted_routes_research.py",
+      "kind": "path",
+      "reason": "Transitional typed research capability/API surface retained until replacement wiring."
+    },
+    {
+      "disposition": "delete-pr357",
+      "identifier": "src/portfell/legacy_import_schema.py",
+      "kind": "path",
+      "reason": "Legacy import ledger is not migrated to the clean DB."
+    },
+    {
+      "disposition": "retain-backend",
+      "identifier": "src/portfell/market_source/**",
+      "kind": "path-prefix",
+      "reason": "Canonical external PostgreSQL market-source boundary."
+    },
+    {
+      "disposition": "delete-pr357",
+      "identifier": "src/portfell/metadata_builder_criteria_schema.py",
+      "kind": "path",
+      "reason": "Legacy hosted project criteria persistence."
+    },
+    {
+      "disposition": "delete-pr357",
+      "identifier": "src/portfell/metadata_lifecycle_schema.py",
+      "kind": "path",
+      "reason": "Legacy hosted metadata run/idempotency persistence."
+    },
+    {
+      "disposition": "delete-pr357",
+      "identifier": "src/portfell/multivariate_lifecycle_schema.py",
+      "kind": "path",
+      "reason": "Legacy hosted Multivariate lifecycle persistence."
+    },
+    {
+      "disposition": "delete-pr357",
+      "identifier": "src/portfell/project_membership_trigger_schema.py",
+      "kind": "path",
+      "reason": "Legacy project membership schema/repair logic."
+    },
+    {
+      "disposition": "delete-pr357",
+      "identifier": "src/portfell/project_settings_schema.py",
+      "kind": "path",
+      "reason": "Legacy project-scoped settings persistence."
+    },
+    {
+      "disposition": "delete-pr357",
+      "identifier": "src/portfell/research_lifecycle_schema.py",
+      "kind": "path",
+      "reason": "Legacy hosted research-run/selection persistence."
+    },
+    {
+      "disposition": "delete-pr357",
+      "identifier": "src/portfell/tenant_control_schema.py",
+      "kind": "path",
+      "reason": "Legacy tenant/project-membership control schema."
+    },
+    {
+      "disposition": "retain-test-only",
+      "identifier": "tests/**",
+      "kind": "path-prefix",
+      "reason": "Test tree is retained as a category; PR356 removes only tests that exist solely for the legacy React/Node UI and later PRs add Dash QA."
+    }
+  ],
+  "schema_version": 1,
+  "source_contract": "docs/pr343-source-series-closeout@e99f41a9e9ee56661fc112136164fd0f6edf09a2"
+}
