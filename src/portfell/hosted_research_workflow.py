@@ -217,6 +217,20 @@ def bivariate_source_id(selection: UnivariateSelection) -> str:
     )
 
 
+def bivariate_run_matches_selection(
+    run: ResearchRun, user_id: str, selection: UnivariateSelection
+) -> bool:
+    """Resolve a completed Bivariate run from its snapshot-aware lineage."""
+    del user_id
+    selection_source = bivariate_source_id(selection)
+    if run.source_id == selection_source:
+        return True
+    snapshot_ids = {
+        str(row["market_source_snapshot_id"])
+        for row in run.rows
+        if isinstance(row.get("market_source_snapshot_id"), str)
+    }
+    return len(snapshot_ids) == 1 and run.source_id == f"{selection_source}::{next(iter(snapshot_ids))}"
 def create_bivariate_run(
     *,
     user_id: str,

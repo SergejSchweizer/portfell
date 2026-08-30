@@ -22,7 +22,7 @@ from portfell.hosted_research_ports import (
 )
 from portfell.hosted_research_workflow import (
     UnivariateSelection,
-    bivariate_source_id,
+    bivariate_run_matches_selection,
     univariate_source_id,
 )
 from portfell.hosted_selection_repository import SelectionRepository, selection_record
@@ -64,7 +64,6 @@ class MultivariateResearchService(MultivariateRunViews):
         "build_candidates",
         "validate_candidates",
     )
-
     def __init__(
         self,
         data: ResearchDataPort,
@@ -88,7 +87,6 @@ class MultivariateResearchService(MultivariateRunViews):
         self._lifecycle = MultivariateRunLifecycle(
             self._runs, workflow_projector, persistence.persist
         )
-
     def start(
         self, user_id: str, project_id: str, bivariate_run_id: str, settings: JsonRow
     ) -> JsonRow:
@@ -143,7 +141,6 @@ class MultivariateResearchService(MultivariateRunViews):
         self._lifecycle.save(run, make_current=True)
         self._persistence.persist()
         return multivariate_run_row(run)
-
     def plan(
         self, user_id: str, project_id: str, bivariate_run_id: str, settings: JsonRow
     ) -> JsonRow:
@@ -220,7 +217,7 @@ class MultivariateResearchService(MultivariateRunViews):
         matches = [
             selection
             for selection in self._research.univariate_selections(user_id)
-            if bivariate_source_id(selection) == bivariate.source_id
+            if bivariate_run_matches_selection(bivariate, user_id, selection)
         ]
         if len(matches) != 1:
             raise HostedApplicationError(422, "bivariate_dependency_mismatch")

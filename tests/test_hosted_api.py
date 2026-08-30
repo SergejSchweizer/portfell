@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+from datetime import date
+from decimal import Decimal
 from pathlib import Path
 from typing import Any, cast
 from uuid import UUID
@@ -28,13 +31,58 @@ from portfell.hosted_local_test_composition import (
 )
 from portfell.hosted_postgres_request_scope import RequestScopedPostgresConnection
 from portfell.hosted_research_workflow import ResearchRun, UnivariateSelection
-from portfell.paths import LakePaths
-from portfell.table_io import write_rows
+from portfell.market_source.contracts import EodQuote, Listing, ListingKey
+from portfell.market_source.gateway import MarketDataSnapshot, MarketDataGateway
 
 
-def _client(state: HostedApiState | None = None) -> TestClient:
+@dataclass
+class _FixtureMarketGateway:
+    quotes: tuple[EodQuote, ...]
+
+    def read_snapshot(
+        self, keys: tuple[ListingKey, ...], *, start: date, end: date
+    ) -> MarketDataSnapshot:
+        selected = set(keys)
+        return MarketDataSnapshot(
+            listings=tuple(
+                Listing(key, key.code, "ETF", "Germany", "EUR", True) for key in keys
+            ),
+            quotes=tuple(
+                quote
+                for quote in self.quotes
+                if quote.key in selected and start <= quote.trade_date <= end
+            ),
+            dividends=(),
+            splits=(),
+        )
+
+
+def _market_gateway(rows: tuple[dict[str, object], ...]) -> MarketDataGateway:
+    gateway = _FixtureMarketGateway(
+        tuple(
+            EodQuote(
+                ListingKey(str(row["isin"]), str(row["exchange"]), str(row["code"])),
+                date.fromisoformat(str(row["date"])),
+                Decimal(str(row["adjusted_close"])),
+                None,
+                None,
+            )
+            for row in rows
+        )
+    )
+    return cast(MarketDataGateway, gateway)
+
+
+def _client(
+    state: HostedApiState | None = None, *, market_gateway: MarketDataGateway | None = None
+) -> TestClient:
     resolved_state = state or HostedApiState()
-    return TestClient(create_app(resolved_state, services=local_test_services(resolved_state)))
+    return TestClient(
+        create_app(
+            resolved_state,
+            services=local_test_services(resolved_state, market_gateway=market_gateway),
+        )
+    )
 
 
 def _test_app(state: HostedApiState | None = None, **kwargs: object) -> Any:
@@ -1202,7 +1250,7 @@ def test_scoped_research_runs_filter_and_build_unique_pairs() -> None:
     state.idempotency_refs[
         (DEFAULT_LOCAL_WORKSPACE_USER_ID, f"fetch-all-quotes:{project.project_id}", "fixture")
     ] = quote_run.download_run_id
-    client = _client(state)
+    client = _client(state, market_gateway=_market_gateway(quote_rows))
 
     request = {
         "metadata_selection_id": selection.selection_id,
@@ -1330,12 +1378,8 @@ def test_scoped_research_runs_filter_and_build_unique_pairs() -> None:
     )
 
 
-def test_bivariate_statistics_restore_quotes_from_the_persistent_lake(
-    tmp_path: Path, monkeypatch: Any
-) -> None:
-    """Bivariate runs must not depend on transient quote rows after a restart."""
-
-    monkeypatch.setenv("PORTFELL_LAKE_ROOT", str(tmp_path))
+def test_bivariate_statistics_read_quotes_from_the_market_source_snapshot() -> None:
+    """Bivariate runs read the selected source snapshot, not a local quote lake."""
     project = ProjectRecord(
         project_id="00000000-0000-5000-8000-000000000041",
         user_id=DEFAULT_LOCAL_WORKSPACE_USER_ID,
@@ -1379,21 +1423,17 @@ def test_bivariate_statistics_restore_quotes_from_the_persistent_lake(
         statistic_rows,
         2,
     )
-    paths = LakePaths(root=tmp_path)
-    for isin, code, base in (("IE1", "AAA", 100), ("IE2", "BBB", 80)):
-        write_rows(
-            paths.silver_quote_file("XETRA", isin),
-            [
-                {
-                    "isin": isin,
-                    "exchange": "XETRA",
-                    "code": code,
-                    "date": f"2026-01-0{day}",
-                    "adjusted_close": base + day,
-                }
-                for day in range(1, 5)
-            ],
-        )
+    quote_rows = tuple(
+        {
+            "isin": isin,
+            "exchange": "XETRA",
+            "code": code,
+            "date": f"2026-01-0{day}",
+            "adjusted_close": base + day,
+        }
+        for isin, code, base in (("IE1", "AAA", 100), ("IE2", "BBB", 80))
+        for day in range(1, 5)
+    )
     state = HostedApiState(
         projects_by_id={project.project_id: project},
         selections_by_id={selection.selection_id: selection},
@@ -1402,7 +1442,8 @@ def test_bivariate_statistics_restore_quotes_from_the_persistent_lake(
         univariate_selections_by_id={filtered.selection_id: filtered},
         quote_run_by_univariate_run_id={univariate.run_id: quote_run.download_run_id},
     )
-    client = _client(state)
+    market_gateway = _market_gateway(quote_rows)
+    client = _client(state, market_gateway=market_gateway)
 
     run = _json(
         client.post(
@@ -1413,7 +1454,7 @@ def test_bivariate_statistics_restore_quotes_from_the_persistent_lake(
     )
     from portfell.hosted_local_test_composition import local_research_service, local_runtime
 
-    local_research_service(state, local_runtime()).complete_bivariate(
+    local_research_service(state, local_runtime(), market_gateway=market_gateway).complete_bivariate(
         DEFAULT_LOCAL_WORKSPACE_USER_ID, filtered.selection_id
     )
     completed = _json(

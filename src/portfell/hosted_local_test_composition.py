@@ -11,7 +11,6 @@ from portfell.hosted_api_local_runtime import LocalHostedRuntime
 from portfell.hosted_api_ports import Workflow
 from portfell.hosted_api_service_support import project_data_loaded, workflow_row
 from portfell.hosted_api_state import HostedApiState
-from portfell.hosted_bivariate_service import BivariateResearchService
 from portfell.hosted_credential_project_service import CredentialProjectService
 from portfell.hosted_credentials import FileCredentialStore, KeyEncryptionKey
 from portfell.hosted_idempotency_repository import LocalIdempotencyRepository
@@ -20,6 +19,10 @@ from portfell.hosted_local_metadata_repository import LocalMetadataLifecycleRepo
 from portfell.hosted_local_project_repository import LocalProjectRepository
 from portfell.hosted_local_selection_repository import LocalSelectionRepository
 from portfell.hosted_metadata_project_service import MetadataProjectService
+from portfell.hosted_market_source_bivariate_service import (
+    BivariateMarketSourceData,
+    MarketSourceBivariateResearchService,
+)
 from portfell.hosted_multivariate_run_repository import LocalMultivariateRunRepository
 from portfell.hosted_multivariate_service import MultivariateResearchService
 from portfell.hosted_project_settings_repository import LocalProjectSettingsRepository
@@ -31,6 +34,7 @@ from portfell.hosted_research_repository import HostedResearchRepository
 from portfell.hosted_research_service import ResearchService
 from portfell.hosted_shared_quote_publisher import SharedQuotePublisher
 from portfell.hosted_univariate_service import UnivariateResearchService
+from portfell.market_source.gateway import MarketDataGateway
 from portfell.hosted_workspace import LocalWorkspaceStore
 from portfell.hosted_workspace_repository import persist_local_workspace, restore_local_workspace
 from portfell.shared_market_data import SharedMarketDataStore
@@ -45,12 +49,21 @@ def local_runtime() -> LocalHostedRuntime:
     )
 
 
-def local_research_service(state: HostedApiState, data: ResearchDataPort) -> ResearchService:
+def local_research_service(
+    state: HostedApiState,
+    data: ResearchDataPort,
+    *,
+    market_gateway: MarketDataGateway | None = None,
+) -> ResearchService:
     repository = HostedResearchRepository(state)
     persistence = LocalResearchPersistence(state)
     return ResearchService(
         UnivariateResearchService(repository, data, persistence),
-        BivariateResearchService(repository, data, persistence),
+        MarketSourceBivariateResearchService(
+            repository,
+            BivariateMarketSourceData(cast(MarketDataGateway, market_gateway)),
+            persistence,
+        ),
         MultivariateResearchService(
             data,
             persistence,
@@ -99,7 +112,7 @@ def local_credential_project_service(state: HostedApiState) -> CredentialProject
 
 
 def local_test_services(
-    state: HostedApiState,
+    state: HostedApiState, *, market_gateway: MarketDataGateway | None = None
 ) -> tuple[CredentialProjectService, MetadataProjectService, QuoteRunService, ResearchService]:
     """Compose non-production adapters for explicit API tests only."""
 
@@ -127,7 +140,7 @@ def local_test_services(
             _local_quote_publisher(state),
             lambda: _persist_local_workspace_if_configured(state),
         ),
-        local_research_service(state, runtime),
+        local_research_service(state, runtime, market_gateway=market_gateway),
     )
 
 
