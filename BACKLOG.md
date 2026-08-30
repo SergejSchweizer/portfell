@@ -571,7 +571,11 @@ Branch: `refactor/pr334-freeze-legacy-ui`
 
 Depends on: PR332.
 
-Git status: implemented in GitHub PR #500 at head `e0b8a23`; mergeable but not integrated because the required GitHub `merge-gate` has the same infrastructure-level pre-step failure. No PASS is recorded.
+Git status: integrated on `main` at `1739294` after rebase. The legacy shell now exposes only
+the canonical `/metadata`, `/univariate`, `/bivariate`, and `/multivariate` navigation routes;
+project switching is removed. Production server fallbacks and browser tests enforce those routes.
+Docker Node type checking, production build, 96.77% aggregate unit coverage, and Playwright
+browser tests (3 passed) pass locally.
 
 Scope: **transitional only**. Remove user/project switching and obsolete provider controls needed to keep the legacy UI usable during source cutover. Do not redesign it and do not add new React/TanStack/Vite functionality.
 
