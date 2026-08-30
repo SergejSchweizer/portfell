@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 from contextlib import closing
 from datetime import date, timedelta
 from pathlib import Path
@@ -12,8 +13,8 @@ from portfell.hosted_database_connection import connect
 from portfell.market_source.config import load_market_source_config, validate_market_database_url
 from portfell.market_source.gateway import MarketDataGateway
 
-
 ROOT = Path(__file__).resolve().parents[1]
+CONFIG_PATH = Path(os.environ.get("PORTFELL_CONFIG_PATH", ROOT / "config.yaml"))
 LIVE = os.environ.get("PORTFELL_LIVE_XETRA_LOADER_V2") == "1"
 pytestmark = pytest.mark.skipif(
     not LIVE,
@@ -37,10 +38,16 @@ def _market_connection():
     )
 
 
+def _market_config():
+    """Use the runtime-mounted config when this suite runs in a container."""
+
+    return load_market_source_config(CONFIG_PATH)
+
+
 def test_live_gate_is_pinned_to_expected_loader_sha_and_endpoint() -> None:
     expected_sha = _required("PORTFELL_EXPECTED_XETRA_LOADER_SHA")
     observed_sha = _required("PORTFELL_LIVE_XETRA_LOADER_SHA")
-    assert len(expected_sha) == 40
+    assert re.fullmatch(r"[0-9a-f]{40}", expected_sha)
     assert observed_sha == expected_sha
 
     dsn = _required("PORTFELL_MARKET_DATABASE_URL")
@@ -49,7 +56,7 @@ def test_live_gate_is_pinned_to_expected_loader_sha_and_endpoint() -> None:
     assert parsed.port == 54321
     assert parsed.path == "/xetra_loader"
 
-    config = load_market_source_config(ROOT / "config.yaml")
+    config = _market_config()
     validate_market_database_url(config, database_url=dsn)
     assert config.database == "xetra_loader"
     assert config.schema == "xetra_loader"
@@ -57,7 +64,7 @@ def test_live_gate_is_pinned_to_expected_loader_sha_and_endpoint() -> None:
 
 
 def test_live_reader_is_non_superuser_group_member_and_selects_all_business_tables() -> None:
-    config = load_market_source_config(ROOT / "config.yaml")
+    config = _market_config()
     with closing(_market_connection()) as connection:
         cursor = connection.cursor()
         cursor.execute(
@@ -74,7 +81,7 @@ def test_live_reader_is_non_superuser_group_member_and_selects_all_business_tabl
 
 
 def test_live_gateway_materializes_representative_rows() -> None:
-    config = load_market_source_config(ROOT / "config.yaml")
+    config = _market_config()
     gateway = MarketDataGateway(
         _market_connection,
         role=config.role,
