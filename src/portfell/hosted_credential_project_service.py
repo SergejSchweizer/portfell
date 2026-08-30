@@ -8,11 +8,7 @@ from collections.abc import Callable
 from portfell.entitlements import delete_user_entitlements
 from portfell.hosted_api_errors import HostedApplicationError
 from portfell.hosted_api_ports import HostedRuntimePort
-from portfell.hosted_api_serializers import (
-    credential_status_row,
-    project_row,
-    selection_row,
-)
+from portfell.hosted_api_serializers import project_row, selection_row
 from portfell.hosted_api_service_support import (
     page,
     project_data_loaded,
@@ -21,7 +17,6 @@ from portfell.hosted_api_service_support import (
 )
 from portfell.hosted_api_state import HostedApiState, ProjectRecord, SelectionRecord
 from portfell.hosted_audit_event_repository import AuditEventRepository, HostedAuditEvent
-from portfell.hosted_credentials import EodhdCredentialVault
 from portfell.hosted_idempotency_repository import (
     IdempotencyRepository,
     LocalIdempotencyRepository,
@@ -54,7 +49,6 @@ class CredentialProjectService:
         project_repository: ProjectRepository | None = None,
         selection_repository: SelectionRepository | None = None,
         project_settings_repository: ProjectSettingsRepository | None = None,
-        credential_vault: EodhdCredentialVault | None = None,
         audit_repository: AuditEventRepository | None = None,
         idempotency_repository: IdempotencyRepository | None = None,
         workflow_reader: Callable[[str, str | None], JsonRow] | None = None,
@@ -70,7 +64,6 @@ class CredentialProjectService:
         self._project_settings = project_settings_repository or LocalProjectSettingsRepository(
             state
         )
-        self._credentials = credential_vault or state.credential_vault()
         self._audit_events = audit_repository or LocalAuditEventRepository(state)
         self._idempotency = idempotency_repository or LocalIdempotencyRepository(state)
         self._workflow_reader = workflow_reader
@@ -103,43 +96,6 @@ class CredentialProjectService:
             project_id,
             metadata_downloaded_isins=metadata_downloaded_isins,
         )
-
-    def credential_status(self, user_id: str) -> JsonRow:
-        try:
-            return credential_status_row(self._credentials.status(user_id=user_id))
-        except Exception as error:
-            raise HostedApplicationError(404, "credential_not_found") from error
-
-    def set_credential(
-        self, user_id: str, provider_key: str, idempotency_key: str | None
-    ) -> JsonRow:
-        request_hash = stable_hash({"provider_key": provider_key})
-        cached = self._idempotency.lookup(
-            user_id=user_id,
-            operation="set-credential",
-            key=idempotency_key,
-            request_hash=request_hash,
-        )
-        if cached is not None:
-            return self.credential_status(user_id)
-        value = self._credentials.set_credential(user_id=user_id, provider_key=provider_key)
-        self._idempotency.remember(
-            user_id=user_id,
-            operation="set-credential",
-            key=idempotency_key,
-            request_hash=request_hash,
-            response_ref=value.credential_id,
-        )
-        self._audit(user_id, "credential.set")
-        return credential_status_row(value)
-
-    def delete_credential(self, user_id: str) -> JsonRow:
-        try:
-            value = self._credentials.delete(user_id=user_id)
-        except Exception as error:
-            raise HostedApplicationError(404, "credential_not_found") from error
-        self._audit(user_id, "credential.delete")
-        return credential_status_row(value)
 
     def create_project(self, user_id: str, name: str, idempotency_key: str | None) -> JsonRow:
         operation = f"project:{name}"
@@ -299,12 +255,6 @@ class CredentialProjectService:
                 metadata={},
             )
         )
-
-    def _credential_id(self, user_id: str) -> str:
-        try:
-            return self._credentials.status(user_id=user_id).credential_id
-        except Exception as error:
-            raise HostedApplicationError(422, "eodhd_credential_required") from error
 
     @staticmethod
     def _record(project: TenantProject) -> ProjectRecord:

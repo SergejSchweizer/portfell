@@ -7,19 +7,8 @@ from typing import Any
 
 from portfell.entitlements import ProviderDownloadRun
 from portfell.hosted_api_state import AnalysisRecord, ProjectRecord, SelectionRecord
-from portfell.hosted_credentials import CredentialStatus
 from portfell.hosted_research_workflow import ResearchRun, UnivariateSelection
 from portfell.table_io import JsonRow
-
-
-def credential_status_row(value: CredentialStatus) -> JsonRow:
-    return {
-        "credential_id": value.credential_id,
-        "provider": value.provider,
-        "status": value.status,
-        "key_version": value.key_version,
-        "masked_label": value.masked_label,
-    }
 
 
 def research_run_row(run: ResearchRun) -> JsonRow:

@@ -5,7 +5,6 @@ from __future__ import annotations
 from portfell.hosted_analysis_service import HostedAnalysisService
 from portfell.hosted_api_state import HostedApiState
 from portfell.hosted_credential_project_service import CredentialProjectService
-from portfell.hosted_credentials import EodhdCredentialVault, KeyEncryptionKey
 from portfell.hosted_market_source_bivariate_service import (
     BivariateMarketSourceData,
     MarketSourceBivariateResearchService,
@@ -30,17 +29,11 @@ def build_postgres_services(
     state: HostedApiState,
     *,
     request_scope: RequestScopedPostgresConnection,
-    key_encryption_key: KeyEncryptionKey,
     market_gateway: MarketDataGateway | None = None,
 ) -> tuple[CredentialProjectService, MetadataProjectService, ResearchService]:
     """Compose services with PostgreSQL control records and external market reads."""
 
     repositories = PostgresHostedRepositoryBundle.from_connection(request_scope)
-    credential_vault = EodhdCredentialVault(
-        store=repositories.credentials,
-        key_encryption_key=key_encryption_key,
-        fingerprint_secret=key_encryption_key.material,
-    )
     runtime = PostgresHostedRuntime(market_gateway=market_gateway)
     bivariate_data = BivariateMarketSourceData(runtime.market_gateway)
     market_data = MarketSourceResearchData(runtime.market_gateway)
@@ -86,7 +79,6 @@ def build_postgres_services(
         repositories.projects,
         repositories.selections,
         repositories.settings,
-        credential_vault,
         repositories.audit,
         repositories.idempotency,
         workflow_reader,
@@ -101,7 +93,6 @@ def build_postgres_services(
         repositories.projects,
         repositories.selections,
         repositories.metadata,
-        credential_vault,
         repositories.audit,
         credentials.refresh_navigation,
         lambda: metadata_source_catalog(runtime.market_gateway),

@@ -19,7 +19,6 @@ from portfell.hosted_api_service_support import (
 )
 from portfell.hosted_api_state import HostedApiState, ProjectRecord, SelectionRecord
 from portfell.hosted_audit_event_repository import AuditEventRepository, HostedAuditEvent
-from portfell.hosted_credentials import EodhdCredentialVault
 from portfell.hosted_metadata_repository import MetadataLifecycleRepository, MetadataRun
 from portfell.hosted_repository_importer import (
     ProjectRepository,
@@ -62,7 +61,6 @@ class MetadataProjectService:
         project_repository: ProjectRepository,
         selection_repository: SelectionRepository,
         metadata_repository: MetadataLifecycleRepository,
-        credential_vault: EodhdCredentialVault,
         audit_repository: AuditEventRepository,
         navigation_refresher: Callable[[str], None] | None = None,
         market_catalog: Callable[[], MetadataSourceCatalog] | None = None,
@@ -72,7 +70,6 @@ class MetadataProjectService:
         self._projects = project_repository
         self._selections = selection_repository
         self._metadata = metadata_repository
-        self._credentials = credential_vault
         self._audit_events = audit_repository
         self._navigation_refresher = navigation_refresher
         self._market_catalog = market_catalog

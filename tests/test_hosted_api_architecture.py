@@ -21,7 +21,6 @@ FORBIDDEN_ROUTE_IMPORTS = frozenset(
     {
         "portfell.bronze",
         "portfell.hosted_api_local_runtime",
-        "portfell.hosted_credentials",
         "portfell.hosted_workspace",
         "portfell.hosted_workspace_repository",
         "portfell.hosted_local_test_composition",
@@ -43,7 +42,6 @@ FORBIDDEN_SERVICE_IMPORTS = frozenset(
         "portfell.hosted_workspace",
         "portfell.hosted_workspace_repository",
         "portfell.hosted_routes_common",
-        "portfell.hosted_routes_credentials",
         "portfell.hosted_routes_metadata_projects",
         "portfell.hosted_routes_research",
         "portfell.hosted_research_persistence",
@@ -117,6 +115,13 @@ def test_hosted_production_api_has_no_local_or_provider_authority() -> None:
     assert _forbidden_imports(source, FORBIDDEN_PRODUCTION_API_IMPORTS) == set()
 
 
+def test_provider_credential_backend_modules_are_deleted() -> None:
+    assert not (PACKAGE_ROOT / "hosted_credentials.py").exists()
+    assert not (PACKAGE_ROOT / "hosted_routes_credentials.py").exists()
+    assert not (PACKAGE_ROOT / "provider_credential_schema.py").exists()
+    assert not (PACKAGE_ROOT / "user_ingestion.py").exists()
+
+
 def test_hosted_services_are_fastapi_free_and_runtime_port_driven() -> None:
     for path in PACKAGE_ROOT.glob(SERVICE_GLOB):
         source = path.read_text(encoding="utf-8")
@@ -174,10 +179,6 @@ def test_research_implementation_is_split_and_covered_by_hosted_service_gates() 
         ("from portfell.paths import LakePaths", "portfell.paths"),
         ("from portfell.workflows import run_fetch_all_quotes_workflow", "portfell.workflows"),
         ("from portfell.table_io import read_rows", "portfell.table_io"),
-        (
-            "from portfell.hosted_credentials import FileCredentialStore",
-            "portfell.hosted_credentials",
-        ),
         (
             "from portfell.hosted_local_test_composition import local_test_services",
             "portfell.hosted_local_test_composition",

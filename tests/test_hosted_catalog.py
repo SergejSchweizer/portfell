@@ -56,7 +56,6 @@ def test_hosted_catalog_contracts_validate_security_invariants() -> None:
     table_names = {table.name for table in HOSTED_TABLES}
     for required_table in (
         "portfell_app.users",
-        "portfell_app.provider_credentials",
         "portfell_app.projects",
         "portfell_app.current_project_preferences",
         "portfell_app.download_runs",
@@ -86,7 +85,6 @@ def test_hosted_migration_sql_defines_rls_and_immutable_catalog_shape() -> None:
         2,
         3,
         4,
-        5,
         6,
         7,
         8,
@@ -100,12 +98,6 @@ def test_hosted_migration_sql_defines_rls_and_immutable_catalog_shape() -> None:
         20,
     ]
     assert len({migration.checksum for migration in migrations}) == len(migrations)
-    assert "create table if not exists portfell_app.provider_credentials" in sql
-    assert "ciphertext bytea not null" in sql
-    assert "wrapped_data_key bytea not null" in sql
-    assert "wrap_nonce bytea" in sql
-    assert "provider_credentials_one_active_user_provider_idx" in sql
-    assert "key_version text not null" in sql
     assert "create table if not exists portfell_app.market_objects" in sql
     assert "create table if not exists portfell_app.artifact_inputs" in sql
     assert "enable row level security" in sql
@@ -116,8 +108,6 @@ def test_hosted_migration_sql_defines_rls_and_immutable_catalog_shape() -> None:
     assert "drop table if exists portfell_app.external_identities" in sql
     assert "create table if not exists portfell_app.current_project_preferences" in sql
     assert "add column if not exists status text not null default 'active'" in sql
-    assert "add column if not exists purpose text not null default 'user_metadata'" in sql
-    assert "provider_credentials_one_active_user_provider_purpose_idx" in sql
     assert "create table if not exists portfell_app.project_selection_versions" in sql
     assert "add column if not exists metadata_builder_predicates jsonb" in sql
     assert "create table if not exists portfell_app.project_selection_members" in sql

@@ -1,7 +1,5 @@
 {
   "error_codes": [
-    "credential_not_found",
-    "eodhd_credential_required",
     "eodhd_key_rejected",
     "eodhd_key_required",
     "eodhd_metadata_invalid_response",
@@ -22,7 +20,7 @@
     "section_revision_mismatch",
     "section_too_large"
   ],
-  "normalized_sha256": "3065988215895765a36b523593ff1ec88916a689935e5b90a4cdbf67cfdbb648",
+  "normalized_sha256": "cc7d20bbeb658a443daa6646992f087507f935104a062ba2eb719bfb963f1d3c",
   "operations": [
     "POST /analyses 200/422",
     "GET /analyses/{run_id} 200/422",
@@ -38,9 +36,6 @@
     "GET /bivariate-statistics/runs/{run_id}/results 200/422",
     "GET /bivariate-statistics/runs/{run_id}/summary 200/422",
     "GET /bivariate-statistics/runs/{run_id}/tail-risk-scatter 200/422",
-    "DELETE /credentials/eodhd 200",
-    "GET /credentials/eodhd 200",
-    "POST /credentials/eodhd 200/422",
     "GET /health 200",
     "POST /metadata-builder 200/422",
     "GET /metadata-builder/options 200",

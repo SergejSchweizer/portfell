@@ -6,7 +6,6 @@ from dataclasses import dataclass
 
 from portfell.hosted_analysis_record_repository import PostgresAnalysisRecordRepository
 from portfell.hosted_audit_event_repository import PostgresAuditEventRepository
-from portfell.hosted_credentials import PostgresCredentialStore
 from portfell.hosted_idempotency_repository import PostgresIdempotencyRepository
 from portfell.hosted_metadata_repository import PostgresMetadataLifecycleRepository
 from portfell.hosted_multivariate_run_repository import PostgresMultivariateRunRepository
@@ -22,7 +21,6 @@ class PostgresHostedRepositoryBundle:
     """All control-plane repositories sharing one request-scoped connection."""
 
     users: PostgresHostedUserRepository
-    credentials: PostgresCredentialStore
     projects: PostgresProjectRepository
     selections: PostgresSelectionRepository
     metadata: PostgresMetadataLifecycleRepository
@@ -39,7 +37,6 @@ class PostgresHostedRepositoryBundle:
 
         return cls(
             users=PostgresHostedUserRepository(connection),  # type: ignore[arg-type]
-            credentials=PostgresCredentialStore(connection),  # type: ignore[arg-type]
             projects=PostgresProjectRepository(connection),  # type: ignore[arg-type]
             selections=PostgresSelectionRepository(connection),  # type: ignore[arg-type]
             metadata=PostgresMetadataLifecycleRepository(connection),  # type: ignore[arg-type]

@@ -22,9 +22,7 @@ from portfell.hosted_api import (
     create_app,
 )
 from portfell.hosted_api_state import LocalWorkspaceUserProvider
-from portfell.hosted_credentials import InMemoryCredentialStore, KeyEncryptionKey
 from portfell.hosted_local_test_composition import (
-    create_persistent_local_workspace_state,
     local_test_services,
 )
 from portfell.hosted_postgres_request_scope import RequestScopedPostgresConnection
@@ -228,10 +226,15 @@ def test_api_uses_injected_current_user_provider() -> None:
     provider = LocalWorkspaceUserProvider(user_id="00000000-0000-5000-8000-000000000002")
     client = TestClient(_test_app(current_user_provider=provider))
 
-    client.post("/credentials/eodhd", json={"provider_key": "secret-provider-token"})
-    status = _json(client.get("/credentials/eodhd"))
+    assert client.get("/health").status_code == 200
 
-    assert status["status"] == "active"
+
+def test_provider_credential_routes_are_not_exposed() -> None:
+    application = _test_app()
+
+    assert "/credentials/eodhd" not in application.openapi()["paths"]
+    client = TestClient(application)
+    assert client.get("/credentials/eodhd").status_code == 404
 
 
 def test_postgres_composition_exposes_the_durable_status_event_stream() -> None:
@@ -281,51 +284,6 @@ def test_api_provisions_the_server_principal_inside_the_postgres_request_scope()
     assert connections[0].statements[0][1][1] == provisioned[0]
 
 
-def test_api_uses_injected_credential_vault_dependencies() -> None:
-    state = HostedApiState(
-        credentials=InMemoryCredentialStore(),
-        credential_key_encryption_key=KeyEncryptionKey("test-v1", b"1" * 32),
-        credential_fingerprint_secret=b"test-fingerprint-secret",
-    )
-    client = _client(state)
-
-    client.post("/credentials/eodhd", json={"provider_key": "secret-provider-token"})
-
-    assert (
-        state.credential_vault().unwrap_for_provider_call(user_id=DEFAULT_LOCAL_WORKSPACE_USER_ID)
-        == "secret-provider-token"
-    )
-
-
-def test_persistent_local_workspace_restores_credential_and_projects_after_restart(
-    tmp_path: Path,
-) -> None:
-    key = KeyEncryptionKey("test-v1", b"1" * 32)
-    first_client = _client(
-        create_persistent_local_workspace_state(tmp_path, key_encryption_key=key)
-    )
-    first_client.post("/credentials/eodhd", json={"provider_key": "secret-provider-token"})
-    project = _json(first_client.post("/projects", json={"name": "Core"}))
-
-    restored_client = _client(
-        create_persistent_local_workspace_state(tmp_path, key_encryption_key=key)
-    )
-
-    restored_credential = _json(restored_client.get("/credentials/eodhd"))
-    assert restored_credential["status"] == "active"
-    assert restored_credential["masked_label"] != "secret-provider-token"
-    context = _json(restored_client.get("/project-context"))
-    assert context["current_project_id"] == project["project_id"]
-    assert context["projects"] == [
-        {
-            "project_id": project["project_id"],
-            "name": "Core",
-            "selected_count": 0,
-            "data_loaded": False,
-        }
-    ]
-
-
 def test_workflow_starts_with_only_metadata_ready() -> None:
     client = _client()
 
@@ -339,36 +297,6 @@ def test_workflow_starts_with_only_metadata_ready() -> None:
             "multivariate_statistics": {"status": "locked"},
         }
     }
-
-
-def test_credential_lifecycle_redacts_sensitive_material() -> None:
-    client = _client()
-
-    created = _json(
-        client.post(
-            "/credentials/eodhd",
-            headers=_headers(idempotency="credential-1"),
-            json={"provider_key": "secret-provider-token"},
-        )
-    )
-    repeated = _json(
-        client.post(
-            "/credentials/eodhd",
-            headers=_headers(idempotency="credential-1"),
-            json={"provider_key": "changed-token"},
-        )
-    )
-    deleted = _json(client.delete("/credentials/eodhd", headers=_headers()))
-    rendered = str(created) + str(repeated) + str(deleted)
-
-    assert created["status"] == "active"
-    assert repeated["credential_id"] == created["credential_id"]
-    assert deleted["status"] == "deleted"
-    assert "secret-provider-token" not in rendered
-    assert "changed-token" not in rendered
-    assert "fingerprint" not in rendered
-    assert "ciphertext" not in rendered
-    assert "nonce" not in rendered
 
 
 def test_legacy_direct_download_routes_are_not_exposed() -> None:

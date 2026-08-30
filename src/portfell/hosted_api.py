@@ -12,7 +12,6 @@ from fastapi import FastAPI, Request
 from portfell.hosted_api_contracts import (
     AnalysisCreateRequest,
     BivariateSelectionRequest,
-    CredentialSetRequest,
     CurrentProjectRequest,
     LoadSelectedIsinsRequest,
     MetadataBuilderProjectRequest,
@@ -34,13 +33,11 @@ from portfell.hosted_api_state import (
     UserOwnedRow,
 )
 from portfell.hosted_credential_project_service import CredentialProjectService
-from portfell.hosted_credentials import load_key_encryption_key
 from portfell.hosted_database_connection import connect as connect_database
 from portfell.hosted_metadata_project_service import MetadataProjectService
 from portfell.hosted_postgres_request_scope import RequestScopedPostgresConnection
 from portfell.hosted_postgres_service_composition import build_postgres_services
 from portfell.hosted_research_service import ResearchService
-from portfell.hosted_routes_credentials import credential_router
 from portfell.hosted_routes_metadata_projects import metadata_project_router
 from portfell.hosted_routes_research import research_router
 from portfell.hosted_routes_status_events import status_event_router
@@ -59,7 +56,6 @@ __all__ = [
     "AnalysisRecord",
     "ApiUser",
     "BivariateSelectionRequest",
-    "CredentialSetRequest",
     "CurrentProjectRequest",
     "CurrentUserProvider",
     "ConfiguredUserProvider",
@@ -128,9 +124,6 @@ def create_app(
 
     application.state.portfell_state = resolved_state
     application.include_router(
-        credential_router(credentials, current_user=current_user, workspace_user=workspace_user)
-    )
-    application.include_router(
         metadata_project_router(
             credentials,
             metadata,
@@ -164,18 +157,13 @@ def create_runtime_app() -> FastAPI:
     if os.environ.get("PORTFELL_HOSTED_AUTHORITY") != "postgres":
         raise HostedApiError("postgres_hosted_authority_required")
     database_url = os.environ.get("PORTFELL_DATABASE_URL")
-    key_path = os.environ.get("PORTFELL_EODHD_KEK_FILE")
-    if not database_url or not key_path:
+    if not database_url:
         raise HostedApiError("postgres_hosted_runtime_configuration_required")
     config_path = Path(os.environ.get("PORTFELL_CONFIG_PATH", "config.yaml"))
     app_database = load_app_database_config(config_path)
     market_database = load_market_source_config(config_path)
     database_url = validate_app_database_url(app_database, database_url)
     market_database_url = validate_market_database_url(market_database)
-    key_encryption_key = load_key_encryption_key(
-        Path(key_path),
-        version=os.environ.get("PORTFELL_EODHD_KEK_VERSION", "hosted-v1"),
-    )
     request_scope = RequestScopedPostgresConnection(
         lambda: connect_database(database_url, autocommit=False)
     )
@@ -185,7 +173,6 @@ def create_runtime_app() -> FastAPI:
         services=build_postgres_services(
             state,
             request_scope=request_scope,
-            key_encryption_key=key_encryption_key,
             market_gateway=MarketDataGateway(
                 lambda: connect_database(
                     market_database_url,

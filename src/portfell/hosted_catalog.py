@@ -18,7 +18,6 @@ from portfell.metadata_lifecycle_schema import METADATA_LIFECYCLE_SCHEMA_SQL
 from portfell.multivariate_lifecycle_schema import MULTIVARIATE_LIFECYCLE_SCHEMA_SQL
 from portfell.project_membership_trigger_schema import PROJECT_MEMBERSHIP_TRIGGER_REPAIR_SQL
 from portfell.project_settings_schema import PROJECT_SETTINGS_SCHEMA_SQL
-from portfell.provider_credential_schema import PROVIDER_CREDENTIAL_WRAP_NONCE_SCHEMA_SQL
 from portfell.research_lifecycle_schema import RESEARCH_LIFECYCLE_SCHEMA_SQL
 from portfell.tenant_control_schema import (
     D017_DURABLE_JOB_SCHEMA_SQL,
@@ -111,7 +110,6 @@ HOSTED_ROLES: tuple[HostedRole, ...] = (
 
 HOSTED_TABLES: tuple[HostedTable, ...] = (
     HostedTable("portfell_app.users", True, False, "Internal user identities."),
-    HostedTable("portfell_app.provider_credentials", True, False, "Encrypted EODHD credentials."),
     HostedTable("portfell_app.projects", True, False, "User research projects."),
     HostedTable(
         "portfell_app.current_project_preferences",
@@ -199,25 +197,6 @@ create table if not exists portfell_app.sessions (
     check (expires_at > created_at)
 );
 
-create table if not exists portfell_app.provider_credentials (
-    credential_id uuid primary key,
-    user_id uuid not null references portfell_app.users(user_id) on delete cascade,
-    provider text not null check (provider = 'eodhd'),
-    status text not null check (status in ('active', 'revoked', 'deleted')),
-    ciphertext bytea not null,
-    nonce bytea not null,
-    wrapped_data_key bytea not null,
-    key_version text not null,
-    associated_data jsonb not null,
-    fingerprint_hmac text not null,
-    masked_label text not null,
-    created_at timestamptz not null default now(),
-    updated_at timestamptz not null default now(),
-    revoked_at timestamptz,
-    deleted_at timestamptz,
-    unique (user_id, provider, status) deferrable initially immediate
-);
-
 create table if not exists portfell_app.projects (
     project_id uuid primary key,
     user_id uuid not null references portfell_app.users(user_id) on delete cascade,
@@ -231,7 +210,6 @@ create table if not exists portfell_app.projects (
 create table if not exists portfell_app.download_runs (
     download_run_id uuid primary key,
     user_id uuid not null references portfell_app.users(user_id) on delete cascade,
-    credential_id uuid not null references portfell_app.provider_credentials(credential_id),
     provider text not null check (provider = 'eodhd'),
     request_hash text not null,
     status text not null check (status in ('planned', 'running', 'succeeded', 'failed')),
@@ -352,7 +330,6 @@ create table if not exists portfell_app.audit_events (
 
 create index if not exists external_identities_user_id_idx on portfell_app.external_identities(user_id);
 create index if not exists sessions_user_id_idx on portfell_app.sessions(user_id);
-create index if not exists provider_credentials_user_id_idx on portfell_app.provider_credentials(user_id);
 create index if not exists projects_user_id_idx on portfell_app.projects(user_id);
 create index if not exists download_runs_user_id_idx on portfell_app.download_runs(user_id);
 create index if not exists dataset_snapshots_user_id_idx on portfell_app.dataset_snapshots(user_id);
@@ -365,7 +342,6 @@ create index if not exists artifact_inputs_input_idx on portfell_app.artifact_in
 alter table portfell_app.users enable row level security;
 alter table portfell_app.external_identities enable row level security;
 alter table portfell_app.sessions enable row level security;
-alter table portfell_app.provider_credentials enable row level security;
 alter table portfell_app.projects enable row level security;
 alter table portfell_app.download_runs enable row level security;
 alter table portfell_app.dataset_snapshots enable row level security;
@@ -377,7 +353,6 @@ alter table portfell_app.audit_events enable row level security;
 alter table portfell_app.users force row level security;
 alter table portfell_app.external_identities force row level security;
 alter table portfell_app.sessions force row level security;
-alter table portfell_app.provider_credentials force row level security;
 alter table portfell_app.projects force row level security;
 alter table portfell_app.download_runs force row level security;
 alter table portfell_app.dataset_snapshots force row level security;
@@ -396,7 +371,6 @@ begin
         'users',
         'external_identities',
         'sessions',
-        'provider_credentials',
         'projects',
         'download_runs',
         'dataset_snapshots',
@@ -452,7 +426,6 @@ MIGRATIONS: tuple[HostedMigration, ...] = (
     HostedMigration(2, "hosted_catalog_rls_and_grants", _RLS_POLICY_SQL),
     HostedMigration(3, "remove_google_authentication", _REMOVE_GOOGLE_AUTH_SQL),
     HostedMigration(4, "current_project_preference", _CURRENT_PROJECT_PREFERENCE_SQL),
-    HostedMigration(5, "provider_credential_wrap_nonce", PROVIDER_CREDENTIAL_WRAP_NONCE_SCHEMA_SQL),
     HostedMigration(6, "d017_tenant_control_schema", D017_TENANT_CONTROL_SCHEMA_SQL),
     HostedMigration(7, "d017_durable_job_queue", D017_DURABLE_JOB_SCHEMA_SQL),
     HostedMigration(8, "legacy_import_ledger", LEGACY_IMPORT_LEDGER_SQL),

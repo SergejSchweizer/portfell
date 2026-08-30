@@ -9,12 +9,6 @@ from pydantic import BaseModel, ConfigDict, Field
 from portfell.table_io import JsonRow
 
 
-class CredentialSetRequest(BaseModel):
-    """Request to set or replace a provider credential."""
-
-    provider_key: str = Field(min_length=1, max_length=4096)
-
-
 class ProjectCreateRequest(BaseModel):
     """Request to create one user-owned project."""
 

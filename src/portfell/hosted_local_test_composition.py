@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-from pathlib import Path
 from typing import Never, cast
 
 from portfell.hosted_analysis_service import HostedAnalysisService
@@ -12,7 +11,6 @@ from portfell.hosted_api_ports import Workflow
 from portfell.hosted_api_service_support import project_data_loaded, workflow_row
 from portfell.hosted_api_state import HostedApiState
 from portfell.hosted_credential_project_service import CredentialProjectService
-from portfell.hosted_credentials import FileCredentialStore, KeyEncryptionKey
 from portfell.hosted_idempotency_repository import LocalIdempotencyRepository
 from portfell.hosted_local_audit_event_repository import LocalAuditEventRepository
 from portfell.hosted_local_metadata_repository import LocalMetadataLifecycleRepository
@@ -33,8 +31,6 @@ from portfell.hosted_research_ports import ResearchDataPort
 from portfell.hosted_research_repository import HostedResearchRepository
 from portfell.hosted_research_service import ResearchService
 from portfell.hosted_univariate_service import UnivariateResearchService
-from portfell.hosted_workspace import LocalWorkspaceStore
-from portfell.hosted_workspace_repository import restore_local_workspace
 from portfell.market_source.errors import market_source_required
 from portfell.market_source.gateway import MarketDataGateway
 
@@ -99,7 +95,6 @@ def local_credential_project_service(state: HostedApiState) -> CredentialProject
         project_repository=LocalProjectRepository(state),
         selection_repository=LocalSelectionRepository(state),
         project_settings_repository=LocalProjectSettingsRepository(state),
-        credential_vault=state.credential_vault(),
         audit_repository=LocalAuditEventRepository(state),
         idempotency_repository=LocalIdempotencyRepository(state),
         workflow_reader=lambda user_id, project_id: workflow_row(state, user_id, project_id),
@@ -125,21 +120,7 @@ def local_test_services(
             LocalProjectRepository(state),
             LocalSelectionRepository(state),
             LocalMetadataLifecycleRepository(state),
-            state.credential_vault(),
             LocalAuditEventRepository(state),
         ),
         local_research_service(state, runtime, market_gateway=market_gateway),
     )
-
-
-def create_persistent_local_workspace_state(
-    shared_data_root: Path, *, key_encryption_key: KeyEncryptionKey
-) -> HostedApiState:
-    workspace_store = LocalWorkspaceStore(shared_data_root / "local-workspace.json")
-    state = HostedApiState(
-        credentials=FileCredentialStore(shared_data_root / "encrypted-credentials.json"),
-        credential_key_encryption_key=key_encryption_key,
-        workspace_store=workspace_store,
-    )
-    restore_local_workspace(state, workspace_store.load())
-    return state

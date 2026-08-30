@@ -25,11 +25,6 @@ from portfell.entitlements import (
     delete_user_entitlements,
     publish_user_data_snapshot,
 )
-from portfell.hosted_credentials import (
-    EodhdCredentialVault,
-    InMemoryCredentialStore,
-    KeyEncryptionKey,
-)
 from portfell.hosted_readiness import public_hosted_mode_allowed
 from portfell.scoped_inputs import (
     EntitledSnapshotReader,
@@ -98,15 +93,6 @@ class HostedCutoverReport:
 
 def run_hosted_cutover_proof() -> HostedCutoverReport:
     """Run deterministic historical D016 isolation evidence without enabling D017."""
-
-    credential_store = InMemoryCredentialStore()
-    vault = EodhdCredentialVault(
-        store=credential_store,
-        key_encryption_key=KeyEncryptionKey("cutover-v1", b"1" * 32),
-        fingerprint_secret=b"portfell-cutover-fingerprint-secret",
-    )
-    for user_id in ("user-a", "user-b", "user-c"):
-        vault.set_credential(user_id=user_id, provider_key=f"{user_id}-provider-key-value")
 
     entitlement_store = InMemoryEntitlementStore()
     run_a = _download_run("run-a", "user-a", ("obs-overlap", "obs-a-only"))

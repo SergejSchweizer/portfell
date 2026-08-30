@@ -35,11 +35,6 @@ from portfell.hosted_api_state import (
 )
 from portfell.hosted_audit_event_repository import HostedAuditEvent
 from portfell.hosted_credential_project_service import CredentialProjectService
-from portfell.hosted_credentials import (
-    EodhdCredentialVault,
-    InMemoryCredentialStore,
-    KeyEncryptionKey,
-)
 from portfell.hosted_local_audit_event_repository import LocalAuditEventRepository
 from portfell.hosted_local_metadata_repository import LocalMetadataLifecycleRepository
 from portfell.hosted_local_project_repository import LocalProjectRepository
@@ -77,7 +72,6 @@ def MetadataProjectService(
         dependencies.pop("project_repository", LocalProjectRepository(state)),
         dependencies.pop("selection_repository", LocalSelectionRepository(state)),
         dependencies.pop("metadata_repository", LocalMetadataLifecycleRepository(state)),
-        dependencies.pop("credential_vault", state.credential_vault()),
         dependencies.pop("audit_repository", LocalAuditEventRepository(state)),
         **dependencies,
     )
@@ -250,31 +244,6 @@ def test_service_support_enforces_scope_paging_and_idempotency() -> None:
         )
         == "project-1"
     )
-
-
-def test_services_fail_closed_without_credentials() -> None:
-    state = HostedApiState()
-    credentials = CredentialProjectService(state)
-    with pytest.raises(HostedApplicationError, match="credential_not_found"):
-        credentials.credential_status("user-a")
-
-
-def test_credential_commands_can_use_an_injected_vault_without_state_authority() -> None:
-    state = HostedApiState()
-    vault = EodhdCredentialVault(
-        store=InMemoryCredentialStore(),
-        key_encryption_key=KeyEncryptionKey("test-v1", b"1" * 32),
-        fingerprint_secret=b"test-fingerprint-secret",
-    )
-    service = CredentialProjectService(state, credential_vault=vault)
-    user_id = "00000000-0000-5000-8000-000000000001"
-
-    status = service.set_credential(user_id, "test-key", idempotency_key=None)
-
-    assert status["key_version"] == "test-v1"
-    assert service.credential_status(user_id)["masked_label"] == status["masked_label"]
-    with pytest.raises(Exception, match="credential not found"):
-        state.credential_vault().status(user_id=user_id)
 
 
 def test_project_commands_can_use_an_injected_audit_repository_without_state_authority() -> None:

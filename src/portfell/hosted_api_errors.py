@@ -4,8 +4,6 @@ from __future__ import annotations
 
 HOSTED_ERROR_CODES = frozenset(
     {
-        "credential_not_found",
-        "eodhd_credential_required",
         "eodhd_key_rejected",
         "eodhd_key_required",
         "eodhd_metadata_invalid_response",

@@ -146,7 +146,6 @@ def _metadata_service(state: HostedApiState, gateway: ImmutableGateway) -> Metad
         LocalProjectRepository(state),
         LocalSelectionRepository(state),
         LocalMetadataLifecycleRepository(state),
-        state.credential_vault(),
         LocalAuditEventRepository(state),
         market_catalog=lambda: metadata_source_catalog(gateway),  # type: ignore[arg-type]
     )

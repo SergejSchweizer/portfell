@@ -61,18 +61,6 @@ alter table portfell_app.projects
 alter table portfell_app.projects
     add constraint projects_project_id_user_id_key unique (project_id, user_id);
 
-alter table portfell_app.provider_credentials
-    add column if not exists purpose text not null default 'user_metadata';
-alter table portfell_app.provider_credentials
-    drop constraint if exists provider_credentials_purpose_check;
-alter table portfell_app.provider_credentials
-    add constraint provider_credentials_purpose_check
-    check (purpose in ('user_metadata', 'operations')) not valid;
-drop index if exists portfell_app.provider_credentials_one_active_user_provider_idx;
-create unique index if not exists provider_credentials_one_active_user_provider_purpose_idx
-    on portfell_app.provider_credentials (user_id, provider, purpose)
-    where status = 'active';
-
 create table if not exists portfell_app.project_selection_versions (
     selection_version_id uuid primary key,
     project_id uuid not null,
