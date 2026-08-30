@@ -1,0 +1,108 @@
+.pf-control-bar > label {
+  min-width: 180px;
+  display: grid;
+  gap: 6px;
+}
+
+.pf-control-bar .Select-control,
+.pf-control-bar .Select-menu-outer,
+.pf-control-bar input {
+  border-color: var(--pf-border);
+  border-radius: 7px;
+  box-shadow: none;
+}
+
+.pf-control-bar .is-focused:not(.is-open) > .Select-control {
+  border-color: var(--pf-accent);
+  box-shadow: 0 0 0 3px rgba(47, 128, 237, 0.18);
+}
+
+.pf-button:hover:not(:disabled) {
+  border-color: #c8d2df;
+  background: #f9fbfd;
+}
+
+.pf-button-primary:hover:not(:disabled) {
+  border-color: var(--pf-accent);
+  background: #246fd0;
+}
+
+.pf-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.pf-table th,
+.pf-table td {
+  padding: 10px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--pf-border);
+  vertical-align: middle;
+}
+
+.pf-table th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #fafbfc;
+  color: var(--pf-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.pf-table tbody tr:last-child td { border-bottom: 0; }
+.pf-table tbody tr:hover td { background: #fbfcfe; }
+
+.pf-evidence-list {
+  display: grid;
+  grid-template-columns: minmax(140px, 220px) minmax(0, 1fr);
+  gap: 8px 16px;
+  margin: 0;
+}
+
+.pf-evidence-list dt {
+  color: var(--pf-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.pf-evidence-list dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.pf-history-card,
+.pf-decision-card { align-self: start; }
+
+.pf-chart-card .js-plotly-plot,
+.pf-chart-card .plot-container,
+.pf-chart-card .svg-container { width: 100% !important; }
+
+.pf-status-banner { line-height: 1.4; }
+.pf-state { min-height: 52px; display: flex; align-items: center; }
+
+@media (max-width: 1099px) and (min-width: 768px) {
+  .pf-control-bar > label { min-width: 160px; flex: 1 1 220px; }
+}
+
+@media (max-width: 767px) {
+  .pf-control-bar > label { min-width: 0; width: 100%; }
+  .pf-table th, .pf-table td { padding: 9px 10px; }
+  .pf-chart { min-height: 280px; }
+  .pf-evidence-list { grid-template-columns: 1fr; gap: 3px 0; }
+  .pf-evidence-list dd { margin-bottom: 10px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
