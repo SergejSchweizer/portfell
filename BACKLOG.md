@@ -589,6 +589,10 @@ Depends on: PR333 and PR334.
 
 Acceptance: one workspace, no membership/security scope, four transitional routes, market PG privileges unchanged, full merge gate. This PR is not Dash parity evidence.
 
+Git status: integrated on `main` at `3755ed9` after rebase. The QA guard verifies the
+single workspace principal, absence of user/credential authority, canonical transitional
+routes, and read-only external-market transaction and role constraints (10 focused tests pass).
+
 ### PR336 — Package/entrypoint cleanup
 
 Branch: `chore/pr336-market-source-package-cleanup`
