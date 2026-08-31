@@ -59,7 +59,7 @@ def test_transitional_compose_has_exactly_two_database_authorities() -> None:
     manifest = yaml.safe_load(compose)
 
     # One Portfell-owned application PostgreSQL service remains during source cutover.
-    assert set(manifest["services"]) == {"postgres", "api", "web"}
+    assert set(manifest["services"]) == {"postgres", "api"}
     assert set(manifest.get("volumes", {})) == {"portfell-postgres-data"}
     assert "PORTFELL_DATABASE_URL: postgresql://portfell_app@postgres:5432/portfell" in compose
 

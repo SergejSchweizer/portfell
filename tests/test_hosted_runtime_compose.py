@@ -50,7 +50,7 @@ def test_compose_defines_persistent_internal_postgres_without_market_filesystem(
     assert "5432" in postgres["expose"]
     assert "portfell-postgres-data:/var/lib/postgresql/data" in postgres["volumes"]
     assert set(services) == {"api", "postgres"}
-    assert "volumes" not in api
+    assert api["volumes"] == ["./config.yaml:/run/portfell/config.yaml:ro"]
     assert api["container_name"] == "portfell-api"
     assert api["environment"]["PORTFELL_HOSTED_AUTHORITY"] == "postgres"
     assert api["environment"]["PORTFELL_DATABASE_PASSWORD_FILE"] == "/run/secrets/postgres_password"
