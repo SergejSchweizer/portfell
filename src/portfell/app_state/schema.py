@@ -14,6 +14,7 @@ APP_STATE_TABLES = (
     "metadata_universe_members",
     "analysis_runs",
     "analysis_artifacts",
+    "analysis_jobs",
     "univariate_selections",
     "univariate_selection_members",
     "decision_artifacts",
