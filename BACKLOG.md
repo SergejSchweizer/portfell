@@ -911,6 +911,12 @@ Branch: `feat/pr349-dash-metadata-page`
 
 Depends on: PR347 and PR348.
 
+Git status: integrated on `main` at `f07690a`. The Dash Metadata page uses the clean typed
+service contract for active listings, filter options, persisted universe history and explicit
+universe creation; it preserves full listing identity and contains no provider/download action.
+Focused page tests and the complete gate passed before integration (`900 passed`, `5` live-only
+skips, `90.11%` coverage).
+
 Owned paths: Dash Metadata page/callbacks and focused tests only. Reuse PR348 shared presentation primitives; do not add page-local card/navigation styling.
 
 Frozen page title: `Metadata`.
