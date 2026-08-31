@@ -27,7 +27,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Install uv
-        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d
         with:
           enable-cache: true
       - name: Install Python
@@ -62,7 +62,7 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.sha }}
       - name: Install uv
-        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d
         with:
           enable-cache: true
       - name: Install Python
@@ -88,7 +88,7 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.sha }}
       - name: Install uv
-        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d
         with:
           enable-cache: true
       - name: Install Python
@@ -103,7 +103,7 @@ jobs:
         run: uv run pytest -m browser tests/browser -q
       - name: Upload Dash parity evidence
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: dash-parity-v1
           path: artifacts/dash-parity-v1
@@ -124,7 +124,7 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.sha }}
       - name: Install uv
-        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d
         with:
           enable-cache: true
       - name: Install Python
@@ -146,7 +146,7 @@ jobs:
           --cov-report=
           --cov-fail-under=0
       - name: Upload coverage shard
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: coverage-unit-${{ matrix.shard }}
           path: .coverage.unit.${{ matrix.shard }}
@@ -166,7 +166,7 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.sha }}
       - name: Install uv
-        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d
         with:
           enable-cache: true
       - name: Install Python
@@ -188,7 +188,7 @@ jobs:
           --cov-report=
           --cov-fail-under=0
       - name: Upload coverage shard
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: coverage-integration-${{ matrix.shard }}
           path: .coverage.integration.${{ matrix.shard }}
@@ -211,7 +211,7 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.sha }}
       - name: Install uv
-        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d
         with:
           enable-cache: true
       - name: Install Python
@@ -219,7 +219,7 @@ jobs:
       - name: Install dependencies
         run: uv sync --dev
       - name: Download coverage shards
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           pattern: coverage-*
           path: coverage-shards
