@@ -52,19 +52,19 @@ def metadata_project_router(service: MetadataApplicationService) -> APIRouter:
     router = APIRouter(prefix="/api")
 
     @router.get("/health")
-    def health() -> JsonRow:
+    def health() -> JsonRow:  # pyright: ignore[reportUnusedFunction]
         return {"status": "ok", "database": "portfell_dash", "workspace": "default"}
 
     @router.get("/workflow")
-    def workflow() -> JsonRow:
+    def workflow() -> JsonRow:  # pyright: ignore[reportUnusedFunction]
         return _typed_call(service.workflow_state)
 
     @router.get("/metadata/options")
-    def metadata_options() -> JsonRow:
+    def metadata_options() -> JsonRow:  # pyright: ignore[reportUnusedFunction]
         return _typed_call(service.metadata_options)
 
     @router.get("/metadata/listings")
-    def active_listings(
+    def active_listings(  # pyright: ignore[reportUnusedFunction]
         exchange: str | None = Query(default=None),
         instrument_type: str | None = Query(default=None),
         country: str | None = Query(default=None),
@@ -80,7 +80,9 @@ def metadata_project_router(service: MetadataApplicationService) -> APIRouter:
         return {"items": list(items), "total": len(items)}
 
     @router.post("/metadata/universes")
-    def create_metadata_universe(payload: dict[str, object]) -> JsonRow:
+    def create_metadata_universe(  # pyright: ignore[reportUnusedFunction]
+        payload: dict[str, object],
+    ) -> JsonRow:
         created = _typed_call(
             service.create_metadata_universe,
             exchange=_payload_value(payload, "exchange"),
@@ -94,11 +96,11 @@ def metadata_project_router(service: MetadataApplicationService) -> APIRouter:
         return _typed_call(service.metadata_universe, universe_id)
 
     @router.get("/metadata/universes/{universe_id}")
-    def metadata_universe(universe_id: str) -> JsonRow:
+    def metadata_universe(universe_id: str) -> JsonRow:  # pyright: ignore[reportUnusedFunction]
         return _typed_call(service.metadata_universe, universe_id)
 
     @router.get("/metadata/history")
-    def metadata_history() -> JsonRow:
+    def metadata_history() -> JsonRow:  # pyright: ignore[reportUnusedFunction]
         items = _typed_call(service.metadata_history)
         return {"items": list(items), "total": len(items)}
 

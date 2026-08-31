@@ -129,7 +129,7 @@ def validate_readiness(
         )
         if identifier == "shared-data-provider-license":
             approved = decision.get("approved_uses")
-            approved_set = (
+            approved_set: set[str] = (
                 {value for value in cast(list[object], approved) if isinstance(value, str)}
                 if isinstance(approved, list)
                 else set()
@@ -164,7 +164,9 @@ def local_only_mode_allowed(
     if resolved.get("public_hosted_mode") != "disabled":
         return False
     failures = failed_results(validate_readiness(resolved, today=today))
-    return all(result.name.startswith("decision.shared-data-provider-license.") for result in failures)
+    return all(
+        result.name.startswith("decision.shared-data-provider-license.") for result in failures
+    )
 
 
 def _postgres_database_url(value: str | None) -> bool:
@@ -232,9 +234,7 @@ def _database_unavailable_results() -> list[ReadinessResult]:
         ReadinessResult(
             "database.connection_available", False, "clean PostgreSQL database is unavailable"
         ),
-        ReadinessResult(
-            "database.catalog_current", False, "app-state migrations are incomplete"
-        ),
+        ReadinessResult("database.catalog_current", False, "app-state migrations are incomplete"),
     ]
 
 

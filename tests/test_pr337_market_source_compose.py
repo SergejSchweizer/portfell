@@ -18,10 +18,10 @@ def test_compose_keeps_app_postgres_local_and_market_postgres_external() -> None
     postgres = services["postgres"]
     api = services["api"]
 
-    assert postgres["environment"]["POSTGRES_DB"] == "portfell"
+    assert postgres["environment"]["POSTGRES_DB"] == "portfell_dash"
     assert (
         api["environment"]["PORTFELL_DATABASE_URL"]
-        == "postgresql://portfell_app@postgres:5432/portfell"
+        == "postgresql://portfell_app@postgres:5432/portfell_dash"
     )
     assert api["environment"]["PORTFELL_MARKET_DATABASE_URL"].startswith(
         "${PORTFELL_MARKET_DATABASE_URL:?"

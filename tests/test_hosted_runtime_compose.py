@@ -49,7 +49,10 @@ def test_pr357_compose_uses_clean_app_database_identity() -> None:
 
     environment = cast(ComposeMapping, api["environment"])
     assert "PORTFELL_HOSTED_AUTHORITY" not in environment
-    assert environment["PORTFELL_DATABASE_URL"] == "postgresql://portfell_app@postgres:5432/portfell_dash"
+    assert (
+        environment["PORTFELL_DATABASE_URL"]
+        == "postgresql://portfell_app@postgres:5432/portfell_dash"
+    )
     assert "PORTFELL_MARKET_DATABASE_URL" in environment
     assert api["secrets"] == ["postgres_password", "market_postgres_password"]
 
