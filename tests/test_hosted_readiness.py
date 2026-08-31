@@ -49,7 +49,9 @@ def test_readiness_fails_closed_for_incomplete_license() -> None:
     payload = copy.deepcopy(load_readiness())
     payload["decisions"][0]["approved_uses"] = ["cross-customer-storage"]
     failures = failed_results(validate_readiness(payload, today=date(2026, 8, 30)))
-    assert any(item.name == "decision.shared-data-provider-license.approved_uses" for item in failures)
+    assert any(
+        item.name == "decision.shared-data-provider-license.approved_uses" for item in failures
+    )
     assert not public_hosted_mode_allowed(payload, today=date(2026, 8, 30))
 
 
@@ -62,7 +64,9 @@ def test_local_only_mode_is_independent_of_removed_database_authority_selector()
             {"PORTFELL_DATABASE_URL": "postgresql://portfell_app@postgres:5432/portfell_dash"}
         )
     )
-    failures = failed_results(validate_runtime_readiness({"PORTFELL_DATABASE_URL": "sqlite:///old.db"}))
+    failures = failed_results(
+        validate_runtime_readiness({"PORTFELL_DATABASE_URL": "sqlite:///old.db"})
+    )
     assert [item.name for item in failures] == ["runtime.database_url_configured"]
 
 
