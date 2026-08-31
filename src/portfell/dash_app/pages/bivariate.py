@@ -6,7 +6,7 @@ from collections.abc import Mapping
 from typing import Protocol, cast
 
 import plotly.graph_objects as go
-from dash import dcc, html
+from dash import html
 from dash.development.base_component import Component
 
 from portfell.dash_app.components import (
@@ -122,13 +122,17 @@ def _layout(
             ),
             TableCard(
                 "Bivariate Statistics",
-                [_pair_table(rows)] if rows else [EmptyState("Compute Bivariate statistics to populate pair evidence.")],
+                (
+                    [_pair_table(rows)]
+                    if rows
+                    else [EmptyState("Compute Bivariate statistics to populate pair evidence.")]
+                ),
                 component_id="bivariate-statistics-table",
             ),
             HistoryCard([_history(selection, run, model)]),
             StageFooter(
                 [
-                    dcc.Link(
+                    html.A(
                         "Continue to Multivariate",
                         href="/multivariate" if ready else "#",
                         id="bivariate-continue-multivariate",
@@ -169,7 +173,8 @@ def _scatter(rows: tuple[Mapping[str, object], ...]) -> go.Figure:
             hovertemplate=(
                 "Left %{customdata[0]} / %{customdata[1]} / %{customdata[2]}"
                 "<br>Right %{customdata[3]} / %{customdata[4]} / %{customdata[5]}"
-                "<br>Observations %{customdata[6]}<br>Pearson %{x}<br>Covariance %{y}<extra></extra>"
+                "<br>Observations %{customdata[6]}<br>Pearson %{x}"
+                "<br>Covariance %{y}<extra></extra>"
             ),
             name="Eligible pairs",
         )
