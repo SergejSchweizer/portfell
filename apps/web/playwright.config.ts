@@ -1,6 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const realStack = process.env.PORTFELL_REAL_STACK === "true";
+const prebuiltDist = process.env.PORTFELL_WEB_DIST_DIR !== undefined;
 
 export default defineConfig({
   testDir: "./tests",
@@ -19,7 +20,7 @@ export default defineConfig({
     { name: "desktop", use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 1080 } } },
   ],
   webServer: realStack ? undefined : {
-    command: "npm run build && npm start",
+    command: prebuiltDist ? "npm start" : "npm run build && npm start",
     url: "http://127.0.0.1:3000/health",
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

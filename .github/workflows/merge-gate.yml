@@ -103,12 +103,15 @@ jobs:
 
       - name: Install Web dependencies
         run: |
+          dependency_dir="$(mktemp -d "$GITHUB_WORKSPACE/.node_modules-ci.XXXXXX")"
+          trap 'rm -rf "$dependency_dir"' EXIT
           docker run --rm --user "$(id -u):$(id -g)" \
             -e npm_config_cache=/tmp/npm-cache \
             -v "$GITHUB_WORKSPACE:/workspace" \
+            -v "$dependency_dir:/workspace/apps/web/node_modules" \
             -w /workspace/apps/web \
             node:26-alpine \
-            sh -lc 'npm ci && npm run typecheck && npm run test:coverage'
+            sh -lc 'npm ci && npm run typecheck && npm run test:coverage -- --coverage.reportsDirectory=/tmp/coverage'
 
   merge-web-button-e2e:
     name: merge-web-button-e2e
@@ -123,13 +126,18 @@ jobs:
 
       - name: Run browser workflows for every visible button
         run: |
+          dependency_dir="$(mktemp -d "$GITHUB_WORKSPACE/.node_modules-ci.XXXXXX")"
+          results_dir="$(mktemp -d "$GITHUB_WORKSPACE/.test-results-ci.XXXXXX")"
+          trap 'rm -rf "$dependency_dir" "$results_dir"' EXIT
           docker run --rm --ipc=host --user "$(id -u):$(id -g)" \
             -e CI=true \
             -e npm_config_cache=/tmp/npm-cache \
             -v "$GITHUB_WORKSPACE:/workspace" \
+            -v "$dependency_dir:/workspace/apps/web/node_modules" \
+            -v "$results_dir:/workspace/apps/web/test-results" \
             -w /workspace/apps/web \
             mcr.microsoft.com/playwright:v1.62.1-noble \
-            bash -lc 'npm ci && npm run build && npm run e2e'
+            bash -lc 'npm ci && npm run build -- --outDir /tmp/dist && PORTFELL_WEB_DIST_DIR=/tmp/dist npm run e2e'
 
       - name: Upload browser failure artifacts
         if: failure()
