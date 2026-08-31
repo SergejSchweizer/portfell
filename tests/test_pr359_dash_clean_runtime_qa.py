@@ -106,7 +106,7 @@ def test_final_compose_has_exactly_two_database_authorities_and_one_app_surface(
     assert services["postgres"]["environment"]["POSTGRES_DB"] == "portfell_dash"
     assert services["api"]["environment"]["PORTFELL_DATABASE_URL"].endswith("/portfell_dash")
     assert "PORTFELL_MARKET_DATABASE_URL" in services["api"]["environment"]
-    assert services["api"]["ports"] == ["127.0.0.1:${PORTFELL_PORT:-8080}:8000"]
+    assert services["api"]["ports"] == ["0.0.0.0:${PORTFELL_PORT:-8080}:8000"]
 
 
 def test_clean_install_and_browser_acceptance_harnesses_cover_final_contract() -> None:

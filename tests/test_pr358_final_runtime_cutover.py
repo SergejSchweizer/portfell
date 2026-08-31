@@ -37,7 +37,7 @@ def test_pr358_runtime_composes_dash_clean_state_and_external_market_source() ->
 
 def test_pr358_compose_exposes_one_local_application_surface() -> None:
     compose = (ROOT / "compose.yaml").read_text(encoding="utf-8")
-    assert '"127.0.0.1:${PORTFELL_PORT:-8080}:8000"' in compose
+    assert '"0.0.0.0:${PORTFELL_PORT:-8080}:8000"' in compose
     assert "apps/web" not in compose
     assert "NODE_ENV" not in compose
     assert "portfell_dash" in compose

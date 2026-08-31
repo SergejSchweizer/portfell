@@ -67,10 +67,10 @@ def test_final_runtime_has_only_python_application_and_clean_app_database() -> N
     assert api["group_add"] == ["${PORTFELL_SECRET_GROUP_ID:-100}"]
 
 
-def test_final_runtime_has_one_loopback_application_surface() -> None:
+def test_final_runtime_has_one_network_application_surface() -> None:
     services = cast(ComposeMapping, _compose()["services"])
     api = cast(ComposeMapping, services["api"])
-    assert api["ports"] == ["127.0.0.1:${PORTFELL_PORT:-8080}:8000"]
+    assert api["ports"] == ["0.0.0.0:${PORTFELL_PORT:-8080}:8000"]
     assert "ports" not in cast(ComposeMapping, services["postgres"])
 
 
