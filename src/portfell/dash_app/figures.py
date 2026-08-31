@@ -7,6 +7,15 @@ from typing import Any
 
 import plotly.graph_objects as go  # pyright: ignore[reportMissingTypeStubs]
 
+PORTFELL_CATEGORICAL_PALETTE = (
+    "#2f80ed",
+    "#5b8def",
+    "#7a6ff0",
+    "#3b9c9c",
+    "#8a94a6",
+    "#5f6b7a",
+)
+
 PORTFELL_FIGURE_LAYOUT: dict[str, Any] = {
     "font": {
         "family": 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
@@ -16,9 +25,23 @@ PORTFELL_FIGURE_LAYOUT: dict[str, Any] = {
     "plot_bgcolor": "rgba(0,0,0,0)",
     "margin": {"l": 56, "r": 24, "t": 32, "b": 48},
     "hovermode": "closest",
+    "hoverlabel": {"bgcolor": "#ffffff", "bordercolor": "#e3e8ef", "font": {"color": "#172033"}},
     "legend": {"orientation": "h", "yanchor": "bottom", "y": 1.02, "xanchor": "right", "x": 1.0},
-    "xaxis": {"gridcolor": "#e3e8ef", "zerolinecolor": "#e3e8ef", "automargin": True},
-    "yaxis": {"gridcolor": "#e3e8ef", "zerolinecolor": "#e3e8ef", "automargin": True},
+    "colorway": list(PORTFELL_CATEGORICAL_PALETTE),
+    "xaxis": {
+        "gridcolor": "#e3e8ef",
+        "zerolinecolor": "#e3e8ef",
+        "linecolor": "#e3e8ef",
+        "automargin": True,
+        "showline": True,
+    },
+    "yaxis": {
+        "gridcolor": "#e3e8ef",
+        "zerolinecolor": "#e3e8ef",
+        "linecolor": "#e3e8ef",
+        "automargin": True,
+        "showline": True,
+    },
 }
 
 
@@ -51,4 +74,9 @@ def figure_from_rows(
     return apply_portfell_template(figure, x_title=x_title, y_title=y_title)
 
 
-__all__ = ["PORTFELL_FIGURE_LAYOUT", "apply_portfell_template", "figure_from_rows"]
+__all__ = [
+    "PORTFELL_CATEGORICAL_PALETTE",
+    "PORTFELL_FIGURE_LAYOUT",
+    "apply_portfell_template",
+    "figure_from_rows",
+]
