@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from typing import Protocol, cast
+from typing import Any, Protocol, cast
 
-import plotly.graph_objects as go
+import plotly.graph_objects as go  # pyright: ignore[reportMissingTypeStubs]
 from dash import dcc, html
 from dash.development.base_component import Component
 
@@ -39,18 +39,15 @@ class UnivariateService(Protocol):
 def univariate_page_data(service: UnivariateService) -> dict[str, object]:
     workflow = service.workflow_state()
     universe = _mapping(workflow.get("metadata_universe"))
-    stages = _mapping(workflow.get("stages"))
+    stages = _mapping(workflow.get("stages")) or {}
     stage = _mapping(stages.get("univariate"))
     selection = _mapping(workflow.get("univariate_selection"))
     detail = service.run_detail(str(stage["run_id"])) if stage and stage.get("run_id") else stage
-    artifacts = _mapping(detail.get("artifacts")) if detail else {}
-    artifact = _mapping(artifacts.get("univariate_rows"))
-    raw_rows = artifact.get("items") if artifact else []
-    rows = tuple(cast(dict[str, object], row) for row in raw_rows if isinstance(row, dict))
+    artifacts = (_mapping(detail.get("artifacts")) or {}) if detail else {}
+    artifact = _mapping(artifacts.get("univariate_rows")) or {}
+    rows = _mappings(artifact.get("items"))
     selected = {
-        _member_id(member)
-        for member in (selection.get("members", []) if selection else [])
-        if isinstance(member, dict)
+        _member_id(member) for member in _mappings(selection.get("members") if selection else None)
     }
     available = tuple(row for row in rows if row.get("availability_reason") == "ok")
     unavailable = tuple(row for row in rows if row.get("availability_reason") != "ok")
@@ -94,8 +91,8 @@ def build_page(services: object | None = None) -> Component:
 def _layout(
     model: Mapping[str, object], *, message: str | None = None, error: str | None = None
 ) -> Component:
-    rows = tuple(row for row in model.get("rows", ()) if isinstance(row, dict))
-    selected = model.get("selected") if isinstance(model.get("selected"), set) else set()
+    rows = _mappings(model.get("rows"))
+    selected = _string_set(model.get("selected"))
     run = _mapping(model.get("run"))
     universe = _mapping(model.get("universe"))
     selection = _mapping(model.get("selection"))
@@ -109,7 +106,7 @@ def _layout(
         ControlBar(
             [
                 html.Button(
-                    "Compute univariate statistics",
+                    children="Compute univariate statistics",
                     id="univariate-compute",
                     className="pf-button pf-button-primary",
                     disabled=universe is None,
@@ -145,7 +142,7 @@ def _layout(
             ),
             TableCard(
                 "Univariate Statistics",
-                [_statistics_table(rows, cast(set[str], selected))]
+                [_statistics_table(rows, selected)]
                 if rows
                 else [EmptyState("Compute Univariate statistics to populate this table.")],
                 component_id="univariate-statistics-table",
@@ -154,17 +151,17 @@ def _layout(
             StageFooter(
                 [
                     html.Button(
-                        "Save selection",
+                        children="Save selection",
                         id="univariate-save-selection",
                         className="pf-button",
                         disabled=run is None or run.get("status") != "succeeded",
                     ),
                     html.A(
-                        "Continue to Bivariate",
+                        children="Continue to Bivariate",
                         href="/bivariate" if ready else "#",
                         id="univariate-continue-bivariate",
                         className="pf-button pf-button-primary" if ready else "pf-button",
-                        **{"aria-disabled": "false" if ready else "true"},
+                        **cast(Any, {"aria-disabled": "false" if ready else "true"}),
                     ),
                 ]
             ),
@@ -221,23 +218,23 @@ def _statistics_table(rows: Sequence[Mapping[str, object]], selected: set[str]) 
                 [
                     html.Tr(
                         [
-                                html.Td(
-                                    dcc.Checklist(
-                                        id={"type": "univariate-member", "id": _row_member_id(row)},
-                                        options=[
-                                            {
-                                                "label": "",
-                                                "value": _row_member_id(row),
-                                                "disabled": row.get("availability_reason") != "ok",
-                                            }
-                                        ],
-                                        value=(
-                                            [_row_member_id(row)]
-                                            if _row_member_id(row) in selected
-                                            else []
-                                        ),
-                                    )
-                                ),
+                            html.Td(
+                                dcc.Checklist(
+                                    id={"type": "univariate-member", "id": _row_member_id(row)},
+                                    options=[
+                                        {
+                                            "label": "",
+                                            "value": _row_member_id(row),
+                                            "disabled": row.get("availability_reason") != "ok",
+                                        }
+                                    ],
+                                    value=(
+                                        [_row_member_id(row)]
+                                        if _row_member_id(row) in selected
+                                        else []
+                                    ),
+                                )
+                            ),
                             *[html.Td(_display(row.get(name))) for name in columns],
                         ]
                     )
@@ -288,6 +285,30 @@ def _empty_model() -> dict[str, object]:
 
 def _mapping(value: object) -> dict[str, object] | None:
     return cast(dict[str, object], value) if isinstance(value, dict) else None
+
+
+def _rows(value: object) -> tuple[object, ...]:
+    rows = cast(list[object] | tuple[object, ...], value) if isinstance(value, list | tuple) else ()
+    return tuple(rows)
+
+
+def _mappings(value: object) -> tuple[dict[str, object], ...]:
+    rows: list[dict[str, object]] = []
+    for item in _rows(value):
+        row = _mapping(item)
+        if row is not None:
+            rows.append(row)
+    return tuple(rows)
+
+
+def _string_set(value: object) -> set[str]:
+    if not isinstance(value, set):
+        return set()
+    strings: set[str] = set()
+    for item in cast(set[object], value):
+        if isinstance(item, str):
+            strings.add(item)
+    return strings
 
 
 def _member_id(value: Mapping[str, object]) -> str:

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Protocol, cast
+from typing import Any, Protocol, cast
 
 from dash import dcc, html
 from dash.development.base_component import Component
@@ -64,8 +64,7 @@ def metadata_page_data(
     )
     history = service.metadata_history()
     workflow = service.workflow_state()
-    current = workflow.get("metadata_universe")
-    current_row = current if isinstance(current, dict) else None
+    current_row = _mapping(workflow.get("metadata_universe"))
     return {
         "options": options,
         "rows": rows,
@@ -102,9 +101,9 @@ def build_page(services: object | None = None) -> Component:
 def _layout(
     model: Mapping[str, object], *, message: str | None = None, error: str | None = None
 ) -> Component:
-    options = model.get("options") if isinstance(model.get("options"), dict) else {}
-    rows = model.get("rows") if isinstance(model.get("rows"), tuple | list) else ()
-    current = model.get("current") if isinstance(model.get("current"), dict) else None
+    options = _mapping(model.get("options")) or {}
+    rows = _mappings(model.get("rows"))
+    current = _mapping(model.get("current"))
     ready = model.get("ready") is True
     status: Component | None = None
     if error:
@@ -124,9 +123,13 @@ def _layout(
                 ),
                 _dropdown("Country", "metadata-filter-country", options.get("country")),
                 _dropdown("Currency", "metadata-filter-currency", options.get("currency")),
-                html.Button("Reset filters", id="metadata-reset-filters", className="pf-button"),
                 html.Button(
-                    "Create universe",
+                    children="Reset filters",
+                    id="metadata-reset-filters",
+                    className="pf-button",
+                ),
+                html.Button(
+                    children="Create universe",
                     id="metadata-create-universe",
                     className="pf-button pf-button-primary",
                 ),
@@ -160,11 +163,11 @@ def _layout(
             StageFooter(
                 [
                     html.A(
-                        "Continue to Univariate",
+                        children="Continue to Univariate",
                         href="/univariate" if ready else "#",
                         id="metadata-continue-univariate",
                         className="pf-button pf-button-primary" if ready else "pf-button",
-                        **{"aria-disabled": "false" if ready else "true"},
+                        **cast(Any, {"aria-disabled": "false" if ready else "true"}),
                     )
                 ]
             ),
@@ -174,7 +177,7 @@ def _layout(
 
 
 def _dropdown(label: str, component_id: str, values: object) -> Component:
-    raw = values if isinstance(values, list | tuple) else ()
+    raw = _items(values)
     return html.Label(
         [
             html.Span(label, className="pf-context-label"),
@@ -189,7 +192,7 @@ def _dropdown(label: str, component_id: str, values: object) -> Component:
 
 
 def _listing_table(rows: object) -> Component:
-    items = list(rows) if isinstance(rows, tuple | list) else []
+    items = _mappings(rows)
     columns = ("isin", "exchange", "code", "name", "instrument_type", "country", "currency")
     return html.Table(
         [
@@ -231,6 +234,26 @@ def _empty_model() -> dict[str, object]:
         "ready": False,
         "current": None,
     }
+
+
+def _mapping(value: object) -> dict[str, object] | None:
+    return cast(dict[str, object], value) if isinstance(value, dict) else None
+
+
+def _items(value: object) -> tuple[object, ...]:
+    items = (
+        cast(list[object] | tuple[object, ...], value) if isinstance(value, list | tuple) else ()
+    )
+    return tuple(items)
+
+
+def _mappings(value: object) -> tuple[dict[str, object], ...]:
+    rows: list[dict[str, object]] = []
+    for item in _items(value):
+        row = _mapping(item)
+        if row is not None:
+            rows.append(row)
+    return tuple(rows)
 
 
 def _short(value: object) -> str:

@@ -63,9 +63,7 @@ def test_inventory_contains_no_credentials_or_credential_bearing_dsn() -> None:
 
 def test_legacy_web_root_and_all_direct_frontend_dependencies_belong_to_pr356() -> None:
     items = cast(list[dict[str, Any]], _inventory()["items"])
-    dispositions = {
-        cast(str, item["identifier"]): cast(str, item["disposition"]) for item in items
-    }
+    dispositions = {cast(str, item["identifier"]): cast(str, item["disposition"]) for item in items}
     assert dispositions["apps/web/**"] == "delete-pr356"
     expected_dependencies = {
         "npm:@playwright/test",
@@ -91,9 +89,7 @@ def test_legacy_web_root_and_all_direct_frontend_dependencies_belong_to_pr356() 
 def test_legacy_database_plane_belongs_to_pr357_and_market_authority_is_excluded() -> None:
     inventory = _inventory()
     items = cast(list[dict[str, Any]], inventory["items"])
-    dispositions = {
-        cast(str, item["identifier"]): cast(str, item["disposition"]) for item in items
-    }
+    dispositions = {cast(str, item["identifier"]): cast(str, item["disposition"]) for item in items}
     assert dispositions["database:portfell"] == "delete-pr357"
     assert dispositions["database:portfell/schema:portfell_app"] == "delete-pr357"
     assert dispositions["database:portfell/schema:portfell_private"] == "delete-pr357"

@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-import plotly.graph_objects as go
+import plotly.graph_objects as go  # pyright: ignore[reportMissingTypeStubs]
 
 PORTFELL_FIGURE_LAYOUT: dict[str, Any] = {
     "font": {
@@ -23,8 +23,8 @@ PORTFELL_FIGURE_LAYOUT: dict[str, Any] = {
 
 
 def apply_portfell_template(
-    figure: go.Figure, *, x_title: str | None = None, y_title: str | None = None
-) -> go.Figure:
+    figure: Any, *, x_title: str | None = None, y_title: str | None = None
+) -> Any:
     """Apply the deterministic shared layout without changing financial values."""
     figure.update_layout(**PORTFELL_FIGURE_LAYOUT)
     if x_title is not None:
@@ -36,7 +36,7 @@ def apply_portfell_template(
 
 def figure_from_rows(
     rows: list[Mapping[str, object]], *, x: str, y: str, name: str, x_title: str, y_title: str
-) -> go.Figure:
+) -> Any:
     """Build one presentation-only scatter from already-computed backend values."""
     figure = go.Figure(
         data=[

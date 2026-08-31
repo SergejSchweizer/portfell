@@ -44,9 +44,7 @@ def test_dividends_repository_adapts_source_value_to_contract_amount() -> None:
     key = ListingKey("IE00ONE", "XETRA", "ONE")
     cursor = FakeCursor([[_row(key, date(2024, 1, 2), "event")]])
 
-    DividendsRepository().read_range(
-        cursor, (key,), start=date(2024, 1, 2), end=date(2024, 1, 2)
-    )
+    DividendsRepository().read_range(cursor, (key,), start=date(2024, 1, 2), end=date(2024, 1, 2))
 
     assert "value AS amount" in cursor.queries[0][0]
 

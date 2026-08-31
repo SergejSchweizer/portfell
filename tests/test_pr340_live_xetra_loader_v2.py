@@ -115,9 +115,7 @@ def _expect_insufficient_privilege(sql: str) -> None:
 
 @requires_live
 def test_live_market_dml_and_ddl_are_denied() -> None:
-    _expect_insufficient_privilege(
-        'UPDATE "xetra_loader"."listings" SET isin = isin WHERE false'
-    )
+    _expect_insufficient_privilege('UPDATE "xetra_loader"."listings" SET isin = isin WHERE false')
     _expect_insufficient_privilege(
         'CREATE TABLE "xetra_loader"."__portfell_pr340_forbidden" (id integer)'
     )
@@ -127,9 +125,7 @@ def test_live_market_dml_and_ddl_are_denied() -> None:
 def test_live_sync_schema_access_is_denied_and_counts_as_pass() -> None:
     with closing(_market_connection()) as connection:
         cursor = connection.cursor()
-        cursor.execute(
-            "SELECT has_schema_privilege(current_user, 'xetra_loader_sync', 'USAGE')"
-        )
+        cursor.execute("SELECT has_schema_privilege(current_user, 'xetra_loader_sync', 'USAGE')")
         assert cursor.fetchone() == (False,)
         connection.rollback()
 

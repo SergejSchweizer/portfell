@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import Any
 
 from dash import dcc, html
 from dash.development.base_component import Component
@@ -38,9 +39,7 @@ def _Card(title: str, body: Sequence[Content], *, class_name: str) -> Component:
     )
 
 
-def ChartCard(
-    title: str, figure: object | None = None, *, graph_id: str | None = None
-) -> Component:
+def ChartCard(title: str, figure: Any | None = None, *, graph_id: str | None = None) -> Component:
     content: Component
     if figure is None:
         content = UnavailableData("Chart data is not available yet.")

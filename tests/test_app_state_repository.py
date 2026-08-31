@@ -109,8 +109,7 @@ def test_content_identity_converges_to_existing_immutable_universe() -> None:
     assert record.universe_id == "existing-universe"
     assert connection.commits == 0
     assert all(
-        "insert into portfell.metadata_universes" not in query
-        for query, _ in connection.executed
+        "insert into portfell.metadata_universes" not in query for query, _ in connection.executed
     )
 
 
