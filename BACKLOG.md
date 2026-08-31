@@ -1918,6 +1918,9 @@ Priority: P0.
 
 Depends on: PR378 and the already-merged PR373/PR374 presentation adapters.
 
+Git status: integrated on `main` at `4b2956d`. The Multivariate page reads the persisted
+Structure-v2 and candidate-structure artifacts through the existing presentation adapters.
+
 Owned paths: `src/portfell/dash_app/pages/multivariate.py`, narrowly required Dash presenter/callback/read wiring, shared presentation components only when unavoidable, and focused component/browser tests. No financial-analysis modules, optimizer or persistence writes.
 
 Scope:
