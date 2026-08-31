@@ -9,7 +9,7 @@ if (process.argv.includes("--health")) {
 
 const port = Number.parseInt(process.env.PORT || "3000", 10);
 const apiBaseUrl = process.env.PORTFELL_API_BASE_URL || "http://api:8000";
-const distRoot = path.resolve(__dirname, "dist");
+const distRoot = path.resolve(process.env.PORTFELL_WEB_DIST_DIR || path.join(__dirname, "dist"));
 const spaRoutes = new Set([
   "/metadata",
   "/univariate",
