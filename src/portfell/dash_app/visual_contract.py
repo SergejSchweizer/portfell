@@ -19,7 +19,6 @@ VISUAL_VIEWPORTS = (
 )
 
 PAGE_ROUTES = ("/metadata", "/univariate", "/bivariate", "/multivariate")
-REFERENCE_URL = "https://financial-dashboard-example.plotly.app/"
 
 
 def display_number(value: object, *, digits: int = 4) -> str:
@@ -44,4 +43,10 @@ def display_percent(value: object, *, digits: int = 2) -> str:
     return f"{100 * float(value):.{digits}f}%"
 
 
-__all__ = ["PAGE_ROUTES", "REFERENCE_URL", "VISUAL_VIEWPORTS", "Viewport", "display_number", "display_percent"]
+__all__ = [
+    "PAGE_ROUTES",
+    "VISUAL_VIEWPORTS",
+    "Viewport",
+    "display_number",
+    "display_percent",
+]
