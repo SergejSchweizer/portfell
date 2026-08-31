@@ -20,6 +20,18 @@ Create two external password files outside the repository:
 - Portfell app-database password file;
 - external xetra-loader market-reader password file.
 
+The `api` container runs as its unprivileged `portfell` user and receives group ID
+`100`. Both secret files must therefore be readable by that group, without being
+world-readable. For example, when the files belong to the host group with ID `100`:
+
+```bash
+chmod 640 /absolute/host/path/postgres-password.txt \
+  /absolute/host/path/market-postgres-password.txt
+```
+
+If the market secret is not group-readable, the application can start but metadata
+reads fail closed and the Metadata dropdowns have no available values.
+
 Point the following environment variables at the effective authorities/files:
 
 ```text

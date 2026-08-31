@@ -109,6 +109,10 @@ def test_layout_has_frozen_metadata_contract_without_provider_action() -> None:
         "DE000A",
         "AAA",
         "AAB",
+        "XETRA",
+        "ETF",
+        "DE",
+        "EUR",
     ):
         assert text in rendered
     assert "provider" not in rendered.lower()
