@@ -48,6 +48,7 @@ class MetadataService(Protocol):
 
 
 _FILTERS = ("exchange", "instrument_type", "country", "currency")
+_LISTING_PREVIEW_LIMIT = 100
 
 
 def metadata_page_data(
@@ -56,7 +57,7 @@ def metadata_page_data(
     """Read presentation data only; never creates a universe as a render side effect."""
     selected = dict(filters or {})
     options = service.metadata_options()
-    rows = service.active_listings(
+    matched_rows = service.active_listings(
         exchange=selected.get("exchange"),
         instrument_type=selected.get("instrument_type"),
         country=selected.get("country"),
@@ -67,11 +68,15 @@ def metadata_page_data(
     current_row = _mapping(workflow.get("metadata_universe"))
     return {
         "options": options,
-        "rows": rows,
+        # Rendering thousands of HTML table rows blocks the browser before a user can
+        # choose a filter.  The full filtered set remains authoritative for universe
+        # creation; only the non-authoritative on-screen preview is bounded.
+        "rows": matched_rows[:_LISTING_PREVIEW_LIMIT],
         "history": history,
         "active_count": options.get("active_listing_count"),
-        "filtered_count": len(rows),
-        "selected_count": len(rows),
+        "filtered_count": len(matched_rows),
+        "selected_count": len(matched_rows),
+        "preview_count": min(len(matched_rows), _LISTING_PREVIEW_LIMIT),
         "universe_version": None if current_row is None else current_row.get("version"),
         "ready": current_row is not None,
         "current": current_row,
@@ -153,7 +158,15 @@ def _layout(
             TableCard(
                 "Xetra Listings",
                 (
-                    [_listing_table(rows)]
+                    [
+                        html.P(
+                            _preview_message(
+                                model.get("preview_count"), model.get("filtered_count")
+                            ),
+                            className="pf-table-preview-note",
+                        ),
+                        _listing_table(rows),
+                    ]
                     if rows
                     else [EmptyState("No active listings match the filters.")]
                 ),
@@ -230,6 +243,7 @@ def _empty_model() -> dict[str, object]:
         "active_count": None,
         "filtered_count": None,
         "selected_count": None,
+        "preview_count": None,
         "universe_version": None,
         "ready": False,
         "current": None,
@@ -263,6 +277,15 @@ def _short(value: object) -> str:
 
 def _display(value: object) -> str:
     return "—" if value is None else str(value)
+
+
+def _preview_message(preview_count: object, filtered_count: object) -> str:
+    """Describe the bounded display without changing the universe-selection set."""
+    if not isinstance(preview_count, int) or not isinstance(filtered_count, int):
+        return "Listing preview."
+    if preview_count == filtered_count:
+        return f"Showing all {filtered_count:,} matching listings."
+    return f"Showing the first {preview_count:,} of {filtered_count:,} matching listings."
 
 
 def _error_code(error: Exception) -> str:

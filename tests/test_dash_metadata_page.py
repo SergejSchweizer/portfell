@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import cast
 
 from portfell.dash_app.pages.metadata import build_page, create_universe, metadata_page_data
 
@@ -67,8 +68,7 @@ class Service:
 
 def test_page_data_keeps_full_identity_and_exact_counts() -> None:
     model = metadata_page_data(Service())
-    rows = model["rows"]
-    assert isinstance(rows, tuple)
+    rows = cast(tuple[dict[str, object], ...], model["rows"])
     assert [(row["isin"], row["exchange"], row["code"]) for row in rows] == [
         ("DE000A", "XETRA", "AAA"),
         ("DE000A", "XETRA", "AAB"),
@@ -76,6 +76,7 @@ def test_page_data_keeps_full_identity_and_exact_counts() -> None:
     assert model["active_count"] == 2
     assert model["filtered_count"] == 2
     assert model["selected_count"] == 2
+    assert model["preview_count"] == 2
     assert model["universe_version"] == 3
     assert model["ready"] is True
 
@@ -109,6 +110,7 @@ def test_layout_has_frozen_metadata_contract_without_provider_action() -> None:
         "DE000A",
         "AAA",
         "AAB",
+        "Showing all 2 matching listings.",
         "XETRA",
         "ETF",
         "DE",
@@ -117,3 +119,29 @@ def test_layout_has_frozen_metadata_contract_without_provider_action() -> None:
         assert text in rendered
     assert "provider" not in rendered.lower()
     assert "download" not in rendered.lower()
+
+
+def test_page_data_bounds_only_the_non_authoritative_listing_preview() -> None:
+    class LargeService(Service):
+        def active_listings(self, **filters: object) -> tuple[dict[str, object], ...]:
+            del filters
+            return tuple(
+                {
+                    "isin": f"DE{index:010d}",
+                    "exchange": "XETRA",
+                    "code": f"ETF{index}",
+                    "name": f"ETF {index}",
+                    "instrument_type": "ETF",
+                    "country": "DE",
+                    "currency": "EUR",
+                }
+                for index in range(101)
+            )
+
+    model = metadata_page_data(LargeService())
+
+    assert model["filtered_count"] == 101
+    assert model["selected_count"] == 101
+    assert model["preview_count"] == 100
+    assert len(cast(tuple[dict[str, object], ...], model["rows"])) == 100
+    assert "Showing the first 100 of 101 matching listings." in str(build_page(LargeService()))

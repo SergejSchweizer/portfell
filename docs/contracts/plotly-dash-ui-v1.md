@@ -141,11 +141,14 @@ Layout and content:
 - `PageHeader` with the frozen title/subtitle;
 - one `ControlBar` containing only metadata predicates supported by the backend service contract and the two metadata actions;
 - four KPI slots: `Active listings`, `Filtered listings`, `Selected listings`, `Universe version`;
-- `TableCard` titled `Xetra Listings`, preserving full identity `(isin, exchange, code)` and exact service-provided metadata fields;
+- `TableCard` titled `Xetra Listings`, preserving full identity `(isin, exchange, code)` and exact service-provided metadata fields for a bounded 100-row preview, with a visible shown/total count;
 - `HistoryCard` titled `Universe & History`, showing persisted universe version, creation timestamp, source snapshot short ID, and member count;
 - `StageFooter` with `Continue to Univariate`, disabled until a persisted Metadata universe is ready.
 
-Unavailable KPI values render `—`, not fabricated zero. New universes use active listings only; inactive historical identities may be resolved but not newly selected. There is no provider fetch/download/refresh control and no decorative chart added merely to resemble the reference application.
+Unavailable KPI values render `—`, not fabricated zero. The table preview never limits the full
+filtered set used by Create universe. New universes use active listings only; inactive historical
+identities may be resolved but not newly selected. There is no provider fetch/download/refresh
+control and no decorative chart added merely to resemble the reference application.
 
 ## 7. Univariate page
 

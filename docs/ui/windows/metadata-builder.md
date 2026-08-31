@@ -15,7 +15,8 @@ The page contains:
 - `PageHeader` with the frozen title/subtitle;
 - one `ControlBar` with supported metadata predicates plus `Reset filters` and `Create universe`;
 - KPI cards `Active listings`, `Filtered listings`, `Selected listings`, `Universe version`;
-- `TableCard` `Xetra Listings` preserving full identity `(isin, exchange, code)`;
+- `TableCard` `Xetra Listings` preserving full identity `(isin, exchange, code)` for a
+  bounded preview of at most 100 rows, with the shown/total count visible above it;
 - `HistoryCard` `Universe & History` with persisted universe version, creation timestamp, source snapshot short ID, and member count;
 - `StageFooter` with `Continue to Univariate`, disabled until a persisted universe is ready.
 
@@ -23,7 +24,10 @@ The page contains:
 
 New universes use only `is_active=true` listings. Inactive identities may remain historically resolvable but cannot be newly selected. Metadata predicate semantics are backend-authoritative and must not be redefined by browser state or PostgreSQL collation behavior. Duplicate ISINs remain distinct when exchange/code differ.
 
-Create-universe is idempotent for an identical content identity. A persisted universe reloads after application restart and repopulates page/sidebar/history state. Empty results remain explicit rather than rendering a blank table/card.
+Create-universe is idempotent for an identical content identity and always uses the full
+filtered set, not the bounded table preview. A persisted universe reloads after application
+restart and repopulates page/sidebar/history state. Empty results remain explicit rather than
+rendering a blank table/card.
 
 ## Responsive/accessibility contract
 
