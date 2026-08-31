@@ -77,7 +77,9 @@ create table if not exists portfell.analysis_runs (
     workspace_id text not null default 'default'
         references portfell.workspaces(workspace_id) on delete restrict,
     stage text not null check (stage in ('metadata', 'univariate', 'bivariate', 'multivariate')),
-    status text not null check (status in ('queued', 'running', 'succeeded', 'failed', 'cancelled')),
+    status text not null check (status in (
+        'queued', 'running', 'succeeded', 'failed', 'cancelled'
+    )),
     input_snapshot_id text not null
         references portfell.market_source_snapshots(snapshot_id) on delete restrict,
     input_ref text not null check (btrim(input_ref) <> ''),
@@ -196,7 +198,9 @@ begin
     if old.status = 'queued' and new.status not in ('queued', 'running', 'failed', 'cancelled') then
         raise exception 'analysis_run_transition_invalid';
     end if;
-    if old.status = 'running' and new.status not in ('running', 'succeeded', 'failed', 'cancelled') then
+    if old.status = 'running' and new.status not in (
+        'running', 'succeeded', 'failed', 'cancelled'
+    ) then
         raise exception 'analysis_run_transition_invalid';
     end if;
     return new;

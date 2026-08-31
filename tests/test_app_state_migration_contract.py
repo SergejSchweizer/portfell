@@ -142,7 +142,15 @@ def test_catalog_fingerprint_is_stable_sha256() -> None:
 def test_app_database_config_requires_portfell_dash_and_matching_dsn(tmp_path: Path) -> None:
     config = tmp_path / "config.yaml"
     config.write_text(
-        """postgres:\n  app:\n    host: app-db\n    port: 5432\n    database: portfell_dash\n    schema: portfell\n    role: portfell_app\n    password_secret: PORTFELL_DATABASE_PASSWORD_FILE\n""",
+        """postgres:
+  app:
+    host: app-db
+    port: 5432
+    database: portfell_dash
+    schema: portfell
+    role: portfell_app
+    password_secret: PORTFELL_DATABASE_PASSWORD_FILE
+""",
         encoding="utf-8",
     )
     loaded, dsn = validate_app_state_config(

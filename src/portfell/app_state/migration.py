@@ -46,7 +46,10 @@ def catalog_fingerprint() -> str:
 
     material = "\n".join(
         [
-            *(f"{migration.version}:{migration.name}:{migration.checksum}" for migration in APP_STATE_MIGRATIONS),
+            *(
+                f"{migration.version}:{migration.name}:{migration.checksum}"
+                for migration in APP_STATE_MIGRATIONS
+            ),
             *APP_STATE_TABLES,
         ]
     )
@@ -79,7 +82,10 @@ def migrate_to_head(connection: MigrationConnection) -> tuple[int, ...]:
                 continue
             connection.execute(migration.sql)
             connection.execute(
-                "insert into portfell.schema_migrations (version, name, checksum) values (%s, %s, %s)",
+                (
+                    "insert into portfell.schema_migrations (version, name, checksum) "
+                    "values (%s, %s, %s)"
+                ),
                 (migration.version, migration.name, migration.checksum),
             )
             applied_now.append(migration.version)
