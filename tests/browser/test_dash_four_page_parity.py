@@ -12,11 +12,13 @@ import uvicorn
 from fastapi import FastAPI
 from playwright.sync_api import Page, sync_playwright
 
+from browser.dash_fixture_service import DashParityFixtureService
 from portfell.dash_app.app import mount_dash_app
 from portfell.dash_app.callbacks import execute_action
 from portfell.dash_app.state import BrowserState
-from portfell.dash_app.visual_contract import PAGE_ROUTES, REFERENCE_URL, VISUAL_VIEWPORTS
-from tests.browser.dash_fixture_service import DashParityFixtureService
+from portfell.dash_app.visual_contract import PAGE_ROUTES, VISUAL_VIEWPORTS
+
+REFERENCE_URL = "https://financial-dashboard-example.plotly.app/"
 
 
 @pytest.mark.browser
@@ -38,9 +40,7 @@ def test_dash_four_page_journey_and_visual_evidence(tmp_path: Path) -> None:
     _wait_started(server)
     base_url = f"http://127.0.0.1:{port}"
     configured_evidence = os.environ.get("PORTFELL_DASH_PARITY_EVIDENCE_DIR")
-    evidence_dir = (
-        Path(configured_evidence) if configured_evidence else tmp_path / "dash-parity-v1"
-    )
+    evidence_dir = Path(configured_evidence) if configured_evidence else tmp_path / "dash-parity-v1"
     evidence_dir.mkdir(parents=True, exist_ok=True)
     screenshots: list[dict[str, object]] = []
     console_errors: list[str] = []
@@ -52,16 +52,18 @@ def test_dash_four_page_journey_and_visual_evidence(tmp_path: Path) -> None:
             page = browser.new_page(viewport={"width": 1440, "height": 900})
             page.on(
                 "console",
-                lambda message: console_errors.append(message.text)
-                if message.type == "error"
-                else None,
+                lambda message: (
+                    console_errors.append(message.text) if message.type == "error" else None
+                ),
             )
             page.on("pageerror", lambda error: page_errors.append(str(error)))
             page.on(
                 "request",
-                lambda request: reference_requests.append(request.url)
-                if "financial-dashboard-example.plotly.app" in request.url
-                else None,
+                lambda request: (
+                    reference_requests.append(request.url)
+                    if "financial-dashboard-example.plotly.app" in request.url
+                    else None
+                ),
             )
 
             page.goto(f"{base_url}/metadata", wait_until="networkidle")
@@ -139,9 +141,10 @@ def test_dash_four_page_journey_and_visual_evidence(tmp_path: Path) -> None:
             page.locator("#pf-context-universe").wait_for()
             _wait_until(lambda: page.locator("#pf-context-universe").inner_text() == "2")
             assert page.locator("#pf-context-readiness").inner_text() == "Not ready"
-            assert page.locator("#univariate-continue-bivariate").get_attribute(
-                "aria-disabled"
-            ) == "true"
+            assert (
+                page.locator("#univariate-continue-bivariate").get_attribute("aria-disabled")
+                == "true"
+            )
             browser.close()
 
         assert not console_errors
