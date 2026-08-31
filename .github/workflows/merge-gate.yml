@@ -241,3 +241,38 @@ jobs:
         run: |
           uv run coverage combine coverage-shards
           uv run coverage report --fail-under=90
+
+  structural-risk-v2-evidence:
+    name: structural-risk-v2-evidence
+    runs-on: [self-hosted, Linux, X64, ubuntu-latest]
+    needs: [merge-gate]
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.head_ref == 'test/pr381-structural-risk-v2-production-closeout' &&
+      needs.merge-gate.result == 'success'
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d
+        with:
+          enable-cache: true
+      - name: Install Python
+        run: uv python install
+      - name: Install dependencies
+        run: uv sync --dev
+      - name: Assemble immutable Structural-risk v2 PASS evidence
+        env:
+          PORTFELL_EVIDENCE_SHA: ${{ github.event.pull_request.head.sha }}
+          PORTFELL_STRUCTURAL_RISK_EVIDENCE_DIR: ${{ github.workspace }}/artifacts/structural-risk-v2
+        run: uv run python scripts/build_structural_risk_v2_ci_evidence.py
+      - name: Upload Structural-risk v2 PASS evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: structural-risk-v2
+          path: artifacts/structural-risk-v2/structural-risk-v2.json
+          if-no-files-found: error
+          retention-days: 30
