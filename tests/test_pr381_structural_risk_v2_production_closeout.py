@@ -84,7 +84,7 @@ def test_runtime_documentation_uses_current_two_database_dash_topology() -> None
     assert "portfell_dash" in combined
     assert "xetra_loader" in combined
     assert "Plotly Dash" in combined or "Dash" in combined
-    assert "React/Vite" not in readme
+    assert "no first-party React/Vite/TypeScript/TanStack application" in readme
 
 
 def test_retired_v2_labels_are_not_used_by_live_dash_presenters() -> None:
