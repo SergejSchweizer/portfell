@@ -7,45 +7,93 @@
   "required": [
     "contract",
     "status",
-    "deployed_commit_sha",
+    "application_source_sha",
+    "xetra_loader_source_sha",
+    "image_digests",
+    "market_source_contract_version",
     "browser_parity",
     "clean_runtime_qa",
     "backup",
     "app_database",
     "market_database",
+    "app_state_catalog",
     "workflow",
+    "market_privileges",
     "browser_acceptance",
     "restart_acceptance",
     "negative_space"
   ],
   "properties": {
     "contract": {"const": "dash-production-cutover-evidence-v1"},
-    "status": {"enum": ["PASS", "FAIL"]},
-    "deployed_commit_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "status": {"const": "PASS"},
+    "application_source_sha": {"$ref": "#/$defs/gitSha"},
+    "xetra_loader_source_sha": {"$ref": "#/$defs/gitSha"},
+    "image_digests": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["application", "postgres"],
+      "properties": {
+        "application": {"$ref": "#/$defs/imageDigest"},
+        "postgres": {"$ref": "#/$defs/imageDigest"}
+      }
+    },
+    "market_source_contract_version": {"type": "string", "minLength": 1},
     "browser_parity": {"$ref": "#/$defs/gateEvidence"},
     "clean_runtime_qa": {"$ref": "#/$defs/gateEvidence"},
     "backup": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["identifier", "checksum", "created_at"],
+      "required": ["identifier", "checksum", "created_at", "restore_verified"],
       "properties": {
         "identifier": {"type": "string", "minLength": 1},
         "checksum": {"type": "string", "minLength": 1},
-        "created_at": {"type": "string", "format": "date-time"}
+        "created_at": {"type": "string", "format": "date-time"},
+        "restore_verified": {"const": true}
       }
     },
     "app_database": {"$ref": "#/$defs/databaseIdentity"},
     "market_database": {"$ref": "#/$defs/databaseIdentity"},
+    "app_state_catalog": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["migration_versions", "catalog_fingerprint"],
+      "properties": {
+        "migration_versions": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "integer", "minimum": 1}
+        },
+        "catalog_fingerprint": {"type": "string", "minLength": 1}
+      }
+    },
     "workflow": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["metadata_run", "univariate_run", "bivariate_run", "multivariate_run", "decision_artifact"],
+      "required": [
+        "metadata_run",
+        "univariate_run",
+        "bivariate_run",
+        "multivariate_run",
+        "decision_artifact"
+      ],
       "properties": {
         "metadata_run": {"type": "string", "minLength": 1},
         "univariate_run": {"type": "string", "minLength": 1},
         "bivariate_run": {"type": "string", "minLength": 1},
         "multivariate_run": {"type": "string", "minLength": 1},
         "decision_artifact": {"type": "string", "minLength": 1}
+      }
+    },
+    "market_privileges": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["select_business_tables", "dml_denied", "ddl_denied", "sync_schema_inaccessible"],
+      "properties": {
+        "select_business_tables": {"const": true},
+        "dml_denied": {"const": true},
+        "ddl_denied": {"const": true},
+        "sync_schema_inaccessible": {"const": true}
       }
     },
     "browser_acceptance": {
@@ -66,26 +114,37 @@
     "restart_acceptance": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["status", "observed_at"],
+      "required": ["status", "observed_at", "decision_artifact_reloaded"],
       "properties": {
         "status": {"const": "PASS"},
-        "observed_at": {"type": "string", "format": "date-time"}
+        "observed_at": {"type": "string", "format": "date-time"},
+        "decision_artifact_reloaded": {"const": true}
       }
     },
     "negative_space": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["legacy_web_absent", "legacy_database_absent", "provider_acquisition_absent", "dash_sql_absent", "sync_schema_inaccessible"],
+      "required": [
+        "legacy_web_absent",
+        "legacy_database_absent",
+        "provider_acquisition_absent",
+        "dash_sql_absent",
+        "config_untracked",
+        "config_absent_from_images"
+      ],
       "properties": {
         "legacy_web_absent": {"const": true},
         "legacy_database_absent": {"const": true},
         "provider_acquisition_absent": {"const": true},
         "dash_sql_absent": {"const": true},
-        "sync_schema_inaccessible": {"const": true}
+        "config_untracked": {"const": true},
+        "config_absent_from_images": {"const": true}
       }
     }
   },
   "$defs": {
+    "gitSha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "imageDigest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
     "gateEvidence": {
       "type": "object",
       "additionalProperties": false,
