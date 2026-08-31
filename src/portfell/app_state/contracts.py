@@ -63,6 +63,25 @@ class AnalysisArtifactRecord:
 
 
 @dataclass(frozen=True)
+class AnalysisJobRecord:
+    job_id: str
+    stage: str
+    input_ref: str
+    requested_objective: str | None
+    status: str
+    run_id: str | None
+    progress_current: int
+    progress_total: int | None
+    progress_phase: str | None
+    attempt: int
+    heartbeat_at: datetime | None
+    failure_code: str | None
+    created_at: datetime
+    started_at: datetime | None
+    completed_at: datetime | None
+
+
+@dataclass(frozen=True)
 class UnivariateSelectionRecord:
     selection_id: str
     source_run_id: str
@@ -157,6 +176,50 @@ class AnalysisArtifactRepository(Protocol):
     ) -> AnalysisArtifactRecord: ...
 
     def list_analysis_artifacts(self, run_id: str) -> tuple[AnalysisArtifactRecord, ...]: ...
+
+
+class AnalysisJobRepository(Protocol):
+    def create_or_get_active_job(
+        self,
+        *,
+        job_id: str,
+        stage: str,
+        input_ref: str,
+        requested_objective: str | None = None,
+    ) -> AnalysisJobRecord: ...
+
+    def claim_job(self, job_id: str, *, stale_before: datetime) -> AnalysisJobRecord: ...
+
+    def update_job_progress(
+        self,
+        job_id: str,
+        *,
+        current: int,
+        total: int | None,
+        phase: str,
+    ) -> AnalysisJobRecord: ...
+
+    def heartbeat_job(self, job_id: str) -> AnalysisJobRecord: ...
+
+    def link_job_run(self, job_id: str, run_id: str) -> AnalysisJobRecord: ...
+
+    def complete_job(
+        self,
+        job_id: str,
+        *,
+        status: str,
+        failure_code: str | None = None,
+    ) -> AnalysisJobRecord: ...
+
+    def get_analysis_job(self, job_id: str) -> AnalysisJobRecord: ...
+
+    def list_analysis_jobs(
+        self,
+        *,
+        stage: str | None = None,
+        status: str | None = None,
+        limit: int = 100,
+    ) -> tuple[AnalysisJobRecord, ...]: ...
 
 
 class UnivariateSelectionRepository(Protocol):
