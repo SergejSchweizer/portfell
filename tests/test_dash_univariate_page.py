@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from typing import cast
 
 from portfell.dash_app.pages.univariate import (
     build_page,
@@ -78,7 +80,12 @@ class Service:
     def run_univariate(self, universe_id: str) -> dict[str, object]:
         return {"run_id": "new-run", "input_ref": universe_id, "status": "succeeded"}
 
-    def create_univariate_selection(self, run_id: str, *, predicates=None) -> Selection:
+    def create_univariate_selection(
+        self,
+        run_id: str,
+        *,
+        predicates: Sequence[Mapping[str, object]] | None = None,
+    ) -> Selection:
         assert run_id == "run-u"
         assert predicates is None
         return Selection()
@@ -114,8 +121,40 @@ def test_page_has_frozen_chart_table_and_unavailable_evidence() -> None:
         "Univariate Return / Risk Universe",
         "Univariate Statistics",
         "Universe & History",
+        "Showing all 2 persisted results.",
         "insufficient_returns",
         "DE1",
         "AAA",
     ):
         assert text in rendered
+
+
+def test_page_limits_large_persisted_result_presentation() -> None:
+    class LargeService(Service):
+        def run_detail(self, run_id: str) -> dict[str, object]:
+            result = super().run_detail(run_id)
+            artifacts = cast(dict[str, object], result["artifacts"])
+            artifact = cast(dict[str, object], artifacts["univariate_rows"])
+            artifact["items"] = [
+                {
+                    "isin": f"DE{index:010d}",
+                    "exchange": "XETRA",
+                    "code": f"ETF{index}",
+                    "annualized_return": 0.12,
+                    "annualized_volatility": 0.2,
+                    "max_drawdown": -0.1,
+                    "sharpe_ratio": 0.6,
+                    "sortino_ratio": 0.8,
+                    "annual_dividend_yield": 0.03,
+                    "availability_reason": "ok",
+                }
+                for index in range(501)
+            ]
+            return result
+
+    model = univariate_page_data(LargeService())
+    assert model["available_count"] == 501
+    rendered = str(build_page(LargeService()).to_plotly_json())
+    assert "Showing the first 100 of 501 persisted results." in rendered
+    assert "DE0000000000" in rendered
+    assert "DE0000000500" not in rendered

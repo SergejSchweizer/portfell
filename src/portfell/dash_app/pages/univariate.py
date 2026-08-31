@@ -23,6 +23,9 @@ from portfell.dash_app.components import (
 )
 from portfell.dash_app.figures import apply_portfell_template
 
+_CHART_PREVIEW_LIMIT = 500
+_TABLE_PREVIEW_LIMIT = 100
+
 
 class UnivariateService(Protocol):
     def workflow_state(self) -> dict[str, object]: ...
@@ -137,12 +140,18 @@ def _layout(
             ),
             ChartCard(
                 "Univariate Return / Risk Universe",
-                _scatter(rows) if rows else None,
+                _scatter(rows[:_CHART_PREVIEW_LIMIT]) if rows else None,
                 graph_id="univariate-return-risk-chart",
             ),
             TableCard(
                 "Univariate Statistics",
-                [_statistics_table(rows, selected)]
+                [
+                    html.P(
+                        _preview_message(len(rows), _TABLE_PREVIEW_LIMIT),
+                        className="pf-table-preview-note",
+                    ),
+                    _statistics_table(rows[:_TABLE_PREVIEW_LIMIT], selected),
+                ]
                 if rows
                 else [EmptyState("Compute Univariate statistics to populate this table.")],
                 component_id="univariate-statistics-table",
@@ -326,6 +335,13 @@ def _short(value: object) -> str:
 
 def _display(value: object) -> str:
     return "—" if value is None else str(value)
+
+
+def _preview_message(total: int, limit: int) -> str:
+    """Keep presentation bounded without changing the persisted selection source."""
+    if total <= limit:
+        return f"Showing all {total:,} persisted results."
+    return f"Showing the first {limit:,} of {total:,} persisted results."
 
 
 def _error_code(error: Exception) -> str:

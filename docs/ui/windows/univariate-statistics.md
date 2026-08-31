@@ -13,8 +13,8 @@ The page contains:
 - `PageHeader` with the frozen title/subtitle;
 - one `ControlBar` with `Compute univariate statistics` and only backend-supported result settings/filters;
 - KPI cards `Input instruments`, `Available results`, `Selected instruments`, `Unavailable results`;
-- `ChartCard` `Univariate Return / Risk Universe` using service-provided return/risk values and full listing identity in hover;
-- `TableCard` `Univariate Statistics` with exact service-provided metrics and downstream selection controls;
+- `ChartCard` `Univariate Return / Risk Universe` using up to 500 service-provided return/risk values and full listing identity in hover;
+- `TableCard` `Univariate Statistics` with exact service-provided metrics and downstream selection controls, bounded to a 100-row preview with a shown/total notice;
 - `HistoryCard` `Universe & History` with input Metadata universe/version, run ID/status, source snapshot short ID, algorithm version, persisted selection version/count;
 - `StageFooter` with `Save selection` and `Continue to Bivariate`.
 
@@ -24,7 +24,7 @@ Continuation is disabled until a valid persisted Univariate selection exists.
 
 `adjusted_close` is authoritative. Missing adjusted close renders typed unavailable evidence and never falls back to raw close or zero. Distribution/income evidence does not alter adjusted-close return calculations. Dash does not recompute annualized return, volatility, drawdown, distribution yield, or other financial metrics solely for display.
 
-KPI counts reconcile with immutable returned/service data. Filtering/selection never mutates the completed run artifact. Persisted selection reloads after restart and restores table selection, KPIs, history, sidebar context, and downstream readiness.
+KPI counts reconcile with the complete immutable returned/service data. The chart and table are bounded presentation previews only; they never change the completed run artifact or the source used to persist a selection. Persisted selection reloads after restart and restores table selection, KPIs, history, sidebar context, and downstream readiness.
 
 ## Responsive/accessibility contract
 

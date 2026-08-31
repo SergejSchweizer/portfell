@@ -165,12 +165,12 @@ Layout and content:
 - `PageHeader`;
 - `ControlBar` with the compute action and only backend-supported result filters/settings;
 - KPI slots: `Input instruments`, `Available results`, `Selected instruments`, `Unavailable results`;
-- `ChartCard` titled exactly `Univariate Return / Risk Universe`;
-- `TableCard` titled `Univariate Statistics` with service metrics and downstream-selection controls;
+- `ChartCard` titled exactly `Univariate Return / Risk Universe`, bounded to a 500-point presentation preview;
+- `TableCard` titled `Univariate Statistics` with service metrics and downstream-selection controls, bounded to a 100-row presentation preview with a visible shown/total count;
 - `HistoryCard` titled `Universe & History` with input Metadata universe/version, run ID/status, source snapshot short ID, algorithm version, persisted selection version/count;
 - `StageFooter` with `Save selection` and `Continue to Bivariate`, continuation disabled until a valid persisted selection exists.
 
-The chart consumes immutable service/artifact values. Hover exposes full listing identity plus backend return/risk fields. Annualized return, volatility, drawdown, yield and other financial statistics remain backend-authoritative. Missing adjusted close is typed unavailable evidence, never raw-close/zero fallback. Persisted selection reloads after restart.
+The chart and table consume immutable service/artifact values. Their presentation limits never change the full run data used for KPI counts or selection persistence. Hover exposes full listing identity plus backend return/risk fields. Annualized return, volatility, drawdown, yield and other financial statistics remain backend-authoritative. Missing adjusted close is typed unavailable evidence, never raw-close/zero fallback. Persisted selection reloads after restart.
 
 ## 8. Bivariate page
 
