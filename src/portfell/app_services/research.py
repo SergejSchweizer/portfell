@@ -596,7 +596,8 @@ class ResearchApplicationService:
 
     def _persist_multivariate(self, run_id: str, computation: MultivariateComputation) -> None:
         for artifact_type, document in sorted(computation.documents.items()):
-            self._put_artifact(run_id, artifact_type, document)
+            normalized = document if isinstance(document, dict) else {"items": document}
+            self._put_artifact(run_id, artifact_type, normalized)
         decision = computation.decision
         decision_id = opaque_id(
             "decision-artifact",
