@@ -48,7 +48,9 @@ def test_persisted_read_path_does_not_recompute_structure_v2() -> None:
 
 def test_v2_structural_diagnostics_remain_outside_decision_ranking() -> None:
     source = _source("src/portfell/app_services/multivariate_compute.py")
-    select_decision = source.split("def _select_decision(", 1)[1].split("def _objective_score(", 1)[0]
+    select_decision = source.split("def _select_decision(", 1)[1].split(
+        "def _objective_score(", 1
+    )[0]
     for forbidden in (
         "structure_v2",
         "structural_walk_forward",
