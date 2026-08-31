@@ -1883,6 +1883,10 @@ Priority: P0.
 
 Depends on: PR377.
 
+Git status: integrated on `main` at `109b491`. The production Multivariate path now publishes
+immutable Structure-v2, candidate-structure, and structural walk-forward artifacts from the
+same risk-model, refit, and validation execution used by the existing decision path.
+
 Owned paths: `src/portfell/app_services/multivariate_compute.py`, the clean `app_state` artifact persistence/read adapters if required, typed service DTOs, and focused persistence/restart/idempotency tests. Dash presentation is out of scope.
 
 Scope:
