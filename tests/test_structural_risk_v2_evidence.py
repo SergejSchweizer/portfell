@@ -30,8 +30,8 @@ def _build(
         or {
             "candidate": "multivariate.candidates@v7",
             "risk_model": "multivariate.risk_model@v1",
-            "structure": "multivariate.structure@v2",
-            "candidate_structure": "multivariate.candidate_structure@v1",
+            "structure": "multivariate.structure@v3",
+            "candidate_structure": "multivariate.candidate_structure@v2",
             "walk_forward": "multivariate.structural_walk_forward@v1",
         },
         algorithm_versions={"risk_model": 1, "structure_v2": 2},
@@ -85,7 +85,7 @@ def test_sensitive_fields_are_rejected_from_sanitized_evidence() -> None:
     with pytest.raises(ValueError, match="sensitive_field"):
         _build(
             contract_versions={
-                "structure": "multivariate.structure@v2",
+                "structure": "multivariate.structure@v3",
                 "database_password": "forbidden",
             }
         )

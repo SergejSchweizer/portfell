@@ -27,8 +27,8 @@ from portfell.multivariate_risk_model import (
     build_multivariate_risk_model,
 )
 from portfell.multivariate_structure_artifacts import (
-    CANDIDATE_STRUCTURE_V1_CONTRACT,
-    STRUCTURE_V2_CONTRACT,
+    CANDIDATE_STRUCTURE_V2_CONTRACT,
+    STRUCTURE_V3_CONTRACT,
 )
 from portfell.multivariate_structure_v2 import build_structure_pca_diagnostics
 from portfell.multivariate_validation import (
@@ -211,8 +211,8 @@ def build_structural_walk_forward_evidence(
                 "validation_contract": policy.version.qualified_name,
                 "candidate_contract": CANDIDATE_CONTRACT.qualified_name,
                 "risk_model_contract": RISK_MODEL_ARTIFACT_CONTRACT.qualified_name,
-                "structure_contract": STRUCTURE_V2_CONTRACT.qualified_name,
-                "candidate_structure_contract": CANDIDATE_STRUCTURE_V1_CONTRACT.qualified_name,
+                "structure_contract": STRUCTURE_V3_CONTRACT.qualified_name,
+                "candidate_structure_contract": CANDIDATE_STRUCTURE_V2_CONTRACT.qualified_name,
                 "risk_model_algorithm_version": risk_model.algorithm_version,
                 "effective_pca_risk_drivers": summary.effective_pca_risk_drivers,
                 "largest_pca_risk_share": summary.largest_pca_risk_share,
@@ -247,8 +247,8 @@ def build_structural_walk_forward_evidence(
                     validation_contract_version=policy.version.qualified_name,
                     candidate_contract_version=CANDIDATE_CONTRACT.qualified_name,
                     risk_model_contract_version=RISK_MODEL_ARTIFACT_CONTRACT.qualified_name,
-                    structure_contract_version=STRUCTURE_V2_CONTRACT.qualified_name,
-                    candidate_structure_contract_version=CANDIDATE_STRUCTURE_V1_CONTRACT.qualified_name,
+                    structure_contract_version=STRUCTURE_V3_CONTRACT.qualified_name,
+                    candidate_structure_contract_version=CANDIDATE_STRUCTURE_V2_CONTRACT.qualified_name,
                     risk_model_algorithm_version=risk_model.algorithm_version,
                     availability_reasons=reasons,
                 )

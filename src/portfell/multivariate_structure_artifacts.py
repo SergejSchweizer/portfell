@@ -21,10 +21,11 @@ from portfell.multivariate_risk_model import MultivariateRiskModelArtifact
 from portfell.multivariate_rolling_structure import build_rolling_structure_diagnostics
 from portfell.multivariate_signal_components import build_signal_component_diagnostics
 from portfell.multivariate_structure_v2 import PcaDiagnostics, build_structure_pca_diagnostics
+from portfell.multivariate_subspace_stability import build_adjacent_subspace_stability
 from portfell.table_io import JsonRow
 
-STRUCTURE_V2_CONTRACT = ContractVersion("multivariate.structure", 2)
-CANDIDATE_STRUCTURE_V1_CONTRACT = ContractVersion("multivariate.candidate_structure", 1)
+STRUCTURE_V3_CONTRACT = ContractVersion("multivariate.structure", 3)
+CANDIDATE_STRUCTURE_V2_CONTRACT = ContractVersion("multivariate.candidate_structure", 2)
 
 
 @dataclass(frozen=True)
@@ -65,10 +66,19 @@ def build_structure_v2_documents(
         listings=risk_model.listings,
         canonical_clusters=clusters,
     )
+    subspace_rows = build_adjacent_subspace_stability(
+        date_ends=tuple(row.date_end for row in rolling.rows),
+        covariance_bases=tuple(row.covariance_basis for row in rolling.rows),
+        correlation_bases=tuple(row.correlation_basis for row in rolling.rows),
+        listing_count=len(risk_model.listings),
+    )
+    subspace_available = bool(subspace_rows) and all(
+        not row.availability_reasons for row in subspace_rows
+    )
     structure_id = stable_contract_id(
         "multivariate_structure_v2",
         {
-            "contract": STRUCTURE_V2_CONTRACT.qualified_name,
+            "contract": STRUCTURE_V3_CONTRACT.qualified_name,
             "risk_model_id": risk_model.risk_model_id,
             "input_snapshot_id": risk_model.input_snapshot_id,
             "aligned_calendar_id": risk_model.aligned_calendar_id,
@@ -90,14 +100,14 @@ def build_structure_v2_documents(
     candidate_structure_id = stable_contract_id(
         "multivariate_candidate_structure_v1",
         {
-            "contract": CANDIDATE_STRUCTURE_V1_CONTRACT.qualified_name,
+            "contract": CANDIDATE_STRUCTURE_V2_CONTRACT.qualified_name,
             "structure_id": structure_id,
             "risk_model_id": risk_model.risk_model_id,
             "candidate_ids": list(candidate_ids),
         },
     )
     structure_document: JsonRow = {
-        "contract_version": STRUCTURE_V2_CONTRACT.qualified_name,
+        "contract_version": STRUCTURE_V3_CONTRACT.qualified_name,
         "structure_id": structure_id,
         "risk_model_id": risk_model.risk_model_id,
         "input_snapshot_id": risk_model.input_snapshot_id,
@@ -161,8 +171,25 @@ def build_structure_v2_documents(
             "availability_reasons": list(rolling.availability_reasons),
         },
         "subspace_stability": {
-            "items": [],
-            "availability_reasons": ["subspace_stability_adapter_pending"],
+            "items": [
+                {
+                    "previous_date_end": row.previous_date_end,
+                    "current_date_end": row.current_date_end,
+                    "covariance_stability": row.covariance_stability,
+                    "correlation_stability": row.correlation_stability,
+                    "component_count": row.component_count,
+                    "availability_reasons": list(row.availability_reasons),
+                }
+                for row in subspace_rows
+                if not row.availability_reasons
+            ],
+            "availability_reasons": (
+                []
+                if subspace_available
+                else sorted(
+                    {reason for row in subspace_rows for reason in row.availability_reasons}
+                )
+            ),
         },
         "cluster_bootstrap_stability": {
             "pairs": [
@@ -197,6 +224,16 @@ def build_structure_v2_documents(
             risk_model=risk_model,
             clusters=clusters,
         )
+        largest_cluster_gross_abs_risk_share = (
+            max(row.gross_abs_risk_share for row in cluster_risk.rows)
+            if cluster_risk.available and cluster_risk.rows
+            else None
+        )
+        cluster_share_reasons = (
+            ()
+            if largest_cluster_gross_abs_risk_share is not None
+            else ("largest_cluster_gross_abs_risk_share_unavailable",)
+        )
         candidate_rows.append(
             {
                 "candidate_id": candidate.candidate_id,
@@ -207,11 +244,13 @@ def build_structure_v2_documents(
                             *pca_risk.availability_reasons,
                             *summary.availability_reasons,
                             *cluster_risk.availability_reasons,
+                            *cluster_share_reasons,
                         )
                     )
                 ),
                 "effective_pca_risk_drivers": summary.effective_pca_risk_drivers,
                 "largest_pca_risk_share": summary.largest_pca_risk_share,
+                "largest_cluster_gross_abs_risk_share": largest_cluster_gross_abs_risk_share,
                 "components_for_80pct_risk": summary.components_for_80pct_risk,
                 "components_for_90pct_risk": summary.components_for_90pct_risk,
                 "components_for_95pct_risk": summary.components_for_95pct_risk,
@@ -238,7 +277,7 @@ def build_structure_v2_documents(
             }
         )
     candidate_document: JsonRow = {
-        "contract_version": CANDIDATE_STRUCTURE_V1_CONTRACT.qualified_name,
+        "contract_version": CANDIDATE_STRUCTURE_V2_CONTRACT.qualified_name,
         "candidate_structure_id": candidate_structure_id,
         "structure_id": structure_id,
         "risk_model_id": risk_model.risk_model_id,
@@ -291,8 +330,8 @@ def _listing_row(listing: MultivariateListingKey) -> JsonRow:
 
 
 __all__ = [
-    "CANDIDATE_STRUCTURE_V1_CONTRACT",
-    "STRUCTURE_V2_CONTRACT",
+    "CANDIDATE_STRUCTURE_V2_CONTRACT",
+    "STRUCTURE_V3_CONTRACT",
     "StructureV2Documents",
     "build_structure_v2_documents",
 ]

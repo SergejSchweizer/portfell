@@ -4,7 +4,7 @@ Status: frozen for PR361–PR376. Production activation is gated by PR372 and by
 
 ## 1. Invariants
 
-The universe artifact is `multivariate.structure@v2`. The candidate artifact is `multivariate.candidate_structure@v1`. All structural outputs are diagnostics: they MUST NOT alter candidate feasibility, candidate weights, the frozen objectives (`return_risk`, `return_drawdown`, `minimum_risk`), OOS ranking, or the DecisionArtifact winner. HRP keeps its optimizer-internal clustering and MUST NOT consume v2 Risk Structure clusters.
+The universe artifact is `multivariate.structure@v3`. The candidate artifact is `multivariate.candidate_structure@v2`. All structural outputs are diagnostics: they MUST NOT alter candidate feasibility, candidate weights, the frozen objectives (`return_risk`, `return_drawdown`, `minimum_risk`), OOS ranking, or the DecisionArtifact winner. HRP keeps its optimizer-internal clustering and MUST NOT consume v2 Risk Structure clusters.
 
 Every result is derived from one immutable Multivariate input snapshot, its aligned daily log-return matrix, and the canonical production Ledoit-Wolf joint covariance artifact. No pairwise covariance/correlation, sample-covariance fallback, shorter rolling window, implicit zero, or weaker clustering fallback is permitted. Optional diagnostics fail closed with typed availability reasons.
 
@@ -144,7 +144,7 @@ Every row records split ID, candidate ID/method, train start/end, test start/end
 
 ## 13. Artifact identity and ordering
 
-`multivariate.structure@v2` identity includes input snapshot ID, risk-model ID, this contract version, all frozen output-affecting parameters, and immutable aligned-input identity. `multivariate.candidate_structure@v1` identity additionally includes exact candidate-set identity. Canonical serialization is deterministic and repeated identical input must be byte-identical.
+`multivariate.structure@v3` identity includes input snapshot ID, risk-model ID, this contract version, all frozen output-affecting parameters, and immutable aligned-input identity. `multivariate.candidate_structure@v2` identity additionally includes exact candidate-set identity. Canonical serialization is deterministic and repeated identical input must be byte-identical. Earlier v2/v1 artifacts remain immutable historical documents.
 
 Universe sub-artifacts preserve section order. Candidate rows preserve deterministic candidate service order, then component/cluster order. Pair rows use lexicographically sorted full identity pairs. Rolling and walk-forward rows are chronological/split-order deterministic.
 

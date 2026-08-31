@@ -6,8 +6,8 @@ BACKLOG = Path("BACKLOG.md")
 
 def test_structure_v2_contract_freezes_artifacts_and_retired_names() -> None:
     text = CONTRACT.read_text(encoding="utf-8")
-    assert "multivariate.structure@v2" in text
-    assert "multivariate.candidate_structure@v1" in text
+    assert "multivariate.structure@v3" in text
+    assert "multivariate.candidate_structure@v2" in text
     assert "covariance_effective_rank" in text
     assert "correlation_effective_rank" in text
     assert "signal_component_count" in text
