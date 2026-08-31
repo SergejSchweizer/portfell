@@ -2,6 +2,18 @@
 
 Status: PR343 handoff into the mandatory Plotly Dash + clean application-database replacement series. `BACKLOG.md` remains the only executable backlog authority.
 
+## Table of contents
+
+1. [Frozen market-source API](#1-frozen-market-source-api)
+2. [Application-service capabilities](#2-frozen-application-service-capabilities-consumed-by-the-replacement)
+3. [Persisted analytical concepts](#3-persisted-analytical-concepts-that-cross-the-replacement-boundary)
+4. [Four-page workflow](#4-four-page-workflow-and-browser-contract)
+5. [Visualization requirements](#5-professional-visualization-requirements-carried-forward)
+6. [Universe and History](#6-universe--history-requirements-carried-forward)
+7. [Legacy idea reconciliation](#7-pr264pr295-idea-reconciliation)
+8. [Deletion inventory seed](#8-deletion-inventory-seed-for-pr344)
+9. [PR344 entry conditions](#9-pr344-entry-conditions)
+
 ## 1. Frozen market-source API
 
 The final source-series market seam is `portfell.market_source.gateway.MarketDataGateway`.
