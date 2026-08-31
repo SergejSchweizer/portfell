@@ -197,11 +197,11 @@ def test_hosted_security_architecture_maps_goals_to_backlog_records() -> None:
     assert "## 1. Final target architecture — hard decision" in backlog
 
 
-def test_github_merge_gate_runs_once_and_uses_rebase_completion() -> None:
+def test_github_merge_gate_runs_once_and_uses_auto_rebase_completion() -> None:
     merge_gate_workflow = (REPOSITORY_ROOT / ".github/workflows/merge-gate.yml").read_text(
         encoding="utf-8"
     )
-    merge_workflow = (REPOSITORY_ROOT / ".github/workflows/auto-merge.yml").read_text(
+    merge_workflow = (REPOSITORY_ROOT / ".github/workflows/auto-rebase.yml").read_text(
         encoding="utf-8"
     )
 
@@ -223,6 +223,7 @@ def test_github_merge_gate_runs_once_and_uses_rebase_completion() -> None:
     assert "push:" not in merge_gate_workflow
     assert not (REPOSITORY_ROOT / ".github/workflows/pr-quality.yml").exists()
     assert "workflows: [merge-gate]" in merge_workflow
-    assert "is still a draft; skipping auto-merge" in merge_workflow
+    assert "runs-on: [self-hosted, Linux, X64, ubuntu-latest]" in merge_workflow
+    assert "is still a draft; skipping auto-rebase" in merge_workflow
     assert "Invalid squash subject" in merge_workflow
     assert "--rebase --delete-branch" in merge_workflow

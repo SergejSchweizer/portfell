@@ -1239,7 +1239,7 @@ Do not remove these distinctions from the documentation until the corresponding 
 - [ARCHITECTURE.md](ARCHITECTURE.md): current system structure and dependency boundaries.
 - [CONTRACTS.md](CONTRACTS.md): persisted datasets, rows, versions, and paths.
 - [docs/hosted_security_architecture.md](docs/hosted_security_architecture.md): hosted trust model, prohibited designs, and detailed authorization architecture.
-- [GATES.md](GATES.md): quality gates, branch protection, sharding, coverage, and auto-merge.
+- [GATES.md](GATES.md): quality gates, branch protection, sharding, coverage, and auto-rebase.
 - [DECISIONS.md](DECISIONS.md): durable decisions and their rationale.
 - [RISKS.md](RISKS.md): risks, impact, and mitigation status.
 - [BACKLOG.md](BACKLOG.md): active and completed PR-sized work.
