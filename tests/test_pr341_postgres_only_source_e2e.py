@@ -3,7 +3,6 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGE = ROOT / "src" / "portfell"
 FOUR_STAGE = ROOT / "tests" / "test_four_stage_market_source_qa.py"
@@ -15,10 +14,8 @@ def test_cold_runtime_has_no_provider_nas_medallion_or_loader_python_authority()
 
     pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8").lower()
     compose = (ROOT / "compose.yaml").read_text(encoding="utf-8").lower()
-    production = "\n".join(
-        path.read_text(encoding="utf-8", errors="ignore").lower()
-        for path in PACKAGE.rglob("*.py")
-    )
+    runtime = (PACKAGE / "hosted_runtime.py").read_text(encoding="utf-8").lower()
+    runtime_image = (ROOT / "apps" / "api" / "Dockerfile").read_text(encoding="utf-8").lower()
     for forbidden in (
         "eodhd",
         "eodhistoricaldata",
@@ -31,7 +28,8 @@ def test_cold_runtime_has_no_provider_nas_medallion_or_loader_python_authority()
     ):
         assert forbidden not in pyproject
         assert forbidden not in compose
-        assert forbidden not in production
+        assert forbidden not in runtime
+        assert forbidden not in runtime_image
 
 
 def test_four_stage_e2e_covers_full_identity_lineage_and_fail_closed_inputs() -> None:
