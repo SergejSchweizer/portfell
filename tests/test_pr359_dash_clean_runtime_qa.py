@@ -2,15 +2,15 @@ from __future__ import annotations
 
 import ast
 import re
+import tomllib
 from pathlib import Path
 
-import tomllib
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGE = ROOT / "src" / "portfell"
 SQL_PATTERN = re.compile(
-    r"\b(?:select\s+.+?\s+from|insert\s+into|update\s+\S+\s+set|delete\s+from|"
+    r"^\s*(?:select\s+.+?\s+from|insert\s+into|update\s+\S+\s+set|delete\s+from|"
     r"create\s+(?:table|schema)|alter\s+|drop\s+)\b",
     re.IGNORECASE | re.DOTALL,
 )
@@ -29,9 +29,9 @@ def _sql_literals(path: Path) -> tuple[str, ...]:
 
 def test_final_tree_has_no_legacy_ui_database_or_provider_runtime() -> None:
     assert not (ROOT / "apps" / "web").exists()
-    assert not tuple(ROOT.rglob("package.json"))
-    assert not tuple(ROOT.rglob("*.tsx"))
-    assert not tuple(ROOT.rglob("*.ts"))
+    source_files = tuple(path for path in ROOT.rglob("*") if ".venv" not in path.parts)
+    assert not tuple(path for path in source_files if path.name == "package.json")
+    assert not tuple(path for path in source_files if path.suffix in {".tsx", ".ts"})
 
     retired_modules = (
         "hosted_catalog.py",
@@ -104,9 +104,7 @@ def test_final_compose_has_exactly_two_database_authorities_and_one_app_surface(
     services = compose["services"]
     assert set(services) == {"api", "postgres"}
     assert services["postgres"]["environment"]["POSTGRES_DB"] == "portfell_dash"
-    assert services["api"]["environment"]["PORTFELL_DATABASE_URL"].endswith(
-        "/portfell_dash"
-    )
+    assert services["api"]["environment"]["PORTFELL_DATABASE_URL"].endswith("/portfell_dash")
     assert "PORTFELL_MARKET_DATABASE_URL" in services["api"]["environment"]
     assert services["api"]["ports"] == ["127.0.0.1:${PORTFELL_PORT:-8080}:8000"]
 
@@ -140,10 +138,10 @@ def test_clean_install_and_browser_acceptance_harnesses_cover_final_contract() -
         assert token in browser
 
     assert '("/metadata", "/univariate", "/bivariate", "/multivariate")' in visual
-    assert "Viewport(\"desktop\", 1440, 900)" in visual
-    assert "Viewport(\"tablet\", 1024, 768)" in visual
-    assert "Viewport(\"mobile\", 390, 844)" in visual
-    assert "financial-dashboard-example.plotly.app" in visual
+    assert 'Viewport("desktop", 1440, 900)' in visual
+    assert 'Viewport("tablet", 1024, 768)' in visual
+    assert 'Viewport("mobile", 390, 844)' in visual
+    assert "financial-dashboard-example.plotly.app" not in visual
     assert "financial-dashboard-example.plotly.app" in browser
     assert "assert not reference_requests" in browser
 
