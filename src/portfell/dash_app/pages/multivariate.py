@@ -9,6 +9,7 @@ import plotly.graph_objects as go  # pyright: ignore[reportMissingTypeStubs]
 from dash import dcc, html
 from dash.development.base_component import Component
 
+from portfell.dash_app.candidate_structure_presenters import candidate_structure_view
 from portfell.dash_app.components import (
     ChartCard,
     ControlBar,
@@ -24,6 +25,7 @@ from portfell.dash_app.components import (
 )
 from portfell.dash_app.contracts import MULTIVARIATE_OBJECTIVES
 from portfell.dash_app.figures import apply_portfell_template
+from portfell.dash_app.structure_presenters import universe_structure_view
 
 
 class MultivariateService(Protocol):
@@ -55,6 +57,8 @@ def multivariate_page_data(service: MultivariateService) -> dict[str, object]:
     validation = _items(artifacts.get("validation") if artifacts else None)
     contributions = _items(artifacts.get("risk_contributions") if artifacts else None)
     performance = _mapping(artifacts.get("performance")) if artifacts else None
+    structure_document = _mapping(artifacts.get("multivariate.structure@v2"))
+    candidate_structure_document = _mapping(artifacts.get("multivariate.candidate_structure@v2"))
     winner = next((row for row in candidates if row.get("candidate_id") == winner_id), None)
     winner_splits = [
         row
@@ -81,6 +85,19 @@ def multivariate_page_data(service: MultivariateService) -> dict[str, object]:
         "validation": validation,
         "risk_contributions": contributions,
         "performance": performance,
+        "universe_structure": (
+            universe_structure_view(structure_document) if structure_document else None
+        ),
+        "candidate_structure": (
+            candidate_structure_view(
+                candidate_structure_document,
+                persisted_winning_candidate_id=(
+                    str(winner_id) if isinstance(winner_id, str) else None
+                ),
+            )
+            if candidate_structure_document
+            else None
+        ),
         "winner_oos_return": (
             None if decision_doc is None else decision_doc.get("median_post_cost_return")
         ),
