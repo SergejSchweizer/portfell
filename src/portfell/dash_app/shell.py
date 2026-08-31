@@ -1,4 +1,4 @@
-"""Reference-style four-route Dash shell with no financial calculations."""
+"""Reference-style four-route Dash shell with identifier-only workflow context."""
 
 from __future__ import annotations
 
@@ -12,10 +12,15 @@ from dash.development.base_component import Component
 
 from portfell.dash_app.components import PageHeader, StatusBanner
 from portfell.dash_app.contracts import DEFAULT_ROUTE, PAGE_BY_ROUTE, PAGE_SPECS, PageSpec
+from portfell.dash_app.state import BrowserState, browser_state_from_workflow
 
 
 class PageBuilder(Protocol):
     def __call__(self, services: object | None = None) -> Component: ...
+
+
+class WorkflowService(Protocol):
+    def workflow_state(self) -> dict[str, object]: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -81,8 +86,7 @@ def placeholder_page(spec: PageSpec) -> Component:
         [
             PageHeader(spec.title, spec.subtitle),
             StatusBanner(
-                "This stage is wired to the shared shell; its page contract is implemented "
-                "in the next stack wave."
+                "This stage is wired to the shared shell; its page contract is not available."
             ),
         ],
         className="pf-page",
@@ -90,12 +94,12 @@ def placeholder_page(spec: PageSpec) -> Component:
 
 
 def load_page(spec: PageSpec, services: object | None = None) -> Component:
-    """Load a page plugin if present; otherwise render the deterministic shell placeholder."""
+    """Load one workflow page plugin; absent plugins fail visibly rather than adding a route."""
     module_name = f"portfell.dash_app.pages.{spec.page_id}"
     try:
         module = importlib.import_module(module_name)
     except ModuleNotFoundError as error:
-        if error.name not in {"portfell.dash_app.pages", module_name}:
+        if error.name != module_name:
             raise
         return placeholder_page(spec)
     builder = getattr(module, "build_page", None)
@@ -125,15 +129,41 @@ def root_layout() -> Component:
     return html.Div(
         [
             dcc.Location(id="pf-location", refresh=False),
+            dcc.Store(id="pf-browser-state", storage_type="memory", data=BrowserState().to_store()),
+            dcc.Interval(id="pf-job-poll", interval=2_000, disabled=True, n_intervals=0),
             html.Div(id="pf-route-content"),
         ],
         id="pf-root",
     )
 
 
-def route_renderer(services: object | None = None) -> Callable[[str | None], Component]:
-    def render(pathname: str | None) -> Component:
-        return application_frame(pathname, services=services)
+def workflow_context_from_state(state: BrowserState, pathname: str | None) -> WorkflowContext:
+    route = normalize_route(pathname)
+    stage = PAGE_BY_ROUTE[route].page_id
+    ready = getattr(state.readiness, stage)
+    return WorkflowContext(
+        universe_version="—" if state.universe_version is None else str(state.universe_version),
+        selected_count="—" if state.selected_count is None else str(state.selected_count),
+        snapshot_short_id=(
+            "—" if state.source_snapshot_id is None else state.source_snapshot_id[:12]
+        ),
+        stage_readiness="Ready" if ready else "Not ready",
+    )
+
+
+def route_renderer(services: object | None = None) -> Callable[[str | None, object], Component]:
+    def render(pathname: str | None, store: object) -> Component:
+        state = BrowserState.from_store(store)
+        if services is not None and state == BrowserState():
+            try:
+                state = browser_state_from_workflow(cast(WorkflowService, services).workflow_state())
+            except Exception:
+                state = BrowserState(message_code="workflow_state_unavailable")
+        return application_frame(
+            pathname,
+            services=services,
+            context=workflow_context_from_state(state, pathname),
+        )
 
     return render
 
@@ -157,4 +187,5 @@ __all__ = [
     "route_renderer",
     "sidebar",
     "workflow_context",
+    "workflow_context_from_state",
 ]

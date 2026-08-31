@@ -10,6 +10,7 @@ from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
 from starlette.middleware.wsgi import WSGIMiddleware
 
+from portfell.dash_app.callbacks import register_callbacks
 from portfell.dash_app.contracts import DEFAULT_ROUTE
 from portfell.dash_app.shell import root_layout, route_renderer
 
@@ -28,12 +29,17 @@ def create_dash_app(*, services: object | None = None) -> Dash:
     render = route_renderer(services)
 
     @app.callback(  # pyright: ignore[reportUnknownMemberType]
-        Output("pf-route-content", "children"), Input("pf-location", "pathname")
+        Output("pf-route-content", "children"),
+        Input("pf-location", "pathname"),
+        Input("pf-browser-state", "data"),
     )
     # Dash invokes this callback from its component registry.
-    def _render_route(pathname: str | None) -> Any:  # pyright: ignore[reportUnusedFunction]
-        return render(pathname)
+    def _render_route(  # pyright: ignore[reportUnusedFunction]
+        pathname: str | None, browser_state: object
+    ) -> Any:
+        return render(pathname, browser_state)
 
+    register_callbacks(app, services)
     return app
 
 
