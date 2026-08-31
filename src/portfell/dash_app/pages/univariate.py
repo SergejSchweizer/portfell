@@ -20,7 +20,6 @@ from portfell.dash_app.components import (
     StageFooter,
     StatusBanner,
     TableCard,
-    UnavailableData,
 )
 from portfell.dash_app.figures import apply_portfell_template
 
@@ -104,7 +103,8 @@ def _layout(
     children: list[Component] = [
         PageHeader(
             "Univariate",
-            "Inspect single-instrument return and risk statistics, then persist the downstream selection.",
+            "Inspect single-instrument return and risk statistics, then persist the "
+            "downstream selection.",
         ),
         ControlBar(
             [
@@ -159,7 +159,7 @@ def _layout(
                         className="pf-button",
                         disabled=run is None or run.get("status") != "succeeded",
                     ),
-                    dcc.Link(
+                    html.A(
                         "Continue to Bivariate",
                         href="/bivariate" if ready else "#",
                         id="univariate-continue-bivariate",
@@ -221,14 +221,23 @@ def _statistics_table(rows: Sequence[Mapping[str, object]], selected: set[str]) 
                 [
                     html.Tr(
                         [
-                            html.Td(
-                                html.Input(
-                                    type="checkbox",
-                                    checked=_row_member_id(row) in selected,
-                                    disabled=row.get("availability_reason") != "ok",
-                                    **{"aria-label": f"Select {_row_member_id(row)}"},
-                                )
-                            ),
+                                html.Td(
+                                    dcc.Checklist(
+                                        id={"type": "univariate-member", "id": _row_member_id(row)},
+                                        options=[
+                                            {
+                                                "label": "",
+                                                "value": _row_member_id(row),
+                                                "disabled": row.get("availability_reason") != "ok",
+                                            }
+                                        ],
+                                        value=(
+                                            [_row_member_id(row)]
+                                            if _row_member_id(row) in selected
+                                            else []
+                                        ),
+                                    )
+                                ),
                             *[html.Td(_display(row.get(name))) for name in columns],
                         ]
                     )
