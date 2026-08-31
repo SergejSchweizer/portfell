@@ -198,7 +198,11 @@ def _normalize_predicates(rows: Sequence[Mapping[str, Any]]) -> tuple[Predicate,
         value = row.get("value")
         if not metric or comparison not in _ALLOWED_OPERATORS:
             raise ValueError("invalid_predicate")
-        if isinstance(value, bool) or not isinstance(value, int | float) or not math.isfinite(value):
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, int | float)
+            or not math.isfinite(value)
+        ):
             raise ValueError("invalid_predicate_value")
         operators = seen.setdefault(metric, set())
         if comparison in operators:

@@ -9,7 +9,11 @@ from statistics import median
 from typing import Any, cast
 
 from portfell.app_services.research_compute import stable_hash
-from portfell.income import build_income_artifacts, build_income_evidence, normalize_distribution_events
+from portfell.income import (
+    build_income_artifacts,
+    build_income_evidence,
+    normalize_distribution_events,
+)
 from portfell.multivariate_candidates import PortfolioCandidate, build_candidate_set
 from portfell.multivariate_inputs import (
     MultivariateInputDependencies,
@@ -129,7 +133,9 @@ def compute_multivariate(
             for key in keys
         },
     )
-    snapshot = build_multivariate_input_snapshot(dependencies=dependencies, univariate_rows=selected)
+    snapshot = build_multivariate_input_snapshot(
+        dependencies=dependencies, univariate_rows=selected
+    )
     risk = build_multivariate_risk_model(snapshot=snapshot, return_rows=returns)
     structure = build_multivariate_structure(risk)
     income = {
@@ -249,7 +255,10 @@ def compute_multivariate(
         "validation": {"items": cast(list[Any], validation_rows)},
         "risk_contributions": {"items": risk_contributions},
         "income_evidence": {"items": income_rows},
-        "performance": cast(JsonRow, build_multivariate_performance(candidates=candidates, return_rows=returns)),
+        "performance": cast(
+            JsonRow,
+            build_multivariate_performance(candidates=candidates, return_rows=returns),
+        ),
         "decision": decision.document,
         "market_source": {
             "snapshot_id": market_snapshot_id,

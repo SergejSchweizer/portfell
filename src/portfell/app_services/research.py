@@ -29,7 +29,6 @@ from portfell.app_state.contracts import (
     AnalysisArtifactRecord,
     AnalysisRunRecord,
     DecisionArtifactRecord,
-    JsonObject,
     JsonValue,
     ListingIdentity,
     MarketSourceSnapshotRecord,
@@ -37,13 +36,13 @@ from portfell.app_state.contracts import (
     UnivariateSelectionRecord,
 )
 from portfell.app_state.errors import APP_STATE_NOT_FOUND, AppStateError
+from portfell.bivariate_statistics import BIVARIATE_STATISTICS_VERSION
 from portfell.market_source.contracts import Listing, ListingKey
 from portfell.market_source.errors import MarketSourceError
 from portfell.market_source.gateway import MarketDataSnapshot
 from portfell.market_source.snapshot import build_market_source_snapshot
 from portfell.table_io import JsonRow
 from portfell.univariate_statistics import UNIVARIATE_CALCULATION_CONTRACT
-from portfell.bivariate_statistics import BIVARIATE_STATISTICS_VERSION
 
 
 class ApplicationMarketGateway(Protocol):
@@ -73,7 +72,9 @@ class AppStatePort(Protocol):
 
     def get_metadata_universe(self, universe_id: str) -> MetadataUniverseRecord: ...
 
-    def list_metadata_universes(self, *, limit: int = 100) -> tuple[MetadataUniverseRecord, ...]: ...
+    def list_metadata_universes(
+        self, *, limit: int = 100
+    ) -> tuple[MetadataUniverseRecord, ...]: ...
 
     def create_analysis_run(
         self,
@@ -174,7 +175,9 @@ class ResearchApplicationService:
         listings = self._active_listings()
         return {
             "exchange": sorted({item.key.exchange for item in listings}),
-            "instrument_type": sorted({item.instrument_type for item in listings if item.instrument_type}),
+            "instrument_type": sorted(
+                {item.instrument_type for item in listings if item.instrument_type}
+            ),
             "country": sorted({item.country for item in listings if item.country}),
             "currency": sorted({item.currency for item in listings if item.currency}),
             "active_listing_count": len(listings),
@@ -222,7 +225,8 @@ class ResearchApplicationService:
         )
         listings_by_key = {item.key: item for item in self._active_listings()}
         selected = tuple(
-            listings_by_key[ListingKey(member.isin, member.exchange, member.code)] for member in members
+            listings_by_key[ListingKey(member.isin, member.exchange, member.code)]
+            for member in members
         )
         lineage = build_market_source_snapshot(
             listings=selected, quotes=(), dividends=(), splits=()
@@ -488,7 +492,10 @@ class ResearchApplicationService:
         return row
 
     def stage_history(self, stage: str, *, limit: int = 100) -> tuple[JsonRow, ...]:
-        return tuple(_run_row(item) for item in self._state.list_analysis_runs(stage=stage, limit=limit))
+        return tuple(
+            _run_row(item)
+            for item in self._state.list_analysis_runs(stage=stage, limit=limit)
+        )
 
     def workflow_state(self) -> JsonRow:
         universes = self._state.list_metadata_universes(limit=1)
@@ -593,7 +600,11 @@ class ResearchApplicationService:
         decision = computation.decision
         decision_id = opaque_id(
             "decision-artifact",
-            {"run_id": run_id, "objective": decision.objective, "winner": decision.winning_candidate_id},
+            {
+                "run_id": run_id,
+                "objective": decision.objective,
+                "winner": decision.winning_candidate_id,
+            },
         )
         self._state.put_decision_artifact(
             decision_id=decision_id,
@@ -742,4 +753,6 @@ def _failure_code(error: Exception) -> str:
 
 
 def _public_error(error: Exception) -> ApplicationServiceError:
-    return error if isinstance(error, ApplicationServiceError) else ApplicationServiceError(_failure_code(error))
+    if isinstance(error, ApplicationServiceError):
+        return error
+    return ApplicationServiceError(_failure_code(error))
