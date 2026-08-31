@@ -846,6 +846,12 @@ Branch: `refactor/pr347-app-services-portfell-dash-db`
 
 Depends on: PR346.
 
+Git status: integrated on `main` at `04a7f54`. The canonical four-stage service now uses only
+the clean app-state port plus `MarketDataGateway`; it persists/reloads typed lineage, artifacts,
+selections and Multivariate decisions without a legacy database fallback. Focused Metadata →
+Univariate → Bivariate → Multivariate, fail-closed and helper-contract tests plus the complete
+quality gate pass (`891 passed`, `5` live-only skips, `90.02%` coverage).
+
 Scope: wire Metadata, Univariate, Bivariate, and Multivariate application services to the new `app_state` repositories while market reads remain through `MarketDataGateway`.
 
 Acceptance:
