@@ -63,7 +63,11 @@ def analyze_symmetric_matrix(
     counts = tuple(
         (
             threshold,
-            next(index + 1 for index, cumulative_share in enumerate(cumulative) if cumulative_share >= threshold),
+            next(
+                index + 1
+                for index, cumulative_share in enumerate(cumulative)
+                if cumulative_share >= threshold
+            ),
         )
         for threshold in thresholds
     )
@@ -133,8 +137,12 @@ def _jacobi_eigensystem(
                 values[index][left] = values[left][index] = cosine * first - sine * second
                 values[index][right] = values[right][index] = sine * first + cosine * second
         first, second, cross = values[left][left], values[right][right], values[left][right]
-        values[left][left] = cosine * cosine * first - 2.0 * sine * cosine * cross + sine * sine * second
-        values[right][right] = sine * sine * first + 2.0 * sine * cosine * cross + cosine * cosine * second
+        values[left][left] = (
+            cosine * cosine * first - 2.0 * sine * cosine * cross + sine * sine * second
+        )
+        values[right][right] = (
+            sine * sine * first + 2.0 * sine * cosine * cross + cosine * cosine * second
+        )
         values[left][right] = values[right][left] = 0.0
         for index in range(size):
             first, second = vectors[index][left], vectors[index][right]
