@@ -9,6 +9,7 @@ from typing import Protocol, cast
 
 from portfell.app_state.contracts import (
     AnalysisArtifactRecord,
+    AnalysisJobRecord,
     AnalysisRunRecord,
     DecisionArtifactRecord,
     JsonObject,
@@ -28,6 +29,9 @@ from portfell.app_state.errors import (
 )
 from portfell.app_state.schema import ANALYSIS_STAGES, ANALYSIS_STATUSES, MULTIVARIATE_OBJECTIVES
 
+_JOB_STAGES = {"univariate", "bivariate", "multivariate"}
+_JOB_TERMINAL = {"succeeded", "failed", "cancelled"}
+
 
 class RepositoryCursor(Protocol):
     def fetchone(self) -> Sequence[object] | None: ...
@@ -44,7 +48,7 @@ class RepositoryConnection(Protocol):
 
 
 class PostgresAppStateRepository:
-    """One transaction boundary implementing every v1 application-state repository port."""
+    """One transaction boundary implementing every application-state repository port."""
 
     def __init__(self, connection: RepositoryConnection) -> None:
         self._connection = connection
@@ -250,6 +254,240 @@ class PostgresAppStateRepository:
                 (stage, bounded),
             ).fetchall()
         return tuple(_run(row) for row in rows)
+
+    def create_or_get_active_job(
+        self,
+        *,
+        job_id: str,
+        stage: str,
+        input_ref: str,
+        requested_objective: str | None = None,
+    ) -> AnalysisJobRecord:
+        _validate_job_request(job_id, stage, input_ref, requested_objective)
+        try:
+            self._connection.execute(
+                """insert into portfell.analysis_jobs
+                   (job_id, workspace_id, stage, input_ref, requested_objective, status)
+                   values (%s, 'default', %s, %s, %s, 'queued')
+                   on conflict do nothing""",
+                (job_id, stage, input_ref, requested_objective),
+            )
+            row = self._connection.execute(
+                """select job_id, stage, input_ref, requested_objective, status, run_id,
+                          progress_current, progress_total, progress_phase, attempt,
+                          heartbeat_at, failure_code, created_at, started_at, completed_at
+                   from portfell.analysis_jobs
+                   where workspace_id = 'default' and stage = %s and input_ref = %s
+                     and requested_objective is not distinct from %s
+                     and status in ('queued', 'running')
+                   order by created_at, job_id limit 1""",
+                (stage, input_ref, requested_objective),
+            ).fetchone()
+            if row is None:
+                raise AppStateError(APP_STATE_PERSISTENCE_FAILED)
+            self._connection.commit()
+            return _job(row)
+        except AppStateError:
+            self._connection.rollback()
+            raise
+        except Exception as error:
+            self._connection.rollback()
+            raise AppStateError(APP_STATE_PERSISTENCE_FAILED) from error
+
+    def claim_job(self, job_id: str, *, stale_before: datetime) -> AnalysisJobRecord:
+        try:
+            row = self._connection.execute(
+                """update portfell.analysis_jobs
+                   set status = 'running', attempt = attempt + 1, started_at = now(),
+                       heartbeat_at = now(), completed_at = null, failure_code = null,
+                       progress_current = 0, progress_total = null,
+                       progress_phase = 'starting'
+                   where workspace_id = 'default' and job_id = %s
+                     and (status = 'queued'
+                          or (status = 'running' and heartbeat_at < %s))
+                   returning job_id, stage, input_ref, requested_objective, status, run_id,
+                             progress_current, progress_total, progress_phase, attempt,
+                             heartbeat_at, failure_code, created_at, started_at, completed_at""",
+                (job_id, stale_before),
+            ).fetchone()
+            if row is None:
+                self._connection.rollback()
+                raise AppStateError(APP_STATE_CONFLICT)
+            self._connection.commit()
+            return _job(row)
+        except AppStateError:
+            raise
+        except Exception as error:
+            self._connection.rollback()
+            raise AppStateError(APP_STATE_PERSISTENCE_FAILED) from error
+
+    def update_job_progress(
+        self,
+        job_id: str,
+        *,
+        current: int,
+        total: int | None,
+        phase: str,
+    ) -> AnalysisJobRecord:
+        if current < 0 or (total is not None and (total < 0 or current > total)) or not phase.strip():
+            raise AppStateError(APP_STATE_CONFLICT)
+        try:
+            row = self._connection.execute(
+                """update portfell.analysis_jobs
+                   set progress_current = %s, progress_total = %s,
+                       progress_phase = %s, heartbeat_at = now()
+                   where workspace_id = 'default' and job_id = %s and status = 'running'
+                     and progress_current <= %s
+                     and (progress_total is null or progress_total is not distinct from %s)
+                   returning job_id, stage, input_ref, requested_objective, status, run_id,
+                             progress_current, progress_total, progress_phase, attempt,
+                             heartbeat_at, failure_code, created_at, started_at, completed_at""",
+                (current, total, phase, job_id, current, total),
+            ).fetchone()
+            if row is None:
+                self._connection.rollback()
+                raise AppStateError(APP_STATE_INVALID_TRANSITION)
+            self._connection.commit()
+            return _job(row)
+        except AppStateError:
+            raise
+        except Exception as error:
+            self._connection.rollback()
+            raise AppStateError(APP_STATE_PERSISTENCE_FAILED) from error
+
+    def heartbeat_job(self, job_id: str) -> AnalysisJobRecord:
+        try:
+            row = self._connection.execute(
+                """update portfell.analysis_jobs set heartbeat_at = now()
+                   where workspace_id = 'default' and job_id = %s and status = 'running'
+                   returning job_id, stage, input_ref, requested_objective, status, run_id,
+                             progress_current, progress_total, progress_phase, attempt,
+                             heartbeat_at, failure_code, created_at, started_at, completed_at""",
+                (job_id,),
+            ).fetchone()
+            if row is None:
+                self._connection.rollback()
+                raise AppStateError(APP_STATE_INVALID_TRANSITION)
+            self._connection.commit()
+            return _job(row)
+        except AppStateError:
+            raise
+        except Exception as error:
+            self._connection.rollback()
+            raise AppStateError(APP_STATE_PERSISTENCE_FAILED) from error
+
+    def link_job_run(self, job_id: str, run_id: str) -> AnalysisJobRecord:
+        if not run_id.strip():
+            raise AppStateError(APP_STATE_CONFLICT)
+        try:
+            run = self.get_analysis_run(run_id)
+            job = self.get_analysis_job(job_id)
+            if job.status not in {"queued", "running"} or job.stage != run.stage:
+                raise AppStateError(APP_STATE_INVALID_TRANSITION)
+            if job.run_id is not None and job.run_id != run_id:
+                raise AppStateError(APP_STATE_CONFLICT)
+            row = self._connection.execute(
+                """update portfell.analysis_jobs set run_id = %s
+                   where workspace_id = 'default' and job_id = %s
+                     and status in ('queued', 'running')
+                   returning job_id, stage, input_ref, requested_objective, status, run_id,
+                             progress_current, progress_total, progress_phase, attempt,
+                             heartbeat_at, failure_code, created_at, started_at, completed_at""",
+                (run_id, job_id),
+            ).fetchone()
+            if row is None:
+                self._connection.rollback()
+                raise AppStateError(APP_STATE_INVALID_TRANSITION)
+            self._connection.commit()
+            return _job(row)
+        except AppStateError:
+            raise
+        except Exception as error:
+            self._connection.rollback()
+            raise AppStateError(APP_STATE_PERSISTENCE_FAILED) from error
+
+    def complete_job(
+        self,
+        job_id: str,
+        *,
+        status: str,
+        failure_code: str | None = None,
+    ) -> AnalysisJobRecord:
+        if status not in _JOB_TERMINAL or (status == "failed") != (failure_code is not None):
+            raise AppStateError(APP_STATE_INVALID_TRANSITION)
+        job = self.get_analysis_job(job_id)
+        if job.status not in {"queued", "running"}:
+            raise AppStateError(APP_STATE_INVALID_TRANSITION)
+        if status == "succeeded":
+            if job.run_id is None or self.get_analysis_run(job.run_id).status != "succeeded":
+                raise AppStateError(APP_STATE_INVALID_TRANSITION)
+        try:
+            row = self._connection.execute(
+                """update portfell.analysis_jobs
+                   set status = %s, completed_at = now(), failure_code = %s,
+                       heartbeat_at = case when status = 'running' then now() else heartbeat_at end
+                   where workspace_id = 'default' and job_id = %s
+                     and status in ('queued', 'running')
+                   returning job_id, stage, input_ref, requested_objective, status, run_id,
+                             progress_current, progress_total, progress_phase, attempt,
+                             heartbeat_at, failure_code, created_at, started_at, completed_at""",
+                (status, failure_code, job_id),
+            ).fetchone()
+            if row is None:
+                self._connection.rollback()
+                raise AppStateError(APP_STATE_INVALID_TRANSITION)
+            self._connection.commit()
+            return _job(row)
+        except AppStateError:
+            raise
+        except Exception as error:
+            self._connection.rollback()
+            raise AppStateError(APP_STATE_PERSISTENCE_FAILED) from error
+
+    def get_analysis_job(self, job_id: str) -> AnalysisJobRecord:
+        row = self._connection.execute(
+            """select job_id, stage, input_ref, requested_objective, status, run_id,
+                      progress_current, progress_total, progress_phase, attempt,
+                      heartbeat_at, failure_code, created_at, started_at, completed_at
+               from portfell.analysis_jobs
+               where workspace_id = 'default' and job_id = %s""",
+            (job_id,),
+        ).fetchone()
+        if row is None:
+            raise AppStateError(APP_STATE_NOT_FOUND)
+        return _job(row)
+
+    def list_analysis_jobs(
+        self,
+        *,
+        stage: str | None = None,
+        status: str | None = None,
+        limit: int = 100,
+    ) -> tuple[AnalysisJobRecord, ...]:
+        bounded = _bounded_limit(limit)
+        if stage is not None and stage not in _JOB_STAGES:
+            raise AppStateError(APP_STATE_NOT_FOUND)
+        if status is not None and status not in ANALYSIS_STATUSES:
+            raise AppStateError(APP_STATE_NOT_FOUND)
+        clauses = ["workspace_id = 'default'"]
+        params: list[object] = []
+        if stage is not None:
+            clauses.append("stage = %s")
+            params.append(stage)
+        if status is not None:
+            clauses.append("status = %s")
+            params.append(status)
+        params.append(bounded)
+        rows = self._connection.execute(
+            """select job_id, stage, input_ref, requested_objective, status, run_id,
+                      progress_current, progress_total, progress_phase, attempt,
+                      heartbeat_at, failure_code, created_at, started_at, completed_at
+               from portfell.analysis_jobs where """
+            + " and ".join(clauses)
+            + " order by created_at desc, job_id limit %s",
+            tuple(params),
+        ).fetchall()
+        return tuple(_job(row) for row in rows)
 
     def put_analysis_artifact(
         self,
@@ -495,6 +733,18 @@ class PostgresAppStateRepository:
         return _artifact(row)
 
 
+def _validate_job_request(
+    job_id: str, stage: str, input_ref: str, requested_objective: str | None
+) -> None:
+    if not job_id.strip() or not input_ref.strip() or stage not in _JOB_STAGES:
+        raise AppStateError(APP_STATE_CONFLICT)
+    if stage == "multivariate":
+        if requested_objective not in MULTIVARIATE_OBJECTIVES:
+            raise AppStateError(APP_STATE_CONFLICT)
+    elif requested_objective is not None:
+        raise AppStateError(APP_STATE_CONFLICT)
+
+
 def _bounded_limit(limit: int) -> int:
     if limit < 1 or limit > 500:
         raise AppStateError(APP_STATE_CONFLICT)
@@ -581,6 +831,26 @@ def _artifact(row: Sequence[object]) -> AnalysisArtifactRecord:
         content_hash=str(row[3]),
         document=_json_object(row[4]),
         created_at=cast(datetime, row[5]),
+    )
+
+
+def _job(row: Sequence[object]) -> AnalysisJobRecord:
+    return AnalysisJobRecord(
+        job_id=str(row[0]),
+        stage=str(row[1]),
+        input_ref=str(row[2]),
+        requested_objective=None if row[3] is None else str(row[3]),
+        status=str(row[4]),
+        run_id=None if row[5] is None else str(row[5]),
+        progress_current=int(cast(int, row[6])),
+        progress_total=None if row[7] is None else int(cast(int, row[7])),
+        progress_phase=None if row[8] is None else str(row[8]),
+        attempt=int(cast(int, row[9])),
+        heartbeat_at=cast(datetime | None, row[10]),
+        failure_code=None if row[11] is None else str(row[11]),
+        created_at=cast(datetime, row[12]),
+        started_at=cast(datetime | None, row[13]),
+        completed_at=cast(datetime | None, row[14]),
     )
 
 
