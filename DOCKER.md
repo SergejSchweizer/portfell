@@ -54,7 +54,7 @@ docker compose up --build
 The default application binding is:
 
 ```text
-127.0.0.1:8080 -> api:8000
+0.0.0.0:8080 -> api:8000
 ```
 
 Override the host port with `PORTFELL_PORT` when required.

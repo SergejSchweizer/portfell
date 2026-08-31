@@ -69,7 +69,7 @@ Create the ignored root config and external password files, then set the require
 docker compose up --build
 ```
 
-The final local application surface is loopback-bound by default at `127.0.0.1:8080`; override with `PORTFELL_PORT` when required. The Compose stack owns only the Python application and the clean `portfell_dash` PostgreSQL service. The external xetra-loader database is never Compose-owned by Portfell.
+The final local application surface binds by default at `0.0.0.0:8080`; override the port with `PORTFELL_PORT` when required. The Compose stack owns only the Python application and the clean `portfell_dash` PostgreSQL service. The external xetra-loader database is never Compose-owned by Portfell.
 
 For a destructive production transition from the retired deployment, follow `docs/runbooks/dash-production-cutover.md`. Do not improvise the cutover order and do not run old/new Portfell databases as simultaneous business authorities.
 

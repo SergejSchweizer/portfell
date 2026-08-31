@@ -139,7 +139,7 @@ The final Compose runtime owns only:
 1. `postgres` — clean `portfell_dash` application database.
 2. `api` — one FastAPI + Dash Python process/container.
 
-The market database remains external. The local application surface is loopback-bound by default. There is no Web/Node container and no provider/download/refresh worker.
+The market database remains external. The local application surface binds to all host interfaces by default, matching `compose.yaml`; operators can choose another host port with `PORTFELL_PORT`. There is no Web/Node container and no provider/download/refresh worker.
 
 The production-only Compose override may relocate the clean PostgreSQL volume to operator-managed storage. It must not resurrect the retired database authority.
 
