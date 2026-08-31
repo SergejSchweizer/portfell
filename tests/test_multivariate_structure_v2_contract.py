@@ -1,6 +1,5 @@
 from pathlib import Path
 
-
 CONTRACT = Path("docs/contracts/multivariate-structure-v2.md")
 BACKLOG = Path("BACKLOG.md")
 
