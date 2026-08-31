@@ -75,44 +75,6 @@ services:
     cap_drop:
       - ALL
 
-  web:
-    container_name: portfell-web
-    build:
-      context: .
-      dockerfile: apps/web/Dockerfile
-    develop:
-      watch:
-        - action: rebuild
-          path: ./apps/web
-        - action: rebuild
-          path: ./apps/web/Dockerfile
-        - action: rebuild
-          path: ./compose.yaml
-    restart: unless-stopped
-    environment:
-      NODE_ENV: development
-      PORTFELL_API_BASE_URL: http://api:8000
-    depends_on:
-      api:
-        condition: service_healthy
-    ports:
-      - "0.0.0.0:${PORTFELL_WEB_PORT:-333}:3000"
-    healthcheck:
-      test: ["CMD", "node", "server.js", "--health"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 20s
-    networks:
-      - portfell-public
-    read_only: true
-    tmpfs:
-      - /tmp
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-
 networks:
   portfell-internal:
     internal: true
