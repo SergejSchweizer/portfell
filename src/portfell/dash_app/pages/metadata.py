@@ -149,13 +149,17 @@ def _layout(
             ),
             TableCard(
                 "Xetra Listings",
-                [_listing_table(rows)] if rows else [EmptyState("No active listings match the filters.")],
+                (
+                    [_listing_table(rows)]
+                    if rows
+                    else [EmptyState("No active listings match the filters.")]
+                ),
                 component_id="metadata-listings-table",
             ),
             HistoryCard([_history(current)]),
             StageFooter(
                 [
-                    dcc.Link(
+                    html.A(
                         "Continue to Univariate",
                         href="/univariate" if ready else "#",
                         id="metadata-continue-univariate",
@@ -191,7 +195,10 @@ def _listing_table(rows: object) -> Component:
         [
             html.Thead(html.Tr([html.Th(column.replace("_", " ").title()) for column in columns])),
             html.Tbody(
-                [html.Tr([html.Td(_display(row.get(column))) for column in columns]) for row in items]
+                [
+                    html.Tr([html.Td(_display(row.get(column))) for column in columns])
+                    for row in items
+                ]
             ),
         ],
         className="pf-table",
