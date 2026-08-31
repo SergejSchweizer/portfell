@@ -1,13 +1,11 @@
 # Quality Checks
 
-
 ## Table Of Contents
 
 - [Purpose](#purpose)
 - [Current Shape](#current-shape)
 - [Rebase Workflow](#rebase-workflow)
 - [Validation Commands](#validation-commands)
-- [Financial Numerical Validation Gate](#financial-numerical-validation-gate)
 - [Conventional Commits](#conventional-commits)
 - [Sharding Policy](#sharding-policy)
 - [PR Definition Readiness](#pr-definition-readiness)
@@ -21,43 +19,39 @@ Last reviewed: 2026-08-30
 
 ## Current Shape
 
-Portfell uses one local validation contract. Run the applicable focused checks while changing code and the complete check before integration. GitHub runs the complete `merge-gate` for every pull request, including stacked pull requests whose base is another feature branch. The workflow validates the GitHub pull-request merge candidate against that pull request's current base. When a stacked pull request is later retargeted or rebased onto `main`, the gate must run again against the final integration base.
-
-The merge-gate workflow also supports manual `workflow_dispatch` execution for CI diagnostics. Manual execution does not replace the required pull-request gate for integration.
+Portfell uses one local validation contract. Run the applicable focused checks while changing code and the complete check before integration. GitHub runs the complete `merge-gate` once per pull request targeting the integration branch required by the active stack; final integration to `main` still requires the complete gate.
 
 The shard count is intentionally kept at `4` for Unit and Integration tests. Current CI runtime is dominated more by runner setup, checkout, dependency installation, and artifact handling than by individual test execution, so further splitting is not expected to improve wall-clock time yet.
+
+The Plotly Dash replacement series adds a Python Playwright browser acceptance path. During PR355 the legacy npm/Playwright Web tests remain transitional until PR356 deletes the old browser application. The new Dash browser test is Python-only, generates its own deterministic fixture service, makes no external production-network request, and writes the `dash-parity-v1` evidence only after all assertions pass.
 
 Required check families:
 
 - Ruff lint and format.
-- Hosted public-repository security gates.
-- Hosted readiness records for licensing, privacy, retention, backup, restore, and key rotation.
+- Hosted public-repository security gates while legacy hosted code remains.
+- Hosted readiness records while the legacy plane remains.
 - Pyright strict typing.
-- Playwright interaction-inventory tests on desktop.
-- Real Docker browser tests for worker-owned metadata refreshes on desktop.
+- Python Playwright Dash interaction/layout tests on desktop, tablet, and mobile.
+- Transitional legacy npm Playwright and real Docker browser tests only until PR356 removes them.
 - Pytest Unit and Integration shards.
-- Coverage threshold enforcement on every merge-gate candidate.
+- Coverage threshold enforcement on `main`.
 - Architecture checks.
 - Dataset schema validation.
-- Conventional Commit validation relative to the current PR base.
-- Independent financial numerical-oracle validation before Dash parity/final production acceptance.
+- Conventional Commit validation.
 
 ## Rebase Workflow
 
 ```text
-working or stacked branch
+working branch
         |
         v
-validate against current PR base
+rebase onto required integration predecessor
         |
         v
-rebase/retarget onto current main before integration
+run complete validation
         |
         v
-run complete validation again
-        |
-        v
-integrated linear main history
+integrated linear main history after gates pass
 ```
 
 ## Validation Commands
@@ -66,11 +60,18 @@ Focused and complete validation commands:
 
 ```bash
 uv run portfell-quality pr
+uv run playwright install chromium
+uv run pytest -m browser tests/browser -q
+```
+
+During the transitional window before PR356, the old Web checks also remain applicable:
+
+```bash
 cd apps/web && npm run e2e
 bash scripts/run_real_stack_e2e.sh
 ```
 
-Before integration after rebasing onto current `main`, run the complete check:
+Before integration after rebasing onto the required predecessor, run the complete Python check:
 
 ```bash
 uv run portfell-quality main
@@ -92,7 +93,9 @@ scripts/pytest_shard.py --suite integration --shard-index N --shard-count 4 -- -
 coverage report --fail-under=90
 ```
 
-Release cutover can require the stricter public-hosted readiness mode:
+The Dash parity gate is intentionally separate from the ordinary pytest shards because it installs and launches a browser. A successful run must produce all 12 populated-page screenshots (four routes across 1440x900, 1024x768, and 390x844) plus machine-readable `dash-parity-v1.json`. The evidence file may say `PASS` only when the real browser journey, layout assertions, console/page error assertions, reference-network negative-space assertion, and screenshot completeness all pass in that same run.
+
+Release cutover can require the stricter public-hosted readiness mode while the old hosted plane exists:
 
 ```bash
 uv run python -m portfell.hosted_readiness --require-public-hosted
@@ -127,8 +130,7 @@ uv run python -m portfell.hosted_import_rehearsal --workspace /secure/local-work
 uv run python -m portfell.hosted_import_rehearsal --workspace /secure/local-workspace.json --apply
 ```
 
-The deterministic hosted cutover proof composes multi-user auth, credentials, entitlements, scoped analytics, artifact
-reuse, Web storage safety, local CLI compatibility, and readiness checks:
+The deterministic hosted cutover proof composes multi-user auth, credentials, entitlements, scoped analytics, artifact reuse, Web storage safety, local CLI compatibility, and readiness checks while those legacy surfaces are still present:
 
 ```bash
 uv run python -m portfell.hosted_cutover
@@ -141,40 +143,6 @@ Coverage equivalent:
 ```text
 pytest -n auto --cov=portfell --cov-report=term-missing --cov-fail-under=90
 ```
-
-## Financial Numerical Validation Gate
-
-Regression equivalence is necessary but not sufficient for a financial analytics system: preserving an old result does not prove that the old result was mathematically correct. Portfell therefore requires a separate independent numerical-oracle gate governed by `docs/contracts/financial-numerical-validation-v1.md`.
-
-The gate is mandatory no later than the Dash four-page parity QA stage and must remain part of the complete merge-quality path through clean-runtime QA and final production acceptance. PR355 may not produce a PASS parity artifact unless the financial numerical validation contract also passes; PR359/PR360 final acceptance is blocked if the immutable numerical evidence artifact is absent or FAIL.
-
-The mandatory proof chain is:
-
-```text
-frozen deterministic market inputs
-        |
-        v
-independent mathematical oracle
-        |
-        v
-Portfell analytical backend
-        |
-        v
-immutable persisted analysis artifacts
-        |
-        v
-Dash KPIs / tables / Plotly payloads
-```
-
-At minimum the gate must independently validate contracted Univariate, Bivariate, and Multivariate calculations, including return/compounding conventions, annualization, volatility/risk statistics, drawdown, common-calendar alignment, covariance/correlation, portfolio variance `w^T Sigma w`, portfolio volatility, OOS performance/winner selection, and risk contribution where available. It must also prove walk-forward/OOS leakage protection and all unavailable/missing-value semantics required by the active analytical contract.
-
-Expected values must not be generated by importing or calling the production function under test or by freezing prior Portfell output and calling that an oracle. They must come from transparent mathematical definitions or frozen externally reviewed golden values with traceable derivations.
-
-Browser QA must compare representative displayed KPI/table values and principal Plotly data payloads against the already validated backend artifacts. Screenshot similarity is supporting visual evidence only and is never a substitute for numerical assertions.
-
-The gate must emit an immutable sanitized `financial-numerical-validation-v1` evidence artifact containing repository SHA, fixture fingerprint/version, algorithm-version identifiers, validated metric families, tolerance-policy version, and pass/fail results for Univariate, Bivariate, Multivariate, OOS/leakage, and UI-artifact parity. No credentials, DSNs, secrets, or raw production data may be included.
-
-Until the dedicated numerical suite is wired into the quality CLI, existing `pr`/`main` commands remain the executable local commands; the QA PR that implements the contract must add the numerical suite to the complete merge-quality path rather than creating an untracked side gate.
 
 ## Conventional Commits
 
@@ -190,7 +158,7 @@ Allowed types:
 build chore ci docs feat fix perf refactor revert style test
 ```
 
-The rule applies to every commit subject. In GitHub Actions the commit range is resolved relative to `GITHUB_BASE_REF`, so a stacked child validates only commits introduced above its current PR base.
+The rule applies to every commit subject.
 
 ## Sharding Policy
 
@@ -203,13 +171,16 @@ pytest-xdist: pytest -n auto inside every test shard
 
 Do not increase shard count by default. Reconsider only when at least one Unit or Integration shard regularly exceeds 5 minutes after setup caching is already healthy.
 
+## PR Definition Readiness
+
+A PR is not definition-ready merely because implementation code exists. Its named focused tests must exist, all required runtime/test dependencies must be locked, and every required acceptance artifact must be generated by an actually executed passing check. Synthetic stack bases and pre-staged descendants never convert a missing predecessor PASS artifact into acceptance evidence.
+
 ## Update Rules
 
 Update `GATES.md` whenever any of these change:
 
-- `.github/workflows/merge-gate.yml` trigger or base-relative validation behavior
 - `src/portfell/quality.py`
 - local pre-commit gate behavior
 - shard count, coverage threshold, or required quality tools
 - browser version, interaction manifest, or browser-artifact retention policy
-- `docs/contracts/financial-numerical-validation-v1.md`, its fixture/tolerance policy, its evidence schema, or its merge-gate integration
+- Dash parity routes, viewports, browser test runner, or `dash-parity-v1` evidence contract
