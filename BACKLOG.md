@@ -525,12 +525,12 @@ All depend on PR323 and are parallel siblings.
   Git status: integrated on `main` at `ba8a3d4`; focused hosted API/catalog tests pass (`33 passed`).
 - PR330 `chore/pr330-freeze-legacy-web-provider-ui`: delete provider-loading UI/actions. This PR must not add React features; it only removes provider controls and leaves the old UI transitional until PR356.
 
-  Git status: integrated on `main` at `893af0e`; local Docker Node validation passes (19/19
-  unit tests, TypeScript check, and production build).
+  Git status: integrated on `main` at `893af0e`; local Docker Node type checking, production build, 96.77% aggregate unit coverage, and Playwright
+browser tests (3 passed) pass locally.
 - PR331 `chore/pr331-delete-hosted-local-market-runtime`: delete residual hosted local market runtime and EODHD/token/KEK/provider runtime config not owned by siblings.
 
   Git status: integrated on `main` at `b13eb0f`; the remaining local hosted runtime and local
-  test composition are removed, with test-only in-memory composition replacing them (`61 passed`).
+test composition are removed, with test-only in-memory composition replacing them (`61 passed`).
 
 Acceptance for every sibling: owned deletion is complete, no unrelated refactor, focused tests and PR gate pass.
 
@@ -1928,7 +1928,7 @@ Acceptance:
 - a populated production run renders `PCA Spectrum`, `Structural Diversification`, `Risk Clusters`, `Structural Stability`, `Candidate Structural Risk`, `PCA Risk Contribution`, and `Cluster Risk Contribution` from persisted artifacts on `/multivariate`;
 - the page does not derive `largest_cluster_gross_abs_risk_share`; it displays the persisted PR377 field;
 - covariance and correlation PCA are visibly distinguished in labels, legends and tables; retired `effective_independent_drivers` and causal `strongest_common_driver` wording is absent;
-- signed negative cluster percent-variance contributions remain negative in data/hover/table presentation while gross-absolute shares remain separately labeled;
+- signed negative cluster percent-variance contributions remain negative in data/hover/table presentation while gross-absolute shares remain separately labelled;
 - mixed availability is local: unavailable signal/rolling/subspace/bootstrap/candidate evidence shows its persisted reason while unrelated available cards remain populated;
 - changing candidate selection performs no optimizer call, covariance fit, PCA, clustering, bootstrap, analysis-artifact write or DecisionArtifact mutation;
 - page render, reload, navigation and responsive resize are read-only with respect to analytical state and do not start a new Multivariate run;
@@ -2011,3 +2011,693 @@ Acceptance:
 - all tests remain deterministic and do not depend on the live external market host or external visual-reference site;
 - `uv run portfell-quality pr`, `uv run portfell-quality merge`, and GitHub `merge-gate` pass with the unchanged 90% hard threshold and measured aggregate coverage `>=92.0%`;
 - GATES.md continues to state 90% as the mandatory floor unless a later explicit governance PR changes that policy.
+
+## 9. Responsive staged-analysis execution and instant read plane — PR383–PR396
+
+Audit date: 2026-08-31.
+
+This series makes analytical computation explicitly asynchronous from browser rendering and turns
+the four Dash pages into bounded persisted read views. It is a performance/interaction series only:
+Univariate/Bivariate/Multivariate formulas, source-snapshot semantics, the three Multivariate
+objectives, OOS winner selection and Structure-v2 financial meaning remain unchanged.
+
+The required workflow is deliberately split at the only point where user choice exists:
+
+```text
+Metadata predicates
+  |
+  v
+[Create universe & compute Univariate]
+  |
+  +--> immutable Metadata universe U
+  +--> queued/running Univariate job over every member of U
+          |
+          v
+      immutable Univariate result UNI
+          |
+          +--> read-only filter preview; no analytical recomputation
+          |
+          v
+      [Apply selection & compute downstream]
+          |
+          +--> immutable Selection S
+          +--> Bivariate job B(S)
+                    |
+                    v
+               Multivariate job M(S, B, return_risk)
+```
+
+Hard decisions for PR383–PR396:
+
+- Univariate is computed once for the complete persisted Metadata universe and exact market snapshot.
+  Moving result filters never reruns Univariate.
+- Filter edits are preview-only. They may change preview counts/table/chart data but do not create a
+  `selection_id`, Bivariate run, Multivariate run or analytical artifact.
+- `Apply selection & compute downstream` is the only v1 filter-commit action. It persists the exact
+  filtered full-identity membership and queues Bivariate; successful Bivariate completion
+  automatically queues Multivariate with the frozen default objective `return_risk`.
+- Alternate Multivariate objectives remain explicit user actions on `/multivariate`; they are not
+  silently run for every filter preview.
+- A page render, route change, resize, status poll, table-page change, chart interaction or filter
+  preview is read-only with respect to analytical computation.
+- Calculation progress is backend-owned persisted job state. A progress percentage means completed
+  logical work units, not elapsed-time percentage or ETA.
+- Univariate work units are processed universe members; Bivariate work units are planned candidate
+  pairs. Multivariate uses the frozen logical phases `inputs`, `risk_model_and_candidates`,
+  `walk_forward_validation`, `scorecards`, `structural_diagnostics`, `decision`,
+  `artifact_persistence`, `complete`; phase progress is explicitly labelled as logical phase
+  progress, not remaining-time estimation.
+- No synthetic combined Bivariate+Multivariate percentage is displayed. While downstream analysis is
+  active, the UI shows the Bivariate and Multivariate stage states separately.
+- The current API/Dash container remains the only Portfell application runtime. This series may use a
+  bounded in-process executor owned by the API process, but must not add Redis, Celery, RQ, a new
+  Compose worker service, Node, or a second application authority.
+- Queued/running job state is durable in `portfell_dash`. Process restart reclaims stale work
+  idempotently; completed analysis runs and artifacts remain immutable.
+- Current Univariate/Bivariate row results are stored in a bounded row-addressable artifact form.
+  Page reads never deserialize a complete large JSON array merely to return the first page.
+- Browser state contains identifiers, small summaries, filter presentation state and progress only;
+  it never contains complete market history, complete analytical tables or financial authority.
+- While a new selection revision computes, the last completed downstream revision may remain visible
+  only when clearly labelled `Previous selection`; values from old and new revisions must never be
+  combined in one KPI/chart/table/Decision view.
+- Normal Dash page code must not call the heavyweight all-artifacts `run_detail()` path. That method
+  may remain for bounded diagnostic/API use, but page read paths use explicit summaries, artifact
+  reads and paged rows.
+- Frozen presentation caps for this series are `100` table rows per page, `500` Univariate chart
+  points and `1000` Bivariate chart points. Pagination/filtering happens server-side or within the
+  bounded application read plane; the browser is never given all Bivariate pairs.
+- Performance QA uses deterministic local PostgreSQL/Dash fixtures, never the live market database,
+  and records both latency and structural evidence such as query count, returned-row count and
+  response size so timing cannot hide an unbounded implementation.
+
+Dependency graph:
+
+```text
+PR382
+  |
+PR383
+  |
+PR384 -----> PR385
+  |           |
+  +-----> PR386
+              |
+            PR387
+              |
+            PR388
+              |
+            PR389
+              |
+            PR390
+              |
+        PR391 -> PR392
+              \   /
+               PR393
+                 |
+              PR394(QA baseline)
+                 |
+              PR395(performance optimization)
+                 |
+              PR396(QA/PASS)
+```
+
+### PR383 — Freeze staged execution, progress and read-plane contract
+
+Branch: `docs/pr383-staged-analysis-read-plane-contract`
+
+Priority: P0.
+
+Depends on: PR382.
+
+Owned paths: `BACKLOG.md`, new
+`docs/contracts/staged-analysis-read-plane-v1.md`, focused contract/documentation tests only. No
+production code.
+
+Scope: freeze the exact job state machine, progress semantics, two user commit actions, immutable
+revision graph, paged-result contract, page read APIs, stale/previous-result behavior and measurable
+performance budgets consumed by PR384–PR396.
+
+Acceptance:
+
+- the contract contains the exact workflow and hard decisions from Section 9 and does not authorize a
+  third computation trigger;
+- job status is exactly `queued`, `running`, `succeeded`, `failed`, `cancelled`;
+- every job status payload contains `job_id`, `stage`, `status`, `input_ref`, optional `run_id`,
+  `progress_current`, `progress_total`, `progress_phase`, `attempt`, `failure_code`, timestamps and
+  enough revision identity to reject cross-selection display;
+- `progress_current/progress_total` is defined only when total is known, satisfies
+  `0 <= current <= total`, and is monotone within one execution attempt; restart may create a new
+  attempt and must expose that attempt number rather than pretending progress never restarted;
+- Univariate and Bivariate progress units and all eight Multivariate logical phases are frozen exactly
+  as listed in Section 9;
+- exact primary labels are frozen as `Create universe & compute Univariate` on Metadata and
+  `Apply selection & compute downstream` on Univariate;
+- the filter-preview contract explicitly states that preview requests are read-only and create no
+  selection/run/job/artifact;
+- the downstream commit contract states `Selection -> Bivariate -> Multivariate(return_risk)` and
+  states that Multivariate is queued only after matching Bivariate success;
+- paged row reads freeze default/max page sizes `100/500`, chart caps `500` Univariate and `1000`
+  Bivariate, stable ordering and exact full listing identities;
+- page render contracts explicitly prohibit `run_detail()`/market-gateway/financial-compute calls;
+- target performance budgets used by PR394/PR396 are frozen: warm page-content p95 `<=750 ms`,
+  warm filter-preview p95 `<=400 ms`, warm status-read p95 `<=200 ms`, and page-specific JSON/Dash
+  callback response bodies `<=512 KiB` on the deterministic performance fixture;
+- active-computation navigation has a separate p95 budget `<=1000 ms`;
+- contract tests verify terminology, exact action labels, state transitions, caps and negative-space
+  rules; `uv run portfell-quality pr` passes.
+
+### PR384 — Durable analysis-job and progress persistence
+
+Branch: `feat/pr384-analysis-job-progress-state`
+
+Priority: P0.
+
+Depends on: PR383.
+
+Owned paths: `src/portfell/app_state/migrations/**`, `src/portfell/app_state/schema.py`,
+`src/portfell/app_state/contracts.py`, `src/portfell/app_state/repository.py`, focused migration/
+repository tests. No Dash, market-source or financial-calculation changes.
+
+Scope: add a durable `analysis_jobs` control record for non-blocking stage requests without changing
+the immutable identity of `analysis_runs`.
+
+Acceptance:
+
+- one new migration adds `portfell.analysis_jobs` without rewriting v1 analysis runs/artifacts;
+- each job stores exactly workspace `default`, `job_id`, stage in
+  `univariate|bivariate|multivariate`, `input_ref`, nullable requested objective, status, nullable
+  linked `run_id`, progress current/total/phase, execution attempt, heartbeat, failure code and
+  created/started/completed timestamps;
+- queued jobs can exist before a market snapshot/run ID is known; a linked `run_id` is written only
+  after the worker creates/reuses the exact source-pinned analysis run;
+- a partial unique index prevents two simultaneous queued/running logical jobs for the same
+  `(stage, input_ref, requested_objective)` while permitting a later terminal rerun;
+- `create_or_get_active_job()` is atomic under two concurrent callers and returns one active job;
+- `claim_job()` changes exactly one queued/stale job to running and increments `attempt`; a second
+  claimant cannot own the same live lease;
+- progress updates reject negative totals, `current > total`, missing phase, terminal jobs and
+  decreasing current values within the same attempt;
+- `heartbeat_at`/lease expiry support deterministic stale-job reclamation after process restart
+  without mutating completed analysis artifacts;
+- terminal `succeeded` requires a linked succeeded `analysis_run`; `failed` requires a typed
+  `failure_code`; `cancelled` never fabricates a run result;
+- terminal job rows cannot be reset to running; rerun creates/reuses a new job identity under the
+  frozen request contract;
+- list/read methods are stably ordered, parameterized and redacted on failure;
+- exact indexes support active-job lookup, stage/status polling and recent-job history;
+- fresh migration, upgrade from v1, rollback boundary, concurrent claim, stale reclaim, terminal
+  immutability and restart tests pass;
+- no market SQL or Dash import enters `app_state`; `uv run portfell-quality pr` passes.
+
+### PR385 — Row-addressable immutable analytical artifacts
+
+Branch: `feat/pr385-paged-analysis-artifact-items`
+
+Priority: P0.
+
+Depends on: PR383. May execute in parallel with PR384.
+
+Owned paths: `src/portfell/app_state/migrations/**`, schema/contracts/repository support for artifact
+items, focused persistence/pagination tests. No calculation or Dash changes.
+
+Scope: provide an immutable row-addressable storage form for large Univariate/Bivariate result
+artifacts so the read plane never has to fetch one giant JSON array.
+
+Acceptance:
+
+- one migration adds `portfell.analysis_artifact_items` keyed by
+  `(artifact_id, ordinal)` with immutable FK ownership by `analysis_artifacts`;
+- an item stores deterministic `ordinal`, optional non-empty `item_key` and one JSON object; arrays,
+  scalars and null item documents are rejected;
+- artifact header/document remains a small canonical manifest containing artifact schema/version,
+  `storage = "row_items"`, exact `item_count` and summary metadata; new row-backed artifacts do not
+  duplicate the complete item array in the header JSONB;
+- header plus item rows publish in one app-state transaction: partial item publication is rolled back;
+- item writes use batches of at most `500` rows per repository operation;
+- repeated publication with identical content identity converges to the existing immutable artifact;
+  any differing header/item content for the same immutable identity fails with typed conflict;
+- read API supports stable `offset >= 0` and `1 <= limit <= 500`, defaults to `100`, and never
+  returns more than requested;
+- count and one-page reads do not select/deserialise all item documents;
+- index/EXPLAIN fixtures prove a page read is constrained by artifact identity plus ordinal range;
+- historical inline JSON artifacts remain immutable/readable through historical diagnostic paths,
+  but new production Univariate/Bivariate runs introduced by this series use row-backed artifact
+  versions and page code has no inline fallback for those new versions;
+- restart yields byte-equivalent manifests/items and stable order;
+- mutation/delete attempts against published item rows fail;
+- migration/repository/pagination/idempotency tests and `uv run portfell-quality pr` pass.
+
+### PR386 — Non-blocking in-process analysis executor and restart recovery
+
+Branch: `feat/pr386-nonblocking-analysis-executor`
+
+Priority: P0.
+
+Depends on: PR384 and PR385.
+
+Owned paths: new `src/portfell/app_services/analysis_executor.py` or equivalently narrow execution
+module, `src/portfell/app_services/research.py` orchestration seam, FastAPI runtime lifecycle wiring,
+focused concurrency/restart tests. No Dash page work and no financial-formula changes.
+
+Scope: submit durable jobs immediately and execute them off the Dash/FastAPI request path inside the
+existing API runtime.
+
+Acceptance:
+
+- `start_univariate_job`, `start_bivariate_job` and `start_multivariate_job` persist/reuse a queued
+  job and return its small DTO without reading full market history or performing financial compute
+  on the caller thread;
+- the existing API container owns exactly one top-level analytical job executor; no new Compose
+  service, Redis, Celery, RQ, Node process or external queue is introduced;
+- the executor claims jobs through PR384 repository semantics and creates/reuses the existing exact
+  source-pinned analysis run only after worker-side market materialization;
+- if the exact analysis run already succeeded for the current source snapshot, the job links it and
+  succeeds without recomputation;
+- double-click/two concurrent submitters converge to one active logical job;
+- a failed worker records only a typed public failure code; traceback/SQL/DSN/credential detail is
+  not persisted or returned to Dash;
+- process shutdown stops accepting new work cleanly; startup scans only queued/stale jobs and
+  idempotently reclaims them;
+- restart during market materialization or computation may restart that job attempt from its
+  immutable inputs but cannot create duplicate completed artifacts or DecisionArtifacts;
+- status/read calls never execute a job or touch the market gateway;
+- executor saturation never blocks submission/status reads waiting for an available compute slot;
+- existing synchronous calculation helpers remain directly testable and numerically unchanged;
+- focused double-submit, stale-lease, shutdown/startup, failure and exact-run-reuse tests pass;
+- `uv run portfell-quality pr` passes.
+
+### PR387 — Decouple Dash route rendering from polling and add shared progress presentation
+
+Branch: `refactor/pr387-dash-progress-read-shell`
+
+Priority: P0.
+
+Depends on: PR386.
+
+Owned paths: `src/portfell/dash_app/app.py`, `shell.py`, `callbacks.py`, `state.py`,
+`components.py`, shared Dash CSS/assets and focused Dash tests. No page-specific analytics.
+
+Scope: stop rebuilding an entire page whenever job/browser state changes and add one shared progress
+presentation used by the analytical pages.
+
+Acceptance:
+
+- `pf-route-content` full-page rendering is triggered by pathname/navigation only; `pf-browser-state`
+  or job polling is not an Input that rebuilds the complete current page;
+- one small identifier/presentation store carries current universe/selection/run/job IDs and
+  readiness only;
+- active job polling reads PR384 job state only and never calls `run_detail()`, the market gateway or
+  a computation method;
+- polling interval is exactly `1000 ms` while a current job is queued/running and is disabled after
+  terminal state;
+- shared progress presentation renders stage, status, phase, `current / total` and percentage when
+  total is known, and an indeterminate bar with phase/status text when it is not;
+- progress is accessible with semantic label/value text; color is not the sole carrier of state;
+- terminal success renders 100% only when the persisted job reports completed logical work;
+- failed/cancelled status retains typed reason/status and never shows a false 100% success;
+- route changes during a running job complete without waiting for the worker and do not mutate the
+  job;
+- staying on one route receives progress updates without replacing the full page subtree or losing
+  control/filter state;
+- browser state reconstructs from persisted workflow/job state after reload/restart;
+- focused callback tests prove no compute call from route/status callbacks and no full page
+  re-render from polling;
+- responsive component tests and `uv run portfell-quality pr` pass.
+
+### PR388 — Metadata one-click Universe-to-Univariate kickoff with exact progress
+
+Branch: `feat/pr388-metadata-univariate-kickoff`
+
+Priority: P0.
+
+Depends on: PR387.
+
+Owned paths: Metadata page/callback, Univariate compute orchestration/progress adapter, row-backed
+Univariate publication, focused service/Dash tests. No Univariate filtering yet.
+
+Scope: replace the manual Create-universe then Compute-univariate sequence with one Metadata commit
+action that creates/reuses the universe and immediately queues full-universe Univariate analysis.
+
+Acceptance:
+
+- Metadata primary action label is exactly `Create universe & compute Univariate`; the separate
+  `Compute univariate statistics` button is removed from normal Univariate flow;
+- one click first creates/reuses the exact filtered Metadata universe, then submits exactly one
+  Univariate job for that universe and returns control to the browser without waiting for market
+  history or calculation;
+- repeated identical clicks while the job is active return the same active job and do not create
+  duplicate universe versions/runs/artifacts;
+- Univariate computation receives every persisted member of the chosen Metadata universe; no
+  Univariate result filter or browser-visible subset can reduce compute input;
+- worker phase begins `loading_market_data` with an indeterminate bar until the source snapshot is
+  materialized, then `progress_total` equals exact universe member count;
+- the existing Univariate `on_progress` callback reports processed members and is coalesced to
+  monotone persisted progress; succeeded job finishes at exact member count;
+- new production Univariate results publish as row-backed artifact type
+  `univariate.rows@v2` with exact item count and small manifest;
+- every row preserves `(isin, exchange, code)`, availability reason and the existing backend
+  financial metrics without formula/annualization changes;
+- missing adjusted close remains typed unavailable exactly as before;
+- `/univariate` is immediately navigable while the job is queued/running and shows shell, universe
+  context and progress without waiting for rows;
+- once the job succeeds, Univariate data regions refresh from persisted result reads without a
+  whole-route rebuild;
+- process restart during Univariate work recovers the job and cannot publish duplicate v2 artifacts;
+- focused full-universe, progress, double-click, restart and formula-regression tests plus
+  `uv run portfell-quality pr` pass.
+
+### PR389 — Fast Univariate read plane, filter preview and explicit selection commit
+
+Branch: `feat/pr389-univariate-filter-read-plane`
+
+Priority: P0.
+
+Depends on: PR388.
+
+Owned paths: Univariate application-service read methods, row-item repository filter/read helpers if
+needed, Univariate Dash page/callbacks and focused tests. No Bivariate/Multivariate compute changes.
+
+Scope: make filtering a fast read-only operation over persisted `univariate.rows@v2` and make the
+selection boundary explicit.
+
+Acceptance:
+
+- Univariate page reads use explicit `univariate_summary`, `univariate_page` and
+  `univariate_chart_sample` service contracts; page code does not call all-artifact `run_detail()`;
+- initial READY load returns summary, at most `100` table rows and at most `500` deterministic chart
+  points; it never returns all Univariate rows to the browser;
+- v1 result filters are exact persisted metrics: minimum `annualized_return`, maximum
+  `annualized_volatility`, minimum `max_drawdown`, minimum `sharpe_ratio` and minimum
+  `sortino_ratio`; omitted filters impose no predicate;
+- only rows with `availability_reason == "ok"` can enter a downstream selection; unavailable rows
+  remain countable/explainable but cannot be silently selected;
+- filter preview returns exact matching count, unavailable count, candidate Bivariate pair count,
+  `downstream_runnable` against the existing `DEFAULT_MAX_PAIR_COUNT`, the first requested page and
+  bounded chart sample;
+- preview filtering uses persisted Univariate values only and performs zero market reads, zero
+  Univariate calculations and zero selection/run/job/artifact writes;
+- changing a filter marks the preview `Unapplied`; the previously persisted selection remains
+  authoritative until the user commits;
+- range/control updates use Dash `mouseup`/equivalent non-chatty semantics so dragging does not
+  create a server request for every pixel movement;
+- primary commit label is exactly `Apply selection & compute downstream`;
+- pressing Apply creates/reuses an immutable selection from the exact current persisted
+  Univariate run plus normalized predicates; no browser-only unchecked/hidden row list is accepted
+  as authority;
+- empty previews and pair plans above the existing Bivariate cap disable Apply with a typed,
+  human-readable reason; they never create a zero-member/known-unrunnable selection;
+- persisted predicate ordering and selection membership are deterministic; duplicate ISINs remain
+  distinct by full listing identity;
+- reload restores the persisted selection but not an unapplied transient preview as business
+  authority;
+- focused filtering/preview/no-side-effect/pagination/selection-idempotency tests and
+  `uv run portfell-quality pr` pass.
+
+### PR390 — Selection-triggered Bivariate-to-Multivariate pipeline
+
+Branch: `feat/pr390-selection-downstream-pipeline`
+
+Priority: P0.
+
+Depends on: PR389.
+
+Owned paths: application-service job orchestration/chaining, job state/read DTOs and focused pipeline
+tests. No Bivariate/Multivariate page presentation and no financial formulas.
+
+Scope: make one committed Univariate selection launch the complete downstream calculation chain.
+
+Acceptance:
+
+- successful `Apply selection & compute downstream` submits/reuses exactly one Bivariate job whose
+  `input_ref` is the persisted selection ID;
+- no Bivariate job is submitted for an unapplied preview, empty selection or pair plan rejected by
+  the existing Bivariate runnable contract;
+- matching Bivariate success submits/reuses exactly one Multivariate job with the same selection ID,
+  the exact succeeded Bivariate run ID and objective exactly `return_risk`;
+- Multivariate is never started before matching Bivariate `succeeded`;
+- Bivariate `failed|cancelled` leaves Multivariate not-started and exposes a typed downstream blocked
+  state;
+- a newer selection does not mutate/cancel/relabel artifacts from an older completed selection;
+- rapid S1 -> S2 commits cannot cause B(S1) to feed M(S2) or vice versa; every chain checks exact
+  selection/run dependencies before submit;
+- repeated callbacks/polls/restart recovery are idempotent and cannot enqueue duplicate logical
+  downstream jobs;
+- a process restart after Bivariate success but before Multivariate submit reconstructs the chain
+  and submits/reuses the missing matching Multivariate job exactly once;
+- alternate user-selected Multivariate objectives remain explicit independent jobs and are not
+  automatically fanned out by this pipeline;
+- no page render/status read causes pipeline advancement except the server-owned job completion
+  orchestration;
+- focused race, restart, failure, double-submit and exact-dependency tests plus
+  `uv run portfell-quality pr` pass.
+
+### PR391 — Bivariate progress, paged read plane and bounded chart/table rendering
+
+Branch: `feat/pr391-bivariate-progress-read-plane`
+
+Priority: P0.
+
+Depends on: PR390 and PR385.
+
+Owned paths: Bivariate progress adapter/publication/read service, Bivariate Dash page/callbacks and
+focused tests. No Multivariate code or Bivariate formula changes.
+
+Scope: expose exact pair progress and make `/bivariate` independent of Bivariate result cardinality.
+
+Acceptance:
+
+- Bivariate `progress_total` equals the exact planned candidate-pair count for the committed
+  selection and `progress_current` uses the existing Bivariate `on_progress(current, total)` path;
+- progress remains monotone within an attempt and job success requires `current == total`;
+- new production pair results publish as row-backed `bivariate.rows@v2`; complete pair arrays are
+  not stored in the manifest or browser state;
+- Bivariate page uses explicit `bivariate_summary`, `bivariate_page` and
+  `bivariate_chart_sample` reads and never normal-page `run_detail()`;
+- QUEUED/RUNNING page load returns only selection identity/count, candidate-pair count, job status
+  and progress; it does not request pair rows that do not yet exist;
+- READY table reads at most `100` rows per requested page with deterministic ordering;
+- Bivariate chart contains at most `1000` deterministic persisted/sample points and preserves both
+  full listing identities in hover;
+- no Dash callback builds a Plotly trace from the complete pair artifact or creates one HTML table
+  row per complete pair set;
+- candidate/eligible/unavailable counts reconcile to the persisted manifest and existing analytical
+  pair rules;
+- missing correlation/covariance remains unavailable, never zero;
+- pagination/chart/status changes perform zero market reads, pair calculations or artifact writes;
+- restart reloads manifest, page rows, chart sample and progress/final status from app-state;
+- focused exact-progress, 100001-pair fixture, pagination, bounded-render, restart and numerical
+  regression tests plus `uv run portfell-quality pr` pass.
+
+### PR392 — Multivariate phase progress and lightweight artifact-specific read plane
+
+Branch: `feat/pr392-multivariate-progress-read-plane`
+
+Priority: P0.
+
+Depends on: PR390 and PR387.
+
+Owned paths: Multivariate computation progress callbacks/adapters, application-service artifact
+specific reads, Multivariate Dash page read callbacks and focused tests. No objective/formula/winner
+changes.
+
+Scope: report meaningful logical phase progress while preventing `/multivariate` from hydrating all
+artifacts on every render/status update.
+
+Acceptance:
+
+- production Multivariate execution emits the eight frozen phases in exact order and never reports a
+  later phase before an earlier phase completes;
+- persisted phase progress uses `progress_total = 8`, current `0..8`, and UI copy states explicitly
+  that this is logical phase progress, not ETA;
+- final `complete` phase/current `8` is written only after all required artifacts and
+  DecisionArtifact persist successfully;
+- a failure records the last completed/current phase plus typed failure and never advances to 8;
+- instrumentation changes no candidate weights, risk model, walk-forward split, scorecard, OOS
+  ranking, Structure-v2 artifact values or DecisionArtifact winner on frozen regression fixtures;
+- `/multivariate` reads a small summary first and requests only the named artifacts needed by each
+  visible card/figure/table; normal page code does not call the all-artifacts `run_detail()` method;
+- structural cluster/candidate tables that can scale with instrument count are paged at `100` rows
+  rather than fully rendered;
+- QUEUED/RUNNING page shows exact selection/Bivariate dependency, objective and phase progress while
+  keeping prior completed revision clearly separate;
+- status polling cannot cause optimization, PCA, clustering, bootstrap, persistence or market reads;
+- objective change still marks the displayed decision stale until a matching completed explicit
+  objective run exists;
+- restart restores the same phase/final artifacts and Decision view without recomputation on read;
+- focused phase-order/failure/regression/artifact-read/pagination/restart tests and
+  `uv run portfell-quality pr` pass.
+
+### PR393 — Revision-safe previous-result handoff across all analytical pages
+
+Branch: `feat/pr393-revision-safe-page-handoff`
+
+Priority: P1.
+
+Depends on: PR391 and PR392.
+
+Owned paths: Dash identifier/presentation state, page status/summary callbacks and focused
+cross-revision browser/service tests only. No calculation or persistence-schema changes.
+
+Scope: keep pages useful while a newer revision calculates without ever mixing old and new evidence.
+
+Acceptance:
+
+- browser/service state distinguishes `current_input_revision`, `current_job`, `current_ready_run`
+  and optional `previous_ready_run`; no generic latest-run lookup may substitute for an exact
+  dependency;
+- after a new Metadata universe commit, old Univariate/Bivariate/Multivariate results may be shown
+  only in a visibly labelled `Previous universe` region until matching new results exist;
+- after a new Univariate selection commit, old Bivariate/Multivariate evidence may be shown only as
+  `Previous selection`; current KPIs/status use the new selection and never old values;
+- when a matching new run succeeds, displayed current data switches atomically by run ID; a callback
+  cannot combine a new summary with an old table/chart/Decision artifact;
+- rapid navigation and out-of-order poll responses are rejected when their revision/run ID does not
+  match current browser state;
+- previous-result visibility is presentation-only and creates no copies or mutated analytical
+  artifacts;
+- EMPTY, COMPUTING, READY, FAILED and PREVIOUS states all have explicit deterministic UI copy;
+- previous data remains inspectable after restart from persisted immutable IDs;
+- cross-revision race tests prove S1/B1/M1 and S2/B2/M2 never cross-wire;
+- browser fixtures at all three frozen viewports have no page-level overflow or state flicker that
+  removes the shell;
+- `uv run portfell-quality pr` passes.
+
+### PR394 — Staged-analysis correctness and performance baseline QA
+
+Branch: `test/pr394-staged-analysis-performance-baseline`
+
+Priority: P0 QA gate.
+
+Depends on: PR393.
+
+Scope: QA/evidence only. Production defects or tuning changes are forbidden in this PR and must be
+implemented by PR395 or a separately named corrective PR.
+
+Deterministic fixture sizes:
+
+- Metadata/Univariate: `5,000` full-identity listings with persisted Univariate rows;
+- filtered selection: exactly `400` runnable listings;
+- Bivariate persisted read fixture: at least `100,000` pair rows;
+- Multivariate fixture: completed winner/Decision plus Structure-v2 tables large enough to require
+  pagination;
+- one controllable long-running job fixture that advances progress without sleeping on live market
+  I/O.
+
+Acceptance:
+
+- full browser journey proves Metadata one-click -> full-universe Univariate -> preview-only
+  filtering -> Apply -> Bivariate -> automatic `return_risk` Multivariate;
+- exact job status/progress is monotone for Univariate/Bivariate and phase-ordered for Multivariate;
+- filter preview causes zero analytical writes and zero computation invocations under request spy;
+- page render/navigation/reload/status polling causes zero market reads and zero analytical compute
+  calls;
+- DB query tracing proves normal page reads do not invoke all-artifacts `run_detail()` and no
+  Bivariate page query/deserialization returns all `100,000+` pair rows;
+- response tracing proves table pages contain `<=100` rows, Univariate charts `<=500` points,
+  Bivariate charts `<=1000` points and callback response bodies `<=512 KiB`;
+- restart in queued/running Univariate, running Bivariate and Bivariate-succeeded-before-Multivariate
+  handoff states recovers idempotently with no duplicate terminal artifacts;
+- revision-race fixture proves previous/current labelling and no S1/S2 cross-wire;
+- baseline warm p95 on the deterministic Docker fixture is recorded for at least `30` samples each
+  for page content, filter preview, status read and navigation under active compute;
+- baseline gate requires page-content p95 `<=1500 ms`, filter-preview p95 `<=800 ms`, status-read
+  p95 `<=400 ms`, active-compute navigation p95 `<=2000 ms`; tighter final budgets remain owned by
+  PR396;
+- evidence records SQL query counts, rows decoded, callback payload bytes, CPU/executor concurrency
+  and exact Git SHA without credentials/private market rows;
+- `uv run portfell-quality pr` and `uv run portfell-quality merge` pass;
+- produce immutable sanitized `staged-analysis-performance-baseline-v1` evidence used by PR395.
+
+### PR395 — Read-plane and compute-contention performance optimization
+
+Branch: `perf/pr395-staged-analysis-performance`
+
+Priority: P0 performance hardening.
+
+Depends on: PR394 baseline PASS.
+
+Owned paths: bounded read-plane repository/service queries and indexes, analysis executor capacity
+policy, progress-write/polling coalescing, deterministic chart-sample persistence and focused
+performance regression tests. No financial formulas, objectives or winner rules.
+
+Scope: create deterministic headroom between long-running analytics and interactive page reads.
+
+Acceptance:
+
+- Metadata page data materializes the active-listing source at most once per page-data request; the
+  same request derives options/count/preview from that one materialization rather than issuing
+  duplicate full active-listing reads;
+- Univariate/Bivariate READY summaries and chart data use persisted small manifest/sample artifacts;
+  page rendering never scans all row items merely to compute counts or select chart points;
+- deterministic chart samples are persisted once with the run using stable full-identity ordering/
+  deterministic sampling and caps `500/1000`; repeated page reads do not resample;
+- app-state indexes cover active-job polling, artifact manifest lookup and artifact-item page ranges;
+  deterministic `EXPLAIN` fixtures reject sequential full-artifact scans for paged Bivariate reads;
+- progress persistence is coalesced to at most `101` normal progress writes per Univariate or
+  Bivariate attempt plus terminal write; no per-pair database update storm is permitted;
+- polling remains `1000 ms` only while active and disabled terminal; no duplicate polling callback
+  independently reloads workflow/page artifacts;
+- top-level analytical job concurrency remains exactly one per API process; Multivariate internal
+  parallelism is capped by `max(1, min(4, cpu_count - 1))` when `cpu_count > 1`, otherwise `1`, so
+  at least one logical CPU is reserved for interactive reads when the host exposes more than one;
+- executor-capacity policy is centralized/testable and never changes deterministic analytical
+  outputs;
+- service/page call graphs contain no normal Dash dependency on all-artifacts `run_detail()`;
+- large table HTML is created only for the currently requested `<=100` rows;
+- focused benchmark regression tests show improvement or non-regression versus the PR394 baseline
+  for every recorded operation and at least `25%` lower p95 for the slowest baseline operation;
+- no performance change weakens immutability, source-snapshot identity, typed unavailability,
+  progress correctness or revision isolation;
+- `uv run portfell-quality pr` passes.
+
+### PR396 — Final staged-analysis UX, performance and restart QA PASS
+
+Branch: `test/pr396-staged-analysis-performance-closeout`
+
+Priority: P0 final gate.
+
+Depends on: PR395.
+
+Scope: QA/evidence only. Any production defect discovered here requires a corrective implementation
+PR and a fresh PR396 run; QA does not hide production fixes.
+
+Acceptance must prove all of the following on the exact PR396 head SHA:
+
+- the complete workflow is exactly Metadata -> full-universe Univariate -> read-only filtering ->
+  committed Selection -> Bivariate -> automatic default-objective Multivariate;
+- there is no separate normal `Compute univariate statistics` or `Compute bivariate statistics`
+  action after the two frozen commit buttons, and preview interactions never compute;
+- Univariate uses every member of its persisted Metadata universe and one exact source snapshot;
+- filter preview membership/counts exactly match an independent Python oracle over the persisted
+  Univariate fixture and do not mutate the Univariate artifact;
+- committed selection membership exactly equals the applied preview predicates/full identities;
+- Bivariate consumes only that selection; Multivariate consumes the exact matching succeeded
+  Bivariate run and default objective `return_risk`;
+- Univariate/Bivariate progress bars are monotone and reconcile `current == total` on success;
+  Multivariate emits all eight logical phases in order and reaches 8/8 only after durable result/
+  Decision publication;
+- progress/failure/restart states survive application/database restart and stale work is reclaimed
+  without duplicate completed artifacts;
+- route render, navigation, reload, pagination, chart interaction, status polling and unapplied
+  filtering are analytically read-only under spies and database audit;
+- READY pages use only bounded reads: `<=100` table rows, `<=500` Univariate chart points,
+  `<=1000` Bivariate chart points, and `<=512 KiB` per page-specific callback response on the
+  deterministic fixture;
+- no normal Dash page invokes all-artifacts `run_detail()`, no full `100,000+` pair artifact is
+  deserialized for one Bivariate page, and no market SQL appears outside `market_source`;
+- previous/current revision behavior passes rapid U1->U2 and S1->S2 race fixtures with zero mixed
+  KPI/chart/table/Decision evidence;
+- deterministic browser QA at `1440x900`, `1024x768`, `390x844` proves the progress bar/status,
+  filtering, pagination and previous-result labels remain usable with no body horizontal overflow
+  and no Portfell console/page errors;
+- with the PR394 fixture and at least `30` warm samples per operation, final p95 is
+  `<=750 ms` page content, `<=400 ms` filter preview, `<=200 ms` status read and `<=1000 ms`
+  navigation while the controllable long-running compute fixture is active;
+- each final p95 is no worse than the corresponding PR394 baseline, and the slowest baseline
+  operation improves by at least `25%`;
+- `uv run portfell-quality pr`, `uv run portfell-quality merge` and GitHub `merge-gate` pass for the
+  exact head SHA; skipped/cancelled/zero-step evidence is not PASS;
+- produce exactly one immutable sanitized `staged-analysis-performance-v1` PASS artifact containing
+  exact 40-hex SHA, fixture sizes, latency distributions/p95, SQL query counts, decoded-row counts,
+  payload maxima, executor-capacity policy, progress/restart/race evidence refs and browser evidence
+  refs without credentials, complete DSNs or private market rows.
