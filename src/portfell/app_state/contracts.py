@@ -116,7 +116,9 @@ class MetadataUniverseRepository(Protocol):
 
     def get_metadata_universe(self, universe_id: str) -> MetadataUniverseRecord: ...
 
-    def list_metadata_universes(self, *, limit: int = 100) -> tuple[MetadataUniverseRecord, ...]: ...
+    def list_metadata_universes(
+        self, *, limit: int = 100
+    ) -> tuple[MetadataUniverseRecord, ...]: ...
 
 
 class AnalysisRunRepository(Protocol):

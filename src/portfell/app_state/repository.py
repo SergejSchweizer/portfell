@@ -505,7 +505,11 @@ def _canonical_members(members: Sequence[ListingIdentity]) -> tuple[ListingIdent
     ordered = tuple(sorted(members))
     if len(ordered) != len(set(ordered)):
         raise AppStateError(APP_STATE_CONFLICT)
-    if any(not part.strip() for member in ordered for part in (member.isin, member.exchange, member.code)):
+    if any(
+        not part.strip()
+        for member in ordered
+        for part in (member.isin, member.exchange, member.code)
+    ):
         raise AppStateError(APP_STATE_CONFLICT)
     return ordered
 

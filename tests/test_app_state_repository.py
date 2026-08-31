@@ -7,7 +7,11 @@ from pathlib import Path
 import pytest
 
 from portfell.app_state.contracts import ListingIdentity
-from portfell.app_state.errors import APP_STATE_CONFLICT, APP_STATE_PERSISTENCE_FAILED, AppStateError
+from portfell.app_state.errors import (
+    APP_STATE_CONFLICT,
+    APP_STATE_PERSISTENCE_FAILED,
+    AppStateError,
+)
 from portfell.app_state.repository import PostgresAppStateRepository
 
 
@@ -75,7 +79,9 @@ def test_metadata_universe_write_is_parameterized_canonical_and_single_transacti
         ListingIdentity("DE000B", "XETRA", "BBB"),
         ListingIdentity("DE000A", "XETRA", "AAA"),
     )
-    member_writes = [entry for entry in connection.executed if "metadata_universe_members" in entry[0]]
+    member_writes = [
+        entry for entry in connection.executed if "metadata_universe_members" in entry[0]
+    ]
     assert member_writes[0][1] == ("universe-a", "DE000A", "XETRA", "AAA", 0)
     assert member_writes[1][1] == ("universe-a", "DE000B", "XETRA", "BBB", 1)
     assert all("DE000A" not in query and "DE000B" not in query for query, _ in connection.executed)
@@ -102,7 +108,10 @@ def test_content_identity_converges_to_existing_immutable_universe() -> None:
     )
     assert record.universe_id == "existing-universe"
     assert connection.commits == 0
-    assert all("insert into portfell.metadata_universes" not in query for query, _ in connection.executed)
+    assert all(
+        "insert into portfell.metadata_universes" not in query
+        for query, _ in connection.executed
+    )
 
 
 def test_write_failure_rolls_back_and_exposes_only_typed_error() -> None:
