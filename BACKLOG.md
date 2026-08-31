@@ -668,6 +668,11 @@ Branch: `test/pr341-postgres-only-source-e2e`
 
 Depends on: PR340.
 
+Git status: integrated on `main` at `14d263e`. The PostgreSQL-only source E2E guard and complete
+local quality gate pass (`869 passed`, `5` live-only skips, `91.06%` coverage). It locks the
+two-database cold runtime, four-stage workflow fixture, gateway-only market SQL, full listing
+identity, source-snapshot lineage, fail-closed partial/missing values and source immutability.
+
 Acceptance: cold start without provider/NAS/medallion/xetra-loader Python package; full Metadata -> Uni -> Bi -> Multi; all market reads gateway-only; unavailable/empty/partial/missing-adjusted fail closed; duplicate ISIN full identity; snapshot lineage contains no provider/download/sync identity; repeated workflow leaves market tables unchanged; full gate.
 
 ### PR342 — Source cutover runbook
