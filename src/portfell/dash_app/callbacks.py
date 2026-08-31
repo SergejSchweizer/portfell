@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import replace
 from typing import Protocol, cast
 
@@ -17,7 +18,9 @@ class CallbackService(Protocol):
 
     def run_univariate(self, universe_id: str) -> dict[str, object]: ...
 
-    def create_univariate_selection(self, run_id: str, *, predicates=None) -> object: ...
+    def create_univariate_selection(
+        self, run_id: str, *, predicates: Mapping[str, object] | None = None
+    ) -> object: ...
 
     def run_bivariate(self, selection_id: str) -> dict[str, object]: ...
 
@@ -89,16 +92,18 @@ def register_callbacks(app: Dash, services: object | None) -> None:
         return
     service = cast(CallbackService, services)
 
-    @app.callback(
+    @app.callback(  # pyright: ignore[reportUnknownMemberType]
         Output("pf-browser-state", "data"),
         Input("pf-location", "pathname"),
         Input("pf-job-poll", "n_intervals"),
         prevent_initial_call=False,
     )
-    def _refresh_state(_pathname: str | None, _poll: int) -> dict[str, object]:
+    def _refresh_state(  # pyright: ignore[reportUnusedFunction]
+        _pathname: str | None, _poll: int
+    ) -> dict[str, object]:
         return execute_action(service, BrowserState(), action="refresh").to_store()
 
-    @app.callback(
+    @app.callback(  # pyright: ignore[reportUnknownMemberType]
         Output("pf-browser-state", "data", allow_duplicate=True),
         Input("metadata-create-universe", "n_clicks"),
         State("pf-browser-state", "data"),
@@ -108,7 +113,7 @@ def register_callbacks(app: Dash, services: object | None) -> None:
         State("metadata-filter-currency", "value"),
         prevent_initial_call=True,
     )
-    def _create_universe(
+    def _create_universe(  # pyright: ignore[reportUnusedFunction]
         n_clicks: int | None,
         store: object,
         exchange: str | None,
@@ -130,26 +135,28 @@ def register_callbacks(app: Dash, services: object | None) -> None:
             },
         ).to_store()
 
-    @app.callback(
+    @app.callback(  # pyright: ignore[reportUnknownMemberType]
         Output("pf-browser-state", "data", allow_duplicate=True),
         Input("univariate-compute", "n_clicks"),
         State("pf-browser-state", "data"),
         prevent_initial_call=True,
     )
-    def _compute_univariate(n_clicks: int | None, store: object) -> dict[str, object] | object:
+    def _compute_univariate(  # pyright: ignore[reportUnusedFunction]
+        n_clicks: int | None, store: object
+    ) -> dict[str, object] | object:
         if not n_clicks:
             return no_update
         return execute_action(
             service, BrowserState.from_store(store), action="univariate-compute"
         ).to_store()
 
-    @app.callback(
+    @app.callback(  # pyright: ignore[reportUnknownMemberType]
         Output("pf-browser-state", "data", allow_duplicate=True),
         Input("univariate-save-selection", "n_clicks"),
         State("pf-browser-state", "data"),
         prevent_initial_call=True,
     )
-    def _save_univariate_selection(
+    def _save_univariate_selection(  # pyright: ignore[reportUnusedFunction]
         n_clicks: int | None, store: object
     ) -> dict[str, object] | object:
         if not n_clicks:
@@ -158,27 +165,29 @@ def register_callbacks(app: Dash, services: object | None) -> None:
             service, BrowserState.from_store(store), action="univariate-save-selection"
         ).to_store()
 
-    @app.callback(
+    @app.callback(  # pyright: ignore[reportUnknownMemberType]
         Output("pf-browser-state", "data", allow_duplicate=True),
         Input("bivariate-compute", "n_clicks"),
         State("pf-browser-state", "data"),
         prevent_initial_call=True,
     )
-    def _compute_bivariate(n_clicks: int | None, store: object) -> dict[str, object] | object:
+    def _compute_bivariate(  # pyright: ignore[reportUnusedFunction]
+        n_clicks: int | None, store: object
+    ) -> dict[str, object] | object:
         if not n_clicks:
             return no_update
         return execute_action(
             service, BrowserState.from_store(store), action="bivariate-compute"
         ).to_store()
 
-    @app.callback(
+    @app.callback(  # pyright: ignore[reportUnknownMemberType]
         Output("pf-browser-state", "data", allow_duplicate=True),
         Input("multivariate-optimize", "n_clicks"),
         State("pf-browser-state", "data"),
         State("multivariate-objective", "value"),
         prevent_initial_call=True,
     )
-    def _optimize_multivariate(
+    def _optimize_multivariate(  # pyright: ignore[reportUnusedFunction]
         n_clicks: int | None, store: object, objective: str | None
     ) -> dict[str, object] | object:
         if not n_clicks:
@@ -190,14 +199,14 @@ def register_callbacks(app: Dash, services: object | None) -> None:
             objective=objective or "return_risk",
         ).to_store()
 
-    @app.callback(
+    @app.callback(  # pyright: ignore[reportUnknownMemberType]
         Output("pf-job-poll", "disabled"),
         Input("pf-browser-state", "data"),
     )
-    def _polling_disabled(store: object) -> bool:
+    def _polling_disabled(store: object) -> bool:  # pyright: ignore[reportUnusedFunction]
         return BrowserState.from_store(store).job.terminal
 
-    @app.callback(
+    @app.callback(  # pyright: ignore[reportUnknownMemberType]
         Output("metadata-filter-exchange", "value"),
         Output("metadata-filter-instrument-type", "value"),
         Output("metadata-filter-country", "value"),
@@ -205,7 +214,9 @@ def register_callbacks(app: Dash, services: object | None) -> None:
         Input("metadata-reset-filters", "n_clicks"),
         prevent_initial_call=True,
     )
-    def _reset_metadata_filters(n_clicks: int | None) -> tuple[None, None, None, None] | object:
+    def _reset_metadata_filters(  # pyright: ignore[reportUnusedFunction]
+        n_clicks: int | None,
+    ) -> tuple[None, None, None, None] | object:
         return (None, None, None, None) if n_clicks else no_update
 
 

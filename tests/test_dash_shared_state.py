@@ -72,7 +72,9 @@ def test_readiness_is_dependency_exact_not_status_only() -> None:
     assert changed_bivariate.readiness.bivariate is False
     assert changed_bivariate.readiness.multivariate is False
 
-    changed_multivariate = browser_state_from_workflow(_workflow(multivariate_input="old-bivariate"))
+    changed_multivariate = browser_state_from_workflow(
+        _workflow(multivariate_input="old-bivariate")
+    )
     assert changed_multivariate.readiness.bivariate is True
     assert changed_multivariate.readiness.multivariate is False
 

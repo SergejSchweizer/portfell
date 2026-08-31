@@ -156,7 +156,9 @@ def route_renderer(services: object | None = None) -> Callable[[str | None, obje
         state = BrowserState.from_store(store)
         if services is not None and state == BrowserState():
             try:
-                state = browser_state_from_workflow(cast(WorkflowService, services).workflow_state())
+                state = browser_state_from_workflow(
+                    cast(WorkflowService, services).workflow_state()
+                )
             except Exception:
                 state = BrowserState(message_code="workflow_state_unavailable")
         return application_frame(
