@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Protocol, cast
 
-import plotly.graph_objects as go
+import plotly.graph_objects as go  # pyright: ignore[reportMissingTypeStubs]
 from dash import dcc, html
 from dash.development.base_component import Component
 
@@ -43,11 +43,11 @@ class MultivariateService(Protocol):
 def multivariate_page_data(service: MultivariateService) -> dict[str, object]:
     workflow = service.workflow_state()
     selection = _mapping(workflow.get("univariate_selection"))
-    stages = _mapping(workflow.get("stages"))
+    stages = _mapping(workflow.get("stages")) or {}
     bivariate = _mapping(stages.get("bivariate"))
     stage = _mapping(stages.get("multivariate"))
     detail = service.run_detail(str(stage["run_id"])) if stage and stage.get("run_id") else stage
-    artifacts = _mapping(detail.get("artifacts")) if detail else {}
+    artifacts = (_mapping(detail.get("artifacts")) or {}) if detail else {}
     decision = _mapping(detail.get("decision")) if detail else None
     decision_doc = _mapping(decision.get("document")) if decision else None
     winner_id = None if decision is None else decision.get("winning_candidate_id")
@@ -127,11 +127,9 @@ def _layout(
     run = _mapping(model.get("run"))
     decision = _mapping(model.get("decision"))
     winner = _mapping(model.get("winner"))
-    candidates = tuple(row for row in model.get("candidates", ()) if isinstance(row, dict))
-    validation = tuple(row for row in model.get("validation", ()) if isinstance(row, dict))
-    contributions = tuple(
-        row for row in model.get("risk_contributions", ()) if isinstance(row, dict)
-    )
+    candidates = _mappings(model.get("candidates"))
+    validation = _mappings(model.get("validation"))
+    contributions = _mappings(model.get("risk_contributions"))
     performance = _mapping(model.get("performance"))
     children: list[Component] = [
         PageHeader(
@@ -143,7 +141,7 @@ def _layout(
             [
                 html.Label(
                     [
-                        html.Span("Objective", className="pf-context-label"),
+                        html.Span(children="Objective", className="pf-context-label"),
                         dcc.Dropdown(
                             id="multivariate-objective",
                             options=[
@@ -156,7 +154,7 @@ def _layout(
                     ]
                 ),
                 html.Button(
-                    "Optimize portfolio",
+                    children="Optimize portfolio",
                     id="multivariate-optimize",
                     className="pf-button pf-button-primary",
                     disabled=selection is None or bivariate is None,
@@ -271,16 +269,14 @@ def _performance_figure(
 ) -> go.Figure | None:
     if performance is None:
         return None
-    series = performance.get("portfolio_series")
-    if not isinstance(series, list):
-        return None
+    series = _mappings(performance.get("portfolio_series"))
     winner = next(
-        (row for row in series if isinstance(row, dict) and row.get("candidate_id") == winner_id),
+        (row for row in series if row.get("candidate_id") == winner_id),
         None,
     )
-    if not isinstance(winner, dict) or not isinstance(winner.get("values"), list):
+    if winner is None:
         return None
-    values = [row for row in winner["values"] if isinstance(row, dict)]
+    values = _mappings(winner.get("values"))
     figure = go.Figure(
         go.Scatter(
             x=[row.get("date") for row in values],
@@ -311,9 +307,9 @@ def _drawdown_figure(candidates: Sequence[Mapping[str, object]]) -> go.Figure | 
 
 
 def _allocation_figure(winner: Mapping[str, object] | None) -> go.Figure | None:
-    if winner is None or not isinstance(winner.get("weights"), list):
+    if winner is None:
         return None
-    weights = [row for row in winner["weights"] if isinstance(row, dict)]
+    weights = _mappings(winner.get("weights"))
     if not weights:
         return None
     figure = go.Figure(
@@ -340,8 +336,7 @@ def _risk_contribution_figure(
     figure = go.Figure(
         go.Bar(
             x=[
-                f"{row.get('isin')} / {row.get('exchange')} / {row.get('code')}"
-                for row in selected
+                f"{row.get('isin')} / {row.get('exchange')} / {row.get('code')}" for row in selected
             ],
             y=[row.get("percent_risk_contribution") for row in selected],
             name="Risk contribution",
@@ -351,8 +346,7 @@ def _risk_contribution_figure(
 
 
 def _final_portfolio(winner: Mapping[str, object]) -> Component:
-    raw = winner.get("weights")
-    weights = [row for row in raw if isinstance(row, dict)] if isinstance(raw, list) else []
+    weights = _mappings(winner.get("weights"))
     if not weights:
         return UnavailableData("Final weights are unavailable.")
     columns = ("isin", "exchange", "code", "weight")
@@ -421,15 +415,22 @@ def _history(
 
 
 def _items(value: object) -> tuple[dict[str, object], ...]:
-    mapping = _mapping(value)
-    raw = mapping.get("items") if mapping else None
-    if not isinstance(raw, list):
-        return ()
-    return tuple(cast(dict[str, object], item) for item in raw if isinstance(item, dict))
+    mapping = _mapping(value) or {}
+    return _mappings(mapping.get("items"))
 
 
 def _mapping(value: object) -> dict[str, object] | None:
     return cast(dict[str, object], value) if isinstance(value, dict) else None
+
+
+def _mappings(value: object) -> tuple[dict[str, object], ...]:
+    raw = cast(list[object] | tuple[object, ...], value) if isinstance(value, list | tuple) else ()
+    rows: list[dict[str, object]] = []
+    for item in raw:
+        row = _mapping(item)
+        if row is not None:
+            rows.append(row)
+    return tuple(rows)
 
 
 def _empty_model() -> dict[str, object]:
