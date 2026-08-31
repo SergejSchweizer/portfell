@@ -4,11 +4,12 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any
+from importlib import import_module
+from typing import Any, cast
 
 from portfell.multivariate_inputs import MultivariateListingKey
-from portfell.multivariate_structure_v2 import correlation_from_covariance
 from portfell.multivariate_spectral import analyze_symmetric_matrix
+from portfell.multivariate_structure_v2 import correlation_from_covariance
 from portfell.risk_model import estimate_risk_model
 
 PARALLEL_REPLICATES = 100
@@ -41,12 +42,12 @@ def build_signal_component_diagnostics(
     """Run rank-wise parallel analysis using PCG64(41) and production Ledoit-Wolf."""
 
     try:
-        import numpy as np  # type: ignore[import-not-found]
+        numpy = cast(Any, import_module("numpy"))
     except ImportError:
         return _unavailable("signal_analysis_numpy_unavailable")
     try:
         dates, matrix = _aligned_matrix(return_rows, listings)
-    except (KeyError, TypeError, ValueError):
+    except KeyError, TypeError, ValueError:
         return _unavailable("signal_analysis_invalid_input")
     if len(dates) < 2 or not listings:
         return _unavailable("signal_analysis_insufficient_history")
@@ -63,12 +64,12 @@ def build_signal_component_diagnostics(
     if not observed.available:
         return _unavailable("signal_analysis_unavailable")
 
-    generator = np.random.Generator(np.random.PCG64(PARALLEL_SEED))
+    generator = numpy.random.Generator(numpy.random.PCG64(PARALLEL_SEED))
     null_by_rank: list[list[float]] = [[] for _ in listings]
     for replicate in range(PARALLEL_REPLICATES):
-        permuted_columns = []
+        permuted_columns: list[Any] = []
         for column_index in range(len(listings)):
-            column = np.asarray([row[column_index] for row in matrix], dtype=float)
+            column = numpy.asarray([row[column_index] for row in matrix], dtype=float)
             permuted_columns.append(column[generator.permutation(len(column))])
         permuted_rows = _rows_from_columns(
             dates=dates,
@@ -91,7 +92,7 @@ def build_signal_component_diagnostics(
         for rank, value in enumerate(spectral.eigenvalues):
             null_by_rank[rank].append(value)
     thresholds = tuple(
-        float(np.quantile(values, PARALLEL_QUANTILE, method=PARALLEL_QUANTILE_METHOD))
+        float(numpy.quantile(values, PARALLEL_QUANTILE, method=PARALLEL_QUANTILE_METHOD))
         for values in null_by_rank
     )
     count = 0
@@ -153,8 +154,14 @@ def _rows_from_columns(
 
 def _unavailable(reason: str) -> SignalComponentDiagnostics:
     return SignalComponentDiagnostics(
-        (), (), None, PARALLEL_REPLICATES, PARALLEL_SEED, PARALLEL_QUANTILE,
-        PARALLEL_QUANTILE_METHOD, (reason,)
+        (),
+        (),
+        None,
+        PARALLEL_REPLICATES,
+        PARALLEL_SEED,
+        PARALLEL_QUANTILE,
+        PARALLEL_QUANTILE_METHOD,
+        (reason,),
     )
 
 

@@ -12,6 +12,7 @@ dependencies = [
     "cryptography>=45.0.0",
     "dash>=4.4.1",
     "fastapi>=0.116.0",
+    "numpy>=2.3.0",
     "plotly>=6.5.0",
     "polars>=1.43.2",
     "psycopg[binary]>=3.2.9",
