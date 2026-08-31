@@ -786,6 +786,11 @@ Priority: P0.
 
 Depends on: PR344.
 
+Git status: integrated on `main` at `d9946ca`. The clean, deterministic `portfell_dash`/
+`portfell` v1 migration chain, bounded runtime grants, configuration identity validation, catalog
+fingerprint, and destructive-only rollback boundary are implemented. Focused migration tests and
+the complete local quality gate pass (`882 passed`, `5` live-only skips, `91.06%` coverage).
+
 Owned paths: new `src/portfell/app_state/migrations/**`, new schema contracts, focused migration/catalog tests. Do not edit legacy DB adapters.
 
 Tasks:
