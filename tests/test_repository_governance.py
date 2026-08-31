@@ -136,50 +136,33 @@ def test_quality_gates_are_documented_centrally() -> None:
         assert backlog_text in backlog
 
     for gates_text in (
-        "## Rebase Workflow",
-        "rebase/retarget onto current main before integration",
-        "uv run portfell-quality main",
+        "## Local merge gate",
+        "uv run portfell-quality merge",
+        "## GitHub `merge-gate`",
         "Ruff lint and format",
-        "pyright",
-        "coverage report --fail-under=90",
-        "python -m portfell.schema_validation",
-        "python -m portfell.architecture_checks",
-        "pytest-xdist: pytest -n auto",
+        "strict Pyright",
+        "--cov-fail-under=90",
+        "merge-unit-tests-1..4",
+        "merge-integration-tests-1..4",
+        "failed/skipped/zero-step workflow runs are never treated as success",
     ):
         assert gates_text in gates
 
 
-def test_hosted_security_architecture_maps_goals_to_backlog_records() -> None:
+def test_final_architecture_maps_backlog_to_runtime_boundaries() -> None:
     architecture = (REPOSITORY_ROOT / "ARCHITECTURE.md").read_text(encoding="utf-8")
-    decisions = (REPOSITORY_ROOT / "DECISIONS.md").read_text(encoding="utf-8")
-    risks = (REPOSITORY_ROOT / "RISKS.md").read_text(encoding="utf-8")
-    hosted = (REPOSITORY_ROOT / "docs/hosted_security_architecture.md").read_text(encoding="utf-8")
     backlog = (REPOSITORY_ROOT / "BACKLOG.md").read_text(encoding="utf-8")
 
-    assert "docs/hosted_security_architecture.md" in architecture
-    assert "D016. Use PostgreSQL-First User-Key-Backed Hosted Architecture" in decisions
-    assert "R010. Hosted Multi-Tenant Access Can Leak Provider Data Or Credentials" in risks
-
     for boundary in (
-        "Browser",
-        "Web app",
-        "API service",
-        "PostgreSQL",
-        "External key-encryption key",
-        "Shared immutable store",
-        "EODHD",
+        "FastAPI + Plotly Dash",
+        "portfell_dash",
+        "xetra_loader",
+        "`dash_app`",
+        "`app_state`",
+        "`market_source`",
+        "There is no production React/Vite/TypeScript/TanStack application",
     ):
-        assert boundary in hosted
-
-    for forbidden in (
-        "Plaintext EODHD keys",
-        "global current-selection pointers",
-        "Public-hosted mode",
-    ):
-        assert forbidden in hosted
-
-    for pr_number, requirement in HOSTED_REQUIREMENTS_BY_PR.items():
-        assert f"| {requirement} | PR{pr_number} |" in hosted
+        assert boundary in architecture
     assert "## 1. Final target architecture — hard decision" in backlog
 
 
