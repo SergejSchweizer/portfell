@@ -232,9 +232,7 @@ def test_analysis_run_transition_and_read_branches() -> None:
     for status, failure in invalid:
         repository, _ = make_repo([])
         with pytest.raises(AppStateError) as error:
-            repository.transition_analysis_run(
-                run_id="run-a", status=status, failure_code=failure
-            )
+            repository.transition_analysis_run(run_id="run-a", status=status, failure_code=failure)
         assert code(error) == APP_STATE_INVALID_TRANSITION
 
     running = list(RUN_ROW)
