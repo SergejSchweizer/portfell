@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass
-from typing import Literal, Mapping, cast
+from typing import Literal, cast
 
 JobStatus = Literal["queued", "running", "succeeded", "failed", "cancelled"]
 
@@ -51,9 +52,10 @@ class BrowserState:
 
     @classmethod
     def from_store(cls, value: object) -> BrowserState:
-        if not isinstance(value, dict):
+        root = _mapping(value)
+        if root is None:
             return cls()
-        readiness_raw = value.get("readiness")
+        readiness_raw = _mapping(root.get("readiness"))
         readiness = (
             StageReadiness(
                 metadata=bool(readiness_raw.get("metadata")),
@@ -61,32 +63,32 @@ class BrowserState:
                 bivariate=bool(readiness_raw.get("bivariate")),
                 multivariate=bool(readiness_raw.get("multivariate")),
             )
-            if isinstance(readiness_raw, dict)
+            if readiness_raw is not None
             else StageReadiness(False, False, False, False)
         )
-        job_raw = value.get("job")
-        status = job_raw.get("status") if isinstance(job_raw, dict) else None
+        job_raw = _mapping(root.get("job"))
+        status = job_raw.get("status") if job_raw is not None else None
         allowed_statuses = {"queued", "running", "succeeded", "failed", "cancelled"}
         job = JobPresentation(
-            stage=_string(job_raw.get("stage")) if isinstance(job_raw, dict) else None,
-            run_id=_string(job_raw.get("run_id")) if isinstance(job_raw, dict) else None,
+            stage=_string(job_raw.get("stage")) if job_raw is not None else None,
+            run_id=_string(job_raw.get("run_id")) if job_raw is not None else None,
             status=cast(JobStatus | None, status if status in allowed_statuses else None),
-            progress=_float(job_raw.get("progress")) if isinstance(job_raw, dict) else None,
+            progress=_float(job_raw.get("progress")) if job_raw is not None else None,
         )
         return cls(
-            workspace_id=_string(value.get("workspace_id")) or "default",
-            universe_id=_string(value.get("universe_id")),
-            universe_version=_integer(value.get("universe_version")),
-            source_snapshot_id=_string(value.get("source_snapshot_id")),
-            univariate_run_id=_string(value.get("univariate_run_id")),
-            selection_id=_string(value.get("selection_id")),
-            selection_version=_integer(value.get("selection_version")),
-            selected_count=_integer(value.get("selected_count")),
-            bivariate_run_id=_string(value.get("bivariate_run_id")),
-            multivariate_run_id=_string(value.get("multivariate_run_id")),
+            workspace_id=_string(root.get("workspace_id")) or "default",
+            universe_id=_string(root.get("universe_id")),
+            universe_version=_integer(root.get("universe_version")),
+            source_snapshot_id=_string(root.get("source_snapshot_id")),
+            univariate_run_id=_string(root.get("univariate_run_id")),
+            selection_id=_string(root.get("selection_id")),
+            selection_version=_integer(root.get("selection_version")),
+            selected_count=_integer(root.get("selected_count")),
+            bivariate_run_id=_string(root.get("bivariate_run_id")),
+            multivariate_run_id=_string(root.get("multivariate_run_id")),
             readiness=readiness,
             job=job,
-            message_code=_string(value.get("message_code")),
+            message_code=_string(root.get("message_code")),
         )
 
 
@@ -183,7 +185,9 @@ def browser_state_from_workflow(workflow: Mapping[str, object]) -> BrowserState:
     )
 
 
-def invalidate_for_new_universe(state: BrowserState, universe_id: str, version: int | None) -> BrowserState:
+def invalidate_for_new_universe(
+    state: BrowserState, universe_id: str, version: int | None
+) -> BrowserState:
     return BrowserState(
         universe_id=universe_id,
         universe_version=version,
@@ -237,7 +241,9 @@ def _source_snapshot(*rows: dict[str, object] | None) -> str | None:
 
 
 def _mapping(value: object) -> dict[str, object] | None:
-    return cast(dict[str, object], value) if isinstance(value, dict) else None
+    if not isinstance(value, dict):
+        return None
+    return cast(dict[str, object], value)
 
 
 def _field(row: dict[str, object] | None, name: str) -> str | None:
