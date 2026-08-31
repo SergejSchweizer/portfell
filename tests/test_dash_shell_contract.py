@@ -9,14 +9,19 @@ from portfell.dash_app.app import create_dash_app, mount_dash_app
 from portfell.dash_app.components import (
     ChartCard,
     ControlBar,
+    EmptyState,
+    ErrorState,
     HistoryCard,
     KpiCard,
+    LoadingState,
     PageHeader,
     StageFooter,
     StatusBanner,
     TableCard,
+    UnavailableData,
 )
 from portfell.dash_app.contracts import PAGE_SPECS, SHARED_PRIMITIVES
+from portfell.dash_app.figures import apply_portfell_template, figure_from_rows
 from portfell.dash_app.shell import application_frame, normalize_route
 
 
@@ -125,3 +130,34 @@ def test_css_freezes_reference_layout_tokens_and_breakpoints() -> None:
     ):
         assert token in css
     assert "overflow-x: hidden" in css
+
+
+def test_primitives_and_figures_render_shared_unavailable_and_accessible_states() -> None:
+    components = (
+        ChartCard("Chart"),
+        KpiCard("KPI", evidence="Evidence"),
+        StatusBanner("Failure", tone="danger"),
+        StatusBanner("Fallback", tone="unknown"),
+        HistoryCard(["history"]),
+        StageFooter(["next"]),
+        LoadingState(),
+        EmptyState("empty"),
+        UnavailableData("unavailable"),
+        ErrorState("error"),
+    )
+    rendered = "\n".join(str(component.to_plotly_json()) for component in components)
+    assert "pf-chart-card" in rendered
+    assert "pf-status-danger" in rendered
+    assert "pf-status-info" in rendered
+    assert "pf-state-unavailable" in rendered
+    figure = figure_from_rows(
+        [{"return": 1.0, "risk": 2.0}],
+        x="return",
+        y="risk",
+        name="Universe",
+        x_title="Return (%)",
+        y_title="Risk (%)",
+    )
+    assert figure.layout.xaxis.title.text == "Return (%)"
+    assert figure.layout.yaxis.title.text == "Risk (%)"
+    assert apply_portfell_template(figure).layout.paper_bgcolor == "#ffffff"
