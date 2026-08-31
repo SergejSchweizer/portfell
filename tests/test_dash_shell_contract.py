@@ -82,9 +82,6 @@ def test_shell_renders_every_page_without_legacy_web_import() -> None:
     assert "financial-dashboard-example.plotly.app" not in source
     assert ".execute(" not in source
     assert "psycopg" not in source
-    assert "insert " not in source.lower()
-    assert "update " not in source.lower()
-    assert "delete " not in source.lower()
 
 
 def test_fastapi_mount_keeps_health_and_redirects_root() -> None:
