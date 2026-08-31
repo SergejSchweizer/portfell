@@ -6,7 +6,7 @@ This runbook is the destructive transition from the retired Portfell Web/hosted-
 
 ## Preconditions
 
-Before step 1, record the exact merged PR359 commit SHA and require all of the following:
+Before step 1, require all of the following:
 
 - `uv run portfell-quality pr` passes on the exact cutover commit;
 - `uv run portfell-quality merge` passes on the exact cutover commit;
@@ -23,50 +23,57 @@ If any precondition is false, stop. Do not partially cut over.
 
 ## Frozen cutover order
 
-1. **Stop old Portfell runtime.** Stop the old Web/API/PostgreSQL stack. Confirm there are no active writers to the retired Portfell application database.
-2. **Back up the old Portfell database and volume.** Create an operator-owned backup outside the repository and record its immutable backup identifier/checksum. This backup is rollback-only and must not be mounted by the new runtime.
-3. **Create fresh `portfell_dash`.** Provision the new application database and the non-superuser login required by `postgres.app`. Do not restore or import old Portfell rows.
-4. **Apply clean migrations.** Apply only `src/portfell/app_state/migrations/**` to database `portfell_dash`, schema `portfell`. Verify the migration head and catalog fingerprint.
-5. **Deploy final Python runtime.** Deploy the exact PR359-approved image/tree. The active application topology contains only the Python application and its `portfell_dash` PostgreSQL service; there is no first-party Node/Web service.
-6. **Mount ignored root config.** Mount repository-root `config.yaml` read-only at `/run/portfell/config.yaml`. Verify it was not copied into the image and contains no raw passwords/tokens.
-7. **Supply independent secret authorities.** Supply `PORTFELL_DATABASE_URL` and `PORTFELL_MARKET_DATABASE_URL` independently plus their external password-file references. The app DSN must target only `portfell_dash`; the market DSN must target only `xetra_loader`. No fallback is permitted.
-8. **Run startup preflight.** Start the Python application and require fail-closed validation of config/DSN identity, app-state migration head, external market role membership, read-only market access, and no `xetra_loader_sync` authority.
-9. **Run four-stage workflow.** Execute Metadata → Univariate → Bivariate → Multivariate on representative full listing identities. Confirm adjusted-close semantics, typed missing-data behavior, persisted stage handoff, immutable source lineage, and a persisted final decision artifact.
-10. **Run browser acceptance.** Execute the Python Playwright four-route suite at `1440x900`, `1024x768`, and `390x844`. Require reload persistence, typed failure/retry, upstream invalidation, zero page/console errors, zero reference-site requests, no page-level horizontal overflow, and all 12 screenshots.
-11. **Run restart/reload acceptance.** Restart the production application process/container without rebuilding state. Confirm the completed workflow, selections, winner/decision evidence, sidebar context, and route readiness reload from `portfell_dash`.
-12. **Remove retired runtime only after all checks pass.** Remove old Web images/build context, old Portfell database service/credentials/volumes from active Compose/runtime ownership, and any deployment references to the retired database. Keep only the externally stored rollback backup for the approved rollback window.
+The order below is the executable PR360 contract. Do not reorder destructive steps and do not infer a shortcut from a pre-staged branch.
+
+1. **Record exact application/source identities and current runtime inventory.** Record the exact Portfell application commit SHA, exact xetra-loader source SHA accepted by the external production V2 artifact, immutable application and PostgreSQL image digests, the market-source contract version, and the currently active Portfell runtime/service/volume inventory. This evidence is captured before anything is stopped or deleted.
+2. **Stop writes to the legacy Portfell application database.** Stop the retired Web/API runtime or otherwise quiesce every legacy writer. Confirm no process can mutate the retired Portfell application database before backup starts.
+3. **Create and verify the encrypted offline rollback backup.** Back up the legacy Portfell database and required rollback volume state to operator-owned storage outside the repository. Record immutable backup identifier, checksum, creation time, and a successful restore-verification result. The backup is rollback-only and must never be mounted as an authority by the new runtime.
+4. **Provision and migrate clean `portfell_dash`.** Create the new application database and non-superuser login required by `postgres.app`. Apply only `src/portfell/app_state/migrations/**` to database `portfell_dash`, schema `portfell`; do not restore/import old Portfell rows. Record applied migration versions and the deterministic catalog fingerprint.
+5. **Deploy local configuration and independent database authorities.** Mount repository-root `config.yaml` read-only at `/run/portfell/config.yaml`; verify Git ignores it and the application image does not contain it. Supply `PORTFELL_DATABASE_URL` and `PORTFELL_MARKET_DATABASE_URL` independently plus their external password-file references. Verify both effective identities match `postgres.app` and `postgres.market`; neither may fall back to the other.
+6. **Deploy FastAPI + Plotly Dash.** Deploy the exact PR359-approved Portfell application commit and the exact application image digest recorded in step 1. The active Portfell application topology contains one Python FastAPI + Plotly Dash surface and the clean `portfell_dash` service; no first-party Node/Web service is started.
+7. **Run four-page smoke and one full analytical workflow.** Require `/metadata`, `/univariate`, `/bivariate`, and `/multivariate` plus API health. Execute Metadata → Univariate → Bivariate → Multivariate on representative full listing identities and confirm adjusted-close semantics, typed missing-data behavior, persisted stage handoff, immutable source lineage, and a persisted final DecisionArtifact.
+8. **Verify external market privileges and negative space.** Require SELECT on all four business tables to work; require market DML and DDL to fail; require `xetra_loader_sync` access to fail. Confirm the external reader is a non-superuser LOGIN member of the expected NOLOGIN group role and that no provider/download/refresh authority exists in Portfell.
+9. **Verify restart persistence and DecisionArtifact retrieval.** Restart the production application process/container without rebuilding state. Confirm the completed workflow, selections, winner/decision evidence, sidebar context, and route readiness reload from `portfell_dash` and that the exact DecisionArtifact is retrievable after restart.
+10. **Remove old UI deployment references.** Remove retired React/Vite/Node Web service, image, build-context, route, and deployment references only after steps 7–9 pass. The rollback backup remains untouched.
+11. **Detach/delete the legacy active Portfell database runtime after the acceptance window.** Remove the old Portfell database service, credentials, active volume/database ownership, and all runtime connection references after the operator-defined acceptance window. Do not delete or alter the external xetra-loader database.
+12. **Retain only the encrypted offline backup for the rollback retention period.** Keep the verified step-3 backup for the documented rollback window and then dispose of it according to operator policy. No active legacy database authority remains after PASS.
 
 ## Required acceptance evidence
 
-The final acceptance record must be generated from the exact deployed commit and must contain no secret values, full credential-bearing DSNs, SQL text, stack traces, or filesystem secrets. At minimum record:
+The final acceptance record must validate against `docs/contracts/dash-production-cutover-evidence-v1.schema.json`, be generated from executed checks on the exact deployment, and contain no secret values, full credential-bearing DSNs, SQL text, stack traces, or secret filesystem paths.
 
-- deployed commit SHA;
+At minimum record:
+
+- exact Portfell application source SHA and exact accepted xetra-loader source SHA;
+- immutable application and PostgreSQL image digests;
+- market-source contract version;
 - PR355 browser artifact run ID and PASS status;
-- PR359 QA/merge-gate run IDs and PASS status;
-- old-database backup identifier/checksum and creation timestamp;
+- PR359 QA/merge-gate run ID and PASS status;
+- encrypted old-database backup identifier/checksum/time and restore-verification PASS;
 - `portfell_dash` migration versions and catalog fingerprint;
 - app/market authority identities reduced to non-secret host/port/database/schema/role fields;
-- four-stage workflow run identities and final decision-artifact identity;
-- browser acceptance evidence identifier and the 12 screenshot filenames;
-- restart acceptance timestamp/result;
-- explicit negative-space results for legacy Web/Node runtime, retired Portfell DB runtime, provider acquisition, direct Dash SQL, and `xetra_loader_sync` access.
+- four-stage workflow identities and final DecisionArtifact identity;
+- explicit market SELECT/DML/DDL/sync privilege results;
+- browser acceptance evidence identifier and exactly 12 screenshot filenames from the supported viewports/routes;
+- restart acceptance timestamp/result and DecisionArtifact reload proof;
+- explicit negative-space results for legacy Web/Node runtime, retired Portfell DB runtime, provider acquisition, direct Dash SQL, untracked `config.yaml`, and config absence from images.
 
-A PASS record is valid only when every item comes from executed checks on the exact deployment. Missing evidence is a failure, not `unknown` success.
+A PASS record is valid only when every required field is backed by the executed acceptance on the exact deployment. Missing evidence is failure, never `unknown` success.
 
 ## Rollback
 
-Rollback is permitted only to the immutable backup created in step 2 and only within the operator-defined rollback window.
+Rollback is permitted only to the immutable backup created in step 3 and only within the operator-defined rollback window.
 
-If any check in steps 8–11 fails:
+If any acceptance in steps 7–9 fails:
 
 1. stop the new runtime;
-2. preserve its logs/evidence without secret material;
+2. preserve its sanitized logs/evidence;
 3. do not copy `portfell_dash` rows into the retired database;
-4. restore the old runtime/database from the step-2 backup as one rollback unit;
-5. reopen the failed implementation/QA PR with the typed failure evidence;
+4. restore the old application release and the step-3 legacy database backup as one coordinated rollback unit;
+5. reopen the failed implementation/QA work with typed failure evidence;
 6. repeat the cutover only from a new fully gated commit.
 
-Never run old and new Portfell database authorities in dual-write or fallback mode. Never point `PORTFELL_DATABASE_URL` at the external xetra-loader database. Never expose the old database as a compatibility source to Dash.
+Never run old and new Portfell database authorities in dual-write or fallback mode. Never point `PORTFELL_DATABASE_URL` at the external xetra-loader database. Never expose the old database as a compatibility source to Dash. Provider acquisition must not be reactivated during rollback.
 
 ## Post-cutover invariant
 
