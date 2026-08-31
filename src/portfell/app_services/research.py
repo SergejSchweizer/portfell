@@ -289,7 +289,7 @@ class ResearchApplicationService:
             input_snapshot_id=market.snapshot_id,
             input_ref=universe.universe_id,
             logical_hash=source_id,
-            algorithm_version=UNIVARIATE_CALCULATION_CONTRACT.qualified_name,
+            algorithm_version=UNIVARIATE_CALCULATION_CONTRACT,
         )
         if run.status == "succeeded":
             return self.run_detail(run.run_id)

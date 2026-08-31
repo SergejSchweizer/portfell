@@ -53,7 +53,7 @@ def univariate_source_id(*, universe_id: str, market_snapshot_id: str) -> str:
         {
             "universe_id": universe_id,
             "market_snapshot_id": market_snapshot_id,
-            "calculation_contract": UNIVARIATE_CALCULATION_CONTRACT.qualified_name,
+            "calculation_contract": UNIVARIATE_CALCULATION_CONTRACT,
         }
     )
 
@@ -93,7 +93,7 @@ def compute_univariate(
     return ComputedRun(
         run_id=opaque_id("univariate-run", {"source_id": source_id}),
         source_id=source_id,
-        algorithm_version=UNIVARIATE_CALCULATION_CONTRACT.qualified_name,
+        algorithm_version=UNIVARIATE_CALCULATION_CONTRACT,
         rows=tuple(dict(row) for row in rows),
     )
 
