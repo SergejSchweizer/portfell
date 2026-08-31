@@ -113,7 +113,11 @@ def _pca_from_spectral(
     listings: tuple[MultivariateListingKey, ...],
 ) -> PcaDiagnostics:
     if not spectral.available or spectral.effective_rank is None:
-        reason = spectral.availability_reasons[0] if spectral.availability_reasons else "spectral_unavailable"
+        reason = (
+            spectral.availability_reasons[0]
+            if spectral.availability_reasons
+            else "spectral_unavailable"
+        )
         return _unavailable_pca(reason)
     coefficients = tuple(
         PcaCoefficient(f"Component {component_index + 1}", listing, component[listing_index])
@@ -136,7 +140,9 @@ def _pca_from_spectral(
         components_for_95pct=spectral.components_for(0.95),
         coefficients=coefficients,
         dominant_component_representative=representative,
-        dominant_component_share=(spectral.explained_variance[0] if spectral.explained_variance else None),
+        dominant_component_share=(
+            spectral.explained_variance[0] if spectral.explained_variance else None
+        ),
         availability_reasons=(),
     )
 
