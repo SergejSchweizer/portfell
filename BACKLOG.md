@@ -348,8 +348,7 @@ Branch: `feat/pr313-market-source-status`
 
 Depends on: PR308.
 
-Git status: integrated on `main` at `d1e3b5e`. The low-cost preflight verifies database/schema,
-the exact source table catalog, and reader-role membership without reading source data, scanning
+Git status: integrated on `main` at `d1e3b5e`. The low-cost preflight verifies database/schema/role membership without reading source data, scanning
 tables, accessing the sync schema, or issuing DDL; its complete PR gate passed (`1017 passed`).
 
 Scope: low-cost connectivity/schema/role preflight only.
@@ -747,7 +746,7 @@ secret-free legacy inventory, replacement contract, and normative Dash UI contra
 their focused contract test and the complete local quality gate pass (`876 passed`, `5` live-only
 skips, `91.06%` coverage).
 
-Owned paths: `BACKLOG.md`, new `docs/contracts/plotly-dash-replacement-v1.md`, new `docs/contracts/plotly-dash-ui-v1.md`, new `docs/contracts/legacy-ui-db-inventory-v1.json`, focused contract tests only.
+Owned paths: `BACKLOG.md`, new `docs/contracts/plotly-dash-replacement-v1.md`, new `docs/contracts/plotly-dash-ui-v1.md`, new `docs/contracts/legacy-ui-db-inventory-v1.json`, focused contract tests only. No production analytical code.
 
 Tasks:
 
@@ -1816,3 +1815,199 @@ Acceptance must prove all of the following:
 - produce one immutable sanitized `structural-risk-v2` PASS evidence artifact containing exact Git SHA, contract/algorithm versions, frozen parameters, test counts and deterministic fixture fingerprints without market credentials or private data.
 
 Future optimizer gate: PR376 does **not** authorize or implement a structurally diversified portfolio candidate. Any later `Factor Diversified`, `Cluster Balanced`, structural constraint, or composite structural score requires a new versioned backlog PR after the PR375/PR376 OOS evidence has been reviewed. The new PR must state the exact optimization objective/constraints and demonstrate that it is evaluated through the existing leakage-safe OOS selection framework before it can affect the DecisionArtifact.
+
+## 8. Structural-risk v2 corrective production closeout — PR377–PR382
+
+Audit date: 2026-08-31.
+
+This corrective series is mandatory because a repository audit after PR361–PR375 found that several pure Structure-v2 components exist on `main`, but the normal production Multivariate orchestration, persisted artifact assembly and live Dash page are not yet equivalent to the acceptance contract written in PR372–PR375. This section is authoritative over Section 7 wherever the earlier text could be read as declaring Structure v2 production-complete merely because the component PRs merged.
+
+PR376 remains useful as an independent QA harness and defect-discovery branch, but it is **not** the final Structure-v2 PASS gate while any PR377–PR380 acceptance item is open. The final immutable `structural-risk-v2` PASS artifact is owned by PR381. No structural metric may affect candidate weights, feasibility, the three frozen objectives, OOS scorecards or the DecisionArtifact winner anywhere in PR377–PR382.
+
+Observed corrective targets that must be closed, not waived:
+
+- the production `compute_multivariate()` path must publish Structure-v2 artifacts rather than only the pre-v2 structure document;
+- `subspace_stability` must contain the persisted PR370 result rather than an adapter-pending placeholder;
+- candidate structure must persist `largest_cluster_gross_abs_risk_share` as a first-class field rather than force Dash to derive it;
+- structural walk-forward evidence must be produced from the same production refit/split execution and persisted/reloaded with the run;
+- the existing PR373/PR374 presentation helpers must be wired into the real `/multivariate` page and service read path, not remain presenter prestaging;
+- runtime documentation must match the actual Compose bind behavior and open QA metadata must not claim already-resolved blockers;
+- the final gate needs coverage headroom above the hard 90% floor so small follow-up changes do not immediately make the merge line brittle.
+
+Dependency graph:
+
+```text
+PR375 -----------------------> PR377 -> PR378 -> PR379 ----+
+PR376(QA harness/findings) -------------------------------+--> PR381(QA/PASS) -> PR382
+PR378 -------------------------------> PR380(docs/runtime) +
+```
+
+PR377 and PR376 may proceed independently from the current merged main line. PR379 must not merge before PR378 proves that the artifacts it renders are production-persisted. PR381 is the only final Structure-v2 PASS authority after this corrective series.
+
+### PR377 — Complete Structure-v2 artifact assembly
+
+Branch: `fix/pr377-structure-v2-artifact-completeness`
+
+Priority: P0.
+
+Depends on: PR375 merged implementation. PR376 findings may add tests but are not a blocking implementation dependency.
+
+Owned paths: `src/portfell/multivariate_structure_artifacts.py`, the minimal rolling/subspace adapter needed to expose PR370 results, candidate-structure serialization, and focused deterministic tests. No application-service orchestration, database repository, Dash or optimizer changes.
+
+Scope:
+
+- replace the `subspace_stability_adapter_pending` placeholder with the actual persisted adjacent-window covariance/correlation leading-subspace stability produced under the PR370 contract;
+- add `largest_cluster_gross_abs_risk_share` to every candidate structure row as an explicit persisted primitive derived from that candidate's already-computed cluster rows;
+- keep per-cluster signed and gross contributions unchanged and retain their full detail;
+- ensure all availability reasons remain local to their diagnostic and no optional diagnostic makes available covariance PCA disappear;
+- keep the artifact contract/version semantics explicit: if adding either field changes a frozen payload schema in a non-backward-compatible way, version the affected artifact rather than silently changing meaning under an immutable identifier.
+
+Acceptance:
+
+- `subspace_stability.items` contains one deterministic row for every adjacent pair of valid rolling windows, with previous/current window endpoints, component count `k`, covariance overlap and correlation overlap, each in `[0, 1]` within `1e-12` tolerance;
+- the subspace rows are generated from the same rolling PCA bases whose window metrics are persisted in `rolling_structure`, never from a separately shifted calendar;
+- fewer than two valid rolling windows produces the exact typed unavailable reason defined by the v2 contract and an empty item list, never a fabricated zero/one;
+- `largest_cluster_gross_abs_risk_share` equals `max(cluster_gross_abs_risk_share)` over that candidate's available canonical cluster rows and is `None` with explicit availability reason when the denominator/cluster evidence is unavailable;
+- a one-cluster available fixture yields exactly `1.0`; a multi-cluster fixture reconciles the stored maximum to the persisted row values with `rel_tol=1e-9`, `abs_tol=1e-12`;
+- candidate structure still persists `effective_pca_risk_drivers`, `largest_pca_risk_share`, component counts and full PCA/cluster contribution rows unchanged;
+- artifact IDs are stable for byte-equivalent inputs and include every frozen parameter that can change the new output;
+- no candidate weight, solver method, objective score, OOS rank or DecisionArtifact field changes on a frozen regression fixture;
+- no HRP code imports or consumes v2 risk-cluster memberships;
+- focused numerical/serialization tests and `uv run portfell-quality pr` pass.
+
+### PR378 — Wire Structure v2 and structural walk-forward into the production Multivariate run
+
+Branch: `fix/pr378-structure-v2-production-orchestration`
+
+Priority: P0.
+
+Depends on: PR377.
+
+Owned paths: `src/portfell/app_services/multivariate_compute.py`, the clean `app_state` artifact persistence/read adapters if required, typed service DTOs, and focused persistence/restart/idempotency tests. Dash presentation is out of scope.
+
+Scope:
+
+- make the normal `compute_multivariate()` execution call the canonical Structure-v2 document assembler using the exact production risk model, aligned return rows and already-built candidate set;
+- call structural walk-forward evidence generation using the **same** production `refitted_candidate_sets` and `validation_splits` that feed OOS scorecards; no second candidate refit or split calendar is allowed;
+- persist the universe Structure-v2 artifact, candidate Structure artifact and structural walk-forward evidence as immutable analysis artifacts for the same Multivariate run;
+- make service reads and restart recovery return persisted payloads only; read/render operations must never trigger PCA, clustering, bootstrap or walk-forward recomputation;
+- stop treating the pre-v2 `structure` document as the canonical structure artifact for new runs. Historical v1 artifacts remain readable/immutable but are never mutated into v2.
+
+Acceptance:
+
+- one successful production Multivariate run with sufficient data persists exactly one canonical `multivariate.structure@v2` artifact, exactly one matching candidate-structure artifact, and exactly one structural-walk-forward artifact/document containing all completed split/candidate rows;
+- all three artifacts carry the exact run/input-snapshot/risk-model/candidate identities required to prove they belong to the same analytical revision;
+- the structural walk-forward row count exactly reconciles to completed production validation splits and candidate identities; there are no orphan, duplicate or second-calendar rows;
+- every structural walk-forward row satisfies `train_end < test_start`; deliberate future-row injection fails closed with the typed leakage error before persistence;
+- the production winner ID, requested/actual method, objective score, scorecards, candidate weights and DecisionArtifact document are byte-equivalent to a frozen pre-integration fixture except for the addition of diagnostic artifacts outside the decision document;
+- optional correlation/signal/rolling/subspace/bootstrap unavailability does not fail an otherwise valid Multivariate run and is persisted as typed diagnostic unavailability; base risk-model failure remains fail-closed with no covariance fallback;
+- after a real app-state process/database restart, service reads return byte-equivalent canonical Structure-v2, candidate-structure and structural-walk-forward payloads with the same IDs;
+- repeated execution of the same logical run converges to the same immutable artifact identities according to the existing idempotency contract and creates no duplicate published artifacts;
+- direct scans prove no v2 structural computation is executed by read/list service methods;
+- focused integration/restart tests and `uv run portfell-quality pr` pass; the branch must also pass the complete `uv run portfell-quality merge` before it is considered merge-ready.
+
+### PR379 — Wire live Structure-v2 evidence into `/multivariate`
+
+Branch: `fix/pr379-dash-structure-v2-live-wiring`
+
+Priority: P0.
+
+Depends on: PR378 and the already-merged PR373/PR374 presentation adapters.
+
+Owned paths: `src/portfell/dash_app/pages/multivariate.py`, narrowly required Dash presenter/callback/read wiring, shared presentation components only when unavoidable, and focused component/browser tests. No financial-analysis modules, optimizer or persistence writes.
+
+Scope:
+
+- make `multivariate_page_data()` request and consume the persisted production Structure-v2 and candidate-structure artifacts from the run detail/service contract;
+- integrate the existing universe/candidate presenter logic into the real page rather than leaving it as unused/prestaged helpers;
+- render the PR373 universe cards and PR374 candidate cards on the existing Multivariate page while preserving the current objective controls, winner KPIs, OOS plots, Decision card, Final Portfolio and History sections;
+- candidate selection is presentation-only and defaults to the persisted winning candidate when present, otherwise deterministic first available candidate.
+
+Acceptance:
+
+- a populated production run renders `PCA Spectrum`, `Structural Diversification`, `Risk Clusters`, `Structural Stability`, `Candidate Structural Risk`, `PCA Risk Contribution`, and `Cluster Risk Contribution` from persisted artifacts on `/multivariate`;
+- the page does not derive `largest_cluster_gross_abs_risk_share`; it displays the persisted PR377 field;
+- covariance and correlation PCA are visibly distinguished in labels, legends and tables; retired `effective_independent_drivers` and causal `strongest_common_driver` wording is absent;
+- signed negative cluster percent-variance contributions remain negative in data/hover/table presentation while gross-absolute shares remain separately labeled;
+- mixed availability is local: unavailable signal/rolling/subspace/bootstrap/candidate evidence shows its persisted reason while unrelated available cards remain populated;
+- changing candidate selection performs no optimizer call, covariance fit, PCA, clustering, bootstrap, analysis-artifact write or DecisionArtifact mutation;
+- page render, reload, navigation and responsive resize are read-only with respect to analytical state and do not start a new Multivariate run;
+- reload after application restart restores the same structural cards from app-state persistence;
+- deterministic browser fixtures pass at `1440x900`, `1024x768`, and `390x844`, with no body-level horizontal overflow and no Portfell console/page errors;
+- browser/runtime request inspection proves no direct SQL from Dash and no request to the external visual-reference site;
+- focused component/browser tests and `uv run portfell-quality pr` pass.
+
+### PR380 — Reconcile runtime documentation and Structural-v2 QA governance
+
+Branch: `docs/pr380-runtime-structure-v2-reconciliation`
+
+Priority: P1.
+
+Depends on: PR378. May run in parallel with PR379.
+
+Owned paths: `README.md`, `DOCKER.md`, `ARCHITECTURE.md`, `GATES.md` only if wording requires synchronization, `docs/runbooks/dash-production-cutover.md`, relevant structural-risk contract/status documentation, and backlog status text. No production runtime or analytical code.
+
+Scope:
+
+- reconcile documented HTTP bind behavior with the actually intended production Compose contract after the public-bind change;
+- update Structural-v2 status text so merged component PRs are not described as production-complete until PR378/PR379/PR381 evidence exists;
+- remove stale statements that PR360, NumPy declaration, PR370 or other already-resolved prerequisites are still blockers;
+- document the PR376/PR381 distinction: PR376 is independent QA harness/defect discovery; PR381 owns final PASS after corrective implementation.
+
+Acceptance:
+
+- README, Docker/runbook and Compose descriptions agree on one exact default bind contract. If `compose.yaml` remains `0.0.0.0:${PORTFELL_PORT:-8080}:8000`, no authoritative document claims loopback-only `127.0.0.1:8080` by default; if the intended security contract is changed back to loopback, the runtime change must be a separate implementation PR and this documentation PR follows the merged runtime truth;
+- all documented service/database authorities still match FastAPI + Dash, `portfell_dash`, and external read-only `xetra_loader`; no legacy/provider plane is reintroduced;
+- Structural-v2 documentation names the actual persisted artifacts/read paths created by PR378 and the live `/multivariate` views created by PR379;
+- open PR376 metadata/body is refreshed before it is marked ready for review so it does not claim resolved blockers and does not claim ownership of the final PASS artifact; if connector permissions cannot update PR metadata, the exact required text change is recorded as a blocking manual acceptance item rather than silently ignored;
+- no credentials, complete credential-bearing DSNs or private market data enter documentation/evidence;
+- documentation contract tests, link/negative-space scans and `uv run portfell-quality pr` pass.
+
+### PR381 — Final Structural-risk v2 production integration QA and PASS artifact
+
+Branch: `test/pr381-structural-risk-v2-production-closeout`
+
+Priority: P0 final gate.
+
+Depends on: PR379 and PR380. Reuses the independent PR376 fixtures where valid but must execute against the post-corrective production path.
+
+Scope: QA/evidence only. No production financial calculations or hidden corrective implementation are allowed in this PR. Any production defect discovered here requires a separate implementation PR and a fresh PR381 run.
+
+Acceptance must prove all of the following on the exact PR381 head SHA:
+
+- independent numerical fixtures verify covariance PCA, correlation PCA, entropy effective rank, candidate PCA variance reconciliation/effective driver count, deterministic average-linkage clusters, signed/gross cluster attribution, rolling window boundaries, subspace overlap, parallel analysis and bootstrap stability without using the production function under test as the numerical oracle;
+- a production `compute_multivariate()` invocation, not a direct helper-only fixture, emits the canonical Structure-v2, candidate-structure and structural-walk-forward artifacts and persists them through the real application-state boundary;
+- canonical Structure-v2 contains real subspace-stability rows when history permits and never contains `subspace_stability_adapter_pending` in an available production fixture;
+- every available candidate row contains the persisted `largest_cluster_gross_abs_risk_share`, and it reconciles to its cluster rows;
+- structural walk-forward evidence uses the exact production split/refit identities, contains no future observations and leaves the frozen pre-v2 winner/DecisionArtifact unchanged;
+- database/application restart reproduces all three artifact payloads byte-equivalently with stable IDs and no structural recomputation during reads;
+- browser QA uses persisted production artifacts and proves all PR379 universe/candidate cards for populated, unavailable and mixed-availability cases at `1440x900`, `1024x768`, and `390x844`;
+- candidate selection and all page render/navigation/reload paths are analytically read-only;
+- negative-space scans prove no v2 risk cluster is consumed by HRP, no retired v2 labels are emitted, no Dash SQL exists, and no structural metric enters candidate feasibility, objectives, scorecards or DecisionArtifact ranking;
+- README/runtime documentation matches the actual bind topology and contains no stale finality/blocker statement;
+- `uv run portfell-quality pr`, `uv run portfell-quality merge`, and the GitHub `merge-gate` all execute successfully for the exact head; skipped, cancelled or zero-step jobs are not PASS;
+- produce exactly one immutable sanitized `structural-risk-v2` PASS evidence artifact containing exact 40-hex Git SHA, contract/algorithm versions, frozen parameters, executed test counts, database restart evidence references, browser evidence references and deterministic fixture fingerprints without secrets/private market rows;
+- the PASS assembler refuses PASS when any required executed check/evidence reference is absent, belongs to another SHA, is malformed, or reports unavailable/failed status where the contract requires success.
+
+Only after PR381 PASS may a later backlog proposal use PR375/PR381 evidence to justify a new structural optimizer candidate/constraint/score. PR381 itself authorizes none.
+
+### PR382 — Restore quality-gate coverage headroom
+
+Branch: `test/pr382-coverage-headroom`
+
+Priority: P2 hardening.
+
+Depends on: PR381 PASS.
+
+Scope: tests/coverage hardening only. Keep the repository's contractual failure threshold at 90%; create operational headroom by covering meaningful production branches rather than weakening exclusions or deleting code for coverage optics.
+
+Acceptance:
+
+- the same combined unit + integration coverage aggregation used by GitHub `merge-gate` reports at least **92.0%** total statement coverage on the PR382 head;
+- no `# pragma: no cover`, coverage omit rule, source exclusion, generated-code reclassification or test deletion is added solely to improve the percentage;
+- added tests target real low-covered production behavior with priority on `app_state` persistence/error paths, application-service orchestration and Dash callback/state behavior introduced or exercised by PR377–PR381;
+- deterministic failure/unavailable/idempotency/restart branches are covered rather than only happy-path line execution;
+- browser tests are added only when browser behavior is the actual uncovered contract; do not inflate browser runtime for pure unit branches;
+- all tests remain deterministic and do not depend on the live external market host or external visual-reference site;
+- `uv run portfell-quality pr`, `uv run portfell-quality merge`, and GitHub `merge-gate` pass with the unchanged 90% hard threshold and measured aggregate coverage `>=92.0%`;
+- GATES.md continues to state 90% as the mandatory floor unless a later explicit governance PR changes that policy.
