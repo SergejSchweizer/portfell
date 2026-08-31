@@ -2,6 +2,20 @@
 
 This runbook covers the Portfell source-series transition to the external read-only xetra-loader PostgreSQL authority. It does not perform the later Plotly Dash / clean `portfell_dash` database replacement; PR344–PR360 own that transition.
 
+## Table of contents
+
+1. [Freeze the release inputs](#1-freeze-the-release-inputs)
+2. [Back up surviving application state](#2-back-up-only-surviving-portfell-application-state)
+3. [Validate local configuration](#3-validate-local-configuration-metadata)
+4. [Validate database authorities](#4-validate-independent-secret-supplied-database-authorities)
+5. [Run the privilege preflight](#5-market-source-privilege-preflight)
+6. [Start the runtime](#6-start-the-portfell-runtime)
+7. [Smoke browser routes](#7-smoke-the-four-canonical-browser-routes)
+8. [Run one analytical workflow](#8-run-one-analytical-smoke-workflow)
+9. [Post-deployment checks](#9-post-deployment-checks)
+10. [Rollback](#10-rollback)
+11. [Handoff](#11-handoff-to-pr343)
+
 ## 1. Freeze the release inputs
 
 Record, in a secret-free change record, the exact Portfell application SHA, the expected xetra-loader production SHA, the xetra-loader V2 acceptance artifact identity, and the intended deployment configuration revision. Do not record passwords, complete credential-bearing DSNs, secret-file contents, or PostgreSQL authentication material.
