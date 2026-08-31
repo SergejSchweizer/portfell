@@ -5,7 +5,7 @@ from __future__ import annotations
 import importlib
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Protocol, cast
+from typing import Any, Protocol, cast
 
 from dash import dcc, html
 from dash.development.base_component import Component
@@ -27,7 +27,7 @@ class WorkflowContext:
 
 
 def normalize_route(pathname: str | None) -> str:
-    if pathname in {None, "", "/"}:
+    if pathname is None or pathname in {"", "/"}:
         return DEFAULT_ROUTE
     normalized = pathname.rstrip("/") or "/"
     return normalized if normalized in PAGE_BY_ROUTE else DEFAULT_ROUTE
@@ -37,14 +37,18 @@ def navigation(pathname: str) -> Component:
     active = normalize_route(pathname)
     links = [
         html.A(
-            spec.label,
+            children=spec.label,
             href=spec.route,
             className=("pf-nav-link pf-nav-link-active" if spec.route == active else "pf-nav-link"),
-            **{"aria-current": "page" if spec.route == active else "false"},
+            **cast(Any, {"aria-current": "page" if spec.route == active else "false"}),
         )
         for spec in PAGE_SPECS
     ]
-    return html.Nav(links, className="pf-navigation", **{"aria-label": "Workflow"})
+    return html.Nav(
+        links,
+        className="pf-navigation",
+        **cast(Any, {"aria-label": "Workflow"}),
+    )
 
 
 def workflow_context(context: WorkflowContext | None = None) -> Component:
@@ -136,7 +140,10 @@ def route_renderer(services: object | None = None) -> Callable[[str | None], Com
 
 def _context_row(label: str, value: str, component_id: str) -> Component:
     return html.Div(
-        [html.Span(label, className="pf-context-label"), html.Span(value, id=component_id)],
+        [
+            html.Span(children=label, className="pf-context-label"),
+            html.Span(children=value, id=component_id),
+        ],
         className="pf-context-row",
     )
 

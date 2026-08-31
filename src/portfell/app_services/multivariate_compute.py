@@ -58,7 +58,7 @@ class MultivariateComputation:
     input_snapshot_id: str
     logical_hash: str
     algorithm_version: str
-    documents: Mapping[str, JsonRow]
+    documents: Mapping[str, JsonRow | list[JsonRow]]
     decision: MultivariateDecision
 
 
@@ -138,14 +138,15 @@ def compute_multivariate(
     )
     risk = build_multivariate_risk_model(snapshot=snapshot, return_rows=returns)
     structure = build_multivariate_structure(risk)
+    quote_json_rows = tuple(dict(row) for row in quote_rows)
     income = {
         key: build_income_evidence(
             listing=key,
             events=normalize_distribution_events(dividend_rows, listing=key),
             period_end=snapshot.date_end or "1970-01-01",
-            denominator_price=last_price(quote_rows, key),
+            denominator_price=last_price(quote_json_rows, key),
             period_start=snapshot.date_start,
-            start_price=first_price(quote_rows, key),
+            start_price=first_price(quote_json_rows, key),
         )
         for key in keys
     }
@@ -214,7 +215,7 @@ def compute_multivariate(
             "availability_reasons": list(snapshot.availability_reasons),
             "objective": objective,
         },
-        "input_snapshot": cast(JsonRow, snapshot.to_row()),
+        "input_snapshot": snapshot.to_row(),
         "risk_model": {
             "risk_model_id": risk.risk_model_id,
             "input_snapshot_id": risk.input_snapshot_id,
@@ -252,13 +253,10 @@ def compute_multivariate(
             ],
         },
         "candidates": {"items": candidate_rows},
-        "validation": {"items": cast(list[Any], validation_rows)},
+        "validation": {"items": validation_rows},
         "risk_contributions": {"items": risk_contributions},
         "income_evidence": {"items": income_rows},
-        "performance": cast(
-            JsonRow,
-            build_multivariate_performance(candidates=candidates, return_rows=returns),
-        ),
+        "performance": build_multivariate_performance(candidates=candidates, return_rows=returns),
         "decision": decision.document,
         "market_source": {
             "snapshot_id": market_snapshot_id,

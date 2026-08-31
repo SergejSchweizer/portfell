@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Protocol, cast
+from typing import Any, Protocol, cast
 
-import plotly.graph_objects as go
+import plotly.graph_objects as go  # pyright: ignore[reportMissingTypeStubs]
 from dash import html
 from dash.development.base_component import Component
 
@@ -35,13 +35,13 @@ class BivariateService(Protocol):
 def bivariate_page_data(service: BivariateService) -> dict[str, object]:
     workflow = service.workflow_state()
     selection = _mapping(workflow.get("univariate_selection"))
-    stages = _mapping(workflow.get("stages"))
+    stages = _mapping(workflow.get("stages")) or {}
     stage = _mapping(stages.get("bivariate"))
     detail = service.run_detail(str(stage["run_id"])) if stage and stage.get("run_id") else stage
-    artifacts = _mapping(detail.get("artifacts")) if detail else None
-    artifact = _mapping(artifacts.get("bivariate_rows")) if artifacts else None
-    raw_rows = artifact.get("items", []) if artifact else []
-    rows = tuple(cast(dict[str, object], row) for row in raw_rows if isinstance(row, dict))
+    artifacts = (_mapping(detail.get("artifacts")) or {}) if detail else {}
+    artifact = _mapping(artifacts.get("bivariate_rows")) or {}
+    raw_rows = _rows(artifact.get("items"))
+    rows = _mappings(raw_rows)
     input_count = None if selection is None else _integer(selection.get("member_count"))
     candidate_count = None if input_count is None else input_count * (input_count - 1) // 2
     unavailable = None if candidate_count is None else max(0, candidate_count - len(rows))
@@ -74,7 +74,7 @@ def build_page(services: object | None = None) -> Component:
 def _layout(
     model: Mapping[str, object], *, message: str | None = None, error: str | None = None
 ) -> Component:
-    rows = tuple(row for row in model.get("rows", ()) if isinstance(row, dict))
+    rows = _mappings(model.get("rows"))
     selection = _mapping(model.get("selection"))
     run = _mapping(model.get("run"))
     ready = model.get("ready") is True
@@ -86,7 +86,7 @@ def _layout(
         ControlBar(
             [
                 html.Button(
-                    "Compute bivariate statistics",
+                    children="Compute bivariate statistics",
                     id="bivariate-compute",
                     className="pf-button pf-button-primary",
                     disabled=selection is None,
@@ -133,11 +133,11 @@ def _layout(
             StageFooter(
                 [
                     html.A(
-                        "Continue to Multivariate",
+                        children="Continue to Multivariate",
                         href="/multivariate" if ready else "#",
                         id="bivariate-continue-multivariate",
                         className="pf-button pf-button-primary" if ready else "pf-button",
-                        **{"aria-disabled": "false" if ready else "true"},
+                        **cast(Any, {"aria-disabled": "false" if ready else "true"}),
                     )
                 ]
             ),
@@ -248,6 +248,20 @@ def _empty_model() -> dict[str, object]:
 
 def _mapping(value: object) -> dict[str, object] | None:
     return cast(dict[str, object], value) if isinstance(value, dict) else None
+
+
+def _rows(value: object) -> tuple[object, ...]:
+    rows = cast(list[object] | tuple[object, ...], value) if isinstance(value, list | tuple) else ()
+    return tuple(rows)
+
+
+def _mappings(value: object) -> tuple[dict[str, object], ...]:
+    rows: list[dict[str, object]] = []
+    for item in _rows(value):
+        row = _mapping(item)
+        if row is not None:
+            rows.append(row)
+    return tuple(rows)
 
 
 def _integer(value: object) -> int | None:

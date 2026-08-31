@@ -87,9 +87,7 @@ def compute_univariate(
             on_progress=on_progress,
         )
     )
-    source_id = univariate_source_id(
-        universe_id=universe_id, market_snapshot_id=market_snapshot_id
-    )
+    source_id = univariate_source_id(universe_id=universe_id, market_snapshot_id=market_snapshot_id)
     return ComputedRun(
         run_id=opaque_id("univariate-run", {"source_id": source_id}),
         source_id=source_id,

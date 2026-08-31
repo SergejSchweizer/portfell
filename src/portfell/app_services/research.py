@@ -478,9 +478,7 @@ class ResearchApplicationService:
         run = self._state.get_analysis_run(run_id)
         artifacts = self._state.list_analysis_artifacts(run.run_id)
         row = _run_row(run)
-        row["artifacts"] = {
-            artifact.artifact_type: artifact.document for artifact in artifacts
-        }
+        row["artifacts"] = {artifact.artifact_type: artifact.document for artifact in artifacts}
         if run.stage == "multivariate" and run.status == "succeeded":
             try:
                 decision = self._state.get_decision_artifact(run.run_id)
@@ -493,8 +491,7 @@ class ResearchApplicationService:
 
     def stage_history(self, stage: str, *, limit: int = 100) -> tuple[JsonRow, ...]:
         return tuple(
-            _run_row(item)
-            for item in self._state.list_analysis_runs(stage=stage, limit=limit)
+            _run_row(item) for item in self._state.list_analysis_runs(stage=stage, limit=limit)
         )
 
     def workflow_state(self) -> JsonRow:

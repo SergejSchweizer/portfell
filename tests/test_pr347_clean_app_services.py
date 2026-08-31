@@ -49,8 +49,13 @@ class MemoryState:
 
     def create_metadata_universe(self, **values: object) -> MetadataUniverseRecord:
         record = MetadataUniverseRecord(
-            str(values["universe_id"]), str(values["source_snapshot_id"]), int(values["version"]),
-            str(values["content_hash"]), NOW, NOW, tuple(values["members"]),  # type: ignore[arg-type]
+            str(values["universe_id"]),
+            str(values["source_snapshot_id"]),
+            int(values["version"]),
+            str(values["content_hash"]),
+            NOW,
+            NOW,
+            tuple(values["members"]),  # type: ignore[arg-type]
         )
         self.universes[record.universe_id] = record
         return record
@@ -66,9 +71,17 @@ class MemoryState:
         if run_id in self.runs:
             return self.runs[run_id]
         record = AnalysisRunRecord(
-            run_id, str(values["stage"]), str(values["status"]), str(values["input_snapshot_id"]),
-            str(values["input_ref"]), str(values["logical_hash"]), str(values["algorithm_version"]),
-            None, NOW, NOW, None,
+            run_id,
+            str(values["stage"]),
+            str(values["status"]),
+            str(values["input_snapshot_id"]),
+            str(values["input_ref"]),
+            str(values["logical_hash"]),
+            str(values["algorithm_version"]),
+            None,
+            NOW,
+            NOW,
+            None,
         )
         self.runs[run_id] = record
         return record
@@ -78,8 +91,16 @@ class MemoryState:
     ) -> AnalysisRunRecord:
         old = self.runs[run_id]
         record = AnalysisRunRecord(
-            old.run_id, old.stage, status, old.input_snapshot_id, old.input_ref, old.logical_hash,
-            old.algorithm_version, failure_code, old.created_at, old.started_at,
+            old.run_id,
+            old.stage,
+            status,
+            old.input_snapshot_id,
+            old.input_ref,
+            old.logical_hash,
+            old.algorithm_version,
+            failure_code,
+            old.created_at,
+            old.started_at,
             NOW if status in {"succeeded", "failed", "cancelled"} else None,
         )
         self.runs[run_id] = record
@@ -96,8 +117,12 @@ class MemoryState:
 
     def put_analysis_artifact(self, **values: object) -> AnalysisArtifactRecord:
         record = AnalysisArtifactRecord(
-            str(values["artifact_id"]), str(values["run_id"]), str(values["artifact_type"]),
-            str(values["content_hash"]), dict(values["document"]), NOW,  # type: ignore[arg-type]
+            str(values["artifact_id"]),
+            str(values["run_id"]),
+            str(values["artifact_type"]),
+            str(values["content_hash"]),
+            dict(values["document"]),
+            NOW,  # type: ignore[arg-type]
         )
         self.artifacts.setdefault(record.run_id, []).append(record)
         return record
@@ -107,8 +132,13 @@ class MemoryState:
 
     def create_univariate_selection(self, **values: object) -> UnivariateSelectionRecord:
         record = UnivariateSelectionRecord(
-            str(values["selection_id"]), str(values["source_run_id"]), int(values["version"]),
-            str(values["content_hash"]), NOW, NOW, tuple(values["members"]),  # type: ignore[arg-type]
+            str(values["selection_id"]),
+            str(values["source_run_id"]),
+            int(values["version"]),
+            str(values["content_hash"]),
+            NOW,
+            NOW,
+            tuple(values["members"]),  # type: ignore[arg-type]
         )
         self.selections[record.selection_id] = record
         return record

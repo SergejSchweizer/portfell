@@ -51,9 +51,9 @@ def test_four_stage_e2e_covers_full_identity_lineage_and_fail_closed_inputs() ->
     # One deterministic source lineage is propagated downstream and never replaced
     # with provider/download/sync identity.
     assert 'snapshot_id.startswith("market_source_snapshot_")' in source
-    assert 'assert bivariate_run.source_id.endswith(snapshot_id)' in source
+    assert "assert bivariate_run.source_id.endswith(snapshot_id)" in source
     assert 'computed.summary["market_source_snapshot_id"] == snapshot_id' in source
-    assert 'assert source_before == gateway.snapshot' in source
+    assert "assert source_before == gateway.snapshot" in source
     lowered = source.lower()
     assert "provider_download" not in lowered
     assert "quote_run_id" not in lowered

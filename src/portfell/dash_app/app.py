@@ -22,13 +22,16 @@ def create_dash_app(*, services: object | None = None) -> Dash:
         assets_folder=str(assets),
         suppress_callback_exceptions=True,
         title="Portfell",
-        update_title=None,
+        update_title="",
     )
     app.layout = root_layout()
     render = route_renderer(services)
 
-    @app.callback(Output("pf-route-content", "children"), Input("pf-location", "pathname"))
-    def _render_route(pathname: str | None) -> Any:
+    @app.callback(  # pyright: ignore[reportUnknownMemberType]
+        Output("pf-route-content", "children"), Input("pf-location", "pathname")
+    )
+    # Dash invokes this callback from its component registry.
+    def _render_route(pathname: str | None) -> Any:  # pyright: ignore[reportUnusedFunction]
         return render(pathname)
 
     return app
@@ -44,7 +47,8 @@ def mount_dash_app(
     application = dash_app or create_dash_app(services=services)
 
     @api.get("/", include_in_schema=False)
-    def _dash_root_redirect() -> RedirectResponse:
+    # FastAPI invokes this endpoint from its route registry.
+    def _dash_root_redirect() -> RedirectResponse:  # pyright: ignore[reportUnusedFunction]
         return RedirectResponse(DEFAULT_ROUTE, status_code=307)
 
     api.mount("/", WSGIMiddleware(application.server), name="portfell-dash")
