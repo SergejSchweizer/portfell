@@ -17,7 +17,7 @@ env:
 jobs:
   merge-lint-quality:
     name: merge-lint-quality
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, ubuntu-latest]
 
     steps:
       - name: Checkout
@@ -62,7 +62,7 @@ jobs:
 
   merge-type-quality:
     name: merge-type-quality
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, ubuntu-latest]
 
     steps:
       - name: Checkout
@@ -87,7 +87,7 @@ jobs:
 
   merge-web-unit-quality:
     name: merge-web-unit-quality
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, ubuntu-latest]
 
     steps:
       - name: Checkout
@@ -107,7 +107,7 @@ jobs:
 
   merge-web-button-e2e:
     name: merge-web-button-e2e
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, ubuntu-latest]
 
     steps:
       - name: Checkout
@@ -137,7 +137,7 @@ jobs:
 
   merge-real-stack-buttons:
     name: merge-real-stack-buttons
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, ubuntu-latest]
 
     steps:
       - name: Checkout
@@ -160,7 +160,7 @@ jobs:
 
   merge-unit-tests:
     name: merge-unit-tests-${{ matrix.shard }}
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, ubuntu-latest]
     strategy:
       fail-fast: false
       matrix:
@@ -208,7 +208,7 @@ jobs:
 
   merge-integration-tests:
     name: merge-integration-tests-${{ matrix.shard }}
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, ubuntu-latest]
     strategy:
       fail-fast: false
       matrix:
@@ -256,7 +256,7 @@ jobs:
 
   merge-gate:
     name: merge-gate
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, ubuntu-latest]
     needs:
       - merge-lint-quality
       - merge-type-quality
