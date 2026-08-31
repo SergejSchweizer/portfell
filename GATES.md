@@ -19,7 +19,7 @@ Last reviewed: 2026-08-30
 
 ## Current Shape
 
-Portfell uses one local validation contract. Run the applicable focused checks while changing code and the complete check before integration. GitHub runs the complete `merge-gate` once per pull request targeting the integration branch required by the active stack; final integration to `main` still requires the complete gate.
+Portfell uses one local validation contract. Run the applicable focused checks while changing code and the complete check before integration. GitHub runs the complete `merge-gate` once per pull request targeting the integration branch required by the active stack; final integration must rebase/retarget onto current main before integration and run the complete gate again.
 
 The shard count is intentionally kept at `4` for Unit and Integration tests. Current CI runtime is dominated more by runner setup, checkout, dependency installation, and artifact handling than by individual test execution, so further splitting is not expected to improve wall-clock time yet.
 
@@ -42,13 +42,19 @@ Required check families:
 ## Rebase Workflow
 
 ```text
-working branch
+working or stacked branch
         |
         v
 rebase onto required integration predecessor
         |
         v
-run complete validation
+run complete validation against that predecessor
+        |
+        v
+rebase/retarget onto current main before integration
+        |
+        v
+run complete validation again
         |
         v
 integrated linear main history after gates pass
@@ -71,7 +77,7 @@ cd apps/web && npm run e2e
 bash scripts/run_real_stack_e2e.sh
 ```
 
-Before integration after rebasing onto the required predecessor, run the complete Python check:
+Before final integration after rebasing onto current `main`, run the complete Python check:
 
 ```bash
 uv run portfell-quality main
