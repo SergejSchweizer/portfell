@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Protocol
+from typing import Protocol, cast
 
 
 class AppStateReadCursor(Protocol):
@@ -11,9 +11,7 @@ class AppStateReadCursor(Protocol):
 
 
 class AppStateReadConnection(Protocol):
-    def execute(
-        self, query: str, params: Sequence[object] | None = None
-    ) -> AppStateReadCursor: ...
+    def execute(self, query: str, params: Sequence[object] | None = None) -> AppStateReadCursor: ...
 
 
 def read_applied_migration_versions(connection: AppStateReadConnection) -> tuple[int, ...]:
@@ -22,7 +20,7 @@ def read_applied_migration_versions(connection: AppStateReadConnection) -> tuple
     rows = connection.execute(
         "select version from portfell.schema_migrations order by version"
     ).fetchall()
-    return tuple(int(row[0]) for row in rows)
+    return tuple(int(cast(int, row[0])) for row in rows)
 
 
 __all__ = ["AppStateReadConnection", "AppStateReadCursor", "read_applied_migration_versions"]

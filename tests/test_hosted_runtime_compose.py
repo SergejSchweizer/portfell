@@ -42,19 +42,26 @@ def test_compose_defines_persistent_internal_postgres_without_market_filesystem(
     postgres = cast(ComposeMapping, services["postgres"])
     api = cast(ComposeMapping, services["api"])
 
-    assert "portfell-postgres-data" in volumes
-    assert "portfell-shared-data" not in volumes
-    assert postgres["container_name"] == "portfell-postgress"
+    assert set(services) == {"api", "postgres"}
+    assert set(volumes) == {"portfell-dash-postgres-data"}
+    assert postgres["container_name"] == "portfell-postgres"
+    assert cast(ComposeMapping, postgres["environment"])["POSTGRES_DB"] == "portfell_dash"
+    assert postgres["volumes"] == ["portfell-dash-postgres-data:/var/lib/postgresql/data"]
+    assert "portfell_dash" in str(cast(ComposeMapping, postgres["healthcheck"])["test"])
     assert postgres["networks"] == ["portfell-internal"]
     assert "ports" not in postgres
     assert "5432" in postgres["expose"]
-    assert "portfell-postgres-data:/var/lib/postgresql/data" in postgres["volumes"]
-    assert set(services) == {"api", "postgres"}
-    assert api["volumes"] == ["./config.yaml:/run/portfell/config.yaml:ro"]
     assert api["container_name"] == "portfell-api"
-    assert api["environment"]["PORTFELL_HOSTED_AUTHORITY"] == "postgres"
-    assert api["environment"]["PORTFELL_DATABASE_PASSWORD_FILE"] == "/run/secrets/postgres_password"
+    environment = cast(ComposeMapping, api["environment"])
+    assert "PORTFELL_HOSTED_AUTHORITY" not in environment
+    assert (
+        environment["PORTFELL_DATABASE_URL"]
+        == "postgresql://portfell_app@postgres:5432/portfell_dash"
+    )
+    assert "PORTFELL_MARKET_DATABASE_URL" in environment
+    assert environment["PORTFELL_DATABASE_PASSWORD_FILE"] == "/run/secrets/postgres_password"
     assert api["secrets"] == ["postgres_password", "market_postgres_password"]
+    assert api["volumes"] == ["./config.yaml:/run/portfell/config.yaml:ro"]
     assert api["group_add"] == ["${PORTFELL_SECRET_GROUP_ID:-100}"]
 
 

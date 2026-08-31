@@ -57,14 +57,16 @@ def research_router(service: ResearchApplicationPort) -> APIRouter:
     router = APIRouter(prefix="/api")
 
     @router.post("/univariate/runs")
-    def run_univariate(payload: dict[str, object]) -> JsonRow:
+    def run_univariate(payload: dict[str, object]) -> JsonRow:  # pyright: ignore[reportUnusedFunction]
         try:
             return service.run_univariate(_required_string(payload, "universe_id"))
         except ApplicationServiceError as error:
             raise _error(error) from error
 
     @router.post("/univariate/selections")
-    def create_univariate_selection(payload: dict[str, object]) -> JsonRow:
+    def create_univariate_selection(  # pyright: ignore[reportUnusedFunction]
+        payload: dict[str, object],
+    ) -> JsonRow:
         try:
             selection = service.create_univariate_selection(
                 _required_string(payload, "run_id"), predicates=_predicates(payload)
@@ -83,14 +85,14 @@ def research_router(service: ResearchApplicationPort) -> APIRouter:
         }
 
     @router.post("/bivariate/runs")
-    def run_bivariate(payload: dict[str, object]) -> JsonRow:
+    def run_bivariate(payload: dict[str, object]) -> JsonRow:  # pyright: ignore[reportUnusedFunction]
         try:
             return service.run_bivariate(_required_string(payload, "selection_id"))
         except ApplicationServiceError as error:
             raise _error(error) from error
 
     @router.post("/multivariate/runs")
-    def run_multivariate(payload: dict[str, object]) -> JsonRow:
+    def run_multivariate(payload: dict[str, object]) -> JsonRow:  # pyright: ignore[reportUnusedFunction]
         objective_value = payload.get("objective", "return_risk")
         if not isinstance(objective_value, str):
             raise HTTPException(status_code=422, detail={"code": "objective_invalid"})
@@ -104,14 +106,16 @@ def research_router(service: ResearchApplicationPort) -> APIRouter:
             raise _error(error) from error
 
     @router.get("/runs/{run_id}")
-    def run_detail(run_id: str) -> JsonRow:
+    def run_detail(run_id: str) -> JsonRow:  # pyright: ignore[reportUnusedFunction]
         try:
             return service.run_detail(run_id)
         except ApplicationServiceError as error:
             raise _error(error) from error
 
     @router.get("/runs")
-    def stage_history(stage: str = Query(...), limit: int = Query(default=100, ge=1, le=500)) -> JsonRow:
+    def stage_history(  # pyright: ignore[reportUnusedFunction]
+        stage: str = Query(...), limit: int = Query(default=100, ge=1, le=500)
+    ) -> JsonRow:
         if stage not in {"univariate", "bivariate", "multivariate"}:
             raise HTTPException(status_code=422, detail={"code": "stage_invalid"})
         try:

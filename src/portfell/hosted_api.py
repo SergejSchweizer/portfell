@@ -37,7 +37,7 @@ def create_app(service: ResearchApplicationService | None = None) -> FastAPI:
     application = FastAPI(title="Portfell", version="1.0.0")
 
     @application.get("/healthz", include_in_schema=False)
-    def healthz() -> dict[str, str]:
+    def healthz() -> dict[str, str]:  # pyright: ignore[reportUnusedFunction]
         return {"status": "ok"}
 
     if service is not None:
