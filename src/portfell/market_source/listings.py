@@ -8,7 +8,10 @@ from typing import Protocol
 from portfell.market_source.contracts import Listing, ListingKey
 from portfell.market_source.errors import MARKET_SOURCE_INVALID_VALUE, MarketSourceError
 
-_LISTING_COLUMNS = "isin, exchange, code, name, instrument_type, country, currency, is_active"
+_LISTING_COLUMNS = (
+    "isin, exchange, code, name, COALESCE(instrument_type, '') AS instrument_type, "
+    "country, currency, is_active"
+)
 _BATCH_SIZE = 500
 
 

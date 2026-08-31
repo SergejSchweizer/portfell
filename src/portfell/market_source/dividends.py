@@ -10,7 +10,7 @@ from typing import Protocol
 from portfell.market_source.contracts import Dividend, ListingKey
 from portfell.market_source.errors import MARKET_SOURCE_INVALID_VALUE, MarketSourceError
 
-_DIVIDEND_COLUMNS = "isin, exchange, code, event_date, event_key, amount, currency"
+_DIVIDEND_COLUMNS = "isin, exchange, code, event_date, event_key, value AS amount, currency"
 _BATCH_SIZE = 500
 
 

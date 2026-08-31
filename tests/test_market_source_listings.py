@@ -73,3 +73,11 @@ def test_listings_repository_reads_only_active_rows() -> None:
 
     assert listings[0].is_active is True
     assert "WHERE is_active = true" in cursor.queries[0][0]
+
+
+def test_listings_repository_normalizes_nullable_optional_instrument_type() -> None:
+    cursor = FakeCursor([[_row("IE00UNKNOWN", "XETRA", "U")]])
+
+    ListingsRepository().active(cursor)
+
+    assert "COALESCE(instrument_type, '') AS instrument_type" in cursor.queries[0][0]

@@ -14,7 +14,10 @@ from portfell.market_source.errors import (
     MarketSourceError,
 )
 
-_QUOTE_COLUMNS = "isin, exchange, code, trade_date, adjusted_close, close, volume"
+_QUOTE_COLUMNS = (
+    "isin, exchange, code, trade_date, adjusted_close, close, "
+    "volume::numeric AS volume"
+)
 _BATCH_SIZE = 500
 
 

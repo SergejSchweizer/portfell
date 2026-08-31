@@ -58,7 +58,7 @@ def test_live_gate_is_pinned_to_expected_loader_sha_and_endpoint() -> None:
     assert parsed.path == "/xetra_loader"
 
     config = _market_config()
-    validate_market_database_url(config, database_url=dsn)
+    validate_market_database_url(config, url=dsn)
     assert config.database == "xetra_loader"
     assert config.schema == "xetra_loader"
     assert config.tables == ("listings", "eod_quotes", "dividends", "splits")

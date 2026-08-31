@@ -52,6 +52,17 @@ def test_quotes_read_inclusive_range_preserves_missing_adjusted_close() -> None:
     assert parameters[-2:] == (date(2024, 1, 1), date(2024, 1, 2))
 
 
+def test_quotes_repository_normalizes_bigint_volume_to_decimal() -> None:
+    key = ListingKey("IE00ONE", "XETRA", "ONE")
+    cursor = FakeCursor([[_row(key, date(2024, 1, 2), Decimal("10"))]])
+
+    QuotesRepository().read_range(
+        cursor, (key,), start=date(2024, 1, 2), end=date(2024, 1, 2)
+    )
+
+    assert "volume::numeric AS volume" in cursor.queries[0][0]
+
+
 def test_quotes_batch_501_listing_identities() -> None:
     keys = tuple(ListingKey(f"IE{index:010d}", "XETRA", "ETF") for index in range(501))
     cursor = FakeCursor(
