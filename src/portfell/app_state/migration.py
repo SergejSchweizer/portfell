@@ -7,11 +7,11 @@ import re
 from collections.abc import Sequence
 from typing import Protocol, cast
 
-from portfell.app_state.migrations import MIGRATION_V001
+from portfell.app_state.migrations import MIGRATION_V001, MIGRATION_V002
 from portfell.app_state.migrations.v001_initial import AppStateMigration
 from portfell.app_state.schema import APP_STATE_TABLES
 
-APP_STATE_MIGRATIONS: tuple[AppStateMigration, ...] = (MIGRATION_V001,)
+APP_STATE_MIGRATIONS: tuple[AppStateMigration, ...] = (MIGRATION_V001, MIGRATION_V002)
 _ROLE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 _BOOTSTRAP_SQL = """
@@ -101,7 +101,7 @@ def migrate_to_head(connection: MigrationConnection) -> tuple[int, ...]:
 def rollback_to_zero(
     connection: MigrationConnection, *, allow_destructive: bool = False
 ) -> tuple[int, ...]:
-    """Drop the clean schema only when an operator explicitly allows destructive rollback."""
+    """Roll back one migration step when explicitly authorized."""
 
     if not allow_destructive:
         raise AppStateMigrationError("app_state_destructive_rollback_required")
@@ -113,6 +113,10 @@ def rollback_to_zero(
             if migration.version not in existing:
                 continue
             connection.execute(migration.destructive_down_sql)
+            connection.execute(
+                "delete from portfell.schema_migrations where version = %s",
+                (migration.version,),
+            )
             rolled_back.append(migration.version)
             break
         connection.commit()
