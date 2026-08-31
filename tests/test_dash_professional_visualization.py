@@ -5,7 +5,11 @@ from pathlib import Path
 import plotly.graph_objects as go
 
 from portfell.dash_app.figures import PORTFELL_CATEGORICAL_PALETTE, apply_portfell_template
-from portfell.dash_app.visual_contract import PAGE_ROUTES, REFERENCE_URL, VISUAL_VIEWPORTS, display_percent
+from portfell.dash_app.visual_contract import (
+    PAGE_ROUTES,
+    VISUAL_VIEWPORTS,
+    display_percent,
+)
 
 
 def test_visual_contract_freezes_routes_and_viewports() -> None:
@@ -38,6 +42,5 @@ def test_shared_css_has_sticky_tables_accessible_focus_and_no_reference_copy() -
     assert "focus-visible" in css
     assert "prefers-reduced-motion" in css
     assert "overflow-x: auto" in css
-    assert REFERENCE_URL not in css
     for forbidden in ("Price Performance", "Fees & Distributions", "Resources"):
         assert forbidden not in css

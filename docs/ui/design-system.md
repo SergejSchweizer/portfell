@@ -14,6 +14,10 @@ financial work readable at operational density, and shows system status visibly.
 Direct manipulation is used only for reversible actions. Decorative elements
 must not compete with financial data.
 
+The Dash dashboard takes composition cues only from
+https://financial-dashboard-example.plotly.app/. This reference does not supply
+production content, data, copy, branding, assets, or browser dependencies.
+
 ## Tokens
 
 All production values are declared once in `apps/web/styles/app.css`.
