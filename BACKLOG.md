@@ -958,6 +958,12 @@ Branch: `feat/pr350-dash-univariate-page`
 
 Depends on: PR347 and PR348.
 
+Git status: integrated on `main` at `f10a641`. The Dash Univariate page renders backend-owned
+return/risk evidence, typed unavailable rows and persisted downstream selection controls through
+the clean application-service contract. Dash-4-compatible selection/navigation controls are
+covered by focused tests; the complete gate passed (`903 passed`, `5` live-only skips, `90.13%`
+coverage).
+
 Owned paths: Dash Univariate page/callbacks/plots/tables and focused tests. Reuse PR348 shared presentation primitives; do not duplicate global CSS.
 
 Frozen page title: `Univariate`.
