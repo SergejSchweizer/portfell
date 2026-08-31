@@ -33,7 +33,7 @@ def test_compose_keeps_app_postgres_local_and_market_postgres_external() -> None
     assert api["volumes"] == ["./config.yaml:/run/portfell/config.yaml:ro"]
 
     # xetra-loader is an external authority. Compose must never create or own it.
-    assert set(services) == {"api", "postgres", "web"}
+    assert set(services) == {"api", "postgres"}
     assert "xetra-loader" not in services
     assert "market-postgres" not in services
     assert "xetra_loader" not in str(postgres)
