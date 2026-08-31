@@ -4,6 +4,20 @@ Status: normative implementation contract for PR348–PR355. `BACKLOG.md` remain
 
 External visual reference: `https://financial-dashboard-example.plotly.app/`. The reference is documentation/design inspiration only. Portfell must not fetch it at runtime or in deterministic tests, embed it, copy its branding/content/fund data/document links/assets, or add product features merely because they exist in the reference application.
 
+## Table of contents
+
+1. [Product frame](#1-product-frame)
+2. [Design tokens](#2-frozen-design-tokens)
+3. [Responsive contract](#3-responsive-contract)
+4. [Shared primitives](#4-shared-presentation-primitives)
+5. [Shared Plotly figures](#5-shared-plotly-figure-contract)
+6. [Metadata page](#6-metadata-page)
+7. [Univariate page](#7-univariate-page)
+8. [Bivariate page](#8-bivariate-page)
+9. [Multivariate page](#9-multivariate-page)
+10. [Cross-page state](#10-cross-page-state-and-navigation)
+11. [Non-goals](#11-explicit-non-goals)
+
 ## 1. Product frame
 
 Portfell is one single-user analytical application with exactly four production product pages, in this navigation order:

@@ -2,6 +2,19 @@
 
 Status: normative replacement-boundary contract for PR345–PR360. `BACKLOG.md` remains the only executable backlog authority.
 
+## Table of contents
+
+1. [Final authorities](#1-final-authorities)
+2. [Final browser routes](#2-final-browser-routes)
+3. [Callback-to-service boundary](#3-callback-to-service-boundary)
+4. [Clean app-state authority](#4-clean-app_state-authority)
+5. [Legacy browser deletion](#5-legacy-browserui-deletion-boundary)
+6. [Legacy database deletion](#6-legacy-portfell-database-deletion-boundary)
+7. [Configuration boundary](#7-configuration-boundary)
+8. [Negative-space rules](#8-negative-space-rules)
+9. [Inventory semantics](#9-inventory-semantics)
+10. [Handoff order](#10-handoff-order)
+
 ## 1. Final authorities
 
 The final Portfell runtime has exactly three architectural authorities:
