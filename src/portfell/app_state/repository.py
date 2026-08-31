@@ -329,7 +329,12 @@ class PostgresAppStateRepository:
         total: int | None,
         phase: str,
     ) -> AnalysisJobRecord:
-        if current < 0 or (total is not None and (total < 0 or current > total)) or not phase.strip():
+        invalid_progress = (
+            current < 0
+            or (total is not None and (total < 0 or current > total))
+            or not phase.strip()
+        )
+        if invalid_progress:
             raise AppStateError(APP_STATE_CONFLICT)
         try:
             row = self._connection.execute(
@@ -418,9 +423,11 @@ class PostgresAppStateRepository:
         job = self.get_analysis_job(job_id)
         if job.status not in {"queued", "running"}:
             raise AppStateError(APP_STATE_INVALID_TRANSITION)
-        if status == "succeeded":
-            if job.run_id is None or self.get_analysis_run(job.run_id).status != "succeeded":
-                raise AppStateError(APP_STATE_INVALID_TRANSITION)
+        if (
+            status == "succeeded"
+            and (job.run_id is None or self.get_analysis_run(job.run_id).status != "succeeded")
+        ):
+            raise AppStateError(APP_STATE_INVALID_TRANSITION)
         try:
             row = self._connection.execute(
                 """update portfell.analysis_jobs
