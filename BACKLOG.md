@@ -823,6 +823,11 @@ Branch: `feat/pr346-portfell-dash-app-state-repositories`
 
 Depends on: PR345.
 
+Git status: integrated on `main` at `8fb3bc8`. Typed, parameterized app-state repositories now
+cover immutable universe/selection memberships, stage runs, artifacts, decisions and preferences
+without legacy hosted or market-SQL dependencies. Focused repository/migration tests and the
+complete local quality gate pass (`887 passed`, `5` live-only skips, `90.26%` coverage).
+
 Owned paths: new `src/portfell/app_state/**` repositories/contracts except migrations; focused tests.
 
 Tasks: implement typed repositories for every PR345 concept; parameterized SQL only; no import from legacy hosted PostgreSQL repository modules; no market SQL.
