@@ -1,4 +1,4 @@
-name: auto-merge
+name: auto-rebase
 
 on:
   workflow_run:
@@ -12,7 +12,7 @@ permissions:
 jobs:
   merge:
     name: merge
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, ubuntu-latest]
     if: >-
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'pull_request' &&
@@ -27,7 +27,7 @@ jobs:
         run: |
           IS_DRAFT="$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)"
           if [[ "$IS_DRAFT" == "true" ]]; then
-            echo "PR $PR_NUMBER is still a draft; skipping auto-merge."
+            echo "PR $PR_NUMBER is still a draft; skipping auto-rebase."
             exit 0
           fi
           PR_TITLE="$(gh pr view "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --json title --jq .title)"
