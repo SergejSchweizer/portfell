@@ -8,7 +8,7 @@ The universe artifact is `multivariate.structure@v2`. The candidate artifact is 
 
 Every result is derived from one immutable Multivariate input snapshot, its aligned daily log-return matrix, and the canonical production Ledoit-Wolf joint covariance artifact. No pairwise covariance/correlation, sample-covariance fallback, shorter rolling window, implicit zero, or weaker clustering fallback is permitted. Optional diagnostics fail closed with typed availability reasons.
 
-V1 artifacts remain immutable historical data. New v2 production artifacts are published only when PR372 lands. V2 does not emit `effective_independent_drivers` or `strongest_common_driver`.
+V1 artifacts remain immutable historical data. New v2 production artifacts are published only when PR372 lands. V2 does not emit `effective_independent_drivers`. V2 does not emit `strongest_common_driver`.
 
 ## 2. Shared numerical contract
 
@@ -49,7 +49,7 @@ R_ij = Sigma_ij / sqrt(Sigma_ii * Sigma_jj)
 
 The diagonal is `1.0` within absolute tolerance `1e-12`. A correlation outside `[-1, 1]` by at most `1e-12` is clipped to the boundary; a larger violation yields `correlation_out_of_bounds`. A non-finite/non-positive variance yields `correlation_non_positive_variance`; a non-finite correlation yields `correlation_non_finite`.
 
-Correlation PCA fields mirror covariance PCA with `correlation_` prefixes: eigenvalues, explained variance, cumulative explained variance, effective rank, 80/90/95 component counts, component coefficients, dominant-component representative and dominant-component share. Correlation PCA availability is independent of covariance PCA availability after covariance PCA has succeeded.
+Correlation PCA fields mirror covariance PCA with `correlation_` prefixes: `correlation_eigenvalues`, `correlation_explained_variance`, `correlation_cumulative_explained_variance`, `correlation_effective_rank`, `correlation_components_for_80pct`, `correlation_components_for_90pct`, `correlation_components_for_95pct`, `correlation_component_coefficients`, `correlation_dominant_component_representative`, and `correlation_dominant_component_share`. Correlation PCA availability is independent of covariance PCA availability after covariance PCA has succeeded.
 
 ## 5. Signal-component parallel analysis
 
