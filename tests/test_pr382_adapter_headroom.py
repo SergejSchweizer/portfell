@@ -109,9 +109,7 @@ def test_research_routes_success_and_defaults() -> None:
             "predicates": [{"metric": "sharpe_ratio", "min": 1.0}],
         },
     )
-    assert selection.json()["members"] == [
-        {"isin": "DE0001", "exchange": "XETRA", "code": "AAA"}
-    ]
+    assert selection.json()["members"] == [{"isin": "DE0001", "exchange": "XETRA", "code": "AAA"}]
 
     response = client.post(
         "/api/bivariate/runs",
