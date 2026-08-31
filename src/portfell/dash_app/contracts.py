@@ -37,14 +37,19 @@ PAGE_SPECS = (
         page_id="bivariate",
         label="Bivariate",
         title="Bivariate",
-        subtitle="Inspect pairwise diversification evidence for the persisted Univariate selection.",
+        subtitle=(
+            "Inspect pairwise diversification evidence for the persisted Univariate selection."
+        ),
     ),
     PageSpec(
         route="/multivariate",
         page_id="multivariate",
         label="Multivariate",
         title="Multivariate",
-        subtitle="Optimize candidate portfolios and select the final portfolio from out-of-sample evidence.",
+        subtitle=(
+            "Optimize candidate portfolios and select the final portfolio from "
+            "out-of-sample evidence."
+        ),
     ),
 )
 

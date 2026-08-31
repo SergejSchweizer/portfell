@@ -7,7 +7,6 @@ from typing import Any
 
 import plotly.graph_objects as go
 
-
 PORTFELL_FIGURE_LAYOUT: dict[str, Any] = {
     "font": {
         "family": 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',

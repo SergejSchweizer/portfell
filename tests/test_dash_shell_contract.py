@@ -75,7 +75,8 @@ def test_shell_renders_every_page_without_legacy_web_import() -> None:
     source = "\n".join(path.read_text(encoding="utf-8") for path in package.rglob("*.py"))
     assert "apps.web" not in source
     assert "financial-dashboard-example.plotly.app" not in source
-    assert "select " not in source.lower()
+    assert ".execute(" not in source
+    assert "psycopg" not in source
     assert "insert " not in source.lower()
     assert "update " not in source.lower()
     assert "delete " not in source.lower()

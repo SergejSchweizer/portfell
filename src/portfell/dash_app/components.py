@@ -7,7 +7,6 @@ from collections.abc import Sequence
 from dash import dcc, html
 from dash.development.base_component import Component
 
-
 Content = Component | str | int | float
 
 
@@ -39,7 +38,9 @@ def _Card(title: str, body: Sequence[Content], *, class_name: str) -> Component:
     )
 
 
-def ChartCard(title: str, figure: object | None = None, *, graph_id: str | None = None) -> Component:
+def ChartCard(
+    title: str, figure: object | None = None, *, graph_id: str | None = None
+) -> Component:
     content: Component
     if figure is None:
         content = UnavailableData("Chart data is not available yet.")

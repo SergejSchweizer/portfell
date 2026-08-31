@@ -76,7 +76,10 @@ def placeholder_page(spec: PageSpec) -> Component:
     return html.Div(
         [
             PageHeader(spec.title, spec.subtitle),
-            StatusBanner("This stage is wired to the shared shell; its page contract is implemented in the next stack wave."),
+            StatusBanner(
+                "This stage is wired to the shared shell; its page contract is implemented "
+                "in the next stack wave."
+            ),
         ],
         className="pf-page",
     )
@@ -88,7 +91,7 @@ def load_page(spec: PageSpec, services: object | None = None) -> Component:
     try:
         module = importlib.import_module(module_name)
     except ModuleNotFoundError as error:
-        if error.name != module_name:
+        if error.name not in {"portfell.dash_app.pages", module_name}:
             raise
         return placeholder_page(spec)
     builder = getattr(module, "build_page", None)
