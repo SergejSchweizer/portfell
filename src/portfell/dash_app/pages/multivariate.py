@@ -148,6 +148,8 @@ def _layout(
     validation = _mappings(model.get("validation"))
     contributions = _mappings(model.get("risk_contributions"))
     performance = _mapping(model.get("performance"))
+    universe_structure = _mapping(model.get("universe_structure"))
+    candidate_structure = _mapping(model.get("candidate_structure"))
     children: list[Component] = [
         PageHeader(
             "Multivariate",
@@ -223,6 +225,7 @@ def _layout(
                 _risk_contribution_figure(contributions, model.get("winner_id")),
                 graph_id="multivariate-risk-contribution",
             ),
+            *(_structure_cards(universe_structure, candidate_structure)),
             TableCard(
                 "Final Portfolio",
                 (
@@ -247,6 +250,30 @@ def _layout(
         ]
     )
     return html.Div(children, className="pf-page", id="multivariate-page")
+
+
+def _structure_cards(
+    universe: Mapping[str, object] | None, candidate: Mapping[str, object] | None
+) -> tuple[Component, ...]:
+    """Render persisted structural evidence only; unavailable evidence remains explicit."""
+    if universe is None or candidate is None:
+        return (UnavailableData("Structural evidence is unavailable for this run."),)
+    diversification = _mapping(universe.get("structural_diversification")) or {}
+    clusters = _mappings(universe.get("risk_clusters"))
+    stability = _mapping(universe.get("structural_stability")) or {}
+    candidate_rows = _mappings(candidate.get("candidate_structural_risk"))
+    return (
+        TableCard("PCA Spectrum", [html.Pre(str(universe.get("pca_spectrum")))]),
+        TableCard("Structural Diversification", [html.Pre(str(diversification))]),
+        TableCard("Risk Clusters", [html.Pre(str(clusters))]),
+        TableCard("Structural Stability", [html.Pre(str(stability))]),
+        TableCard("Candidate Structural Risk", [html.Pre(str(candidate_rows))]),
+        TableCard("PCA Risk Contribution", [html.Pre(str(candidate.get("pca_risk_contribution")))]),
+        TableCard(
+            "Cluster Risk Contribution",
+            [html.Pre(str(candidate.get("cluster_risk_contribution")))],
+        ),
+    )
 
 
 def _candidate_oos_figure(validation: Sequence[Mapping[str, object]]) -> go.Figure | None:
