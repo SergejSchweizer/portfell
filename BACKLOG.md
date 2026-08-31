@@ -694,6 +694,11 @@ Branch: `docs/pr343-source-series-closeout`
 
 Depends on: PR342.
 
+Git status: integrated on `main` at `af92ee9`. The source-series handoff freezes the current
+gateway and application-service seams, persisted analytical concepts, four-page workflow,
+visualization and Universe & History rules, PR264–PR295 reconciliation, and PR344 deletion seed.
+The complete local quality gate passes (`869 passed`, `5` live-only skips, `91.06%` coverage).
+
 Scope: freeze the exact merged source/runtime contracts that PR344 consumes; classify old PR264–PR295 UI/product ideas as `reuse-cleanly`, `reimplement-in-dash`, or `retire`; do **not** create a second backlog file and do not resurrect React-era architecture.
 
 Acceptance: one checked-in handoff records exact source gateway API, application service API, persisted analytical concepts, four-page workflow, objective set (`return_risk`, `return_drawdown`, `minimum_risk`), professional plot requirements, Universe & History requirements, the Plotly visual-reference contract from section 1.6, and the deletion inventory seed used by PR344.
