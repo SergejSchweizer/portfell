@@ -258,12 +258,9 @@ PR340(live QA) -> PR341(E2E) -> PR342(runbook) -> PR343(closeout)
 - PR321 is integrated on `main` at `8172ed4`. It reads each Bivariate computation from one coherent market snapshot and its complete local merge gate passes (`1029 passed`).
 - PR322 is integrated on `main` at `511a32c`. It consumes source-pinned Multivariate inputs, preserves solver and validation semantics, and its complete local merge gate passes (`1037 passed`).
 - PR323 is integrated on `main` at `c106498`; the four-stage semantic QA passes (`1040 passed`). The PR324–PR331 deletion-wave siblings are now unblocked and may proceed in parallel; later PRs remain governed by their explicit dependencies.
-- PR324–PR331 are all integrated on `main`; the final sibling PR331 is recorded at `b13eb0f`. Provider acquisition, legacy medallion/filesystem market authority, shared refresh, hosted download lifecycle, provider credentials, provider UI controls, and the residual hosted local-market runtime are removed from the active source-cutover runtime.
-- PR332 is integrated on `main` at `7a980af`; provider-removal negative-space QA covers executable module/CLI inventories, OpenAPI lifecycle surface, and the market-SQL boundary.
-- PR333 is implemented in GitHub PR #499 (`refactor/pr333-single-user-backend`, head `97c25be`). Production composition is frozen to one canonical workspace principal and no longer composes a hosted-user lifecycle repository. The PR is mergeable but unmerged: merge-gate run #308 (`33312194083`) fails all 14 jobs before any executable step is reported (`steps=null`), so no PASS is recorded.
-- PR334 is implemented in GitHub PR #500 (`refactor/pr334-freeze-legacy-ui`, head `e0b8a23`). The transitional browser shell now uses canonical `/metadata`, `/univariate`, `/bivariate`, `/multivariate` routes with no project selector/switching; obsolete two-project browser coverage is replaced by single-workspace route/navigation regression coverage. The PR is mergeable but unmerged: merge-gate run #309 (`33312411773`) has the same pre-step infrastructure failure and no PASS is recorded.
-- PR335 and every later work order remain intentionally unstarted until PR333 and PR334 are both integrated, as required by the merged-predecessor rule in section 2.
-- The external xetra-loader production V2 artifact gate is cleared: `artifacts/acceptance/postgres-full-sync-v2.json` exists on xetra-loader `main` and reports `status: PASS`. PR340 is therefore no longer blocked by the external artifact itself, but it still cannot start until PR339 is merged.
+- PR327 is integrated on `main` at `0921245`. It deletes Portfell-owned shared market cache, refresh, publisher, inventory, and cron surfaces; the complete PR gate passes (`876 passed`).
+- PR328 is integrated on `main` at `3549ad8`. It removes hosted provider-download, metadata-refresh, bootstrap, and quote-run lifecycle surfaces while retaining source-backed analytics; the complete PR gate passes (`911 passed`). The current `main` gate also passes all `911` tests but remains blocked at `88.98%` coverage pending the remaining deletion-wave siblings.
+- The external xetra-loader production V2 artifact gate is now cleared: `artifacts/acceptance/postgres-full-sync-v2.json` exists on xetra-loader `main` and reports `status: PASS`. PR340 is therefore no longer blocked by the external artifact itself, but it still cannot start until PR339 is merged.
 
 ### PR308 — Xetra source contract foundation
 
@@ -351,7 +348,9 @@ Branch: `feat/pr313-market-source-status`
 
 Depends on: PR308.
 
-Git status: integrated on `main` at `d1e3b5e`. The low-cost preflight verifies database/schema/role membership, exact source table catalog, and reader-role membership without reading source data, scanning tables, accessing the sync schema, or issuing DDL; its complete PR gate passed (`1017 passed`).
+Git status: integrated on `main` at `d1e3b5e`. The low-cost preflight verifies database/schema,
+the exact source table catalog, and reader-role membership without reading source data, scanning
+tables, accessing the sync schema, or issuing DDL; its complete PR gate passed (`1017 passed`).
 
 Scope: low-cost connectivity/schema/role preflight only.
 
@@ -1404,3 +1403,416 @@ A clean production-like acceptance must show:
 - clean install, restart, backup/restore, browser tests, source privilege tests, negative-space tests, PR gate, and merge gate all pass.
 
 No item is complete because code merely exists. Completion requires its named acceptance evidence and merged dependency order.
+
+## 7. Multivariate structural-risk analysis v2 — PR361–PR376
+
+This is a post-cutover quantitative-analysis series. No PR in this section may start before PR360 has merged with its final acceptance evidence. The series extends only the existing Multivariate stage; it does not create a fifth page or stage and it must not reintroduce React/Vite/TypeScript/Node application code.
+
+Hard decisions for the entire series:
+
+- every structural statistic is derived from the exact immutable Multivariate input snapshot, its aligned daily log-return matrix, and the canonical production Ledoit-Wolf joint covariance model;
+- covariance PCA answers where absolute portfolio variance sits; correlation PCA answers how many distinct co-movement patterns remain after volatility scaling; the two are persisted and named separately;
+- `effective_independent_drivers` is not a v2 metric because it is currently only an alias for effective rank. V2 exposes `covariance_effective_rank`, `correlation_effective_rank`, `signal_component_count`, and candidate-level `effective_pca_risk_drivers` as distinct quantities;
+- the causal-sounding `strongest_common_driver` name is retired. V2 uses `covariance_dominant_component_representative` and `correlation_dominant_component_representative`, each meaning only the listing with the largest absolute Component-1 coefficient in that PCA basis;
+- the canonical v2 risk clusters use deterministic average-linkage hierarchical clustering on correlation distance. The current threshold-connected-component grouping is not a canonical v2 cluster and must not be silently retained under the same name;
+- PCA, clusters, effective-rank, signal-component, rolling-stability, factor-risk, and cluster-risk outputs are diagnostics only throughout PR361–PR376. They must not alter candidate weights, the three frozen objectives, candidate feasibility, OOS ranking, or the DecisionArtifact winner;
+- Hierarchical Risk Parity keeps its own optimizer-internal clustering contract. Risk-Structure clusters must never be substituted into HRP without a later explicit optimizer-contract PR;
+- all optional diagnostics fail closed with typed availability reasons. Unavailable structure is never represented as zero and does not silently fall back to sample covariance, pairwise covariance, or a weaker clustering rule;
+- all expensive structural calculations are server-owned, immutable and persisted. Dash renders persisted/service values only and performs no financial recomputation;
+- every rolling, bootstrap and walk-forward calculation is time-safe. Test-period observations may not influence a training-period covariance model, PCA basis, cluster assignment, or structural metric;
+- no composite `Structural Diversification Score` is authorized by this series. Primitive diagnostics remain visible separately until independent OOS evidence justifies any later composite or optimizer objective.
+
+Frozen v2 parameters unless a later versioned backlog PR changes them:
+
+- explained-variance thresholds: `0.80`, `0.90`, `0.95`;
+- canonical cluster correlation cut: `0.70`, represented in correlation-distance space as `sqrt((1 - 0.70) / 2)`;
+- signal-component parallel analysis: `100` null replicates, RNG `numpy.random.Generator(numpy.random.PCG64(41))`, rank-wise `0.95` null quantile with NumPy quantile method `higher`;
+- rolling structure: exactly `252` aligned daily observations per window, `21`-observation stride, at most `24` most-recent windows, always including the latest aligned date;
+- PCA subspace comparison: top `min(3, listing_count)` components;
+- cluster stability bootstrap: `100` circular moving-block replicates, block length `21`, RNG `numpy.random.Generator(numpy.random.PCG64(41))`.
+
+Dependency graph:
+
+```text
+PR360 -> PR361 -> PR362
+PR362 -> PR363
+PR362 -> PR364 -> PR365
+PR363 -> PR366
+PR363 -> PR367 -> PR368
+PR363 + PR367 -> PR369 -> PR370
+PR367 -> PR371
+PR365 + PR366 + PR368 + PR370 + PR371 -> PR372
+PR372 -> PR373 || PR374 || PR375
+PR373 + PR374 + PR375 -> PR376(QA)
+```
+
+### PR361 — Freeze Multivariate Structure v2 quantitative contract
+
+Branch: `docs/pr361-multivariate-structure-v2-contract`
+
+Depends on: PR360.
+
+Owned paths: `BACKLOG.md`, new `docs/contracts/multivariate-structure-v2.md`, focused contract-schema/documentation tests only. No production analytical code.
+
+Scope:
+
+- freeze artifact names, field names, formulas in implementation-neutral code notation, availability reasons, deterministic ordering, numerical tolerances, frozen parameters, and the exact hand-offs used by PR362–PR376;
+- define universe artifact `multivariate.structure@v2` and candidate artifact `multivariate.candidate_structure@v1`;
+- define covariance-PCA, correlation-PCA, effective-rank, signal-component, hierarchical-cluster, rolling, subspace-stability, bootstrap-stability, candidate PCA-risk and candidate cluster-risk schemas;
+- explicitly retire v2 use of `effective_independent_drivers` and `strongest_common_driver` without rewriting immutable v1 artifacts;
+- state that v1 artifacts remain historical data only; new production runs switch to v2 only when PR372 lands.
+
+Acceptance:
+
+- every output field has one exact mathematical/statistical definition, unit, availability rule and deterministic ordering rule;
+- `effective_rank` is frozen as `exp(-sum(p_i * log(p_i)))` over strictly positive normalized eigenvalue shares;
+- candidate PCA variance contribution is frozen as `eigenvalue_k * (eigenvector_k dot weights)^2` and must reconcile to portfolio variance;
+- candidate effective PCA risk drivers are frozen as entropy effective count over normalized non-negative PCA variance contributions;
+- hierarchical cluster distance, average-linkage rule, cut threshold and label ordering are fully specified;
+- rolling-window endpoints, bootstrap sampling, parallel-analysis RNG/replicate count/quantile method and subspace-overlap definition are fully specified;
+- no production code changes and no winner/objective change occur;
+- contract validation and PR gate pass.
+
+### PR362 — Extract deterministic spectral-analysis core
+
+Branch: `refactor/pr362-multivariate-spectral-core`
+
+Depends on: PR361.
+
+Owned paths: one pure Multivariate spectral-analysis module, minimal adapter changes in the current structure module, and focused unit/property tests. No service, persistence, UI, candidate or optimizer changes.
+
+Scope: extract the current symmetric eigensystem, deterministic component ordering/sign normalization, explained variance, cumulative explained variance, threshold component counts and entropy effective rank into one reusable pure module.
+
+Acceptance:
+
+- existing covariance-PCA fixtures produce the same sorted eigenvalues, explained variance, cumulative variance, effective rank and component coefficients within `rel_tol=1e-9`, `abs_tol=1e-12`;
+- eigenpairs are ordered by descending eigenvalue with deterministic stable tie handling;
+- sign normalization is deterministic and repeated identical input is byte-identical after canonical serialization;
+- only numerical eigenvalues in `[-1e-12, 0)` may be clipped to zero; values below `-1e-12` produce typed spectral-unavailable evidence rather than silent repair;
+- threshold counts for `0.80`, `0.90`, `0.95` are exact and regression-tested;
+- no risk-model estimator, return series, candidate weight, ranking or persistence behavior changes;
+- focused tests and PR gate pass.
+
+### PR363 — Add correlation PCA beside covariance PCA
+
+Branch: `feat/pr363-correlation-pca`
+
+Depends on: PR362.
+
+Owned paths: Multivariate structure/spectral modules and focused tests only.
+
+Scope: derive one correlation matrix from the canonical Ledoit-Wolf covariance matrix and run the PR362 spectral core on it, while retaining covariance PCA as a separate result.
+
+Acceptance:
+
+- correlation is derived only as `covariance_ij / sqrt(variance_i * variance_j)` from the canonical risk-model artifact; raw pairwise Bivariate covariance/correlation is never substituted;
+- every positive-variance diagonal equals `1.0` within `abs_tol=1e-12`;
+- any non-finite or non-positive diagonal variance makes correlation PCA unavailable with a typed reason while covariance PCA may remain available;
+- a computed correlation outside `[-1, 1]` by no more than `1e-12` may be clipped to the boundary; a larger violation is typed unavailable rather than repaired;
+- persist separate correlation eigenvalues, explained/cumulative variance, `correlation_effective_rank`, `components_for_80pct`, `components_for_90pct`, `components_for_95pct`, component coefficients and `correlation_dominant_component_representative`;
+- covariance fields remain separately named and `covariance_dominant_component_representative` replaces the causal-sounding v1 label for new artifacts;
+- no candidate/optimizer/result-ranking behavior changes;
+- focused tests and PR gate pass.
+
+### PR364 — Candidate PCA variance-contribution decomposition
+
+Branch: `feat/pr364-candidate-pca-risk`
+
+Depends on: PR362.
+
+Owned paths: new pure candidate structural-risk module plus focused tests. No candidate solver changes.
+
+Scope: project each feasible candidate weight vector onto the covariance-PCA basis and persist per-component portfolio-variance contributions.
+
+Acceptance:
+
+- listing order is taken from the same canonical risk-model/PCA artifact and every candidate weight is matched by full `(isin, exchange, code)` identity;
+- for component `k`, contribution is exactly `eigenvalue_k * (eigenvector_k dot weights)^2`;
+- the sum of component contributions matches `weights^T * covariance * weights` using `math.isclose(rel_tol=1e-9, abs_tol=1e-12)`;
+- contributions below zero only within numerical tolerance `[-1e-12, 0)` are clipped to zero; a lower value is typed unavailable;
+- output rows contain exact `candidate_id`, `method`, `component_id`, contribution, percent portfolio variance and source structure/risk-model identity;
+- unavailable or infeasible candidates remain unavailable and do not receive fabricated zero contributions;
+- candidate weights, solver execution, candidate metrics and OOS ranking are unchanged;
+- focused analytical fixtures and PR gate pass.
+
+### PR365 — Candidate effective PCA risk-driver diagnostics
+
+Branch: `feat/pr365-candidate-effective-risk-drivers`
+
+Depends on: PR364.
+
+Owned paths: candidate structural-risk module/DTOs and focused tests only.
+
+Scope: derive candidate-level structural concentration diagnostics from PR364 contributions; do not create a new optimizer objective.
+
+Acceptance:
+
+- normalize strictly non-negative component contributions by total candidate variance into shares `q_k`;
+- `effective_pca_risk_drivers` equals `exp(-sum(q_k * log(q_k)))` over positive shares;
+- `largest_pca_risk_share` equals the maximum normalized component contribution;
+- candidate `components_for_80pct_risk`, `components_for_90pct_risk`, and `components_for_95pct_risk` use descending component risk contributions and deterministic ties;
+- zero/non-finite portfolio variance produces typed unavailable fields rather than `0`, `1`, or `NaN`;
+- an exact one-factor fixture yields effective count `1`; an exact equal-`k` contribution fixture yields effective count `k` within `rel_tol=1e-9`, `abs_tol=1e-12`;
+- for every available candidate, effective count is in `[1, positive_component_count]` within tolerance and largest share is in `(0, 1]`;
+- no value from this PR enters candidate feasibility, solver weights, OOS scorecards or DecisionArtifact ranking;
+- focused tests and PR gate pass.
+
+### PR366 — Deterministic signal-component parallel analysis
+
+Branch: `feat/pr366-signal-component-analysis`
+
+Depends on: PR363.
+
+Owned paths: one pure signal-component module, Multivariate structure adapter and focused tests. No UI or optimizer changes.
+
+Scope: estimate how many leading correlation-PCA components exceed a deterministic cross-sectional-noise null instead of relabeling effective rank as an independent-driver count.
+
+Acceptance:
+
+- input is the exact aligned daily log-return matrix pinned by the Multivariate snapshot;
+- run exactly `100` null replicates with `numpy.random.Generator(numpy.random.PCG64(41))`;
+- within each replicate, independently permute the observation order of each asset column without replacement, preserving every column's observed values/count while breaking synchronous cross-asset dependence;
+- each null replicate re-estimates the production Ledoit-Wolf covariance, derives correlation and computes sorted correlation-PCA eigenvalues through the same production spectral contract;
+- for each eigenvalue rank, use the rank-wise `0.95` empirical null quantile with NumPy method `higher`;
+- `signal_component_count` is the number of **contiguous leading** observed correlation-PCA eigenvalues that strictly exceed their rank-wise null thresholds, stopping at the first non-exceedance;
+- persist the observed eigenvalues, rank-wise null thresholds, replicate count, seed, quantile/method and stable input identity required to reproduce the result;
+- identical input yields byte-identical output; reordered input rows with the same canonical matrix yield the same result;
+- no future observations, candidate weights or OOS test rows enter the computation;
+- no `effective_independent_drivers` alias is reintroduced;
+- focused deterministic fixtures and PR gate pass.
+
+### PR367 — Canonical average-linkage hierarchical risk clusters
+
+Branch: `feat/pr367-hierarchical-risk-clusters`
+
+Depends on: PR363.
+
+Owned paths: new pure cluster module, structure adapter and focused tests. HRP implementation is explicitly out of scope.
+
+Scope: replace the v2 canonical threshold-connected-component grouping with deterministic average-linkage hierarchical clustering based on the canonical Ledoit-Wolf correlation matrix.
+
+Acceptance:
+
+- pair distance is exactly `sqrt((1 - correlation_ij) / 2)` after the PR363 correlation-validity rules are satisfied;
+- inter-cluster distance is the arithmetic mean of all cross-cluster pair distances (average linkage), never single linkage;
+- the dendrogram is cut at distance `sqrt((1 - 0.70) / 2)`;
+- merge ties are resolved deterministically from sorted full listing identities and final cluster labels are assigned by the lexicographically smallest member identity, producing stable `Cluster 1..N` labels;
+- a chaining fixture with correlations `A-B=0.75`, `B-C=0.75`, `A-C=0.20` does not collapse all three names into one cluster merely because two edges exceed `0.70`;
+- `largest_redundancy_warning` remains the maximum valid pair correlation with deterministic tie handling;
+- zero/non-finite variance or invalid correlation yields typed cluster unavailability, never an implicit correlation of zero;
+- the old connected-component algorithm is not exposed as the canonical v2 cluster result;
+- HRP weights/linkage are unchanged and do not consume this structure artifact;
+- focused fixtures and PR gate pass.
+
+### PR368 — Candidate cluster-risk attribution
+
+Branch: `feat/pr368-cluster-risk-attribution`
+
+Depends on: PR367.
+
+Owned paths: new pure candidate cluster-risk module and focused tests only.
+
+Scope: aggregate existing asset-level candidate variance contributions into the canonical PR367 clusters without changing candidate weights.
+
+Acceptance:
+
+- cluster membership comes only from the immutable v2 structure artifact for the same risk-model identity;
+- signed cluster variance contribution equals the sum of member asset variance contributions `weight_i * (covariance * weights)_i`;
+- signed cluster contributions sum to total portfolio variance using `math.isclose(rel_tol=1e-9, abs_tol=1e-12)`;
+- `cluster_percent_variance_contribution` is signed and the available cluster percentages sum to `1.0` within the same tolerance; negative contributions remain visible and are not clipped away;
+- `cluster_gross_abs_risk_share` equals the cluster sum of absolute member variance contributions divided by the portfolio sum of absolute member variance contributions and sums to `1.0` when the denominator is positive;
+- persist candidate ID, method, cluster ID, member count, signed contribution, signed percent, gross-absolute share and source identities;
+- unavailable candidate/cluster/risk-model inputs yield typed unavailable evidence rather than zero rows;
+- no cluster cap, rebalance rule, candidate ranking or optimizer objective is introduced;
+- focused fixtures and PR gate pass.
+
+### PR369 — Rolling structural diagnostics
+
+Branch: `feat/pr369-rolling-structure-diagnostics`
+
+Depends on: PR363 and PR367.
+
+Owned paths: one pure rolling-structure module plus focused tests. No persistence/UI changes yet.
+
+Scope: show whether the universe's covariance/correlation structure is stable through time by refitting the production risk model on deterministic trailing windows.
+
+Acceptance:
+
+- use exactly `252` aligned daily log-return observations per window, stride exactly `21` observations, maximum `24` windows;
+- the most recent window always ends on the latest aligned date; earlier endpoints move backward by exactly `21` aligned observations and output is then sorted chronologically;
+- every window re-estimates Ledoit-Wolf from only its own 252 rows and recomputes covariance PCA, correlation PCA and PR367 clusters;
+- each row contains window start/end, observation count, covariance dominant-component share, correlation dominant-component share, covariance effective rank, correlation effective rank and risk-cluster count;
+- parallel analysis and bootstrap cluster stability are **not** rerun inside each rolling window in this PR;
+- fewer than `252` aligned observations yields typed `rolling_structure_insufficient_history`, not a shorter silent window;
+- no row at time `t` uses any observation after its window end;
+- repeated identical input yields identical windows/values and stable identity;
+- focused boundary/leakage fixtures and PR gate pass.
+
+### PR370 — PCA leading-subspace stability
+
+Branch: `feat/pr370-pca-subspace-stability`
+
+Depends on: PR369.
+
+Owned paths: one pure subspace-stability module plus focused tests only.
+
+Scope: compare adjacent rolling PCA **subspaces**, not raw loading-by-loading differences that are unstable under sign changes or rotations of near-degenerate components.
+
+Acceptance:
+
+- for each adjacent rolling pair, set `k = min(3, listing_count)` and use the first `k` orthonormal component vectors;
+- compute stability exactly as `squared_frobenius_norm(previous_basis^T * current_basis) / k` separately for covariance PCA and correlation PCA;
+- available stability is bounded in `[0, 1]` within `1e-12` numerical tolerance;
+- identical subspaces yield `1.0` within tolerance even if component signs are flipped;
+- rotating the basis inside the same `k`-dimensional subspace leaves the score unchanged within tolerance;
+- an exactly orthogonal subspace fixture yields `0.0` when dimensionality permits;
+- fewer than two valid rolling windows yields typed unavailable stability;
+- no individual component is labeled stable/unstable from raw coefficient difference alone;
+- focused invariance tests and PR gate pass.
+
+### PR371 — Deterministic bootstrap cluster stability
+
+Branch: `feat/pr371-cluster-bootstrap-stability`
+
+Depends on: PR367.
+
+Owned paths: one pure cluster-stability module plus focused tests. No UI/optimizer changes.
+
+Scope: quantify whether canonical cluster relationships survive resampling of the aligned return history.
+
+Acceptance:
+
+- use exactly `100` circular moving-block bootstrap replicates, block length exactly `21`, with `numpy.random.Generator(numpy.random.PCG64(41))`;
+- every replicate contains exactly the original aligned observation count by concatenating randomly selected circular contiguous blocks and truncating only the final block to exact length;
+- each replicate re-estimates Ledoit-Wolf, derives correlation and reruns the exact PR367 average-linkage cluster contract;
+- for every listing pair, `co_cluster_probability` equals same-cluster replicate count divided by `100` and is in `[0, 1]`;
+- for each canonical non-singleton cluster, persist mean and minimum within-cluster pair co-cluster probability; singleton clusters report typed/not-applicable stability rather than fabricated `1.0`;
+- identical duplicate-series fixtures co-cluster with probability `1.0` under deterministic resampling;
+- output includes seed, block length, replicate count, source structure/risk-model identity and canonical pair ordering;
+- bootstrap output is byte-identical for identical input and does not alter canonical cluster membership;
+- focused deterministic tests and PR gate pass.
+
+### PR372 — Persist and serve immutable Structure v2 artifacts
+
+Branch: `feat/pr372-structure-v2-persistence`
+
+Depends on: PR365, PR366, PR368, PR370 and PR371.
+
+Owned paths: Multivariate application-service orchestration, `app_state` artifact serialization/repository adapters for these new artifact types, typed API/service DTOs and focused restart/idempotency tests. Dash presentation is out of scope.
+
+Scope: integrate the pure computations into new production Multivariate runs and make the complete results immutable/readable after restart.
+
+Acceptance:
+
+- new completed Multivariate runs persist exactly one `multivariate.structure@v2` universe artifact and one `multivariate.candidate_structure@v1` artifact for the matching run when base inputs are available;
+- universe artifact identity includes the input snapshot/risk-model identity, structure contract version and all frozen parameter values that can change output;
+- candidate artifact identity includes the exact candidate-set identity plus the matching structure-v2 identity;
+- static covariance PCA may remain available when an optional correlation/signal/rolling/bootstrap diagnostic is unavailable; every optional sub-artifact carries its own typed availability reasons rather than making the whole run silently fail;
+- base risk-model unavailability propagates explicitly and no sample/pairwise covariance fallback is used;
+- v1 artifacts are never mutated/re-written in place; v2 publication is a new immutable artifact revision;
+- read/list API/service calls return persisted values and do not recompute PCA, clusters, bootstraps or candidate structural risk;
+- restart reloads byte-equivalent canonical payloads and stable IDs;
+- existing candidate weights, objective selection, OOS ranking and DecisionArtifact winner are identical to a pre-v2 regression fixture;
+- focused persistence/restart/idempotency tests and PR gate pass.
+
+### PR373 — Dash universe Risk Structure presentation
+
+Branch: `feat/pr373-dash-universe-risk-structure`
+
+Depends on: PR372.
+
+Owned paths: Dash Multivariate page presentation/callback read paths, synchronized `docs/ui`/Dash contract docs and focused browser/component tests. No backend financial calculations.
+
+Scope: expose universe-level v2 structural evidence inside the existing `/multivariate` page without changing its optimizer controls or top winner KPIs.
+
+Required presentation:
+
+- `ChartCard` titled exactly `PCA Spectrum` showing persisted covariance-PCA and correlation-PCA explained variance by component with an explicit selector/legend distinguishing the two bases;
+- `TableCard` titled `Structural Diversification` showing listing count, covariance effective rank, correlation effective rank, signal component count, covariance/correlation dominant-component shares, component counts for `80%/90%/95%`, and risk-cluster count;
+- `TableCard` titled `Risk Clusters` showing every full listing identity, canonical cluster ID, and available cluster-stability evidence;
+- `ChartCard` titled `Structural Stability` showing persisted rolling effective ranks/dominant-component shares and adjacent-window subspace-stability series, with explicit date windows;
+- typed unavailable reasons remain visible for signal, rolling, subspace or bootstrap evidence independently.
+
+Acceptance:
+
+- no fifth page/tab-stage is introduced; all content is part of existing Multivariate;
+- no Dash callback computes covariance, correlation, eigenvalues, effective rank, clusters, bootstrap probability or rolling metrics;
+- UI labels distinguish covariance PCA from correlation PCA everywhere;
+- the retired terms `effective_independent_drivers` and causal `strongest_common_driver` do not appear in v2 UI copy;
+- full listing identity is visible wherever cluster membership could be ambiguous;
+- plot/table ordering is deterministic from persisted artifact order and unavailable is never rendered as numerical zero;
+- `1440x900`, `1024x768`, and `390x844` fixtures have no page-level horizontal overflow;
+- page render/navigation never starts a Multivariate recomputation;
+- focused browser tests and PR gate pass.
+
+### PR374 — Dash candidate structural-risk presentation
+
+Branch: `feat/pr374-dash-candidate-structural-risk`
+
+Depends on: PR372.
+
+Owned paths: Dash Multivariate candidate-structure cards/read callbacks, synchronized page docs and focused browser tests only.
+
+Scope: compare how the already-computed candidate portfolios concentrate risk across PCA components and canonical clusters. Presentation choices do not alter analytical artifacts.
+
+Required presentation:
+
+- `TableCard` titled `Candidate Structural Risk` with candidate ID/method, effective PCA risk drivers, largest PCA risk share, components for `80%/90%/95%` of candidate variance, and largest cluster gross-absolute risk share;
+- one presentation-only candidate selector populated from persisted candidate IDs; default to the persisted winning candidate when one exists, otherwise the first available candidate in deterministic service order;
+- `ChartCard` titled `PCA Risk Contribution` showing persisted per-component percent portfolio variance for the selected candidate;
+- `ChartCard` titled `Cluster Risk Contribution` showing both signed cluster percent variance contribution and gross-absolute risk share without suppressing negative signed contributions;
+- candidate selector state may be a UI preference but must never mutate the analysis run, candidate set or DecisionArtifact.
+
+Acceptance:
+
+- all values come from `multivariate.candidate_structure@v1`; Dash performs only formatting/selection of already-persisted rows;
+- changing the selected candidate does not invoke any optimizer, covariance fit, PCA, cluster computation or persistence write except optional presentation preference;
+- signed negative cluster contributions remain visibly signed and are not converted to zero/absolute values;
+- candidate unavailable reasons are shown explicitly and do not remove the candidate silently;
+- existing winner KPIs, objective selector and Decision card remain unchanged;
+- responsive/browser fixtures and PR gate pass.
+
+### PR375 — Leakage-safe structural walk-forward evidence
+
+Branch: `feat/pr375-structural-walk-forward-evidence`
+
+Depends on: PR372.
+
+Owned paths: Multivariate validation/evidence modules, immutable evidence artifact serialization and focused leakage/numerical tests. No Dash and no winner-selection changes.
+
+Scope: determine whether candidate structural diversification measured **ex ante** is associated with subsequent OOS robustness, without yet converting that evidence into an optimizer objective or score.
+
+Acceptance:
+
+- reuse the production walk-forward split calendar and candidate refit contract; do not create a second incompatible split schedule;
+- for every completed split, fit Ledoit-Wolf/PCA/clusters using training rows only and compute each refitted candidate's training-period `effective_pca_risk_drivers`, `largest_pca_risk_share`, and largest cluster gross-absolute risk share before the test window is evaluated;
+- every persisted row records `split_id`, candidate ID/method, train start/end, test start/end, structural metric values, and the already-defined OOS post-cost return, volatility, CVaR and max drawdown for that exact test window;
+- `train_end < test_start` is asserted for every row and a deliberate future-row injection fixture must fail the test;
+- no test return, OOS covariance or future cluster assignment can influence training-period structural metrics or weights;
+- evidence rows are immutable, deterministically ordered and linked to exact risk-model/candidate/structure algorithm versions;
+- this PR does not aggregate the primitive metrics into a proprietary score and does not change the production candidate scorecard or DecisionArtifact winner;
+- independent numerical QA fixtures do not call the production structural helper they are verifying;
+- focused leakage/numerical tests and PR gate pass.
+
+### PR376 — Structural-risk v2 integration QA and future-candidate decision gate
+
+Branch: `test/pr376-structural-risk-v2-qa`
+
+Depends on: PR373, PR374 and PR375.
+
+Scope: QA/evidence only. Production defects found here require separate corrective implementation PRs.
+
+Acceptance must prove all of the following:
+
+- independent numerical fixtures verify covariance PCA, correlation PCA, entropy effective rank, candidate PCA variance reconciliation, candidate effective driver count, average-linkage clustering, signed/gross cluster attribution and subspace overlap without reusing the production implementation as the oracle;
+- parallel-analysis output is deterministic for the frozen `100`/seed-`41`/`0.95`/`higher` contract and changes when the synchronous cross-asset structure in the fixture is materially changed;
+- bootstrap co-cluster probabilities are deterministic and duplicate-series pair stability equals `1.0` in the exact fixture;
+- rolling windows are exactly `252` observations, stride `21`, maximum `24`, latest-date anchored, and contain no future observations;
+- structural walk-forward evidence proves train/test separation for every split and leaves the pre-v2 OOS winner unchanged on a frozen regression fixture;
+- persistence/restart reproduces both v2 artifacts and the structural walk-forward evidence byte-equivalently from immutable IDs;
+- Dash universe/candidate Risk Structure views render persisted populated, unavailable and mixed-availability states at `1440x900`, `1024x768`, and `390x844` with no browser-side financial recomputation;
+- scans prove no `effective_independent_drivers` or causal `strongest_common_driver` label is emitted by v2 service/UI paths and no v2 risk cluster is consumed by HRP;
+- `uv run portfell-quality pr` and `uv run portfell-quality merge` pass;
+- produce one immutable sanitized `structural-risk-v2` PASS evidence artifact containing exact Git SHA, contract/algorithm versions, frozen parameters, test counts and deterministic fixture fingerprints without market credentials or private data.
+
+Future optimizer gate: PR376 does **not** authorize or implement a structurally diversified portfolio candidate. Any later `Factor Diversified`, `Cluster Balanced`, structural constraint, or composite structural score requires a new versioned backlog PR after the PR375/PR376 OOS evidence has been reviewed. The new PR must state the exact optimization objective/constraints and demonstrate that it is evaluated through the existing leakage-safe OOS selection framework before it can affect the DecisionArtifact.
