@@ -2,15 +2,41 @@ from dataclasses import replace
 from math import isclose
 
 from portfell.multivariate_inputs import MultivariateListingKey
-from portfell.multivariate_risk_model import RISK_MODEL_ARTIFACT_CONTRACT, MultivariateRiskModelArtifact
-from portfell.multivariate_structure_v2 import build_structure_pca_diagnostics, correlation_from_covariance
+from portfell.multivariate_risk_model import (
+    RISK_MODEL_ARTIFACT_CONTRACT,
+    MultivariateRiskModelArtifact,
+)
+from portfell.multivariate_structure_v2 import (
+    build_structure_pca_diagnostics,
+    correlation_from_covariance,
+)
 
 
 def _risk(matrix: tuple[tuple[float, ...], ...]) -> MultivariateRiskModelArtifact:
-    listings = (MultivariateListingKey("IE1", "X", "A"), MultivariateListingKey("IE2", "X", "B"))
+    listings = (
+        MultivariateListingKey("IE1", "X", "A"),
+        MultivariateListingKey("IE2", "X", "B"),
+    )
     return MultivariateRiskModelArtifact(
-        "risk", "snapshot", RISK_MODEL_ARTIFACT_CONTRACT, "ledoit_wolf", "log", "full", (), listings,
-        "calendar", "2024-01-01", "2025-01-01", 252, matrix, 0.1, 0.1, 2.0, True, (), 1,
+        "risk",
+        "snapshot",
+        RISK_MODEL_ARTIFACT_CONTRACT,
+        "ledoit_wolf",
+        "log",
+        "full",
+        (),
+        listings,
+        "calendar",
+        "2024-01-01",
+        "2025-01-01",
+        252,
+        matrix,
+        0.1,
+        0.1,
+        2.0,
+        True,
+        (),
+        1,
     )
 
 
@@ -47,6 +73,8 @@ def test_small_correlation_boundary_error_may_be_clipped() -> None:
 
 
 def test_unavailable_risk_model_fails_both_views_closed() -> None:
-    result = build_structure_pca_diagnostics(replace(_risk(((1.0, 0.0), (0.0, 1.0))), availability_reasons=("x",)))
+    result = build_structure_pca_diagnostics(
+        replace(_risk(((1.0, 0.0), (0.0, 1.0))), availability_reasons=("x",))
+    )
     assert not result.covariance.available and not result.correlation.available
     assert isclose(1.0, 1.0)
