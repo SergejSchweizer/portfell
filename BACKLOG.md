@@ -651,7 +651,14 @@ Branch: `test/pr340-live-xetra-loader-v2`
 
 Depends on: PR339 and upstream production V2 PASS artifact.
 
-External artifact gate: cleared on 2026-08-30. `artifacts/acceptance/postgres-full-sync-v2.json` exists on xetra-loader `main` and reports `status: PASS`. Do not start PR340 until PR339 is merged.
+Git status: integrated on `main` at `e7db84f`. The static source-contract guard, the
+secret-supplied live acceptance against the pinned xetra-loader production V2 artifact, and the
+complete local quality gate pass (`863 passed`, `5` live-only skips in the offline gate, `91.06%`
+coverage). The live gate verified the non-superuser `portfell` login only through its configured
+read path: Listings, Quotes, Dividends and Splits materialize through the gateway; business-table
+DML/DDL and sync-schema access are denied. No DSN or credential is recorded here.
+
+External artifact gate: cleared on 2026-08-30. `artifacts/acceptance/postgres-full-sync-v2.json` exists on xetra-loader `main` and reports `status: PASS`.
 
 Acceptance: verify exact loader SHA/endpoint/database; use secret-supplied non-superuser LOGIN member; SELECT exact four business tables; representative rows through gateway; market DML/DDL fails; sync access fails and counts as PASS; sanitized evidence; full gate.
 
