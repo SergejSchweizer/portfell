@@ -24,7 +24,12 @@ from portfell.multivariate_performance import build_multivariate_performance
 from portfell.multivariate_quote_views import common_dates, first_price, last_price
 from portfell.multivariate_refits import build_refitted_candidate_sets
 from portfell.multivariate_risk_model import build_multivariate_risk_model
+from portfell.multivariate_structural_walk_forward import (
+    build_structural_walk_forward_evidence,
+    structural_walk_forward_rows,
+)
 from portfell.multivariate_structure import build_multivariate_structure
+from portfell.multivariate_structure_artifacts import build_structure_v2_documents
 from portfell.multivariate_validation import (
     DEFAULT_WALK_FORWARD_POLICY,
     CandidateScorecard,
@@ -170,6 +175,18 @@ def compute_multivariate(
         precomputed_candidates=refitted,
         risk_model_id=risk.risk_model_id,
     )
+    structure_v2 = build_structure_v2_documents(
+        risk_model=risk,
+        return_rows=returns,
+        candidates=candidates,
+    )
+    structural_walk_forward = build_structural_walk_forward_evidence(
+        snapshot=snapshot,
+        candidates=candidates,
+        return_rows=returns,
+        refitted_candidate_sets=refitted,
+        validation_splits=validation,
+    )
     scenarios = validate_candidate_stress(candidates=candidates, return_rows=returns)
     scorecards = build_candidate_scorecards(splits=validation, scenarios=scenarios)
     decision = _select_decision(
@@ -251,6 +268,11 @@ def compute_multivariate(
                 }
                 for key, cluster in structure.cluster_by_listing
             ],
+        },
+        "multivariate.structure@v2": structure_v2.structure,
+        "multivariate.candidate_structure@v2": structure_v2.candidate_structure,
+        "multivariate.structural_walk_forward@v1": {
+            "items": list(structural_walk_forward_rows(structural_walk_forward))
         },
         "candidates": {"items": candidate_rows},
         "validation": {"items": validation_rows},

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
+from typing import cast
 
 import pytest
 
@@ -229,6 +230,18 @@ def test_clean_service_persists_full_identity_metadata_and_univariate_run() -> N
     )
     assert multivariate["status"] == "succeeded"
     assert str(multivariate["run_id"]) in state.decisions
+    multivariate_detail = service.run_detail(str(multivariate["run_id"]))
+    artifacts = multivariate_detail["artifacts"]
+    assert isinstance(artifacts, dict)
+    for artifact_type in (
+        "multivariate.structure@v2",
+        "multivariate.candidate_structure@v2",
+        "multivariate.structural_walk_forward@v1",
+    ):
+        assert artifact_type in artifacts
+    structure = cast(dict[str, object], artifacts["multivariate.structure@v2"])
+    risk_model = cast(dict[str, object], artifacts["risk_model"])
+    assert structure["risk_model_id"] == risk_model["risk_model_id"]
 
 
 def test_clean_service_fails_closed_when_snapshot_no_longer_has_every_member_quote() -> None:

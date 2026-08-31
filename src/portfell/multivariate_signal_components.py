@@ -116,6 +116,8 @@ def _aligned_matrix(
     return_rows: Sequence[Mapping[str, Any]],
     listings: tuple[MultivariateListingKey, ...],
 ) -> tuple[tuple[str, ...], tuple[tuple[float, ...], ...]]:
+    if not listings:
+        raise ValueError("signal_analysis_no_listings")
     by_listing: dict[MultivariateListingKey, dict[str, float]] = {key: {} for key in listings}
     for row in return_rows:
         key = MultivariateListingKey(str(row["isin"]), str(row["exchange"]), str(row["code"]))
