@@ -743,6 +743,11 @@ Priority: P0.
 
 Depends on: PR343.
 
+Git status: integrated on `main` at `1293eb2`. The deterministic, schema-validated and
+secret-free legacy inventory, replacement contract, and normative Dash UI contract are frozen;
+their focused contract test and the complete local quality gate pass (`876 passed`, `5` live-only
+skips, `91.06%` coverage).
+
 Owned paths: `BACKLOG.md`, new `docs/contracts/plotly-dash-replacement-v1.md`, new `docs/contracts/plotly-dash-ui-v1.md`, new `docs/contracts/legacy-ui-db-inventory-v1.json`, focused contract tests only.
 
 Tasks:
