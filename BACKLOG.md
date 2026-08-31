@@ -868,6 +868,12 @@ Branch: `feat/pr348-plotly-dash-shell`
 
 Depends on: PR344. May execute in parallel with PR345–PR347 but must rebase on PR347 before merge if shared composition changes.
 
+Git status: integrated on `main` at `dd34937`. The first-party Dash application now supplies the
+four-route shell, FastAPI mount, shared presentation primitives, responsive Plotly grammar and
+deterministic placeholders until page plugins land. It has no SQL/legacy Web dependency; focused
+Dash contract tests and the complete quality gate pass (`897 passed`, `5` live-only skips,
+`90.06%` coverage).
+
 Owned paths: new `src/portfell/dash_app/**` shell/navigation/layout/shared presentation primitives/assets, FastAPI composition mount, focused tests. Do not change analytical calculations.
 
 Visual authority: section 1.6 and `docs/contracts/plotly-dash-ui-v1.md`. The external Plotly example is reference-only and must not be fetched at runtime.
