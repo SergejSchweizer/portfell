@@ -1004,6 +1004,11 @@ Branch: `feat/pr351-dash-bivariate-page`
 
 Depends on: PR347 and PR348.
 
+Git status: integrated on `main` at `92cc19a`. The Dash Bivariate page exposes typed pair
+evidence, full left/right identities, unavailable pair states and the frozen continuation path
+through the clean service boundary. Dash-4-compatible navigation and Plotly hover details are
+covered; the complete gate passed (`906 passed`, `5` live-only skips, `90.15%` coverage).
+
 Owned paths: Dash Bivariate page/callbacks/plots/tables and focused tests. Reuse PR348 shared presentation primitives; do not add a second pair-analysis state model.
 
 Frozen page title: `Bivariate`.
