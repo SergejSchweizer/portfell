@@ -28,6 +28,8 @@ class RollingStructureRow:
     correlation_effective_rank: float | None
     risk_cluster_count: int | None
     availability_reasons: tuple[str, ...] = ()
+    covariance_basis: tuple[tuple[float, ...], ...] = ()
+    correlation_basis: tuple[tuple[float, ...], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -109,6 +111,10 @@ def build_rolling_structure_diagnostics(
                 ),
                 risk_cluster_count=(clusters.cluster_count if clusters is not None else None),
                 availability_reasons=tuple(sorted(set(reasons))),
+                covariance_basis=covariance.component_coefficients,
+                correlation_basis=(
+                    () if correlation is None else correlation.component_coefficients
+                ),
             )
         )
     return RollingStructureDiagnostics(tuple(output), ())

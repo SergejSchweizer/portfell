@@ -1,3 +1,5 @@
+from dataclasses import replace
+
 from portfell.multivariate_candidates import PortfolioCandidate
 from portfell.multivariate_inputs import MultivariateListingKey
 from portfell.multivariate_risk_model import (
@@ -83,8 +85,8 @@ def test_structure_v2_documents_are_stable_and_separately_versioned() -> None:
     assert first.candidate_structure_id == second.candidate_structure_id
     assert first.structure == second.structure
     assert first.candidate_structure == second.candidate_structure
-    assert first.structure["contract_version"] == "multivariate.structure@v2"
-    assert first.candidate_structure["contract_version"] == "multivariate.candidate_structure@v1"
+    assert first.structure["contract_version"] == "multivariate.structure@v3"
+    assert first.candidate_structure["contract_version"] == "multivariate.candidate_structure@v2"
 
 
 def test_v2_documents_do_not_emit_retired_names_or_change_candidates() -> None:
@@ -114,4 +116,50 @@ def test_optional_diagnostics_fail_closed_not_as_zero() -> None:
     subspace = result.structure["subspace_stability"]
     assert isinstance(subspace, dict)
     assert subspace["items"] == []
-    assert subspace["availability_reasons"]
+    assert subspace["availability_reasons"] == ["subspace_stability_insufficient_windows"]
+
+
+def test_structure_v2_persists_adjacent_subspace_and_cluster_risk_maximum() -> None:
+    rows = tuple(
+        {
+            "isin": listing.isin,
+            "exchange": listing.exchange,
+            "code": listing.code,
+            "date": f"2024-{month:02d}-{day:02d}",
+            "return": ((index % 17) - 8) * (0.001 if listing == A else 0.0014),
+        }
+        for index in range(294)
+        for month, day in ((index // 28 + 1, index % 28 + 1),)
+        for listing in (A, B)
+    )
+    result = build_structure_v2_documents(
+        risk_model=_risk(),
+        return_rows=rows,
+        candidates=(_candidate(),),
+    )
+    subspace = result.structure["subspace_stability"]
+    assert isinstance(subspace, dict)
+    assert len(subspace["items"]) == 2
+    assert subspace["availability_reasons"] == []
+    assert all(
+        0.0 <= row["covariance_stability"] <= 1.0
+        and 0.0 <= row["correlation_stability"] <= 1.0
+        and row["component_count"] == 2
+        for row in subspace["items"]
+    )
+    candidate = result.candidate_structure["items"][0]
+    assert candidate["largest_cluster_gross_abs_risk_share"] == max(
+        row["gross_abs_risk_share"] for row in candidate["cluster_risk_contributions"]
+    )
+
+
+def test_structure_v2_persists_one_cluster_gross_risk_share_as_one() -> None:
+    risk_model = replace(_risk(), covariance=((1.0, 0.99), (0.99, 1.0)))
+    result = build_structure_v2_documents(
+        risk_model=risk_model,
+        return_rows=_returns(),
+        candidates=(_candidate(),),
+    )
+    candidate = result.candidate_structure["items"][0]
+    assert len(candidate["cluster_risk_contributions"]) == 1
+    assert candidate["largest_cluster_gross_abs_risk_share"] == 1.0
