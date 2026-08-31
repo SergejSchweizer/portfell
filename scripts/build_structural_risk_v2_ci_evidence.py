@@ -73,7 +73,12 @@ def main() -> None:
         },
         checks=checks,
     )
-    target_dir = Path(os.environ.get("PORTFELL_STRUCTURAL_RISK_EVIDENCE_DIR", "artifacts/structural-risk-v2"))
+    target_dir = Path(
+        os.environ.get(
+            "PORTFELL_STRUCTURAL_RISK_EVIDENCE_DIR",
+            "artifacts/structural-risk-v2",
+        )
+    )
     target_dir.mkdir(parents=True, exist_ok=True)
     target = target_dir / "structural-risk-v2.json"
     target.write_text(json.dumps(evidence, indent=2, sort_keys=True) + "\n", encoding="utf-8")
