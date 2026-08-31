@@ -681,6 +681,11 @@ Branch: `docs/pr342-market-source-cutover-runbook`
 
 Depends on: PR341.
 
+Git status: integrated on `main` at `c70ecff`. The checked-in runbook has a navigable, staged
+cutover procedure covering identity/privilege preflight, backup boundary, four-route smoke,
+analytical smoke, sanitized evidence, and fail-closed rollback. The complete local quality gate
+passes (`869 passed`, `5` live-only skips, `91.06%` coverage).
+
 Scope: preflight DSNs/tables/role/UTC/read-only; back up surviving application/analytical state only; legacy market files are disposable and never migrated; smoke four routes; rollback application/config only and never reactivate provider acquisition or broader grants.
 
 ### PR343 — Source-series closeout and Dash handoff
