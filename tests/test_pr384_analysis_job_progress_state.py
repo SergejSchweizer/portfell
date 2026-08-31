@@ -5,7 +5,11 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from portfell.app_state.errors import APP_STATE_CONFLICT, APP_STATE_INVALID_TRANSITION, AppStateError
+from portfell.app_state.errors import (
+    APP_STATE_CONFLICT,
+    APP_STATE_INVALID_TRANSITION,
+    AppStateError,
+)
 from portfell.app_state.migration import APP_STATE_MIGRATIONS
 from portfell.app_state.migrations.v002_analysis_jobs import MIGRATION_V002
 from portfell.app_state.repository import PostgresAppStateRepository
@@ -90,6 +94,14 @@ def running_job(*, current: int = 0, total: int | None = None) -> tuple[object, 
     return tuple(row)
 
 
+def succeeded_job() -> tuple[object, ...]:
+    row = list(running_job(current=10, total=10))
+    row[4] = "succeeded"
+    row[5] = "run-a"
+    row[14] = NOW
+    return tuple(row)
+
+
 def test_v2_migration_is_registered_without_rewriting_v1() -> None:
     assert tuple(migration.version for migration in APP_STATE_MIGRATIONS) == (1, 2)
     assert APP_STATE_MIGRATIONS[-1] is MIGRATION_V002
@@ -121,7 +133,12 @@ def test_job_request_validation_is_fail_closed() -> None:
     invalid = (
         {"job_id": "", "stage": "univariate", "input_ref": "u"},
         {"job_id": "j", "stage": "metadata", "input_ref": "u"},
-        {"job_id": "j", "stage": "univariate", "input_ref": "u", "requested_objective": "return_risk"},
+        {
+            "job_id": "j",
+            "stage": "univariate",
+            "input_ref": "u",
+            "requested_objective": "return_risk",
+        },
         {"job_id": "j", "stage": "multivariate", "input_ref": "b"},
     )
     for values in invalid:
@@ -175,7 +192,7 @@ def test_progress_validation_and_monotone_update() -> None:
 def test_terminal_job_rules_require_matching_succeeded_run() -> None:
     linked = list(running_job(current=10, total=10))
     linked[5] = "run-a"
-    repository, connection = repo([[tuple(linked)], [RUN_SUCCEEDED], [tuple({**{i: value for i, value in enumerate(linked)}, 4: "succeeded", 14: NOW}.values())]])
+    repository, connection = repo([[tuple(linked)], [RUN_SUCCEEDED], [succeeded_job()]])
     record = repository.complete_job("job-a", status="succeeded")
     assert record.status == "succeeded"
     assert connection.commits == 1
