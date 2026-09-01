@@ -1,6 +1,6 @@
 # Portfell — Authoritative Backlog
 
-Last reviewed: 2026-08-30
+Last reviewed: 2026-09-01
 
 ## 0. Single-file authority
 
@@ -2708,3 +2708,305 @@ Acceptance must prove all of the following on the exact PR396 head SHA:
   exact 40-hex SHA, fixture sizes, latency distributions/p95, SQL query counts, decoded-row counts,
   payload maxima, executor-capacity policy, progress/restart/race evidence refs and browser evidence
   refs without credentials, complete DSNs or private market rows.
+
+## 10. Plotly Dash five-decimal numeric presentation — PR397
+
+### PR397 — Format every displayed floating-point value to exactly five decimal places
+
+Branch: `feat/pr397-dash-five-decimal-float-formatting`
+
+Priority: P1 presentation consistency.
+
+Depends on: PR396 PASS. This PR intentionally lands after the staged-analysis/read-plane series so
+its shared formatter and browser assertions apply to the final bounded Dash rendering paths rather
+than being repeatedly rebased through PR387–PR396.
+
+Owned paths: `src/portfell/dash_app/**`, shared Dash presentation/figure formatting helpers,
+synchronized Dash UI contract documentation when required, and focused unit/component/browser
+tests. No application-service financial formulas, market-source code, app-state schema, persisted
+analytical artifacts, optimizer logic or numerical decision rules may change.
+
+Scope: introduce one canonical presentation-only float formatting contract for the complete Plotly
+Dash application. Every user-visible floating-point number on `/metadata`, `/univariate`,
+`/bivariate` and `/multivariate` must be rendered with exactly five digits after the decimal
+separator while preserving the underlying full-precision backend value for calculation,
+filtering, ranking, persistence and IDs.
+
+Formatting contract:
+
+- ordinary scalar floats render with fixed-point precision equivalent to `.5f`; for example
+  `1.234567 -> 1.23457`, `-1.234567 -> -1.23457`, `1.2 -> 1.20000`, `0.000006 -> 0.00001`;
+- values that round to negative zero render as `0.00000`, never `-0.00000`;
+- percentage displays preserve their existing semantic unit and show exactly five decimal places
+  before the percent sign; when the underlying Plotly value is a fraction, use the semantic
+  equivalent of `.5%` rather than converting or mutating the analytical value;
+- currency/unit prefixes or suffixes remain intact, but the floating-point numeric portion has
+  exactly five decimal places;
+- integers, counts, ordinals, dates, timestamps, IDs, ISIN/exchange/code identities, categorical
+  labels and text are not coerced into float formatting;
+- `None`, typed unavailable values and non-finite values must keep the existing unavailable/error
+  presentation (`—` or typed reason as appropriate); `nan`, `inf` and `-inf` must never become
+  apparently valid five-decimal numbers;
+- editable numeric control values must not be rounded in a way that changes filter or analytical
+  semantics. Any read-only echo/label/preview of such a float is formatted to five decimals, while
+  the underlying submitted value retains its original precision;
+- formatting is presentation-only: no `round(..., 5)` or equivalent may be introduced into market
+  data, return/risk calculations, covariance/PCA, optimizer inputs/weights, OOS scoring,
+  selection predicates, artifact serialization, database writes or DecisionArtifact logic solely
+  to satisfy this UI requirement.
+
+User-visible surfaces covered by the contract include, where a float can appear:
+
+- KPI primary/secondary values;
+- Dash table numeric cells and history/evidence rows;
+- status/progress numeric labels and percentages;
+- Plotly x/y/z axis tick labels;
+- Plotly hover labels and custom hover templates;
+- Plotly annotations, text labels, marker text and data labels;
+- chart-specific summaries, legends or titles when they interpolate a float;
+- Univariate filter-preview readouts and other read-only control-adjacent numeric labels;
+- Multivariate winner, allocation, risk-contribution, PCA/cluster/structural-risk and walk-forward
+  diagnostic values.
+
+Acceptance:
+
+- one shared formatting helper/contract is the default path for scalar float text across the Dash
+  presentation layer; page-specific ad-hoc precision rules are removed unless a non-float semantic
+  explicitly requires different formatting;
+- all Plotly figure builders use deterministic axis/hover/annotation formatting so a displayed float
+  never falls back to Plotly's variable default precision;
+- populated deterministic fixtures for all four routes prove every user-visible finite float has
+  exactly five digits after the decimal separator, including KPI cards, tables, hover text, axis
+  labels, annotations and progress/status presentation where applicable;
+- representative regression fixtures include positive, negative, zero, negative-zero-producing,
+  sub-`1e-5`, greater-than-one, percentage and large-magnitude values;
+- exact examples assert `1.234567 -> 1.23457`, `-1.234567 -> -1.23457`, `1.2 -> 1.20000`,
+  `0.000006 -> 0.00001` and a value rounding to negative zero -> `0.00000`;
+- integer counts remain integers and full listing identities/dates/IDs are byte-equivalent to the
+  pre-PR397 presentation fixture;
+- unavailable/non-finite fixtures never display `nan`, `inf`, `-inf`, fabricated `0.00000`, or a
+  five-decimal value in place of an unavailable reason;
+- browser and service spies prove display formatting causes zero financial recomputation, zero
+  market reads, zero analysis writes and zero mutation of persisted artifact values;
+- a frozen analytical regression fixture proves candidate weights, Univariate/Bivariate metrics,
+  Multivariate scorecards, OOS winner and DecisionArtifact are byte-equivalent before and after
+  PR397; only browser-visible string/tick/hover formatting may differ;
+- browser QA covers `1440x900`, `1024x768` and `390x844` and confirms five-decimal formatting does
+  not create body-level horizontal overflow or truncate required units/identity context;
+- focused formatting/component/browser tests and `uv run portfell-quality pr` pass; GitHub
+  `merge-gate` must pass on the exact PR head before merge.
+## 11. Nightly Xetra refresh and Univariate age encoding — PR398
+
+### PR398 — 20:00 Xetra freshness refresh, automatic Univariate recompute, and age-colored Return/Risk Universe
+
+Branch: `feat/pr398-nightly-xetra-univariate-refresh`
+
+Priority: P1 data freshness and analytical UX.
+
+Depends on: PR397 PASS. This PR lands after the shared five-decimal Dash presentation contract so
+its new age colorbar/hover values use the same final formatting path and do not reintroduce
+page-specific numeric formatting.
+
+Owned paths: one narrow scheduler/runtime-lifecycle module, low-cost market-source freshness probe,
+`app_state` scheduled-refresh checkpoint persistence when required, Univariate job orchestration and
+read DTOs, the Dash `/univariate` Return/Risk figure, synchronized operational/UI documentation and
+focused scheduler/service/browser tests. No Bivariate or Multivariate financial calculations,
+selection semantics, optimizer objectives or DecisionArtifact ranking may change.
+
+Scope: Portfell runs one daily refresh check at exactly `20:00` in timezone `Europe/Vienna`. The
+check reads the external `xetra_loader` PostgreSQL source only far enough to determine whether a
+newer Xetra EOD quote date exists than the last successfully processed nightly refresh. Only when
+that source watermark is newer does Portfell materialize the required coherent market input for the
+latest committed Metadata universe and submit/reuse a full-universe Univariate calculation. The
+`Univariate Return/Risk Universe` scatter keeps its existing return/risk axes and additionally uses
+marker color to encode available quote-history age: the longer the history, the redder the point.
+
+Nightly scheduling and freshness contract:
+
+- the schedule is exactly once per calendar day at `20:00 Europe/Vienna`; DST is handled by an IANA
+  timezone-aware scheduler and the job must not be pinned to a fixed UTC hour;
+- the scheduler is owned by the existing Portfell API runtime; no new Compose service, Redis,
+  Celery, RQ, Node process or second analytical executor is introduced;
+- overlapping scheduler callbacks, process restart and duplicate delivery are idempotent and cannot
+  create two logical refreshes or two Univariate jobs for the same universe/source revision;
+- the freshness watermark is the latest non-null `trade_date` available from
+  `xetra_loader.eod_quotes`; the probe must use one bounded/index-supported query such as an ordered
+  latest-row lookup and must not materialize quote history, scan `xetra_loader_sync`, or infer loader
+  state from private sync tables;
+- the persisted comparison point is the watermark of the last **successfully processed** nightly
+  refresh, not the last attempted refresh; first run with no checkpoint is treated as stale and is
+  eligible for refresh;
+- if `source_latest_trade_date <= last_successful_trade_date`, the run is a clean no-op: no bulk
+  listing/quote/dividend/split materialization, no new market-source snapshot, no analysis run/job,
+  and no Univariate artifact write occurs;
+- if the source watermark is newer, Portfell materializes the current committed Metadata-universe
+  members and their required listings/quotes/dividends/splits under the existing
+  `REPEATABLE READ, READ ONLY` market-source contract, closes the source transaction before CPU-heavy
+  calculation, and pins the resulting immutable source snapshot to the Univariate run;
+- `fetch` in this PR means read/materialize analytical input from the canonical external PostgreSQL
+  source. Portfell must not create a second raw Xetra market-data mirror or take ownership of
+  `xetra_loader` tables;
+- if no committed Metadata universe exists, the scheduler records a typed no-op
+  `nightly_refresh_no_universe`; it must not invent a default universe or silently change Metadata
+  predicates/membership;
+- when fresh source data exists, the scheduler submits/reuses the existing durable full-universe
+  Univariate job path; computation is never performed synchronously inside the scheduler callback;
+- if the exact universe/source-snapshot Univariate run already succeeded before the nightly trigger,
+  the refresh reuses that result and advances the checkpoint without recomputing statistics;
+- the successful checkpoint advances only after the matching Univariate run/artifact is durably
+  `succeeded`; materialization, executor or calculation failure leaves the prior watermark intact so
+  a later invocation can retry;
+- nightly refresh does **not** automatically create a new Univariate selection or launch Bivariate or
+  Multivariate computation. Downstream selection remains an explicit user commit;
+- public status/evidence records the scheduled time, observed source watermark, prior successful
+  watermark, outcome (`no_change`, `refreshed`, `reused`, `no_universe`, `failed`), exact universe ID,
+  snapshot ID/run ID when present, and typed/redacted failure code without SQL, DSNs or credentials.
+
+Instrument-age color contract for `Univariate Return/Risk Universe`:
+
+- age is derived only from persisted Univariate row history, not from wall-clock time or an external
+  issuer lookup: `history_age_days = last_quote_date - first_quote_date` for the same full
+  `(isin, exchange, code)` identity;
+- the UI labels this measure `History age` so it is not misrepresented as the legal issuance date of
+  the ISIN; hover shows `First quote`, `Last quote` and `History age`;
+- the color variable is continuous and monotone in `history_age_days`; younger histories use the
+  light end and older histories the dark/red end of Plotly's sequential `Reds` scale, so for two
+  valid rows with different ages the older row is always redder;
+- a visible colorbar is titled exactly `History age (years)`; the display value may convert days by
+  `365.25` for presentation only, while ordering/color normalization uses exact integer day counts;
+- missing, malformed or negative history intervals are typed `history_age_unavailable`, rendered as
+  a neutral marker outside the continuous age scale, and never coerced to age `0`;
+- an equal-age fixture renders all valid points with one stable age color and does not divide by zero
+  or produce `NaN` color coordinates;
+- marker color is presentation-only and never changes Univariate filtering, persisted selection
+  membership, chart sampling, ranking, availability, return/risk metrics or downstream eligibility;
+- the existing bounded Univariate chart contract remains in force (`<=500` deterministic points);
+  `first_quote_date`, `last_quote_date` and age evidence must travel through the bounded persisted
+  chart/read DTO rather than causing an all-row artifact read or market query;
+- full listing identity remains visible in hover wherever ISIN alone could be ambiguous;
+- this age encoding is an explicit chart-local exception to the older visual rule that reserved red
+  exclusively for error/negative state; the colorbar and hover must make clear that red means older
+  history, not loss, risk severity or failure.
+
+Acceptance:
+
+- deterministic timezone tests prove exactly one scheduled trigger at `20:00 Europe/Vienna` across
+  both CET and CEST dates and no duplicate logical refresh on repeated delivery;
+- a stale-source fixture performs exactly the bounded freshness probe and zero bulk market reads,
+  analysis submissions or writes;
+- a newer-source fixture materializes one coherent source revision, submits/reuses one full-universe
+  Univariate job and publishes the same numerical rows as the existing synchronous regression
+  fixture for that exact input;
+- failed refresh leaves the previous successful watermark unchanged; retry after recovery succeeds
+  without duplicate immutable snapshots/runs/artifacts;
+- restart tests prove the schedule/checkpoint and in-flight durable Univariate job recover without
+  double execution;
+- browser/component fixtures prove older history maps monotonically to redder markers, colorbar and
+  hover age are present, unavailable age is neutral/not-zero, and the existing return/risk x/y values
+  are byte-equivalent before and after this PR;
+- page render, hover, color normalization and nightly no-change checks perform zero financial
+  recomputation on the Dash request thread and do not read the complete Univariate artifact;
+- `1440x900`, `1024x768` and `390x844` browser fixtures have no body-level horizontal overflow and
+  preserve readable colorbar/hover context;
+- focused scheduler/freshness/idempotency/service/browser tests and `uv run portfell-quality pr`
+  pass; GitHub `merge-gate` must pass on the exact PR head before merge.
+## 12. Metadata distribution overview and project selector — PR399–PR400
+
+### PR399 — Replace Metadata Xetra listing table with one three-distribution figure
+
+Branch: `feat/pr399-metadata-distribution-overview`
+
+Priority: P1 analytical UX and bounded rendering.
+
+Depends on: PR397 PASS. May execute in parallel with PR398 because it changes only Metadata-page read/presentation behavior and does not alter the nightly Univariate refresh contract.
+
+Owned paths: Metadata page/read-model code, shared Plotly figure helpers required for this figure, synchronized Metadata UI documentation, and focused service/component/browser tests. No market-source schema, universe membership semantics, Univariate/Bivariate/Multivariate formulas, selection predicates, optimizer logic, or DecisionArtifact behavior may change.
+
+Scope: remove the `Xetra Listings` table/preview from `/metadata`. In the same location render one Plotly distribution figure that summarizes the currently filtered active Xetra universe with exactly three categorical distributions: `Instrument type`, `Country`, and `Currency`.
+
+Distribution contract:
+
+- the figure is one Plotly figure/card, not three independent page cards; it contains exactly three clearly labelled panels/traces for `Instrument type`, `Country`, and `Currency`;
+- distributions are computed from the exact same currently filtered active-listing set that drives `Filtered listings`, `Selected listings`, and universe creation, so applying any Metadata filter updates all three distributions consistently;
+- each distribution is a frequency distribution over listing count; every non-empty category is represented and the counts for each distribution reconcile exactly to the current filtered listing count;
+- missing/blank categorical values are grouped under one explicit `Unknown` category rather than silently dropped;
+- categories are ordered deterministically by descending count and then lexicographically by displayed label for ties;
+- hover exposes category, exact listing count, and percentage of the current filtered universe; percentages are presentation-only and do not alter membership;
+- the figure title is exactly `Universe distributions`; panel labels are exactly `Instrument type`, `Country`, and `Currency`;
+- the existing `Xetra Listings` table, its bounded first-100-row preview note, and listing-row HTML rendering are removed from the normal Metadata page;
+- no complete listing-row payload is sent to the browser solely to draw this figure. The Metadata read model returns compact aggregated distribution DTOs plus the existing counts/options/current-universe data;
+- one Metadata page-data request materializes the filtered active-listing source at most once and derives all three distributions from that same materialization, preserving the PR395 no-duplicate-read contract;
+- the four Metadata filters and `Create universe & compute Univariate` behavior are unchanged; chart interaction is informational only and must not mutate filter values, universe membership, or create a universe;
+- duplicate ISINs on different `(exchange, code)` identities remain separate listings in distribution counts, consistent with the repository-wide full-identity contract;
+- the shared PR397 five-decimal formatting contract applies to percentage hover/readouts, while listing counts remain integers.
+
+Acceptance:
+
+- deterministic fixtures prove the three distribution totals each equal `filtered_count` for unfiltered and filtered universes;
+- a fixture containing null/blank instrument type, country, and currency values produces explicit `Unknown` buckets and no lost listings;
+- tie-order fixtures are stable across repeated runs and input-row ordering changes;
+- browser/service spies prove filter changes perform no analytical compute or persistence writes and use at most one active-listing materialization per page-data request;
+- the normal `/metadata` DOM contains no `Xetra Listings` table and no per-listing preview rows after this PR;
+- the figure contains exactly the three required distributions and updates when Metadata filters change;
+- universe creation from a frozen filter fixture produces byte-equivalent member identities before and after PR399;
+- `1440x900`, `1024x768`, and `390x844` browser fixtures show all three distribution labels with no body-level horizontal overflow;
+- focused aggregation/component/browser tests and `uv run portfell-quality pr` pass; GitHub `merge-gate` must pass on the exact PR head before merge.
+
+### PR400 — Sidebar project/universe dropdown and complete selected-project context
+
+Branch: `feat/pr400-sidebar-project-selector`
+
+Priority: P1 workflow navigation and historical project inspection.
+
+Depends on: PR399. It may consume the final Metadata-universe read contracts from PR399 but must not reintroduce the removed listing table.
+
+Owned paths: Dash shared shell/sidebar, identifier-only browser/presentation state, narrow application-service project-summary reads, synchronized shell/UI documentation, and focused service/component/browser tests. No financial calculation, market-source write, artifact mutation, universe-member mutation, selection mutation, optimizer objective, or DecisionArtifact ranking may change.
+
+Scope: under the existing sidebar heading `Current analysis`, add one dropdown containing every persisted Metadata universe created in Portfell. In this UI contract, a `project` is exactly one persisted `metadata_universe` revision. Selecting a project updates the information shown directly beneath `Current analysis` to the exact persisted information and analytical lineage for that selected universe.
+
+Project selector contract:
+
+- the dropdown is rendered directly below `Current analysis` and above the project-information rows;
+- its options contain every persisted Metadata universe, not only the latest one, ordered newest version first with deterministic ties;
+- option values are exact `universe_id` values; the human-readable label is `Universe v<version> · <short-universe-id>` so two projects can never collide because of display name reuse;
+- on first load with no explicit browser selection, the latest persisted Metadata universe is selected; when no universe exists the dropdown is disabled and the existing empty/not-ready context is retained;
+- selecting a different option is a read-only context action: it performs zero market reads, zero analytical computation, zero job submission, zero universe/selection/artifact writes, and does not make a new project;
+- selected `universe_id` is stored only as identifier-level browser/UI state suitable for reload reconstruction; no complete universe member list or analytical artifact is copied into browser state;
+- invalid/deleted/non-existent selected IDs fail closed to typed `project_not_found` presentation and must not silently substitute the latest universe;
+- changing the selected project updates the sidebar context without a full-route rebuild and does not discard page filter/control state.
+
+Selected-project information shown beneath the dropdown:
+
+- `Universe ID` — full persisted universe ID, with responsive wrapping rather than truncating the authoritative value;
+- `Version`;
+- `Created` timestamp;
+- `Published` timestamp;
+- `Members` count;
+- `Source snapshot` — full persisted source snapshot ID;
+- `Univariate` — exact latest matching run status plus run ID for that universe, or `Not computed`;
+- `Selection` — exact persisted selection ID/member count sourced from a matching Univariate run, or `Not selected`;
+- `Bivariate` — exact latest matching run status plus run ID for that selection, or `Not computed`;
+- `Multivariate` — exact latest matching run status plus run ID for that same lineage, or `Not computed`;
+- `Readiness` — deterministic stage-readiness summary derived only from the selected project's exact lineage;
+- `Active job` — shown only when a durable job belongs to the selected project's exact lineage; unrelated jobs from another universe are never displayed as belonging to the project.
+
+Lineage/read contract:
+
+- project summary resolution starts from the selected `universe_id`; a generic latest-run/selection lookup is forbidden once a project has been selected;
+- Univariate linkage is by exact `AnalysisRun.input_ref == universe_id`;
+- any displayed selection must have `source_run_id` equal to a matching Univariate run for the selected universe;
+- Bivariate/Multivariate status must be resolved through the exact selected selection/run dependencies already frozen by the staged-analysis pipeline; evidence from another universe or selection must never cross-wire into the sidebar;
+- when several historical runs exist for the same exact project lineage, display the newest matching persisted revision deterministically and retain exact IDs so the choice is auditable;
+- the summary read is bounded and identifier/status-oriented; it must not deserialize row-backed Univariate/Bivariate artifacts, full member lists, PCA/cluster artifacts, or market history;
+- project selection is presentation/navigation state only in PR400. It does not change the nightly PR398 refresh target, create a new analysis, or implicitly recompute an old project; future compute-against-selected-project behavior requires an explicit backlog contract.
+
+Acceptance:
+
+- fixtures with at least five universes prove all five appear in newest-first order and each dropdown value is its exact `universe_id`;
+- selecting each fixture universe produces only that universe's IDs, timestamps, member count, source snapshot, matching selection/run statuses, readiness, and matching active-job evidence;
+- a deliberate U1/S1/B1/M1 versus U2/S2/B2/M2 race fixture proves zero cross-project lineage mixing;
+- switching projects performs zero market reads, zero analytical compute calls, zero job submissions and zero app-state writes;
+- sidebar selection changes do not trigger full page reconstruction and preserve Metadata/Univariate filter state already present in the browser;
+- reload reconstructs the selected project when still valid; a missing project renders typed `project_not_found` rather than silently switching projects;
+- the selected-project block remains usable at `1440x900`, `1024x768`, and `390x844`, with full IDs accessible and no body-level horizontal overflow;
+- focused summary-lineage/state/sidebar/browser tests and `uv run portfell-quality pr` pass; GitHub `merge-gate` must pass on the exact PR head before merge.
