@@ -26,6 +26,10 @@ class CallbackService(Protocol):
         self, run_id: str, *, predicates: Sequence[Mapping[str, object]] | None = None
     ) -> object: ...
 
+    def create_selection_and_start_downstream(
+        self, run_id: str, *, predicates: Sequence[Mapping[str, object]] | None = None
+    ) -> object: ...
+
     def univariate_filter_preview(
         self,
         run_id: str,
@@ -67,7 +71,14 @@ def execute_action(
         elif action == "univariate-save-selection":
             if state.univariate_run_id is None:
                 return replace(state, message_code="univariate_not_ready")
-            service.create_univariate_selection(state.univariate_run_id, predicates=predicates)
+            if hasattr(service, "create_selection_and_start_downstream"):
+                service.create_selection_and_start_downstream(
+                    state.univariate_run_id, predicates=predicates
+                )
+            else:
+                # Compatibility for isolated page fixtures; production service owns
+                # the atomic selection-to-downstream transition above.
+                service.create_univariate_selection(state.univariate_run_id, predicates=predicates)
         elif action == "bivariate-compute":
             if state.selection_id is None:
                 return replace(state, message_code="univariate_selection_not_ready")
