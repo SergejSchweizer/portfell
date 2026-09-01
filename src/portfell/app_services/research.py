@@ -200,6 +200,27 @@ class ApplicationServiceError(RuntimeError):
         super().__init__(code)
 
 
+class CoalescedProgress:
+    """Persist monotone progress at most once per percentage bucket."""
+
+    def __init__(self, state: AppStatePort, job_id: str, total: int, phase: str) -> None:
+        self._state = state
+        self._job_id = job_id
+        self._total = max(0, total)
+        self._phase = phase
+        self._last_bucket = -1
+
+    def write(self, current: int) -> None:
+        bounded = min(self._total, max(0, current))
+        bucket = 100 if self._total == 0 else (bounded * 100) // self._total
+        if bucket == self._last_bucket and bounded != self._total:
+            return
+        self._last_bucket = bucket
+        self._state.update_job_progress(
+            self._job_id, current=bounded, total=self._total, phase=self._phase
+        )
+
+
 class ResearchApplicationService:
     """Canonical application service used by FastAPI and Plotly Dash replacement clients."""
 
@@ -361,6 +382,9 @@ class ResearchApplicationService:
                 total=len(universe.members),
                 phase="members",
             )
+            progress = CoalescedProgress(self._state, job_id, len(universe.members), "members")
+        else:
+            progress = None
         source_id = univariate_source_id(
             universe_id=universe.universe_id, market_snapshot_id=market.snapshot_id
         )
@@ -381,13 +405,8 @@ class ResearchApplicationService:
         try:
 
             def on_progress(current: int) -> None:
-                if job_id is not None:
-                    self._state.update_job_progress(
-                        job_id,
-                        current=current,
-                        total=len(universe.members),
-                        phase="members",
-                    )
+                if progress is not None:
+                    progress.write(current)
 
             computed = compute_univariate(
                 universe_id=universe.universe_id,
@@ -536,15 +555,15 @@ class ResearchApplicationService:
             return _run_row(run)
         try:
             pair_total = len(member_ids) * (len(member_ids) - 1) // 2
+            progress: CoalescedProgress | None = None
 
             def on_progress(current: int, total: int) -> None:
-                if job_id is not None:
-                    self._state.update_job_progress(
-                        job_id, current=current, total=total, phase="pairs"
-                    )
+                if progress is not None:
+                    progress.write(current)
 
             if job_id is not None:
                 self._state.update_job_progress(job_id, current=0, total=pair_total, phase="pairs")
+                progress = CoalescedProgress(self._state, job_id, pair_total, "pairs")
             computed = compute_bivariate(
                 selection=selection,
                 market_snapshot_id=market.snapshot_id,
