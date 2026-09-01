@@ -29,6 +29,7 @@ class WorkflowContext:
     selected_count: str = "—"
     snapshot_short_id: str = "—"
     stage_readiness: str = "Not ready"
+    previous_result: str = "—"
 
 
 def normalize_route(pathname: str | None) -> str:
@@ -65,6 +66,7 @@ def workflow_context(context: WorkflowContext | None = None) -> Component:
             _context_row("Selected", value.selected_count, "pf-context-selected"),
             _context_row("Snapshot", value.snapshot_short_id, "pf-context-snapshot"),
             _context_row("Readiness", value.stage_readiness, "pf-context-readiness"),
+            _context_row("Previous result", value.previous_result, "pf-context-previous"),
         ],
         className="pf-workflow-context",
     )
@@ -149,6 +151,9 @@ def workflow_context_from_state(state: BrowserState, pathname: str | None) -> Wo
             "—" if state.source_snapshot_id is None else state.source_snapshot_id[:12]
         ),
         stage_readiness="Ready" if ready else "Not ready",
+        previous_result=(
+            "Previous result available" if state.previous_ready_run is not None else "—"
+        ),
     )
 
 

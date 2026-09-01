@@ -917,9 +917,11 @@ class ResearchApplicationService:
         universes = self._state.list_metadata_universes(limit=1)
         selections = self._state.list_univariate_selections(limit=1)
         stages: dict[str, JsonRow | None] = {}
+        history: dict[str, list[JsonRow]] = {}
         for stage in ("univariate", "bivariate", "multivariate"):
-            runs = self._state.list_analysis_runs(stage=stage, limit=1)
+            runs = self._state.list_analysis_runs(stage=stage, limit=20)
             stages[stage] = None if not runs else _run_row(runs[0])
+            history[stage] = [_run_row(item) for item in runs]
         universe = universes[0] if universes else None
         selection = selections[0] if selections else None
         job = self.active_analysis_job()
@@ -928,6 +930,9 @@ class ResearchApplicationService:
             "metadata_universe": None if universe is None else _universe_row(universe),
             "univariate_selection": None if selection is None else _selection_row(selection),
             "stages": stages,
+            # Small identifier/status history used to keep previous results
+            # inspectable without allowing a generic latest-run substitution.
+            "history": history,
             "active_job": job,
         }
 
