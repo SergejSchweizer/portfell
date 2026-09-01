@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from typing import Literal, cast
 
 JobStatus = Literal["queued", "running", "succeeded", "failed", "cancelled"]
@@ -19,14 +19,24 @@ class StageReadiness:
 
 @dataclass(frozen=True, slots=True)
 class JobPresentation:
+    job_id: str | None = None
     stage: str | None = None
     run_id: str | None = None
     status: JobStatus | None = None
-    progress: float | None = None
+    progress_current: int | None = None
+    progress_total: int | None = None
+    progress_phase: str | None = None
+    failure_code: str | None = None
 
     @property
     def terminal(self) -> bool:
         return self.status in {None, "succeeded", "failed", "cancelled"}
+
+    @property
+    def percentage(self) -> float | None:
+        if self.progress_total is None or self.progress_total <= 0 or self.progress_current is None:
+            return None
+        return 100 * self.progress_current / self.progress_total
 
 
 @dataclass(frozen=True, slots=True)
@@ -70,10 +80,16 @@ class BrowserState:
         status = job_raw.get("status") if job_raw is not None else None
         allowed_statuses = {"queued", "running", "succeeded", "failed", "cancelled"}
         job = JobPresentation(
+            job_id=_string(job_raw.get("job_id")) if job_raw is not None else None,
             stage=_string(job_raw.get("stage")) if job_raw is not None else None,
             run_id=_string(job_raw.get("run_id")) if job_raw is not None else None,
             status=cast(JobStatus | None, status if status in allowed_statuses else None),
-            progress=_float(job_raw.get("progress")) if job_raw is not None else None,
+            progress_current=(
+                _integer(job_raw.get("progress_current")) if job_raw is not None else None
+            ),
+            progress_total=_integer(job_raw.get("progress_total")) if job_raw is not None else None,
+            progress_phase=_string(job_raw.get("progress_phase")) if job_raw is not None else None,
+            failure_code=_string(job_raw.get("failure_code")) if job_raw is not None else None,
         )
         return cls(
             workspace_id=_string(root.get("workspace_id")) or "default",
@@ -129,39 +145,19 @@ def browser_state_from_workflow(workflow: Mapping[str, object]) -> BrowserState:
         and _field(multivariate, "input_ref") == bivariate_id
     )
 
-    running = next(
-        (
-            (stage_name, row)
-            for stage_name, row in (
-                ("univariate", univariate),
-                ("bivariate", bivariate),
-                ("multivariate", multivariate),
-            )
-            if row is not None and row.get("status") in {"queued", "running"}
-        ),
-        None,
-    )
-    terminal = next(
-        (
-            (stage_name, row)
-            for stage_name, row in (
-                ("multivariate", multivariate),
-                ("bivariate", bivariate),
-                ("univariate", univariate),
-            )
-            if row is not None and row.get("status") in {"succeeded", "failed", "cancelled"}
-        ),
-        None,
-    )
-    job_source = running or terminal
+    job_source = _mapping(workflow.get("active_job"))
     job = (
         JobPresentation()
         if job_source is None
         else JobPresentation(
-            stage=job_source[0],
-            run_id=_field(job_source[1], "run_id"),
-            status=cast(JobStatus, job_source[1].get("status")),
-            progress=_float(job_source[1].get("progress")),
+            job_id=_field(job_source, "job_id"),
+            stage=_field(job_source, "stage"),
+            run_id=_field(job_source, "run_id"),
+            status=cast(JobStatus, job_source.get("status")),
+            progress_current=_integer(job_source.get("progress_current")),
+            progress_total=_integer(job_source.get("progress_total")),
+            progress_phase=_field(job_source, "progress_phase"),
+            failure_code=_field(job_source, "failure_code"),
         )
     )
     return BrowserState(
@@ -182,6 +178,29 @@ def browser_state_from_workflow(workflow: Mapping[str, object]) -> BrowserState:
             multivariate=multivariate_ready,
         ),
         job=job,
+    )
+
+
+def with_job_status(state: BrowserState, row: Mapping[str, object] | None) -> BrowserState:
+    """Replace only job presentation fields after a cheap persisted-status poll."""
+    if row is None:
+        return state
+    status = row.get("status")
+    allowed_statuses = {"queued", "running", "succeeded", "failed", "cancelled"}
+    if status not in allowed_statuses:
+        return state
+    return replace(
+        state,
+        job=JobPresentation(
+            job_id=_string(row.get("job_id")),
+            stage=_string(row.get("stage")),
+            run_id=_string(row.get("run_id")),
+            status=cast(JobStatus, status),
+            progress_current=_integer(row.get("progress_current")),
+            progress_total=_integer(row.get("progress_total")),
+            progress_phase=_string(row.get("progress_phase")),
+            failure_code=_string(row.get("failure_code")),
+        ),
     )
 
 
@@ -258,10 +277,6 @@ def _integer(value: object) -> int | None:
     return value if isinstance(value, int) and not isinstance(value, bool) else None
 
 
-def _float(value: object) -> float | None:
-    return float(value) if isinstance(value, int | float) and not isinstance(value, bool) else None
-
-
 __all__ = [
     "BrowserState",
     "JobPresentation",
@@ -270,4 +285,5 @@ __all__ = [
     "invalidate_for_new_bivariate",
     "invalidate_for_new_selection",
     "invalidate_for_new_universe",
+    "with_job_status",
 ]

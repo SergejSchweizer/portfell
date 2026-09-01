@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Any
+from typing import Any, cast
 
 from dash import dcc, html
 from dash.development.base_component import Component
+
+from portfell.dash_app.state import JobPresentation
 
 Content = Component | str | int | float
 
@@ -97,12 +99,65 @@ def ErrorState(message: str) -> Component:
     return html.Div(message, className="pf-state pf-state-error", role="alert")
 
 
+def JobProgress(job: JobPresentation) -> Component:
+    """Accessible shared job-progress presentation backed only by persisted job state."""
+    stage = (job.stage or "Analysis").replace("_", " ").title()
+    status = (job.status or "idle").replace("_", " ")
+    phase = job.progress_phase.replace("_", " ") if job.progress_phase else None
+    if job.status == "failed":
+        detail = f"Failure: {job.failure_code or 'analysis_compute_failed'}"
+    elif job.status == "cancelled":
+        detail = "Cancelled"
+    elif job.progress_total is not None and job.progress_current is not None:
+        percentage = job.percentage or 0
+        detail = f"{job.progress_current} / {job.progress_total} ({percentage:.0f}%)"
+    else:
+        detail = "Progress total is not available yet."
+    progress: Component
+    if job.progress_total is not None and job.progress_current is not None:
+        progress = html.Div(
+            html.Div(className="pf-job-progress-meter-fill"),
+            className="pf-job-progress-meter",
+            style={"--pf-progress": f"{job.percentage or 0:.3f}%"},
+            **cast(
+                Any,
+                {
+                    "role": "progressbar",
+                    "aria-label": f"{stage} progress: {detail}",
+                    "aria-valuenow": job.progress_current,
+                    "aria-valuemax": job.progress_total,
+                },
+            ),
+        )
+    else:
+        progress = html.Div(
+            className="pf-job-progress-indeterminate",
+            **cast(Any, {"aria-label": f"{stage} progress is indeterminate"}),
+        )
+    return html.Section(
+        [
+            html.Div(f"{stage}: {status}", className="pf-job-progress-title"),
+            html.Div(
+                phase or "Waiting for a persisted job phase.",
+                className="pf-job-progress-phase",
+            ),
+            progress,
+            html.Div(detail, className="pf-job-progress-detail"),
+        ],
+        id="pf-job-progress",
+        className="pf-job-progress",
+        role="status" if job.status not in {"failed", "cancelled"} else "alert",
+        **cast(Any, {"aria-live": "polite"}),
+    )
+
+
 __all__ = [
     "ChartCard",
     "ControlBar",
     "EmptyState",
     "ErrorState",
     "HistoryCard",
+    "JobProgress",
     "KpiCard",
     "LoadingState",
     "PageHeader",

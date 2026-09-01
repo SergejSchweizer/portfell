@@ -10,7 +10,7 @@ from typing import Any, Protocol, cast
 from dash import dcc, html
 from dash.development.base_component import Component
 
-from portfell.dash_app.components import PageHeader, StatusBanner
+from portfell.dash_app.components import JobProgress, PageHeader, StatusBanner
 from portfell.dash_app.contracts import DEFAULT_ROUTE, PAGE_BY_ROUTE, PAGE_SPECS, PageSpec
 from portfell.dash_app.state import BrowserState, browser_state_from_workflow
 
@@ -130,8 +130,9 @@ def root_layout() -> Component:
         [
             dcc.Location(id="pf-location", refresh=False),
             dcc.Store(id="pf-browser-state", storage_type="memory", data=BrowserState().to_store()),
-            dcc.Interval(id="pf-job-poll", interval=2_000, disabled=True, n_intervals=0),
+            dcc.Interval(id="pf-job-poll", interval=1_000, disabled=True, n_intervals=0),
             html.Div(id="pf-route-content"),
+            html.Div(JobProgress(BrowserState().job), id="pf-job-progress-region"),
         ],
         id="pf-root",
     )

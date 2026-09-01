@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 from threading import Event
-from typing import cast
+from typing import Any, cast
 
 import pytest
 
@@ -25,12 +25,20 @@ from portfell.app_state.errors import APP_STATE_CONFLICT, AppStateError
 NOW = datetime(2026, 9, 1, tzinfo=UTC)
 
 
-def job(*, job_id: str = "job-a", status: str = "queued", attempt: int = 0) -> AnalysisJobRecord:
+def job(
+    *,
+    job_id: str = "job-a",
+    status: str = "queued",
+    attempt: int = 0,
+    stage: str = "univariate",
+    input_ref: str = "universe-a",
+    requested_objective: str | None = None,
+) -> AnalysisJobRecord:
     return AnalysisJobRecord(
         job_id=job_id,
-        stage="univariate",
-        input_ref="universe-a",
-        requested_objective=None,
+        stage=stage,
+        input_ref=input_ref,
+        requested_objective=requested_objective,
         status=status,
         run_id=None,
         progress_current=0,
@@ -150,15 +158,17 @@ class StartState:
 class RecordingExecutor:
     def __init__(self, state: StartState) -> None:
         self.state = state
+        self.recovered = False
+        self.closed = False
 
     def submit(self, record: AnalysisJobRecord) -> None:
         self.state.submitted.append(record)
 
     def recover(self) -> None:
-        return None
+        self.recovered = True
 
     def close(self) -> None:
-        return None
+        self.closed = True
 
 
 def test_submit_returns_immediately_and_worker_claims_then_persists_success() -> None:
@@ -225,10 +235,11 @@ def test_recovery_scans_only_queued_or_running_and_failure_is_redacted() -> None
 
 def test_start_calls_are_small_idempotent_job_submissions_without_market_reads() -> None:
     state = StartState()
+    executor = RecordingExecutor(state)
     service = ResearchApplicationService(
         cast(AppStatePort, state),
         cast(ApplicationMarketGateway, object()),
-        analysis_job_executor=cast(AnalysisJobExecutor, RecordingExecutor(state)),
+        analysis_job_executor=cast(AnalysisJobExecutor, executor),
         now=lambda: NOW,
     )
     assert service.start_univariate_job("universe-a")["status"] == "queued"
@@ -245,3 +256,46 @@ def test_start_calls_are_small_idempotent_job_submissions_without_market_reads()
         service.start_multivariate_job(
             selection_id="selection-a", bivariate_run_id="bivariate-run", objective="invalid"
         )
+    service.start_background_jobs()
+    service.stop_background_jobs()
+    assert executor.recovered and executor.closed
+
+
+def test_worker_dispatches_only_the_requested_stage_and_rejects_unknown_stage() -> None:
+    state = StartState()
+    service = ResearchApplicationService(
+        cast(AppStatePort, state),
+        cast(ApplicationMarketGateway, object()),
+        analysis_job_executor=cast(AnalysisJobExecutor, RecordingExecutor(state)),
+        now=lambda: NOW,
+    )
+
+    def run_univariate(universe_id: str) -> dict[str, object]:
+        return {"run_id": f"uni-{universe_id}"}
+
+    def run_bivariate(selection_id: str) -> dict[str, object]:
+        return {"run_id": f"bi-{selection_id}"}
+
+    def run_multivariate(**values: object) -> dict[str, object]:
+        return {"run_id": f"multi-{values['objective']}"}
+
+    implementation = cast(Any, service)
+    implementation.run_univariate = run_univariate
+    implementation.run_bivariate = run_bivariate
+    implementation.run_multivariate = run_multivariate
+    assert implementation._execute_analysis_job(job())["run_id"] == "uni-universe-a"
+    bivariate_job = job(stage="bivariate", input_ref="selection-a")
+    bivariate = implementation._execute_analysis_job(bivariate_job)
+    assert bivariate["run_id"] == "bi-selection-a"
+    assert (
+        implementation._execute_analysis_job(
+            job(
+                stage="multivariate",
+                input_ref="bivariate-run",
+                requested_objective="minimum_risk",
+            )
+        )["run_id"]
+        == "multi-minimum_risk"
+    )
+    with pytest.raises(ApplicationServiceError, match="analysis_job_stage_invalid"):
+        implementation._execute_analysis_job(job(stage="unknown"))

@@ -8,11 +8,16 @@ from typing import Protocol, cast
 
 from dash import Dash, Input, Output, State, no_update
 
-from portfell.dash_app.state import BrowserState, browser_state_from_workflow
+from portfell.dash_app.components import JobProgress
+from portfell.dash_app.state import BrowserState, browser_state_from_workflow, with_job_status
 
 
 class CallbackService(Protocol):
     def workflow_state(self) -> dict[str, object]: ...
+
+    def active_analysis_job(self) -> dict[str, object] | None: ...
+
+    def analysis_job_status(self, job_id: str) -> dict[str, object]: ...
 
     def create_metadata_universe(self, **filters: object) -> object: ...
 
@@ -86,6 +91,19 @@ def execute_action(
         )
 
 
+def refresh_job_presentation(service: CallbackService, state: BrowserState) -> BrowserState:
+    """Read only the current durable job record; this never invokes computation or market I/O."""
+    try:
+        row = (
+            service.analysis_job_status(state.job.job_id)
+            if state.job.job_id is not None
+            else service.active_analysis_job()
+        )
+        return with_job_status(state, row)
+    except Exception:
+        return state
+
+
 def register_callbacks(app: Dash, services: object | None) -> None:
     """Register route-safe page actions; GET/render paths never mutate analytical state."""
     if services is None:
@@ -95,13 +113,30 @@ def register_callbacks(app: Dash, services: object | None) -> None:
     @app.callback(  # pyright: ignore[reportUnknownMemberType]
         Output("pf-browser-state", "data"),
         Input("pf-location", "pathname"),
-        Input("pf-job-poll", "n_intervals"),
         prevent_initial_call=False,
     )
     def _refresh_state(  # pyright: ignore[reportUnusedFunction]
-        _pathname: str | None, _poll: int
+        _pathname: str | None,
     ) -> dict[str, object]:
         return execute_action(service, BrowserState(), action="refresh").to_store()
+
+    @app.callback(  # pyright: ignore[reportUnknownMemberType]
+        Output("pf-browser-state", "data", allow_duplicate=True),
+        Input("pf-job-poll", "n_intervals"),
+        State("pf-browser-state", "data"),
+        prevent_initial_call=True,
+    )
+    def _poll_job(  # pyright: ignore[reportUnusedFunction]
+        _poll: int, store: object
+    ) -> dict[str, object]:
+        return refresh_job_presentation(service, BrowserState.from_store(store)).to_store()
+
+    @app.callback(  # pyright: ignore[reportUnknownMemberType]
+        Output("pf-job-progress-region", "children"),
+        Input("pf-browser-state", "data"),
+    )
+    def _render_job_progress(store: object) -> object:  # pyright: ignore[reportUnusedFunction]
+        return JobProgress(BrowserState.from_store(store).job)
 
     @app.callback(  # pyright: ignore[reportUnknownMemberType]
         Output("pf-browser-state", "data", allow_duplicate=True),
@@ -204,7 +239,7 @@ def register_callbacks(app: Dash, services: object | None) -> None:
         Input("pf-browser-state", "data"),
     )
     def _polling_disabled(store: object) -> bool:  # pyright: ignore[reportUnusedFunction]
-        return BrowserState.from_store(store).job.terminal
+        return BrowserState.from_store(store).job.status not in {"queued", "running"}
 
     @app.callback(  # pyright: ignore[reportUnknownMemberType]
         Output("metadata-filter-exchange", "value"),
@@ -220,4 +255,9 @@ def register_callbacks(app: Dash, services: object | None) -> None:
         return (None, None, None, None) if n_clicks else no_update
 
 
-__all__ = ["execute_action", "persisted_browser_state", "register_callbacks"]
+__all__ = [
+    "execute_action",
+    "persisted_browser_state",
+    "refresh_job_presentation",
+    "register_callbacks",
+]

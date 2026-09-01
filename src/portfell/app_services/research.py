@@ -167,6 +167,8 @@ class AppStatePort(Protocol):
         self, *, stage: str | None = None, status: str | None = None, limit: int = 100
     ) -> tuple[AnalysisJobRecord, ...]: ...
 
+    def get_analysis_job(self, job_id: str) -> AnalysisJobRecord: ...
+
 
 class ApplicationServiceError(RuntimeError):
     """Stable public application-service failure without SQL/credential detail."""
@@ -554,12 +556,25 @@ class ResearchApplicationService:
             stages[stage] = None if not runs else _run_row(runs[0])
         universe = universes[0] if universes else None
         selection = selections[0] if selections else None
+        job = self.active_analysis_job()
         return {
             "workspace_id": "default",
             "metadata_universe": None if universe is None else _universe_row(universe),
             "univariate_selection": None if selection is None else _selection_row(selection),
             "stages": stages,
+            "active_job": job,
         }
+
+    def active_analysis_job(self) -> JsonRow | None:
+        """Return a small durable job DTO; this is safe for frequent browser polling."""
+        for status in ("queued", "running", "failed", "cancelled", "succeeded"):
+            jobs = self._state.list_analysis_jobs(status=status, limit=1)
+            if jobs:
+                return _job_row(jobs[0])
+        return None
+
+    def analysis_job_status(self, job_id: str) -> JsonRow:
+        return _job_row(self._state.get_analysis_job(job_id))
 
     def start_background_jobs(self) -> None:
         self._analysis_jobs.recover()

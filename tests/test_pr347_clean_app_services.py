@@ -16,6 +16,7 @@ from portfell.app_services.research_compute import (
 )
 from portfell.app_state.contracts import (
     AnalysisArtifactRecord,
+    AnalysisJobRecord,
     AnalysisRunRecord,
     DecisionArtifactRecord,
     ListingIdentity,
@@ -37,6 +38,7 @@ class MemoryState:
         self.artifacts: dict[str, list[AnalysisArtifactRecord]] = {}
         self.selections: dict[str, UnivariateSelectionRecord] = {}
         self.decisions: dict[str, DecisionArtifactRecord] = {}
+        self.jobs: dict[str, AnalysisJobRecord] = {}
 
     def put_market_source_snapshot(self, **values: object) -> MarketSourceSnapshotRecord:
         identity = str(values["snapshot_id"])
@@ -115,6 +117,53 @@ class MemoryState:
     ) -> tuple[AnalysisRunRecord, ...]:
         rows = tuple(run for run in self.runs.values() if stage is None or run.stage == stage)
         return rows[-limit:]
+
+    def create_or_get_active_job(self, **values: object) -> AnalysisJobRecord:
+        existing = next(
+            (
+                item
+                for item in self.jobs.values()
+                if item.stage == values["stage"]
+                and item.input_ref == values["input_ref"]
+                and item.requested_objective == values.get("requested_objective")
+                and item.status in {"queued", "running"}
+            ),
+            None,
+        )
+        if existing is not None:
+            return existing
+        objective = values.get("requested_objective")
+        record = AnalysisJobRecord(
+            str(values["job_id"]),
+            str(values["stage"]),
+            str(values["input_ref"]),
+            objective if isinstance(objective, str) else None,
+            "queued",
+            None,
+            0,
+            None,
+            None,
+            0,
+            None,
+            None,
+            NOW,
+            None,
+            None,
+        )
+        self.jobs[record.job_id] = record
+        return record
+
+    def get_analysis_job(self, job_id: str) -> AnalysisJobRecord:
+        return self.jobs[job_id]
+
+    def list_analysis_jobs(
+        self, *, stage: str | None = None, status: str | None = None, limit: int = 100
+    ) -> tuple[AnalysisJobRecord, ...]:
+        return tuple(
+            item
+            for item in self.jobs.values()
+            if (stage is None or item.stage == stage) and (status is None or item.status == status)
+        )[-limit:]
 
     def put_analysis_artifact(self, **values: object) -> AnalysisArtifactRecord:
         record = AnalysisArtifactRecord(
@@ -242,6 +291,31 @@ def test_clean_service_persists_full_identity_metadata_and_univariate_run() -> N
     structure = cast(dict[str, object], artifacts["multivariate.structure@v2"])
     risk_model = cast(dict[str, object], artifacts["risk_model"])
     assert structure["risk_model_id"] == risk_model["risk_model_id"]
+
+
+def test_workflow_exposes_only_small_persisted_analysis_job_status() -> None:
+    state = MemoryState()
+    state.jobs["job-a"] = AnalysisJobRecord(
+        "job-a",
+        "univariate",
+        "universe-a",
+        None,
+        "running",
+        None,
+        3,
+        10,
+        "members",
+        1,
+        NOW,
+        None,
+        NOW,
+        NOW,
+        None,
+    )
+    service = ResearchApplicationService(state, Gateway(), now=lambda: NOW)
+    assert service.active_analysis_job()["job_id"] == "job-a"  # type: ignore[index]
+    assert service.analysis_job_status("job-a")["progress_current"] == 3
+    assert service.workflow_state()["active_job"]["progress_total"] == 10  # type: ignore[index]
 
 
 def test_clean_service_fails_closed_when_snapshot_no_longer_has_every_member_quote() -> None:
