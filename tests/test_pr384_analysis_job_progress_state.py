@@ -170,9 +170,7 @@ def test_progress_validation_and_monotone_update() -> None:
     invalid = ((-1, None, "work"), (2, 1, "work"), (0, -1, "work"), (0, None, " "))
     for current, total, phase in invalid:
         with pytest.raises(AppStateError) as error:
-            repository.update_job_progress(
-                "job-a", current=current, total=total, phase=phase
-            )
+            repository.update_job_progress("job-a", current=current, total=total, phase=phase)
         assert error.value.code == APP_STATE_CONFLICT
     assert connection.executed == []
 

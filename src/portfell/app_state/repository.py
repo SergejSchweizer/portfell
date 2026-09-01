@@ -423,9 +423,8 @@ class PostgresAppStateRepository:
         job = self.get_analysis_job(job_id)
         if job.status not in {"queued", "running"}:
             raise AppStateError(APP_STATE_INVALID_TRANSITION)
-        if (
-            status == "succeeded"
-            and (job.run_id is None or self.get_analysis_run(job.run_id).status != "succeeded")
+        if status == "succeeded" and (
+            job.run_id is None or self.get_analysis_run(job.run_id).status != "succeeded"
         ):
             raise AppStateError(APP_STATE_INVALID_TRANSITION)
         try:
