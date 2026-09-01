@@ -1,6 +1,5 @@
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 READ_PLANE = ROOT / "docs/contracts/staged-analysis-read-plane-v1.md"
 EVIDENCE = ROOT / "docs/evidence/staged-analysis-performance-baseline-v1.md"
