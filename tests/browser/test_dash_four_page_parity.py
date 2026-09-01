@@ -109,8 +109,9 @@ def test_dash_four_page_journey_and_visual_evidence(tmp_path: Path) -> None:
             # immediate reload can cancel the callback request before the
             # persisted multivariate result is published.
             with page.expect_response(
-                lambda response: "_dash-update-component" in response.url
-                and response.request.method == "POST"
+                lambda response: (
+                    "_dash-update-component" in response.url and response.request.method == "POST"
+                )
             ):
                 page.locator("#multivariate-optimize").click()
             page.reload(wait_until="networkidle")
