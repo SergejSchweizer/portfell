@@ -42,6 +42,7 @@ from portfell.app_state.contracts import (
 )
 from portfell.app_state.errors import APP_STATE_NOT_FOUND, AppStateError
 from portfell.bivariate_statistics import BIVARIATE_STATISTICS_VERSION
+from portfell.gold_pair_stats import DEFAULT_MAX_PAIR_COUNT, build_pair_plan
 from portfell.market_source.contracts import Listing, ListingKey
 from portfell.market_source.errors import MarketSourceError
 from portfell.market_source.gateway import MarketDataSnapshot
@@ -434,7 +435,14 @@ class ResearchApplicationService:
                 if predicates is None
                 else filtered_univariate_selection(computed, predicates)
             )
+            if predicates is not None:
+                if not selection.rows:
+                    raise ApplicationServiceError("univariate_selection_empty")
+                if any(row.get("availability_reason") != "ok" for row in selection.rows):
+                    raise ApplicationServiceError("univariate_selection_unavailable")
         except Exception as error:
+            if isinstance(error, ApplicationServiceError):
+                raise
             raise _public_error(error) from error
         members = tuple(_identity_from_member_id(item) for item in selection.member_ids)
         content_hash = stable_hash(
@@ -641,6 +649,98 @@ class ResearchApplicationService:
             "item_count": item_count,
             "summary": cast(JsonRow, summary),
             "rows": cast(list[JsonValue], rows),
+        }
+
+    def univariate_summary(self, run_id: str) -> JsonRow:
+        """Read only the small manifest and summary for a completed Univariate run."""
+        run = self._require_succeeded_run(run_id, "univariate")
+        artifact = self._artifact(run.run_id, "univariate.rows@v2")
+        if artifact.document.get("storage") != "row_items":
+            raise ApplicationServiceError("analysis_artifact_invalid")
+        item_count = artifact.document.get("item_count")
+        summary = artifact.document.get("summary")
+        if not isinstance(item_count, int) or item_count < 0 or not isinstance(summary, dict):
+            raise ApplicationServiceError("analysis_artifact_invalid")
+        return {
+            "run": _run_row(run),
+            "item_count": item_count,
+            "summary": cast(JsonRow, summary),
+        }
+
+    def univariate_page(self, run_id: str, *, offset: int = 0, limit: int = 100) -> JsonRow:
+        """Read one deterministic bounded page from row-backed Univariate output."""
+        if offset < 0 or limit < 1 or limit > 100:
+            raise ApplicationServiceError("analysis_artifact_page_invalid")
+        summary = self.univariate_summary(run_id)
+        artifact = self._artifact(run_id, "univariate.rows@v2")
+        items = self._state.list_analysis_artifact_items(
+            artifact.artifact_id, offset=offset, limit=limit
+        )
+        return {
+            **summary,
+            "offset": offset,
+            "limit": limit,
+            "rows": cast(list[JsonValue], [item.document for item in items]),
+        }
+
+    def univariate_chart_sample(self, run_id: str, *, limit: int = 500) -> JsonRow:
+        """Read a deterministic bounded chart sample without a market read or calculation."""
+        if limit < 1 or limit > 500:
+            raise ApplicationServiceError("analysis_artifact_page_invalid")
+        page = self.univariate_page(run_id, limit=min(limit, 100))
+        rows = list(cast(list[JsonValue], page["rows"]))
+        summary = self.univariate_summary(run_id)
+        count = int(summary["item_count"])
+        for offset in range(100, min(count, limit), 100):
+            rows.extend(
+                cast(
+                    list[JsonValue],
+                    self.univariate_page(run_id, offset=offset, limit=min(100, limit - len(rows)))[
+                        "rows"
+                    ],
+                )
+            )
+        return {"run": summary["run"], "item_count": count, "rows": rows[:limit]}
+
+    def univariate_filter_preview(
+        self,
+        run_id: str,
+        *,
+        predicates: Sequence[Mapping[str, object]],
+        offset: int = 0,
+        limit: int = 100,
+        chart_limit: int = 500,
+    ) -> JsonRow:
+        """Evaluate predicates over persisted rows only; this method never writes or computes."""
+        if offset < 0 or limit < 1 or limit > 100 or chart_limit < 1 or chart_limit > 500:
+            raise ApplicationServiceError("analysis_artifact_page_invalid")
+        run = self._require_succeeded_run(run_id, "univariate")
+        computed = self._computed_run(run, "univariate.rows@v2")
+        try:
+            selection = filtered_univariate_selection(computed, predicates)
+        except Exception as error:
+            raise _public_error(error) from error
+        matching = tuple(selection.rows)
+        available = tuple(row for row in matching if row.get("availability_reason") == "ok")
+        unavailable_count = len(matching) - len(available)
+        member_count = len({_row_member_id(row) for row in available})
+        pair_plan = build_pair_plan(member_count, max_pair_count=DEFAULT_MAX_PAIR_COUNT)
+        page_rows = available[offset : offset + limit]
+        return {
+            "run": _run_row(run),
+            "predicates": [
+                str(row.get("metric")) + str(row.get("operator")) + str(row.get("value"))
+                for row in predicates
+            ],
+            "matching_count": len(matching),
+            "available_count": member_count,
+            "unavailable_count": unavailable_count,
+            "candidate_pair_count": pair_plan.theoretical_pair_count,
+            "downstream_runnable": bool(available) and pair_plan.accepted and member_count >= 2,
+            "offset": offset,
+            "limit": limit,
+            "rows": cast(list[JsonValue], list(page_rows)),
+            "chart_rows": cast(list[JsonValue], list(available[:chart_limit])),
         }
 
     def stage_history(self, stage: str, *, limit: int = 100) -> tuple[JsonRow, ...]:

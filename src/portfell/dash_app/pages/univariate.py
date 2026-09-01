@@ -25,10 +25,35 @@ from portfell.dash_app.figures import apply_portfell_template
 
 _CHART_PREVIEW_LIMIT = 500
 _TABLE_PREVIEW_LIMIT = 100
+_FILTER_METRICS = (
+    ("annualized_return", "Minimum annualized return"),
+    ("annualized_volatility", "Maximum annualized volatility"),
+    ("max_drawdown", "Minimum max drawdown"),
+    ("sharpe_ratio", "Minimum Sharpe ratio"),
+    ("sortino_ratio", "Minimum Sortino ratio"),
+)
 
 
 class UnivariateService(Protocol):
     def workflow_state(self) -> dict[str, object]: ...
+
+    def univariate_summary(self, run_id: str) -> dict[str, object]: ...
+
+    def univariate_page(
+        self, run_id: str, *, offset: int = 0, limit: int = 100
+    ) -> dict[str, object]: ...
+
+    def univariate_chart_sample(self, run_id: str, *, limit: int = 500) -> dict[str, object]: ...
+
+    def univariate_filter_preview(
+        self,
+        run_id: str,
+        *,
+        predicates: Sequence[Mapping[str, object]],
+        offset: int = 0,
+        limit: int = 100,
+        chart_limit: int = 500,
+    ) -> dict[str, object]: ...
 
     def univariate_result_preview(self, run_id: str, *, limit: int = 500) -> dict[str, object]: ...
 
@@ -43,13 +68,27 @@ def univariate_page_data(service: UnivariateService) -> dict[str, object]:
     stages = _mapping(workflow.get("stages")) or {}
     stage = _mapping(stages.get("univariate"))
     selection = _mapping(workflow.get("univariate_selection"))
-    preview = (
-        service.univariate_result_preview(str(stage["run_id"]))
-        if stage and stage.get("status") == "succeeded" and stage.get("run_id")
-        else None
-    )
+    preview = None
+    if stage and stage.get("status") == "succeeded" and stage.get("run_id"):
+        run_id = str(stage["run_id"])
+        if hasattr(service, "univariate_summary"):
+            summary_read = service.univariate_summary(run_id)
+            page_read = service.univariate_page(run_id, limit=_TABLE_PREVIEW_LIMIT)
+            chart_read = service.univariate_chart_sample(run_id, limit=_CHART_PREVIEW_LIMIT)
+            preview = {
+                "run": summary_read.get("run"),
+                "item_count": summary_read.get("item_count"),
+                "summary": summary_read.get("summary"),
+                "rows": page_read.get("rows", []),
+                "chart_rows": chart_read.get("rows", []),
+            }
+        else:
+            # Compatibility adapter for pre-PR389 fixture services only; production
+            # services expose the explicit bounded read contracts above.
+            preview = service.univariate_result_preview(run_id, limit=_CHART_PREVIEW_LIMIT)
     detail = _mapping(preview.get("run")) if preview else stage
     rows = _mappings(preview.get("rows")) if preview else ()
+    chart_rows = _mappings(preview.get("chart_rows")) if preview else rows
     summary = _mapping(preview.get("summary")) if preview else None
     selected = {
         _member_id(member) for member in _mappings(selection.get("members") if selection else None)
@@ -61,6 +100,7 @@ def univariate_page_data(service: UnivariateService) -> dict[str, object]:
         "run": detail,
         "selection": selection,
         "rows": rows,
+        "chart_rows": chart_rows,
         "selected": selected,
         "input_count": None if universe is None else universe.get("member_count"),
         "available_count": (
@@ -73,6 +113,7 @@ def univariate_page_data(service: UnivariateService) -> dict[str, object]:
             else summary.get("unavailable_count", len(unavailable))
         ),
         "ready": selection is not None,
+        "matching_count": None if preview is None else preview.get("item_count"),
     }
 
 
@@ -106,9 +147,36 @@ def _layout(
         ControlBar(
             [
                 html.Div(
-                    "Full-universe computation is started from Metadata.",
+                    [
+                        html.Div(
+                            "Full-universe computation is started from Metadata.",
+                            className="pf-context-label",
+                        ),
+                        html.Div("Filter preview (read-only)", className="pf-context-label"),
+                        html.Div(
+                            [
+                                html.Label(
+                                    [
+                                        html.Span(label),
+                                        dcc.Input(
+                                            id=f"univariate-filter-{metric}",
+                                            type="number",
+                                            debounce=True,
+                                            placeholder="No filter",
+                                        ),
+                                    ]
+                                )
+                                for metric, label in _FILTER_METRICS
+                            ],
+                            className="pf-filter-grid",
+                        ),
+                    ],
                     id="univariate-filter-summary",
-                    className="pf-context-label",
+                ),
+                html.Button(
+                    "Preview selection",
+                    id="univariate-preview-selection",
+                    className="pf-button",
                 ),
             ],
             component_id="univariate-controls",
@@ -151,7 +219,7 @@ def _data_regions(model: Mapping[str, object]) -> list[Component]:
         ),
         ChartCard(
             "Univariate Return / Risk Universe",
-            _scatter(rows[:_CHART_PREVIEW_LIMIT]) if rows else None,
+            _scatter(_mappings(model.get("chart_rows"))) if model.get("chart_rows") else None,
             graph_id="univariate-return-risk-chart",
         ),
         TableCard(
@@ -171,9 +239,10 @@ def _data_regions(model: Mapping[str, object]) -> list[Component]:
         StageFooter(
             [
                 html.Button(
-                    children="Save selection",
+                    children="Apply selection & compute downstream",
                     id="univariate-save-selection",
                     className="pf-button",
+                    title="Save selection",
                     disabled=run is None or run.get("status") != "succeeded",
                 ),
                 html.A(
