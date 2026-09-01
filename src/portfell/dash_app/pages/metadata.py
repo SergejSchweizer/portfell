@@ -19,6 +19,7 @@ from portfell.dash_app.components import (
     StatusBanner,
     TableCard,
 )
+from portfell.dash_app.metadata_distributions import universe_distributions
 
 
 class MetadataService(Protocol):
@@ -89,6 +90,7 @@ def metadata_page_data(
         "universe_version": None if current_row is None else current_row.get("version"),
         "ready": current_row is not None,
         "current": current_row,
+        "distributions": universe_distributions(matched_rows),
     }
 
 
