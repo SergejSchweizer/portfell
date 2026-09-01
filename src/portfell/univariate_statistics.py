@@ -16,6 +16,7 @@ from portfell.paths import LakePaths
 from portfell.return_quality import evaluate_quote_quality, filter_valid_price_points
 from portfell.schemas import validate_rows
 from portfell.table_io import JsonRow, read_rows, write_rows
+from portfell.univariate_metrics import enrich_univariate_row
 
 ANNUAL_TRADING_DAYS = 252
 DEFAULT_CONFIDENCE_LEVEL = 0.975
@@ -269,7 +270,7 @@ def _build_univariate_listing_statistics(
     distribution = distribution_features(distribution_dates)
     annual_dividend = annual_dividend_features(dividend_rows, last_valid_quote_date, last_close)
     quality = evaluate_quote_quality(ordered_quotes)
-    return {
+    base_row = {
         "isin": isin,
         "exchange": exchange,
         "code": code,
@@ -336,6 +337,7 @@ def _build_univariate_listing_statistics(
         "production_eligible": quality["production_eligible"],
         "data_quality_reason": quality["data_quality_reason"],
     }
+    return enrich_univariate_row(base_row, ordered_quotes, dividend_rows)
 
 
 def _mean(values: Sequence[float]) -> float:
