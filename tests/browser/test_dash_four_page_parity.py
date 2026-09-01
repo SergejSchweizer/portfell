@@ -104,7 +104,15 @@ def test_dash_four_page_journey_and_visual_evidence(tmp_path: Path) -> None:
 
             page.wait_for_url(f"{base_url}/multivariate")
             _assert_shell(page, "Multivariate")
-            page.locator("#multivariate-optimize").click()
+            # Wait for Dash's state mutation to complete before reloading.  A
+            # self-hosted runner may be slower than the local fixture, and an
+            # immediate reload can cancel the callback request before the
+            # persisted multivariate result is published.
+            with page.expect_response(
+                lambda response: "_dash-update-component" in response.url
+                and response.request.method == "POST"
+            ):
+                page.locator("#multivariate-optimize").click()
             page.reload(wait_until="networkidle")
             page.wait_for_function("document.body.innerText.includes('candidate-fixture')")
             assert "minimum_variance" in page.locator("body").inner_text()
