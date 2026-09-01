@@ -7,10 +7,10 @@
 - [On-Demand Metadata Refresh](#on-demand-metadata-refresh)
 - [Schedule And Recovery](#schedule-and-recovery)
 
-The existing `project-bootstrap-worker` container refreshes the canonical
-`PORTFELL_SHARED_DATA_ROOT/market-data` store for the de-duplicated active-project
-inventory. A newly created project's Metadata Builder may request its initial selected-listing
-download; that route is server-owned, idempotent, and separate from the scheduled shared refresh.
+The scheduled `portfell-market-refresh` command is the only process allowed to read
+xetra-loader PostgreSQL. It publishes the canonical local snapshot under
+`PORTFELL_MARKET_DATA_ROOT`; the API consumes that snapshot and never queries the market
+database during normal requests.
 
 ## One-Time Rollout
 
@@ -21,51 +21,29 @@ root, run the refresh-specific steps:
 ```bash
 export PORTFELL_ROOT=/home/dev_portfell/portfell
 export PORTFELL_DATA_ROOT=/volume2/docker/portfell
+export PORTFELL_MARKET_DATABASE_URL='postgresql://portfell@10.10.1.3:54321/xetra_loader'
+export PORTFELL_MARKET_DATABASE_PASSWORD_FILE=/home/dev_portfell/secrets/portfell/market_postgres_password
 portfell-ugreen-nas-data-root-preflight --root "$PORTFELL_DATA_ROOT"
-portfell-refresh-shared-market-data --dry-run
-portfell-shared-market-cron run-once --project-root "$PORTFELL_ROOT" --data-root "$PORTFELL_DATA_ROOT"
-portfell-shared-market-cron install --project-root "$PORTFELL_ROOT" --data-root "$PORTFELL_DATA_ROOT"
-portfell-shared-market-cron status --project-root "$PORTFELL_ROOT" --data-root "$PORTFELL_DATA_ROOT"
+export PORTFELL_MARKET_DATA_ROOT="$PORTFELL_DATA_ROOT/market-data"
+portfell-market-refresh --config "$PORTFELL_ROOT/config.yaml" \
+  --root "$PORTFELL_MARKET_DATA_ROOT"
 crontab -l
 ```
 
-`run-once` writes operational output to
-`/volume2/docker/portfell/logs/shared-market-refresh.log`. The installer uses
-both `compose.yaml` and `compose.production.yaml`, validates the final bind root
-and a refresh dry run inside the existing worker before replacing only its delimited crontab block.
+The refresh writes a complete staging directory and swaps it into place only after all four
+datasets have been read. A failed run leaves the previous snapshot intact.
 
-## On-Demand Metadata Refresh
+## Scheduled Installation
 
-The **Fetch all metadata** browser action creates a durable PostgreSQL job. It
-does not invoke EODHD from the API process and does not depend on a browser or
-user-provided provider key. The `portfell-worker` claims that job, uses the
-operations credential mounted only into the worker, and atomically publishes
-the refreshed shared catalogue.
-
-```text
-browser -> API -> PostgreSQL metadata-refresh job
-                         |
-                         v
-                 portfell-worker -> EODHD
-                         |
-                         v
-              shared metadata/current.parquet
-                         |
-                         v
-                   browser status polling
-```
-
-If the provider is unavailable, the worker stores the safe status code
-`eodhd_metadata_unavailable` in the metadata run. The raw provider response and
-operations credential are never sent to the browser.
+Install a host cron entry at `20:15` (`15 20 * * *`) that invokes the command above with
+`PORTFELL_MARKET_DATA_ROOT` set. Keep the market password secret available only to this cron
+process; the API container needs neither the market DSN nor that secret.
 
 ## Schedule And Recovery
 
-The managed job runs weekly on Sunday at `09:00` in `Europe/Amsterdam`; DST follows
-that timezone's cron behavior. `/usr/bin/flock -n` prevents overlapping runs. A
-lock-contention or provider partial failure leaves already atomically published
-listing files readable; review the log and re-run `run-once` after correcting the
-provider or storage condition.
+Run the job under `flock` in production to prevent overlapping refreshes. A provider or storage
+failure leaves already atomically published listing files readable; review the log and rerun after
+correcting the source condition.
 
-Use `portfell-shared-market-cron uninstall --project-root "$(pwd)"` to remove
-only the managed block. It preserves unrelated crontab entries.
+Inspect the result with `cat "$PORTFELL_MARKET_DATA_ROOT/manifest.json"`. Never remove the
+previous snapshot until the replacement has been fully written.

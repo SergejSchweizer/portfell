@@ -16,14 +16,8 @@ from portfell.dash_app.app import mount_dash_app
 from portfell.hosted_database_connection import connect as connect_database
 from portfell.hosted_routes_metadata_projects import metadata_project_router
 from portfell.hosted_routes_research import research_router
-from portfell.market_source.config import (
-    load_app_database_config,
-    load_market_source_config,
-    validate_app_database_url,
-    validate_market_database_url,
-)
+from portfell.market_source.config import load_app_database_config, validate_app_database_url
 from portfell.market_source.errors import MarketSourceError
-from portfell.market_source.gateway import MarketDataGateway
 
 
 class HostedApiError(RuntimeError):
@@ -61,13 +55,15 @@ def create_app(service: ResearchApplicationService | None = None) -> FastAPI:
 
 
 def create_runtime_app() -> FastAPI:
-    """Compose only ``portfell_dash`` app state plus the external xetra-loader read plane."""
+    """Compose app state plus the locally published market read plane.
+
+    PostgreSQL market credentials are intentionally not required by the API.
+    They belong exclusively to the scheduled ``portfell-market-refresh`` job.
+    """
     config_path = Path(os.environ.get("PORTFELL_CONFIG_PATH", "config.yaml"))
     try:
         app_config = load_app_database_config(config_path)
-        market_config = load_market_source_config(config_path)
         app_url = validate_app_database_url(app_config)
-        market_url = validate_market_database_url(market_config)
         app_connection = connect_database(
             app_url,
             autocommit=False,
@@ -75,15 +71,12 @@ def create_runtime_app() -> FastAPI:
         )
         migrate_to_head(app_connection)
         app_state = PostgresAppStateRepository(app_connection)
-        market_gateway = MarketDataGateway(
-            lambda: connect_database(
-                market_url,
-                autocommit=False,
-                password_secret=market_config.password_secret,
-            ),
-            role=market_config.role,
-            member_of=market_config.member_of,
+        from portfell.market_source.local_gateway import LocalMarketDataGateway
+
+        market_root = Path(
+            os.environ.get("PORTFELL_MARKET_DATA_ROOT", "/var/lib/portfell/market-data")
         )
+        market_gateway = LocalMarketDataGateway(market_root)
     except (MarketSourceError, AppStateMigrationError) as error:
         code = getattr(error, "code", None)
         raise HostedApiError(str(code) if isinstance(code, str) else str(error)) from error

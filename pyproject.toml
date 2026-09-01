@@ -22,6 +22,7 @@ dependencies = [
 [project.scripts]
 portfell-docs-refresh = "portfell.docs_refresh:main"
 portfell-quality = "portfell.quality:main"
+portfell-market-refresh = "portfell.market_source.refresh:main"
 
 [dependency-groups]
 dev = [

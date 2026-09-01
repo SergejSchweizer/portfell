@@ -12,7 +12,7 @@ def _compose() -> dict[str, Any]:
     return cast(dict[str, Any], yaml.safe_load((ROOT / "compose.yaml").read_text(encoding="utf-8")))
 
 
-def test_compose_keeps_app_postgres_local_and_market_postgres_external() -> None:
+def test_compose_keeps_market_reads_local_and_external_source_out_of_api() -> None:
     compose = _compose()
     services = cast(dict[str, dict[str, Any]], compose["services"])
     postgres = services["postgres"]
@@ -23,14 +23,9 @@ def test_compose_keeps_app_postgres_local_and_market_postgres_external() -> None
         api["environment"]["PORTFELL_DATABASE_URL"]
         == "postgresql://portfell_app@postgres:5432/portfell_dash"
     )
-    assert api["environment"]["PORTFELL_MARKET_DATABASE_URL"].startswith(
-        "${PORTFELL_MARKET_DATABASE_URL:?"
-    )
-    assert api["environment"]["PORTFELL_MARKET_DATABASE_PASSWORD_FILE"] == (
-        "/run/secrets/market_postgres_password"
-    )
+    assert api["environment"]["PORTFELL_MARKET_DATA_ROOT"] == "/var/lib/portfell/market-data"
     assert api["environment"]["PORTFELL_CONFIG_PATH"] == "/run/portfell/config.yaml"
-    assert api["volumes"] == ["./config.yaml:/run/portfell/config.yaml:ro"]
+    assert any("/var/lib/portfell/market-data:ro" in item for item in api["volumes"])
 
     # xetra-loader is an external authority. Compose must never create or own it.
     assert set(services) == {"api", "postgres"}

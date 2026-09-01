@@ -23,35 +23,40 @@ application-service contracts documented with their modules.
 ## 1. Production Data Flow
 
 ```text
-xetra-loader
-    |
-    | owns ingestion, synchronization, normalization, and publication
+cron (portfell-market-refresh)
+    | SELECT once from the external source and atomically publishes
     v
-external PostgreSQL 10.10.1.3:54321
-  database xetra_loader
-  schema   xetra_loader
-  tables   listings, eod_quotes, dividends, splits
+local market-data snapshot (PORTFELL_MARKET_DATA_ROOT)
+  listings.jsonl, quotes.jsonl, dividends.jsonl, splits.jsonl
     |
-    | SELECT only through the dedicated Portfell LOGIN role
+    | read-only, no network/database dependency
     v
-src/portfell/market_source/**
-  repositories -> MarketDataGateway -> coherent MarketDataSnapshot
+src/portfell/market_source/local_gateway.py
+  LocalMarketDataGateway -> coherent MarketDataSnapshot
     |
     v
 Metadata -> Univariate -> Bivariate -> Multivariate services
 ```
 
-Portfell does not import the xetra-loader Python package and does not own a loader, refresh loop, provider client, medallion market store, NAS market cache, or market synchronization job. xetra-loader is a separately deployed upstream authority and is never defined as a Portfell Compose service.
+Only the scheduled refresh command connects to xetra-loader PostgreSQL. The API never receives
+the market DSN and reads only the last complete local publication. xetra-loader remains a
+separately deployed upstream authority and is never defined as a Portfell Compose service.
 
 ## 2. Database Authorities
 
-The source-cutover runtime has two independent PostgreSQL authorities. `PORTFELL_DATABASE_URL` addresses the transitional Portfell-owned application/control database. `PORTFELL_MARKET_DATABASE_URL` addresses the external xetra-loader market database. Neither URL may fall back to the other. Non-secret identities are validated against the gitignored repository-root `config.yaml`; passwords are supplied outside Git through separate secret-file references.
+The runtime has one PostgreSQL control-plane authority (`PORTFELL_DATABASE_URL`). The external
+xetra-loader PostgreSQL URL is used only by `portfell-market-refresh`, never by the API. The
+refresh command validates non-secret identities against `config.yaml` and reads its password from
+the external secret-file reference.
 
 The current Portfell application database is transitional. It is not the final state model. PR344–PR360 replace it with a clean database named `portfell_dash`, schema `portfell`, and delete the old hosted/tenant/control-plane database after parity and clean-runtime QA. The external xetra-loader database survives that replacement unchanged.
 
 ## 3. Market Reader Role And Privilege Boundary
 
-Portfell connects with a secret-supplied non-superuser LOGIN role. The LOGIN is a member of the NOLOGIN group role `portfell_app`. Startup/preflight verifies the role contract and rejects a superuser or a role without the required membership. The application receives SELECT capability for the exact four business tables only.
+The refresh command connects with a secret-supplied non-superuser LOGIN role. The LOGIN is a member
+of the NOLOGIN group role `portfell_app`. Refresh preflight verifies the role contract and rejects a
+superuser or a role without the required membership. The refresh process receives SELECT capability
+for the exact four business tables only; the API receives no market database capability.
 
 Access to `xetra_loader_sync` is forbidden. Failure to read that schema is expected PASS evidence in live and clean-runtime QA. Portfell must not receive DML/DDL capability on the market database; `INSERT`, `UPDATE`, `DELETE`, `TRUNCATE`, `ALTER`, `CREATE`, and `DROP` are outside the application contract.
 

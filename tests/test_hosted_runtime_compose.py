@@ -60,10 +60,11 @@ def test_final_runtime_has_only_python_application_and_clean_app_database() -> N
         environment["PORTFELL_DATABASE_URL"]
         == "postgresql://portfell_app@postgres:5432/portfell_dash"
     )
-    assert "PORTFELL_MARKET_DATABASE_URL" in environment
+    assert "PORTFELL_MARKET_DATABASE_URL" not in environment
+    assert environment["PORTFELL_MARKET_DATA_ROOT"] == "/var/lib/portfell/market-data"
     assert environment["PORTFELL_DATABASE_PASSWORD_FILE"] == "/run/secrets/postgres_password"
-    assert api["secrets"] == ["postgres_password", "market_postgres_password"]
-    assert api["volumes"] == ["./config.yaml:/run/portfell/config.yaml:ro"]
+    assert api["secrets"] == ["postgres_password"]
+    assert "./config.yaml:/run/portfell/config.yaml:ro" in api["volumes"]
     assert api["group_add"] == ["${PORTFELL_SECRET_GROUP_ID:-100}"]
 
 
@@ -91,9 +92,7 @@ def test_runtime_secrets_are_external_paths_and_not_build_arguments() -> None:
     assert cast(ComposeMapping, secrets["postgres_password"])["file"].startswith(
         "${PORTFELL_POSTGRES_PASSWORD_FILE:?"
     )
-    assert cast(ComposeMapping, secrets["market_postgres_password"])["file"].startswith(
-        "${PORTFELL_MARKET_POSTGRES_PASSWORD_FILE:?"
-    )
+    assert "market_postgres_password" not in secrets
     assert "api_token" not in rendered.lower()
     assert "eodhd" not in rendered.lower()
     assert "build:" in rendered
