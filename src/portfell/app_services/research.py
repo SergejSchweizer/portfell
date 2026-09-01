@@ -499,7 +499,7 @@ class ResearchApplicationService:
                     return _job_row(completed)
         return _job_row(self._submit_analysis_job("bivariate", selection_id))
 
-    def run_bivariate(self, selection_id: str) -> JsonRow:
+    def run_bivariate(self, selection_id: str, *, job_id: str | None = None) -> JsonRow:
         persisted = self._state.get_univariate_selection(selection_id)
         source_run = self._require_succeeded_run(persisted.source_run_id, "univariate")
         source_computed = self._computed_run(source_run, "univariate.rows@v2")
@@ -535,12 +535,38 @@ class ResearchApplicationService:
         if run.status != "running":
             return _run_row(run)
         try:
+            pair_total = len(member_ids) * (len(member_ids) - 1) // 2
+
+            def on_progress(current: int, total: int) -> None:
+                if job_id is not None:
+                    self._state.update_job_progress(
+                        job_id, current=current, total=total, phase="pairs"
+                    )
+
+            if job_id is not None:
+                self._state.update_job_progress(job_id, current=0, total=pair_total, phase="pairs")
             computed = compute_bivariate(
                 selection=selection,
                 market_snapshot_id=market.snapshot_id,
                 quote_rows=market.quotes,
+                on_progress=None if job_id is None else on_progress,
             )
-            self._put_artifact(run.run_id, "bivariate_rows", {"items": list(computed.rows)})
+            self._put_row_backed_artifact(
+                run.run_id,
+                "bivariate.rows@v2",
+                computed.rows,
+                summary={
+                    "selection_id": selection.selection_id,
+                    "market_snapshot_id": market.snapshot_id,
+                    "candidate_pair_count": pair_total,
+                    "eligible_count": len(computed.rows),
+                    "unavailable_count": max(0, pair_total - len(computed.rows)),
+                },
+            )
+            if job_id is not None:
+                self._state.update_job_progress(
+                    job_id, current=pair_total, total=pair_total, phase="pairs"
+                )
             completed = self._state.transition_analysis_run(run_id=run.run_id, status="succeeded")
             return self.run_detail(completed.run_id)
         except Exception as error:
@@ -660,6 +686,10 @@ class ResearchApplicationService:
                     raise
             else:
                 row["decision"] = _decision_row(decision)
+        if run.stage == "bivariate" and "bivariate.rows@v2" in row["artifacts"]:
+            # Keep the historical artifact key readable for older API clients. New
+            # Dash reads use the bounded row-backed contract exclusively.
+            row["artifacts"]["bivariate_rows"] = row["artifacts"]["bivariate.rows@v2"]
         return row
 
     def univariate_result_preview(self, run_id: str, *, limit: int = 500) -> JsonRow:
@@ -775,6 +805,74 @@ class ResearchApplicationService:
             "chart_rows": cast(list[JsonValue], list(available[:chart_limit])),
         }
 
+    def bivariate_summary(self, run_id: str) -> JsonRow:
+        """Read the bounded pair manifest and summary for a completed run."""
+        run = self._require_succeeded_run(run_id, "bivariate")
+        artifact = self._bivariate_artifact(run_id)
+        document = artifact.document
+        if document.get("storage") == "row_items":
+            item_count = document.get("item_count")
+            summary = document.get("summary")
+            if not isinstance(item_count, int) or not isinstance(summary, dict):
+                raise ApplicationServiceError("analysis_artifact_invalid")
+            return {
+                "run": _run_row(run),
+                "item_count": item_count,
+                "summary": cast(JsonRow, summary),
+            }
+        raw_items = document.get("items")
+        if not isinstance(raw_items, list):
+            raise ApplicationServiceError("analysis_artifact_invalid")
+        return {
+            "run": _run_row(run),
+            "item_count": len(raw_items),
+            "summary": {"eligible_count": len(raw_items)},
+        }
+
+    def bivariate_page(self, run_id: str, *, offset: int = 0, limit: int = 100) -> JsonRow:
+        """Read at most one hundred deterministic persisted pair rows."""
+        if offset < 0 or limit < 1 or limit > 100:
+            raise ApplicationServiceError("analysis_artifact_page_invalid")
+        summary = self.bivariate_summary(run_id)
+        artifact = self._bivariate_artifact(run_id)
+        if artifact.document.get("storage") == "row_items":
+            items = self._state.list_analysis_artifact_items(
+                artifact.artifact_id, offset=offset, limit=limit
+            )
+            rows = [item.document for item in items]
+        else:
+            raw_items = artifact.document.get("items")
+            rows = list(raw_items[offset : offset + limit]) if isinstance(raw_items, list) else []
+        return {
+            **summary,
+            "offset": offset,
+            "limit": limit,
+            "rows": cast(list[JsonValue], rows),
+        }
+
+    def bivariate_chart_sample(self, run_id: str, *, limit: int = 1000) -> JsonRow:
+        """Read a deterministic bounded pair sample for chart rendering."""
+        if limit < 1 or limit > 1000:
+            raise ApplicationServiceError("analysis_artifact_page_invalid")
+        summary = self.bivariate_summary(run_id)
+        artifact = self._bivariate_artifact(run_id)
+        if artifact.document.get("storage") == "row_items":
+            rows: list[JsonValue] = []
+            count = int(summary["item_count"])
+            for offset in range(0, min(count, limit), 100):
+                rows.extend(
+                    cast(
+                        list[JsonValue],
+                        self.bivariate_page(
+                            run_id, offset=offset, limit=min(100, limit - len(rows))
+                        )["rows"],
+                    )
+                )
+            return {"run": summary["run"], "item_count": count, "rows": rows[:limit]}
+        raw_items = artifact.document.get("items")
+        rows = raw_items[:limit] if isinstance(raw_items, list) else []
+        return {"run": summary["run"], "item_count": len(rows), "rows": rows}
+
     def stage_history(self, stage: str, *, limit: int = 100) -> tuple[JsonRow, ...]:
         return tuple(
             _run_row(item) for item in self._state.list_analysis_runs(stage=stage, limit=limit)
@@ -836,7 +934,12 @@ class ResearchApplicationService:
             )
             return self.run_univariate(job.input_ref, job_id=job.job_id)
         if job.stage == "bivariate":
-            result = self.run_bivariate(job.input_ref)
+            try:
+                result = self.run_bivariate(job.input_ref, job_id=job.job_id)
+            except TypeError as error:
+                if "unexpected keyword argument 'job_id'" not in str(error):
+                    raise
+                result = self.run_bivariate(job.input_ref)
             run_id = result.get("run_id")
             if result.get("status") == "succeeded" and isinstance(run_id, str):
                 self.start_multivariate_job(
@@ -940,6 +1043,13 @@ class ResearchApplicationService:
         if len(matches) != 1:
             raise ApplicationServiceError("analysis_artifact_not_found")
         return matches[0]
+
+    def _bivariate_artifact(self, run_id: str) -> AnalysisArtifactRecord:
+        """Resolve the current row-backed pair artifact, with legacy read compatibility."""
+        try:
+            return self._artifact(run_id, "bivariate.rows@v2")
+        except ApplicationServiceError:
+            return self._artifact(run_id, "bivariate_rows")
 
     def _put_artifact(self, run_id: str, artifact_type: str, document: JsonRow) -> None:
         content_hash = stable_hash(cast(Mapping[str, object], document))

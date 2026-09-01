@@ -27,6 +27,14 @@ from portfell.dash_app.figures import apply_portfell_template
 class BivariateService(Protocol):
     def workflow_state(self) -> dict[str, object]: ...
 
+    def bivariate_summary(self, run_id: str) -> dict[str, object]: ...
+
+    def bivariate_page(
+        self, run_id: str, *, offset: int = 0, limit: int = 100
+    ) -> dict[str, object]: ...
+
+    def bivariate_chart_sample(self, run_id: str, *, limit: int = 1000) -> dict[str, object]: ...
+
     def run_bivariate(self, selection_id: str) -> dict[str, object]: ...
 
     def run_detail(self, run_id: str) -> dict[str, object]: ...
@@ -37,21 +45,46 @@ def bivariate_page_data(service: BivariateService) -> dict[str, object]:
     selection = _mapping(workflow.get("univariate_selection"))
     stages = _mapping(workflow.get("stages")) or {}
     stage = _mapping(stages.get("bivariate"))
-    detail = service.run_detail(str(stage["run_id"])) if stage and stage.get("run_id") else stage
-    artifacts = (_mapping(detail.get("artifacts")) or {}) if detail else {}
-    artifact = _mapping(artifacts.get("bivariate_rows")) or {}
-    raw_rows = _rows(artifact.get("items"))
-    rows = _mappings(raw_rows)
+    detail = stage
+    chart_rows: tuple[dict[str, object], ...] = ()
+    if stage and stage.get("run_id") and stage.get("status") == "succeeded":
+        run_id = str(stage["run_id"])
+        if hasattr(service, "bivariate_summary"):
+            summary = service.bivariate_summary(run_id)
+            page = service.bivariate_page(run_id, limit=100)
+            chart = service.bivariate_chart_sample(run_id, limit=1000)
+            detail = _mapping(summary.get("run")) or stage
+            rows = _mappings(page.get("rows"))
+            chart_rows = _mappings(chart.get("rows"))
+            summary_values = _mapping(summary.get("summary")) or {}
+        else:
+            detail = service.run_detail(run_id)
+            artifact = (
+                _mapping((_mapping(detail.get("artifacts")) or {}).get("bivariate_rows")) or {}
+            )
+            rows = _mappings(artifact.get("items"))
+            chart_rows = rows[:1000]
+            summary_values = {}
+    else:
+        rows = ()
+        summary_values = {}
     input_count = None if selection is None else _integer(selection.get("member_count"))
     candidate_count = None if input_count is None else input_count * (input_count - 1) // 2
-    unavailable = None if candidate_count is None else max(0, candidate_count - len(rows))
+    candidate_count = _integer(summary_values.get("candidate_pair_count")) or candidate_count
+    eligible_count = _integer(summary_values.get("eligible_count"))
+    unavailable = _integer(summary_values.get("unavailable_count"))
+    if unavailable is None and candidate_count is not None:
+        unavailable = max(
+            0, candidate_count - (eligible_count if eligible_count is not None else len(rows))
+        )
     return {
         "selection": selection,
         "run": detail,
         "rows": rows,
+        "chart_rows": chart_rows,
         "input_count": input_count,
         "candidate_count": candidate_count,
-        "eligible_count": len(rows),
+        "eligible_count": len(rows) if eligible_count is None else eligible_count,
         "unavailable_count": unavailable,
         "ready": detail is not None and detail.get("status") == "succeeded" and bool(rows),
     }
@@ -117,7 +150,7 @@ def _layout(
             ),
             ChartCard(
                 "Bivariate Return / Diversification Universe",
-                _scatter(rows) if rows else None,
+                _scatter(_mappings(model.get("chart_rows"))) if model.get("chart_rows") else None,
                 graph_id="bivariate-diversification-chart",
             ),
             TableCard(
