@@ -6,7 +6,9 @@ from collections.abc import Callable, Mapping, Sequence
 from concurrent.futures import Executor, ThreadPoolExecutor
 from datetime import UTC, date, datetime
 from typing import Protocol, cast
+from uuid import uuid4
 
+from portfell.app_services.analysis_executor import AnalysisJobExecutor
 from portfell.app_services.market_data import AnalyticalMarketData
 from portfell.app_services.multivariate_compute import (
     MULTIVARIATE_EXECUTION_VERSION,
@@ -27,6 +29,7 @@ from portfell.app_services.research_compute import (
 )
 from portfell.app_state.contracts import (
     AnalysisArtifactRecord,
+    AnalysisJobRecord,
     AnalysisRunRecord,
     DecisionArtifactRecord,
     JsonValue,
@@ -143,6 +146,27 @@ class AppStatePort(Protocol):
 
     def get_decision_artifact(self, run_id: str) -> DecisionArtifactRecord: ...
 
+    def create_or_get_active_job(
+        self,
+        *,
+        job_id: str,
+        stage: str,
+        input_ref: str,
+        requested_objective: str | None = None,
+    ) -> AnalysisJobRecord: ...
+
+    def claim_job(self, job_id: str, *, stale_before: datetime) -> AnalysisJobRecord: ...
+
+    def link_job_run(self, job_id: str, run_id: str) -> AnalysisJobRecord: ...
+
+    def complete_job(
+        self, job_id: str, *, status: str, failure_code: str | None = None
+    ) -> AnalysisJobRecord: ...
+
+    def list_analysis_jobs(
+        self, *, stage: str | None = None, status: str | None = None, limit: int = 100
+    ) -> tuple[AnalysisJobRecord, ...]: ...
+
 
 class ApplicationServiceError(RuntimeError):
     """Stable public application-service failure without SQL/credential detail."""
@@ -161,6 +185,7 @@ class ResearchApplicationService:
         market_gateway: ApplicationMarketGateway,
         *,
         executor_factory: Callable[[], Executor] | None = None,
+        analysis_job_executor: AnalysisJobExecutor | None = None,
         now: Callable[[], datetime] | None = None,
     ) -> None:
         self._state = state
@@ -168,6 +193,9 @@ class ResearchApplicationService:
         self._market = AnalyticalMarketData(market_gateway)
         self._executor_factory = executor_factory or (lambda: ThreadPoolExecutor(max_workers=4))
         self._now = now or (lambda: datetime.now(UTC))
+        self._analysis_jobs = analysis_job_executor or AnalysisJobExecutor(
+            state, self._execute_analysis_job, now=self._now
+        )
 
     # Metadata -----------------------------------------------------------------
 
@@ -275,6 +303,10 @@ class ResearchApplicationService:
 
     # Univariate ---------------------------------------------------------------
 
+    def start_univariate_job(self, universe_id: str) -> JsonRow:
+        self._state.get_metadata_universe(universe_id)
+        return _job_row(self._submit_analysis_job("univariate", universe_id))
+
     def run_univariate(self, universe_id: str) -> JsonRow:
         universe = self._state.get_metadata_universe(universe_id)
         market = self._read_market(universe.members)
@@ -352,6 +384,10 @@ class ResearchApplicationService:
 
     # Bivariate ----------------------------------------------------------------
 
+    def start_bivariate_job(self, selection_id: str) -> JsonRow:
+        self._state.get_univariate_selection(selection_id)
+        return _job_row(self._submit_analysis_job("bivariate", selection_id))
+
     def run_bivariate(self, selection_id: str) -> JsonRow:
         persisted = self._state.get_univariate_selection(selection_id)
         source_run = self._require_succeeded_run(persisted.source_run_id, "univariate")
@@ -401,6 +437,21 @@ class ResearchApplicationService:
             raise _public_error(error) from error
 
     # Multivariate -------------------------------------------------------------
+
+    def start_multivariate_job(
+        self, *, selection_id: str, bivariate_run_id: str, objective: str = "return_risk"
+    ) -> JsonRow:
+        if objective not in {"return_risk", "return_drawdown", "minimum_risk"}:
+            raise ApplicationServiceError("invalid_multivariate_objective")
+        self._state.get_univariate_selection(selection_id)
+        bivariate = self._state.get_analysis_run(bivariate_run_id)
+        if bivariate.stage != "bivariate" or bivariate.input_ref != selection_id:
+            raise ApplicationServiceError("bivariate_dependency_mismatch")
+        return _job_row(
+            self._submit_analysis_job(
+                "multivariate", bivariate_run_id, requested_objective=objective
+            )
+        )
 
     def run_multivariate(
         self,
@@ -510,7 +561,39 @@ class ResearchApplicationService:
             "stages": stages,
         }
 
+    def start_background_jobs(self) -> None:
+        self._analysis_jobs.recover()
+
+    def stop_background_jobs(self) -> None:
+        self._analysis_jobs.close()
+
     # Internal -----------------------------------------------------------------
+
+    def _submit_analysis_job(
+        self, stage: str, input_ref: str, *, requested_objective: str | None = None
+    ) -> AnalysisJobRecord:
+        job = self._state.create_or_get_active_job(
+            job_id=f"analysis-job-{uuid4().hex}",
+            stage=stage,
+            input_ref=input_ref,
+            requested_objective=requested_objective,
+        )
+        self._analysis_jobs.submit(job)
+        return job
+
+    def _execute_analysis_job(self, job: AnalysisJobRecord) -> JsonRow:
+        if job.stage == "univariate":
+            return self.run_univariate(job.input_ref)
+        if job.stage == "bivariate":
+            return self.run_bivariate(job.input_ref)
+        if job.stage == "multivariate":
+            run = self._state.get_analysis_run(job.input_ref)
+            return self.run_multivariate(
+                selection_id=run.input_ref,
+                bivariate_run_id=run.run_id,
+                objective=job.requested_objective or "return_risk",
+            )
+        raise ApplicationServiceError("analysis_job_stage_invalid")
 
     def _active_listings(self) -> tuple[Listing, ...]:
         try:
@@ -698,6 +781,25 @@ def _run_row(item: AnalysisRunRecord) -> JsonRow:
         "input_ref": item.input_ref,
         "logical_hash": item.logical_hash,
         "algorithm_version": item.algorithm_version,
+        "failure_code": item.failure_code,
+        "created_at": item.created_at.isoformat(),
+        "started_at": None if item.started_at is None else item.started_at.isoformat(),
+        "completed_at": None if item.completed_at is None else item.completed_at.isoformat(),
+    }
+
+
+def _job_row(item: AnalysisJobRecord) -> JsonRow:
+    return {
+        "job_id": item.job_id,
+        "stage": item.stage,
+        "input_ref": item.input_ref,
+        "requested_objective": item.requested_objective,
+        "status": item.status,
+        "run_id": item.run_id,
+        "progress_current": item.progress_current,
+        "progress_total": item.progress_total,
+        "progress_phase": item.progress_phase,
+        "attempt": item.attempt,
         "failure_code": item.failure_code,
         "created_at": item.created_at.isoformat(),
         "started_at": None if item.started_at is None else item.started_at.isoformat(),

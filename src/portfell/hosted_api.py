@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import os
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -34,7 +36,18 @@ def create_app(service: ResearchApplicationService | None = None) -> FastAPI:
     Tests may omit the service for a composition-only shell. Production always supplies the clean
     app-state/market-source application service and mounts Dash after API routes.
     """
-    application = FastAPI(title="Portfell", version="1.0.0")
+
+    @asynccontextmanager
+    async def lifecycle(_: FastAPI) -> AsyncGenerator[None]:
+        if service is not None:
+            service.start_background_jobs()
+        try:
+            yield
+        finally:
+            if service is not None:
+                service.stop_background_jobs()
+
+    application = FastAPI(title="Portfell", version="1.0.0", lifespan=lifecycle)
 
     @application.get("/healthz", include_in_schema=False)
     def healthz() -> dict[str, str]:  # pyright: ignore[reportUnusedFunction]
