@@ -3010,3 +3010,240 @@ Acceptance:
 - reload reconstructs the selected project when still valid; a missing project renders typed `project_not_found` rather than silently switching projects;
 - the selected-project block remains usable at `1440x900`, `1024x768`, and `390x844`, with full IDs accessible and no body-level horizontal overflow;
 - focused summary-lineage/state/sidebar/browser tests and `uv run portfell-quality pr` pass; GitHub `merge-gate` must pass on the exact PR head before merge.
+
+## 13. Income-first Univariate metric distributions and selection dashboard — PR401–PR406
+
+This series replaces the generic Univariate first-page result preview with an income-first metric distribution dashboard while preserving the existing staged-analysis contract: the full Metadata universe is computed once, metric interactions are read-only selection preview, and only the existing `Apply selection & compute downstream` commit creates the immutable selection that Bivariate consumes.
+
+Dependency graph:
+
+```text
+PR398 + PR400
+      |
+    PR401
+      |
+    PR402
+      |
+    PR403
+      |
+    PR404
+      |
+    PR405
+      |
+    PR406(QA/PASS)
+```
+
+Hard decisions for PR401–PR406:
+
+- the normal `/univariate` page no longer presents the generic `Showing the first 100 of ... persisted results.` result-table experience; the detailed result region is metric-centric;
+- the existing `Univariate Return / Risk Universe` overview may remain above the metric dashboard, but it is not a substitute for any required metric card;
+- every required Univariate metric has one dedicated metric card containing its optimal cross-sectional distribution plot, summary-number table, and selection controls;
+- on desktop every metric card uses exactly `60%` width for the Plotly distribution area, `30%` for the numeric/category table, and `10%` for the selection-control rail; mobile stacks those three regions in the same semantic order;
+- Univariate is still calculated over every full-identity member of the exact Metadata universe. Selecting thresholds/categories never changes the immutable Univariate run and never recomputes a metric;
+- the default transient preview is income-first: `distribution_frequency` includes `monthly` and `quarterly` and excludes other/unknown/accumulating frequencies. This default is not business authority until the user commits it;
+- selection predicates across different metrics combine with logical AND. Missing/unavailable metric values are never converted to zero and cannot pass a filter whose metric is enabled;
+- the existing action label `Apply selection & compute downstream` remains the only commit. It persists exact full `(isin, exchange, code)` members and then uses the already-frozen PR390 `Selection -> Bivariate -> Multivariate(return_risk)` chain;
+- metric checkbox changes, distribution-card expansion, chart hover/zoom, summary-table interaction, project switching and page reload are analytically read-only and cannot start Bivariate or Multivariate;
+- the PR398 daily `20:00 Europe/Vienna` scheduler remains the only Portfell nightly market-refresh scheduler. No second cron/scheduler is introduced by this series;
+- when PR398 observes a newer canonical Xetra EOD quote watermark, the resulting coherent market snapshot includes the then-current dividend evidence and the full income/risk metric catalog is recomputed and persisted for that exact universe/snapshot before the nightly checkpoint can advance;
+- the no-change PR398 path remains a true no-op. A separate full-market scan is not authorized merely to check whether dividend rows changed;
+- dividends remain income evidence and are never added a second time to adjusted-close returns. Raw `close` is not introduced as a split-unsafe return authority;
+- the previously proposed raw `price_cagr` is therefore not a required metric under this contract. The canonical return CAGR is `total_return_cagr`, preserving the repository's existing adjusted-close return convention; any future separate price-only CAGR requires an explicit split-safe source/return contract;
+- all finite float values rendered by the new metric cards use the PR397 exactly-five-decimal presentation contract without rounding persisted analytical values.
+
+Frozen required metric catalog:
+
+- **Data quality:** `history_years`, `distribution_history_years`, `observation_count`, `missing_ratio`;
+- **Income/distributions:** `distribution_frequency`, `distributions_per_year`, `ttm_distribution`, `ttm_distribution_yield`, `distribution_cagr_3y`, `distribution_cagr_5y`, `distribution_cv`, `distribution_regularity`, `distribution_cut_ratio`, `max_distribution_cut`, `rolling_12m_distribution_yield_median`, `rolling_12m_distribution_yield_min`, `rolling_12m_distribution_yield_max`, `rolling_12m_distribution_yield_std`, `distribution_growth_positive_year_ratio`, `distribution_drawdown`;
+- **Return/capital risk:** `total_return_cagr`, `annualized_volatility`, `downside_deviation`, `max_drawdown`, `current_drawdown`, `max_drawdown_duration`, `current_drawdown_duration`, `max_drawdown_recovery_days`, `var_95`, `cvar_95`, `ulcer_index`;
+- **Risk-adjusted return:** `sharpe`, `sortino`, `calmar`;
+- **Robustness/distribution shape:** `rolling_3y_cagr_median`, `rolling_3y_cagr_min`, `rolling_3y_sharpe_median`, `rolling_3y_sharpe_min`, `skewness`, `excess_kurtosis`, `positive_month_ratio`, `worst_month`, `best_month`, `worst_3m_return`, `worst_12m_return`, `rolling_1y_return_median`, `rolling_1y_return_min`, `rolling_1y_return_std`, `rolling_1y_vol_median`, `rolling_1y_vol_max`, `gain_loss_ratio`.
+
+Frozen plot registry:
+
+- `distribution_frequency`: horizontal categorical bar chart with exact category counts/shares;
+- signed metrics with an economically/statistically meaningful zero (`distribution_cagr_3y`, `distribution_cagr_5y`, `max_distribution_cut`, `distribution_drawdown`, `total_return_cagr`, `current_drawdown`, `skewness`, `worst_month`, `best_month`, `worst_3m_return`, `worst_12m_return`, rolling return/CAGR summaries): histogram plus ECDF and an explicit vertical zero reference line;
+- ratios naturally bounded to `[0,1]` (`distribution_regularity`, `distribution_cut_ratio`, `distribution_growth_positive_year_ratio`, `positive_month_ratio`): histogram plus ECDF with the bounded axis explicit;
+- all other continuous metrics: histogram plus ECDF using deterministic persisted bins/points; no kernel-density estimate is required and no distributional parametric assumption is implied;
+- raw `ttm_distribution` cash amounts must preserve dividend currency. If more than one non-equivalent currency exists in the displayed run, the plot is partitioned/labeled by currency and a single cross-currency amount threshold is unavailable; `ttm_distribution_yield` remains the comparable percentage metric and no FX conversion is invented.
+
+Frozen metric-card summary/filter contract:
+
+- continuous metric tables show exact `Available`, `Unavailable`, `Minimum`, `P05`, `P25`, `Median`, `P75`, `P95`, `Maximum`, `Mean`, and `Std` values derived from the immutable run;
+- the `10%` selector rail aligns selectable threshold controls to the table anchors `Minimum`, `P05`, `P25`, `Median`, `P75`, `P95`, and `Maximum`;
+- every continuous metric allows at most one enabled inclusive lower bound (`>=`) and one enabled inclusive upper bound (`<=`); the selected bound is the exact backend value behind the displayed table cell, not the five-decimal formatted string;
+- categorical metric tables show `Category`, `Count`, `Share`; the selector rail has one include checkbox per category row;
+- selecting a new lower/upper anchor for a metric replaces the previous bound of that direction for the same metric; contradictory `lower > upper` is rejected as typed invalid preview rather than returning a fabricated empty selection;
+- the metric plot always shows the immutable full-run distribution and visually marks the active lower/upper bounds or included categories. Filter changes therefore do not make percentile anchors drift underneath an already-selected threshold;
+- summary/card reads are bounded persisted reads. No metric card may cause a market query or load the complete Univariate row artifact into browser state.
+
+### PR401 — Freeze the income-first Univariate metric/plot/filter contract
+
+Branch: `docs/pr401-univariate-income-metric-contract`
+
+Priority: P0 quantitative/UI contract.
+
+Depends on: PR398 and PR400.
+
+Owned paths: `BACKLOG.md`, new `docs/contracts/univariate-income-metrics-v1.md`, synchronized Univariate UI contract documentation, and focused contract/documentation tests only. No production calculation, persistence, Dash or scheduler code.
+
+Scope: make the Section 13 metric catalog executable by freezing each metric's exact formula/input series, unit, minimum-history rule, availability reason, plot kind, summary-table semantics, filter direction/type and deterministic ordering.
+
+Acceptance:
+
+- all metric IDs in the frozen catalog have one exact definition and no alias with different economics;
+- `history_years` uses valid adjusted-close first/last dates and exact day span divided by `365.25` for display/statistics;
+- `observation_count` counts valid adjusted-close observations, not quarantined/raw rows;
+- `missing_ratio` is defined against the deterministic set of observed Xetra-universe trade dates between the listing's first and last valid quote in the same coherent snapshot; no guessed weekend/holiday calendar is introduced;
+- distribution-history metrics use positive dividend/distribution events only and preserve full listing identity;
+- `ttm_distribution` is the positive cash amount in `(last_quote_date - 365 days, last_quote_date]`; `ttm_distribution_yield` divides the same economically comparable amount by the last valid adjusted close under the frozen currency rule;
+- distribution CAGR `3y/5y`, CV, regularity, cut ratio, maximum cut, growth-positive ratio, distribution drawdown and rolling-yield statistics are frozen on one deterministic trailing-12-month distribution series with explicit complete-history requirements;
+- monthly/quarterly regularity uses expected cadence buckets from the backend-detected frequency; multiple positive events within one expected period do not fabricate extra regularity;
+- `total_return_cagr` preserves the current adjusted-close CAGR convention; dividends are not added again and raw close is not substituted;
+- `var_95` and `cvar_95` are separately defined at exactly `95%` confidence and do not silently reuse the current default `97.5%` tail statistic under a misleading name;
+- monthly/rolling-return, drawdown-duration/recovery, Ulcer, gain/loss, skewness and excess-kurtosis definitions include exact edge-case and insufficient-history behavior;
+- every metric defines a typed per-metric unavailable reason rather than using numerical zero/NaN;
+- the plot registry, 60/30/10 desktop card geometry, summary rows and filter-rail semantics are reproduced exactly in the contract;
+- contract tests prove every catalog metric has formula/unit/availability/plot/filter metadata and no undocumented metric appears in the UI registry;
+- `uv run portfell-quality pr` passes.
+
+### PR402 — Compute and persist the full Univariate income/risk metric catalog
+
+Branch: `feat/pr402-univariate-income-metrics-v3`
+
+Priority: P0 analytics.
+
+Depends on: PR401.
+
+Owned paths: `src/portfell/univariate_statistics.py` and narrowly separated pure Univariate metric modules/helpers, Univariate analytical DTO/schema contracts, row-artifact publication adapters, and focused numerical/property/regression tests. No Dash, Bivariate, Multivariate or scheduler presentation changes.
+
+Scope: version the production Univariate calculation/output so every full-universe row contains the complete PR401 metric catalog plus per-metric availability evidence.
+
+Acceptance:
+
+- new production rows publish as immutable `univariate.rows@v3` under an explicit Univariate calculation contract version; historical v2 artifacts remain readable and are never mutated;
+- every v3 row preserves exact `(isin, exchange, code)`, source snapshot/run identity, current existing metrics required by downstream code, the complete Section 13 metric catalog, and deterministic per-metric availability reasons;
+- formulas already present on `main` (`annualized_volatility`, downside deviation, Sharpe, Sortino, max drawdown, existing adjusted-close CAGR, current distribution frequency/TTM dividend evidence) remain regression-equivalent unless PR401 explicitly versions the semantic definition;
+- return/risk/volatility/drawdown calculations continue to use adjusted close only; missing adjusted close remains typed unavailable and dividends/splits are not double-counted;
+- dividend-currency mismatch/mixed-currency conditions fail the affected cash-amount/yield calculation closed unless the PR401 contract proves comparability; no FX rate is assumed;
+- new `95%` VaR/CVaR, Calmar, Ulcer, current/max drawdown duration/recovery, monthly/rolling return statistics, skewness/kurtosis and gain/loss statistics pass independent numerical fixtures;
+- distribution CAGR/stability/regularity/cut/drawdown/rolling-yield statistics pass fixtures for monthly, quarterly, missing-period, multiple-same-period, growing, cut, accumulating and insufficient-history series;
+- all rolling windows are backward-looking only and include no observation after the row's `last_quote_date`;
+- unavailable values serialize as `null` plus typed reason, never `NaN`, infinity or plausible zero;
+- repeated byte-equivalent market inputs produce byte-equivalent row documents and stable artifact identity;
+- downstream code that still needs legacy metric names is updated through one explicit compatibility mapping inside the service/calculation boundary, not by duplicating formulas in Dash;
+- focused numerical tests and `uv run portfell-quality pr` pass.
+
+### PR403 — Persist metric distributions and connect v3 to the nightly Xetra refresh
+
+Branch: `feat/pr403-univariate-metric-distributions-nightly`
+
+Priority: P0 data freshness/read plane.
+
+Depends on: PR402.
+
+Owned paths: Univariate artifact assembly/read DTOs, compact metric-distribution artifact persistence, PR398 nightly Univariate orchestration adapter, and focused persistence/scheduler/read tests. No Dash layout or Bivariate logic.
+
+Scope: produce one compact, immutable distribution-summary artifact for every successful v3 Univariate run and make the existing PR398 fresh-Xetra path publish/reuse v3 rows plus that distribution artifact.
+
+Acceptance:
+
+- every successful `univariate.rows@v3` run publishes exactly one matching `univariate.metric_distributions@v1` artifact keyed to the same run/source snapshot;
+- for every continuous metric the artifact stores exact available/unavailable counts, full-run summary anchors, deterministic histogram bins/counts, and a bounded deterministic ECDF representation with at most `500` plotted points while computing percentiles/counts from all available rows;
+- categorical metrics store exact category/count/share rows with deterministic ordering; counts reconcile to the v3 row artifact;
+- raw TTM cash-amount summaries retain currency partitions and never combine incomparable currencies into one scalar distribution;
+- the distribution artifact is small enough that normal metric-card reads do not deserialize all row items; repeated page reads do not rebuild histograms/ECDFs;
+- PR398's existing `20:00 Europe/Vienna` scheduler remains the sole daily trigger. A newer EOD quote watermark materializes one coherent latest market revision, including then-current dividends, and submits/reuses the v3 Univariate computation;
+- the PR398 checkpoint advances only after both the matching v3 row artifact and metric-distribution artifact are durably available;
+- if the source EOD watermark has not advanced, the nightly path performs the existing bounded no-change probe only and creates no v3 run/distribution artifact;
+- if an exact v3 run/distribution artifact already exists for the universe/source snapshot, nightly refresh reuses it idempotently;
+- process restart and duplicate scheduler delivery cannot create duplicate v3/distribution artifacts;
+- no second scheduler, raw Xetra mirror, sync-schema read or direct Dash market read is introduced;
+- focused artifact/persistence/scheduler/restart tests and `uv run portfell-quality pr` pass.
+
+### PR404 — Replace the generic Univariate first-100 table with metric distribution cards
+
+Branch: `feat/pr404-dash-univariate-metric-cards`
+
+Priority: P0 analytical UX.
+
+Depends on: PR403.
+
+Owned paths: `/univariate` Dash page, metric-card/presentation helpers, shared CSS only where required for the frozen grid, synchronized Univariate UI documentation and focused component/browser tests. No financial calculation, artifact write or downstream-job logic.
+
+Scope: remove the generic `Univariate Statistics` first-100 result-table experience and render the complete metric catalog as grouped distribution cards sourced from the persisted PR403 artifact.
+
+Required presentation:
+
+- the literal/semantic `Showing the first 100 of ... persisted results.` preview is absent from normal `/univariate` READY state;
+- metric cards are grouped in this order: `Data quality`, `Income & distributions`, `Return & capital risk`, `Risk-adjusted return`, `Robustness & distribution shape`;
+- every catalog metric has exactly one card and no card silently disappears when unavailable; unavailable cards show exact available/unavailable evidence/reason;
+- desktop card inner grid is exactly `60% plot / 30% table / 10% selector rail`; at `1024x768` the relationship remains visually preserved without body overflow; at `390x844` the regions stack plot -> table -> selector rail;
+- distribution plots use the exact PR401 plot registry, shared Plotly template and PR397 five-decimal formatting; zero reference lines, bounded axes and currency labels are explicit where contracted;
+- continuous tables show the exact PR401 summary rows; categorical tables show category/count/share; integer counts remain integers;
+- the selector rail renders aligned `>=`/`<=` checkboxes for numeric threshold anchors or category include checkboxes for categorical rows;
+- the active threshold/category state is visually marked on the plot but never alters the immutable full-run distribution data;
+- the transient default frequency selection is exactly `monthly + quarterly`; accumulating/unknown/other remain visible in the distribution table/plot but initially unchecked;
+- the existing Return/Risk overview, job progress, project/history context and `Apply selection & compute downstream` stage action continue to work and do not cross-wire revisions;
+- card groups may use deterministic accordion/lazy rendering so the page remains bounded, but opening/closing a group is presentation-only and every metric remains reachable on the same `/univariate` page;
+- page/card reads use only compact persisted artifacts/service DTOs and perform zero market reads or financial calculations;
+- focused card-registry/layout/unavailable/currency/five-decimal/browser tests and `uv run portfell-quality pr` pass.
+
+### PR405 — Generalize Univariate metric-filter preview and feed the exact committed selection to Bivariate
+
+Branch: `feat/pr405-univariate-metric-filter-selection`
+
+Priority: P0 selection semantics.
+
+Depends on: PR404.
+
+Owned paths: Univariate filter predicate DTO/normalization, bounded app-state row-filter queries/service reads, Univariate filter callbacks/state, and focused selection/downstream-lineage tests. Reuse PR390 orchestration; do not add a second downstream pipeline.
+
+Scope: replace the old five-field v1 filter set with the versioned metric-card predicate model while preserving read-only preview and the single explicit commit boundary.
+
+Acceptance:
+
+- define one canonical `univariate.metric_filters@v1` predicate payload containing normalized sorted metric IDs and, per metric, either inclusive numeric `lower`/`upper` bounds or a categorical allowed-value set;
+- every numeric bound originates from the exact immutable full-run summary anchor selected in the metric card; the service persists/compares the full-precision backend value, not formatted display text;
+- different enabled metrics combine by AND; multiple allowed categories within one categorical metric combine by OR;
+- rows with a required metric unavailable fail that enabled predicate and remain counted as unavailable evidence; no missing-as-zero behavior exists;
+- the initial unapplied preview has exactly `distribution_frequency in {monthly, quarterly}` and all other metric predicates disabled;
+- every preview change returns exact matching full-identity count, unavailable/excluded evidence, planned Bivariate pair count and downstream-runnable state without market reads, Univariate recomputation, selection writes or downstream job submission;
+- contradictory bounds and cross-currency `ttm_distribution` amount filters fail with typed preview reasons; `ttm_distribution_yield` remains independently filterable;
+- changing project/universe selects only that project's exact matching Univariate v3 run/distribution artifact and cannot reuse predicates or rows from another lineage as business authority;
+- pressing `Apply selection & compute downstream` creates/reuses one immutable Univariate selection whose members exactly equal an independent oracle over the v3 row artifact and normalized predicates;
+- the committed selection stores source Univariate run ID plus normalized filter payload for auditability and restart reconstruction;
+- after commit, the existing PR390 path submits/reuses Bivariate with `input_ref == selection_id`; Bivariate receives exactly the committed full identities and never a browser-only table/chart subset;
+- filter checkbox/anchor changes alone never create Bivariate or Multivariate jobs; only Apply commits;
+- reload restores the persisted committed selection/readiness while any uncommitted filter edits remain presentation state only;
+- race fixtures prove U1/S1/B1 and U2/S2/B2 cannot cross-wire under rapid project/filter/apply changes;
+- focused predicate/oracle/selection/idempotency/race/downstream tests and `uv run portfell-quality pr` pass.
+
+### PR406 — Income-first Univariate dashboard, nightly-refresh and Bivariate-handoff QA PASS
+
+Branch: `test/pr406-univariate-income-dashboard-closeout`
+
+Priority: P0 final QA gate.
+
+Depends on: PR405.
+
+Scope: QA/evidence only. Any production defect found here requires a corrective implementation PR and a fresh PR406 run.
+
+Acceptance must prove all of the following on the exact PR406 head SHA:
+
+- an independent numerical fixture verifies every PR401 catalog metric, including monthly/quarterly dividend cases, growing/cut/irregular distributions, tail risk, drawdowns/durations, rolling statistics, skewness/kurtosis and insufficient-history/unavailable states without using the production helper under test as the oracle;
+- one full-universe v3 run persists exact row count and one matching metric-distribution artifact; every metric's available/unavailable counts and summary/category totals reconcile to the row artifact;
+- a deterministic nightly newer-Xetra-watermark fixture runs through the PR398 scheduler path and refreshes the v3 metric catalog using the latest coherent dividend evidence; no-change performs zero bulk market reads/compute writes;
+- the `/univariate` READY DOM contains no generic first-100 persisted-results note/table experience and exposes one reachable card for every frozen metric;
+- every populated metric card at desktop has measured inner geometry matching `60% plot / 30% table / 10% selector rail` within a browser-test tolerance of `±2` percentage points; mobile stacks in the frozen order;
+- plot-registry fixtures prove frequency uses horizontal bars, continuous metrics use histogram+ECDF, signed metrics show zero reference, bounded ratios show bounded axes, and mixed-currency TTM cash evidence is not falsely aggregated;
+- all finite float summary/hover/axis values satisfy the PR397 five-decimal display contract without changing full-precision selection thresholds;
+- the initial transient preview selects exactly monthly and quarterly distributing rows from the fixture and does not mutate the run or create downstream jobs;
+- selecting percentile/category checkboxes across at least six different metric families yields exact AND/OR predicate membership matching an independent persisted-row oracle;
+- `Apply selection & compute downstream` persists exactly that membership and the subsequent Bivariate job reads exactly those full listing identities through the existing selection input contract;
+- unapplied checkbox changes, plot interactions, accordion/group changes, project switching, pagination/status polling and reload cause zero financial compute calls and zero Bivariate/Multivariate job submissions;
+- restart restores v3 artifacts, distribution summaries, committed selection and exact Bivariate lineage without recomputation on read;
+- deterministic fixtures at `1440x900`, `1024x768`, and `390x844` have no body-level horizontal overflow and retain accessible table/selector labels and typed unavailable states;
+- normal Univariate page/card callbacks remain within the existing staged-analysis bounded-response/read-plane contract and do not deserialize the complete row artifact merely to render a card;
+- `uv run portfell-quality pr`, `uv run portfell-quality merge` and GitHub `merge-gate` pass on the exact head; skipped/cancelled/zero-step evidence is not PASS;
+- produce one immutable sanitized `univariate-income-dashboard-v1` PASS artifact containing exact Git SHA, catalog/contract versions, fixture sizes, metric-registry fingerprint, nightly-refresh evidence refs, browser-layout evidence refs, selection-oracle fingerprint and exact Bivariate-handoff evidence without credentials, DSNs or private market rows.
