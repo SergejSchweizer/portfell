@@ -63,6 +63,22 @@ class AnalysisArtifactRecord:
 
 
 @dataclass(frozen=True)
+class AnalysisArtifactItem:
+    """One immutable, ordered JSON-object row owned by an analysis artifact."""
+
+    item_key: str | None
+    document: JsonObject
+
+
+@dataclass(frozen=True)
+class AnalysisArtifactItemRecord:
+    artifact_id: str
+    ordinal: int
+    item_key: str | None
+    document: JsonObject
+
+
+@dataclass(frozen=True)
 class AnalysisJobRecord:
     job_id: str
     stage: str
@@ -176,6 +192,23 @@ class AnalysisArtifactRepository(Protocol):
     ) -> AnalysisArtifactRecord: ...
 
     def list_analysis_artifacts(self, run_id: str) -> tuple[AnalysisArtifactRecord, ...]: ...
+
+    def publish_row_backed_analysis_artifact(
+        self,
+        *,
+        artifact_id: str,
+        run_id: str,
+        artifact_type: str,
+        content_hash: str,
+        document: Mapping[str, JsonValue],
+        items: Sequence[AnalysisArtifactItem],
+    ) -> AnalysisArtifactRecord: ...
+
+    def count_analysis_artifact_items(self, artifact_id: str) -> int: ...
+
+    def list_analysis_artifact_items(
+        self, artifact_id: str, *, offset: int = 0, limit: int = 100
+    ) -> tuple[AnalysisArtifactItemRecord, ...]: ...
 
 
 class AnalysisJobRepository(Protocol):

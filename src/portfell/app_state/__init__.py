@@ -2,6 +2,8 @@
 
 from portfell.app_state.config import APP_DATABASE_NAME, APP_SCHEMA_NAME, validate_app_state_config
 from portfell.app_state.contracts import (
+    AnalysisArtifactItem,
+    AnalysisArtifactItemRecord,
     AnalysisArtifactRecord,
     AnalysisJobRecord,
     AnalysisRunRecord,
@@ -35,6 +37,8 @@ __all__ = [
     "APP_STATE_TABLES",
     "MULTIVARIATE_OBJECTIVES",
     "AnalysisArtifactRecord",
+    "AnalysisArtifactItem",
+    "AnalysisArtifactItemRecord",
     "AnalysisJobRecord",
     "AnalysisRunRecord",
     "DecisionArtifactRecord",

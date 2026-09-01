@@ -8,6 +8,8 @@ from datetime import datetime
 from typing import Protocol, cast
 
 from portfell.app_state.contracts import (
+    AnalysisArtifactItem,
+    AnalysisArtifactItemRecord,
     AnalysisArtifactRecord,
     AnalysisJobRecord,
     AnalysisRunRecord,
@@ -536,6 +538,117 @@ class PostgresAppStateRepository:
         ).fetchall()
         return tuple(_artifact(row) for row in rows)
 
+    def publish_row_backed_analysis_artifact(
+        self,
+        *,
+        artifact_id: str,
+        run_id: str,
+        artifact_type: str,
+        content_hash: str,
+        document: Mapping[str, JsonValue],
+        items: Sequence[AnalysisArtifactItem],
+    ) -> AnalysisArtifactRecord:
+        """Atomically publish one compact manifest and its ordered immutable rows."""
+        manifest = _row_backed_manifest(document, len(items))
+        normalized_items = _artifact_items(items)
+        try:
+            existing = self._connection.execute(
+                """select artifact_id, run_id, artifact_type, content_hash, document, created_at
+                   from portfell.analysis_artifacts where artifact_id = %s""",
+                (artifact_id,),
+            ).fetchone()
+            if existing is not None:
+                record = _artifact(existing)
+                if (
+                    record.run_id != run_id
+                    or record.artifact_type != artifact_type
+                    or record.content_hash != content_hash
+                    or _json_dump(record.document) != _json_dump(manifest)
+                    or self._existing_artifact_items(artifact_id) != normalized_items
+                ):
+                    raise AppStateError(APP_STATE_CONFLICT)
+                self._connection.commit()
+                return record
+            duplicate = self._connection.execute(
+                """select artifact_id from portfell.analysis_artifacts
+                   where run_id = %s and artifact_type = %s""",
+                (run_id, artifact_type),
+            ).fetchone()
+            if duplicate is not None:
+                raise AppStateError(APP_STATE_CONFLICT)
+            created = self._connection.execute(
+                """insert into portfell.analysis_artifacts
+                   (artifact_id, run_id, artifact_type, content_hash, document)
+                   values (%s, %s, %s, %s, %s::jsonb)
+                   returning artifact_id, run_id, artifact_type, content_hash, document,
+                             created_at""",
+                (artifact_id, run_id, artifact_type, content_hash, _json_dump(manifest)),
+            ).fetchone()
+            if created is None:
+                raise AppStateError(APP_STATE_PERSISTENCE_FAILED)
+            for start in range(0, len(normalized_items), 500):
+                batch = normalized_items[start : start + 500]
+                if batch:
+                    placeholders = ", ".join("(%s, %s, %s, %s::jsonb)" for _ in batch)
+                    params: list[object] = []
+                    for ordinal, item in enumerate(batch, start=start):
+                        params.extend(
+                            (artifact_id, ordinal, item.item_key, _json_dump(item.document))
+                        )
+                    self._connection.execute(
+                        """insert into portfell.analysis_artifact_items
+                           (artifact_id, ordinal, item_key, document)
+                           values """
+                        + placeholders,
+                        tuple(params),
+                    )
+            self._connection.commit()
+            return _artifact(created)
+        except AppStateError:
+            self._connection.rollback()
+            raise
+        except Exception as error:
+            self._connection.rollback()
+            raise AppStateError(APP_STATE_PERSISTENCE_FAILED) from error
+
+    def count_analysis_artifact_items(self, artifact_id: str) -> int:
+        row = self._connection.execute(
+            """select count(*) from portfell.analysis_artifact_items
+               where artifact_id = %s""",
+            (artifact_id,),
+        ).fetchone()
+        if row is None:
+            raise AppStateError(APP_STATE_PERSISTENCE_FAILED)
+        return int(cast(int, row[0]))
+
+    def list_analysis_artifact_items(
+        self, artifact_id: str, *, offset: int = 0, limit: int = 100
+    ) -> tuple[AnalysisArtifactItemRecord, ...]:
+        if offset < 0:
+            raise AppStateError(APP_STATE_CONFLICT)
+        rows = self._connection.execute(
+            """select artifact_id, ordinal, item_key, document
+               from portfell.analysis_artifact_items
+               where artifact_id = %s
+               order by ordinal
+               offset %s limit %s""",
+            (artifact_id, offset, _bounded_limit(limit)),
+        ).fetchall()
+        return tuple(_artifact_item(row) for row in rows)
+
+    def _existing_artifact_items(self, artifact_id: str) -> tuple[AnalysisArtifactItem, ...]:
+        rows = self._connection.execute(
+            """select item_key, document from portfell.analysis_artifact_items
+               where artifact_id = %s order by ordinal""",
+            (artifact_id,),
+        ).fetchall()
+        return tuple(
+            AnalysisArtifactItem(
+                item_key=None if row[0] is None else str(row[0]), document=_json_object(row[1])
+            )
+            for row in rows
+        )
+
     def create_univariate_selection(
         self,
         *,
@@ -790,6 +903,26 @@ def _json_value(value: object) -> JsonValue:
     return cast(JsonValue, decoded)
 
 
+def _row_backed_manifest(document: Mapping[str, JsonValue], item_count: int) -> JsonObject:
+    manifest = dict(document)
+    if (
+        manifest.get("storage") != "row_items"
+        or manifest.get("item_count") != item_count
+        or "items" in manifest
+    ):
+        raise AppStateError(APP_STATE_CONFLICT)
+    return manifest
+
+
+def _artifact_items(items: Sequence[AnalysisArtifactItem]) -> tuple[AnalysisArtifactItem, ...]:
+    normalized: list[AnalysisArtifactItem] = []
+    for item in items:
+        if item.item_key is not None and not item.item_key.strip():
+            raise AppStateError(APP_STATE_CONFLICT)
+        normalized.append(item)
+    return tuple(normalized)
+
+
 def _snapshot(row: Sequence[object]) -> MarketSourceSnapshotRecord:
     return MarketSourceSnapshotRecord(
         snapshot_id=str(row[0]),
@@ -837,6 +970,15 @@ def _artifact(row: Sequence[object]) -> AnalysisArtifactRecord:
         content_hash=str(row[3]),
         document=_json_object(row[4]),
         created_at=cast(datetime, row[5]),
+    )
+
+
+def _artifact_item(row: Sequence[object]) -> AnalysisArtifactItemRecord:
+    return AnalysisArtifactItemRecord(
+        artifact_id=str(row[0]),
+        ordinal=int(cast(int, row[1])),
+        item_key=None if row[2] is None else str(row[2]),
+        document=_json_object(row[3]),
     )
 
 

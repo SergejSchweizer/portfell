@@ -2,5 +2,6 @@
 
 from portfell.app_state.migrations.v001_initial import MIGRATION_V001
 from portfell.app_state.migrations.v002_analysis_jobs import MIGRATION_V002
+from portfell.app_state.migrations.v003_analysis_artifact_items import MIGRATION_V003
 
-__all__ = ["MIGRATION_V001", "MIGRATION_V002"]
+__all__ = ["MIGRATION_V001", "MIGRATION_V002", "MIGRATION_V003"]

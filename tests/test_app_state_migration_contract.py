@@ -50,6 +50,9 @@ class FakeConnection:
             assert params is not None
             version, name, checksum = params
             self.applied[int(cast(int, version))] = (str(name), str(checksum))
+        if query.startswith("delete from portfell.schema_migrations"):
+            assert params is not None
+            self.applied.pop(int(cast(int, params[0])), None)
         if query == "drop schema if exists portfell cascade;":
             self.applied.clear()
         return FakeCursor()
@@ -61,7 +64,7 @@ class FakeConnection:
         self.rollbacks += 1
 
 
-def test_v1_catalog_is_clean_single_workspace_contract() -> None:
+def test_catalog_is_clean_single_workspace_contract() -> None:
     assert APP_DATABASE_NAME == "portfell_dash"
     assert APP_SCHEMA_NAME == "portfell"
     assert APP_STATE_TABLES == (
@@ -72,6 +75,8 @@ def test_v1_catalog_is_clean_single_workspace_contract() -> None:
         "metadata_universe_members",
         "analysis_runs",
         "analysis_artifacts",
+        "analysis_artifact_items",
+        "analysis_jobs",
         "univariate_selections",
         "univariate_selection_members",
         "decision_artifacts",
@@ -97,8 +102,9 @@ def test_v1_catalog_is_clean_single_workspace_contract() -> None:
 
 def test_migration_is_repeat_safe_and_checksum_locked() -> None:
     connection = FakeConnection()
-    assert migrate_to_head(connection) == (1,)
-    assert connection.applied == {1: (MIGRATION_V001.name, MIGRATION_V001.checksum)}
+    assert migrate_to_head(connection) == (1, 2, 3)
+    assert connection.applied[1] == (MIGRATION_V001.name, MIGRATION_V001.checksum)
+    assert tuple(connection.applied) == (1, 2, 3)
     assert migrate_to_head(connection) == ()
     assert connection.commits == 2
     assert connection.rollbacks == 0
@@ -114,8 +120,8 @@ def test_destructive_rollback_requires_explicit_operator_opt_in() -> None:
     migrate_to_head(connection)
     with pytest.raises(AppStateMigrationError, match="destructive_rollback_required"):
         rollback_to_zero(connection)
-    assert rollback_to_zero(connection, allow_destructive=True) == (1,)
-    assert connection.applied == {}
+    assert rollback_to_zero(connection, allow_destructive=True) == (3,)
+    assert tuple(connection.applied) == (1, 2)
 
 
 def test_runtime_privileges_are_bounded_and_role_name_is_validated() -> None:

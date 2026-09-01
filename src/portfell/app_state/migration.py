@@ -7,11 +7,15 @@ import re
 from collections.abc import Sequence
 from typing import Protocol, cast
 
-from portfell.app_state.migrations import MIGRATION_V001, MIGRATION_V002
+from portfell.app_state.migrations import MIGRATION_V001, MIGRATION_V002, MIGRATION_V003
 from portfell.app_state.migrations.v001_initial import AppStateMigration
 from portfell.app_state.schema import APP_STATE_TABLES
 
-APP_STATE_MIGRATIONS: tuple[AppStateMigration, ...] = (MIGRATION_V001, MIGRATION_V002)
+APP_STATE_MIGRATIONS: tuple[AppStateMigration, ...] = (
+    MIGRATION_V001,
+    MIGRATION_V002,
+    MIGRATION_V003,
+)
 _ROLE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 _BOOTSTRAP_SQL = """

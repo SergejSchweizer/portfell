@@ -103,8 +103,8 @@ def succeeded_job() -> tuple[object, ...]:
 
 
 def test_v2_migration_is_registered_without_rewriting_v1() -> None:
-    assert tuple(migration.version for migration in APP_STATE_MIGRATIONS) == (1, 2)
-    assert APP_STATE_MIGRATIONS[-1] is MIGRATION_V002
+    assert tuple(migration.version for migration in APP_STATE_MIGRATIONS)[:2] == (1, 2)
+    assert APP_STATE_MIGRATIONS[1] is MIGRATION_V002
     assert "analysis_jobs" in APP_STATE_TABLES
     sql = MIGRATION_V002.sql
     assert "create table if not exists portfell.analysis_jobs" in sql
