@@ -48,6 +48,7 @@ from portfell.market_source.errors import MarketSourceError
 from portfell.market_source.gateway import MarketDataSnapshot
 from portfell.market_source.snapshot import build_market_source_snapshot
 from portfell.table_io import JsonRow
+from portfell.univariate_distributions import build_metric_distributions
 from portfell.univariate_statistics import UNIVARIATE_CALCULATION_CONTRACT
 
 
@@ -448,6 +449,11 @@ class ResearchApplicationService:
                     ),
                 },
             )
+            self._put_artifact(
+                run.run_id,
+                "univariate.metric_distributions@v1",
+                build_metric_distributions(computed.rows),
+            )
             if job_id is not None:
                 self._state.update_job_progress(
                     job_id,
@@ -780,6 +786,19 @@ class ResearchApplicationService:
             "item_count": item_count,
             "summary": cast(JsonRow, summary),
         }
+
+    def univariate_metric_distributions(self, run_id: str) -> JsonRow:
+        """Read the compact v1 distribution manifest without hydrating row items."""
+        run = self._require_succeeded_run(run_id, "univariate")
+        try:
+            return cast(
+                JsonRow, self._artifact(run.run_id, "univariate.metric_distributions@v1").document
+            )
+        except AppStateError as error:
+            if error.code != APP_STATE_NOT_FOUND:
+                raise
+            # Historical v2 runs have no v1 artifact; callers get a typed absence.
+            raise ApplicationServiceError("univariate_metric_distributions_unavailable") from error
 
     def univariate_page(self, run_id: str, *, offset: int = 0, limit: int = 100) -> JsonRow:
         """Read one deterministic bounded page from row-backed Univariate output."""
