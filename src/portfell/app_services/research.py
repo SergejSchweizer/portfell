@@ -491,9 +491,9 @@ class ResearchApplicationService:
         self._state.get_univariate_selection(selection_id)
         list_jobs = getattr(self._state, "list_analysis_jobs", None)
         if callable(list_jobs):
-            completed_jobs = cast(
-                Callable[..., tuple[AnalysisJobRecord, ...]], list_jobs
-            )(stage="bivariate", status="succeeded", limit=500)
+            completed_jobs = cast(Callable[..., tuple[AnalysisJobRecord, ...]], list_jobs)(
+                stage="bivariate", status="succeeded", limit=500
+            )
             for completed in completed_jobs:
                 if completed.input_ref == selection_id:
                     return _job_row(completed)
@@ -560,9 +560,9 @@ class ResearchApplicationService:
             raise ApplicationServiceError("bivariate_dependency_mismatch")
         list_jobs = getattr(self._state, "list_analysis_jobs", None)
         if callable(list_jobs):
-            completed_jobs = cast(
-                Callable[..., tuple[AnalysisJobRecord, ...]], list_jobs
-            )(stage="multivariate", status="succeeded", limit=500)
+            completed_jobs = cast(Callable[..., tuple[AnalysisJobRecord, ...]], list_jobs)(
+                stage="multivariate", status="succeeded", limit=500
+            )
             for completed in completed_jobs:
                 if (
                     completed.input_ref == bivariate_run_id
