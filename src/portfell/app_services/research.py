@@ -430,6 +430,24 @@ class ResearchApplicationService:
                     ),
                 },
             )
+            # v3 is additive: v2 remains available to existing consumers while
+            # metric-card pages can opt into the enriched catalog atomically.
+            self._put_row_backed_artifact(
+                run.run_id,
+                "univariate.rows@v3",
+                computed.rows,
+                summary={
+                    "universe_id": universe.universe_id,
+                    "market_snapshot_id": market.snapshot_id,
+                    "metric_contract": "univariate.metrics.v3",
+                    "available_count": sum(
+                        row.get("availability_reason") == "ok" for row in computed.rows
+                    ),
+                    "unavailable_count": sum(
+                        row.get("availability_reason") != "ok" for row in computed.rows
+                    ),
+                },
+            )
             if job_id is not None:
                 self._state.update_job_progress(
                     job_id,
