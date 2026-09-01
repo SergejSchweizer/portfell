@@ -7,12 +7,12 @@ import json
 import math
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 from portfell.bivariate_statistics import BIVARIATE_STATISTICS_VERSION, build_bivariate_statistics
 from portfell.gold_pair_stats import DEFAULT_MAX_PAIR_COUNT
 from portfell.return_series import build_returns
-from portfell.selection_filters import Predicate, filter_rows
+from portfell.selection_filters import Predicate
 from portfell.table_io import JsonRow
 from portfell.univariate_statistics import (
     UNIVARIATE_CALCULATION_CONTRACT,
@@ -119,7 +119,12 @@ def filtered_univariate_selection(
     for predicate in predicates:
         if not any(predicate.field in row for row in run.rows):
             raise ValueError("invalid_metric")
-    rows = tuple(filter_rows(run.rows, predicates))
+    metric_groups = _metric_filter_groups(predicate_rows)
+    rows = tuple(
+        row
+        for row in run.rows
+        if all(_metric_group_matches(row, metric, group) for metric, group in metric_groups.items())
+    )
     member_ids = tuple(sorted(_listing_id(row) for row in rows))
     selection_id = opaque_id(
         "univariate-selection",
@@ -193,6 +198,16 @@ def _normalize_predicates(rows: Sequence[Mapping[str, Any]]) -> tuple[Predicate,
     for row in rows:
         metric = str(row.get("metric", "")).strip()
         comparison = str(row.get("operator", "")).strip()
+        if comparison == "in":
+            allowed = row.get("allowed")
+            allowed_values = cast(list[object], allowed) if isinstance(allowed, list) else []
+            if not allowed_values or not all(isinstance(item, str) for item in allowed_values):
+                raise ValueError("invalid_predicate_value")
+            predicates.extend(
+                Predicate(metric, "=", str(item))
+                for item in sorted(set(cast(str, item) for item in allowed_values))
+            )
+            continue
         value = row.get("value")
         if not metric or comparison not in _ALLOWED_OPERATORS:
             raise ValueError("invalid_predicate")
@@ -210,6 +225,51 @@ def _normalize_predicates(rows: Sequence[Mapping[str, Any]]) -> tuple[Predicate,
     if not predicates:
         raise ValueError("predicates_required")
     return tuple(sorted(predicates, key=lambda item: (item.field, item.operator, item.expected)))
+
+
+def _metric_filter_groups(rows: Sequence[Mapping[str, Any]]) -> dict[str, dict[str, Any]]:
+    groups: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        metric = str(row.get("metric", "")).strip()
+        if not metric:
+            continue
+        group = groups.setdefault(metric, {"allowed": None, "lower": None, "upper": None})
+        if row.get("operator") == "in":
+            allowed = row.get("allowed")
+            if isinstance(allowed, list):
+                group["allowed"] = set(str(item) for item in cast(list[object], allowed))
+            continue
+        operator = str(row.get("operator", ""))
+        value = row.get("value")
+        if operator in {">", ">="}:
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                group["lower"] = float(value)
+        elif (
+            operator in {"<", "<="}
+            and isinstance(value, (int, float))
+            and not isinstance(value, bool)
+        ):
+            group["upper"] = float(value)
+    for group in groups.values():
+        if (
+            group.get("lower") is not None
+            and group.get("upper") is not None
+            and float(group["lower"]) > float(group["upper"])
+        ):
+            raise ValueError("invalid_metric_range")
+    return groups
+
+
+def _metric_group_matches(row: Mapping[str, Any], metric: str, group: Mapping[str, Any]) -> bool:
+    actual = row.get(metric)
+    if actual is None:
+        return False
+    allowed = group.get("allowed")
+    if isinstance(allowed, set) and str(actual) not in allowed:
+        return False
+    if group.get("lower") is not None and float(actual) < float(group["lower"]):
+        return False
+    return group.get("upper") is None or float(actual) <= float(group["upper"])
 
 
 def _listing_id(row: Mapping[str, Any]) -> str:
