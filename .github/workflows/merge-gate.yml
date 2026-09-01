@@ -28,8 +28,6 @@ jobs:
 
       - name: Install uv
         uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d
-        with:
-          enable-cache: true
       - name: Install Python
         run: uv python install
       - name: Install dependencies
@@ -63,8 +61,6 @@ jobs:
           ref: ${{ github.sha }}
       - name: Install uv
         uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d
-        with:
-          enable-cache: true
       - name: Install Python
         run: uv python install
       - name: Install dependencies
@@ -89,14 +85,15 @@ jobs:
           ref: ${{ github.sha }}
       - name: Install uv
         uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d
-        with:
-          enable-cache: true
       - name: Install Python
         run: uv python install
       - name: Install dependencies
         run: uv sync --dev
       - name: Install Chromium
-        run: uv run playwright install --with-deps chromium
+        # The self-hosted runner is intentionally non-interactive and does not
+        # have passwordless sudo. System browser dependencies are provisioned
+        # by the runner image; installing Chromium itself must not invoke sudo.
+        run: uv run playwright install chromium
       - name: Run Dash parity acceptance
         env:
           PORTFELL_DASH_PARITY_EVIDENCE_DIR: ${{ github.workspace }}/artifacts/dash-parity-v1
@@ -125,8 +122,6 @@ jobs:
           ref: ${{ github.sha }}
       - name: Install uv
         uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d
-        with:
-          enable-cache: true
       - name: Install Python
         run: uv python install
       - name: Install dependencies
@@ -167,8 +162,6 @@ jobs:
           ref: ${{ github.sha }}
       - name: Install uv
         uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d
-        with:
-          enable-cache: true
       - name: Install Python
         run: uv python install
       - name: Install dependencies
@@ -212,8 +205,6 @@ jobs:
           ref: ${{ github.sha }}
       - name: Install uv
         uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d
-        with:
-          enable-cache: true
       - name: Install Python
         run: uv python install
       - name: Install dependencies
@@ -258,8 +249,6 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
       - name: Install uv
         uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d
-        with:
-          enable-cache: true
       - name: Install Python
         run: uv python install
       - name: Install dependencies
