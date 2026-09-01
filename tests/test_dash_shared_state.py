@@ -136,3 +136,40 @@ def test_route_refresh_is_read_only() -> None:
     service = Service()
     execute_action(service, BrowserState(), action="refresh")
     assert service.calls == []
+
+
+def test_revision_state_keeps_previous_run_separate_from_current() -> None:
+    workflow = _workflow()
+    workflow["history"] = {
+        "univariate": [
+            {"run_id": "run-u-new", "status": "running", "input_ref": "u1"},
+            {"run_id": "run-u-old", "status": "succeeded", "input_ref": "u0"},
+        ],
+        "bivariate": [{"run_id": "run-b-old", "status": "succeeded", "input_ref": "old-selection"}],
+        "multivariate": [],
+    }
+    state = browser_state_from_workflow(workflow)
+    assert state.current_input_revision == "universe:u1|selection:s1"
+    assert state.current_ready_runs is None or "univariate" not in state.current_ready_runs
+    assert state.previous_ready_runs == {
+        "univariate": "run-u-old",
+        "bivariate": "run-b-old",
+    }
+    assert state.previous_ready_run == "run-b-old"
+
+
+def test_revision_state_switches_atomically_on_matching_success() -> None:
+    workflow = _workflow()
+    workflow["history"] = {
+        "univariate": [{"run_id": "run-u", "status": "succeeded", "input_ref": "u1"}],
+        "bivariate": [{"run_id": "run-b", "status": "succeeded", "input_ref": "s1"}],
+        "multivariate": [{"run_id": "run-m", "status": "succeeded", "input_ref": "run-b"}],
+    }
+    state = browser_state_from_workflow(workflow)
+    assert state.current_ready_runs == {
+        "univariate": "run-u",
+        "bivariate": "run-b",
+        "multivariate": "run-m",
+    }
+    assert state.current_ready_run == "run-m"
+    assert state.previous_ready_run is None

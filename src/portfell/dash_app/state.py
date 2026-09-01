@@ -53,6 +53,14 @@ class BrowserState:
     selected_count: int | None = None
     bivariate_run_id: str | None = None
     multivariate_run_id: str | None = None
+    # Revision-safe presentation identifiers.  These are deliberately plain IDs;
+    # result payloads never live in browser state.
+    current_input_revision: str | None = None
+    current_job_id: str | None = None
+    current_ready_run: str | None = None
+    previous_ready_run: str | None = None
+    current_ready_runs: dict[str, str] | None = None
+    previous_ready_runs: dict[str, str] | None = None
     readiness: StageReadiness = StageReadiness(False, False, False, False)
     job: JobPresentation = JobPresentation()
     message_code: str | None = None
@@ -102,6 +110,12 @@ class BrowserState:
             selected_count=_integer(root.get("selected_count")),
             bivariate_run_id=_string(root.get("bivariate_run_id")),
             multivariate_run_id=_string(root.get("multivariate_run_id")),
+            current_input_revision=_string(root.get("current_input_revision")),
+            current_job_id=_string(root.get("current_job_id")),
+            current_ready_run=_string(root.get("current_ready_run")),
+            previous_ready_run=_string(root.get("previous_ready_run")),
+            current_ready_runs=_string_map(root.get("current_ready_runs")),
+            previous_ready_runs=_string_map(root.get("previous_ready_runs")),
             readiness=readiness,
             job=job,
             message_code=_string(root.get("message_code")),
@@ -122,6 +136,42 @@ def browser_state_from_workflow(workflow: Mapping[str, object]) -> BrowserState:
     selection_id = _field(selection, "selection_id")
     bivariate_id = _field(bivariate, "run_id")
     multivariate_id = _field(multivariate, "run_id")
+
+    # The service supplies bounded stage history.  Select by the exact dependency
+    # reference, never by "latest run" alone, so a new revision cannot inherit old
+    # analytical evidence while it is computing.
+    history = _mapping(workflow.get("history")) or {}
+    expected = {
+        "univariate": universe_id,
+        "bivariate": selection_id,
+        "multivariate": bivariate_id,
+    }
+    current_ready: dict[str, str] = {}
+    previous_ready: dict[str, str] = {}
+    for stage, input_ref in expected.items():
+        candidates = _rows(history.get(stage))
+        if not candidates:
+            latest = _mapping(stages.get(stage))
+            candidates = [] if latest is None else [latest]
+        matching = [
+            row
+            for row in candidates
+            if row.get("status") == "succeeded"
+            and input_ref is not None
+            and _field(row, "input_ref") == input_ref
+            and _field(row, "run_id") is not None
+        ]
+        if matching:
+            current_ready[stage] = cast(str, _field(matching[0], "run_id"))
+        previous = [
+            row
+            for row in candidates
+            if row.get("status") == "succeeded"
+            and _field(row, "run_id") is not None
+            and (input_ref is None or _field(row, "input_ref") != input_ref)
+        ]
+        if previous:
+            previous_ready[stage] = cast(str, _field(previous[0], "run_id"))
 
     metadata_ready = universe_id is not None
     univariate_ready = (
@@ -160,6 +210,21 @@ def browser_state_from_workflow(workflow: Mapping[str, object]) -> BrowserState:
             failure_code=_field(job_source, "failure_code"),
         )
     )
+    current_input_revision = (
+        None
+        if universe_id is None
+        else f"universe:{universe_id}|selection:{selection_id or 'none'}"
+    )
+    current_ready_run = (
+        current_ready.get("multivariate")
+        or current_ready.get("bivariate")
+        or current_ready.get("univariate")
+    )
+    previous_ready_run = (
+        previous_ready.get("multivariate")
+        or previous_ready.get("bivariate")
+        or previous_ready.get("univariate")
+    )
     return BrowserState(
         workspace_id=_string(workflow.get("workspace_id")) or "default",
         universe_id=universe_id,
@@ -171,6 +236,12 @@ def browser_state_from_workflow(workflow: Mapping[str, object]) -> BrowserState:
         selected_count=_integer(None if selection is None else selection.get("member_count")),
         bivariate_run_id=bivariate_id,
         multivariate_run_id=multivariate_id,
+        current_input_revision=current_input_revision,
+        current_job_id=job.job_id,
+        current_ready_run=current_ready_run,
+        previous_ready_run=previous_ready_run,
+        current_ready_runs=current_ready or None,
+        previous_ready_runs=previous_ready or None,
         readiness=StageReadiness(
             metadata=metadata_ready,
             univariate=univariate_ready,
@@ -191,6 +262,7 @@ def with_job_status(state: BrowserState, row: Mapping[str, object] | None) -> Br
         return state
     return replace(
         state,
+        current_job_id=_string(row.get("job_id")),
         job=JobPresentation(
             job_id=_string(row.get("job_id")),
             stage=_string(row.get("stage")),
@@ -275,6 +347,26 @@ def _string(value: object) -> str | None:
 
 def _integer(value: object) -> int | None:
     return value if isinstance(value, int) and not isinstance(value, bool) else None
+
+
+def _rows(value: object) -> list[dict[str, object]]:
+    if not isinstance(value, list):
+        return []
+    rows: list[dict[str, object]] = []
+    for item in cast(list[object], value):
+        if isinstance(item, dict):
+            rows.append(cast(dict[str, object], item))
+    return rows
+
+
+def _string_map(value: object) -> dict[str, str] | None:
+    if not isinstance(value, dict):
+        return None
+    result: dict[str, str] = {}
+    for key, item in cast(dict[object, object], value).items():
+        if isinstance(item, str):
+            result[str(key)] = item
+    return result or None
 
 
 __all__ = [
