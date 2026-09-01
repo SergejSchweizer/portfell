@@ -68,6 +68,12 @@ def test_dash_four_page_journey_and_visual_evidence(tmp_path: Path) -> None:
 
             page.goto(f"{base_url}/metadata", wait_until="networkidle")
             _assert_shell(page, "Metadata")
+            service.fail_next_univariate = True
+            page.locator("#metadata-create-universe").click()
+            _wait_until(lambda: service.failure_count == 1)
+            metadata_body = page.locator("body").inner_text()
+            assert "fixture-secret" not in metadata_body
+            assert "postgres://" not in metadata_body
             page.locator("#metadata-create-universe").click()
             page.locator("#metadata-continue-univariate[aria-disabled='false']").wait_for()
             page.reload(wait_until="networkidle")
@@ -77,19 +83,13 @@ def test_dash_four_page_journey_and_visual_evidence(tmp_path: Path) -> None:
 
             page.wait_for_url(f"{base_url}/univariate")
             _assert_shell(page, "Univariate")
-            service.fail_next_univariate = True
-            page.locator("#univariate-compute").click()
-            _wait_until(lambda: service.failure_count == 1)
-            body_after_failure = page.locator("body").inner_text()
-            assert "fixture-secret" not in body_after_failure
-            assert "postgres://" not in body_after_failure
-            page.locator("#univariate-compute").click()
             page.wait_for_function("document.body.innerText.includes('DE000TEST01')")
             page.locator("#univariate-save-selection").click()
             page.locator("#univariate-continue-bivariate[aria-disabled='false']").wait_for()
             page.reload(wait_until="networkidle")
             _assert_shell(page, "Univariate")
             assert "DE000TEST01" in page.locator("body").inner_text()
+            page.locator("#univariate-continue-bivariate").scroll_into_view_if_needed()
             page.locator("#univariate-continue-bivariate").click()
 
             page.wait_for_url(f"{base_url}/bivariate")
@@ -105,6 +105,7 @@ def test_dash_four_page_journey_and_visual_evidence(tmp_path: Path) -> None:
             page.wait_for_url(f"{base_url}/multivariate")
             _assert_shell(page, "Multivariate")
             page.locator("#multivariate-optimize").click()
+            page.reload(wait_until="networkidle")
             page.wait_for_function("document.body.innerText.includes('candidate-fixture')")
             assert "minimum_variance" in page.locator("body").inner_text()
             page.reload(wait_until="networkidle")
@@ -180,18 +181,15 @@ def test_dash_four_page_journey_and_visual_evidence(tmp_path: Path) -> None:
 
 
 def test_typed_failure_is_redacted_and_retryable() -> None:
-    service = DashParityFixtureService(level=1, fail_next_univariate=True)
-    initial = BrowserState(
-        universe_id="fixture-universe-1",
-        universe_version=1,
-    )
-    failed = execute_action(service, initial, action="univariate-compute")
+    service = DashParityFixtureService(fail_next_univariate=True)
+    initial = BrowserState()
+    failed = execute_action(service, initial, action="metadata-create-universe")
     assert failed.message_code == "fixture_univariate_failed"
     serialized = json.dumps(failed.to_store(), sort_keys=True)
     assert "fixture-secret" not in serialized
     assert "postgres://" not in serialized
 
-    retried = execute_action(service, failed, action="univariate-compute")
+    retried = execute_action(service, failed, action="metadata-create-universe")
     assert retried.univariate_run_id == "fixture-univariate-run"
     assert retried.message_code is None
     assert service.failure_count == 1

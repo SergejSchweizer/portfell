@@ -28,6 +28,8 @@ from portfell.app_services.research_compute import (
     univariate_source_id,
 )
 from portfell.app_state.contracts import (
+    AnalysisArtifactItem,
+    AnalysisArtifactItemRecord,
     AnalysisArtifactRecord,
     AnalysisJobRecord,
     AnalysisRunRecord,
@@ -113,6 +115,21 @@ class AppStatePort(Protocol):
 
     def list_analysis_artifacts(self, run_id: str) -> tuple[AnalysisArtifactRecord, ...]: ...
 
+    def publish_row_backed_analysis_artifact(
+        self,
+        *,
+        artifact_id: str,
+        run_id: str,
+        artifact_type: str,
+        content_hash: str,
+        document: Mapping[str, JsonValue],
+        items: Sequence[AnalysisArtifactItem],
+    ) -> AnalysisArtifactRecord: ...
+
+    def list_analysis_artifact_items(
+        self, artifact_id: str, *, offset: int = 0, limit: int = 100
+    ) -> tuple[AnalysisArtifactItemRecord, ...]: ...
+
     def create_univariate_selection(
         self,
         *,
@@ -161,6 +178,10 @@ class AppStatePort(Protocol):
 
     def complete_job(
         self, job_id: str, *, status: str, failure_code: str | None = None
+    ) -> AnalysisJobRecord: ...
+
+    def update_job_progress(
+        self, job_id: str, *, current: int, total: int | None, phase: str
     ) -> AnalysisJobRecord: ...
 
     def list_analysis_jobs(
@@ -292,6 +313,26 @@ class ResearchApplicationService:
             members=members,
         )
 
+    def create_universe_and_start_univariate(
+        self,
+        *,
+        exchange: str | None = None,
+        instrument_type: str | None = None,
+        country: str | None = None,
+        currency: str | None = None,
+    ) -> JsonRow:
+        """Commit one Metadata universe and immediately enqueue its full-Universe analysis."""
+        universe = self.create_metadata_universe(
+            exchange=exchange,
+            instrument_type=instrument_type,
+            country=country,
+            currency=currency,
+        )
+        return {
+            "universe": _universe_row(universe),
+            "job": self.start_univariate_job(universe.universe_id),
+        }
+
     def metadata_universe(self, universe_id: str) -> JsonRow:
         universe = self._state.get_metadata_universe(universe_id)
         listings = self._resolve_listings(universe.members)
@@ -309,9 +350,16 @@ class ResearchApplicationService:
         self._state.get_metadata_universe(universe_id)
         return _job_row(self._submit_analysis_job("univariate", universe_id))
 
-    def run_univariate(self, universe_id: str) -> JsonRow:
+    def run_univariate(self, universe_id: str, *, job_id: str | None = None) -> JsonRow:
         universe = self._state.get_metadata_universe(universe_id)
         market = self._read_market(universe.members)
+        if job_id is not None:
+            self._state.update_job_progress(
+                job_id,
+                current=0,
+                total=len(universe.members),
+                phase="members",
+            )
         source_id = univariate_source_id(
             universe_id=universe.universe_id, market_snapshot_id=market.snapshot_id
         )
@@ -330,13 +378,45 @@ class ResearchApplicationService:
         if run.status != "running":
             return _run_row(run)
         try:
+
+            def on_progress(current: int) -> None:
+                if job_id is not None:
+                    self._state.update_job_progress(
+                        job_id,
+                        current=current,
+                        total=len(universe.members),
+                        phase="members",
+                    )
+
             computed = compute_univariate(
                 universe_id=universe.universe_id,
                 market_snapshot_id=market.snapshot_id,
                 quote_rows=market.quotes,
                 dividend_rows=market.dividends,
+                on_progress=None if job_id is None else on_progress,
             )
-            self._put_artifact(run.run_id, "univariate_rows", {"items": list(computed.rows)})
+            self._put_row_backed_artifact(
+                run.run_id,
+                "univariate.rows@v2",
+                computed.rows,
+                summary={
+                    "universe_id": universe.universe_id,
+                    "market_snapshot_id": market.snapshot_id,
+                    "available_count": sum(
+                        row.get("availability_reason") == "ok" for row in computed.rows
+                    ),
+                    "unavailable_count": sum(
+                        row.get("availability_reason") != "ok" for row in computed.rows
+                    ),
+                },
+            )
+            if job_id is not None:
+                self._state.update_job_progress(
+                    job_id,
+                    current=len(universe.members),
+                    total=len(universe.members),
+                    phase="members",
+                )
             completed = self._state.transition_analysis_run(run_id=run.run_id, status="succeeded")
             return self.run_detail(completed.run_id)
         except Exception as error:
@@ -347,7 +427,7 @@ class ResearchApplicationService:
         self, run_id: str, *, predicates: Sequence[Mapping[str, object]] | None = None
     ) -> UnivariateSelectionRecord:
         run = self._require_succeeded_run(run_id, "univariate")
-        computed = self._computed_run(run, "univariate_rows")
+        computed = self._computed_run(run, "univariate.rows@v2")
         try:
             selection = (
                 full_univariate_selection(computed)
@@ -393,7 +473,7 @@ class ResearchApplicationService:
     def run_bivariate(self, selection_id: str) -> JsonRow:
         persisted = self._state.get_univariate_selection(selection_id)
         source_run = self._require_succeeded_run(persisted.source_run_id, "univariate")
-        source_computed = self._computed_run(source_run, "univariate_rows")
+        source_computed = self._computed_run(source_run, "univariate.rows@v2")
         member_ids = tuple(_member_id(item) for item in persisted.members)
         selected_rows = tuple(
             row for row in source_computed.rows if _row_member_id(row) in set(member_ids)
@@ -497,7 +577,7 @@ class ResearchApplicationService:
             return self.run_detail(run.run_id)
         if run.status != "running":
             return _run_row(run)
-        source_computed = self._computed_run(univariate_run, "univariate_rows")
+        source_computed = self._computed_run(univariate_run, "univariate.rows@v2")
         selected_ids = {_member_id(item) for item in selection.members}
         selected_rows = tuple(
             row for row in source_computed.rows if _row_member_id(row) in selected_ids
@@ -541,6 +621,27 @@ class ResearchApplicationService:
             else:
                 row["decision"] = _decision_row(decision)
         return row
+
+    def univariate_result_preview(self, run_id: str, *, limit: int = 500) -> JsonRow:
+        """Return a bounded persisted result preview without hydrating the full artifact."""
+        if limit < 1 or limit > 500:
+            raise ApplicationServiceError("analysis_artifact_page_invalid")
+        run = self._require_succeeded_run(run_id, "univariate")
+        artifact = self._artifact(run.run_id, "univariate.rows@v2")
+        if artifact.document.get("storage") != "row_items":
+            raise ApplicationServiceError("analysis_artifact_invalid")
+        item_count = artifact.document.get("item_count")
+        summary = artifact.document.get("summary")
+        if not isinstance(item_count, int) or item_count < 0 or not isinstance(summary, dict):
+            raise ApplicationServiceError("analysis_artifact_invalid")
+        items = self._state.list_analysis_artifact_items(artifact.artifact_id, limit=limit)
+        rows = [item.document for item in items]
+        return {
+            "run": _run_row(run),
+            "item_count": item_count,
+            "summary": cast(JsonRow, summary),
+            "rows": cast(list[JsonValue], rows),
+        }
 
     def stage_history(self, stage: str, *, limit: int = 100) -> tuple[JsonRow, ...]:
         return tuple(
@@ -598,7 +699,10 @@ class ResearchApplicationService:
 
     def _execute_analysis_job(self, job: AnalysisJobRecord) -> JsonRow:
         if job.stage == "univariate":
-            return self.run_univariate(job.input_ref)
+            self._state.update_job_progress(
+                job.job_id, current=0, total=None, phase="loading_market_data"
+            )
+            return self.run_univariate(job.input_ref, job_id=job.job_id)
         if job.stage == "bivariate":
             return self.run_bivariate(job.input_ref)
         if job.stage == "multivariate":
@@ -652,17 +756,39 @@ class ResearchApplicationService:
 
     def _computed_run(self, run: AnalysisRunRecord, artifact_type: str) -> ComputedRun:
         artifact = self._artifact(run.run_id, artifact_type)
+        if artifact.document.get("storage") == "row_items":
+            item_count = artifact.document.get("item_count")
+            if not isinstance(item_count, int) or item_count < 0:
+                raise ApplicationServiceError("analysis_artifact_invalid")
+            rows: list[JsonRow] = []
+            for offset in range(0, item_count, 500):
+                items = self._state.list_analysis_artifact_items(
+                    artifact.artifact_id, offset=offset, limit=min(500, item_count - offset)
+                )
+                for item in items:
+                    document = getattr(item, "document", None)
+                    if not isinstance(document, dict):
+                        raise ApplicationServiceError("analysis_artifact_invalid")
+                    rows.append(cast(JsonRow, document))
+            if len(rows) != item_count:
+                raise ApplicationServiceError("analysis_artifact_invalid")
+            return ComputedRun(
+                run_id=run.run_id,
+                source_id=run.logical_hash,
+                algorithm_version=run.algorithm_version,
+                rows=tuple(rows),
+            )
         raw_items = artifact.document.get("items")
         if not isinstance(raw_items, list):
             raise ApplicationServiceError("analysis_artifact_invalid")
-        rows = tuple(cast(JsonRow, item) for item in raw_items if isinstance(item, dict))
-        if len(rows) != len(raw_items):
+        inline_rows = tuple(cast(JsonRow, item) for item in raw_items if isinstance(item, dict))
+        if len(inline_rows) != len(raw_items):
             raise ApplicationServiceError("analysis_artifact_invalid")
         return ComputedRun(
             run_id=run.run_id,
             source_id=run.logical_hash,
             algorithm_version=run.algorithm_version,
-            rows=rows,
+            rows=inline_rows,
         )
 
     def _artifact(self, run_id: str, artifact_type: str) -> AnalysisArtifactRecord:
@@ -687,6 +813,45 @@ class ResearchApplicationService:
             artifact_type=artifact_type,
             content_hash=content_hash,
             document=cast(Mapping[str, JsonValue], document),
+        )
+
+    def _put_row_backed_artifact(
+        self,
+        run_id: str,
+        artifact_type: str,
+        rows: Sequence[JsonRow],
+        *,
+        summary: Mapping[str, JsonValue],
+    ) -> None:
+        items = tuple(
+            AnalysisArtifactItem(
+                item_key=_row_member_id(row), document=cast(dict[str, JsonValue], dict(row))
+            )
+            for row in rows
+        )
+        document: JsonRow = {
+            "schema": artifact_type,
+            "storage": "row_items",
+            "item_count": len(items),
+            "summary": dict(summary),
+        }
+        content_hash = stable_hash(
+            {
+                "document": document,
+                "items": [item.document for item in items],
+            }
+        )
+        artifact_id = opaque_id(
+            "analysis-artifact",
+            {"run_id": run_id, "artifact_type": artifact_type, "content_hash": content_hash},
+        )
+        self._state.publish_row_backed_analysis_artifact(
+            artifact_id=artifact_id,
+            run_id=run_id,
+            artifact_type=artifact_type,
+            content_hash=content_hash,
+            document=cast(Mapping[str, JsonValue], document),
+            items=items,
         )
 
     def _persist_multivariate(self, run_id: str, computation: MultivariateComputation) -> None:

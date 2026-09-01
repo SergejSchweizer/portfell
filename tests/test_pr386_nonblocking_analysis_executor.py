@@ -154,6 +154,12 @@ class StartState:
         self.jobs[key] = record
         return record
 
+    def update_job_progress(
+        self, job_id: str, *, current: int, total: int | None, phase: str
+    ) -> AnalysisJobRecord:
+        del current, total, phase
+        return job(job_id=job_id, status="running", attempt=1)
+
 
 class RecordingExecutor:
     def __init__(self, state: StartState) -> None:
@@ -270,7 +276,8 @@ def test_worker_dispatches_only_the_requested_stage_and_rejects_unknown_stage() 
         now=lambda: NOW,
     )
 
-    def run_univariate(universe_id: str) -> dict[str, object]:
+    def run_univariate(universe_id: str, *, job_id: str | None = None) -> dict[str, object]:
+        del job_id
         return {"run_id": f"uni-{universe_id}"}
 
     def run_bivariate(selection_id: str) -> dict[str, object]:
