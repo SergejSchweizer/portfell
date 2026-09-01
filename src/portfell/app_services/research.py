@@ -607,6 +607,7 @@ class ResearchApplicationService:
         selection_id: str,
         bivariate_run_id: str,
         objective: str = "return_risk",
+        job_id: str | None = None,
     ) -> JsonRow:
         if objective not in {"return_risk", "return_drawdown", "minimum_risk"}:
             raise ApplicationServiceError("invalid_multivariate_objective")
@@ -650,6 +651,13 @@ class ResearchApplicationService:
         )
         listing_metadata = tuple(_listing_row(item) for item in market.listings)
         try:
+
+            def on_phase(current: int, phase: str) -> None:
+                if job_id is not None:
+                    self._state.update_job_progress(job_id, current=current, total=8, phase=phase)
+
+            if job_id is not None:
+                self._state.update_job_progress(job_id, current=0, total=8, phase="inputs")
             with self._executor_factory() as executor:
                 computation = compute_multivariate(
                     universe_id=univariate_run.input_ref,
@@ -663,9 +671,16 @@ class ResearchApplicationService:
                     dividend_rows=market.dividends,
                     objective=objective,
                     executor=executor,
+                    on_phase=None if job_id is None else on_phase,
                 )
             self._persist_multivariate(run.run_id, computation)
+            if job_id is not None:
+                self._state.update_job_progress(
+                    job_id, current=7, total=8, phase="artifact_persistence"
+                )
             completed = self._state.transition_analysis_run(run_id=run.run_id, status="succeeded")
+            if job_id is not None:
+                self._state.update_job_progress(job_id, current=8, total=8, phase="complete")
             return self.run_detail(completed.run_id)
         except Exception as error:
             self._fail_run(run.run_id, error)
@@ -873,6 +888,26 @@ class ResearchApplicationService:
         rows = raw_items[:limit] if isinstance(raw_items, list) else []
         return {"run": summary["run"], "item_count": len(rows), "rows": rows}
 
+    def multivariate_summary(self, run_id: str) -> JsonRow:
+        """Return only run/decision identity and an artifact-name manifest."""
+        run = self._require_succeeded_run(run_id, "multivariate")
+        artifacts = self._state.list_analysis_artifacts(run_id)
+        result: JsonRow = {
+            "run": _run_row(run),
+            "artifact_types": [item.artifact_type for item in artifacts],
+        }
+        try:
+            result["decision"] = _decision_row(self._state.get_decision_artifact(run_id))
+        except AppStateError as error:
+            if error.code != APP_STATE_NOT_FOUND:
+                raise
+        return result
+
+    def multivariate_artifact(self, run_id: str, artifact_type: str) -> JsonRow:
+        """Read one named Multivariate artifact on demand."""
+        run = self._require_succeeded_run(run_id, "multivariate")
+        return cast(JsonRow, self._artifact(run.run_id, artifact_type).document)
+
     def stage_history(self, stage: str, *, limit: int = 100) -> tuple[JsonRow, ...]:
         return tuple(
             _run_row(item) for item in self._state.list_analysis_runs(stage=stage, limit=limit)
@@ -950,11 +985,21 @@ class ResearchApplicationService:
             return result
         if job.stage == "multivariate":
             run = self._state.get_analysis_run(job.input_ref)
-            return self.run_multivariate(
-                selection_id=run.input_ref,
-                bivariate_run_id=run.run_id,
-                objective=job.requested_objective or "return_risk",
-            )
+            try:
+                return self.run_multivariate(
+                    selection_id=run.input_ref,
+                    bivariate_run_id=run.run_id,
+                    objective=job.requested_objective or "return_risk",
+                    job_id=job.job_id,
+                )
+            except TypeError as error:
+                if "unexpected keyword argument 'job_id'" not in str(error):
+                    raise
+                return self.run_multivariate(
+                    selection_id=run.input_ref,
+                    bivariate_run_id=run.run_id,
+                    objective=job.requested_objective or "return_risk",
+                )
         raise ApplicationServiceError("analysis_job_stage_invalid")
 
     def _active_listings(self) -> tuple[Listing, ...]:

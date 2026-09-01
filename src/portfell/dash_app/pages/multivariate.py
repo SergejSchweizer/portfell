@@ -31,6 +31,10 @@ from portfell.dash_app.structure_presenters import universe_structure_view
 class MultivariateService(Protocol):
     def workflow_state(self) -> dict[str, object]: ...
 
+    def multivariate_summary(self, run_id: str) -> dict[str, object]: ...
+
+    def multivariate_artifact(self, run_id: str, artifact_type: str) -> dict[str, object]: ...
+
     def run_multivariate(
         self,
         *,
@@ -48,7 +52,30 @@ def multivariate_page_data(service: MultivariateService) -> dict[str, object]:
     stages = _mapping(workflow.get("stages")) or {}
     bivariate = _mapping(stages.get("bivariate"))
     stage = _mapping(stages.get("multivariate"))
-    detail = service.run_detail(str(stage["run_id"])) if stage and stage.get("run_id") else stage
+    detail = stage
+    if stage and stage.get("run_id") and stage.get("status") == "succeeded":
+        run_id = str(stage["run_id"])
+        if hasattr(service, "multivariate_summary"):
+            summary = service.multivariate_summary(run_id)
+            detail = _mapping(summary.get("run")) or stage
+            detail = {
+                **detail,
+                "decision": summary.get("decision"),
+                "artifacts": {
+                    artifact_type: service.multivariate_artifact(run_id, artifact_type)
+                    for artifact_type in (
+                        "candidates",
+                        "validation",
+                        "risk_contributions",
+                        "performance",
+                        "multivariate.structure@v2",
+                        "multivariate.candidate_structure@v2",
+                    )
+                    if artifact_type in cast(list[object], summary.get("artifact_types", []))
+                },
+            }
+        else:
+            detail = service.run_detail(run_id)
     artifacts = (_mapping(detail.get("artifacts")) or {}) if detail else {}
     decision = _mapping(detail.get("decision")) if detail else None
     decision_doc = _mapping(decision.get("document")) if decision else None
