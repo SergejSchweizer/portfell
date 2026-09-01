@@ -22,6 +22,7 @@ from portfell.dash_app.components import (
     TableCard,
 )
 from portfell.dash_app.figures import apply_portfell_template
+from portfell.dash_app.metric_cards import metric_card_models
 
 _CHART_PREVIEW_LIMIT = 500
 _TABLE_PREVIEW_LIMIT = 100
@@ -57,6 +58,8 @@ class UnivariateService(Protocol):
 
     def univariate_result_preview(self, run_id: str, *, limit: int = 500) -> dict[str, object]: ...
 
+    def univariate_metric_distributions(self, run_id: str) -> dict[str, object]: ...
+
     def create_univariate_selection(
         self, run_id: str, *, predicates: Sequence[Mapping[str, object]] | None = None
     ) -> object: ...
@@ -90,6 +93,14 @@ def univariate_page_data(service: UnivariateService) -> dict[str, object]:
     rows = _mappings(preview.get("rows")) if preview else ()
     chart_rows = _mappings(preview.get("chart_rows")) if preview else rows
     summary = _mapping(preview.get("summary")) if preview else None
+    distributions = None
+    if preview and hasattr(service, "univariate_metric_distributions"):
+        try:
+            distributions = service.univariate_metric_distributions(
+                str((detail or {}).get("run_id"))
+            )
+        except Exception:
+            distributions = None
     selected = {
         _member_id(member) for member in _mappings(selection.get("members") if selection else None)
     }
@@ -114,6 +125,7 @@ def univariate_page_data(service: UnivariateService) -> dict[str, object]:
         ),
         "ready": selection is not None,
         "matching_count": None if preview is None else preview.get("item_count"),
+        "metric_distributions": distributions,
     }
 
 
@@ -206,6 +218,7 @@ def _data_regions(model: Mapping[str, object]) -> list[Component]:
     run = _mapping(model.get("run"))
     universe = _mapping(model.get("universe"))
     selection = _mapping(model.get("selection"))
+    distributions = _mapping(model.get("metric_distributions"))
     ready = model.get("ready") is True
     return [
         html.Div(
@@ -222,6 +235,7 @@ def _data_regions(model: Mapping[str, object]) -> list[Component]:
             _scatter(_mappings(model.get("chart_rows"))) if model.get("chart_rows") else None,
             graph_id="univariate-return-risk-chart",
         ),
+        _metric_dashboard(distributions),
         TableCard(
             "Univariate Statistics",
             [
@@ -255,6 +269,45 @@ def _data_regions(model: Mapping[str, object]) -> list[Component]:
             ]
         ),
     ]
+
+
+def _metric_dashboard(distributions: Mapping[str, object] | None) -> Component:
+    cards = metric_card_models(distributions or {})
+    if not cards:
+        return html.Div()
+    groups: dict[str, list[Component]] = {}
+    for card in cards:
+        distribution = cast(dict[str, Any], card["distribution"])
+        if distribution.get("kind") == "categorical":
+            details = html.Div(str(distribution.get("categories", [])))
+        else:
+            summary = distribution.get("summary", {})
+            details = html.Div(str(summary))
+        component = html.Article(
+            [
+                html.H4(card["title"]),
+                html.Div(card["definition"], className="pf-metric-definition"),
+                html.Div(
+                    [
+                        html.Div(details, className="pf-metric-plot"),
+                        html.Div("Summary", className="pf-metric-table"),
+                        html.Div("Filters", className="pf-metric-selector"),
+                    ],
+                    className="pf-metric-card-grid",
+                ),
+            ],
+            className="pf-metric-card",
+            id=f"univariate-metric-{card['metric_id']}",
+        )
+        groups.setdefault(str(card["group"]), []).append(component)
+    children: list[Component] = []
+    for group, items in groups.items():
+        children.extend([html.H3(group), html.Div(items, className="pf-metric-group")])
+    return html.Section(
+        children,
+        id="univariate-metric-dashboard",
+        className="pf-metric-dashboard",
+    )
 
 
 def _scatter(rows: Sequence[Mapping[str, object]]) -> go.Figure:
