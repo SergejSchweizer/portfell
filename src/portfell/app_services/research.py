@@ -934,6 +934,7 @@ class ResearchApplicationService:
 
     def workflow_state(self) -> JsonRow:
         universes = self._state.list_metadata_universes(limit=1)
+        project_history = self._state.list_metadata_universes(limit=500)
         selections = self._state.list_univariate_selections(limit=1)
         stages: dict[str, JsonRow | None] = {}
         history: dict[str, list[JsonRow]] = {}
@@ -947,6 +948,7 @@ class ResearchApplicationService:
         return {
             "workspace_id": "default",
             "metadata_universe": None if universe is None else _universe_row(universe),
+            "metadata_universes": [_universe_row(item) for item in project_history],
             "univariate_selection": None if selection is None else _selection_row(selection),
             "stages": stages,
             # Small identifier/status history used to keep previous results
