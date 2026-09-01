@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from concurrent.futures import Executor
 from dataclasses import asdict, dataclass
 from statistics import median
@@ -44,6 +44,16 @@ from portfell.return_series import build_returns
 from portfell.table_io import JsonRow
 
 MULTIVARIATE_EXECUTION_VERSION = "multivariate_execution.clean.v1"
+MULTIVARIATE_PHASES = (
+    "inputs",
+    "risk_model_and_candidates",
+    "walk_forward_validation",
+    "scorecards",
+    "structural_diagnostics",
+    "decision",
+    "artifact_persistence",
+    "complete",
+)
 
 
 @dataclass(frozen=True)
@@ -80,6 +90,7 @@ def compute_multivariate(
     dividend_rows: Sequence[Mapping[str, Any]],
     objective: str,
     executor: Executor,
+    on_phase: Callable[[int, str], None] | None = None,
 ) -> MultivariateComputation:
     """Compute all immutable Multivariate evidence from one pinned source snapshot."""
 
@@ -141,6 +152,8 @@ def compute_multivariate(
     snapshot = build_multivariate_input_snapshot(
         dependencies=dependencies, univariate_rows=selected
     )
+    if on_phase is not None:
+        on_phase(1, MULTIVARIATE_PHASES[0])
     risk = build_multivariate_risk_model(snapshot=snapshot, return_rows=returns)
     structure = build_multivariate_structure(risk)
     quote_json_rows = tuple(dict(row) for row in quote_rows)
@@ -169,12 +182,16 @@ def compute_multivariate(
         return_rows=returns,
         income=income,
     )
+    if on_phase is not None:
+        on_phase(2, MULTIVARIATE_PHASES[1])
     validation = validate_candidates(
         candidates=candidates,
         return_rows=returns,
         precomputed_candidates=refitted,
         risk_model_id=risk.risk_model_id,
     )
+    if on_phase is not None:
+        on_phase(3, MULTIVARIATE_PHASES[2])
     structure_v2 = build_structure_v2_documents(
         risk_model=risk,
         return_rows=returns,
@@ -189,6 +206,9 @@ def compute_multivariate(
     )
     scenarios = validate_candidate_stress(candidates=candidates, return_rows=returns)
     scorecards = build_candidate_scorecards(splits=validation, scenarios=scenarios)
+    if on_phase is not None:
+        on_phase(4, MULTIVARIATE_PHASES[3])
+        on_phase(5, MULTIVARIATE_PHASES[4])
     decision = _select_decision(
         objective=objective,
         candidates=candidates,
@@ -196,6 +216,8 @@ def compute_multivariate(
         splits=validation,
         scenarios=scenarios,
     )
+    if on_phase is not None:
+        on_phase(6, MULTIVARIATE_PHASES[5])
     candidate_rows = [_candidate_row(item) for item in candidates]
     risk_contributions = [
         {
