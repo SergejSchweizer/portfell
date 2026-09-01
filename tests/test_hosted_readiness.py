@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 from datetime import date
 
+from portfell.app_state.migration import APP_STATE_MIGRATIONS
 from portfell.hosted_readiness import (
     MANDATORY_DECISIONS,
     failed_results,
@@ -71,7 +72,8 @@ def test_local_only_mode_is_independent_of_removed_database_authority_selector()
 
 
 def test_database_readiness_reads_only_clean_app_state_catalog() -> None:
-    connection = FakeDatabaseConnection([(1,)])
+    versions = [(migration.version,) for migration in APP_STATE_MIGRATIONS]
+    connection = FakeDatabaseConnection(versions)
     failures = failed_results(
         validate_database_readiness(
             "postgresql://portfell_app@postgres:5432/portfell_dash",

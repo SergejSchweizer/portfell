@@ -29,7 +29,13 @@ def _sql_literals(path: Path) -> tuple[str, ...]:
 
 def test_final_tree_has_no_legacy_ui_database_or_provider_runtime() -> None:
     assert not (ROOT / "apps" / "web").exists()
-    source_files = tuple(path for path in ROOT.rglob("*") if ".venv" not in path.parts)
+    source_files = tuple(
+        path
+        for path in ROOT.rglob("*")
+        if ".venv" not in path.parts
+        and ".git" not in path.parts
+        and not any(part.startswith(".node_modules-ci.") for part in path.parts)
+    )
     assert not tuple(path for path in source_files if path.name == "package.json")
     assert not tuple(path for path in source_files if path.suffix in {".tsx", ".ts"})
 
