@@ -472,10 +472,31 @@ class ResearchApplicationService:
             members=members,
         )
 
+    def create_selection_and_start_downstream(
+        self,
+        run_id: str,
+        *,
+        predicates: Sequence[Mapping[str, object]] | None = None,
+    ) -> JsonRow:
+        """Persist one exact selection and enqueue its Bivariate dependency once."""
+        selection = self.create_univariate_selection(run_id, predicates=predicates)
+        return {
+            "selection": _selection_row(selection),
+            "job": self.start_bivariate_job(selection.selection_id),
+        }
+
     # Bivariate ----------------------------------------------------------------
 
     def start_bivariate_job(self, selection_id: str) -> JsonRow:
         self._state.get_univariate_selection(selection_id)
+        list_jobs = getattr(self._state, "list_analysis_jobs", None)
+        if callable(list_jobs):
+            completed_jobs = cast(
+                Callable[..., tuple[AnalysisJobRecord, ...]], list_jobs
+            )(stage="bivariate", status="succeeded", limit=500)
+            for completed in completed_jobs:
+                if completed.input_ref == selection_id:
+                    return _job_row(completed)
         return _job_row(self._submit_analysis_job("bivariate", selection_id))
 
     def run_bivariate(self, selection_id: str) -> JsonRow:
@@ -537,6 +558,17 @@ class ResearchApplicationService:
         bivariate = self._state.get_analysis_run(bivariate_run_id)
         if bivariate.stage != "bivariate" or bivariate.input_ref != selection_id:
             raise ApplicationServiceError("bivariate_dependency_mismatch")
+        list_jobs = getattr(self._state, "list_analysis_jobs", None)
+        if callable(list_jobs):
+            completed_jobs = cast(
+                Callable[..., tuple[AnalysisJobRecord, ...]], list_jobs
+            )(stage="multivariate", status="succeeded", limit=500)
+            for completed in completed_jobs:
+                if (
+                    completed.input_ref == bivariate_run_id
+                    and completed.requested_objective == objective
+                ):
+                    return _job_row(completed)
         return _job_row(
             self._submit_analysis_job(
                 "multivariate", bivariate_run_id, requested_objective=objective
@@ -804,7 +836,15 @@ class ResearchApplicationService:
             )
             return self.run_univariate(job.input_ref, job_id=job.job_id)
         if job.stage == "bivariate":
-            return self.run_bivariate(job.input_ref)
+            result = self.run_bivariate(job.input_ref)
+            run_id = result.get("run_id")
+            if result.get("status") == "succeeded" and isinstance(run_id, str):
+                self.start_multivariate_job(
+                    selection_id=job.input_ref,
+                    bivariate_run_id=run_id,
+                    objective="return_risk",
+                )
+            return result
         if job.stage == "multivariate":
             run = self._state.get_analysis_run(job.input_ref)
             return self.run_multivariate(
