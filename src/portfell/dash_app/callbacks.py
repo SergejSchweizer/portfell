@@ -22,6 +22,8 @@ class CallbackService(Protocol):
 
     def create_universe_and_start_univariate(self, **filters: object) -> object: ...
 
+    def delete_project(self, universe_id: str) -> None: ...
+
     def create_univariate_selection(
         self, run_id: str, *, predicates: Sequence[Mapping[str, object]] | None = None
     ) -> object: ...
@@ -51,6 +53,10 @@ class CallbackService(Protocol):
     ) -> dict[str, object]: ...
 
 
+def _integer_value(value: object) -> int | None:
+    return value if isinstance(value, int) and not isinstance(value, bool) else None
+
+
 def persisted_browser_state(service: CallbackService) -> BrowserState:
     return browser_state_from_workflow(service.workflow_state())
 
@@ -68,6 +74,10 @@ def execute_action(
     try:
         if action == "metadata-create-universe":
             service.create_universe_and_start_univariate(**dict(filters or {}))
+        elif action == "metadata-delete-project":
+            if state.universe_id is None:
+                return replace(state, message_code="project_not_selected")
+            service.delete_project(state.universe_id)
         elif action == "univariate-save-selection":
             if state.univariate_run_id is None:
                 return replace(state, message_code="univariate_not_ready")
@@ -126,6 +136,39 @@ def register_callbacks(app: Dash, services: object | None) -> None:
     if services is None:
         return
     service = cast(CallbackService, services)
+
+    @app.callback(  # pyright: ignore[reportUnknownMemberType]
+        Output("pf-browser-state", "data", allow_duplicate=True),
+        Input("sidebar-project-selection", "value"),
+        State("pf-browser-state", "data"),
+        prevent_initial_call=True,
+    )
+    def _select_project(  # pyright: ignore[reportUnusedFunction]
+        selected_id: str | None, store: object
+    ) -> dict[str, object] | object:
+        state = BrowserState.from_store(store)
+        if not selected_id:
+            return no_update
+        project = next(
+            (row for row in state.project_records if row.get("universe_id") == selected_id),
+            None,
+        )
+        if project is None:
+            return no_update
+        return replace(
+            state,
+            universe_id=selected_id,
+            universe_version=_integer_value(project.get("version")),
+            metadata_member_count=_integer_value(project.get("member_count")),
+            metadata_created_at=(
+                str(project.get("created_at")) if project.get("created_at") else None
+            ),
+            source_snapshot_id=(
+                str(project.get("source_snapshot_id"))
+                if project.get("source_snapshot_id")
+                else None
+            ),
+        ).to_store()
 
     @app.callback(  # pyright: ignore[reportUnknownMemberType]
         Output("pf-browser-state", "data"),
@@ -371,6 +414,21 @@ def register_callbacks(app: Dash, services: object | None) -> None:
         n_clicks: int | None,
     ) -> tuple[None, None, None, None] | object:
         return (None, None, None, None) if n_clicks else no_update
+
+    @app.callback(  # pyright: ignore[reportUnknownMemberType]
+        Output("pf-browser-state", "data", allow_duplicate=True),
+        Input("metadata-delete-project", "n_clicks"),
+        State("pf-browser-state", "data"),
+        prevent_initial_call=True,
+    )
+    def _delete_project(  # pyright: ignore[reportUnusedFunction]
+        n_clicks: int | None, store: object
+    ) -> dict[str, object] | object:
+        if not n_clicks:
+            return no_update
+        return execute_action(
+            service, BrowserState.from_store(store), action="metadata-delete-project"
+        ).to_store()
 
 
 __all__ = [

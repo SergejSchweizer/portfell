@@ -19,7 +19,9 @@ def project_options(universes: Sequence[Mapping[str, object]]) -> list[dict[str,
     return [
         {
             "label": (
-                f"Universe v{row.get('version', '—')} · {str(row.get('universe_id', ''))[:12]}"
+                str(row.get("project_name"))
+                if row.get("project_name")
+                else f"Universe v{row.get('version', '—')} · {str(row.get('universe_id', ''))[:12]}"
             ),
             "value": str(row.get("universe_id", "")),
         }

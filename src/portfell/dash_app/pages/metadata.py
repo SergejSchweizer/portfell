@@ -1,24 +1,24 @@
-"""Metadata Dash page: active Xetra universe filtering and persisted universe creation."""
+"""Metadata Dash page: active instrument filtering and persisted universe creation."""
 
 from __future__ import annotations
 
 from collections.abc import Mapping
 from typing import Any, Protocol, cast
 
+import plotly.graph_objects as go  # pyright: ignore[reportMissingTypeStubs]
 from dash import dcc, html
 from dash.development.base_component import Component
 
 from portfell.dash_app.components import (
+    ChartCard,
     ControlBar,
-    EmptyState,
     ErrorState,
-    HistoryCard,
     KpiCard,
     PageHeader,
     StageFooter,
     StatusBanner,
-    TableCard,
 )
+from portfell.dash_app.figures import apply_portfell_template
 from portfell.dash_app.metadata_distributions import universe_distributions
 
 
@@ -33,6 +33,8 @@ class MetadataService(Protocol):
         country: str | None = None,
         currency: str | None = None,
     ) -> tuple[dict[str, object], ...]: ...
+
+    def metadata_universe(self, universe_id: str) -> dict[str, object]: ...
 
     def metadata_history(self) -> tuple[dict[str, object], ...]: ...
 
@@ -59,20 +61,36 @@ class MetadataService(Protocol):
 
 _FILTERS = ("exchange", "instrument_type", "country", "currency")
 _LISTING_PREVIEW_LIMIT = 100
+_METADATA_CHART_HEIGHT = 220
 
 
 def metadata_page_data(
-    service: MetadataService, filters: Mapping[str, str | None] | None = None
+    service: MetadataService,
+    filters: Mapping[str, str | None] | None = None,
+    project_id: str | None = None,
 ) -> dict[str, object]:
     """Read presentation data only; never creates a universe as a render side effect."""
     selected = dict(filters or {})
     options = service.metadata_options()
-    matched_rows = service.active_listings(
+    project_rows: tuple[dict[str, object], ...] = ()
+    if project_id and hasattr(service, "metadata_universe"):
+        try:
+            project = service.metadata_universe(project_id)
+            project_rows = _mappings(project.get("items"))
+        except Exception:
+            project_rows = ()
+    matched_rows = project_rows or service.active_listings(
         exchange=selected.get("exchange"),
         instrument_type=selected.get("instrument_type"),
         country=selected.get("country"),
         currency=selected.get("currency"),
     )
+    if project_rows:
+        options = dict(options)
+        for field in _FILTERS:
+            options[field] = sorted(
+                {str(row[field]) for row in project_rows if row.get(field) not in {None, ""}}
+            )
     history = service.metadata_history()
     workflow = service.workflow_state()
     current_row = _mapping(workflow.get("metadata_universe"))
@@ -91,6 +109,9 @@ def metadata_page_data(
         "ready": current_row is not None,
         "current": current_row,
         "distributions": universe_distributions(matched_rows),
+        "selected_filters": {
+            field: _single_value(project_rows, field) for field in _FILTERS
+        },
     }
 
 
@@ -104,11 +125,11 @@ def create_universe(service: MetadataService, filters: Mapping[str, str | None])
     )
 
 
-def build_page(services: object | None = None) -> Component:
+def build_page(services: object | None = None, project_id: str | None = None) -> Component:
     if services is None:
         return _layout(_empty_model(), message="Application service is unavailable.")
     try:
-        model = metadata_page_data(cast(MetadataService, services))
+        model = metadata_page_data(cast(MetadataService, services), project_id=project_id)
     except Exception as error:
         return _layout(_empty_model(), error=_error_code(error))
     return _layout(model)
@@ -118,8 +139,7 @@ def _layout(
     model: Mapping[str, object], *, message: str | None = None, error: str | None = None
 ) -> Component:
     options = _mapping(model.get("options")) or {}
-    rows = _mappings(model.get("rows"))
-    current = _mapping(model.get("current"))
+    selected_filters = _mapping(model.get("selected_filters")) or {}
     ready = model.get("ready") is True
     status: Component | None = None
     if error:
@@ -128,21 +148,37 @@ def _layout(
         status = StatusBanner(message)
 
     children: list[Component] = [
-        PageHeader("Metadata", "Build the active Xetra instrument universe."),
+        PageHeader("Metadata", "Build the active instrument universe."),
         ControlBar(
             [
-                _dropdown("Exchange", "metadata-filter-exchange", options.get("exchange")),
+                _dropdown(
+                    "Exchange", "metadata-filter-exchange", options.get("exchange"),
+                    selected_filters.get("exchange"),
+                ),
                 _dropdown(
                     "Instrument type",
                     "metadata-filter-instrument-type",
                     options.get("instrument_type"),
+                    selected_filters.get("instrument_type"),
                 ),
-                _dropdown("Country", "metadata-filter-country", options.get("country")),
-                _dropdown("Currency", "metadata-filter-currency", options.get("currency")),
+                _dropdown(
+                    "Country", "metadata-filter-country", options.get("country"),
+                    selected_filters.get("country"),
+                ),
+                _dropdown(
+                    "Currency", "metadata-filter-currency", options.get("currency"),
+                    selected_filters.get("currency"),
+                ),
                 html.Button(
                     children="Reset filters",
                     id="metadata-reset-filters",
                     className="pf-button",
+                ),
+                html.Button(
+                    children="Delete project",
+                    id="metadata-delete-project",
+                    className="pf-button pf-button-danger",
+                    disabled=not ready,
                 ),
                 html.Button(
                     children="Create universe & compute Univariate",
@@ -166,24 +202,36 @@ def _layout(
                 ],
                 className="pf-kpi-grid",
             ),
-            TableCard(
-                "Xetra Listings",
-                (
-                    [
-                        html.P(
-                            _preview_message(
-                                model.get("preview_count"), model.get("filtered_count")
-                            ),
-                            className="pf-table-preview-note",
+            html.Div(
+                [
+                    ChartCard(
+                        "Instrument Type Distribution",
+                        _metadata_distribution(
+                            _distribution_rows(model.get("distributions")),
+                            x_title="Instrument type",
+                            height=252,
                         ),
-                        _listing_table(rows),
-                    ]
-                    if rows
-                    else [EmptyState("No active listings match the filters.")]
-                ),
-                component_id="metadata-listings-table",
+                        graph_id="metadata-instrument-type-distribution",
+                    ),
+                    ChartCard(
+                        "Country Distribution",
+                        _metadata_distribution(
+                            _distribution_rows(model.get("distributions"), field="country"),
+                            x_title="Country",
+                        ),
+                        graph_id="metadata-country-distribution",
+                    ),
+                    ChartCard(
+                        "Currency Distribution",
+                        _metadata_distribution(
+                            _distribution_rows(model.get("distributions"), field="currency"),
+                            x_title="Currency",
+                        ),
+                        graph_id="metadata-currency-distribution",
+                    ),
+                ],
+                className="pf-metadata-distribution-grid",
             ),
-            HistoryCard([_history(current)]),
             StageFooter(
                 [
                     html.A(
@@ -200,7 +248,7 @@ def _layout(
     return html.Div(children, className="pf-page", id="metadata-page")
 
 
-def _dropdown(label: str, component_id: str, values: object) -> Component:
+def _dropdown(label: str, component_id: str, values: object, value: object = None) -> Component:
     raw = _items(values)
     return html.Label(
         [
@@ -208,43 +256,58 @@ def _dropdown(label: str, component_id: str, values: object) -> Component:
             dcc.Dropdown(
                 id=component_id,
                 options=[{"label": str(value), "value": str(value)} for value in raw],
-                value=None,
+                value=value,
                 clearable=True,
             ),
         ]
     )
 
 
-def _listing_table(rows: object) -> Component:
-    items = _mappings(rows)
-    columns = ("isin", "exchange", "code", "name", "instrument_type", "country", "currency")
-    return html.Table(
-        [
-            html.Thead(html.Tr([html.Th(column.replace("_", " ").title()) for column in columns])),
-            html.Tbody(
-                [
-                    html.Tr([html.Td(_display(row.get(column))) for column in columns])
-                    for row in items
-                ]
-            ),
-        ],
-        className="pf-table",
+def _metadata_distribution(
+    rows: tuple[dict[str, object], ...], *, x_title: str, height: int = _METADATA_CHART_HEIGHT
+) -> object | None:
+    """Render a compact count-based metadata distribution with consistent dimensions."""
+    if not rows:
+        return None
+    labels = [str(row.get("category", "Unknown")) for row in rows]
+    counts = []
+    for row in rows:
+        value = row.get("count", 0)
+        counts.append(float(value) if isinstance(value, int | float) and value >= 0 else 0.0)
+    total = sum(counts)
+    if total <= 0:
+        return None
+    percentages = [count / total * 100 for count in counts]
+    figure = go.Figure(
+        data=[
+            go.Bar(
+                x=labels,
+                y=percentages,
+                text=[f"{percentage:.1f}%" for percentage in percentages],
+                texttemplate="%{text}",
+                textposition="outside",
+                customdata=labels,
+                hovertemplate=f"{x_title}: %{{customdata}}<br>Share: %{{y:.1f}}%<extra></extra>",
+            )
+        ]
     )
+    return apply_portfell_template(
+        figure,
+        x_title=x_title,
+        y_title="Share of listings (%)",
+    ).update_layout(height=height)
 
 
-def _history(current: Mapping[str, object] | None) -> Component:
-    if current is None:
-        return EmptyState("No persisted Metadata universe yet.")
-    rows = (
-        ("Version", current.get("version")),
-        ("Created", current.get("created_at")),
-        ("Source snapshot", _short(current.get("source_snapshot_id"))),
-        ("Members", current.get("member_count")),
-    )
-    return html.Dl(
-        [item for label, value in rows for item in (html.Dt(label), html.Dd(_display(value)))],
-        className="pf-evidence-list",
-    )
+def _distribution_rows(
+    value: object, *, field: str = "instrument_type"
+) -> tuple[dict[str, object], ...]:
+    distributions = _mapping(value) or {}
+    return _mappings(distributions.get(field))
+
+
+def _single_value(rows: tuple[dict[str, object], ...], field: str) -> str | None:
+    values = {str(row[field]) for row in rows if row.get(field) not in {None, ""}}
+    return next(iter(values)) if len(values) == 1 else None
 
 
 def _empty_model() -> dict[str, object]:
@@ -281,22 +344,8 @@ def _mappings(value: object) -> tuple[dict[str, object], ...]:
     return tuple(rows)
 
 
-def _short(value: object) -> str:
-    text = str(value) if value not in {None, ""} else ""
-    return text[:12] if text else "—"
-
-
 def _display(value: object) -> str:
     return "—" if value is None else str(value)
-
-
-def _preview_message(preview_count: object, filtered_count: object) -> str:
-    """Describe the bounded display without changing the universe-selection set."""
-    if not isinstance(preview_count, int) or not isinstance(filtered_count, int):
-        return "Listing preview."
-    if preview_count == filtered_count:
-        return f"Showing all {filtered_count:,} matching listings."
-    return f"Showing the first {preview_count:,} of {filtered_count:,} matching listings."
 
 
 def _error_code(error: Exception) -> str:

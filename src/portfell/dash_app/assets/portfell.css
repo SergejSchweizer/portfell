@@ -58,6 +58,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
   font-size: 12px;
 }
 .pf-context-title { font-size: 13px; font-weight: 700; }
+.pf-project-selection { width: 100%; font-size: 12px; }
+.pf-project-metadata { display: grid; gap: 6px; }
+.pf-project-metadata .pf-context-row { font-size: 12px; }
 .pf-context-row { display: flex; justify-content: space-between; gap: 10px; }
 .pf-context-label { color: var(--pf-muted); }
 .pf-main { margin-left: 220px; min-width: 0; padding: 24px; overflow-x: hidden; }
@@ -90,6 +93,25 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 .pf-card-title { margin: 0 0 12px; font-size: 16px; }
 .pf-card-body { min-width: 0; }
 .pf-chart { width: 100%; min-height: 320px; }
+.pf-metadata-distribution-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--pf-gap);
+}
+.pf-metadata-distribution-grid .pf-chart,
+.pf-metadata-distribution-grid .js-plotly-plot,
+.pf-metadata-distribution-grid .plot-container,
+.pf-metadata-distribution-grid .svg-container {
+  height: 220px !important;
+  min-height: 220px;
+}
+#metadata-instrument-type-distribution,
+#metadata-instrument-type-distribution .js-plotly-plot,
+#metadata-instrument-type-distribution .plot-container,
+#metadata-instrument-type-distribution .svg-container {
+  height: 252px !important;
+  min-height: 252px;
+}
 .pf-table-scroll { width: 100%; overflow-x: auto; }
 .pf-status-banner, .pf-state { padding: 12px 14px; border-radius: 7px; border: 1px solid var(--pf-border); }
 .pf-job-progress {
@@ -156,11 +178,14 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
   font-weight: 600;
 }
 .pf-button-primary { border-color: var(--pf-accent); background: var(--pf-accent); color: #fff; }
+.pf-button-danger { border-color: var(--pf-danger); color: var(--pf-danger); }
+.pf-button-danger:hover:not(:disabled) { background: #fff5f5; }
 .pf-button:disabled { cursor: not-allowed; opacity: 0.55; }
 
 @media (max-width: 1099px) and (min-width: 768px) {
   .pf-main { padding: 16px; }
   .pf-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pf-metadata-distribution-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 767px) {
@@ -178,6 +203,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
   .pf-nav-link { white-space: nowrap; padding: 8px 10px; }
   .pf-workflow-context { display: none; }
   .pf-main { margin-left: 0; padding: 16px; }
+  .pf-metadata-distribution-grid { grid-template-columns: 1fr; }
   .pf-control-bar { align-items: stretch; flex-direction: column; }
   .pf-kpi-grid { grid-template-columns: 1fr; }
   .pf-stage-footer { flex-direction: column; }

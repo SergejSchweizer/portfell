@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from concurrent.futures import Executor, ThreadPoolExecutor
 from datetime import UTC, date, datetime
 from typing import Protocol, cast
@@ -82,6 +82,8 @@ class AppStatePort(Protocol):
     def list_metadata_universes(
         self, *, limit: int = 100
     ) -> tuple[MetadataUniverseRecord, ...]: ...
+
+    def delete_metadata_universe(self, universe_id: str) -> None: ...
 
     def create_analysis_run(
         self,
@@ -352,9 +354,16 @@ class ResearchApplicationService:
             currency=currency,
         )
         return {
-            "universe": _universe_row(universe),
+            "universe": _universe_row(
+                universe,
+                project_name=_project_name(exchange, instrument_type, country, currency),
+            ),
             "job": self.start_univariate_job(universe.universe_id),
         }
+
+    def delete_project(self, universe_id: str) -> None:
+        """Delete one project and all dependent analytical artifacts atomically."""
+        self._state.delete_metadata_universe(universe_id)
 
     def metadata_universe(self, universe_id: str) -> JsonRow:
         universe = self._state.get_metadata_universe(universe_id)
@@ -365,7 +374,7 @@ class ResearchApplicationService:
         }
 
     def metadata_history(self) -> tuple[JsonRow, ...]:
-        return tuple(_universe_row(item) for item in self._state.list_metadata_universes(limit=500))
+        return self._named_universe_rows(self._state.list_metadata_universes(limit=500))
 
     # Univariate ---------------------------------------------------------------
 
@@ -985,7 +994,7 @@ class ResearchApplicationService:
         return {
             "workspace_id": "default",
             "metadata_universe": None if universe is None else _universe_row(universe),
-            "metadata_universes": [_universe_row(item) for item in project_history],
+            "metadata_universes": list(self._named_universe_rows(project_history)),
             "univariate_selection": None if selection is None else _selection_row(selection),
             "stages": stages,
             # Small identifier/status history used to keep previous results
@@ -1073,6 +1082,41 @@ class ResearchApplicationService:
         if any(not item.is_active for item in rows):
             raise ApplicationServiceError("market_source_contract_mismatch")
         return rows
+
+    def _named_universe_rows(
+        self, universes: Sequence[MetadataUniverseRecord]
+    ) -> tuple[JsonRow, ...]:
+        """Attach stable, human-readable metadata names to persisted projects."""
+        try:
+            listings = {
+                item.key: item
+                for item in self._active_listings()
+            }
+        except Exception:
+            return tuple(_universe_row(item) for item in universes)
+        rows: list[JsonRow] = []
+        for universe in universes:
+            selected = [
+                listings[ListingKey(member.isin, member.exchange, member.code)]
+                for member in universe.members
+                if ListingKey(member.isin, member.exchange, member.code) in listings
+            ]
+            values = {
+                field: _first_distinct(getattr(item, field, None) for item in selected)
+                for field in ("exchange", "instrument_type", "country", "currency")
+            }
+            rows.append(
+                _universe_row(
+                    universe,
+                    project_name=_project_name(
+                        values["exchange"],
+                        values["instrument_type"],
+                        values["country"],
+                        values["currency"],
+                    ),
+                )
+            )
+        return tuple(rows)
 
     def _resolve_listings(self, members: Sequence[ListingIdentity]) -> tuple[Listing, ...]:
         keys = tuple(ListingKey(item.isin, item.exchange, item.code) for item in members)
@@ -1280,8 +1324,8 @@ def _listing_row(item: Listing) -> JsonRow:
     }
 
 
-def _universe_row(item: MetadataUniverseRecord) -> JsonRow:
-    return {
+def _universe_row(item: MetadataUniverseRecord, *, project_name: str | None = None) -> JsonRow:
+    row: JsonRow = {
         "universe_id": item.universe_id,
         "version": item.version,
         "source_snapshot_id": item.source_snapshot_id,
@@ -1293,6 +1337,27 @@ def _universe_row(item: MetadataUniverseRecord) -> JsonRow:
             for member in item.members
         ],
     }
+    if project_name:
+        row["project_name"] = project_name
+    return row
+
+
+def _project_name(
+    exchange: str | None,
+    instrument_type: str | None,
+    country: str | None,
+    currency: str | None,
+) -> str:
+    """Build the user-facing project name from only the selected metadata filters."""
+    parts = [value.strip() for value in (exchange, instrument_type, country, currency) if value]
+    return "_".join(parts) or "Project"
+
+
+def _first_distinct(values: Iterable[object]) -> str | None:
+    for value in values:
+        if value is not None and str(value).strip():
+            return str(value).strip()
+    return None
 
 
 def _selection_row(item: UnivariateSelectionRecord) -> JsonRow:

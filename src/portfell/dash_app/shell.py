@@ -25,6 +25,9 @@ class WorkflowService(Protocol):
 
 @dataclass(frozen=True, slots=True)
 class WorkflowContext:
+    project_options: tuple[dict[str, str], ...] = ()
+    selected_project: str | None = None
+    project_metadata: tuple[tuple[str, str], ...] = ()
     universe_version: str = "—"
     selected_count: str = "—"
     snapshot_short_id: str = "—"
@@ -62,6 +65,20 @@ def workflow_context(context: WorkflowContext | None = None) -> Component:
     return html.Section(
         [
             html.Div("Current analysis", className="pf-context-title"),
+            dcc.Dropdown(
+                id="sidebar-project-selection",
+                options=list(value.project_options),
+                value=value.selected_project,
+                placeholder="Select project",
+                clearable=False,
+                disabled=not value.project_options,
+                className="pf-project-selection",
+            ),
+            html.Div(
+                [_context_row(label, value, f"pf-project-{label.lower().replace(' ', '-')}")
+                 for label, value in value.project_metadata],
+                className="pf-project-metadata",
+            ),
             _context_row("Universe", value.universe_version, "pf-context-universe"),
             _context_row("Selected", value.selected_count, "pf-context-selected"),
             _context_row("Snapshot", value.snapshot_short_id, "pf-context-snapshot"),
@@ -95,7 +112,9 @@ def placeholder_page(spec: PageSpec) -> Component:
     )
 
 
-def load_page(spec: PageSpec, services: object | None = None) -> Component:
+def load_page(
+    spec: PageSpec, services: object | None = None, *, project_id: str | None = None
+) -> Component:
     """Load one workflow page plugin; absent plugins fail visibly rather than adding a route."""
     module_name = f"portfell.dash_app.pages.{spec.page_id}"
     try:
@@ -107,6 +126,8 @@ def load_page(spec: PageSpec, services: object | None = None) -> Component:
     builder = getattr(module, "build_page", None)
     if not callable(builder):
         return placeholder_page(spec)
+    if spec.page_id == "metadata":
+        return cast(Any, builder)(services, project_id=project_id)
     return cast(PageBuilder, builder)(services)
 
 
@@ -115,13 +136,18 @@ def application_frame(
     *,
     services: object | None = None,
     context: WorkflowContext | None = None,
+    project_id: str | None = None,
 ) -> Component:
     route = normalize_route(pathname)
     spec = PAGE_BY_ROUTE[route]
     return html.Div(
         [
             sidebar(route, context),
-            html.Main(load_page(spec, services), id="pf-main-content", className="pf-main"),
+            html.Main(
+                load_page(spec, services, project_id=project_id),
+                id="pf-main-content",
+                className="pf-main",
+            ),
         ],
         className="pf-app-shell",
     )
@@ -144,7 +170,25 @@ def workflow_context_from_state(state: BrowserState, pathname: str | None) -> Wo
     route = normalize_route(pathname)
     stage = PAGE_BY_ROUTE[route].page_id
     ready = getattr(state.readiness, stage)
+    selected = next(
+        (row for row in state.project_records if row.get("universe_id") == state.universe_id),
+        None,
+    )
+    project_metadata = (
+        ("Version", str(selected.get("version", "—"))),
+        ("Members", str(selected.get("member_count", "—"))),
+        ("Created", str(selected.get("created_at", "—"))),
+        ("Snapshot", str(selected.get("source_snapshot_id", "—"))[:12]),
+    ) if selected is not None else (
+        ("Version", "—"),
+        ("Members", "—"),
+        ("Created", "—"),
+        ("Snapshot", "—"),
+    )
     return WorkflowContext(
+        project_options=state.project_options,
+        selected_project=state.universe_id,
+        project_metadata=project_metadata,
         universe_version="—" if state.universe_version is None else str(state.universe_version),
         selected_count="—" if state.selected_count is None else str(state.selected_count),
         snapshot_short_id=(
@@ -171,6 +215,7 @@ def route_renderer(services: object | None = None) -> Callable[[str | None, obje
             pathname,
             services=services,
             context=workflow_context_from_state(state, pathname),
+            project_id=state.universe_id,
         )
 
     return render

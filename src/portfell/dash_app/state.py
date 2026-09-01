@@ -6,6 +6,8 @@ from collections.abc import Mapping
 from dataclasses import asdict, dataclass, replace
 from typing import Literal, cast
 
+from portfell.dash_app.project_selector import project_options as build_project_options
+
 JobStatus = Literal["queued", "running", "succeeded", "failed", "cancelled"]
 
 
@@ -45,6 +47,10 @@ class BrowserState:
 
     workspace_id: str = "default"
     universe_id: str | None = None
+    project_options: tuple[dict[str, str], ...] = ()
+    project_records: tuple[dict[str, object], ...] = ()
+    metadata_member_count: int | None = None
+    metadata_created_at: str | None = None
     universe_version: int | None = None
     source_snapshot_id: str | None = None
     univariate_run_id: str | None = None
@@ -102,6 +108,12 @@ class BrowserState:
         return cls(
             workspace_id=_string(root.get("workspace_id")) or "default",
             universe_id=_string(root.get("universe_id")),
+            project_options=_project_options(root.get("project_options")),
+            project_records=tuple(
+                row for row in _rows(root.get("project_records")) if row.get("universe_id")
+            ),
+            metadata_member_count=_integer(root.get("metadata_member_count")),
+            metadata_created_at=_string(root.get("metadata_created_at")),
             universe_version=_integer(root.get("universe_version")),
             source_snapshot_id=_string(root.get("source_snapshot_id")),
             univariate_run_id=_string(root.get("univariate_run_id")),
@@ -228,6 +240,16 @@ def browser_state_from_workflow(workflow: Mapping[str, object]) -> BrowserState:
     return BrowserState(
         workspace_id=_string(workflow.get("workspace_id")) or "default",
         universe_id=universe_id,
+        project_options=tuple(
+            {
+                "label": str(item.get("label", "")),
+                "value": str(item.get("value", "")),
+            }
+            for item in build_project_options(_rows(workflow.get("metadata_universes")))
+        ),
+        project_records=tuple(_rows(workflow.get("metadata_universes"))),
+        metadata_member_count=_integer(None if universe is None else universe.get("member_count")),
+        metadata_created_at=_field(universe, "created_at"),
         universe_version=_integer(None if universe is None else universe.get("version")),
         source_snapshot_id=_source_snapshot(universe, univariate, bivariate, multivariate),
         univariate_run_id=univariate_id,
@@ -367,6 +389,15 @@ def _string_map(value: object) -> dict[str, str] | None:
         if isinstance(item, str):
             result[str(key)] = item
     return result or None
+
+
+def _project_options(value: object) -> tuple[dict[str, str], ...]:
+    rows = _rows(value)
+    return tuple(
+        {"label": str(row.get("label", "")), "value": str(row.get("value", ""))}
+        for row in rows
+        if row.get("value")
+    )
 
 
 __all__ = [

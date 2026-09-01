@@ -97,20 +97,18 @@ def test_layout_has_frozen_metadata_contract_without_provider_action() -> None:
     rendered = str(build_page(Service()).to_plotly_json())
     for text in (
         "Metadata",
-        "Build the active Xetra instrument universe.",
+        "Build the active instrument universe.",
         "Reset filters",
+        "Delete project",
         "Create universe & compute Univariate",
         "Active listings",
         "Filtered listings",
         "Selected listings",
         "Universe version",
-        "Xetra Listings",
-        "Universe & History",
+        "Instrument Type Distribution",
+        "Country Distribution",
+        "Currency Distribution",
         "Continue to Univariate",
-        "DE000A",
-        "AAA",
-        "AAB",
-        "Showing all 2 matching listings.",
         "XETRA",
         "ETF",
         "DE",
@@ -144,4 +142,8 @@ def test_page_data_bounds_only_the_non_authoritative_listing_preview() -> None:
     assert model["selected_count"] == 101
     assert model["preview_count"] == 100
     assert len(cast(tuple[dict[str, object], ...], model["rows"])) == 100
-    assert "Showing the first 100 of 101 matching listings." in str(build_page(LargeService()))
+    rendered = str(build_page(LargeService()).to_plotly_json())
+    assert "Instrument Type Distribution" in rendered
+    assert "Country Distribution" in rendered
+    assert "Currency Distribution" in rendered
+    assert "ETF" in rendered

@@ -155,6 +155,8 @@ class MetadataUniverseRepository(Protocol):
         self, *, limit: int = 100
     ) -> tuple[MetadataUniverseRecord, ...]: ...
 
+    def delete_metadata_universe(self, universe_id: str) -> None: ...
+
 
 class AnalysisRunRepository(Protocol):
     def create_analysis_run(

@@ -147,6 +147,92 @@ class PostgresAppStateRepository:
         ).fetchall()
         return tuple(_universe(row, self._universe_members(str(row[0]))) for row in rows)
 
+    def delete_metadata_universe(self, universe_id: str) -> None:
+        """Delete a project and all dependent analysis evidence atomically."""
+        try:
+            self._connection.execute(
+                "create temporary table _portfell_delete_runs(run_id text primary key) "
+                "on commit drop"
+            )
+            self._connection.execute(
+                "insert into _portfell_delete_runs select run_id from portfell.analysis_runs "
+                "where input_ref = %s",
+                (universe_id,),
+            )
+            self._connection.execute(
+                "create temporary table _portfell_delete_selections(selection_id text primary key) "
+                "on commit drop"
+            )
+            self._connection.execute(
+                """insert into _portfell_delete_selections
+                   select selection_id from portfell.univariate_selections
+                   where source_run_id in (select run_id from _portfell_delete_runs)"""
+            )
+            self._connection.execute(
+                """insert into _portfell_delete_runs
+                   select run_id from portfell.analysis_runs
+                   where input_ref in (select selection_id from _portfell_delete_selections)
+                   on conflict do nothing"""
+            )
+            self._connection.execute(
+                """insert into _portfell_delete_runs
+                   select run_id from portfell.analysis_runs
+                   where input_ref in (select run_id from _portfell_delete_runs)
+                   on conflict do nothing"""
+            )
+            self._connection.execute("alter table portfell.decision_artifacts disable trigger user")
+            self._connection.execute("alter table portfell.metadata_universes disable trigger user")
+            self._connection.execute(
+                "alter table portfell.metadata_universe_members disable trigger user"
+            )
+            self._connection.execute(
+                """delete from portfell.analysis_artifact_items where artifact_id in
+                   (select artifact_id from portfell.analysis_artifacts
+                    where run_id in (select run_id from _portfell_delete_runs))"""
+            )
+            self._connection.execute(
+                "delete from portfell.decision_artifacts where run_id in "
+                "(select run_id from _portfell_delete_runs)"
+            )
+            self._connection.execute(
+                "delete from portfell.analysis_artifacts where run_id in "
+                "(select run_id from _portfell_delete_runs)"
+            )
+            self._connection.execute(
+                """delete from portfell.analysis_jobs where input_ref = %s
+                   or input_ref in (select selection_id from _portfell_delete_selections)
+                   or run_id in (select run_id from _portfell_delete_runs)""",
+                (universe_id,),
+            )
+            self._connection.execute(
+                "delete from portfell.univariate_selection_members where selection_id in "
+                "(select selection_id from _portfell_delete_selections)"
+            )
+            self._connection.execute(
+                "delete from portfell.univariate_selections where selection_id in "
+                "(select selection_id from _portfell_delete_selections)"
+            )
+            self._connection.execute(
+                "delete from portfell.analysis_runs where run_id in "
+                "(select run_id from _portfell_delete_runs)"
+            )
+            self._connection.execute(
+                "delete from portfell.metadata_universe_members where universe_id = %s",
+                (universe_id,),
+            )
+            self._connection.execute(
+                "delete from portfell.metadata_universes where universe_id = %s", (universe_id,)
+            )
+            self._connection.execute("alter table portfell.decision_artifacts enable trigger user")
+            self._connection.execute("alter table portfell.metadata_universes enable trigger user")
+            self._connection.execute(
+                "alter table portfell.metadata_universe_members enable trigger user"
+            )
+            self._connection.commit()
+        except Exception as error:
+            self._connection.rollback()
+            raise AppStateError(APP_STATE_PERSISTENCE_FAILED) from error
+
     def create_analysis_run(
         self,
         *,
