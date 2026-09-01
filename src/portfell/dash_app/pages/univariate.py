@@ -30,9 +30,7 @@ _TABLE_PREVIEW_LIMIT = 100
 class UnivariateService(Protocol):
     def workflow_state(self) -> dict[str, object]: ...
 
-    def run_univariate(self, universe_id: str) -> dict[str, object]: ...
-
-    def run_detail(self, run_id: str) -> dict[str, object]: ...
+    def univariate_result_preview(self, run_id: str, *, limit: int = 500) -> dict[str, object]: ...
 
     def create_univariate_selection(
         self, run_id: str, *, predicates: Sequence[Mapping[str, object]] | None = None
@@ -45,10 +43,14 @@ def univariate_page_data(service: UnivariateService) -> dict[str, object]:
     stages = _mapping(workflow.get("stages")) or {}
     stage = _mapping(stages.get("univariate"))
     selection = _mapping(workflow.get("univariate_selection"))
-    detail = service.run_detail(str(stage["run_id"])) if stage and stage.get("run_id") else stage
-    artifacts = (_mapping(detail.get("artifacts")) or {}) if detail else {}
-    artifact = _mapping(artifacts.get("univariate_rows")) or {}
-    rows = _mappings(artifact.get("items"))
+    preview = (
+        service.univariate_result_preview(str(stage["run_id"]))
+        if stage and stage.get("status") == "succeeded" and stage.get("run_id")
+        else None
+    )
+    detail = _mapping(preview.get("run")) if preview else stage
+    rows = _mappings(preview.get("rows")) if preview else ()
+    summary = _mapping(preview.get("summary")) if preview else None
     selected = {
         _member_id(member) for member in _mappings(selection.get("members") if selection else None)
     }
@@ -61,16 +63,17 @@ def univariate_page_data(service: UnivariateService) -> dict[str, object]:
         "rows": rows,
         "selected": selected,
         "input_count": None if universe is None else universe.get("member_count"),
-        "available_count": len(available),
+        "available_count": (
+            len(available) if summary is None else summary.get("available_count", len(available))
+        ),
         "selected_count": None if selection is None else selection.get("member_count"),
-        "unavailable_count": len(unavailable),
+        "unavailable_count": (
+            len(unavailable)
+            if summary is None
+            else summary.get("unavailable_count", len(unavailable))
+        ),
         "ready": selection is not None,
     }
-
-
-def compute_univariate(service: UnivariateService, universe_id: str) -> dict[str, object]:
-    """Explicit compute action; rendering never starts analytical work."""
-    return service.run_univariate(universe_id)
 
 
 def save_selection(
@@ -94,12 +97,6 @@ def build_page(services: object | None = None) -> Component:
 def _layout(
     model: Mapping[str, object], *, message: str | None = None, error: str | None = None
 ) -> Component:
-    rows = _mappings(model.get("rows"))
-    selected = _string_set(model.get("selected"))
-    run = _mapping(model.get("run"))
-    universe = _mapping(model.get("universe"))
-    selection = _mapping(model.get("selection"))
-    ready = model.get("ready") is True
     children: list[Component] = [
         PageHeader(
             "Univariate",
@@ -108,14 +105,8 @@ def _layout(
         ),
         ControlBar(
             [
-                html.Button(
-                    children="Compute univariate statistics",
-                    id="univariate-compute",
-                    className="pf-button pf-button-primary",
-                    disabled=universe is None,
-                ),
                 html.Div(
-                    "Result filters use only persisted backend metrics.",
+                    "Full-universe computation is started from Metadata.",
                     id="univariate-filter-summary",
                     className="pf-context-label",
                 ),
@@ -127,56 +118,74 @@ def _layout(
         children.append(ErrorState(f"Univariate unavailable: {error}"))
     elif message:
         children.append(StatusBanner(message))
-    children.extend(
-        [
-            html.Div(
-                [
-                    KpiCard("Input instruments", _display(model.get("input_count"))),
-                    KpiCard("Available results", _display(model.get("available_count"))),
-                    KpiCard("Selected instruments", _display(model.get("selected_count"))),
-                    KpiCard("Unavailable results", _display(model.get("unavailable_count"))),
-                ],
-                className="pf-kpi-grid",
-            ),
-            ChartCard(
-                "Univariate Return / Risk Universe",
-                _scatter(rows[:_CHART_PREVIEW_LIMIT]) if rows else None,
-                graph_id="univariate-return-risk-chart",
-            ),
-            TableCard(
-                "Univariate Statistics",
-                [
-                    html.P(
-                        _preview_message(len(rows), _TABLE_PREVIEW_LIMIT),
-                        className="pf-table-preview-note",
-                    ),
-                    _statistics_table(rows[:_TABLE_PREVIEW_LIMIT], selected),
-                ]
-                if rows
-                else [EmptyState("Compute Univariate statistics to populate this table.")],
-                component_id="univariate-statistics-table",
-            ),
-            HistoryCard([_history(universe, run, selection)]),
-            StageFooter(
-                [
-                    html.Button(
-                        children="Save selection",
-                        id="univariate-save-selection",
-                        className="pf-button",
-                        disabled=run is None or run.get("status") != "succeeded",
-                    ),
-                    html.A(
-                        children="Continue to Bivariate",
-                        href="/bivariate" if ready else "#",
-                        id="univariate-continue-bivariate",
-                        className="pf-button pf-button-primary" if ready else "pf-button",
-                        **cast(Any, {"aria-disabled": "false" if ready else "true"}),
-                    ),
-                ]
-            ),
-        ]
-    )
+    children.append(html.Div(_data_regions(model), id="univariate-data-regions"))
     return html.Div(children, className="pf-page", id="univariate-page")
+
+
+def data_regions(services: object | None = None) -> list[Component]:
+    """Refresh only persisted Univariate result content after job-status changes."""
+    if services is None:
+        return _data_regions(_empty_model())
+    try:
+        return _data_regions(univariate_page_data(cast(UnivariateService, services)))
+    except Exception as error:
+        return [ErrorState(f"Univariate unavailable: {_error_code(error)}")]
+
+
+def _data_regions(model: Mapping[str, object]) -> list[Component]:
+    rows = _mappings(model.get("rows"))
+    selected = _string_set(model.get("selected"))
+    run = _mapping(model.get("run"))
+    universe = _mapping(model.get("universe"))
+    selection = _mapping(model.get("selection"))
+    ready = model.get("ready") is True
+    return [
+        html.Div(
+            [
+                KpiCard("Input instruments", _display(model.get("input_count"))),
+                KpiCard("Available results", _display(model.get("available_count"))),
+                KpiCard("Selected instruments", _display(model.get("selected_count"))),
+                KpiCard("Unavailable results", _display(model.get("unavailable_count"))),
+            ],
+            className="pf-kpi-grid",
+        ),
+        ChartCard(
+            "Univariate Return / Risk Universe",
+            _scatter(rows[:_CHART_PREVIEW_LIMIT]) if rows else None,
+            graph_id="univariate-return-risk-chart",
+        ),
+        TableCard(
+            "Univariate Statistics",
+            [
+                html.P(
+                    _preview_message(len(rows), _TABLE_PREVIEW_LIMIT),
+                    className="pf-table-preview-note",
+                ),
+                _statistics_table(rows[:_TABLE_PREVIEW_LIMIT], selected),
+            ]
+            if rows
+            else [EmptyState("Compute Univariate statistics to populate this table.")],
+            component_id="univariate-statistics-table",
+        ),
+        HistoryCard([_history(universe, run, selection)]),
+        StageFooter(
+            [
+                html.Button(
+                    children="Save selection",
+                    id="univariate-save-selection",
+                    className="pf-button",
+                    disabled=run is None or run.get("status") != "succeeded",
+                ),
+                html.A(
+                    children="Continue to Bivariate",
+                    href="/bivariate" if ready else "#",
+                    id="univariate-continue-bivariate",
+                    className="pf-button pf-button-primary" if ready else "pf-button",
+                    **cast(Any, {"aria-disabled": "false" if ready else "true"}),
+                ),
+            ]
+        ),
+    ]
 
 
 def _scatter(rows: Sequence[Mapping[str, object]]) -> go.Figure:
@@ -349,4 +358,4 @@ def _error_code(error: Exception) -> str:
     return str(code) if isinstance(code, str) else "unavailable"
 
 
-__all__ = ["build_page", "compute_univariate", "save_selection", "univariate_page_data"]
+__all__ = ["build_page", "data_regions", "save_selection", "univariate_page_data"]

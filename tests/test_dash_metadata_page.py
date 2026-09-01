@@ -61,7 +61,7 @@ class Service:
             }
         }
 
-    def create_metadata_universe(self, **filters: object) -> Universe:
+    def create_universe_and_start_univariate(self, **filters: object) -> Universe:
         self.created = dict(filters)
         return Universe()
 
@@ -99,7 +99,7 @@ def test_layout_has_frozen_metadata_contract_without_provider_action() -> None:
         "Metadata",
         "Build the active Xetra instrument universe.",
         "Reset filters",
-        "Create universe",
+        "Create universe & compute Univariate",
         "Active listings",
         "Filtered listings",
         "Selected listings",

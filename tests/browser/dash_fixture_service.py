@@ -76,6 +76,10 @@ class DashParityFixtureService:
         self.level = max(self.level, 1)
         return self._universe()
 
+    def create_universe_and_start_univariate(self, **filters: object) -> object:
+        self.create_metadata_universe(**filters)
+        return self.run_univariate(self._universe_id())
+
     def run_univariate(self, universe_id: str) -> dict[str, object]:
         assert universe_id == self._universe_id()
         if self.fail_next_univariate:
@@ -194,6 +198,21 @@ class DashParityFixtureService:
         if run_id == "fixture-multivariate-run":
             return self._multivariate_detail()
         raise KeyError(run_id)
+
+    def univariate_result_preview(self, run_id: str, *, limit: int = 500) -> dict[str, object]:
+        detail = self.run_detail(run_id)
+        artifacts = detail.get("artifacts")
+        assert isinstance(artifacts, dict)
+        artifact = artifacts.get("univariate_rows")
+        assert isinstance(artifact, dict)
+        rows = artifact.get("items")
+        assert isinstance(rows, list)
+        return {
+            "run": self._univariate_run(),
+            "item_count": len(rows),
+            "summary": {"available_count": len(rows), "unavailable_count": 0},
+            "rows": rows[:limit],
+        }
 
     def _universe_id(self) -> str:
         return f"fixture-universe-{self.universe_revision}"

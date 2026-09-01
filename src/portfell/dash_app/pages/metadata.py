@@ -46,6 +46,15 @@ class MetadataService(Protocol):
         currency: str | None = None,
     ) -> object: ...
 
+    def create_universe_and_start_univariate(
+        self,
+        *,
+        exchange: str | None = None,
+        instrument_type: str | None = None,
+        country: str | None = None,
+        currency: str | None = None,
+    ) -> object: ...
+
 
 _FILTERS = ("exchange", "instrument_type", "country", "currency")
 _LISTING_PREVIEW_LIMIT = 100
@@ -85,7 +94,7 @@ def metadata_page_data(
 
 def create_universe(service: MetadataService, filters: Mapping[str, str | None]) -> object:
     """Explicit action boundary used by callbacks; creation is content-idempotent in the service."""
-    return service.create_metadata_universe(
+    return service.create_universe_and_start_univariate(
         exchange=filters.get("exchange"),
         instrument_type=filters.get("instrument_type"),
         country=filters.get("country"),
@@ -134,7 +143,7 @@ def _layout(
                     className="pf-button",
                 ),
                 html.Button(
-                    children="Create universe",
+                    children="Create universe & compute Univariate",
                     id="metadata-create-universe",
                     className="pf-button pf-button-primary",
                 ),

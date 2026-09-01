@@ -9,6 +9,7 @@ from typing import Protocol, cast
 from dash import Dash, Input, Output, State, no_update
 
 from portfell.dash_app.components import JobProgress
+from portfell.dash_app.pages.univariate import data_regions as univariate_data_regions
 from portfell.dash_app.state import BrowserState, browser_state_from_workflow, with_job_status
 
 
@@ -19,9 +20,7 @@ class CallbackService(Protocol):
 
     def analysis_job_status(self, job_id: str) -> dict[str, object]: ...
 
-    def create_metadata_universe(self, **filters: object) -> object: ...
-
-    def run_univariate(self, universe_id: str) -> dict[str, object]: ...
+    def create_universe_and_start_univariate(self, **filters: object) -> object: ...
 
     def create_univariate_selection(
         self, run_id: str, *, predicates: Mapping[str, object] | None = None
@@ -53,11 +52,7 @@ def execute_action(
     """Execute one explicit command and reconstruct state from persistence afterwards."""
     try:
         if action == "metadata-create-universe":
-            service.create_metadata_universe(**dict(filters or {}))
-        elif action == "univariate-compute":
-            if state.universe_id is None:
-                return replace(state, message_code="metadata_not_ready")
-            service.run_univariate(state.universe_id)
+            service.create_universe_and_start_univariate(**dict(filters or {}))
         elif action == "univariate-save-selection":
             if state.univariate_run_id is None:
                 return replace(state, message_code="univariate_not_ready")
@@ -139,6 +134,47 @@ def register_callbacks(app: Dash, services: object | None) -> None:
         return JobProgress(BrowserState.from_store(store).job)
 
     @app.callback(  # pyright: ignore[reportUnknownMemberType]
+        Output("univariate-data-regions", "children"),
+        Input("pf-browser-state", "data"),
+    )
+    def _refresh_univariate_regions(  # pyright: ignore[reportUnusedFunction]
+        _store: object,
+    ) -> object:
+        return univariate_data_regions(service)
+
+    @app.callback(  # pyright: ignore[reportUnknownMemberType]
+        Output("metadata-continue-univariate", "href"),
+        Output("metadata-continue-univariate", "aria-disabled"),
+        Output("metadata-continue-univariate", "className"),
+        Input("pf-browser-state", "data"),
+    )
+    def _refresh_metadata_continue(  # pyright: ignore[reportUnusedFunction]
+        store: object,
+    ) -> tuple[str, str, str]:
+        ready = BrowserState.from_store(store).readiness.metadata
+        return (
+            "/univariate" if ready else "#",
+            "false" if ready else "true",
+            "pf-button pf-button-primary" if ready else "pf-button",
+        )
+
+    @app.callback(  # pyright: ignore[reportUnknownMemberType]
+        Output("bivariate-continue-multivariate", "href"),
+        Output("bivariate-continue-multivariate", "aria-disabled"),
+        Output("bivariate-continue-multivariate", "className"),
+        Input("pf-browser-state", "data"),
+    )
+    def _refresh_bivariate_continue(  # pyright: ignore[reportUnusedFunction]
+        store: object,
+    ) -> tuple[str, str, str]:
+        ready = BrowserState.from_store(store).readiness.bivariate
+        return (
+            "/multivariate" if ready else "#",
+            "false" if ready else "true",
+            "pf-button pf-button-primary" if ready else "pf-button",
+        )
+
+    @app.callback(  # pyright: ignore[reportUnknownMemberType]
         Output("pf-browser-state", "data", allow_duplicate=True),
         Input("metadata-create-universe", "n_clicks"),
         State("pf-browser-state", "data"),
@@ -168,21 +204,6 @@ def register_callbacks(app: Dash, services: object | None) -> None:
                 "country": country,
                 "currency": currency,
             },
-        ).to_store()
-
-    @app.callback(  # pyright: ignore[reportUnknownMemberType]
-        Output("pf-browser-state", "data", allow_duplicate=True),
-        Input("univariate-compute", "n_clicks"),
-        State("pf-browser-state", "data"),
-        prevent_initial_call=True,
-    )
-    def _compute_univariate(  # pyright: ignore[reportUnusedFunction]
-        n_clicks: int | None, store: object
-    ) -> dict[str, object] | object:
-        if not n_clicks:
-            return no_update
-        return execute_action(
-            service, BrowserState.from_store(store), action="univariate-compute"
         ).to_store()
 
     @app.callback(  # pyright: ignore[reportUnknownMemberType]

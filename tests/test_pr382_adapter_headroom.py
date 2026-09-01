@@ -239,13 +239,9 @@ class CallbackService:
         if self.fail_action == name:
             raise ActionFailure("typed_action_failure")
 
-    def create_metadata_universe(self, **filters: object) -> object:
+    def create_universe_and_start_univariate(self, **filters: object) -> object:
         self.record("metadata", **filters)
         return object()
-
-    def run_univariate(self, universe_id: str) -> dict[str, object]:
-        self.record("univariate", universe_id=universe_id)
-        return {}
 
     def create_univariate_selection(
         self,
@@ -289,7 +285,6 @@ def test_execute_action_success_paths() -> None:
     )
     commands = (
         ("metadata-create-universe", {"filters": {"exchange": "XETRA"}}),
-        ("univariate-compute", {}),
         ("univariate-save-selection", {}),
         ("bivariate-compute", {}),
         ("multivariate-optimize", {"objective": "minimum_risk"}),
@@ -310,7 +305,6 @@ def test_execute_action_success_paths() -> None:
 def test_execute_action_not_ready_and_failure_recovery() -> None:
     service = CallbackService()
     expected = {
-        "univariate-compute": "metadata_not_ready",
         "univariate-save-selection": "univariate_not_ready",
         "bivariate-compute": "univariate_selection_not_ready",
         "multivariate-optimize": "bivariate_not_ready",
@@ -323,36 +317,36 @@ def test_execute_action_not_ready_and_failure_recovery() -> None:
     result = execute_action(service, partial, action="multivariate-optimize")
     assert result.message_code == "bivariate_not_ready"
 
-    failing = CallbackService(fail_action="univariate")
+    failing = CallbackService(fail_action="metadata")
     result = execute_action(
         failing,
-        BrowserState(universe_id="u1"),
-        action="univariate-compute",
+        BrowserState(),
+        action="metadata-create-universe",
     )
     assert result.message_code == "typed_action_failure"
     assert result.universe_id == "u1"
 
-    double = CallbackService(fail_action="univariate", fail_refresh=True)
+    double = CallbackService(fail_action="metadata", fail_refresh=True)
     result = execute_action(
         double,
-        BrowserState(universe_id="u1"),
-        action="univariate-compute",
+        BrowserState(),
+        action="metadata-create-universe",
     )
     assert result.message_code == "typed_action_failure"
-    assert result.universe_id == "u1"
+    assert result.universe_id is None
 
 
 class UntypedFailure(CallbackService):
-    def run_univariate(self, universe_id: str) -> dict[str, object]:
-        del universe_id
+    def create_universe_and_start_univariate(self, **filters: object) -> object:
+        del filters
         raise RuntimeError("private detail")
 
 
 def test_execute_action_maps_untyped_failure() -> None:
     result = execute_action(
         UntypedFailure(),
-        BrowserState(universe_id="u1"),
-        action="univariate-compute",
+        BrowserState(),
+        action="metadata-create-universe",
     )
     assert result.message_code == "action_failed"
 

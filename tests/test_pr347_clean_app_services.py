@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import cast
 
 import pytest
 
+from portfell.app_services.analysis_executor import AnalysisJobExecutor
 from portfell.app_services.research import ApplicationServiceError, ResearchApplicationService
 from portfell.app_services.research_compute import (
     ComputedRun,
@@ -15,6 +17,8 @@ from portfell.app_services.research_compute import (
     univariate_source_id,
 )
 from portfell.app_state.contracts import (
+    AnalysisArtifactItem,
+    AnalysisArtifactItemRecord,
     AnalysisArtifactRecord,
     AnalysisJobRecord,
     AnalysisRunRecord,
@@ -36,9 +40,11 @@ class MemoryState:
         self.universes: dict[str, MetadataUniverseRecord] = {}
         self.runs: dict[str, AnalysisRunRecord] = {}
         self.artifacts: dict[str, list[AnalysisArtifactRecord]] = {}
+        self.artifact_items: dict[str, tuple[AnalysisArtifactItemRecord, ...]] = {}
         self.selections: dict[str, UnivariateSelectionRecord] = {}
         self.decisions: dict[str, DecisionArtifactRecord] = {}
         self.jobs: dict[str, AnalysisJobRecord] = {}
+        self.progress_events: list[tuple[int, int | None, str]] = []
 
     def put_market_source_snapshot(self, **values: object) -> MarketSourceSnapshotRecord:
         identity = str(values["snapshot_id"])
@@ -156,6 +162,20 @@ class MemoryState:
     def get_analysis_job(self, job_id: str) -> AnalysisJobRecord:
         return self.jobs[job_id]
 
+    def update_job_progress(
+        self, job_id: str, *, current: int, total: int | None, phase: str
+    ) -> AnalysisJobRecord:
+        current_record = self.jobs[job_id]
+        record = replace(
+            current_record,
+            progress_current=current,
+            progress_total=total,
+            progress_phase=phase,
+        )
+        self.jobs[job_id] = record
+        self.progress_events.append((current, total, phase))
+        return record
+
     def list_analysis_jobs(
         self, *, stage: str | None = None, status: str | None = None, limit: int = 100
     ) -> tuple[AnalysisJobRecord, ...]:
@@ -179,6 +199,29 @@ class MemoryState:
 
     def list_analysis_artifacts(self, run_id: str) -> tuple[AnalysisArtifactRecord, ...]:
         return tuple(self.artifacts.get(run_id, ()))
+
+    def publish_row_backed_analysis_artifact(self, **values: object) -> AnalysisArtifactRecord:
+        document = dict(values["document"])
+        record = AnalysisArtifactRecord(
+            str(values["artifact_id"]),
+            str(values["run_id"]),
+            str(values["artifact_type"]),
+            str(values["content_hash"]),
+            document,
+            NOW,
+        )
+        self.artifacts.setdefault(record.run_id, []).append(record)
+        items = tuple(cast(tuple[AnalysisArtifactItem, ...], values["items"]))
+        self.artifact_items[record.artifact_id] = tuple(
+            AnalysisArtifactItemRecord(record.artifact_id, index, item.item_key, item.document)
+            for index, item in enumerate(items)
+        )
+        return record
+
+    def list_analysis_artifact_items(
+        self, artifact_id: str, *, offset: int = 0, limit: int = 100
+    ) -> tuple[AnalysisArtifactItemRecord, ...]:
+        return self.artifact_items[artifact_id][offset : offset + limit]
 
     def create_univariate_selection(self, **values: object) -> UnivariateSelectionRecord:
         record = UnivariateSelectionRecord(
@@ -377,3 +420,72 @@ def test_clean_selection_helpers_preserve_identity_and_reject_invalid_predicates
         filtered_univariate_selection(
             run, ({"metric": "annual_return_pct", "operator": ">", "value": True},)
         )
+
+
+class RecordingAnalysisExecutor:
+    def __init__(self) -> None:
+        self.submissions: list[AnalysisJobRecord] = []
+
+    def submit(self, job: AnalysisJobRecord) -> None:
+        self.submissions.append(job)
+
+    def recover(self) -> None:
+        return None
+
+    def close(self) -> None:
+        return None
+
+
+def test_metadata_kickoff_reuses_one_full_universe_job_and_publishes_v2_rows() -> None:
+    state = MemoryState()
+    executor = RecordingAnalysisExecutor()
+    service = ResearchApplicationService(
+        state,
+        Gateway(),
+        analysis_job_executor=cast(AnalysisJobExecutor, executor),
+        now=lambda: NOW,
+    )
+
+    first = service.create_universe_and_start_univariate(exchange="XETRA", instrument_type="ETF")
+    second = service.create_universe_and_start_univariate(exchange="XETRA", instrument_type="ETF")
+    assert first["job"] == second["job"]
+    assert len(state.universes) == 1
+    assert len(state.jobs) == 1
+    assert len(executor.submissions) == 2  # executor-side de-duplication owns duplicate submits
+
+    job = next(iter(state.jobs.values()))
+    result = service._execute_analysis_job(job)
+    assert result["status"] == "succeeded"
+    assert state.progress_events[0] == (0, None, "loading_market_data")
+    assert state.progress_events[-1] == (3, 3, "members")
+    assert all(
+        previous[0] <= current[0]
+        for previous, current in zip(
+            state.progress_events[1:], state.progress_events[2:], strict=False
+        )
+        if previous[1] is not None and current[1] is not None
+    )
+
+    detail = service.run_detail(str(result["run_id"]))
+    artifacts = cast(dict[str, object], detail["artifacts"])
+    manifest = cast(dict[str, object], artifacts["univariate.rows@v2"])
+    assert manifest["storage"] == "row_items"
+    assert manifest["item_count"] == 3
+    assert "items" not in manifest
+    artifact_id = next(
+        artifact.artifact_id
+        for artifact in state.list_analysis_artifacts(str(result["run_id"]))
+        if artifact.artifact_type == "univariate.rows@v2"
+    )
+    rows = state.list_analysis_artifact_items(artifact_id, limit=500)
+    assert [
+        (item.document["isin"], item.document["exchange"], item.document["code"]) for item in rows
+    ] == [
+        ("IE00A", "XETRA", "A"),
+        ("IE00A", "XETRA", "B"),
+        ("IE00B", "XETRA", "C"),
+    ]
+    assert all("availability_reason" in item.document for item in rows)
+    preview = service.univariate_result_preview(str(result["run_id"]), limit=2)
+    assert preview["item_count"] == 3
+    assert len(cast(list[object], preview["rows"])) == 2
