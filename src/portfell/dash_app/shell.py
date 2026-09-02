@@ -178,6 +178,10 @@ def workflow_context_from_state(state: BrowserState, pathname: str | None) -> Wo
             "Metadata",
             "—" if state.metadata_member_count is None else str(state.metadata_member_count),
         ),
+        (
+            "Univariate",
+            "—" if state.selected_count is None else str(state.selected_count),
+        ),
     )
     return WorkflowContext(
         project_options=state.project_options,
