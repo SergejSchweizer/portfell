@@ -851,7 +851,7 @@ class ResearchApplicationService:
 
     def univariate_chart_sample(self, run_id: str, *, limit: int = 500) -> JsonRow:
         """Read a deterministic bounded chart sample without a market read or calculation."""
-        if limit < 1 or limit > 500:
+        if limit < 1 or limit > 5000:
             raise ApplicationServiceError("analysis_artifact_page_invalid")
         page = self.univariate_page(run_id, limit=min(limit, 100))
         rows = list(cast(list[JsonValue], page["rows"]))

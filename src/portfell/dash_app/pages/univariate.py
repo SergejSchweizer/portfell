@@ -23,7 +23,7 @@ from portfell.dash_app.components import (
 from portfell.dash_app.figures import apply_portfell_template
 from portfell.dash_app.metric_cards import metric_card_models
 
-_CHART_PREVIEW_LIMIT = 500
+_CHART_PREVIEW_LIMIT = 5000
 _TABLE_PREVIEW_LIMIT = 100
 class UnivariateService(Protocol):
     def workflow_state(self) -> dict[str, object]: ...
@@ -289,17 +289,33 @@ def _scatter(rows: Sequence[Mapping[str, object]]) -> go.Figure:
         and isinstance(row.get("annualized_return"), int | float)
         and row.get("availability_reason") == "ok"
     ]
+    ages = [
+        float(row.get("history_years", 0) or 0)
+        if isinstance(row.get("history_years", 0), int | float)
+        else 0.0
+        for row in available
+    ]
     figure = go.Figure(
         go.Scatter(
             x=[row["annualized_volatility"] for row in available],
             y=[row["annualized_return"] for row in available],
             mode="markers",
             customdata=[
-                [row.get("isin"), row.get("exchange"), row.get("code")] for row in available
+                [row.get("isin"), row.get("exchange"), row.get("code"), age]
+                for row, age in zip(available, ages, strict=False)
             ],
+            marker={
+                "color": ages,
+                "colorscale": "RdYlGn_r",
+                "showscale": True,
+                "colorbar": {"title": "History age (years)"},
+                "size": 9,
+                "line": {"width": 0.5, "color": "#333333"},
+            },
             hovertemplate=(
                 "ISIN %{customdata[0]}<br>Exchange %{customdata[1]}<br>Code %{customdata[2]}"
-                "<br>Annualized risk %{x}<br>Annualized return %{y}<extra></extra>"
+                "<br>Annualized risk %{x}<br>Annualized return %{y}"
+                "<br>History age %{customdata[3]:.1f} years<extra></extra>"
             ),
             name="Available",
         )
