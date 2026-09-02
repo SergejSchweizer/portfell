@@ -103,12 +103,9 @@ def metadata_page_data(
                 if (str(row.get("isin")), str(row.get("exchange")), str(row.get("code")))
                 in members
             )
-    source_rows = project_rows or service.active_listings(
-        exchange=selected.get("exchange"),
-        instrument_type=selected.get("instrument_type"),
-        country=selected.get("country"),
-        currency=selected.get("currency"),
-    )
+    # Metadata selection starts from the complete downloaded listing universe;
+    # project membership is an analytical output, not an input restriction here.
+    source_rows = full_listing_rows
     matched_rows = tuple(
         row
         for row in source_rows
