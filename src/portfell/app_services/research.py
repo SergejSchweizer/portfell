@@ -1032,7 +1032,9 @@ class ResearchApplicationService:
 
     def active_analysis_job(self) -> JsonRow | None:
         """Return a small durable job DTO; this is safe for frequent browser polling."""
-        for status in ("queued", "running", "failed", "cancelled", "succeeded"):
+        # Only queued/running jobs are active UI progress. Terminal jobs remain
+        # available through run history and must not create a stale toast.
+        for status in ("queued", "running"):
             jobs = self._state.list_analysis_jobs(status=status, limit=1)
             if jobs:
                 return _job_row(jobs[0])
