@@ -168,6 +168,33 @@ def register_callbacks(app: Dash, services: object | None) -> None:
                 if project.get("source_snapshot_id")
                 else None
             ),
+            metadata_filters={},
+        ).to_store()
+
+    @app.callback(  # pyright: ignore[reportUnknownMemberType]
+        Output("pf-browser-state", "data", allow_duplicate=True),
+        Input("metadata-filter-exchange", "value"),
+        Input("metadata-filter-instrument-type", "value"),
+        Input("metadata-filter-country", "value"),
+        Input("metadata-filter-currency", "value"),
+        State("pf-browser-state", "data"),
+        prevent_initial_call=True,
+    )
+    def _update_metadata_filters(
+        exchange: str | None,
+        instrument_type: str | None,
+        country: str | None,
+        currency: str | None,
+        store: object,
+    ) -> dict[str, object]:
+        return replace(
+            BrowserState.from_store(store),
+            metadata_filters={
+                "exchange": exchange,
+                "instrument_type": instrument_type,
+                "country": country,
+                "currency": currency,
+            },
         ).to_store()
 
     @app.callback(  # pyright: ignore[reportUnknownMemberType]
@@ -291,38 +318,6 @@ def register_callbacks(app: Dash, services: object | None) -> None:
 
     @app.callback(  # pyright: ignore[reportUnknownMemberType]
         Output("pf-browser-state", "data", allow_duplicate=True),
-        Input("metadata-create-universe", "n_clicks"),
-        State("pf-browser-state", "data"),
-        State("metadata-filter-exchange", "value"),
-        State("metadata-filter-instrument-type", "value"),
-        State("metadata-filter-country", "value"),
-        State("metadata-filter-currency", "value"),
-        prevent_initial_call=True,
-    )
-    def _create_universe(  # pyright: ignore[reportUnusedFunction]
-        n_clicks: int | None,
-        store: object,
-        exchange: str | None,
-        instrument_type: str | None,
-        country: str | None,
-        currency: str | None,
-    ) -> dict[str, object] | object:
-        if not n_clicks:
-            return no_update
-        return execute_action(
-            service,
-            BrowserState.from_store(store),
-            action="metadata-create-universe",
-            filters={
-                "exchange": exchange,
-                "instrument_type": instrument_type,
-                "country": country,
-                "currency": currency,
-            },
-        ).to_store()
-
-    @app.callback(  # pyright: ignore[reportUnknownMemberType]
-        Output("pf-browser-state", "data", allow_duplicate=True),
         Input("univariate-save-selection", "n_clicks"),
         State("pf-browser-state", "data"),
         State("univariate-filter-annualized_return", "value"),
@@ -414,21 +409,6 @@ def register_callbacks(app: Dash, services: object | None) -> None:
         n_clicks: int | None,
     ) -> tuple[None, None, None, None] | object:
         return (None, None, None, None) if n_clicks else no_update
-
-    @app.callback(  # pyright: ignore[reportUnknownMemberType]
-        Output("pf-browser-state", "data", allow_duplicate=True),
-        Input("metadata-delete-project", "n_clicks"),
-        State("pf-browser-state", "data"),
-        prevent_initial_call=True,
-    )
-    def _delete_project(  # pyright: ignore[reportUnusedFunction]
-        n_clicks: int | None, store: object
-    ) -> dict[str, object] | object:
-        if not n_clicks:
-            return no_update
-        return execute_action(
-            service, BrowserState.from_store(store), action="metadata-delete-project"
-        ).to_store()
 
 
 __all__ = [

@@ -72,6 +72,8 @@ def metadata_page_data(
     """Read presentation data only; never creates a universe as a render side effect."""
     selected = dict(filters or {})
     options = service.metadata_options()
+    workflow = service.workflow_state()
+    current_row = _mapping(workflow.get("metadata_universe"))
     project_rows: tuple[dict[str, object], ...] = ()
     if project_id and hasattr(service, "metadata_universe"):
         try:
@@ -79,11 +81,39 @@ def metadata_page_data(
             project_rows = _mappings(project.get("items"))
         except Exception:
             project_rows = ()
-    matched_rows = project_rows or service.active_listings(
+    if project_id and not project_rows:
+        project_record = next(
+            (
+                row
+                for row in _mappings(workflow.get("metadata_universes"))
+                if row.get("universe_id") == project_id
+            ),
+            None,
+        )
+        members = {
+            (str(row.get("isin")), str(row.get("exchange")), str(row.get("code")))
+            for row in _mappings(None if project_record is None else project_record.get("members"))
+        }
+        if members:
+            project_rows = tuple(
+                row
+                for row in service.active_listings()
+                if (str(row.get("isin")), str(row.get("exchange")), str(row.get("code")))
+                in members
+            )
+    source_rows = project_rows or service.active_listings(
         exchange=selected.get("exchange"),
         instrument_type=selected.get("instrument_type"),
         country=selected.get("country"),
         currency=selected.get("currency"),
+    )
+    matched_rows = tuple(
+        row
+        for row in source_rows
+        if all(
+            not selected.get(field) or row.get(field) == selected.get(field)
+            for field in _FILTERS
+        )
     )
     if project_rows:
         options = dict(options)
@@ -92,8 +122,6 @@ def metadata_page_data(
                 {str(row[field]) for row in project_rows if row.get(field) not in {None, ""}}
             )
     history = service.metadata_history()
-    workflow = service.workflow_state()
-    current_row = _mapping(workflow.get("metadata_universe"))
     return {
         "options": options,
         # Rendering thousands of HTML table rows blocks the browser before a user can
@@ -110,7 +138,12 @@ def metadata_page_data(
         "current": current_row,
         "distributions": universe_distributions(matched_rows),
         "selected_filters": {
-            field: _single_value(project_rows, field) for field in _FILTERS
+            field: (
+                selected.get(field)
+                if filters is not None
+                else _single_value(project_rows, field)
+            )
+            for field in _FILTERS
         },
     }
 
@@ -125,11 +158,17 @@ def create_universe(service: MetadataService, filters: Mapping[str, str | None])
     )
 
 
-def build_page(services: object | None = None, project_id: str | None = None) -> Component:
+def build_page(
+    services: object | None = None,
+    project_id: str | None = None,
+    filters: Mapping[str, str | None] | None = None,
+) -> Component:
     if services is None:
         return _layout(_empty_model(), message="Application service is unavailable.")
     try:
-        model = metadata_page_data(cast(MetadataService, services), project_id=project_id)
+        model = metadata_page_data(
+            cast(MetadataService, services), filters=filters, project_id=project_id
+        )
     except Exception as error:
         return _layout(_empty_model(), error=_error_code(error))
     return _layout(model)
@@ -173,17 +212,6 @@ def _layout(
                     children="Reset filters",
                     id="metadata-reset-filters",
                     className="pf-button",
-                ),
-                html.Button(
-                    children="Delete project",
-                    id="metadata-delete-project",
-                    className="pf-button pf-button-danger",
-                    disabled=not ready,
-                ),
-                html.Button(
-                    children="Create universe & compute Univariate",
-                    id="metadata-create-universe",
-                    className="pf-button pf-button-primary",
                 ),
             ],
             component_id="metadata-controls",
