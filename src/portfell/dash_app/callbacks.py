@@ -102,6 +102,10 @@ def execute_action(
                 # Compatibility for isolated page fixtures; production service owns
                 # the atomic selection-to-downstream transition above.
                 service.create_univariate_selection(state.univariate_run_id, predicates=predicates)
+        elif action == "univariate-dividend-selection":
+            if state.univariate_run_id is None:
+                return replace(state, message_code="univariate_not_ready")
+            service.create_univariate_selection(state.univariate_run_id, predicates=predicates)
         elif action == "bivariate-compute":
             if state.selection_id is None:
                 return replace(state, message_code="univariate_selection_not_ready")
@@ -355,7 +359,7 @@ def register_callbacks(app: Dash, services: object | None) -> None:
         return execute_action(
             service,
             state,
-            action="univariate-save-selection",
+            action="univariate-dividend-selection",
             predicates=[
                 {"metric": "distribution_frequency", "operator": "in", "allowed": allowed}
             ],
