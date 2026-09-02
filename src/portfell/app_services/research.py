@@ -1031,7 +1031,7 @@ class ResearchApplicationService:
         )
 
     def workflow_state(self) -> JsonRow:
-        universes = self._state.list_metadata_universes(limit=1)
+        universes = self._state.list_metadata_universes(limit=500)
         # Portfell is a single-project workspace. Keep historical records in the
         # database for audit, but expose only the current (highest-version) project
         # to the browser and workflow resolver.
@@ -1053,6 +1053,28 @@ class ResearchApplicationService:
                 if row.get("isin") not in {None, ""}
             }
         )
+        desired_members = {
+            (str(row.get("isin")), str(row.get("exchange")), str(row.get("code")))
+            for row in self.active_listings(**metadata_filters)
+            if row.get("isin") not in {None, ""}
+        }
+        matching_universe = next(
+            (
+                item
+                for item in universes
+                if {
+                    (member.isin, member.exchange, member.code) for member in item.members
+                }
+                == desired_members
+            ),
+            None,
+        )
+        if matching_universe is not None:
+            universe = matching_universe
+            project_history = (matching_universe,)
+        else:
+            project_history = universes[:1]
+            universe = project_history[0] if project_history else None
         job = self.active_analysis_job()
         return {
             "workspace_id": "default",
