@@ -6,7 +6,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import replace
 from typing import Protocol, cast
 
-from dash import Dash, Input, Output, State, no_update
+from dash import ALL, Dash, Input, Output, State, no_update
 
 from portfell.dash_app.components import JobProgress
 from portfell.dash_app.pages.univariate import data_regions as univariate_data_regions
@@ -327,6 +327,38 @@ def register_callbacks(app: Dash, services: object | None) -> None:
             BrowserState.from_store(store),
             action="univariate-save-selection",
             predicates=None,
+        ).to_store()
+
+    @app.callback(  # pyright: ignore[reportUnknownMemberType]
+        Output("pf-browser-state", "data", allow_duplicate=True),
+        Input({"type": "univariate-dividend-frequency", "category": ALL}, "value"),
+        State({"type": "univariate-dividend-frequency", "category": ALL}, "id"),
+        State("pf-browser-state", "data"),
+        prevent_initial_call=True,
+    )
+    def _save_dividend_frequency_selection(
+        checked: list[object], ids: list[dict[str, object]], store: object
+    ) -> dict[str, object] | object:
+        selected_categories = [
+            str(item.get("category"))
+            for value, item in zip(checked, ids, strict=False)
+            if isinstance(value, list) and value and item.get("category")
+        ]
+        if not selected_categories:
+            return no_update
+        allowed: list[str] = []
+        for category in selected_categories:
+            allowed.extend(["none", "unknown"] if category == "none / unknown" else [category])
+        state = BrowserState.from_store(store)
+        if state.univariate_run_id is None:
+            return no_update
+        return execute_action(
+            service,
+            state,
+            action="univariate-save-selection",
+            predicates=[
+                {"metric": "distribution_frequency", "operator": "in", "allowed": allowed}
+            ],
         ).to_store()
 
     @app.callback(  # pyright: ignore[reportUnknownMemberType]

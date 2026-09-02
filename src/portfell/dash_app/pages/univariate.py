@@ -6,7 +6,7 @@ from collections.abc import Mapping, Sequence
 from typing import Protocol, cast
 
 import plotly.graph_objects as go  # pyright: ignore[reportMissingTypeStubs]
-from dash import html
+from dash import dcc, html
 from dash.development.base_component import Component
 
 from portfell.dash_app.components import (
@@ -184,6 +184,7 @@ def data_regions(
 
 
 def _data_regions(model: Mapping[str, object]) -> list[Component]:
+    selected = _string_set(model.get("selected"))
     return [
         html.Div(
             [
@@ -200,17 +201,16 @@ def _data_regions(model: Mapping[str, object]) -> list[Component]:
             ),
             className="pf-univariate-risk-chart",
         ),
-        _dividend_window(_mappings(model.get("chart_rows"))),
+        _dividend_window(_mappings(model.get("chart_rows")), selected),
     ]
 
 
-def _dividend_window(rows: Sequence[Mapping[str, object]]) -> Component:
+def _dividend_window(rows: Sequence[Mapping[str, object]], selected: set[str]) -> Component:
     """Show the cross-sectional dividend-payment frequency after the universe plot."""
     order = ("none / unknown", "monthly", "quarterly", "semiannual", "annual", "irregular")
     counts = {category: 0 for category in order}
     for row in rows:
-        value = str(row.get("distribution_frequency") or "unknown").strip().lower()
-        category = "none / unknown" if value in {"", "none", "unknown"} else value
+        category = _frequency_category(row)
         if category not in counts:
             counts[category] = 0
         counts[category] += 1
@@ -225,6 +225,16 @@ def _dividend_window(rows: Sequence[Mapping[str, object]]) -> Component:
     labels = [_dividend_label(category) for category in categories]
     values = [counts[category] for category in categories]
     shares = [(value / total * 100) if total else 0.0 for value in values]
+    selected_categories = {
+        category
+        for category in categories
+        if any(_frequency_category(row) == category for row in rows)
+        and all(
+            _row_member_id(row) in selected
+            for row in rows
+            if _frequency_category(row) == category
+        )
+    }
     figure = go.Figure(
         go.Bar(
             x=labels,
@@ -254,13 +264,40 @@ def _dividend_window(rows: Sequence[Mapping[str, object]]) -> Component:
     figure.update_layout(showlegend=False, height=340)
     table = html.Table(
         [
-            html.Thead(html.Tr([html.Th("Payment frequency"), html.Th("ISINs"), html.Th("Share")])),
+            html.Thead(
+                html.Tr(
+                    [
+                        html.Th("Select"),
+                        html.Th("Payment frequency"),
+                        html.Th("ISINs"),
+                        html.Th("Share"),
+                    ]
+                )
+            ),
             html.Tbody(
                 [
                     html.Tr(
-                        [html.Td(label), html.Td(f"{value:,}"), html.Td(f"{share:.1f}%")]
+                        [
+                            html.Td(
+                                dcc.Checklist(
+                                    id={
+                                        "type": "univariate-dividend-frequency",
+                                        "category": category,
+                                    },
+                                    options=[
+                                        {"label": "", "value": category, "disabled": not value}
+                                    ],
+                                    value=[category] if category in selected_categories else [],
+                                )
+                            ),
+                            html.Td(label),
+                            html.Td(f"{value:,}"),
+                            html.Td(f"{share:.1f}%"),
+                        ]
                     )
-                    for label, value, share in zip(labels, values, shares, strict=False)
+                    for label, value, share, category in zip(
+                        labels, values, shares, categories, strict=False
+                    )
                 ]
             ),
         ],
@@ -293,6 +330,11 @@ def _dividend_label(category: str) -> str:
         "none / unknown": "None / unknown",
         "semiannual": "Semi-annual",
     }.get(category, category.title())
+
+
+def _frequency_category(row: Mapping[str, object]) -> str:
+    value = str(row.get("distribution_frequency") or "unknown").strip().lower()
+    return "none / unknown" if value in {"", "none", "unknown"} else value
 
 
 def _scatter(rows: Sequence[Mapping[str, object]]) -> go.Figure:
