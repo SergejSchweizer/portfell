@@ -186,7 +186,7 @@ Layout and content:
 
 - `PageHeader`;
 - `ControlBar` with the compute action and only backend-supported pair-result controls;
-- KPI slots: `Input instruments`, `Candidate pairs`, `Eligible pairs`, `Unavailable pairs`;
+- KPI slots: `Multivariate Selected ISINs`, `Candidate pairs`, `Eligible pairs`, `Unavailable pairs`;
 - `ChartCard` titled exactly `Bivariate Return / Diversification Universe`;
 - `TableCard` titled `Bivariate Statistics` with both full listing identities and contracted pair evidence;
 - explicit unavailable reason/evidence for missing correlation/covariance/common-calendar data;

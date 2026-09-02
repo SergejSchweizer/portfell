@@ -93,7 +93,7 @@ def test_page_exposes_full_pair_identity_and_frozen_sections() -> None:
         "Bivariate",
         "Compute bivariate statistics",
         "Continue to Multivariate",
-        "Input instruments",
+        "Multivariate Selected ISINs",
         "Candidate pairs",
         "Eligible pairs",
         "Unavailable pairs",

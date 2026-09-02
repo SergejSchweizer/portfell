@@ -12,7 +12,7 @@ The page contains:
 
 - `PageHeader` with the frozen title/subtitle;
 - one `ControlBar` with `Compute bivariate statistics` and only backend-supported pair-result controls;
-- KPI cards `Input instruments`, `Candidate pairs`, `Eligible pairs`, `Unavailable pairs`;
+- KPI cards `Multivariate Selected ISINs`, `Candidate pairs`, `Eligible pairs`, `Unavailable pairs`;
 - `ChartCard` `Bivariate Return / Diversification Universe` using backend/service values and full pair identities;
 - `TableCard` `Bivariate Statistics` with both full listing identities and contracted pair metrics/evidence;
 - explicit unavailable correlation/covariance/common-calendar evidence with reason where supplied;

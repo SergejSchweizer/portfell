@@ -141,7 +141,10 @@ def _layout(
         [
             html.Div(
                 [
-                    KpiCard("Input instruments", _display(model.get("input_count"))),
+                    KpiCard(
+                        "Multivariate Selected ISINs",
+                        _display(model.get("input_count")),
+                    ),
                     KpiCard("Candidate pairs", _display(model.get("candidate_count"))),
                     KpiCard("Eligible pairs", _display(model.get("eligible_count"))),
                     KpiCard("Unavailable pairs", _display(model.get("unavailable_count"))),
