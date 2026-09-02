@@ -3,25 +3,20 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from typing import Any, Protocol, cast
+from typing import Protocol, cast
 
 import plotly.graph_objects as go  # pyright: ignore[reportMissingTypeStubs]
-from dash import dcc, html
+from dash import html
 from dash.development.base_component import Component
 
 from portfell.dash_app.components import (
     ChartCard,
-    EmptyState,
     ErrorState,
-    HistoryCard,
     KpiCard,
     PageHeader,
-    StageFooter,
     StatusBanner,
-    TableCard,
 )
 from portfell.dash_app.figures import apply_portfell_template
-from portfell.dash_app.metric_cards import metric_card_models
 
 _CHART_PREVIEW_LIMIT = 5000
 _TABLE_PREVIEW_LIMIT = 100
@@ -188,13 +183,6 @@ def data_regions(
 
 
 def _data_regions(model: Mapping[str, object]) -> list[Component]:
-    rows = _mappings(model.get("rows"))
-    selected = _string_set(model.get("selected"))
-    run = _mapping(model.get("run"))
-    universe = _mapping(model.get("universe"))
-    selection = _mapping(model.get("selection"))
-    distributions = _mapping(model.get("metric_distributions"))
-    ready = model.get("ready") is True
     return [
         html.Div(
             [
@@ -211,79 +199,7 @@ def _data_regions(model: Mapping[str, object]) -> list[Component]:
             ),
             className="pf-univariate-risk-chart",
         ),
-        _metric_dashboard(distributions),
-        TableCard(
-            "Univariate Statistics",
-            [
-                html.P(
-                    _preview_message(len(rows), _TABLE_PREVIEW_LIMIT),
-                    className="pf-table-preview-note",
-                ),
-                _statistics_table(rows[:_TABLE_PREVIEW_LIMIT], selected),
-            ]
-            if rows
-            else [EmptyState("Compute Univariate statistics to populate this table.")],
-            component_id="univariate-statistics-table",
-        ),
-        HistoryCard([_history(universe, run, selection)]),
-        StageFooter(
-            [
-                html.Button(
-                    children="Apply selection & compute downstream",
-                    id="univariate-save-selection",
-                    className="pf-button",
-                    title="Save selection",
-                    disabled=run is None or run.get("status") != "succeeded",
-                ),
-                html.A(
-                    children="Continue to Bivariate",
-                    href="/bivariate" if ready else "#",
-                    id="univariate-continue-bivariate",
-                    className="pf-button pf-button-primary" if ready else "pf-button",
-                    **cast(Any, {"aria-disabled": "false" if ready else "true"}),
-                ),
-            ]
-        ),
     ]
-
-
-def _metric_dashboard(distributions: Mapping[str, object] | None) -> Component:
-    cards = metric_card_models(distributions or {})
-    if not cards:
-        return html.Div()
-    groups: dict[str, list[Component]] = {}
-    for card in cards:
-        distribution = cast(dict[str, Any], card["distribution"])
-        if distribution.get("kind") == "categorical":
-            details = html.Div(str(distribution.get("categories", [])))
-        else:
-            summary = distribution.get("summary", {})
-            details = html.Div(str(summary))
-        component = html.Article(
-            [
-                html.H4(card["title"]),
-                html.Div(card["definition"], className="pf-metric-definition"),
-                html.Div(
-                    [
-                        html.Div(details, className="pf-metric-plot"),
-                        html.Div("Summary", className="pf-metric-table"),
-                        html.Div("Filters", className="pf-metric-selector"),
-                    ],
-                    className="pf-metric-card-grid",
-                ),
-            ],
-            className="pf-metric-card",
-            id=f"univariate-metric-{card['metric_id']}",
-        )
-        groups.setdefault(str(card["group"]), []).append(component)
-    children: list[Component] = []
-    for group, items in groups.items():
-        children.extend([html.H3(group), html.Div(items, className="pf-metric-group")])
-    return html.Section(
-        children,
-        id="univariate-metric-dashboard",
-        className="pf-metric-dashboard",
-    )
 
 
 def _scatter(rows: Sequence[Mapping[str, object]]) -> go.Figure:
@@ -329,76 +245,6 @@ def _scatter(rows: Sequence[Mapping[str, object]]) -> go.Figure:
     )
     return apply_portfell_template(
         figure, x_title="Annualized volatility", y_title="Annualized return"
-    )
-
-
-def _statistics_table(rows: Sequence[Mapping[str, object]], selected: set[str]) -> Component:
-    columns = (
-        "isin",
-        "exchange",
-        "code",
-        "annualized_return",
-        "annualized_volatility",
-        "max_drawdown",
-        "sharpe_ratio",
-        "sortino_ratio",
-        "annual_dividend_yield",
-        "availability_reason",
-    )
-    return html.Table(
-        [
-            html.Thead(html.Tr([html.Th("Selected"), *[html.Th(name) for name in columns]])),
-            html.Tbody(
-                [
-                    html.Tr(
-                        [
-                            html.Td(
-                                dcc.Checklist(
-                                    id={"type": "univariate-member", "id": _row_member_id(row)},
-                                    options=[
-                                        {
-                                            "label": "",
-                                            "value": _row_member_id(row),
-                                            "disabled": row.get("availability_reason") != "ok",
-                                        }
-                                    ],
-                                    value=(
-                                        [_row_member_id(row)]
-                                        if _row_member_id(row) in selected
-                                        else []
-                                    ),
-                                )
-                            ),
-                            *[html.Td(_display(row.get(name))) for name in columns],
-                        ]
-                    )
-                    for row in rows
-                ]
-            ),
-        ],
-        className="pf-table",
-    )
-
-
-def _history(
-    universe: Mapping[str, object] | None,
-    run: Mapping[str, object] | None,
-    selection: Mapping[str, object] | None,
-) -> Component:
-    if universe is None and run is None:
-        return EmptyState("No persisted Univariate history yet.")
-    values = (
-        ("Metadata universe", None if universe is None else universe.get("version")),
-        ("Run", None if run is None else run.get("run_id")),
-        ("Status", None if run is None else run.get("status")),
-        ("Source snapshot", None if run is None else _short(run.get("input_snapshot_id"))),
-        ("Algorithm", None if run is None else run.get("algorithm_version")),
-        ("Selection version", None if selection is None else selection.get("version")),
-        ("Selection count", None if selection is None else selection.get("member_count")),
-    )
-    return html.Dl(
-        [item for label, value in values for item in (html.Dt(label), html.Dd(_display(value)))],
-        className="pf-evidence-list",
     )
 
 

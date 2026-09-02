@@ -101,23 +101,17 @@ def test_selection_action_delegates_to_application_service() -> None:
     assert save_selection(service, "run-u") == Selection()
 
 
-def test_page_has_frozen_chart_table_and_unavailable_evidence() -> None:
+def test_page_stops_after_return_risk_plot() -> None:
     rendered = str(build_page(Service()).to_plotly_json())
     for text in (
         "Univariate",
-        "Save selection",
-        "Continue to Bivariate",
         "Metadata Selected ISINs",
         "Univariate Selected ISINs",
         "Univariate Return / Risk Universe",
-        "Univariate Statistics",
-        "Universe & History",
-        "Showing all 2 persisted results.",
-        "insufficient_returns",
-        "DE1",
-        "AAA",
     ):
         assert text in rendered
+    for text in ("Save selection", "Continue to Bivariate", "Univariate Statistics", "Universe & History"):
+        assert text not in rendered
     assert "Compute univariate statistics" not in rendered
 
 
@@ -166,6 +160,4 @@ def test_page_limits_large_persisted_result_presentation() -> None:
     model = univariate_page_data(LargeService())
     assert model["available_count"] == 501
     rendered = str(build_page(LargeService()).to_plotly_json())
-    assert "Showing the first 100 of 501 persisted results." in rendered
-    assert "DE0000000000" in rendered
-    assert "DE0000000500" not in rendered
+    assert "Showing the first 100 of 501 persisted results." not in rendered
