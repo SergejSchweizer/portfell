@@ -269,11 +269,10 @@ def _dividend_window(rows: Sequence[Mapping[str, object]], selected: set[str]) -
             html.Thead(
                 html.Tr(
                     [
-                        html.Th("Select"),
                         html.Th("Payment frequency"),
                         html.Th("ISINs"),
-                        html.Th("Select"),
                         html.Th("Share"),
+                        html.Th("Select"),
                     ]
                 )
             ),
@@ -283,6 +282,7 @@ def _dividend_window(rows: Sequence[Mapping[str, object]], selected: set[str]) -
                         [
                             html.Td(label),
                             html.Td(f"{value:,}"),
+                            html.Td(f"{share:.1f}%"),
                             html.Td(
                                 dcc.Checklist(
                                     id={
@@ -295,7 +295,6 @@ def _dividend_window(rows: Sequence[Mapping[str, object]], selected: set[str]) -
                                     value=[category] if category in selected_categories else [],
                                 )
                             ),
-                            html.Td(f"{share:.1f}%"),
                         ]
                     )
                     for label, value, share, category in zip(
@@ -439,7 +438,7 @@ def _age_window(rows: Sequence[Mapping[str, object]], selected: set[str]) -> Com
         [
             html.Thead(
                 html.Tr(
-                    [html.Th("Age group"), html.Th("ISINs"), html.Th("Select"), html.Th("Share")]
+                    [html.Th("Age group"), html.Th("ISINs"), html.Th("Share"), html.Th("Select")]
                 )
             ),
             html.Tbody(
@@ -448,6 +447,7 @@ def _age_window(rows: Sequence[Mapping[str, object]], selected: set[str]) -> Com
                         [
                             html.Td(label),
                             html.Td(f"{count:,}"),
+                            html.Td(f"{share:.1f}%"),
                             html.Td(
                                 dcc.Checklist(
                                         id={
@@ -468,7 +468,6 @@ def _age_window(rows: Sequence[Mapping[str, object]], selected: set[str]) -> Com
                                         ),
                                 )
                             ),
-                            html.Td(f"{share:.1f}%"),
                         ]
                     )
                     for label, count, share in zip(labels, counts, shares, strict=False)
