@@ -72,6 +72,16 @@ def univariate_page_data(service: UnivariateService) -> dict[str, object]:
     detail = _mapping(preview.get("run")) if preview else stage
     rows = _mappings(preview.get("rows")) if preview else ()
     chart_rows = _mappings(preview.get("chart_rows")) if preview else rows
+    # A Univariate result is always scoped to the current Metadata universe. The
+    # explicit guard also protects the UI from stale/broader persisted artifacts.
+    metadata_isins = {
+        str(member.get("isin"))
+        for member in _mappings(universe.get("members") if universe else None)
+        if member.get("isin") not in {None, ""}
+    }
+    if metadata_isins:
+        rows = tuple(row for row in rows if str(row.get("isin")) in metadata_isins)
+        chart_rows = tuple(row for row in chart_rows if str(row.get("isin")) in metadata_isins)
     summary = _mapping(preview.get("summary")) if preview else None
     distributions = None
     if preview and hasattr(service, "univariate_metric_distributions"):
@@ -93,7 +103,11 @@ def univariate_page_data(service: UnivariateService) -> dict[str, object]:
         "rows": rows,
         "chart_rows": chart_rows,
         "selected": selected,
-        "input_count": None if universe is None else universe.get("member_count"),
+        "input_count": (
+            len(metadata_isins)
+            if metadata_isins
+            else (None if universe is None else universe.get("member_count"))
+        ),
         "available_count": (
             len(available) if summary is None else summary.get("available_count", len(available))
         ),

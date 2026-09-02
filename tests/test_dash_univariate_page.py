@@ -105,7 +105,6 @@ def test_page_has_frozen_chart_table_and_unavailable_evidence() -> None:
     rendered = str(build_page(Service()).to_plotly_json())
     for text in (
         "Univariate",
-        "Full-universe computation is started from Metadata.",
         "Save selection",
         "Continue to Bivariate",
         "Input instruments",
@@ -122,6 +121,25 @@ def test_page_has_frozen_chart_table_and_unavailable_evidence() -> None:
     ):
         assert text in rendered
     assert "Compute univariate statistics" not in rendered
+
+
+def test_page_excludes_results_outside_metadata_universe() -> None:
+    class ScopedService(Service):
+        def workflow_state(self) -> dict[str, object]:
+            state = super().workflow_state()
+            state["metadata_universe"] = {
+                "universe_id": "universe-1",
+                "version": 2,
+                "member_count": 1,
+                "members": [{"isin": "DE1", "exchange": "XETRA", "code": "AAA"}],
+            }
+            return state
+
+    model = univariate_page_data(ScopedService())
+    rows = model["rows"]
+    assert len(rows) == 1
+    assert rows[0]["isin"] == "DE1"
+    assert model["input_count"] == 1
 
 
 def test_page_limits_large_persisted_result_presentation() -> None:
