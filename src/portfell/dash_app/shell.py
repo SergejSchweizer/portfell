@@ -65,25 +65,11 @@ def workflow_context(context: WorkflowContext | None = None) -> Component:
     return html.Section(
         [
             html.Div("Current analysis", className="pf-context-title"),
-            dcc.Dropdown(
-                id="sidebar-project-selection",
-                options=list(value.project_options),
-                value=value.selected_project,
-                placeholder="Select project",
-                clearable=False,
-                disabled=not value.project_options,
-                className="pf-project-selection",
-            ),
             html.Div(
                 [_context_row(label, value, f"pf-project-{label.lower().replace(' ', '-')}")
                  for label, value in value.project_metadata],
                 className="pf-project-metadata",
             ),
-            _context_row("Universe", value.universe_version, "pf-context-universe"),
-            _context_row("Selected", value.selected_count, "pf-context-selected"),
-            _context_row("Snapshot", value.snapshot_short_id, "pf-context-snapshot"),
-            _context_row("Readiness", value.stage_readiness, "pf-context-readiness"),
-            _context_row("Previous result", value.previous_result, "pf-context-previous"),
         ],
         className="pf-workflow-context",
     )

@@ -73,7 +73,6 @@ def test_dash_four_page_journey_and_visual_evidence(tmp_path: Path) -> None:
             assert "postgres://" not in metadata_body
             page.reload(wait_until="networkidle")
             _assert_shell(page, "Metadata")
-            assert page.locator("#pf-context-universe").inner_text() == "1"
             page.goto(f"{base_url}/univariate", wait_until="networkidle")
             _assert_shell(page, "Univariate")
             page.wait_for_function("document.body.innerText.includes('DE000TEST01')")
@@ -141,8 +140,6 @@ def test_dash_four_page_journey_and_visual_evidence(tmp_path: Path) -> None:
             service.advance_universe_revision()
             page.set_viewport_size({"width": 1440, "height": 900})
             page.goto(f"{base_url}/univariate", wait_until="networkidle")
-            page.locator("#pf-context-universe").wait_for()
-            _wait_until(lambda: page.locator("#pf-context-universe").inner_text() == "2")
             assert page.locator("#pf-context-readiness").inner_text() == "Not ready"
             assert (
                 page.locator("#univariate-continue-bivariate").get_attribute("aria-disabled")
