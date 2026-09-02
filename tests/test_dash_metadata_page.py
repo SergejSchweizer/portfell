@@ -97,7 +97,7 @@ def test_layout_has_frozen_metadata_contract_without_provider_action() -> None:
     rendered = str(build_page(Service()).to_plotly_json())
     for text in (
         "Metadata",
-        "Build the active instrument universe.",
+            "Define the starting selection for the analysis funnel.",
         "Active listings",
         "Filtered listings",
         "Selected listings",

@@ -64,7 +64,7 @@ def workflow_context(context: WorkflowContext | None = None) -> Component:
     value = context or WorkflowContext()
     return html.Section(
         [
-            html.Div("Current analysis", className="pf-context-title"),
+            html.Div("Current selection", className="pf-context-title"),
             html.Div(
                 [_context_row(label, value, f"pf-project-{label.lower().replace(' ', '-')}")
                  for label, value in value.project_metadata],

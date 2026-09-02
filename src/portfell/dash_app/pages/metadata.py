@@ -200,7 +200,7 @@ def _layout(
         status = StatusBanner(message)
 
     children: list[Component] = [
-        PageHeader("Metadata", "Build the active instrument universe."),
+        PageHeader("Metadata", "Define the starting selection for the analysis funnel."),
         ControlBar(
             [
                 _dropdown(
