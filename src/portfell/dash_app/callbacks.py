@@ -348,7 +348,6 @@ def register_callbacks(app: Dash, services: object | None) -> None:
         State({"type": "univariate-age-group", "category": ALL}, "value"),
         State({"type": "univariate-age-group", "category": ALL}, "id"),
         State("pf-browser-state", "data"),
-        prevent_initial_call=True,
     )
     def _save_dividend_frequency_selection(
         checked: list[object],
@@ -369,13 +368,19 @@ def register_callbacks(app: Dash, services: object | None) -> None:
         if state.univariate_run_id is None:
             return no_update
         age_allowed = _checked_categories(age_values, age_ids)
-        predicates: list[dict[str, object]] = [
-            {
-                "metric": "distribution_frequency",
-                "operator": "in",
-                "allowed": allowed or ["__no_selection__"],
-            }
-        ]
+        predicates: list[dict[str, object]] = []
+        # An empty checkbox selection means “no filter”, i.e. retain the
+        # complete run universe.  Do not encode it as a sentinel category:
+        # that would create a zero-member selection and leave a stale count
+        # visible after the browser restores an empty checklist.
+        if allowed:
+            predicates.append(
+                {
+                    "metric": "distribution_frequency",
+                    "operator": "in",
+                    "allowed": allowed,
+                }
+            )
         if age_allowed:
             predicates.append(
                 {"metric": "history_age_group", "operator": "in", "allowed": age_allowed}
@@ -394,7 +399,6 @@ def register_callbacks(app: Dash, services: object | None) -> None:
         State({"type": "univariate-dividend-frequency", "category": ALL}, "value"),
         State({"type": "univariate-dividend-frequency", "category": ALL}, "id"),
         State("pf-browser-state", "data"),
-        prevent_initial_call=True,
     )
     def _save_age_selection(
         values: list[object],
@@ -408,13 +412,15 @@ def register_callbacks(app: Dash, services: object | None) -> None:
         if state.univariate_run_id is None:
             return no_update
         dividend_allowed = _checked_categories(dividend_values, dividend_ids)
-        predicates: list[dict[str, object]] = [
-            {
-                "metric": "history_age_group",
-                "operator": "in",
-                "allowed": allowed or ["__no_selection__"],
-            }
-        ]
+        predicates: list[dict[str, object]] = []
+        if allowed:
+            predicates.append(
+                {
+                    "metric": "history_age_group",
+                    "operator": "in",
+                    "allowed": allowed,
+                }
+            )
         if dividend_allowed:
             predicates.append(
                 {
