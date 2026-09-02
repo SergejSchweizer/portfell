@@ -96,9 +96,11 @@ def univariate_page_data(
         _member_id(member) for member in _mappings(selection.get("members") if selection else None)
     }
     selected_isin_count = (
-        len({member.split(":", 1)[0] for member in selected}) if selected else None
+        len({member.split(":", 1)[0] for member in selected})
+        if selected
+        else (len(metadata_isins) if metadata_isins else None)
     )
-    if selection is not None:
+    if selection is not None and selected:
         selected_isins = {member.split(":", 1)[0] for member in selected}
         chart_rows = tuple(
             row for row in chart_rows if str(row.get("isin", "")) in selected_isins
