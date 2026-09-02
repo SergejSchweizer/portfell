@@ -201,10 +201,13 @@ def _data_regions(model: Mapping[str, object]) -> list[Component]:
             ],
             className="pf-kpi-grid",
         ),
-        ChartCard(
-            "Univariate Return / Risk Universe",
-            _scatter(_mappings(model.get("chart_rows"))) if model.get("chart_rows") else None,
-            graph_id="univariate-return-risk-chart",
+        html.Div(
+            ChartCard(
+                "Univariate Return / Risk Universe",
+                _scatter(_mappings(model.get("chart_rows"))) if model.get("chart_rows") else None,
+                graph_id="univariate-return-risk-chart",
+            ),
+            className="pf-univariate-risk-chart",
         ),
         _metric_dashboard(distributions),
         TableCard(

@@ -99,6 +99,12 @@
 .pf-chart-card .plot-container,
 .pf-chart-card .svg-container { width: 100% !important; }
 
+.pf-univariate-risk-chart {
+  width: 100%;
+  min-width: 0;
+  grid-column: 1 / -1;
+}
+
 .pf-status-banner { line-height: 1.4; }
 .pf-state { min-height: 52px; display: flex; align-items: center; }
 
