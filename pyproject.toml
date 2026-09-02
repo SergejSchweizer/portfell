@@ -23,6 +23,7 @@ dependencies = [
 portfell-docs-refresh = "portfell.docs_refresh:main"
 portfell-quality = "portfell.quality:main"
 portfell-market-refresh = "portfell.market_source.refresh:main"
+portfell-univariate-refresh = "portfell.univariate_refresh:main"
 
 [dependency-groups]
 dev = [

@@ -82,3 +82,6 @@ def main() -> None:
 
 
 __all__ = ["main", "refresh"]
+
+if __name__ == "__main__":
+    main()
