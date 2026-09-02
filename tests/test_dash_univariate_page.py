@@ -121,6 +121,7 @@ def test_page_shows_dividend_frequency_window_after_plot() -> None:
     assert "univariate-dividend-frequency-chart" in rendered
     assert "univariate-dividend-frequency-table" in rendered
     assert "None / unknown" in rendered
+    assert "dividend-frequency:none / unknown" in rendered
     assert "ISIN Age" in rendered
     assert "univariate-isin-age-chart" in rendered
     assert "univariate-isin-age-table" in rendered

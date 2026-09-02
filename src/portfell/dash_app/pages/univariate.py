@@ -293,6 +293,8 @@ def _dividend_window(rows: Sequence[Mapping[str, object]], selected: set[str]) -
                                         {"label": "", "value": category, "disabled": not value}
                                     ],
                                     value=[category] if category in selected_categories else [],
+                                    persistence=f"dividend-frequency:{category}",
+                                    persistence_type="local",
                                 )
                             ),
                         ]
@@ -461,11 +463,13 @@ def _age_window(rows: Sequence[Mapping[str, object]], selected: set[str]) -> Com
                                             "disabled": not count,
                                         }
                                     ],
-                                        value=(
+                                    value=(
                                             [_age_key(label)]
                                             if _age_group_selected(rows, selected, label)
                                             else []
                                         ),
+                                    persistence=f"age-group:{_age_key(label)}",
+                                    persistence_type="local",
                                 )
                             ),
                         ]
