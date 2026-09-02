@@ -117,9 +117,16 @@ def metadata_page_data(
     if project_rows:
         options = dict(options)
         for field in _FILTERS:
-            options[field] = sorted(
-                {str(row[field]) for row in project_rows if row.get(field) not in {None, ""}}
-            )
+            counts: dict[str, int] = {}
+            for row in project_rows:
+                value = row.get(field)
+                if value not in {None, ""}:
+                    key = str(value)
+                    counts[key] = counts.get(key, 0) + 1
+            options[field] = [
+                {"label": f"{key} ({count})", "value": key}
+                for key, count in sorted(counts.items())
+            ]
     history = service.metadata_history()
     # Distributions describe the complete selected project and are intentionally
     # independent of the transient dropdown filters used for the table/KPIs.
@@ -270,12 +277,17 @@ def _layout(
 
 def _dropdown(label: str, component_id: str, values: object, value: object = None) -> Component:
     raw = _items(values)
+    option_rows = (
+        [item for item in raw if isinstance(item, dict) and "value" in item]
+        if raw and isinstance(raw[0], dict)
+        else [{"label": str(item), "value": str(item)} for item in raw]
+    )
     return html.Label(
         [
             html.Span(label, className="pf-context-label"),
             dcc.Dropdown(
                 id=component_id,
-                options=[{"label": str(value), "value": str(value)} for value in raw],
+                options=option_rows,
                 value=value,
                 clearable=True,
             ),
