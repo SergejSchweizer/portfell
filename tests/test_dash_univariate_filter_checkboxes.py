@@ -60,6 +60,26 @@ def test_checkbox_parser_accepts_dash_wildcard_value_records() -> None:
     ]
 
 
+@pytest.mark.parametrize(
+    "category",
+    [
+        "le_minus10_pct",
+        "gt_minus10_to_0_pct",
+        "gt_0_to_2_pct",
+        "gt_2_to_5_pct",
+        "gt_5_to_10_pct",
+        "gt_10_pct",
+        "unknown",
+    ],
+)
+def test_each_monthly_return_checkbox_can_be_activated_and_deactivated(category: str) -> None:
+    ids = [{"category": category}]
+    assert univariate_checkbox_predicates([], [], [], [], [[category]], ids) == [
+        {"metric": "monthly_return_group", "operator": "in", "allowed": [category]}
+    ]
+    assert univariate_checkbox_predicates([], [], [], [], [[]], ids) == []
+
+
 def test_checkbox_selection_count_is_identical_in_page_and_sidebar() -> None:
     members = [
         {"isin": "A", "exchange": "XETRA", "code": "A"},

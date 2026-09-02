@@ -212,6 +212,7 @@ def _data_regions(model: Mapping[str, object]) -> list[Component]:
         ),
         _dividend_window(_mappings(model.get("all_chart_rows")), selected),
         _age_window(_mappings(model.get("all_chart_rows")), selected),
+        _monthly_return_window(_mappings(model.get("all_chart_rows")), selected),
     ]
 
 
@@ -502,6 +503,144 @@ def _age_window(rows: Sequence[Mapping[str, object]], selected: set[str]) -> Com
         ],
         className="pf-card pf-univariate-dividend-window",
         id="univariate-isin-age-window",
+    )
+
+
+def _monthly_return_label(value: object) -> str:
+    if not isinstance(value, int | float):
+        return "Unknown"
+    value = float(value)
+    if value <= -0.10:
+        return "≤−10%"
+    if value <= 0.0:
+        return ">−10%–0%"
+    if value <= 0.02:
+        return ">0%–2%"
+    if value <= 0.05:
+        return ">2%–5%"
+    if value <= 0.10:
+        return ">5%–10%"
+    return ">10%"
+
+
+def _monthly_return_key(label: str) -> str:
+    return {
+        "≤−10%": "le_minus10_pct",
+        ">−10%–0%": "gt_minus10_to_0_pct",
+        ">0%–2%": "gt_0_to_2_pct",
+        ">2%–5%": "gt_2_to_5_pct",
+        ">5%–10%": "gt_5_to_10_pct",
+        ">10%": "gt_10_pct",
+        "Unknown": "unknown",
+    }[label]
+
+
+def _monthly_return_window(rows: Sequence[Mapping[str, object]], selected: set[str]) -> Component:
+    """Show monthly simple-return bands and expose them as an exclusive filter."""
+    order = ("≤−10%", ">−10%–0%", ">0%–2%", ">2%–5%", ">5%–10%", ">10%", "Unknown")
+    counts = {label: 0 for label in order}
+    members: dict[str, list[str]] = {label: [] for label in order}
+    for row in rows:
+        label = _monthly_return_label(row.get("monthly_simple_return"))
+        counts[label] += 1
+        members[label].append(_row_member_id(row))
+    labels = [label for label in order if counts[label] or not rows]
+    total = sum(counts.values())
+    shares = [(counts[label] / total * 100) if total else 0.0 for label in labels]
+    selected_groups = {
+        label
+        for label in labels
+        if members[label] and all(member in selected for member in members[label])
+    }
+    colors = ("#dc2626", "#f97316", "#eab308", "#22c55e", "#14b8a6", "#2563eb", "#64748b")
+    figure = go.Figure(
+        go.Bar(
+            x=labels,
+            y=shares,
+            customdata=[
+                [counts[label], share] for label, share in zip(labels, shares, strict=False)
+            ],
+            marker_color=[colors[index % len(colors)] for index in range(len(labels))],
+            text=[f"{share:.1f}%" for share in shares],
+            textposition="outside",
+            hovertemplate=(
+                "%{x}<br>ISINs: %{customdata[0]}<br>Share: %{customdata[1]:.1f}%<extra></extra>"
+            ),
+            name="Monthly simple return",
+        )
+    )
+    apply_portfell_template(figure, x_title="Monthly simple return (%)", y_title="ISIN share (%)")
+    figure.update_layout(showlegend=False, height=340)
+    table = html.Table(
+        [
+            html.Thead(
+                html.Tr(
+                    [
+                        html.Th("Monthly simple return"),
+                        html.Th("ISINs"),
+                        html.Th("Share"),
+                        html.Th("Select"),
+                    ]
+                )
+            ),
+            html.Tbody(
+                [
+                    html.Tr(
+                        [
+                            html.Td(label),
+                            html.Td(f"{counts[label]:,}"),
+                            html.Td(f"{share:.1f}%"),
+                            html.Td(
+                                dcc.Checklist(
+                                    id={
+                                        "type": "univariate-monthly-return-group",
+                                        "category": _monthly_return_key(label),
+                                    },
+                                    options=[
+                                        {
+                                            "label": "",
+                                            "value": _monthly_return_key(label),
+                                            "disabled": not counts[label],
+                                        }
+                                    ],
+                                    value=(
+                                        [_monthly_return_key(label)]
+                                        if label in selected_groups
+                                        else []
+                                    ),
+                                    persistence=f"monthly-return:{_monthly_return_key(label)}",
+                                    persistence_type="local",
+                                )
+                            ),
+                        ]
+                    )
+                    for label, share in zip(labels, shares, strict=False)
+                ]
+            ),
+        ],
+        className="pf-table",
+    )
+    return html.Section(
+        [
+            html.H2("Monthly Returns", className="pf-card-title"),
+            html.Div(
+                [
+                    ChartCard(
+                        "Monthly simple-return distribution",
+                        figure,
+                        graph_id="univariate-monthly-return-chart",
+                    ),
+                    TableCard(
+                        "Statistics",
+                        [table],
+                        component_id="univariate-monthly-return-table",
+                    ),
+                ],
+                className="pf-univariate-dividend-grid",
+            ),
+        ],
+        className="pf-card pf-univariate-dividend-window",
+        id="univariate-monthly-return-window",
     )
 
 

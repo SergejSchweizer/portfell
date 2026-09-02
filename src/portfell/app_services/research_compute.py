@@ -117,7 +117,7 @@ def filtered_univariate_selection(
 ) -> ComputedSelection:
     predicates = _normalize_predicates(predicate_rows)
     for predicate in predicates:
-        if predicate.field == "history_age_group":
+        if predicate.field in {"history_age_group", "monthly_return_group"}:
             continue
         if not any(predicate.field in row for row in run.rows):
             raise ValueError("invalid_metric")
@@ -279,7 +279,12 @@ def _metric_filter_groups(rows: Sequence[Mapping[str, Any]]) -> dict[str, dict[s
 
 
 def _metric_group_matches(row: Mapping[str, Any], metric: str, group: Mapping[str, Any]) -> bool:
-    actual = _history_age_label(row) if metric == "history_age_group" else row.get(metric)
+    if metric == "history_age_group":
+        actual = _history_age_label(row)
+    elif metric == "monthly_return_group":
+        actual = _monthly_return_label(row)
+    else:
+        actual = row.get(metric)
     if actual is None:
         return False
     allowed = group.get("allowed")
@@ -310,6 +315,24 @@ def _history_age_label(row: Mapping[str, Any]) -> str:
     if age <= 5.0:
         return "gt4-5_years"
     return "gt5_years"
+
+
+def _monthly_return_label(row: Mapping[str, Any]) -> str:
+    value = row.get("monthly_simple_return")
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return "unknown"
+    value = float(value)
+    if value <= -0.10:
+        return "le_minus10_pct"
+    if value <= 0.0:
+        return "gt_minus10_to_0_pct"
+    if value <= 0.02:
+        return "gt_0_to_2_pct"
+    if value <= 0.05:
+        return "gt_2_to_5_pct"
+    if value <= 0.10:
+        return "gt_5_to_10_pct"
+    return "gt_10_pct"
 
 
 def _listing_id(row: Mapping[str, Any]) -> str:
