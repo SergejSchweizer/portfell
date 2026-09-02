@@ -133,9 +133,7 @@ def metadata_page_data(
     history = service.metadata_history()
     # Distributions describe the complete selected project and are intentionally
     # independent of the transient dropdown filters used for the table/KPIs.
-    distribution_rows = project_rows or tuple(
-        service.active_listings()
-    )
+    distribution_rows = full_listing_rows
     return {
         "options": options,
         # Rendering thousands of HTML table rows blocks the browser before a user can
