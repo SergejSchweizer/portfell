@@ -94,6 +94,9 @@ def univariate_page_data(service: UnivariateService) -> dict[str, object]:
     selected = {
         _member_id(member) for member in _mappings(selection.get("members") if selection else None)
     }
+    selected_isin_count = (
+        len({member.split(":", 1)[0] for member in selected}) if selected else None
+    )
     available = tuple(row for row in rows if row.get("availability_reason") == "ok")
     unavailable = tuple(row for row in rows if row.get("availability_reason") != "ok")
     return {
@@ -111,12 +114,8 @@ def univariate_page_data(service: UnivariateService) -> dict[str, object]:
         "available_count": (
             len(available) if summary is None else summary.get("available_count", len(available))
         ),
-        "selected_count": None if selection is None else selection.get("member_count"),
-        "unavailable_count": (
-            len(unavailable)
-            if summary is None
-            else summary.get("unavailable_count", len(unavailable))
-        ),
+        "selected_count": selected_isin_count,
+        "unavailable_count": len(unavailable),
         "ready": selection is not None,
         "matching_count": None if preview is None else preview.get("item_count"),
         "metric_distributions": distributions,
@@ -180,10 +179,8 @@ def _data_regions(model: Mapping[str, object]) -> list[Component]:
     return [
         html.Div(
             [
-                KpiCard("Input instruments", _display(model.get("input_count"))),
-                KpiCard("Available results", _display(model.get("available_count"))),
-                KpiCard("Selected instruments", _display(model.get("selected_count"))),
-                KpiCard("Unavailable results", _display(model.get("unavailable_count"))),
+                KpiCard("Metadata Selected ISINs", _display(model.get("input_count"))),
+                KpiCard("Univariate Selected ISINs", _display(model.get("selected_count"))),
             ],
             className="pf-kpi-grid",
         ),
