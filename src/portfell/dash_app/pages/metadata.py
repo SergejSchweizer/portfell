@@ -230,11 +230,10 @@ def _layout(
             html.Div(
                 [
                     KpiCard("Active listings", _display(model.get("active_count"))),
-                    KpiCard("Filtered listings", _display(model.get("filtered_count"))),
                     KpiCard("Selected listings", _display(model.get("selected_count"))),
-                    KpiCard("Universe version", _display(model.get("universe_version"))),
                 ],
                 className="pf-kpi-grid",
+                id="metadata-kpi-grid",
             ),
             html.Div(
                 [

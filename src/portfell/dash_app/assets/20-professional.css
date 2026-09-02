@@ -16,6 +16,10 @@
   width: 100%;
 }
 
+#metadata-kpi-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .pf-control-bar .Select-control,
 .pf-control-bar .Select-menu-outer,
 .pf-control-bar input {
