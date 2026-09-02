@@ -98,7 +98,6 @@ def test_layout_has_frozen_metadata_contract_without_provider_action() -> None:
     for text in (
         "Metadata",
         "Build the active instrument universe.",
-        "Reset filters",
         "Active listings",
         "Filtered listings",
         "Selected listings",

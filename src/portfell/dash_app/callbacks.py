@@ -381,19 +381,6 @@ def register_callbacks(app: Dash, services: object | None) -> None:
     def _polling_disabled(store: object) -> bool:  # pyright: ignore[reportUnusedFunction]
         return BrowserState.from_store(store).job.status not in {"queued", "running"}
 
-    @app.callback(  # pyright: ignore[reportUnknownMemberType]
-        Output("metadata-filter-exchange", "value"),
-        Output("metadata-filter-instrument-type", "value"),
-        Output("metadata-filter-country", "value"),
-        Output("metadata-filter-currency", "value"),
-        Input("metadata-reset-filters", "n_clicks"),
-        prevent_initial_call=True,
-    )
-    def _reset_metadata_filters(  # pyright: ignore[reportUnusedFunction]
-        n_clicks: int | None,
-    ) -> tuple[None, None, None, None] | object:
-        return (None, None, None, None) if n_clicks else no_update
-
 
 __all__ = [
     "execute_action",

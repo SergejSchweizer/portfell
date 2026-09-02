@@ -218,11 +218,6 @@ def _layout(
                     "Currency", "metadata-filter-currency", options.get("currency"),
                     selected_filters.get("currency"),
                 ),
-                html.Button(
-                    children="Reset filters",
-                    id="metadata-reset-filters",
-                    className="pf-button",
-                ),
             ],
             component_id="metadata-controls",
         ),

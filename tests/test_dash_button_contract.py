@@ -34,7 +34,6 @@ def test_every_workflow_button_has_a_stable_id() -> None:
     )
     actual = set().union(*(_button_ids(page.to_plotly_json()) for page in pages))
     assert actual == {
-        "metadata-reset-filters",
         "univariate-preview-selection",
         "univariate-save-selection",
         "bivariate-compute",
