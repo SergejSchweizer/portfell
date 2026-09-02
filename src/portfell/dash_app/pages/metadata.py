@@ -114,19 +114,25 @@ def metadata_page_data(
             for field in _FILTERS
         )
     )
-    if project_rows:
-        options = dict(options)
-        for field in _FILTERS:
-            counts: dict[str, int] = {}
-            for row in full_listing_rows:
-                value = row.get(field)
-                if value not in {None, ""}:
-                    key = str(value)
-                    counts[key] = counts.get(key, 0) + 1
-            options[field] = [
-                {"label": f"{key} ({count})", "value": key}
-                for key, count in sorted(counts.items())
-            ]
+    options = dict(options)
+    for field in _FILTERS:
+        counts: dict[str, int] = {}
+        for row in full_listing_rows:
+            if any(
+                other != field
+                and selected.get(other)
+                and row.get(other) != selected.get(other)
+                for other in _FILTERS
+            ):
+                continue
+            value = row.get(field)
+            if value not in {None, ""}:
+                key = str(value)
+                counts[key] = counts.get(key, 0) + 1
+        options[field] = [
+            {"label": f"{key} ({count})", "value": key}
+            for key, count in sorted(counts.items())
+        ]
     history = service.metadata_history()
     # Distributions describe the complete selected project and are intentionally
     # independent of the transient dropdown filters used for the table/KPIs.
