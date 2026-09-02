@@ -179,6 +179,46 @@ def test_dash_four_page_journey_and_visual_evidence(tmp_path: Path) -> None:
         thread.join(timeout=10)
 
 
+@pytest.mark.browser
+def test_metadata_dropdown_selections_survive_page_reload() -> None:
+    """All metadata filters must restore their persisted value after reload."""
+    service = DashParityFixtureService()
+    api = FastAPI()
+    mount_dash_app(api, services=service)
+    port = _free_port()
+    server = uvicorn.Server(
+        uvicorn.Config(api, host="127.0.0.1", port=port, log_level="warning", access_log=False)
+    )
+    thread = Thread(target=server.run, daemon=True)
+    thread.start()
+    _wait_started(server)
+    try:
+        with sync_playwright() as playwright:
+            browser = playwright.chromium.launch(headless=True)
+            page = browser.new_page()
+            page.goto(f"http://127.0.0.1:{port}/metadata", wait_until="networkidle")
+            expected = {
+                "exchange": "XETRA",
+                "instrument-type": "ETF",
+                "country": "DE",
+                "currency": "EUR",
+            }
+            for suffix, option in expected.items():
+                dropdown = page.locator(f"#metadata-filter-{suffix}")
+                dropdown.click()
+                page.locator(".dash-dropdown-option", has_text=option).click()
+                assert option in page.locator(f"#{dropdown.get_attribute('id')}-value").inner_text()
+                page.wait_for_timeout(500)
+
+            page.reload(wait_until="networkidle")
+            for suffix, option in expected.items():
+                assert option in page.locator(f"#metadata-filter-{suffix}").inner_text()
+            browser.close()
+    finally:
+        server.should_exit = True
+        thread.join(timeout=10)
+
+
 def test_typed_failure_is_redacted_and_retryable() -> None:
     service = DashParityFixtureService(fail_next_univariate=True)
     initial = BrowserState()
