@@ -248,14 +248,24 @@ class ResearchApplicationService:
     # Metadata -----------------------------------------------------------------
 
     def metadata_options(self) -> JsonRow:
-        listings = self._active_listings()
+        listings = tuple(
+            self.active_listings()
+        )
         return {
-            "exchange": sorted({item.key.exchange for item in listings}),
+            "exchange": sorted({str(item.get("exchange")) for item in listings}),
             "instrument_type": sorted(
-                {item.instrument_type for item in listings if item.instrument_type}
+                {
+                    str(item.get("instrument_type"))
+                    for item in listings
+                    if item.get("instrument_type")
+                }
             ),
-            "country": sorted({item.country for item in listings if item.country}),
-            "currency": sorted({item.currency for item in listings if item.currency}),
+            "country": sorted(
+                {str(item.get("country")) for item in listings if item.get("country")}
+            ),
+            "currency": sorted(
+                {str(item.get("currency")) for item in listings if item.get("currency")}
+            ),
             "active_listing_count": len(listings),
         }
 
@@ -273,11 +283,12 @@ class ResearchApplicationService:
             "country": _normalized(country),
             "currency": _normalized(currency),
         }
-        return tuple(
-            _listing_row(item)
-            for item in self._active_listings()
-            if _listing_matches(item, filters)
-        )
+        unique: dict[str, JsonRow] = {}
+        for item in self._active_listings():
+            if _listing_matches(item, filters):
+                row = _listing_row(item)
+                unique.setdefault(str(row["isin"]), row)
+        return tuple(unique.values())
 
     def create_metadata_universe(
         self,
@@ -293,6 +304,12 @@ class ResearchApplicationService:
             country=country,
             currency=currency,
         )
+        unique_rows: dict[str, JsonRow] = {}
+        for row in rows:
+            isin = row.get("isin")
+            if isin not in {None, ""}:
+                unique_rows.setdefault(str(isin), row)
+        rows = tuple(unique_rows.values())
         if not rows:
             raise ApplicationServiceError("metadata_universe_empty")
         members = tuple(

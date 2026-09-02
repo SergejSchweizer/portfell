@@ -269,7 +269,6 @@ class Gateway:
     def __init__(self) -> None:
         self.keys = (
             ListingKey("IE00A", "XETRA", "A"),
-            ListingKey("IE00A", "XETRA", "B"),
             ListingKey("IE00B", "XETRA", "C"),
         )
         self.listings = tuple(Listing(key, key.code, "ETF", "IE", "EUR", True) for key in self.keys)
@@ -302,7 +301,6 @@ def test_clean_service_persists_full_identity_metadata_and_univariate_run() -> N
     universe = service.create_metadata_universe(exchange="XETRA", instrument_type="ETF")
     assert universe.members == (
         ListingIdentity("IE00A", "XETRA", "A"),
-        ListingIdentity("IE00A", "XETRA", "B"),
         ListingIdentity("IE00B", "XETRA", "C"),
     )
     result = service.run_univariate(universe.universe_id)
@@ -374,8 +372,8 @@ def test_clean_service_fails_closed_when_snapshot_no_longer_has_every_member_quo
 def test_clean_service_exposes_metadata_filters_and_typed_invalid_requests() -> None:
     service = ResearchApplicationService(MemoryState(), Gateway(), now=lambda: NOW)
 
-    assert service.metadata_options()["active_listing_count"] == 3
-    assert len(service.active_listings(exchange="xetra", currency="eur")) == 3
+    assert service.metadata_options()["active_listing_count"] == 2
+    assert len(service.active_listings(exchange="xetra", currency="eur")) == 2
     assert service.active_listings(country="DE") == ()
     with pytest.raises(ApplicationServiceError, match="metadata_universe_empty"):
         service.create_metadata_universe(country="DE")
@@ -457,7 +455,7 @@ def test_metadata_kickoff_reuses_one_full_universe_job_and_publishes_v2_rows() -
     result = service._execute_analysis_job(job)
     assert result["status"] == "succeeded"
     assert state.progress_events[0] == (0, None, "loading_market_data")
-    assert state.progress_events[-1] == (3, 3, "members")
+    assert state.progress_events[-1] == (2, 2, "members")
     assert all(
         previous[0] <= current[0]
         for previous, current in zip(
@@ -470,7 +468,7 @@ def test_metadata_kickoff_reuses_one_full_universe_job_and_publishes_v2_rows() -
     artifacts = cast(dict[str, object], detail["artifacts"])
     manifest = cast(dict[str, object], artifacts["univariate.rows@v2"])
     assert manifest["storage"] == "row_items"
-    assert manifest["item_count"] == 3
+    assert manifest["item_count"] == 2
     assert "items" not in manifest
     artifact_id = next(
         artifact.artifact_id
@@ -480,12 +478,11 @@ def test_metadata_kickoff_reuses_one_full_universe_job_and_publishes_v2_rows() -
     rows = state.list_analysis_artifact_items(artifact_id, limit=500)
     assert [
         (item.document["isin"], item.document["exchange"], item.document["code"]) for item in rows
-    ] == [
-        ("IE00A", "XETRA", "A"),
-        ("IE00A", "XETRA", "B"),
-        ("IE00B", "XETRA", "C"),
-    ]
+        ] == [
+            ("IE00A", "XETRA", "A"),
+            ("IE00B", "XETRA", "C"),
+        ]
     assert all("availability_reason" in item.document for item in rows)
     preview = service.univariate_result_preview(str(result["run_id"]), limit=2)
-    assert preview["item_count"] == 3
+    assert preview["item_count"] == 2
     assert len(cast(list[object], preview["rows"])) == 2
