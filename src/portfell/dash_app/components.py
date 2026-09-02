@@ -101,7 +101,10 @@ def ErrorState(message: str) -> Component:
 
 def JobProgress(job: JobPresentation) -> Component:
     """Accessible shared job-progress presentation backed only by persisted job state."""
-    if job.status is None:
+    # Completed jobs are terminal evidence, not an active notification.  Keeping
+    # the old progress card visible made a finished run look like ``0 / N`` and
+    # caused a stale success toast to remain in the lower-right corner.
+    if job.status in {None, "succeeded"}:
         return html.Div()
     stage = (job.stage or "Analysis").replace("_", " ").title()
     status = (job.status or "idle").replace("_", " ")
