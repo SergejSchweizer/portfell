@@ -202,7 +202,7 @@ def _data_regions(model: Mapping[str, object]) -> list[Component]:
             className="pf-univariate-risk-chart",
         ),
         _dividend_window(_mappings(model.get("chart_rows")), selected),
-        _age_window(_mappings(model.get("chart_rows"))),
+        _age_window(_mappings(model.get("chart_rows")), selected),
     ]
 
 
@@ -339,7 +339,45 @@ def _frequency_category(row: Mapping[str, object]) -> str:
     return "none / unknown" if value in {"", "none", "unknown"} else value
 
 
-def _age_window(rows: Sequence[Mapping[str, object]]) -> Component:
+def _age_key(label: str) -> str:
+    return (
+        label.lower()
+        .replace("≤", "le")
+        .replace(">", "gt")
+        .replace("–", "-")
+        .replace(" ", "_")
+    )
+
+
+def _age_group_selected(
+    rows: Sequence[Mapping[str, object]], selected: set[str], label: str
+) -> bool:
+    members = [row for row in rows if _age_label(row.get("history_years")) == label]
+    return bool(members) and all(_row_member_id(row) in selected for row in members)
+
+
+def _age_label(value: object) -> str:
+    if not isinstance(value, int | float) or float(value) < 0:
+        return "Unknown"
+    age = float(value)
+    if age <= 0.25:
+        return "≤3 months"
+    if age <= 0.5:
+        return ">3–6 months"
+    if age <= 1.0:
+        return ">6 months–1 year"
+    if age <= 2.0:
+        return ">1–2 years"
+    if age <= 3.0:
+        return ">2–3 years"
+    if age <= 4.0:
+        return ">3–4 years"
+    if age <= 5.0:
+        return ">4–5 years"
+    return ">5 years"
+
+
+def _age_window(rows: Sequence[Mapping[str, object]], selected: set[str]) -> Component:
     """Show the distribution of available quote-history ages."""
     groups = (
         ("≤3 months", 0.25),
@@ -367,6 +405,12 @@ def _age_window(rows: Sequence[Mapping[str, object]]) -> Component:
         counts.append(unknown)
     total = sum(counts)
     shares = [(count / total * 100) if total else 0.0 for count in counts]
+    ranked = sorted(
+        zip(labels, counts, strict=False), key=lambda item: (-item[1], labels.index(item[0]))
+    )
+    labels = [item[0] for item in ranked]
+    counts = [item[1] for item in ranked]
+    shares = [(count / total * 100) if total else 0.0 for count in counts]
     figure = go.Figure(
         go.Bar(
             x=labels,
@@ -392,10 +436,40 @@ def _age_window(rows: Sequence[Mapping[str, object]]) -> Component:
     figure.update_layout(showlegend=False, height=340)
     table = html.Table(
         [
-            html.Thead(html.Tr([html.Th("Age group"), html.Th("ISINs"), html.Th("Share")])),
+            html.Thead(
+                html.Tr(
+                    [html.Th("Age group"), html.Th("ISINs"), html.Th("Select"), html.Th("Share")]
+                )
+            ),
             html.Tbody(
                 [
-                    html.Tr([html.Td(label), html.Td(f"{count:,}"), html.Td(f"{share:.1f}%")])
+                    html.Tr(
+                        [
+                            html.Td(label),
+                            html.Td(f"{count:,}"),
+                            html.Td(
+                                dcc.Checklist(
+                                        id={
+                                            "type": "univariate-age-group",
+                                            "category": _age_key(label),
+                                        },
+                                    options=[
+                                        {
+                                            "label": "",
+                                            "value": _age_key(label),
+                                            "disabled": not count,
+                                        }
+                                    ],
+                                        value=(
+                                            [_age_key(label)]
+                                            if _age_group_selected(rows, selected, label)
+                                            else []
+                                        ),
+                                )
+                            ),
+                            html.Td(f"{share:.1f}%"),
+                        ]
+                    )
                     for label, count, share in zip(labels, counts, shares, strict=False)
                 ]
             ),

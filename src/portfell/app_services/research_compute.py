@@ -117,13 +117,22 @@ def filtered_univariate_selection(
 ) -> ComputedSelection:
     predicates = _normalize_predicates(predicate_rows)
     for predicate in predicates:
+        if predicate.field == "history_age_group":
+            continue
         if not any(predicate.field in row for row in run.rows):
             raise ValueError("invalid_metric")
     metric_groups = _metric_filter_groups(predicate_rows)
     rows = tuple(
         row
         for row in run.rows
-        if all(_metric_group_matches(row, metric, group) for metric, group in metric_groups.items())
+        if all(
+            _metric_group_matches(
+                row,
+                metric,
+                group,
+            )
+            for metric, group in metric_groups.items()
+        )
     )
     member_ids = tuple(sorted(_listing_id(row) for row in rows))
     selection_id = opaque_id(
@@ -234,6 +243,15 @@ def _metric_filter_groups(rows: Sequence[Mapping[str, Any]]) -> dict[str, dict[s
         if not metric:
             continue
         group = groups.setdefault(metric, {"allowed": None, "lower": None, "upper": None})
+        if row.get("operator") == "=":
+            value = row.get("value")
+            if value is not None:
+                allowed = group.get("allowed")
+                if not isinstance(allowed, set):
+                    allowed = set()
+                    group["allowed"] = allowed
+                allowed.add(str(value))
+            continue
         if row.get("operator") == "in":
             allowed = row.get("allowed")
             if isinstance(allowed, list):
@@ -261,7 +279,7 @@ def _metric_filter_groups(rows: Sequence[Mapping[str, Any]]) -> dict[str, dict[s
 
 
 def _metric_group_matches(row: Mapping[str, Any], metric: str, group: Mapping[str, Any]) -> bool:
-    actual = row.get(metric)
+    actual = _history_age_label(row) if metric == "history_age_group" else row.get(metric)
     if actual is None:
         return False
     allowed = group.get("allowed")
@@ -270,6 +288,28 @@ def _metric_group_matches(row: Mapping[str, Any], metric: str, group: Mapping[st
     if group.get("lower") is not None and float(actual) < float(group["lower"]):
         return False
     return group.get("upper") is None or float(actual) <= float(group["upper"])
+
+
+def _history_age_label(row: Mapping[str, Any]) -> str:
+    value = row.get("history_years")
+    if not isinstance(value, (int, float)) or isinstance(value, bool) or float(value) < 0:
+        return "Unknown"
+    age = float(value)
+    if age <= 0.25:
+        return "le3_months"
+    if age <= 0.5:
+        return "gt3-6_months"
+    if age <= 1.0:
+        return "gt6_months-1_year"
+    if age <= 2.0:
+        return "gt1-2_years"
+    if age <= 3.0:
+        return "gt2-3_years"
+    if age <= 4.0:
+        return "gt3-4_years"
+    if age <= 5.0:
+        return "gt4-5_years"
+    return "gt5_years"
 
 
 def _listing_id(row: Mapping[str, Any]) -> str:

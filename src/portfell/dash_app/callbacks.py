@@ -367,6 +367,31 @@ def register_callbacks(app: Dash, services: object | None) -> None:
 
     @app.callback(  # pyright: ignore[reportUnknownMemberType]
         Output("pf-browser-state", "data", allow_duplicate=True),
+        Input({"type": "univariate-age-group", "category": ALL}, "value"),
+        State({"type": "univariate-age-group", "category": ALL}, "id"),
+        State("pf-browser-state", "data"),
+        prevent_initial_call=True,
+    )
+    def _save_age_selection(
+        values: list[object], ids: list[dict[str, object]], store: object
+    ) -> dict[str, object] | object:
+        allowed = [
+            str(item.get("category"))
+            for value, item in zip(values, ids, strict=False)
+            if isinstance(value, list) and value and item.get("category")
+        ]
+        state = BrowserState.from_store(store)
+        if not allowed or state.univariate_run_id is None:
+            return no_update
+        return execute_action(
+            service,
+            state,
+            action="univariate-dividend-selection",
+            predicates=[{"metric": "history_age_group", "operator": "in", "allowed": allowed}],
+        ).to_store()
+
+    @app.callback(  # pyright: ignore[reportUnknownMemberType]
+        Output("pf-browser-state", "data", allow_duplicate=True),
         Input("bivariate-compute", "n_clicks"),
         State("pf-browser-state", "data"),
         prevent_initial_call=True,
