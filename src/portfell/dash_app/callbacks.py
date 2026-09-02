@@ -489,6 +489,7 @@ def register_callbacks(app: Dash, services: object | None) -> None:
         Input("bivariate-compute", "n_clicks"),
         State("pf-browser-state", "data"),
         prevent_initial_call=True,
+        running=[(Output("bivariate-compute", "disabled"), True, False)],
     )
     def _compute_bivariate(  # pyright: ignore[reportUnusedFunction]
         n_clicks: int | None, store: object
