@@ -365,6 +365,8 @@ def register_callbacks(app: Dash, services: object | None) -> None:
         allowed: list[str] = []
         for category in selected_categories:
             allowed.extend(["none", "unknown"] if category == "none / unknown" else [category])
+        if not allowed:
+            return no_update
         state = BrowserState.from_store(store)
         if state.univariate_run_id is None:
             return no_update
@@ -373,7 +375,7 @@ def register_callbacks(app: Dash, services: object | None) -> None:
             {
                 "metric": "distribution_frequency",
                 "operator": "in",
-                "allowed": allowed or ["__no_selection__"],
+                "allowed": allowed,
             }
         ]
         if age_allowed:
@@ -405,14 +407,14 @@ def register_callbacks(app: Dash, services: object | None) -> None:
     ) -> dict[str, object] | object:
         allowed = _checked_categories(values, ids)
         state = BrowserState.from_store(store)
-        if state.univariate_run_id is None:
+        if not allowed or state.univariate_run_id is None:
             return no_update
         dividend_allowed = _checked_categories(dividend_values, dividend_ids)
         predicates: list[dict[str, object]] = [
             {
                 "metric": "history_age_group",
                 "operator": "in",
-                "allowed": allowed or ["__no_selection__"],
+                "allowed": allowed,
             }
         ]
         if dividend_allowed:
