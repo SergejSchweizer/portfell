@@ -1,76 +1,75 @@
 # Callback Contracts
 
-## Table Of Contents
+## Table of Contents
 
 - [Purpose](#purpose)
-- [Metadata Page Filter Contract](#metadata-page-filter-contract)
+- [Metadata Page Contract](#metadata-page-contract)
+- [Callback Inventory](#callback-inventory)
 - [Update Sequence](#update-sequence)
 - [Acceptance Criteria](#acceptance-criteria)
 
 ## Purpose
 
-This sidecar defines the UI callback guarantees for Portfell. Callbacks update the
-smallest relevant Dash regions while keeping the browser presentation consistent
-with the persisted project and its current selections.
+This sidecar specifies the callback boundaries for the Metadata page. The page and
+sidebar must be rendered from one browser-state snapshot and must use one canonical
+metadata row per ISIN.
 
-## Metadata Page Filter Contract
+## Metadata Page Contract
 
-The Metadata Builder page has four filter dropdowns:
+The page exposes four filters:
 
 ```text
-Exchange · Instrument Type · Country · Currency
+Exchange | Instrument type | Country | Currency
 ```
 
-When the user changes any dropdown, the callback must immediately persist the
-complete four-field selection in browser state and rerender every dependent region
-from that same selection:
+Each filter change persists the complete four-field selection in the local
+`pf-browser-state` store and rerenders all dependent UI from that selection:
 
 ```text
 dropdown change
       |
       v
 complete metadata filter state
-      |
-      +--> all numeric fields
-      +--> Instrument Type / Country / Currency plots
-      +--> filtered listings table
+      +--> page selected-count KPI
+      +--> sidebar Metadata count
+      +--> cascading option counts
+      +--> listing preview
+      +--> full-universe distributions (unchanged)
 ```
 
-The numeric fields, plots, and table must all represent the selected project and
-the new filter values. A response that updates only one region, mixes old and new
-filter values, or displays the unfiltered project is a contract violation.
+All counts, options, previews, universes, and downstream inputs use unique ISINs;
+listing aliases for the same ISIN are never counted separately. Distribution plots
+describe the complete downloaded universe and intentionally remain independent of
+transient dropdown filters.
 
-An empty dropdown value means “all values” for that dimension. Clearing one field
-must not clear the other three. Filter options themselves must be derived from the
-selected project, not from another project or the global market source.
+## Callback Inventory
+
+| Callback | Inputs | Contract |
+| --- | --- | --- |
+| Metadata filter update | Four `metadata-filter-*.value` inputs | Persist all four values and recalculate the unique selected-ISIN count. |
+| State refresh | `pf-location.pathname` | Reload durable workflow state, preserve persisted filters, and recompute the same count. |
+| Route renderer | `pf-location.pathname`, `pf-browser-state.data` | Render page and sidebar from one state snapshot. |
+| Project selection (compatibility input) | `sidebar-project-selection.value` | Switch the opaque universe id and clear incompatible filters. |
+
+The filter callback only reads the active-listing service view. It does not create a
+universe, start an analysis job, or mutate project definitions.
 
 ## Update Sequence
 
-1. Dash receives a dropdown value change.
-2. The callback normalizes all four values, retaining unchanged values.
-3. The normalized selection is written to `BrowserState.metadata_filters`.
-4. The current project is resolved by its opaque project id.
-5. Numeric summaries, distributions, and listing rows are recomputed from that
-   project plus the normalized filters.
-6. One render response updates all dependent UI regions.
-
-Callbacks must not issue market-database reads or mutate project definitions. They
-may read the typed application-service view for the selected project. If the update
-fails, the UI must retain the last consistent state and show an explicit failure
-status rather than partially replacing the page.
+1. Dash receives a filter value change.
+2. The callback normalizes all four values, preserving the other dimensions.
+3. The complete selection and unique-ISIN count are written to browser state.
+4. The route renderer rebuilds the page and sidebar from that state.
+5. Cascading options and filtered rows use the same canonical ISIN set.
+6. Full-universe distributions remain unchanged.
 
 ## Acceptance Criteria
 
-- Selecting any Exchange, Instrument Type, Country, or Currency value updates all
-  numeric fields, all three distribution plots, and the listings table immediately.
-- The displayed values are calculated from the selected project and selected
-  filters, with no stale values from the previous selection.
-- Changing one dropdown preserves the other three selections.
-- Clearing a dropdown restores that dimension to “all values” while retaining the
-  remaining filters.
-- Switching projects resets incompatible filter values and reloads that project's
-  numeric fields, plots, table, and available options.
-- The callback does not call external market PostgreSQL and does not start a
-  computation job.
-- A failed callback leaves the last coherent UI state intact and exposes an error
-  status.
+- The Metadata-page selected count and sidebar `Metadata` count are identical.
+- Every ISIN appears at most once in all Metadata-page counts and previews.
+- Dropdown option counts are unique-ISIN counts and include previous selections.
+- Clearing one filter restores only that dimension to “all” and preserves the others.
+- Filter changes do not alter full-universe distribution plots.
+- Reloading the page preserves filters and reproduces the same counts.
+- Callbacks do not create projects or start computation jobs.
+- A callback failure preserves the last coherent browser state.
