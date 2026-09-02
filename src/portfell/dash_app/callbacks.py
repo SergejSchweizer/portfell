@@ -16,6 +16,15 @@ from portfell.dash_app.state import BrowserState, browser_state_from_workflow, w
 class CallbackService(Protocol):
     def workflow_state(self) -> dict[str, object]: ...
 
+    def active_listings(
+        self,
+        *,
+        exchange: str | None = None,
+        instrument_type: str | None = None,
+        country: str | None = None,
+        currency: str | None = None,
+    ) -> tuple[dict[str, object], ...]: ...
+
     def active_analysis_job(self) -> dict[str, object] | None: ...
 
     def analysis_job_status(self, job_id: str) -> dict[str, object]: ...
@@ -55,6 +64,18 @@ class CallbackService(Protocol):
 
 def _integer_value(value: object) -> int | None:
     return value if isinstance(value, int) and not isinstance(value, bool) else None
+
+
+def _selected_isin_count(service: CallbackService, filters: Mapping[str, str | None]) -> int | None:
+    """Return the unique selected ISIN count, retaining compatibility with test fakes."""
+    reader = getattr(service, "active_listings", None)
+    if not callable(reader):
+        return None
+    try:
+        rows = reader(**dict(filters))
+    except Exception:
+        return None
+    return len({str(row.get("isin")) for row in rows if row.get("isin")})
 
 
 def persisted_browser_state(service: CallbackService) -> BrowserState:
@@ -187,14 +208,20 @@ def register_callbacks(app: Dash, services: object | None) -> None:
         currency: str | None,
         store: object,
     ) -> dict[str, object]:
+        normalized = {
+            "exchange": exchange,
+            "instrument_type": instrument_type,
+            "country": country,
+            "currency": currency,
+        }
+        state = BrowserState.from_store(store)
+        selected_count = _selected_isin_count(service, normalized)
         return replace(
-            BrowserState.from_store(store),
-            metadata_filters={
-                "exchange": exchange,
-                "instrument_type": instrument_type,
-                "country": country,
-                "currency": currency,
-            },
+            state,
+            metadata_member_count=(
+                selected_count if selected_count is not None else state.metadata_member_count
+            ),
+            metadata_filters=normalized,
         ).to_store()
 
     @app.callback(  # pyright: ignore[reportUnknownMemberType]
@@ -208,7 +235,16 @@ def register_callbacks(app: Dash, services: object | None) -> None:
     ) -> dict[str, object]:
         refreshed = execute_action(service, BrowserState(), action="refresh")
         existing = BrowserState.from_store(store)
-        return replace(refreshed, metadata_filters=existing.metadata_filters).to_store()
+        selected_count = _selected_isin_count(service, existing.metadata_filters)
+        return replace(
+            refreshed,
+            metadata_filters=existing.metadata_filters,
+            metadata_member_count=(
+                selected_count
+                if selected_count is not None
+                else existing.metadata_member_count
+            ),
+        ).to_store()
 
     @app.callback(  # pyright: ignore[reportUnknownMemberType]
         Output("pf-browser-state", "data", allow_duplicate=True),

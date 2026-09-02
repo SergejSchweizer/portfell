@@ -168,14 +168,11 @@ def workflow_context_from_state(state: BrowserState, pathname: str | None) -> Wo
     route = normalize_route(pathname)
     stage = PAGE_BY_ROUTE[route].page_id
     ready = getattr(state.readiness, stage)
-    selected = next(
-        (row for row in state.project_records if row.get("universe_id") == state.universe_id),
-        None,
-    )
     project_metadata = (
-        (("Metadata", str(selected.get("member_count", "—"))),)
-        if selected is not None
-        else (("Metadata", "—"),)
+        (
+            "Metadata",
+            "—" if state.metadata_member_count is None else str(state.metadata_member_count),
+        ),
     )
     return WorkflowContext(
         project_options=state.project_options,
