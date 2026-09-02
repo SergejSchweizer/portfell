@@ -71,6 +71,9 @@ def metadata_page_data(
     """Read presentation data only; never creates a universe as a render side effect."""
     selected = dict(filters or {})
     options = service.metadata_options()
+    # Filter controls describe the complete downloaded market universe, not the
+    # currently selected project's already-filtered membership.
+    full_listing_rows = tuple(service.active_listings())
     workflow = service.workflow_state()
     current_row = _mapping(workflow.get("metadata_universe"))
     project_rows: tuple[dict[str, object], ...] = ()
@@ -118,7 +121,7 @@ def metadata_page_data(
         options = dict(options)
         for field in _FILTERS:
             counts: dict[str, int] = {}
-            for row in project_rows:
+            for row in full_listing_rows:
                 value = row.get(field)
                 if value not in {None, ""}:
                     key = str(value)
