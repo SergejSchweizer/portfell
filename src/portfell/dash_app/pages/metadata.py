@@ -63,6 +63,17 @@ _LISTING_PREVIEW_LIMIT = 100
 _METADATA_CHART_HEIGHT = 220
 
 
+def _unique_isin_rows(rows: tuple[dict[str, object], ...]) -> tuple[dict[str, object], ...]:
+    """Collapse listing aliases to one deterministic metadata row per ISIN."""
+    unique: dict[str, dict[str, object]] = {}
+    for row in rows:
+        isin = row.get("isin")
+        if isin in {None, ""}:
+            continue
+        unique.setdefault(str(isin), row)
+    return tuple(unique.values())
+
+
 def metadata_page_data(
     service: MetadataService,
     filters: Mapping[str, str | None] | None = None,
@@ -73,7 +84,7 @@ def metadata_page_data(
     options = service.metadata_options()
     # Filter controls describe the complete downloaded market universe, not the
     # currently selected project's already-filtered membership.
-    full_listing_rows = tuple(service.active_listings())
+    full_listing_rows = _unique_isin_rows(tuple(service.active_listings()))
     workflow = service.workflow_state()
     current_row = _mapping(workflow.get("metadata_universe"))
     project_rows: tuple[dict[str, object], ...] = ()
@@ -115,6 +126,7 @@ def metadata_page_data(
         )
     )
     options = dict(options)
+    options["active_listing_count"] = len(full_listing_rows)
     for field in _FILTERS:
         members_by_value: dict[str, set[str]] = {}
         for row in full_listing_rows:

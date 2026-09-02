@@ -66,17 +66,16 @@ class Service:
         return Universe()
 
 
-def test_page_data_keeps_full_identity_and_exact_counts() -> None:
+def test_page_data_collapses_listing_aliases_to_unique_isins() -> None:
     model = metadata_page_data(Service())
     rows = cast(tuple[dict[str, object], ...], model["rows"])
     assert [(row["isin"], row["exchange"], row["code"]) for row in rows] == [
         ("DE000A", "XETRA", "AAA"),
-        ("DE000A", "XETRA", "AAB"),
     ]
-    assert model["active_count"] == 2
-    assert model["filtered_count"] == 2
-    assert model["selected_count"] == 2
-    assert model["preview_count"] == 2
+    assert model["active_count"] == 1
+    assert model["filtered_count"] == 1
+    assert model["selected_count"] == 1
+    assert model["preview_count"] == 1
     assert model["universe_version"] == 3
     assert model["ready"] is True
 
