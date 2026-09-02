@@ -25,6 +25,7 @@ from portfell.dash_app.metric_cards import metric_card_models
 
 _CHART_PREVIEW_LIMIT = 5000
 _TABLE_PREVIEW_LIMIT = 100
+_MAX_PLOT_RISK = 0.99
 class UnivariateService(Protocol):
     def workflow_state(self) -> dict[str, object]: ...
 
@@ -291,6 +292,7 @@ def _scatter(rows: Sequence[Mapping[str, object]]) -> go.Figure:
         if isinstance(row.get("annualized_volatility"), int | float)
         and isinstance(row.get("annualized_return"), int | float)
         and row.get("availability_reason") == "ok"
+        and float(row["annualized_volatility"]) <= _MAX_PLOT_RISK
     ]
     ages = [
         float(row.get("history_years", 0) or 0)
