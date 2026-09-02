@@ -66,6 +66,41 @@ def _checked_categories(values: Sequence[object], ids: Sequence[Mapping[str, obj
     ]
 
 
+def univariate_checkbox_predicates(
+    dividend_values: Sequence[object],
+    dividend_ids: Sequence[Mapping[str, object]],
+    age_values: Sequence[object],
+    age_ids: Sequence[Mapping[str, object]],
+) -> list[dict[str, object]]:
+    """Translate the two checklist groups into the exclusive filter contract.
+
+    No checked value means no restriction for that group.  This is important
+    on initial page load because Dash's local checklist persistence can briefly
+    provide empty values while the durable selection still contains an older
+    filter result.
+    """
+    dividend_allowed: list[str] = []
+    for category in _checked_categories(dividend_values, dividend_ids):
+        dividend_allowed.extend(
+            ["none", "unknown"] if category == "none / unknown" else [category]
+        )
+    age_allowed = _checked_categories(age_values, age_ids)
+    predicates: list[dict[str, object]] = []
+    if dividend_allowed:
+        predicates.append(
+            {
+                "metric": "distribution_frequency",
+                "operator": "in",
+                "allowed": dividend_allowed,
+            }
+        )
+    if age_allowed:
+        predicates.append(
+            {"metric": "history_age_group", "operator": "in", "allowed": age_allowed}
+        )
+    return predicates
+
+
 def _selected_isin_count(service: CallbackService, filters: Mapping[str, str | None]) -> int | None:
     """Return the unique selected ISIN count, retaining compatibility with test fakes."""
     reader = getattr(service, "active_listings", None)
@@ -357,35 +392,10 @@ def register_callbacks(app: Dash, services: object | None) -> None:
         age_ids: list[dict[str, object]],
         store: object,
     ) -> dict[str, object] | object:
-        selected_categories = [
-            str(item.get("category"))
-            for value, item in zip(checked, ids, strict=False)
-            if isinstance(value, list) and value and item.get("category")
-        ]
-        allowed: list[str] = []
-        for category in selected_categories:
-            allowed.extend(["none", "unknown"] if category == "none / unknown" else [category])
         state = BrowserState.from_store(store)
         if state.univariate_run_id is None:
             return no_update
-        age_allowed = _checked_categories(age_values, age_ids)
-        predicates: list[dict[str, object]] = []
-        # An empty checkbox selection means “no filter”, i.e. retain the
-        # complete run universe.  Do not encode it as a sentinel category:
-        # that would create a zero-member selection and leave a stale count
-        # visible after the browser restores an empty checklist.
-        if allowed:
-            predicates.append(
-                {
-                    "metric": "distribution_frequency",
-                    "operator": "in",
-                    "allowed": allowed,
-                }
-            )
-        if age_allowed:
-            predicates.append(
-                {"metric": "history_age_group", "operator": "in", "allowed": age_allowed}
-            )
+        predicates = univariate_checkbox_predicates(checked, ids, age_values, age_ids)
         return execute_action(
             service,
             state,
@@ -409,28 +419,12 @@ def register_callbacks(app: Dash, services: object | None) -> None:
         dividend_ids: list[dict[str, object]],
         store: object,
     ) -> dict[str, object] | object:
-        allowed = _checked_categories(values, ids)
         state = BrowserState.from_store(store)
         if state.univariate_run_id is None:
             return no_update
-        dividend_allowed = _checked_categories(dividend_values, dividend_ids)
-        predicates: list[dict[str, object]] = []
-        if allowed:
-            predicates.append(
-                {
-                    "metric": "history_age_group",
-                    "operator": "in",
-                    "allowed": allowed,
-                }
-            )
-        if dividend_allowed:
-            predicates.append(
-                {
-                    "metric": "distribution_frequency",
-                    "operator": "in",
-                    "allowed": dividend_allowed,
-                }
-            )
+        predicates = univariate_checkbox_predicates(
+            dividend_values, dividend_ids, values, ids
+        )
         return execute_action(
             service,
             state,
