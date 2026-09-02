@@ -4,6 +4,18 @@
   gap: 6px;
 }
 
+/* Metadata filters share the full content width rather than keeping compact
+   intrinsic widths. */
+#metadata-controls > label {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+#metadata-controls .Select,
+#metadata-controls .Select-control {
+  width: 100%;
+}
+
 .pf-control-bar .Select-control,
 .pf-control-bar .Select-menu-outer,
 .pf-control-bar input {
