@@ -511,11 +511,10 @@ class ResearchApplicationService:
                 if predicates is None
                 else filtered_univariate_selection(computed, predicates)
             )
-            if predicates is not None:
-                if not selection.rows:
-                    raise ApplicationServiceError("univariate_selection_empty")
-                if any(row.get("availability_reason") != "ok" for row in selection.rows):
-                    raise ApplicationServiceError("univariate_selection_unavailable")
+            if predicates is not None and any(
+                row.get("availability_reason") != "ok" for row in selection.rows
+            ):
+                raise ApplicationServiceError("univariate_selection_unavailable")
         except Exception as error:
             if isinstance(error, ApplicationServiceError):
                 raise
