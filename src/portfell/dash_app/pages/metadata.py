@@ -61,6 +61,16 @@ class MetadataService(Protocol):
 _FILTERS = ("exchange", "instrument_type", "country", "currency")
 _LISTING_PREVIEW_LIMIT = 100
 _METADATA_CHART_HEIGHT = 220
+_AGE_PALETTE = (
+    "#0ea5e9",
+    "#14b8a6",
+    "#22c55e",
+    "#84cc16",
+    "#eab308",
+    "#f97316",
+    "#ef4444",
+    "#a855f7",
+)
 
 
 def _unique_isin_rows(rows: tuple[dict[str, object], ...]) -> tuple[dict[str, object], ...]:
@@ -325,6 +335,9 @@ def _metadata_distribution(
             go.Bar(
                 x=labels,
                 y=percentages,
+                marker_color=[
+                    _AGE_PALETTE[index % len(_AGE_PALETTE)] for index in range(len(labels))
+                ],
                 text=[f"{percentage:.1f}%" for percentage in percentages],
                 texttemplate="%{text}",
                 textposition="outside",
