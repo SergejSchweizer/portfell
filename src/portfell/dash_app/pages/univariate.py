@@ -243,14 +243,15 @@ def _dividend_window(rows: Sequence[Mapping[str, object]], selected: set[str]) -
             customdata=[[value, share] for value, share in zip(values, shares, strict=False)],
             marker_color=[
                 (
-                    "#2563eb",
-                    "#16a34a",
-                    "#f59e0b",
-                    "#9333ea",
+                    "#0ea5e9",
+                    "#14b8a6",
+                    "#22c55e",
+                    "#84cc16",
+                    "#eab308",
+                    "#f97316",
                     "#ef4444",
-                    "#06b6d4",
-                    "#ec4899",
-                )[index % 7]
+                    "#a855f7",
+                )[index % 8]
                 for index in range(len(categories))
             ],
             text=[f"{share:.1f}%" for share in shares],
