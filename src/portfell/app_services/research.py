@@ -520,6 +520,7 @@ class ResearchApplicationService:
                 raise
             raise _public_error(error) from error
         members = tuple(_identity_from_member_id(item) for item in selection.member_ids)
+        selection_id = selection.selection_id
         content_hash = stable_hash(
             {
                 "source_run_id": run.run_id,
@@ -542,10 +543,18 @@ class ResearchApplicationService:
         latest = self._state.list_univariate_selections(limit=1)
         if existing is not None and latest and existing.selection_id == latest[0].selection_id:
             return existing
+        if existing is not None:
+            # The same filter may be selected again after another filter was
+            # active.  Give that activation a fresh identity so it becomes the
+            # current workflow projection instead of resolving to old history.
+            content_hash = stable_hash(
+                {"content_hash": content_hash, "activation_nonce": uuid4().hex}
+            )
+            selection_id = opaque_id("univariate-selection", {"content_hash": content_hash})
         history = self._state.list_univariate_selections(limit=500)
         version = max((item.version for item in history), default=0) + 1
         return self._state.create_univariate_selection(
-            selection_id=selection.selection_id,
+            selection_id=selection_id,
             source_run_id=run.run_id,
             version=version,
             content_hash=content_hash,
