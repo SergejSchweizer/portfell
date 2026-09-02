@@ -101,7 +101,7 @@
 
 .pf-univariate-risk-chart {
   width: 80%;
-  margin-inline: auto;
+  margin-inline: 0;
   min-width: 0;
   grid-column: 1 / -1;
 }
