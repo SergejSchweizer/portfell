@@ -43,7 +43,7 @@ All outputs targeting `pf-browser-state.data` with `allow_duplicate=True` retain
 | --- | --- | --- | --- |
 | `_select_project` | `sidebar-project-selection.value` | `pf-browser-state.data` | Selects the opaque universe record, updates metadata identity, and clears metadata filters. No computation starts. |
 | `_update_metadata_filters` | `metadata-filter-exchange.value`, `metadata-filter-instrument-type.value`, `metadata-filter-country.value`, `metadata-filter-currency.value` | `pf-browser-state.data` | Persists all four filters, recalculates the unique-ISIN Metadata count, and persists the corresponding metadata universe when possible. |
-| `_refresh_state` | `pf-location.pathname` | `pf-browser-state.data` | Reloads durable workflow state while preserving browser filter values and recomputing the Metadata count. Initial call is allowed. |
+| `_refresh_state` | `pf-location.pathname` | `pf-browser-state.data` | Reloads durable workflow state while preserving server- and browser-persisted filter values and recomputing the Metadata count. Empty hydration states are ignored. |
 | `_poll_job` | `pf-job-poll.n_intervals` | `pf-browser-state.data` | Reads job status only and updates presentation progress. It never starts or advances a job. |
 | `_render_job_progress` | `pf-browser-state.data` | — | Renders `pf-job-progress-region.children` from the state job. |
 | `_refresh_univariate_regions` | `pf-browser-state.data` | — | Rebuilds `univariate-data-regions.children` from the current run, selection, and Metadata count. |
@@ -94,6 +94,10 @@ missing/non-numeric = Unknown
 ```
 
 An empty checklist group means “no filter”; it must not create a zero-member sentinel selection. The Return/Risk plot uses the resulting selected ISIN set. Distribution windows and tables continue to show all Metadata-scoped rows, so a filter does not hide available options.
+
+### 4.1 Cross-browser persistence
+
+Metadata filter values are written to PostgreSQL (`portfell.ui_preferences`, key `metadata.filters`) on every change. Univariate checklist selections are durable Univariate selection artifacts. Browser `localStorage` is only a cache and must never be the sole source of truth. A fresh browser context must render the same filter state as the originating context.
 
 ## 5. Dependency graph
 

@@ -214,6 +214,15 @@ def test_metadata_dropdown_selections_survive_page_reload() -> None:
             for suffix, option in expected.items():
                 assert option in page.locator(f"#metadata-filter-{suffix}").inner_text()
             browser.close()
+
+            # A second context has independent browser storage.  The same
+            # values must still be restored from the server-side preference.
+            browser = playwright.chromium.launch(headless=True)
+            other_page = browser.new_page()
+            other_page.goto(f"http://127.0.0.1:{port}/metadata", wait_until="networkidle")
+            for suffix, option in expected.items():
+                assert option in other_page.locator(f"#metadata-filter-{suffix}").inner_text()
+            browser.close()
     finally:
         server.should_exit = True
         thread.join(timeout=10)

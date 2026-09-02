@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 class FixturePublicError(RuntimeError):
@@ -20,6 +20,7 @@ class DashParityFixtureService:
     universe_revision: int = 1
     fail_next_univariate: bool = False
     failure_count: int = 0
+    saved_metadata_filters: dict[str, str | None] = field(default_factory=dict)
 
     def metadata_options(self) -> dict[str, object]:
         return {
@@ -29,6 +30,9 @@ class DashParityFixtureService:
             "currency": ["EUR"],
             "active_listing_count": 2,
         }
+
+    def save_metadata_filter_preferences(self, filters: dict[str, str | None]) -> None:
+        self.saved_metadata_filters = dict(filters)
 
     def active_listings(self, **filters: object) -> tuple[dict[str, object], ...]:
         exchange = filters.get("exchange")
@@ -126,6 +130,7 @@ class DashParityFixtureService:
         multivariate = self._multivariate_run("return_risk") if self.level >= 5 else None
         return {
             "workspace_id": "default",
+            "metadata_filters": dict(self.saved_metadata_filters),
             "metadata_universe": universe,
             "univariate_selection": selection,
             "stages": {
