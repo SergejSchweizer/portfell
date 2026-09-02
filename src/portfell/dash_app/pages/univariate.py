@@ -270,8 +270,8 @@ def _dividend_window(rows: Sequence[Mapping[str, object]], selected: set[str]) -
                         html.Th("Select"),
                         html.Th("Payment frequency"),
                         html.Th("ISINs"),
-                        html.Th("Share"),
                         html.Th("Select"),
+                        html.Th("Share"),
                     ]
                 )
             ),
@@ -281,7 +281,6 @@ def _dividend_window(rows: Sequence[Mapping[str, object]], selected: set[str]) -
                         [
                             html.Td(label),
                             html.Td(f"{value:,}"),
-                            html.Td(f"{share:.1f}%"),
                             html.Td(
                                 dcc.Checklist(
                                     id={
@@ -294,6 +293,7 @@ def _dividend_window(rows: Sequence[Mapping[str, object]], selected: set[str]) -
                                     value=[category] if category in selected_categories else [],
                                 )
                             ),
+                            html.Td(f"{share:.1f}%"),
                         ]
                     )
                     for label, value, share, category in zip(
