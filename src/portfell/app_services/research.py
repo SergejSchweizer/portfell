@@ -285,10 +285,10 @@ class ResearchApplicationService:
         }
         unique: dict[str, JsonRow] = {}
         for item in self._active_listings():
-            if _listing_matches(item, filters):
-                row = _listing_row(item)
+            row = _listing_row(item)
+            if row.get("isin") not in {None, ""}:
                 unique.setdefault(str(row["isin"]), row)
-        return tuple(unique.values())
+        return tuple(row for row in unique.values() if _row_matches(row, filters))
 
     def create_metadata_universe(
         self,
@@ -1334,6 +1334,14 @@ def _listing_matches(item: Listing, filters: Mapping[str, str | None]) -> bool:
     }
     return all(
         expected is None or (values[name] is not None and str(values[name]).casefold() == expected)
+        for name, expected in filters.items()
+    )
+
+
+def _row_matches(row: Mapping[str, object], filters: Mapping[str, str | None]) -> bool:
+    return all(
+        expected is None
+        or (row.get(name) is not None and str(row.get(name)).casefold() == expected)
         for name, expected in filters.items()
     )
 
