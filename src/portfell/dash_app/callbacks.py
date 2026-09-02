@@ -62,7 +62,15 @@ def _checked_categories(values: Sequence[object], ids: Sequence[Mapping[str, obj
     return [
         str(item.get("category"))
         for value, item in zip(values, ids, strict=False)
-        if isinstance(value, list) and value and item.get("category")
+        if (
+            (isinstance(value, list) and value)
+            or (
+                isinstance(value, Mapping)
+                and isinstance(value.get("value"), list)
+                and value.get("value")
+            )
+        )
+        and item.get("category")
     ]
 
 

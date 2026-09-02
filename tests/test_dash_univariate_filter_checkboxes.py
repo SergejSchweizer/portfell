@@ -45,6 +45,21 @@ def test_each_age_checkbox_can_be_activated_and_deactivated(category: str) -> No
     assert univariate_checkbox_predicates([], [], [[]], ids) == []
 
 
+def test_checkbox_parser_accepts_dash_wildcard_value_records() -> None:
+    assert univariate_checkbox_predicates(
+        [{"value": ["monthly"]}],
+        [{"category": "monthly"}],
+        [],
+        [],
+    ) == [
+        {
+            "metric": "distribution_frequency",
+            "operator": "in",
+            "allowed": ["monthly"],
+        }
+    ]
+
+
 def test_checkbox_selection_count_is_identical_in_page_and_sidebar() -> None:
     members = [
         {"isin": "A", "exchange": "XETRA", "code": "A"},
