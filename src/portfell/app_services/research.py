@@ -367,7 +367,14 @@ class ResearchApplicationService:
 
     def metadata_universe(self, universe_id: str) -> JsonRow:
         universe = self._state.get_metadata_universe(universe_id)
-        listings = self._resolve_listings(universe.members)
+        # Metadata pages need listing identity/labels only.  Do not materialize
+        # quotes, dividends, or splits (the local quote corpus can be gigabytes).
+        by_key = {item.key: item for item in self._active_listings()}
+        listings = tuple(
+            by_key[ListingKey(member.isin, member.exchange, member.code)]
+            for member in universe.members
+            if ListingKey(member.isin, member.exchange, member.code) in by_key
+        )
         return {
             **_universe_row(universe),
             "items": [_listing_row(item) for item in listings],
