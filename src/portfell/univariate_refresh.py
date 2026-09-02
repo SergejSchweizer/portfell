@@ -39,7 +39,7 @@ def refresh(*, config_path: Path, market_root: Path) -> dict[str, object]:
                             run_id,
                             predicates=[
                                 {
-                                    "metric": "quote_observation_count",
+                                    "metric": "return_observation_count",
                                     "operator": ">=",
                                     "value": 1,
                                 }
