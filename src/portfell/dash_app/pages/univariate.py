@@ -309,7 +309,7 @@ def _scatter(rows: Sequence[Mapping[str, object]]) -> go.Figure:
             ],
             marker={
                 "color": ages,
-                "colorscale": "RdYlGn_r",
+                "colorscale": "RdYlGn",
                 "showscale": True,
                 "colorbar": {"title": "History age (years)"},
                 "size": 9,
