@@ -155,7 +155,7 @@ def root_layout() -> Component:
     return html.Div(
         [
             dcc.Location(id="pf-location", refresh=False),
-            dcc.Store(id="pf-browser-state", storage_type="memory", data=BrowserState().to_store()),
+            dcc.Store(id="pf-browser-state", storage_type="local", data=BrowserState().to_store()),
             dcc.Interval(id="pf-job-poll", interval=1_000, disabled=True, n_intervals=0),
             html.Div(id="pf-route-content"),
             html.Div(JobProgress(BrowserState().job), id="pf-job-progress-region"),

@@ -200,12 +200,15 @@ def register_callbacks(app: Dash, services: object | None) -> None:
     @app.callback(  # pyright: ignore[reportUnknownMemberType]
         Output("pf-browser-state", "data"),
         Input("pf-location", "pathname"),
+        State("pf-browser-state", "data"),
         prevent_initial_call=False,
     )
     def _refresh_state(  # pyright: ignore[reportUnusedFunction]
-        _pathname: str | None,
+        _pathname: str | None, store: object,
     ) -> dict[str, object]:
-        return execute_action(service, BrowserState(), action="refresh").to_store()
+        refreshed = execute_action(service, BrowserState(), action="refresh")
+        existing = BrowserState.from_store(store)
+        return replace(refreshed, metadata_filters=existing.metadata_filters).to_store()
 
     @app.callback(  # pyright: ignore[reportUnknownMemberType]
         Output("pf-browser-state", "data", allow_duplicate=True),
