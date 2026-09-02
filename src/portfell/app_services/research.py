@@ -980,7 +980,10 @@ class ResearchApplicationService:
 
     def workflow_state(self) -> JsonRow:
         universes = self._state.list_metadata_universes(limit=1)
-        project_history = self._state.list_metadata_universes(limit=500)
+        # Portfell is a single-project workspace. Keep historical records in the
+        # database for audit, but expose only the current (highest-version) project
+        # to the browser and workflow resolver.
+        project_history = universes
         selections = self._state.list_univariate_selections(limit=1)
         stages: dict[str, JsonRow | None] = {}
         history: dict[str, list[JsonRow]] = {}

@@ -23,7 +23,7 @@ def refresh(*, config_path: Path, market_root: Path) -> dict[str, object]:
         migrate_to_head(connection)
         state = PostgresAppStateRepository(connection)
         service = ResearchApplicationService(state, LocalMarketDataGateway(market_root))
-        universes = state.list_metadata_universes(limit=500)
+        universes = state.list_metadata_universes(limit=1)
         succeeded: list[str] = []
         failed: dict[str, str] = {}
         for universe in universes:
