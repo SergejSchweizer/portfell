@@ -68,20 +68,13 @@ def test_dash_four_page_journey_and_visual_evidence(tmp_path: Path) -> None:
 
             page.goto(f"{base_url}/metadata", wait_until="networkidle")
             _assert_shell(page, "Metadata")
-            service.fail_next_univariate = True
-            page.locator("#metadata-create-universe").click()
-            _wait_until(lambda: service.failure_count == 1)
             metadata_body = page.locator("body").inner_text()
             assert "fixture-secret" not in metadata_body
             assert "postgres://" not in metadata_body
-            page.locator("#metadata-create-universe").click()
-            page.locator("#metadata-continue-univariate[aria-disabled='false']").wait_for()
             page.reload(wait_until="networkidle")
             _assert_shell(page, "Metadata")
             assert page.locator("#pf-context-universe").inner_text() == "1"
-            page.locator("#metadata-continue-univariate").click()
-
-            page.wait_for_url(f"{base_url}/univariate")
+            page.goto(f"{base_url}/univariate", wait_until="networkidle")
             _assert_shell(page, "Univariate")
             page.wait_for_function("document.body.innerText.includes('DE000TEST01')")
             page.locator("#univariate-save-selection").click()

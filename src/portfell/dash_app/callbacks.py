@@ -285,22 +285,6 @@ def register_callbacks(app: Dash, services: object | None) -> None:
             return f"Filter preview unavailable: {getattr(error, 'code', 'invalid_filter')}"
 
     @app.callback(  # pyright: ignore[reportUnknownMemberType]
-        Output("metadata-continue-univariate", "href"),
-        Output("metadata-continue-univariate", "aria-disabled"),
-        Output("metadata-continue-univariate", "className"),
-        Input("pf-browser-state", "data"),
-    )
-    def _refresh_metadata_continue(  # pyright: ignore[reportUnusedFunction]
-        store: object,
-    ) -> tuple[str, str, str]:
-        ready = BrowserState.from_store(store).readiness.metadata
-        return (
-            "/univariate" if ready else "#",
-            "false" if ready else "true",
-            "pf-button pf-button-primary" if ready else "pf-button",
-        )
-
-    @app.callback(  # pyright: ignore[reportUnknownMemberType]
         Output("bivariate-continue-multivariate", "href"),
         Output("bivariate-continue-multivariate", "aria-disabled"),
         Output("bivariate-continue-multivariate", "className"),

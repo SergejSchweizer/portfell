@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, Protocol, cast
+from typing import Protocol, cast
 
 import plotly.graph_objects as go  # pyright: ignore[reportMissingTypeStubs]
 from dash import dcc, html
@@ -15,7 +15,6 @@ from portfell.dash_app.components import (
     ErrorState,
     KpiCard,
     PageHeader,
-    StageFooter,
     StatusBanner,
 )
 from portfell.dash_app.figures import apply_portfell_template
@@ -179,7 +178,6 @@ def _layout(
 ) -> Component:
     options = _mapping(model.get("options")) or {}
     selected_filters = _mapping(model.get("selected_filters")) or {}
-    ready = model.get("ready") is True
     status: Component | None = None
     if error:
         status = ErrorState(f"Metadata unavailable: {error}")
@@ -259,17 +257,6 @@ def _layout(
                     ),
                 ],
                 className="pf-metadata-distribution-grid",
-            ),
-            StageFooter(
-                [
-                    html.A(
-                        children="Continue to Univariate",
-                        href="/univariate" if ready else "#",
-                        id="metadata-continue-univariate",
-                        className="pf-button pf-button-primary" if ready else "pf-button",
-                        **cast(Any, {"aria-disabled": "false" if ready else "true"}),
-                    )
-                ]
             ),
         ]
     )
