@@ -97,6 +97,8 @@ def univariate_page_data(
     selected_isin_count = (
         len({member.split(":", 1)[0] for member in selected}) if selected else None
     )
+    if selection is not None:
+        chart_rows = tuple(row for row in chart_rows if _member_id(row) in selected)
     available = tuple(row for row in rows if row.get("availability_reason") == "ok")
     unavailable = tuple(row for row in rows if row.get("availability_reason") != "ok")
     return {
