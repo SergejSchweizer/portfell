@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import importlib
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any, Protocol, cast
 
@@ -113,7 +113,11 @@ def placeholder_page(spec: PageSpec) -> Component:
 
 
 def load_page(
-    spec: PageSpec, services: object | None = None, *, project_id: str | None = None
+    spec: PageSpec,
+    services: object | None = None,
+    *,
+    project_id: str | None = None,
+    metadata_filters: Mapping[str, str | None] | None = None,
 ) -> Component:
     """Load one workflow page plugin; absent plugins fail visibly rather than adding a route."""
     module_name = f"portfell.dash_app.pages.{spec.page_id}"
@@ -127,7 +131,9 @@ def load_page(
     if not callable(builder):
         return placeholder_page(spec)
     if spec.page_id == "metadata":
-        return cast(Any, builder)(services, project_id=project_id)
+        return cast(Any, builder)(
+            services, project_id=project_id, filters=metadata_filters
+        )
     return cast(PageBuilder, builder)(services)
 
 
@@ -137,6 +143,7 @@ def application_frame(
     services: object | None = None,
     context: WorkflowContext | None = None,
     project_id: str | None = None,
+    metadata_filters: Mapping[str, str | None] | None = None,
 ) -> Component:
     route = normalize_route(pathname)
     spec = PAGE_BY_ROUTE[route]
@@ -144,7 +151,12 @@ def application_frame(
         [
             sidebar(route, context),
             html.Main(
-                load_page(spec, services, project_id=project_id),
+                load_page(
+                    spec,
+                    services,
+                    project_id=project_id,
+                    metadata_filters=metadata_filters,
+                ),
                 id="pf-main-content",
                 className="pf-main",
             ),
@@ -175,15 +187,9 @@ def workflow_context_from_state(state: BrowserState, pathname: str | None) -> Wo
         None,
     )
     project_metadata = (
-        ("Version", str(selected.get("version", "—"))),
-        ("Members", str(selected.get("member_count", "—"))),
-        ("Created", str(selected.get("created_at", "—"))),
-        ("Snapshot", str(selected.get("source_snapshot_id", "—"))[:12]),
-    ) if selected is not None else (
-        ("Version", "—"),
-        ("Members", "—"),
-        ("Created", "—"),
-        ("Snapshot", "—"),
+        (("Metadata", str(selected.get("member_count", "—"))),)
+        if selected is not None
+        else (("Metadata", "—"),)
     )
     return WorkflowContext(
         project_options=state.project_options,
@@ -216,6 +222,7 @@ def route_renderer(services: object | None = None) -> Callable[[str | None, obje
             services=services,
             context=workflow_context_from_state(state, pathname),
             project_id=state.universe_id,
+                    metadata_filters=state.metadata_filters or None,
         )
 
     return render
