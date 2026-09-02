@@ -40,6 +40,9 @@ _INCOME = (
 )
 _RISK = (
     "total_return_cagr",
+    "monthly_log_return",
+    "monthly_simple_return",
+    "monthly_geometric_return",
     "annualized_volatility",
     "downside_deviation",
     "max_drawdown",

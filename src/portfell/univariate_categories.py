@@ -33,6 +33,7 @@ UNIVARIATE_PORTFOLIO_CATEGORIES: tuple[UnivariateStatisticCategory, ...] = (
             "first_return_date",
             "last_return_date",
             "return_observation_count",
+            "monthly_return_observation_count",
             "meets_min_history_252",
             "meets_min_history_504",
             "meets_min_history_756",
@@ -52,6 +53,9 @@ UNIVARIATE_PORTFOLIO_CATEGORIES: tuple[UnivariateStatisticCategory, ...] = (
             "annualized_log_return",
             "annualized_simple_return",
             "annualized_geometric_return",
+            "monthly_log_return",
+            "monthly_simple_return",
+            "monthly_geometric_return",
         ),
     ),
     UnivariateStatisticCategory(

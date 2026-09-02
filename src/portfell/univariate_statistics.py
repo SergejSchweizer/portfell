@@ -248,6 +248,7 @@ def _build_univariate_listing_statistics(
     returns = [float(row["return"]) for row in ordered_returns]
     simple_returns = [float(row["simple_return"]) for row in ordered_returns]
     adjusted_closes = [float(row["adjusted_close"]) for row in valid_quotes]
+    monthly_returns = _monthly_returns(valid_quotes)
     first_close = adjusted_closes[0] if adjusted_closes else 0.0
     last_close = adjusted_closes[-1] if adjusted_closes else 0.0
     first_quote_date = str(ordered_quotes[0]["date"])
@@ -262,6 +263,12 @@ def _build_univariate_listing_statistics(
     annualized_simple_return = mean_simple_return * ANNUAL_TRADING_DAYS
     annualized_geometric_return = (
         0.0 if not returns else _exponential_return(mean_log_return * ANNUAL_TRADING_DAYS)
+    )
+    monthly_log_return = _mean(monthly_returns)
+    monthly_simple_returns = [_exponential_return(value) for value in monthly_returns]
+    monthly_simple_return = _mean(monthly_simple_returns)
+    monthly_geometric_return = (
+        0.0 if not monthly_returns else _exponential_return(monthly_log_return)
     )
     annualized_volatility = _annualized_volatility(returns)
     downside_deviation = _downside_deviation(returns)
@@ -303,6 +310,10 @@ def _build_univariate_listing_statistics(
         "annualized_log_return": annualized_log_return,
         "annualized_simple_return": annualized_simple_return,
         "annualized_geometric_return": annualized_geometric_return,
+        "monthly_log_return": monthly_log_return,
+        "monthly_simple_return": monthly_simple_return,
+        "monthly_geometric_return": monthly_geometric_return,
+        "monthly_return_observation_count": len(monthly_returns),
         "annualized_volatility": annualized_volatility,
         "realized_variance": sum(value * value for value in returns),
         "realized_volatility": sqrt(sum(value * value for value in returns)),
@@ -448,6 +459,23 @@ def _lag1_autocorrelation(values: Sequence[float]) -> float:
         for previous, current in zip(values, values[1:], strict=False)
     )
     return numerator / denominator
+
+
+def _monthly_returns(quotes: Sequence[Mapping[str, Any]]) -> list[float]:
+    """Build month-end log returns from valid adjusted-close observations."""
+    month_end: dict[str, float] = {}
+    for row in quotes:
+        date_text = str(row.get("date", ""))
+        month = date_text[:7]
+        close = row.get("adjusted_close")
+        if len(month) == 7 and isinstance(close, int | float) and float(close) > 0:
+            month_end[month] = float(close)
+    ordered = [month_end[key] for key in sorted(month_end)]
+    return [
+        log(current / previous)
+        for previous, current in zip(ordered, ordered[1:], strict=False)
+        if previous > 0 and current > 0
+    ]
 
 
 def _median(values: Sequence[float]) -> float:
