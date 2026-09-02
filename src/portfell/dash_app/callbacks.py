@@ -31,6 +31,8 @@ class CallbackService(Protocol):
 
     def create_universe_and_start_univariate(self, **filters: object) -> object: ...
 
+    def create_metadata_universe(self, **filters: object) -> object: ...
+
     def delete_project(self, universe_id: str) -> None: ...
 
     def create_univariate_selection(
@@ -206,6 +208,32 @@ def register_callbacks(app: Dash, services: object | None) -> None:
         }
         state = BrowserState.from_store(store)
         selected_count = _selected_isin_count(service, normalized)
+        persisted = getattr(service, "create_metadata_universe", None)
+        if callable(persisted):
+            try:
+                universe = persisted(**normalized)
+                universe_id = getattr(universe, "universe_id", None)
+                version = getattr(universe, "version", None)
+                snapshot_id = getattr(universe, "source_snapshot_id", None)
+                if isinstance(universe, Mapping):
+                    universe_id = universe.get("universe_id")
+                    version = universe.get("version")
+                    snapshot_id = universe.get("source_snapshot_id")
+                if isinstance(universe_id, str):
+                    state = replace(
+                        state,
+                        universe_id=universe_id,
+                        universe_version=_integer_value(version),
+                        source_snapshot_id=(
+                            str(snapshot_id)
+                            if snapshot_id is not None
+                            else state.source_snapshot_id
+                        ),
+                    )
+            except Exception:
+                # Keep the last coherent state if persistence fails; the UI can
+                # still display the current selection and retry on the next change.
+                pass
         return replace(
             state,
             metadata_member_count=(
