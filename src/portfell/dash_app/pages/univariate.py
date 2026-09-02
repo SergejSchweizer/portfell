@@ -45,7 +45,9 @@ class UnivariateService(Protocol):
     ) -> object: ...
 
 
-def univariate_page_data(service: UnivariateService) -> dict[str, object]:
+def univariate_page_data(
+    service: UnivariateService, *, metadata_member_count: int | None = None
+) -> dict[str, object]:
     workflow = service.workflow_state()
     universe = _mapping(workflow.get("metadata_universe"))
     stages = _mapping(workflow.get("stages")) or {}
@@ -107,9 +109,13 @@ def univariate_page_data(service: UnivariateService) -> dict[str, object]:
         "chart_rows": chart_rows,
         "selected": selected,
         "input_count": (
-            len(metadata_isins)
-            if metadata_isins
-            else (None if universe is None else universe.get("member_count"))
+            metadata_member_count
+            if metadata_member_count is not None
+            else (
+                len(metadata_isins)
+                if metadata_isins
+                else (None if universe is None else universe.get("member_count"))
+            )
         ),
         "available_count": (
             len(available) if summary is None else summary.get("available_count", len(available))
@@ -130,11 +136,15 @@ def save_selection(
     return service.create_univariate_selection(run_id, predicates=predicates)
 
 
-def build_page(services: object | None = None) -> Component:
+def build_page(
+    services: object | None = None, *, metadata_member_count: int | None = None
+) -> Component:
     if services is None:
         return _layout(_empty_model(), message="Application service is unavailable.")
     try:
-        model = univariate_page_data(cast(UnivariateService, services))
+        model = univariate_page_data(
+            cast(UnivariateService, services), metadata_member_count=metadata_member_count
+        )
     except Exception as error:
         return _layout(_empty_model(), error=_error_code(error))
     return _layout(model)
@@ -158,12 +168,19 @@ def _layout(
     return html.Div(children, className="pf-page", id="univariate-page")
 
 
-def data_regions(services: object | None = None) -> list[Component]:
+def data_regions(
+    services: object | None = None, *, metadata_member_count: int | None = None
+) -> list[Component]:
     """Refresh only persisted Univariate result content after job-status changes."""
     if services is None:
         return _data_regions(_empty_model())
     try:
-        return _data_regions(univariate_page_data(cast(UnivariateService, services)))
+        return _data_regions(
+            univariate_page_data(
+                cast(UnivariateService, services),
+                metadata_member_count=metadata_member_count,
+            )
+        )
     except Exception as error:
         return [ErrorState(f"Univariate unavailable: {_error_code(error)}")]
 

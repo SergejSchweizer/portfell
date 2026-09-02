@@ -104,6 +104,7 @@ def load_page(
     *,
     project_id: str | None = None,
     metadata_filters: Mapping[str, str | None] | None = None,
+    metadata_member_count: int | None = None,
 ) -> Component:
     """Load one workflow page plugin; absent plugins fail visibly rather than adding a route."""
     module_name = f"portfell.dash_app.pages.{spec.page_id}"
@@ -120,6 +121,8 @@ def load_page(
         return cast(Any, builder)(
             services, project_id=project_id, filters=metadata_filters
         )
+    if spec.page_id == "univariate":
+        return cast(Any, builder)(services, metadata_member_count=metadata_member_count)
     return cast(PageBuilder, builder)(services)
 
 
@@ -130,6 +133,7 @@ def application_frame(
     context: WorkflowContext | None = None,
     project_id: str | None = None,
     metadata_filters: Mapping[str, str | None] | None = None,
+    metadata_member_count: int | None = None,
 ) -> Component:
     route = normalize_route(pathname)
     spec = PAGE_BY_ROUTE[route]
@@ -142,6 +146,7 @@ def application_frame(
                     services,
                     project_id=project_id,
                     metadata_filters=metadata_filters,
+                    metadata_member_count=metadata_member_count,
                 ),
                 id="pf-main-content",
                 className="pf-main",
@@ -206,6 +211,7 @@ def route_renderer(services: object | None = None) -> Callable[[str | None, obje
             context=workflow_context_from_state(state, pathname),
             project_id=state.universe_id,
                     metadata_filters=state.metadata_filters or None,
+            metadata_member_count=state.metadata_member_count,
         )
 
     return render

@@ -261,7 +261,10 @@ def register_callbacks(app: Dash, services: object | None) -> None:
     def _refresh_univariate_regions(  # pyright: ignore[reportUnusedFunction]
         _store: object,
     ) -> object:
-        return univariate_data_regions(service)
+        return univariate_data_regions(
+            service,
+            metadata_member_count=BrowserState.from_store(_store).metadata_member_count,
+        )
 
     @app.callback(  # pyright: ignore[reportUnknownMemberType]
         Output("bivariate-continue-multivariate", "href"),
