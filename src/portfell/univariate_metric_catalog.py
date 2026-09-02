@@ -70,6 +70,7 @@ _ROBUST = (
     "rolling_1y_vol_median",
     "rolling_1y_vol_max",
     "gain_loss_ratio",
+    "autocorrelation",
 )
 METRIC_IDS = _DATA_QUALITY + _INCOME + _RISK + _ADJUSTED + _ROBUST
 

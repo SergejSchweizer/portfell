@@ -312,6 +312,7 @@ def _build_univariate_listing_statistics(
             annualized_log_return,
             downside_deviation,
         ),
+        "autocorrelation": _lag1_autocorrelation(returns),
         "var": tail_risk[0],
         "expected_shortfall": tail_risk[1],
         "tail_observation_count": tail_risk[2],
@@ -432,6 +433,21 @@ def _sample_variance(values: Sequence[float]) -> float:
         return 0.0
     mean = _mean(values)
     return sum((value - mean) ** 2 for value in values) / (len(values) - 1)
+
+
+def _lag1_autocorrelation(values: Sequence[float]) -> float:
+    """Return lag-one autocorrelation of daily log returns."""
+    if len(values) < 3:
+        return 0.0
+    mean = _mean(values)
+    denominator = sum((value - mean) ** 2 for value in values[:-1])
+    if denominator <= 0:
+        return 0.0
+    numerator = sum(
+        (current - mean) * (previous - mean)
+        for previous, current in zip(values, values[1:], strict=False)
+    )
+    return numerator / denominator
 
 
 def _median(values: Sequence[float]) -> float:
