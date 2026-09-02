@@ -535,7 +535,12 @@ class ResearchApplicationService:
             ),
             None,
         )
-        if existing is not None:
+        # Reuse the record only when it is already the active selection.  A
+        # user can legitimately switch back to an earlier checkbox selection;
+        # that activation must become the current workflow projection rather
+        # than being hidden behind the historical record's lower version.
+        latest = self._state.list_univariate_selections(limit=1)
+        if existing is not None and latest and existing.selection_id == latest[0].selection_id:
             return existing
         history = self._state.list_univariate_selections(limit=500)
         version = max((item.version for item in history), default=0) + 1
