@@ -215,11 +215,13 @@ def _dividend_window(rows: Sequence[Mapping[str, object]]) -> Component:
             counts[category] = 0
         counts[category] += 1
     total = sum(counts.values())
-    categories = [category for category in order if counts[category] or total == 0]
-    if total and any(category not in order for category in counts):
-        categories.extend(
-            category for category in counts if category not in order and counts[category]
+    categories = [category for category in counts if counts[category] or total == 0]
+    categories.sort(
+        key=lambda category: (
+            -counts[category],
+            order.index(category) if category in order else len(order),
         )
+    )
     labels = [_dividend_label(category) for category in categories]
     values = [counts[category] for category in categories]
     shares = [(value / total * 100) if total else 0.0 for value in values]
@@ -228,7 +230,18 @@ def _dividend_window(rows: Sequence[Mapping[str, object]]) -> Component:
             x=labels,
             y=shares,
             customdata=[[value, share] for value, share in zip(values, shares, strict=False)],
-            marker_color=["#8a94a6", "#2f80ed", "#27ae60", "#f2994a", "#9b51e0", "#eb5757"],
+            marker_color=[
+                (
+                    "#2563eb",
+                    "#16a34a",
+                    "#f59e0b",
+                    "#9333ea",
+                    "#ef4444",
+                    "#06b6d4",
+                    "#ec4899",
+                )[index % 7]
+                for index in range(len(categories))
+            ],
             text=[f"{share:.1f}%" for share in shares],
             textposition="outside",
             hovertemplate=(
