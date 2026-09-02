@@ -504,7 +504,7 @@ class ResearchApplicationService:
         self, run_id: str, *, predicates: Sequence[Mapping[str, object]] | None = None
     ) -> UnivariateSelectionRecord:
         run = self._require_succeeded_run(run_id, "univariate")
-        computed = self._computed_run(run, "univariate.rows@v2")
+        computed = self._univariate_computed_run(run)
         try:
             selection = (
                 full_univariate_selection(computed)
@@ -591,7 +591,7 @@ class ResearchApplicationService:
     def run_bivariate(self, selection_id: str, *, job_id: str | None = None) -> JsonRow:
         persisted = self._state.get_univariate_selection(selection_id)
         source_run = self._require_succeeded_run(persisted.source_run_id, "univariate")
-        source_computed = self._computed_run(source_run, "univariate.rows@v2")
+        source_computed = self._univariate_computed_run(source_run)
         member_ids = tuple(_member_id(item) for item in persisted.members)
         selected_rows = tuple(
             row for row in source_computed.rows if _row_member_id(row) in set(member_ids)
@@ -733,7 +733,7 @@ class ResearchApplicationService:
             return self.run_detail(run.run_id)
         if run.status != "running":
             return _run_row(run)
-        source_computed = self._computed_run(univariate_run, "univariate.rows@v2")
+        source_computed = self._univariate_computed_run(univariate_run)
         selected_ids = {_member_id(item) for item in selection.members}
         selected_rows = tuple(
             row for row in source_computed.rows if _row_member_id(row) in selected_ids
@@ -801,7 +801,7 @@ class ResearchApplicationService:
         if limit < 1 or limit > 500:
             raise ApplicationServiceError("analysis_artifact_page_invalid")
         run = self._require_succeeded_run(run_id, "univariate")
-        artifact = self._artifact(run.run_id, "univariate.rows@v2")
+        artifact = self._univariate_rows_artifact(run.run_id)
         if artifact.document.get("storage") != "row_items":
             raise ApplicationServiceError("analysis_artifact_invalid")
         item_count = artifact.document.get("item_count")
@@ -820,7 +820,7 @@ class ResearchApplicationService:
     def univariate_summary(self, run_id: str) -> JsonRow:
         """Read only the small manifest and summary for a completed Univariate run."""
         run = self._require_succeeded_run(run_id, "univariate")
-        artifact = self._artifact(run.run_id, "univariate.rows@v2")
+        artifact = self._univariate_rows_artifact(run.run_id)
         if artifact.document.get("storage") != "row_items":
             raise ApplicationServiceError("analysis_artifact_invalid")
         item_count = artifact.document.get("item_count")
@@ -851,7 +851,7 @@ class ResearchApplicationService:
         if offset < 0 or limit < 1 or limit > 100:
             raise ApplicationServiceError("analysis_artifact_page_invalid")
         summary = self.univariate_summary(run_id)
-        artifact = self._artifact(run_id, "univariate.rows@v2")
+        artifact = self._univariate_rows_artifact(run_id)
         items = self._state.list_analysis_artifact_items(
             artifact.artifact_id, offset=offset, limit=limit
         )
@@ -894,7 +894,7 @@ class ResearchApplicationService:
         if offset < 0 or limit < 1 or limit > 100 or chart_limit < 1 or chart_limit > 500:
             raise ApplicationServiceError("analysis_artifact_page_invalid")
         run = self._require_succeeded_run(run_id, "univariate")
-        computed = self._computed_run(run, "univariate.rows@v2")
+        computed = self._univariate_computed_run(run)
         try:
             selection = filtered_univariate_selection(computed, predicates)
         except Exception as error:
@@ -1191,8 +1191,23 @@ class ResearchApplicationService:
             raise ApplicationServiceError(f"{stage}_run_not_ready")
         return run
 
-    def _computed_run(self, run: AnalysisRunRecord, artifact_type: str) -> ComputedRun:
-        artifact = self._artifact(run.run_id, artifact_type)
+    def _univariate_rows_artifact(self, run_id: str) -> AnalysisArtifactRecord:
+        """Read the enriched v3 rows, falling back to legacy v2 runs."""
+        try:
+            return self._artifact(run_id, "univariate.rows@v3")
+        except AppStateError as error:
+            if error.code != APP_STATE_NOT_FOUND:
+                raise
+            return self._artifact(run_id, "univariate.rows@v2")
+
+    def _univariate_computed_run(self, run: AnalysisRunRecord) -> ComputedRun:
+        return self._computed_run(run, self._univariate_rows_artifact(run.run_id))
+
+    def _computed_run(
+        self, run: AnalysisRunRecord, artifact: str | AnalysisArtifactRecord
+    ) -> ComputedRun:
+        if isinstance(artifact, str):
+            artifact = self._artifact(run.run_id, artifact)
         if artifact.document.get("storage") == "row_items":
             item_count = artifact.document.get("item_count")
             if not isinstance(item_count, int) or item_count < 0:
