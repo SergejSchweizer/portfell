@@ -82,6 +82,7 @@ def univariate_page_data(
     if metadata_isins:
         rows = tuple(row for row in rows if str(row.get("isin")) in metadata_isins)
         chart_rows = tuple(row for row in chart_rows if str(row.get("isin")) in metadata_isins)
+    all_chart_rows = chart_rows
     summary = _mapping(preview.get("summary")) if preview else None
     distributions = None
     if preview and hasattr(service, "univariate_metric_distributions"):
@@ -110,6 +111,7 @@ def univariate_page_data(
         "selection": selection,
         "rows": rows,
         "chart_rows": chart_rows,
+        "all_chart_rows": all_chart_rows,
         "selected": selected,
         "input_count": (
             metadata_member_count
@@ -206,8 +208,8 @@ def _data_regions(model: Mapping[str, object]) -> list[Component]:
             ),
             className="pf-univariate-risk-chart",
         ),
-        _dividend_window(_mappings(model.get("chart_rows")), selected),
-        _age_window(_mappings(model.get("chart_rows")), selected),
+        _dividend_window(_mappings(model.get("all_chart_rows")), selected),
+        _age_window(_mappings(model.get("all_chart_rows")), selected),
     ]
 
 
