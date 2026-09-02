@@ -20,7 +20,7 @@ from portfell.univariate_metrics import enrich_univariate_row
 
 ANNUAL_TRADING_DAYS = 252
 DEFAULT_CONFIDENCE_LEVEL = 0.975
-UNIVARIATE_CALCULATION_CONTRACT = "univariate.statistics.v2"
+UNIVARIATE_CALCULATION_CONTRACT = "univariate.statistics.v3"
 
 
 def build_quote_returns(quote_rows: Sequence[Mapping[str, Any]]) -> list[JsonRow]:
