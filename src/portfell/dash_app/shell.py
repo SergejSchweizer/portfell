@@ -160,7 +160,9 @@ def root_layout() -> Component:
     return html.Div(
         [
             dcc.Location(id="pf-location", refresh=False),
-            dcc.Store(id="pf-browser-state", storage_type="local", data=BrowserState().to_store()),
+            # Leave ``data`` unset so Dash hydrates the local-storage value
+            # before any callback can write the empty initial state over it.
+            dcc.Store(id="pf-browser-state", storage_type="local"),
             dcc.Interval(id="pf-job-poll", interval=1_000, disabled=True, n_intervals=0),
             html.Div(id="pf-route-content"),
             html.Div(JobProgress(BrowserState().job), id="pf-job-progress-region"),

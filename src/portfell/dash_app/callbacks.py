@@ -6,7 +6,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import replace
 from typing import Protocol, cast
 
-from dash import ALL, Dash, Input, Output, State, no_update
+from dash import ALL, Dash, Input, Output, State, ctx, no_update
 
 from portfell.dash_app.components import JobProgress
 from portfell.dash_app.pages.univariate import data_regions as univariate_data_regions
@@ -224,6 +224,11 @@ def register_callbacks(app: Dash, services: object | None) -> None:
         state = BrowserState.from_store(store)
         if not selected_id:
             return no_update
+        # During local-store hydration the dynamic sidebar can briefly emit its
+        # selected value while the persisted project records are not available
+        # yet.  Do not treat that transient event as a real project switch.
+        if not state.project_records:
+            return no_update
         project = next(
             (row for row in state.project_records if row.get("universe_id") == selected_id),
             None,
@@ -243,7 +248,9 @@ def register_callbacks(app: Dash, services: object | None) -> None:
                 if project.get("source_snapshot_id")
                 else None
             ),
-            metadata_filters={},
+            # Selecting the already active project during page hydration must
+            # not clear metadata filters restored from the local browser store.
+            metadata_filters=state.metadata_filters,
         ).to_store()
 
     @app.callback(  # pyright: ignore[reportUnknownMemberType]
@@ -262,6 +269,12 @@ def register_callbacks(app: Dash, services: object | None) -> None:
         currency: str | None,
         store: object,
     ) -> dict[str, object]:
+        # Dynamic metadata controls are mounted after the initial layout.  Dash
+        # can invoke this callback once while hydrating them; that invocation
+        # has no triggering control and carries only empty values.  It must not
+        # replace a persisted filter state with nulls.
+        if ctx.triggered_id is None:
+            return no_update
         normalized = {
             "exchange": exchange,
             "instrument_type": instrument_type,
@@ -308,13 +321,20 @@ def register_callbacks(app: Dash, services: object | None) -> None:
         Output("pf-browser-state", "data"),
         Input("pf-location", "pathname"),
         State("pf-browser-state", "data"),
-        prevent_initial_call=False,
+        # The browser store uses local storage.  Running this callback during
+        # initial hydration can overwrite persisted metadata filters with the
+        # empty layout default before Dash restores the local value.
+        prevent_initial_call=True,
     )
     def _refresh_state(  # pyright: ignore[reportUnusedFunction]
         _pathname: str | None, store: object,
     ) -> dict[str, object]:
-        refreshed = execute_action(service, BrowserState(), action="refresh")
         existing = BrowserState.from_store(store)
+        # Ignore the transient default store emitted before Dash hydrates its
+        # local-storage value; otherwise a reload erases persisted filters.
+        if existing == BrowserState():
+            return no_update
+        refreshed = execute_action(service, BrowserState(), action="refresh")
         selected_count = _selected_isin_count(service, existing.metadata_filters)
         return replace(
             refreshed,
