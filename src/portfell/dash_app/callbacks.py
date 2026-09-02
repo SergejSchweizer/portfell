@@ -41,16 +41,6 @@ class CallbackService(Protocol):
         self, run_id: str, *, predicates: Sequence[Mapping[str, object]] | None = None
     ) -> object: ...
 
-    def univariate_filter_preview(
-        self,
-        run_id: str,
-        *,
-        predicates: Sequence[Mapping[str, object]],
-        offset: int = 0,
-        limit: int = 100,
-        chart_limit: int = 500,
-    ) -> dict[str, object]: ...
-
     def run_bivariate(self, selection_id: str) -> dict[str, object]: ...
 
     def run_multivariate(
@@ -274,56 +264,6 @@ def register_callbacks(app: Dash, services: object | None) -> None:
         return univariate_data_regions(service)
 
     @app.callback(  # pyright: ignore[reportUnknownMemberType]
-        Output("univariate-filter-summary", "children", allow_duplicate=True),
-        Input("univariate-preview-selection", "n_clicks"),
-        State("pf-browser-state", "data"),
-        State("univariate-filter-annualized_return", "value"),
-        State("univariate-filter-annualized_volatility", "value"),
-        State("univariate-filter-max_drawdown", "value"),
-        State("univariate-filter-sharpe_ratio", "value"),
-        State("univariate-filter-sortino_ratio", "value"),
-        prevent_initial_call=True,
-    )
-    def _preview_univariate_selection(  # pyright: ignore[reportUnusedFunction]
-        n_clicks: int | None,
-        store: object,
-        annualized_return: float | None,
-        annualized_volatility: float | None,
-        max_drawdown: float | None,
-        sharpe_ratio: float | None,
-        sortino_ratio: float | None,
-    ) -> object:
-        if not n_clicks:
-            return no_update
-        state = BrowserState.from_store(store)
-        if state.univariate_run_id is None:
-            return "No completed Univariate run is available."
-        predicates = [
-            {"metric": metric, "operator": operator, "value": value}
-            for metric, operator, value in (
-                ("annualized_return", ">=", annualized_return),
-                ("annualized_volatility", "<=", annualized_volatility),
-                ("max_drawdown", ">=", max_drawdown),
-                ("sharpe_ratio", ">=", sharpe_ratio),
-                ("sortino_ratio", ">=", sortino_ratio),
-            )
-            if value is not None
-        ]
-        if not predicates:
-            return "No predicates selected; all persisted rows are previewed."
-        try:
-            preview = service.univariate_filter_preview(
-                state.univariate_run_id, predicates=predicates
-            )
-            return (
-                f"Preview: {preview['matching_count']} matching, "
-                f"{preview['unavailable_count']} unavailable, "
-                f"{preview['candidate_pair_count']} candidate pairs."
-            )
-        except Exception as error:
-            return f"Filter preview unavailable: {getattr(error, 'code', 'invalid_filter')}"
-
-    @app.callback(  # pyright: ignore[reportUnknownMemberType]
         Output("bivariate-continue-multivariate", "href"),
         Output("bivariate-continue-multivariate", "aria-disabled"),
         Output("bivariate-continue-multivariate", "className"),
@@ -343,40 +283,19 @@ def register_callbacks(app: Dash, services: object | None) -> None:
         Output("pf-browser-state", "data", allow_duplicate=True),
         Input("univariate-save-selection", "n_clicks"),
         State("pf-browser-state", "data"),
-        State("univariate-filter-annualized_return", "value"),
-        State("univariate-filter-annualized_volatility", "value"),
-        State("univariate-filter-max_drawdown", "value"),
-        State("univariate-filter-sharpe_ratio", "value"),
-        State("univariate-filter-sortino_ratio", "value"),
         prevent_initial_call=True,
     )
     def _save_univariate_selection(  # pyright: ignore[reportUnusedFunction]
         n_clicks: int | None,
         store: object,
-        annualized_return: float | None,
-        annualized_volatility: float | None,
-        max_drawdown: float | None,
-        sharpe_ratio: float | None,
-        sortino_ratio: float | None,
     ) -> dict[str, object] | object:
         if not n_clicks:
             return no_update
-        predicates = [
-            {"metric": metric, "operator": operator, "value": value}
-            for metric, operator, value in (
-                ("annualized_return", ">=", annualized_return),
-                ("annualized_volatility", "<=", annualized_volatility),
-                ("max_drawdown", ">=", max_drawdown),
-                ("sharpe_ratio", ">=", sharpe_ratio),
-                ("sortino_ratio", ">=", sortino_ratio),
-            )
-            if value is not None
-        ]
         return execute_action(
             service,
             BrowserState.from_store(store),
             action="univariate-save-selection",
-            predicates=predicates or None,
+            predicates=None,
         ).to_store()
 
     @app.callback(  # pyright: ignore[reportUnknownMemberType]

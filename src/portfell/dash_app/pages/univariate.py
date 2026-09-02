@@ -11,7 +11,6 @@ from dash.development.base_component import Component
 
 from portfell.dash_app.components import (
     ChartCard,
-    ControlBar,
     EmptyState,
     ErrorState,
     HistoryCard,
@@ -26,15 +25,6 @@ from portfell.dash_app.metric_cards import metric_card_models
 
 _CHART_PREVIEW_LIMIT = 500
 _TABLE_PREVIEW_LIMIT = 100
-_FILTER_METRICS = (
-    ("annualized_return", "Minimum annualized return"),
-    ("annualized_volatility", "Maximum annualized volatility"),
-    ("max_drawdown", "Minimum max drawdown"),
-    ("sharpe_ratio", "Minimum Sharpe ratio"),
-    ("sortino_ratio", "Minimum Sortino ratio"),
-)
-
-
 class UnivariateService(Protocol):
     def workflow_state(self) -> dict[str, object]: ...
 
@@ -45,16 +35,6 @@ class UnivariateService(Protocol):
     ) -> dict[str, object]: ...
 
     def univariate_chart_sample(self, run_id: str, *, limit: int = 500) -> dict[str, object]: ...
-
-    def univariate_filter_preview(
-        self,
-        run_id: str,
-        *,
-        predicates: Sequence[Mapping[str, object]],
-        offset: int = 0,
-        limit: int = 100,
-        chart_limit: int = 500,
-    ) -> dict[str, object]: ...
 
     def univariate_result_preview(self, run_id: str, *, limit: int = 500) -> dict[str, object]: ...
 
@@ -155,43 +135,6 @@ def _layout(
             "Univariate",
             "Inspect single-instrument return and risk statistics, then persist the "
             "downstream selection.",
-        ),
-        ControlBar(
-            [
-                html.Div(
-                    [
-                        html.Div(
-                            "Full-universe computation is started from Metadata.",
-                            className="pf-context-label",
-                        ),
-                        html.Div("Filter preview (read-only)", className="pf-context-label"),
-                        html.Div(
-                            [
-                                html.Label(
-                                    [
-                                        html.Span(label),
-                                        dcc.Input(
-                                            id=f"univariate-filter-{metric}",
-                                            type="number",
-                                            debounce=True,
-                                            placeholder="No filter",
-                                        ),
-                                    ]
-                                )
-                                for metric, label in _FILTER_METRICS
-                            ],
-                            className="pf-filter-grid",
-                        ),
-                    ],
-                    id="univariate-filter-summary",
-                ),
-                html.Button(
-                    "Preview selection",
-                    id="univariate-preview-selection",
-                    className="pf-button",
-                ),
-            ],
-            component_id="univariate-controls",
         ),
     ]
     if error:
