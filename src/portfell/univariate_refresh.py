@@ -30,6 +30,21 @@ def refresh(*, config_path: Path, market_root: Path) -> dict[str, object]:
             try:
                 result = service.run_univariate(universe.universe_id)
                 if result.get("status") == "succeeded":
+                    run_id = result.get("run_id")
+                    if isinstance(run_id, str):
+                        # Keep only instruments with at least one quote in the
+                        # persisted downstream selection; no-quote rows remain
+                        # available in the run artifact as explicit evidence.
+                        service.create_univariate_selection(
+                            run_id,
+                            predicates=[
+                                {
+                                    "metric": "quote_observation_count",
+                                    "operator": ">=",
+                                    "value": 1,
+                                }
+                            ],
+                        )
                     succeeded.append(universe.universe_id)
                 else:
                     failed[universe.universe_id] = str(result.get("status", "failed"))
