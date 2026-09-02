@@ -116,7 +116,7 @@ def metadata_page_data(
     )
     options = dict(options)
     for field in _FILTERS:
-        counts: dict[str, int] = {}
+        members_by_value: dict[str, set[str]] = {}
         for row in full_listing_rows:
             if any(
                 other != field
@@ -128,10 +128,10 @@ def metadata_page_data(
             value = row.get(field)
             if value not in {None, ""}:
                 key = str(value)
-                counts[key] = counts.get(key, 0) + 1
+                members_by_value.setdefault(key, set()).add(str(row.get("isin", "")))
         options[field] = [
-            {"label": f"{key} ({count})", "value": key}
-            for key, count in sorted(counts.items())
+            {"label": f"{key} ({len(isins)})", "value": key}
+            for key, isins in sorted(members_by_value.items())
         ]
     history = service.metadata_history()
     # Distributions describe the complete selected project and are intentionally
