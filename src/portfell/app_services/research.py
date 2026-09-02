@@ -1045,10 +1045,19 @@ class ResearchApplicationService:
             history[stage] = [_run_row(item) for item in runs]
         universe = universes[0] if universes else None
         selection = selections[0] if selections else None
+        metadata_filters = self.metadata_filter_preferences()
+        metadata_selected_count = len(
+            {
+                str(row.get("isin"))
+                for row in self.active_listings(**metadata_filters)
+                if row.get("isin") not in {None, ""}
+            }
+        )
         job = self.active_analysis_job()
         return {
             "workspace_id": "default",
-            "metadata_filters": self.metadata_filter_preferences(),
+            "metadata_filters": metadata_filters,
+            "metadata_selected_count": metadata_selected_count,
             "metadata_universe": None if universe is None else _universe_row(universe),
             "metadata_universes": list(self._named_universe_rows(project_history)),
             "univariate_selection": None if selection is None else _selection_row(selection),

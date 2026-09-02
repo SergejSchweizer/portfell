@@ -246,9 +246,13 @@ def browser_state_from_workflow(workflow: Mapping[str, object]) -> BrowserState:
         if member.get("isin") not in {None, ""}
     }
     metadata_count = (
-        len(unique_universe_isins)
+        _integer(workflow.get("metadata_selected_count"))
+        if _integer(workflow.get("metadata_selected_count")) is not None
+        else (
+            len(unique_universe_isins)
         if universe_members
         else _integer(None if universe is None else universe.get("member_count"))
+        )
     )
     return BrowserState(
         workspace_id=_string(workflow.get("workspace_id")) or "default",
