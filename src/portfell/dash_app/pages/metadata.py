@@ -121,6 +121,11 @@ def metadata_page_data(
                 {str(row[field]) for row in project_rows if row.get(field) not in {None, ""}}
             )
     history = service.metadata_history()
+    # Distributions describe the complete selected project and are intentionally
+    # independent of the transient dropdown filters used for the table/KPIs.
+    distribution_rows = project_rows or tuple(
+        service.active_listings()
+    )
     return {
         "options": options,
         # Rendering thousands of HTML table rows blocks the browser before a user can
@@ -135,7 +140,7 @@ def metadata_page_data(
         "universe_version": None if current_row is None else current_row.get("version"),
         "ready": current_row is not None,
         "current": current_row,
-        "distributions": universe_distributions(matched_rows),
+        "distributions": universe_distributions(distribution_rows),
         "selected_filters": {
             field: (
                 selected.get(field)
