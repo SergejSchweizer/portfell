@@ -269,7 +269,7 @@ def _dividend_window(rows: Sequence[Mapping[str, object]], selected: set[str]) -
             html.Thead(
                 html.Tr(
                     [
-                        html.Th("Payment frequency"),
+                        html.Th("Dividend payment frequency"),
                         html.Th("ISINs"),
                         html.Th("Share"),
                         html.Th("Select"),
