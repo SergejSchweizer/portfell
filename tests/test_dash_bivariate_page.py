@@ -1,6 +1,11 @@
 from __future__ import annotations
 
-from portfell.dash_app.pages.bivariate import bivariate_page_data, build_page, compute_bivariate
+from portfell.dash_app.pages.bivariate import (
+    _scatter,
+    bivariate_page_data,
+    build_page,
+    compute_bivariate,
+)
 
 
 class Service:
@@ -85,6 +90,20 @@ def test_compute_delegates_exact_selection_id() -> None:
         "input_ref": "selection-1",
         "status": "succeeded",
     }
+
+
+def test_scatter_colors_pairs_by_lower_tail_dependence() -> None:
+    figure = _scatter(
+        (
+            {"pearson_correlation": 0.8, "covariance": 0.001, "lower_tail_dependence": 0.1},
+            {"pearson_correlation": 0.9, "covariance": 0.002, "lower_tail_dependence": 0.9},
+        )
+    ).to_plotly_json()
+    marker = figure["data"][0]["marker"]
+    assert marker["color"] == [0.1, 0.9]
+    assert marker["colorscale"][0][1] == "#16a34a"
+    assert marker["colorscale"][-1][1] == "#dc2626"
+    assert marker["colorbar"]["title"]["text"] == "Lower-tail dependence"
 
 
 def test_page_exposes_full_pair_identity_and_frozen_sections() -> None:

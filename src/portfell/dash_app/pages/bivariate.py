@@ -166,6 +166,22 @@ def _scatter(rows: tuple[Mapping[str, object], ...]) -> go.Figure:
             x=[row["pearson_correlation"] for row in available],
             y=[row["covariance"] for row in available],
             mode="markers",
+            marker={
+                "color": [
+                    float(row["lower_tail_dependence"])
+                    if isinstance(row.get("lower_tail_dependence"), int | float)
+                    else 0.0
+                    for row in available
+                ],
+                "colorscale": [
+                    [0.0, "#16a34a"],
+                    [0.5, "#2563eb"],
+                    [1.0, "#dc2626"],
+                ],
+                "cmin": 0.0,
+                "cmax": 1.0,
+                "colorbar": {"title": "Lower-tail dependence"},
+            },
             customdata=[
                 [
                     row.get("left_isin"),
@@ -175,6 +191,7 @@ def _scatter(rows: tuple[Mapping[str, object], ...]) -> go.Figure:
                     row.get("right_exchange"),
                     row.get("right_code"),
                     row.get("n_observations"),
+                    row.get("lower_tail_dependence"),
                 ]
                 for row in available
             ],
@@ -182,7 +199,8 @@ def _scatter(rows: tuple[Mapping[str, object], ...]) -> go.Figure:
                 "Left %{customdata[0]} / %{customdata[1]} / %{customdata[2]}"
                 "<br>Right %{customdata[3]} / %{customdata[4]} / %{customdata[5]}"
                 "<br>Observations %{customdata[6]}<br>Pearson %{x}"
-                "<br>Covariance %{y}<extra></extra>"
+                "<br>Covariance %{y}<br>Lower-tail dependence %{customdata[7]}"
+                "<extra></extra>"
             ),
             name="Eligible pairs",
         )

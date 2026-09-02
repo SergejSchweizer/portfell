@@ -14,6 +14,7 @@ The page contains:
 - one `ControlBar` with `Compute bivariate statistics` and only backend-supported pair-result controls;
 - KPI cards `Multivariate Selected ISINs`, `Candidate pairs`, `Eligible pairs`, `Unavailable pairs`;
 - `ChartCard` `Bivariate Return / Diversification Universe` using backend/service values and full pair identities;
+- point colour encodes lower-tail dependence: green/blue indicates lower shared extreme risk and red indicates higher shared extreme risk; the same value is shown in hover details;
 - no content after the Plotly chart; pair tables, history, and continuation controls are intentionally omitted.
 
 ## Analytical contract
