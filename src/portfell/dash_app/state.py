@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import asdict, dataclass, replace
+from dataclasses import asdict, dataclass, field, replace
 from typing import Literal, cast
 
 from portfell.dash_app.project_selector import project_options as build_project_options
@@ -49,6 +49,7 @@ class BrowserState:
     universe_id: str | None = None
     project_options: tuple[dict[str, str], ...] = ()
     project_records: tuple[dict[str, object], ...] = ()
+    metadata_filters: dict[str, str | None] = field(default_factory=dict)
     metadata_member_count: int | None = None
     metadata_created_at: str | None = None
     universe_version: int | None = None
@@ -112,6 +113,7 @@ class BrowserState:
             project_records=tuple(
                 row for row in _rows(root.get("project_records")) if row.get("universe_id")
             ),
+            metadata_filters=_metadata_filters(root.get("metadata_filters")),
             metadata_member_count=_integer(root.get("metadata_member_count")),
             metadata_created_at=_string(root.get("metadata_created_at")),
             universe_version=_integer(root.get("universe_version")),
@@ -237,6 +239,17 @@ def browser_state_from_workflow(workflow: Mapping[str, object]) -> BrowserState:
         or previous_ready.get("bivariate")
         or previous_ready.get("univariate")
     )
+    universe_members = _rows(None if universe is None else universe.get("members"))
+    unique_universe_isins = {
+        str(member.get("isin"))
+        for member in universe_members
+        if member.get("isin") not in {None, ""}
+    }
+    metadata_count = (
+        len(unique_universe_isins)
+        if universe_members
+        else _integer(None if universe is None else universe.get("member_count"))
+    )
     return BrowserState(
         workspace_id=_string(workflow.get("workspace_id")) or "default",
         universe_id=universe_id,
@@ -248,7 +261,7 @@ def browser_state_from_workflow(workflow: Mapping[str, object]) -> BrowserState:
             for item in build_project_options(_rows(workflow.get("metadata_universes")))
         ),
         project_records=tuple(_rows(workflow.get("metadata_universes"))),
-        metadata_member_count=_integer(None if universe is None else universe.get("member_count")),
+        metadata_member_count=metadata_count,
         metadata_created_at=_field(universe, "created_at"),
         universe_version=_integer(None if universe is None else universe.get("version")),
         source_snapshot_id=_source_snapshot(universe, univariate, bivariate, multivariate),
@@ -398,6 +411,15 @@ def _project_options(value: object) -> tuple[dict[str, str], ...]:
         for row in rows
         if row.get("value")
     )
+
+
+def _metadata_filters(value: object) -> dict[str, str | None]:
+    if not isinstance(value, dict):
+        return {}
+    return {
+        field: value.get(field) if isinstance(value.get(field), str) else None
+        for field in ("exchange", "instrument_type", "country", "currency")
+    }
 
 
 __all__ = [
