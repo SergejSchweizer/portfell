@@ -92,14 +92,10 @@ def test_page_exposes_full_pair_identity_and_frozen_sections() -> None:
     for text in (
         "Bivariate",
         "Compute bivariate statistics",
-        "Continue to Multivariate",
         "Multivariate Selected ISINs",
         "Candidate pairs",
         "Eligible pairs",
-        "Unavailable pairs",
         "Bivariate Return / Diversification Universe",
-        "Bivariate Statistics",
-        "Universe & History",
         "DE1",
         "XETRA",
         "AAA",
@@ -107,3 +103,6 @@ def test_page_exposes_full_pair_identity_and_frozen_sections() -> None:
         "BBB",
     ):
         assert text in rendered
+    assert "Bivariate Statistics" not in rendered
+    assert "Universe & History" not in rendered
+    assert "Continue to Multivariate" not in rendered

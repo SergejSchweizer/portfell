@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, Protocol, cast
+from typing import Protocol, cast
 
 import plotly.graph_objects as go  # pyright: ignore[reportMissingTypeStubs]
 from dash import html
@@ -12,14 +12,10 @@ from dash.development.base_component import Component
 from portfell.dash_app.components import (
     ChartCard,
     ControlBar,
-    EmptyState,
     ErrorState,
-    HistoryCard,
     KpiCard,
     PageHeader,
-    StageFooter,
     StatusBanner,
-    TableCard,
 )
 from portfell.dash_app.figures import apply_portfell_template
 
@@ -107,10 +103,7 @@ def build_page(services: object | None = None) -> Component:
 def _layout(
     model: Mapping[str, object], *, message: str | None = None, error: str | None = None
 ) -> Component:
-    rows = _mappings(model.get("rows"))
     selection = _mapping(model.get("selection"))
-    run = _mapping(model.get("run"))
-    ready = model.get("ready") is True
     children: list[Component] = [
         PageHeader(
             "Bivariate",
@@ -156,27 +149,6 @@ def _layout(
                 _scatter(_mappings(model.get("chart_rows"))) if model.get("chart_rows") else None,
                 graph_id="bivariate-diversification-chart",
             ),
-            TableCard(
-                "Bivariate Statistics",
-                (
-                    [_pair_table(rows)]
-                    if rows
-                    else [EmptyState("Compute Bivariate statistics to populate pair evidence.")]
-                ),
-                component_id="bivariate-statistics-table",
-            ),
-            HistoryCard([_history(selection, run, model)]),
-            StageFooter(
-                [
-                    html.A(
-                        children="Continue to Multivariate",
-                        href="/multivariate" if ready else "#",
-                        id="bivariate-continue-multivariate",
-                        className="pf-button pf-button-primary" if ready else "pf-button",
-                        **cast(Any, {"aria-disabled": "false" if ready else "true"}),
-                    )
-                ]
-            ),
         ]
     )
     return html.Div(children, className="pf-page", id="bivariate-page")
@@ -216,57 +188,6 @@ def _scatter(rows: tuple[Mapping[str, object], ...]) -> go.Figure:
         )
     )
     return apply_portfell_template(figure, x_title="Pearson correlation", y_title="Covariance")
-
-
-def _pair_table(rows: tuple[Mapping[str, object], ...]) -> Component:
-    columns = (
-        "left_isin",
-        "left_exchange",
-        "left_code",
-        "right_isin",
-        "right_exchange",
-        "right_code",
-        "n_observations",
-        "pearson_correlation",
-        "spearman_correlation",
-        "covariance",
-        "downside_correlation",
-        "lower_tail_dependence",
-        "drawdown_overlap_rate",
-    )
-    return html.Table(
-        [
-            html.Thead(html.Tr([html.Th(name) for name in columns])),
-            html.Tbody(
-                [html.Tr([html.Td(_display(row.get(name))) for name in columns]) for row in rows]
-            ),
-        ],
-        className="pf-table",
-    )
-
-
-def _history(
-    selection: Mapping[str, object] | None,
-    run: Mapping[str, object] | None,
-    model: Mapping[str, object],
-) -> Component:
-    if selection is None and run is None:
-        return EmptyState("No persisted Bivariate history yet.")
-    values = (
-        ("Selection version", None if selection is None else selection.get("version")),
-        ("Selection count", None if selection is None else selection.get("member_count")),
-        ("Run", None if run is None else run.get("run_id")),
-        ("Status", None if run is None else run.get("status")),
-        ("Source snapshot", None if run is None else _short(run.get("input_snapshot_id"))),
-        ("Algorithm", None if run is None else run.get("algorithm_version")),
-        ("Candidate pairs", model.get("candidate_count")),
-        ("Eligible pairs", model.get("eligible_count")),
-        ("Unavailable pairs", model.get("unavailable_count")),
-    )
-    return html.Dl(
-        [item for label, value in values for item in (html.Dt(label), html.Dd(_display(value)))],
-        className="pf-evidence-list",
-    )
 
 
 def _empty_model() -> dict[str, object]:

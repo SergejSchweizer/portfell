@@ -14,10 +14,7 @@ The page contains:
 - one `ControlBar` with `Compute bivariate statistics` and only backend-supported pair-result controls;
 - KPI cards `Multivariate Selected ISINs`, `Candidate pairs`, `Eligible pairs`, `Unavailable pairs`;
 - `ChartCard` `Bivariate Return / Diversification Universe` using backend/service values and full pair identities;
-- `TableCard` `Bivariate Statistics` with both full listing identities and contracted pair metrics/evidence;
-- explicit unavailable correlation/covariance/common-calendar evidence with reason where supplied;
-- `HistoryCard` `Universe & History` with upstream selection version/count, run ID/status, source snapshot short ID, algorithm version, and pair-result counts;
-- `StageFooter` with `Continue to Multivariate`, disabled until Bivariate readiness is satisfied.
+- no content after the Plotly chart; pair tables, history, and continuation controls are intentionally omitted.
 
 ## Analytical contract
 
@@ -27,4 +24,4 @@ Dash does not recompute financial pair metrics for plotting/sorting unless the f
 
 ## Responsive/accessibility contract
 
-Large pair results remain bounded and the table scrolls/virtualizes inside its card. Tablet/mobile stack shared controls/KPIs/charts according to the common visual contract; the page itself has no horizontal overflow. Unavailable and disabled states remain visible and keyboard reachable.
+Tablet/mobile stack shared controls/KPIs/charts according to the common visual contract; the page itself has no horizontal overflow. Unavailable and disabled states remain visible and keyboard reachable.
