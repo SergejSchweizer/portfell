@@ -348,6 +348,7 @@ def register_callbacks(app: Dash, services: object | None) -> None:
         State({"type": "univariate-age-group", "category": ALL}, "value"),
         State({"type": "univariate-age-group", "category": ALL}, "id"),
         State("pf-browser-state", "data"),
+        prevent_initial_call="initial_duplicate",
     )
     def _save_dividend_frequency_selection(
         checked: list[object],
@@ -399,6 +400,7 @@ def register_callbacks(app: Dash, services: object | None) -> None:
         State({"type": "univariate-dividend-frequency", "category": ALL}, "value"),
         State({"type": "univariate-dividend-frequency", "category": ALL}, "id"),
         State("pf-browser-state", "data"),
+        prevent_initial_call="initial_duplicate",
     )
     def _save_age_selection(
         values: list[object],
