@@ -56,6 +56,11 @@ def refresh(*, config_path: Path, root: Path) -> int:
             + "\n",
             encoding="utf-8",
         )
+        # The API runs as uid 10001 and must be able to traverse/read the
+        # atomically published snapshot mounted read-only into its container.
+        for path in staging.iterdir():
+            path.chmod(0o644)
+        staging.chmod(0o755)
         backup = root.with_name(root.name + ".previous")
         if backup.exists():
             import shutil

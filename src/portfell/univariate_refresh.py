@@ -23,7 +23,7 @@ def refresh(*, config_path: Path, market_root: Path) -> dict[str, object]:
         migrate_to_head(connection)
         state = PostgresAppStateRepository(connection)
         service = ResearchApplicationService(state, LocalMarketDataGateway(market_root))
-        universes = state.list_metadata_universes(limit=5000)
+        universes = state.list_metadata_universes(limit=500)
         succeeded: list[str] = []
         failed: dict[str, str] = {}
         for universe in universes:
@@ -34,7 +34,7 @@ def refresh(*, config_path: Path, market_root: Path) -> dict[str, object]:
                 else:
                     failed[universe.universe_id] = str(result.get("status", "failed"))
             except Exception as error:  # noqa: BLE001 - cron must continue across projects
-                failed[universe.universe_id] = type(error).__name__
+                failed[universe.universe_id] = str(error) or type(error).__name__
         return {"projects": len(universes), "succeeded": len(succeeded), "failed": failed}
     finally:
         connection.close()
