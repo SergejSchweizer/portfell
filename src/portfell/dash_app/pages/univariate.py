@@ -202,6 +202,7 @@ def _data_regions(model: Mapping[str, object]) -> list[Component]:
             className="pf-univariate-risk-chart",
         ),
         _dividend_window(_mappings(model.get("chart_rows")), selected),
+        _age_window(_mappings(model.get("chart_rows"))),
     ]
 
 
@@ -336,6 +337,85 @@ def _dividend_label(category: str) -> str:
 def _frequency_category(row: Mapping[str, object]) -> str:
     value = str(row.get("distribution_frequency") or "unknown").strip().lower()
     return "none / unknown" if value in {"", "none", "unknown"} else value
+
+
+def _age_window(rows: Sequence[Mapping[str, object]]) -> Component:
+    """Show the distribution of available quote-history ages."""
+    groups = (
+        ("≤3 months", 0.25),
+        (">3–6 months", 0.5),
+        (">6 months–1 year", 1.0),
+        (">1–2 years", 2.0),
+        (">2–3 years", 3.0),
+        (">3–4 years", 4.0),
+        (">4–5 years", 5.0),
+        (">5 years", float("inf")),
+    )
+    counts = [0] * len(groups)
+    unknown = 0
+    for row in rows:
+        value = row.get("history_years")
+        if not isinstance(value, int | float) or float(value) < 0:
+            unknown += 1
+            continue
+        age = float(value)
+        index = next((i for i, (_, upper) in enumerate(groups) if age <= upper), len(groups) - 1)
+        counts[index] += 1
+    labels = [label for label, _ in groups]
+    if unknown:
+        labels.append("Unknown")
+        counts.append(unknown)
+    total = sum(counts)
+    shares = [(count / total * 100) if total else 0.0 for count in counts]
+    figure = go.Figure(
+        go.Bar(
+            x=labels,
+            y=shares,
+            customdata=[[count, share] for count, share in zip(counts, shares, strict=False)],
+            marker_color=[
+                (
+                    "#0ea5e9", "#14b8a6", "#22c55e", "#84cc16",
+                    "#eab308", "#f97316", "#ef4444", "#a855f7",
+                )[index % 8]
+                for index in range(len(labels))
+            ],
+            text=[f"{share:.1f}%" for share in shares],
+            textposition="outside",
+            hovertemplate=(
+                "%{x}<br>ISINs: %{customdata[0]}<br>"
+                "Share: %{customdata[1]:.1f}%<extra></extra>"
+            ),
+            name="ISIN age",
+        )
+    )
+    apply_portfell_template(figure, x_title="Quote history age", y_title="ISIN share (%)")
+    figure.update_layout(showlegend=False, height=340)
+    table = html.Table(
+        [
+            html.Thead(html.Tr([html.Th("Age group"), html.Th("ISINs"), html.Th("Share")])),
+            html.Tbody(
+                [
+                    html.Tr([html.Td(label), html.Td(f"{count:,}"), html.Td(f"{share:.1f}%")])
+                    for label, count, share in zip(labels, counts, shares, strict=False)
+                ]
+            ),
+        ],
+        className="pf-table",
+    )
+    return html.Section(
+        [
+            html.H2("ISIN Age", className="pf-card-title"),
+            html.Div(
+                [
+                    ChartCard("Age distribution", figure, graph_id="univariate-isin-age-chart"),
+                    TableCard("Statistics", [table], component_id="univariate-isin-age-table"),
+                ],
+                className="pf-univariate-dividend-grid",
+            ),
+        ],
+        className="pf-card pf-univariate-dividend-window",
+        id="univariate-isin-age-window",
+    )
 
 
 def _scatter(rows: Sequence[Mapping[str, object]]) -> go.Figure:
