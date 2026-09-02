@@ -269,6 +269,21 @@ class ResearchApplicationService:
             "active_listing_count": len(listings),
         }
 
+    def metadata_filter_preferences(self) -> dict[str, str | None]:
+        """Read the workspace-wide metadata filter selection from PostgreSQL."""
+        reader = getattr(self._state, "get_ui_preference", None)
+        if not callable(reader):
+            return {}
+        record = reader("metadata.filters")
+        value = getattr(record, "value", None) if record is not None else None
+        return dict(value) if isinstance(value, Mapping) else {}
+
+    def save_metadata_filter_preferences(self, filters: Mapping[str, str | None]) -> None:
+        """Persist metadata filters for every browser in the single workspace."""
+        writer = getattr(self._state, "set_ui_preference", None)
+        if callable(writer):
+            writer("metadata.filters", dict(filters))
+
     def active_listings(
         self,
         *,
@@ -1033,6 +1048,7 @@ class ResearchApplicationService:
         job = self.active_analysis_job()
         return {
             "workspace_id": "default",
+            "metadata_filters": self.metadata_filter_preferences(),
             "metadata_universe": None if universe is None else _universe_row(universe),
             "metadata_universes": list(self._named_universe_rows(project_history)),
             "univariate_selection": None if selection is None else _selection_row(selection),

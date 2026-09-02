@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from contextlib import suppress
 from dataclasses import replace
 from typing import Protocol, cast
 
@@ -281,6 +282,12 @@ def register_callbacks(app: Dash, services: object | None) -> None:
             "country": country,
             "currency": currency,
         }
+        saver = getattr(service, "save_metadata_filter_preferences", None)
+        if callable(saver):
+            with suppress(Exception):
+                saver(normalized)
+            # Filter persistence is best-effort; retain the in-memory state so
+            # a temporary database error does not break the UI.
         state = BrowserState.from_store(store)
         selected_count = _selected_isin_count(service, normalized)
         persisted = getattr(service, "create_metadata_universe", None)
