@@ -310,6 +310,8 @@ def _dropdown(label: str, component_id: str, values: object, value: object = Non
                 options=option_rows,
                 value=value,
                 clearable=True,
+                persistence=f"metadata-filter:{component_id}",
+                persistence_type="local",
             ),
         ]
     )

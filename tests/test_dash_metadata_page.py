@@ -93,7 +93,8 @@ def test_create_universe_is_an_explicit_action() -> None:
 
 
 def test_layout_has_frozen_metadata_contract_without_provider_action() -> None:
-    rendered = str(build_page(Service()).to_plotly_json())
+    layout = build_page(Service()).to_plotly_json()
+    rendered = str(layout)
     for text in (
         "Metadata",
             "Define the starting selection for the analysis funnel.",
@@ -110,6 +111,13 @@ def test_layout_has_frozen_metadata_contract_without_provider_action() -> None:
         assert text in rendered
     assert "provider" not in rendered.lower()
     assert "download" not in rendered.lower()
+    for component_id in (
+        "metadata-filter-exchange",
+        "metadata-filter-instrument-type",
+        "metadata-filter-country",
+        "metadata-filter-currency",
+    ):
+        assert f"metadata-filter:{component_id}" in rendered
 
 
 def test_page_data_bounds_only_the_non_authoritative_listing_preview() -> None:
