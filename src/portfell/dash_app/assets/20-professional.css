@@ -106,6 +106,26 @@
   grid-column: 1 / -1;
 }
 
+.pf-univariate-dividend-window {
+  width: 100%;
+  grid-column: 1 / -1;
+}
+
+.pf-univariate-dividend-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(280px, 2fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.pf-univariate-dividend-grid > .pf-card {
+  min-width: 0;
+}
+
+@media (max-width: 800px) {
+  .pf-univariate-dividend-grid { grid-template-columns: 1fr; }
+}
+
 .pf-status-banner { line-height: 1.4; }
 .pf-state { min-height: 52px; display: flex; align-items: center; }
 

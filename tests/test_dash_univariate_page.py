@@ -115,6 +115,14 @@ def test_page_stops_after_return_risk_plot() -> None:
     assert "Compute univariate statistics" not in rendered
 
 
+def test_page_shows_dividend_frequency_window_after_plot() -> None:
+    rendered = str(build_page(Service()).to_plotly_json())
+    assert "Dividend Payments" in rendered
+    assert "univariate-dividend-frequency-chart" in rendered
+    assert "univariate-dividend-frequency-table" in rendered
+    assert "None / unknown" in rendered
+
+
 def test_page_excludes_results_outside_metadata_universe() -> None:
     class ScopedService(Service):
         def workflow_state(self) -> dict[str, object]:

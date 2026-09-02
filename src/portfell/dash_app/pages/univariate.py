@@ -15,6 +15,7 @@ from portfell.dash_app.components import (
     KpiCard,
     PageHeader,
     StatusBanner,
+    TableCard,
 )
 from portfell.dash_app.figures import apply_portfell_template
 
@@ -199,7 +200,86 @@ def _data_regions(model: Mapping[str, object]) -> list[Component]:
             ),
             className="pf-univariate-risk-chart",
         ),
+        _dividend_window(_mappings(model.get("chart_rows"))),
     ]
+
+
+def _dividend_window(rows: Sequence[Mapping[str, object]]) -> Component:
+    """Show the cross-sectional dividend-payment frequency after the universe plot."""
+    order = ("none / unknown", "monthly", "quarterly", "semiannual", "annual", "irregular")
+    counts = {category: 0 for category in order}
+    for row in rows:
+        value = str(row.get("distribution_frequency") or "unknown").strip().lower()
+        category = "none / unknown" if value in {"", "none", "unknown"} else value
+        if category not in counts:
+            counts[category] = 0
+        counts[category] += 1
+    total = sum(counts.values())
+    categories = [category for category in order if counts[category] or total == 0]
+    if total and any(category not in order for category in counts):
+        categories.extend(
+            category for category in counts if category not in order and counts[category]
+        )
+    labels = [_dividend_label(category) for category in categories]
+    values = [counts[category] for category in categories]
+    shares = [(value / total * 100) if total else 0.0 for value in values]
+    figure = go.Figure(
+        go.Bar(
+            x=labels,
+            y=shares,
+            customdata=[[value, share] for value, share in zip(values, shares, strict=False)],
+            marker_color=["#8a94a6", "#2f80ed", "#27ae60", "#f2994a", "#9b51e0", "#eb5757"],
+            text=[f"{share:.1f}%" for share in shares],
+            textposition="outside",
+            hovertemplate=(
+                "%{x}<br>ISINs: %{customdata[0]}<br>Share: %{customdata[1]:.1f}%<extra></extra>"
+            ),
+            name="Dividend payment frequency",
+        )
+    )
+    apply_portfell_template(figure, x_title="Dividend payment frequency", y_title="ISIN share (%)")
+    figure.update_layout(showlegend=False, height=340)
+    table = html.Table(
+        [
+            html.Thead(html.Tr([html.Th("Payment frequency"), html.Th("ISINs"), html.Th("Share")])),
+            html.Tbody(
+                [
+                    html.Tr(
+                        [html.Td(label), html.Td(f"{value:,}"), html.Td(f"{share:.1f}%")]
+                    )
+                    for label, value, share in zip(labels, values, shares, strict=False)
+                ]
+            ),
+        ],
+        className="pf-table",
+    )
+    return html.Section(
+        [
+            html.H2("Dividend Payments", className="pf-card-title"),
+            html.Div(
+                [
+                    ChartCard(
+                        "Distribution", figure, graph_id="univariate-dividend-frequency-chart"
+                    ),
+                    TableCard(
+                        "Statistics",
+                        [table],
+                        component_id="univariate-dividend-frequency-table",
+                    ),
+                ],
+                className="pf-univariate-dividend-grid",
+            ),
+        ],
+        className="pf-card pf-univariate-dividend-window",
+        id="univariate-dividend-window",
+    )
+
+
+def _dividend_label(category: str) -> str:
+    return {
+        "none / unknown": "None / unknown",
+        "semiannual": "Semi-annual",
+    }.get(category, category.title())
 
 
 def _scatter(rows: Sequence[Mapping[str, object]]) -> go.Figure:
