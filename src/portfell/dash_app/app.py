@@ -13,7 +13,6 @@ from starlette.middleware.wsgi import WSGIMiddleware
 from portfell.dash_app.callbacks import register_callbacks
 from portfell.dash_app.contracts import DEFAULT_ROUTE
 from portfell.dash_app.shell import root_layout, route_renderer
-from portfell.modules.runtime import ModuleRegistry
 
 
 def create_dash_app(*, services: object | None = None) -> Dash:
@@ -40,8 +39,7 @@ def create_dash_app(*, services: object | None = None) -> Dash:
     ) -> Any:
         return render(pathname, browser_state)
 
-    callback_service = services.workflow if isinstance(services, ModuleRegistry) else services
-    register_callbacks(app, callback_service)
+    register_callbacks(app, services)
     return app
 
 

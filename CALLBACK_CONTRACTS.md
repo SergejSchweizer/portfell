@@ -4,6 +4,7 @@
 
 - [1. Scope and immutability](#1-scope-and-immutability)
 - [2. Shared state](#2-shared-state)
+- [2a. Module write boundaries](#2a-module-write-boundaries)
 - [3. Callback inventory](#3-callback-inventory)
 - [4. Univariate filter contract](#4-univariate-filter-contract)
 - [5. Bivariate page contract](#5-bivariate-page-contract)
@@ -36,6 +37,25 @@ pf-browser-state.data
 
 The Univariate page reads the current succeeded Univariate run and its v3 row artifact (falling back to v2 for historical runs). Its filter checklists create durable Univariate selections; they never start Bivariate computation.
 
+## 2a. Module write boundaries
+
+Each page receives a runtime capability facade. Cross-module dependencies are
+read-only: a downstream page may read upstream identifiers and artifacts, but
+it cannot call an upstream mutation. Metadata owns metadata universes and
+metadata filter preferences; Univariate owns selections; Bivariate owns pair
+runs; Multivariate owns portfolio runs and decisions. Dash callbacks use the
+same facades as the HTTP module APIs, so routing through the shared workflow
+service does not bypass these boundaries.
+
+```text
+Metadata  --read-->  Univariate  --read-->  Bivariate  --read-->  Multivariate
+   write                 write                 write                 write
+```
+
+An attempted operation outside a facade's allow-list raises
+`ModuleBoundaryError` and must not mutate PostgreSQL. Any new write requires a
+contract revision, an owner-module capability, and a boundary test.
+
 ## 3. Callback inventory
 
 All outputs targeting `pf-browser-state.data` with `allow_duplicate=True` retain existing state fields unless the callback explicitly changes them. A callback returning `no_update` must not mutate state.
@@ -50,8 +70,7 @@ All outputs targeting `pf-browser-state.data` with `allow_duplicate=True` retain
 | `_refresh_univariate_regions` | `pf-browser-state.data` | — | Rebuilds `univariate-data-regions.children` from the current succeeded Univariate run and the persisted Metadata-scoped selection. `Metadata Selected ISINs` is the unique Metadata count; `Univariate Selected ISINs` is the unique member count of the persisted selection, including zero for an explicitly empty selection. Stale selections are never replaced by the Metadata count. |
 | `_refresh_bivariate_continue` | `pf-browser-state.data` | — | Enables the Bivariate-to-Multivariate link only when the current Bivariate result is ready. |
 | `_save_univariate_selection` | `univariate-save-selection.n_clicks` | `pf-browser-state.data` | Persists the complete current Univariate selection and starts the explicitly requested downstream transition. It is not triggered by page rendering. |
-| `_save_dividend_frequency_selection` | Pattern `{"type":"univariate-dividend-frequency","category":ALL}.value`; pattern `{"type":"univariate-monthly-return-group","category":ALL}.value` | Dividend IDs, age values/IDs, monthly-return IDs, browser state | Converts checked Dividend, ISIN Age, and Monthly Return groups into exclusive predicates and persists the selection only. Empty group means no restriction. |
-| `_save_age_selection` | Pattern `{"type":"univariate-age-group","category":ALL}.value` | Age IDs, Dividend values/IDs, Monthly Return values/IDs, browser state | Performs the same exclusive predicate merge when an age checkbox changes. |
+| `_save_univariate_filter_selection` | Pattern values from Dividend, ISIN Age, and Monthly Return groups | All three pattern ID sets and browser state | Atomically converts all checked groups into exclusive predicates and persists the Univariate selection only. Empty group means no restriction; an untriggered hydration call is ignored. |
 | `_compute_bivariate` | `bivariate-compute.n_clicks` | `pf-browser-state.data` | Starts a Bivariate background job only on an explicit button click and only with the persisted Univariate selection. The Compute button is disabled while the job is queued or running and is enabled again only after a terminal job state. |
 | `_optimize_multivariate` | `multivariate-optimize.n_clicks` | Browser state | Submits one durable Multivariate portfolio-compute job on an explicit click. At most one job may be queued/running for the current input; its persisted lower-right status and progress remain visible across reloads, and the button stays disabled until a terminal state. |
 | `_polling_disabled` | `pf-browser-state.data` | — | Disables polling unless the durable job status is `queued` or `running`. |

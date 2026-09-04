@@ -33,6 +33,33 @@ def test_runtime_facades_reject_cross_module_operations() -> None:
         raise AssertionError("metadata facade exposed a Bivariate operation")
 
 
+def test_each_module_can_only_write_its_owned_stage() -> None:
+    modules = build_module_registry(_Service())
+    forbidden_by_module = {
+        "metadata": ("create_univariate_selection", "run_bivariate", "run_multivariate"),
+        "univariate": ("create_metadata_universe", "run_bivariate", "run_multivariate"),
+        "bivariate": (
+            "create_metadata_universe",
+            "create_univariate_selection",
+            "run_multivariate",
+        ),
+        "multivariate": (
+            "create_metadata_universe",
+            "create_univariate_selection",
+            "run_bivariate",
+        ),
+    }
+    for module_name, operations in forbidden_by_module.items():
+        facade = getattr(modules, module_name)
+        for operation in operations:
+            try:
+                getattr(facade, operation)
+            except ModuleBoundaryError as error:
+                assert str(error) == f"{module_name}_module_operation_forbidden:{operation}"
+            else:
+                raise AssertionError(f"{module_name} facade exposed {operation}")
+
+
 def test_registry_exposes_exactly_the_four_analytical_modules() -> None:
     registry = build_module_registry(_Service())
     assert tuple(registry.__dataclass_fields__) == (

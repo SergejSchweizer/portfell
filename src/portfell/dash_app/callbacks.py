@@ -15,6 +15,7 @@ from dash import ALL, Dash, Input, Output, State, ctx, no_update
 
 from portfell.dash_app.components import JobProgress
 from portfell.dash_app.state import BrowserState, browser_state_from_workflow, with_job_status
+from portfell.modules.runtime import ModuleRegistry
 from portfell.modules.univariate.ui import data_regions as univariate_data_regions
 
 
@@ -138,37 +139,39 @@ def execute_action(
     state: BrowserState,
     *,
     action: str,
+    write_service: CallbackService | None = None,
     filters: dict[str, str | None] | None = None,
     predicates: Sequence[Mapping[str, object]] | None = None,
     objective: str = "return_risk",
 ) -> BrowserState:
     """Execute one explicit command and reconstruct state from persistence afterwards."""
     submitted_job: Mapping[str, object] | None = None
+    writer = write_service or service
     try:
         if action == "metadata-create-universe":
-            service.create_universe_and_start_univariate(**dict(filters or {}))
+            writer.create_universe_and_start_univariate(**dict(filters or {}))
         elif action == "metadata-delete-project":
             if state.universe_id is None:
                 return replace(state, message_code="project_not_selected")
-            service.delete_project(state.universe_id)
+            writer.delete_project(state.universe_id)
         elif action == "univariate-save-selection":
             if state.univariate_run_id is None:
                 return replace(state, message_code="univariate_not_ready")
-            if hasattr(service, "create_selection_and_start_downstream"):
-                service.create_selection_and_start_downstream(
+            if hasattr(writer, "create_selection_and_start_downstream"):
+                writer.create_selection_and_start_downstream(
                     state.univariate_run_id, predicates=predicates
                 )
             else:
                 # Compatibility for isolated page fixtures; production service owns
                 # the atomic selection-to-downstream transition above.
-                service.create_univariate_selection(state.univariate_run_id, predicates=predicates)
+                writer.create_univariate_selection(state.univariate_run_id, predicates=predicates)
         elif action == "univariate-dividend-selection":
             if state.univariate_run_id is None:
                 return replace(state, message_code="univariate_not_ready")
             # Persist an explicit empty selection when every checkbox is
             # cleared.  The page renders the full Metadata universe as the
             # unfiltered preview, while the selected-count field is null.
-            service.create_univariate_selection(state.univariate_run_id, predicates=predicates)
+            writer.create_univariate_selection(state.univariate_run_id, predicates=predicates)
         elif action == "bivariate-compute":
             if state.selection_id is None:
                 return replace(state, message_code="univariate_selection_not_ready")
@@ -176,11 +179,11 @@ def execute_action(
             # Dash request returns immediately and polling can reload the
             # persisted pair artifact when it is ready. Keep a synchronous
             # fallback for isolated service fakes and adapters.
-            starter = getattr(service, "start_bivariate_job", None)
+            starter = getattr(writer, "start_bivariate_job", None)
             if callable(starter):
-                submitted_job = starter(state.selection_id)
+                submitted_job = writer.start_bivariate_job(state.selection_id)
             else:
-                service.run_bivariate(state.selection_id)
+                writer.run_bivariate(state.selection_id)
         elif action == "multivariate-optimize":
             if state.selection_id is None or state.bivariate_run_id is None:
                 return replace(state, message_code="bivariate_not_ready")
@@ -194,9 +197,9 @@ def execute_action(
             # returns immediately and the persisted result is picked up by
             # the normal job poll.  Keep the synchronous path for isolated
             # adapters/tests that do not expose the job API.
-            starter = getattr(service, "start_multivariate_job", None)
+            starter = getattr(writer, "start_multivariate_job", None)
             if callable(starter):
-                row = starter(
+                row = writer.start_multivariate_job(
                     selection_id=state.selection_id,
                     bivariate_run_id=state.bivariate_run_id,
                     objective="return_risk",
@@ -204,7 +207,7 @@ def execute_action(
                 if isinstance(row, Mapping):
                     submitted_job = row
             else:
-                service.run_multivariate(
+                writer.run_multivariate(
                     selection_id=state.selection_id,
                     bivariate_run_id=state.bivariate_run_id,
                     objective="return_risk",
@@ -259,7 +262,15 @@ def register_callbacks(app: Dash, services: object | None) -> None:
     """Register route-safe page actions; GET/render paths never mutate analytical state."""
     if services is None:
         return
-    service = cast(CallbackService, services)
+    if isinstance(services, ModuleRegistry):
+        service = cast(CallbackService, services.workflow)
+        metadata_service = cast(CallbackService, services.metadata)
+        univariate_service = cast(CallbackService, services.univariate)
+        bivariate_service = cast(CallbackService, services.bivariate)
+        multivariate_service = cast(CallbackService, services.multivariate)
+    else:
+        service = cast(CallbackService, services)
+        metadata_service = univariate_service = bivariate_service = multivariate_service = service
 
     @app.callback(  # pyright: ignore[reportUnknownMemberType]
         Output("pf-browser-state", "data", allow_duplicate=True),
@@ -330,15 +341,15 @@ def register_callbacks(app: Dash, services: object | None) -> None:
             "country": country,
             "currency": currency,
         }
-        saver = getattr(service, "save_metadata_filter_preferences", None)
+        saver = getattr(metadata_service, "save_metadata_filter_preferences", None)
         if callable(saver):
             with suppress(Exception):
                 saver(normalized)
             # Filter persistence is best-effort; retain the in-memory state so
             # a temporary database error does not break the UI.
         state = BrowserState.from_store(store)
-        selected_count = _selected_isin_count(service, normalized)
-        persisted = getattr(service, "create_metadata_universe", None)
+        selected_count = _selected_isin_count(metadata_service, normalized)
+        persisted = getattr(metadata_service, "create_metadata_universe", None)
         if callable(persisted):
             try:
                 universe = persisted(**normalized)
@@ -400,8 +411,7 @@ def register_callbacks(app: Dash, services: object | None) -> None:
             refreshed,
             metadata_filters=existing.metadata_filters,
             univariate_filter_predicates=(
-                existing.univariate_filter_predicates
-                or refreshed.univariate_filter_predicates
+                existing.univariate_filter_predicates or refreshed.univariate_filter_predicates
             ),
             metadata_member_count=(
                 selected_count if selected_count is not None else existing.metadata_member_count
@@ -429,8 +439,7 @@ def register_callbacks(app: Dash, services: object | None) -> None:
                 metadata_filters=state.metadata_filters,
                 metadata_member_count=state.metadata_member_count,
                 univariate_filter_predicates=(
-                    state.univariate_filter_predicates
-                    or persisted.univariate_filter_predicates
+                    state.univariate_filter_predicates or persisted.univariate_filter_predicates
                 ),
             ).to_store()
         return refreshed.to_store()
@@ -536,6 +545,7 @@ def register_callbacks(app: Dash, services: object | None) -> None:
             state,
             action="univariate-dividend-selection",
             predicates=predicates,
+            write_service=univariate_service,
         ).to_store()
 
     @app.callback(  # pyright: ignore[reportUnknownMemberType]
@@ -551,7 +561,10 @@ def register_callbacks(app: Dash, services: object | None) -> None:
         if not n_clicks:
             return no_update
         return execute_action(
-            service, BrowserState.from_store(store), action="bivariate-compute"
+            service,
+            BrowserState.from_store(store),
+            action="bivariate-compute",
+            write_service=bivariate_service,
         ).to_store()
 
     @app.callback(  # pyright: ignore[reportUnknownMemberType]
@@ -576,6 +589,7 @@ def register_callbacks(app: Dash, services: object | None) -> None:
             service,
             state,
             action="multivariate-optimize",
+            write_service=multivariate_service,
         ).to_store()
 
     @app.callback(  # pyright: ignore[reportUnknownMemberType]
