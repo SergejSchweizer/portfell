@@ -3552,10 +3552,10 @@ Acceptance:
 - no module HTTP endpoint is called by another module;
 - focused concurrency/restart tests and `uv run portfell-quality pr` pass.
 
-Git status: implementation complete on branch
-`refactor/pr411-postgres-workflow-handoff`; 11 focused workflow/migration
+Git status: integrated on `main` at `ea87a9c`; 11 focused workflow/migration
 tests and the full suite (873 passed, 5 skipped after correcting the PR409
-head assertion) pass. Integration is pending rebase to `origin/main`.
+head assertion) pass. The feature branch and any remote copy were removed
+after the fast-forward merge.
 
 ### PR412 — Extract the independently deployable Metadata application
 
