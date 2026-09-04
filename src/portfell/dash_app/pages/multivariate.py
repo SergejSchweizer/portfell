@@ -18,10 +18,8 @@ from portfell.dash_app.components import (
     ControlBar,
     EmptyState,
     ErrorState,
-    HistoryCard,
     KpiCard,
     PageHeader,
-    StageFooter,
     StatusBanner,
     TableCard,
     UnavailableData,
@@ -326,17 +324,6 @@ def _layout(
                 component_id="multivariate-final-portfolio",
             ),
             _decision_card(decision, run),
-            HistoryCard([_history(selection, bivariate, run)]),
-            StageFooter(
-                [
-                    StatusBanner(
-                        "Production eligible"
-                        if model.get("production_eligibility") is True
-                        else "Final decision is not production eligible yet.",
-                        tone="success" if model.get("production_eligibility") is True else "info",
-                    )
-                ]
-            ),
         ]
     )
     return html.Div(children, className="pf-page", id="multivariate-page")
@@ -524,27 +511,6 @@ def _decision_card(
         [html.H2("Decision", className="pf-card-title"), html.Div(body, className="pf-card-body")],
         className="pf-card pf-decision-card",
         id="multivariate-decision",
-    )
-
-
-def _history(
-    selection: Mapping[str, object] | None,
-    bivariate: Mapping[str, object] | None,
-    run: Mapping[str, object] | None,
-) -> Component:
-    if selection is None and bivariate is None and run is None:
-        return EmptyState("No persisted Multivariate history yet.")
-    values = (
-        ("Univariate selection", None if selection is None else selection.get("selection_id")),
-        ("Bivariate run", None if bivariate is None else bivariate.get("run_id")),
-        ("Multivariate run", None if run is None else run.get("run_id")),
-        ("Status", None if run is None else run.get("status")),
-        ("Source snapshot", None if run is None else _short(run.get("input_snapshot_id"))),
-        ("Algorithm", None if run is None else run.get("algorithm_version")),
-    )
-    return html.Dl(
-        [item for label, value in values for item in (html.Dt(label), html.Dd(_display(value)))],
-        className="pf-evidence-list",
     )
 
 

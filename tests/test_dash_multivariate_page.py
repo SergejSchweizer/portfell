@@ -166,7 +166,6 @@ def test_page_has_frozen_multivariate_contract_and_exact_weights() -> None:
         "Risk Contribution",
         "Final Portfolio",
         "Decision",
-        "Universe & History",
         "minimum_variance",
         "DE1",
         "AAA",
@@ -174,6 +173,8 @@ def test_page_has_frozen_multivariate_contract_and_exact_weights() -> None:
     ):
         assert text in rendered
     assert "multivariate-objective" not in rendered
+    assert "Universe &amp; History" not in rendered
+    assert "Final decision is not production eligible yet." not in rendered
 
 
 def test_cumulative_return_plot_uses_time_axis_and_no_isin_point_fallback() -> None:
