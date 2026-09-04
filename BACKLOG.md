@@ -3657,6 +3657,10 @@ Acceptance:
 - `/univariate`, `/api/univariate/*` and `/health` run with other analytical processes stopped;
 - image rebuild, isolated deployment, health check and `uv run portfell-quality pr` pass.
 
+Git status: implementation complete on branch `refactor/pr414-univariate-application`;
+2 focused boundary tests and strict Pyright for the new Univariate entrypoint
+pass. Integration is pending rebase to `origin/main`.
+
 ### PR415 — Univariate numerical, persistence and browser QA
 
 Branch: `test/pr415-univariate-module-qa`
