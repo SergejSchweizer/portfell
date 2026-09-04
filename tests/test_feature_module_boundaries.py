@@ -33,6 +33,27 @@ def test_runtime_facades_reject_cross_module_operations() -> None:
         raise AssertionError("metadata facade exposed a Bivariate operation")
 
 
+def test_registry_exposes_exactly_the_four_analytical_modules() -> None:
+    registry = build_module_registry(_Service())
+    assert tuple(registry.__dataclass_fields__) == (
+        "metadata",
+        "univariate",
+        "bivariate",
+        "multivariate",
+        "workflow",
+    )
+    assert registry.page_service("metadata") is registry.metadata
+    assert registry.page_service("univariate") is registry.univariate
+    assert registry.page_service("bivariate") is registry.bivariate
+    assert registry.page_service("multivariate") is registry.multivariate
+    try:
+        registry.page_service("risk")
+    except ModuleBoundaryError as error:
+        assert str(error) == "unknown_module:risk"
+    else:
+        raise AssertionError("registry accepted an undocumented fifth page")
+
+
 def test_http_surface_has_four_physical_module_prefixes_and_no_generic_runs() -> None:
     service = _Service()
     application = create_app(service)  # type: ignore[arg-type]
