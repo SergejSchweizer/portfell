@@ -218,7 +218,7 @@ For every PR:
 - completed analytical revisions are immutable; retries create/reuse exact idempotent identities instead of mutating published results;
 - no production UI callback performs direct SQL. Dash callbacks call typed application services; market SQL remains behind `MarketDataGateway`, application-state SQL remains behind the new `app_state` repository boundary.
 
-## 3. Source cutover and simplification series — PR308–PR343
+## 3. Source cutover and simplification series — PR308–PR343 — OUTDATED
 
 This series removes provider acquisition and legacy market-storage authority before the destructive Dash/database replacement. It is the prerequisite data-plane simplification.
 
@@ -701,7 +701,7 @@ Scope: freeze the exact merged source/runtime contracts that PR344 consumes; cla
 
 Acceptance: one checked-in handoff records exact source gateway API, application service API, persisted analytical concepts, four-page workflow, objective set (`return_risk`, `return_drawdown`, `minimum_risk`), professional plot requirements, Universe & History requirements, the Plotly visual-reference contract from section 1.6, and the deletion inventory seed used by PR344.
 
-## 4. Plotly Dash + clean database full-replacement series — PR344–PR360
+## 4. Plotly Dash + clean database full-replacement series — PR344–PR360 — OUTDATED
 
 This series is mandatory. Completion of the source series does **not** make the product architecture final until PR360 passes.
 
@@ -1403,7 +1403,7 @@ A clean production-like acceptance must show:
 
 No item is complete because code merely exists. Completion requires its named acceptance evidence and merged dependency order.
 
-## 7. Multivariate structural-risk analysis v2 — PR361–PR376
+## 7. Multivariate structural-risk analysis v2 — PR361–PR376 — OUTDATED
 
 This is a post-cutover quantitative-analysis series. No PR in this section may start before PR360 has merged with its final acceptance evidence. The series extends only the existing Multivariate stage; it does not create a fifth page or stage and it must not reintroduce React/Vite/TypeScript/Node application code.
 
@@ -1816,7 +1816,7 @@ Acceptance must prove all of the following:
 
 Future optimizer gate: PR376 does **not** authorize or implement a structurally diversified portfolio candidate. Any later `Factor Diversified`, `Cluster Balanced`, structural constraint, or composite structural score requires a new versioned backlog PR after the PR375/PR376 OOS evidence has been reviewed. The new PR must state the exact optimization objective/constraints and demonstrate that it is evaluated through the existing leakage-safe OOS selection framework before it can affect the DecisionArtifact.
 
-## 8. Structural-risk v2 corrective production closeout — PR377–PR382
+## 8. Structural-risk v2 corrective production closeout — PR377–PR382 — OUTDATED
 
 Audit date: 2026-08-31.
 
@@ -2019,7 +2019,7 @@ Acceptance:
 - `uv run portfell-quality pr`, `uv run portfell-quality merge`, and GitHub `merge-gate` pass with the unchanged 90% hard threshold and measured aggregate coverage `>=92.0%`;
 - GATES.md continues to state 90% as the mandatory floor unless a later explicit governance PR changes that policy.
 
-## 9. Responsive staged-analysis execution and instant read plane — PR383–PR396
+## 9. Responsive staged-analysis execution and instant read plane — PR383–PR396 — OUTDATED
 
 Audit date: 2026-08-31.
 
@@ -2709,7 +2709,7 @@ Acceptance must prove all of the following on the exact PR396 head SHA:
   payload maxima, executor-capacity policy, progress/restart/race evidence refs and browser evidence
   refs without credentials, complete DSNs or private market rows.
 
-## 10. Plotly Dash five-decimal numeric presentation — PR397
+## 10. Plotly Dash five-decimal numeric presentation — PR397 — OUTDATED
 
 ### PR397 — Format every displayed floating-point value to exactly five decimal places
 
@@ -2795,7 +2795,7 @@ Acceptance:
   not create body-level horizontal overflow or truncate required units/identity context;
 - focused formatting/component/browser tests and `uv run portfell-quality pr` pass; GitHub
   `merge-gate` must pass on the exact PR head before merge.
-## 11. Nightly Xetra refresh and Univariate age encoding — PR398
+## 11. Nightly Xetra refresh and Univariate age encoding — PR398 — OUTDATED
 
 ### PR398 — 20:00 Xetra freshness refresh, automatic Univariate recompute, and age-colored Return/Risk Universe
 
@@ -2910,7 +2910,7 @@ Acceptance:
   preserve readable colorbar/hover context;
 - focused scheduler/freshness/idempotency/service/browser tests and `uv run portfell-quality pr`
   pass; GitHub `merge-gate` must pass on the exact PR head before merge.
-## 12. Metadata distribution overview and project selector — PR399–PR400
+## 12. Metadata distribution overview and project selector — PR399–PR400 — OUTDATED
 
 ### PR399 — Replace Metadata Xetra listing table with one three-distribution figure
 
@@ -3011,7 +3011,7 @@ Acceptance:
 - the selected-project block remains usable at `1440x900`, `1024x768`, and `390x844`, with full IDs accessible and no body-level horizontal overflow;
 - focused summary-lineage/state/sidebar/browser tests and `uv run portfell-quality pr` pass; GitHub `merge-gate` must pass on the exact PR head before merge.
 
-## 13. Income-first Univariate metric distributions and selection dashboard — PR401–PR406
+## 13. Income-first Univariate metric distributions and selection dashboard — PR401–PR406 — OUTDATED
 
 This series replaces the generic Univariate first-page result preview with an income-first metric distribution dashboard while preserving the existing staged-analysis contract: the full Metadata universe is computed once, metric interactions are read-only selection preview, and only the existing `Apply selection & compute downstream` commit creates the immutable selection that Bivariate consumes.
 
@@ -4103,28 +4103,7 @@ composition references are still present. The feature branch and any remote
 copy were removed. No PR427 PASS is claimed until those production
 dependencies are migrated and the full deployment gates pass.
 
-## 15. Outdated PR history — condensed reference
-
-All entries below are **OUTDATED** as executable backlog items as of
-2026-09-04. They are retained only to preserve the decision history and the
-reason why the current PR407–PR427 series exists.
-
-| Retired range | Former purpose | Final disposition |
-| --- | --- | --- |
-| PR308–PR343 | Xetra source contract, source cutover, provider deletion and source QA | Superseded historical source-series work; do not reopen |
-| PR344–PR351 | Clean database replacement, Dash shell and first three page implementations | Superseded by the independent-module extraction series |
-| PR352–PR360 | Multivariate page, shared Dash semantics, React/database deletion and final cutover | Superseded by PR407–PR427's service/gateway/Compose cutover |
-| PR361–PR382 | Multivariate structural-risk v2 and corrective production wiring | Retained as analytical history; not an active modularization dependency |
-| PR383–PR396 | Staged execution, durable jobs, read plane, progress and performance QA | Retained as runtime history; replaced where necessary by module-local contracts |
-| PR397–PR400 | Numeric presentation, nightly refresh, Metadata distributions and project context | Retained as product history; no new work may depend on these backlog entries |
-| PR401–PR406 | Income-first Univariate metrics, cards, filters and hand-off QA | Retained as metric history; the active modularization contracts are PR407–PR427 |
-
-Historical integration notes and commit references in Sections 3–13 remain
-auditable, but their original acceptance lists no longer authorize work. Any
-unfinished behavior discovered in those sections must be reformulated as a new
-small PR inside PR407–PR427 or a later active series.
-
-### PR428 — Raise and document the active modular coverage gate
+### PR428 — Raise and document the active modular coverage gate — OUTDATED
 
 Branch: `chore/pr428-coverage-gate`
 
@@ -4144,7 +4123,7 @@ tests passed, 5 skipped and 92.02% coverage. Focused gate tests (31 passed)
 also pass; the feature branch and any remote copy were removed after the
 fast-forward merge.
 
-### PR429 — Move Dash callback ownership into module applications
+### PR429 — Move Dash callback ownership into module applications — OUTDATED
 
 Branch: `refactor/pr429-module-callback-ownership`
 
@@ -4162,7 +4141,7 @@ pass with sibling services absent; full coverage remains >=92%.
 
 Git status: planned; no branch exists yet.
 
-### PR430 — Replace hosted API composition with module entrypoints
+### PR430 — Replace hosted API composition with module entrypoints — OUTDATED
 
 Branch: `refactor/pr430-hosted-module-composition`
 
@@ -4180,7 +4159,7 @@ health and full browser/REST tests pass at >=92% coverage.
 
 Git status: planned; no branch exists yet.
 
-### PR431 — Remove transitional Research service and refresh fallback
+### PR431 — Remove transitional Research service and refresh fallback — OUTDATED
 
 Branch: `refactor/pr431-remove-transitional-service`
 
@@ -4197,7 +4176,7 @@ security gates and Docker Compose health pass at >=92% coverage.
 
 Git status: planned; no branch exists yet.
 
-### PR432 — Independent-modules PASS evidence and closeout
+### PR432 — Independent-modules PASS evidence and closeout — OUTDATED
 
 Branch: `test/pr432-independent-modules-pass`
 
@@ -4213,3 +4192,22 @@ pass with >=92% coverage; evidence contains no credentials, SQL, private paths
 or raw market rows.
 
 Git status: planned; no branch exists yet.
+
+## 15. Outdated PRs — condensed reference
+
+All PRs outside the active PR407–PR427 series are **OUTDATED** as of
+2026-09-04. Their detailed descriptions above remain audit history only; they
+must not be reopened or used as dependencies. Any remaining work must be
+recreated as a new, atomic item in the active backlog.
+
+| Retired PRs | Condensed scope | Disposition |
+| --- | --- | --- |
+| PR308–PR343 | Xetra source contract, source cutover, provider deletion and source QA | Historical; superseded by the active module topology |
+| PR344–PR360 | Dash/database replacement, page implementation and final cutover | Historical; superseded by PR407–PR427 |
+| PR361–PR382 | Multivariate structural-risk analysis and production wiring | Historical analytical work; no active dependency |
+| PR383–PR396 | Staged execution, durable jobs, read plane and performance QA | Historical runtime work; no active dependency |
+| PR397–PR400 | Numeric presentation, refresh, Metadata distributions and project context | Historical product work; no active dependency |
+| PR401–PR406 | Income-first Univariate metrics, cards, filters and hand-off QA | Historical metric work; no active dependency |
+| PR428–PR432 | Coverage gate and proposed callback/hosted-composition/closeout follow-ups | Retired; do not implement unless reintroduced as a new active PR |
+
+The only executable backlog items are PR407–PR427 in Section 14.
