@@ -521,21 +521,25 @@ def _candidate_oos_figure(validation: Sequence[Mapping[str, object]]) -> go.Figu
     ]
     if not rows:
         return None
-    figure = go.Figure(
-        go.Scatter(
-            x=[row["median_volatility"] for row in rows],
-            y=[row["median_post_cost_return"] for row in rows],
-            mode="markers+text",
-            text=[str(row.get("method", "")) for row in rows],
-            textposition="top center",
-            customdata=[[row.get("candidate_id"), row.get("method")] for row in rows],
-            hovertemplate=(
-                "Candidate %{customdata[0]}<br>Method %{customdata[1]}"
-                "<br>OOS risk %{x}<br>OOS return %{y}<extra></extra>"
-            ),
-            name="OOS scorecards",
+    palette = ("#2563eb", "#14b8a6", "#f97316", "#7c3aed", "#e11d48", "#64748b")
+    methods = sorted({str(row.get("method", "Unknown")) for row in rows})
+    figure = go.Figure()
+    for index, method in enumerate(methods):
+        method_rows = [row for row in rows if str(row.get("method", "Unknown")) == method]
+        figure.add_trace(
+            go.Scatter(
+                x=[row["median_volatility"] for row in method_rows],
+                y=[row["median_post_cost_return"] for row in method_rows],
+                mode="markers",
+                marker={"color": palette[index % len(palette)], "size": 11, "line": {"width": 1, "color": "white"}},
+                customdata=[[row.get("candidate_id"), method] for row in method_rows],
+                hovertemplate=(
+                    "Candidate %{customdata[0]}<br>Method %{customdata[1]}"
+                    "<br>OOS risk %{x:.2%}<br>OOS return %{y:.2%}<extra></extra>"
+                ),
+                name=method,
+            )
         )
-    )
     return apply_portfell_template(
         figure,
         x_title="Median OOS volatility",

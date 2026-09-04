@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 
 from portfell.dash_app.pages.multivariate import (
+    _candidate_oos_figure,
     _cumulative_extended_return_figure,
     _cluster_risk_contribution_figure,
     _pca_risk_contribution_figure,
@@ -327,3 +328,15 @@ def test_risk_contribution_plot_accepts_legacy_rows_without_candidate_id() -> No
     assert figure is not None
     assert list(figure.data[0].x) == ["DE1 / XETRA / AAA"]
     assert "Exchange=%{customdata[1]}" in figure.data[0].hovertemplate
+
+
+def test_candidate_oos_plot_uses_colored_method_points_without_text_labels() -> None:
+    figure = _candidate_oos_figure([
+        {"kind": "scorecard", "candidate_id": "c1", "method": "equal_weight", "median_volatility": 0.1, "median_post_cost_return": 0.05},
+        {"kind": "scorecard", "candidate_id": "c2", "method": "minimum_variance", "median_volatility": 0.08, "median_post_cost_return": 0.04},
+    ])
+    assert figure is not None
+    assert len(figure.data) == 2
+    assert all(trace.mode == "markers" for trace in figure.data)
+    assert all(trace.text is None for trace in figure.data)
+    assert {trace.name for trace in figure.data} == {"equal_weight", "minimum_variance"}
