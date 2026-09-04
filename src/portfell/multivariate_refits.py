@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import os
+import pickle
+import tempfile
 from collections.abc import Mapping, Sequence
 from concurrent.futures import Executor
 from typing import Any
@@ -46,25 +48,38 @@ def build_refitted_candidate_sets(
         tuple(starts[index] for index in range(batch_index, len(starts), batch_count))
         for batch_index in range(batch_count)
     )
-    tasks = tuple(
-        (snapshot, tuple(return_rows), income, tuple(dates), batch, policy)
-        for batch in batches
-    )
-    groups = executor.map(_build_refit_batch, tasks)
-    return tuple(item for group in groups for item in group)
+    # Keep the large immutable history out of ProcessPool's pickle payload.
+    # The temporary file lives on the API container's local tmpfs and is
+    # removed only after every worker has consumed it.
+    handle = tempfile.NamedTemporaryFile(prefix="portfell-mv-", suffix=".pkl", delete=False)
+    try:
+        with handle:
+            pickle.dump(tuple(return_rows), handle, protocol=pickle.HIGHEST_PROTOCOL)
+        tasks = tuple(
+            (snapshot, handle.name, income, tuple(dates), batch, policy) for batch in batches
+        )
+        groups = executor.map(_build_refit_batch, tasks)
+        return tuple(item for group in groups for item in group)
+    finally:
+        try:
+            os.unlink(handle.name)
+        except FileNotFoundError:
+            pass
 
 
 def _build_refit_batch(
     task: tuple[
         MultivariateInputSnapshot,
-        tuple[Mapping[str, Any], ...],
+        str,
         Mapping[MultivariateListingKey, IncomeEvidence],
         tuple[str, ...],
         tuple[int, ...],
         WalkForwardPolicy,
     ]
 ) -> tuple[tuple[PortfolioCandidate, ...], ...]:
-    snapshot, return_rows, income, dates, starts, _policy = task
+    snapshot, return_path, income, dates, starts, _policy = task
+    with open(return_path, "rb") as handle:
+        return_rows = tuple(pickle.load(handle))
     results: list[tuple[PortfolioCandidate, ...]] = []
     for start in starts:
         training_dates = set(dates[:start])
