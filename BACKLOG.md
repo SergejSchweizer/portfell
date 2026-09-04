@@ -3960,6 +3960,10 @@ Acceptance:
 - database query tracing proves schema write ownership;
 - `uv run portfell-quality merge` passes.
 
+Git status: implementation complete on branch
+`test/pr423-cross-module-contract-integration`; 3 focused lineage/artifact
+contract tests pass. Integration is pending rebase to `origin/main`.
+
 ### PR424 — Add independent per-page and complete-workflow Playwright QA
 
 Branch: `test/pr424-five-process-playwright-qa`
