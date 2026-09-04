@@ -3589,9 +3589,9 @@ Acceptance:
 - `/metadata`, `/api/metadata/*` and `/health` work when sibling processes are stopped;
 - image rebuild, isolated deployment, health check and `uv run portfell-quality pr` pass.
 
-Git status: implementation complete on branch `refactor/pr412-metadata-application`;
-2 focused boundary tests and strict Pyright for the new Metadata application
-pass. Integration is pending rebase to `origin/main`.
+Git status: integrated on `main` at `0662d2d`; 2 focused boundary tests and
+strict Pyright for the new Metadata application pass. The feature branch and
+any remote copy were removed after the fast-forward merge.
 
 ### PR413 — Metadata module contract and browser QA
 
