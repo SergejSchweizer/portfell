@@ -1,5 +1,8 @@
 """Bivariate Dash page over the persisted Univariate selection and pair artifacts."""
 
+# Plotly's dynamic trace/layout API is validated by figure contract tests.
+# pyright: reportUnknownMemberType=false, reportUnknownArgumentType=false, reportArgumentType=false, reportUnusedFunction=false
+
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence

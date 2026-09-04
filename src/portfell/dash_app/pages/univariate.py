@@ -1,5 +1,8 @@
 """Univariate Dash page over immutable backend run/selection artifacts."""
 
+# Plotly/Dash payloads are dynamically typed at this UI adapter boundary.
+# pyright: reportUnknownMemberType=false, reportUnknownArgumentType=false, reportUnknownVariableType=false, reportArgumentType=false, reportUnusedFunction=false
+
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence

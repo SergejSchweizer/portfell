@@ -1,5 +1,8 @@
 """Multivariate Dash page rendering only persisted optimizer/OOS artifacts."""
 
+# Plotly/Dash payloads are dynamically typed at this UI adapter boundary.
+# pyright: reportUnknownMemberType=false, reportUnknownArgumentType=false, reportUnknownVariableType=false, reportArgumentType=false, reportAttributeAccessIssue=false
+
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence

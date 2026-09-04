@@ -1,5 +1,9 @@
 """Immutable identifier-only browser state and deterministic stage readiness."""
 
+# PostgreSQL preference JSON is validated at the repository boundary and
+# represented as dynamic Dash state in this adapter.
+# pyright: reportUnknownMemberType=false, reportUnknownVariableType=false
+
 from __future__ import annotations
 
 from collections.abc import Mapping

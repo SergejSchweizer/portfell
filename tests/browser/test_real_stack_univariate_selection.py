@@ -135,6 +135,8 @@ def _assert_selection_counts(page: Page) -> None:
     page.goto(f"{BASE_URL}/bivariate", wait_until="networkidle")
     body = page.locator("#bivariate-kpi-grid").inner_text()
     expected_pairs = len(unique_isins) * (len(unique_isins) - 1) // 2
-    assert ("—" if not unique_isins else str(len(unique_isins))) in body
+    # Empty persisted selections are represented consistently as numeric zero
+    # across the sidebar and Bivariate KPI cards.
+    assert str(len(unique_isins)) in body
     assert str(expected_pairs) in body
     page.goto(f"{BASE_URL}/univariate", wait_until="networkidle")

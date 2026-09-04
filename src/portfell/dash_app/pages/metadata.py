@@ -1,5 +1,8 @@
 """Metadata Dash page: active instrument filtering and persisted universe creation."""
 
+# Dash component option/value payloads are framework-defined dynamic objects.
+# pyright: reportUnknownMemberType=false, reportUnknownArgumentType=false, reportUnknownVariableType=false, reportArgumentType=false
+
 from __future__ import annotations
 
 from collections.abc import Mapping

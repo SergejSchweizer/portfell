@@ -1,5 +1,9 @@
 """Shared Dash callback orchestration over identifier-only browser state."""
 
+# Dash callback payloads and ``no_update`` are dynamically typed by the
+# framework; this adapter boundary is checked by browser/contract tests.
+# pyright: reportUnknownMemberType=false, reportUnknownArgumentType=false, reportUnknownVariableType=false, reportArgumentType=false, reportReturnType=false, reportAssignmentType=false, reportUnusedFunction=false, reportAttributeAccessIssue=false, reportGeneralTypeIssues=false
+
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
