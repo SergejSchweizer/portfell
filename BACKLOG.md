@@ -4058,9 +4058,9 @@ Acceptance:
 - documentation contains no duplicate authority or secrets;
 - documentation tests and `uv run portfell-quality pr` pass.
 
-Git status: implementation complete on branch `docs/pr426-independent-modules-runbook`;
-2 documentation safety/structure tests pass. Integration is pending rebase to
-`origin/main`.
+Git status: integrated on `main` at `34cb391`; 2 documentation safety/structure
+tests pass. The feature branch and any remote copy were removed after the
+fast-forward merge.
 
 ### PR427 — Remove monolith paths and issue independent-modules PASS
 
