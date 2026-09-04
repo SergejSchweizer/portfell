@@ -30,6 +30,9 @@ def run_api_placeholder() -> int:
         factory=True,
         host="0.0.0.0",
         port=8000,
+        # Keep HTTP/Dash responsive while a CPU-heavy analysis job runs in
+        # another worker. Durable PostgreSQL job claims prevent duplicate work.
+        workers=max(2, int(os.environ.get("PORTFELL_API_WORKERS", "2"))),
         log_level="info",
     )
     return 0
