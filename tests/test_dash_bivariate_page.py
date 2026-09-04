@@ -159,3 +159,15 @@ def test_compute_button_stays_disabled_while_background_job_runs() -> None:
 
     rendered = str(build_page(RunningService()).to_plotly_json())
     assert "disabled=True" in rendered
+
+
+def test_compute_button_stays_disabled_when_stage_is_running_after_reload() -> None:
+    class StageRunningService(Service):
+        def workflow_state(self) -> dict[str, object]:
+            state = super().workflow_state()
+            state.pop("active_job", None)
+            state["stages"]["bivariate"]["status"] = "running"  # type: ignore[index]
+            return state
+
+    rendered = str(build_page(StageRunningService()).to_plotly_json())
+    assert "disabled=True" in rendered

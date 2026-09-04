@@ -109,7 +109,16 @@ def _layout(
 ) -> Component:
     selection = _mapping(model.get("selection"))
     active_job = _mapping(model.get("active_job"))
-    job_running = active_job is not None and active_job.get("status") in {"queued", "running"}
+    # Depending on when the workflow is read, the durable job may be exposed
+    # either as ``active_job`` or as the current bivariate stage. Treat both
+    # records as authoritative so a page reload cannot re-enable computation
+    # while the background bivariate run is still in progress.
+    stage = _mapping(model.get("run"))
+    job_running = any(
+        record.get("status") in {"queued", "running"}
+        for record in (active_job, stage)
+        if record
+    )
     children: list[Component] = [
         html.Div(
             [
