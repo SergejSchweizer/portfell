@@ -31,6 +31,15 @@ class CallbackService(Protocol):
         currency: str | None = None,
     ) -> tuple[dict[str, object], ...]: ...
 
+    def metadata_date_range(
+        self,
+        *,
+        exchange: str | None = None,
+        instrument_type: str | None = None,
+        country: str | None = None,
+        currency: str | None = None,
+    ) -> dict[str, object] | None: ...
+
     def active_analysis_job(self) -> dict[str, object] | None: ...
 
     def analysis_job_status(self, job_id: str) -> dict[str, object]: ...
@@ -138,6 +147,24 @@ def _selected_isin_count(service: CallbackService, filters: Mapping[str, str | N
     except Exception:
         return None
     return len({str(row.get("isin")) for row in rows if row.get("isin")})
+
+
+def _selected_date_range(
+    service: CallbackService, filters: Mapping[str, str | None]
+) -> str | None:
+    reader = getattr(service, "metadata_date_range", None)
+    if not callable(reader):
+        return None
+    try:
+        row = reader(**dict(filters))
+    except Exception:
+        return None
+    if not isinstance(row, Mapping):
+        return None
+    start, end = row.get("start"), row.get("end")
+    if not isinstance(start, str) or not isinstance(end, str):
+        return None
+    return start if start == end else f"{start} – {end}"
 
 
 def persisted_browser_state(service: CallbackService) -> BrowserState:
@@ -313,6 +340,8 @@ def register_callbacks(app: Dash, services: object | None) -> None:
                 if project.get("source_snapshot_id")
                 else None
             ),
+            metadata_date_range=_selected_date_range(metadata_service, state.metadata_filters)
+            or state.metadata_date_range,
             # Selecting the already active project during page hydration must
             # not clear metadata filters restored from the local browser store.
             metadata_filters=state.metadata_filters,
@@ -354,6 +383,7 @@ def register_callbacks(app: Dash, services: object | None) -> None:
             # a temporary database error does not break the UI.
         state = BrowserState.from_store(store)
         selected_count = _selected_isin_count(metadata_service, normalized)
+        selected_date_range = _selected_date_range(metadata_service, normalized)
         persisted = getattr(metadata_service, "create_metadata_universe", None)
         if callable(persisted):
             try:
@@ -389,6 +419,7 @@ def register_callbacks(app: Dash, services: object | None) -> None:
             metadata_member_count=(
                 selected_count if selected_count is not None else state.metadata_member_count
             ),
+            metadata_date_range=selected_date_range or state.metadata_date_range,
             metadata_filters=normalized,
         ).to_store()
 
@@ -412,6 +443,7 @@ def register_callbacks(app: Dash, services: object | None) -> None:
             return no_update
         refreshed = execute_action(service, BrowserState(), action="refresh")
         selected_count = _selected_isin_count(service, existing.metadata_filters)
+        selected_date_range = _selected_date_range(metadata_service, existing.metadata_filters)
         return replace(
             refreshed,
             metadata_filters=existing.metadata_filters,
@@ -421,6 +453,7 @@ def register_callbacks(app: Dash, services: object | None) -> None:
             metadata_member_count=(
                 selected_count if selected_count is not None else existing.metadata_member_count
             ),
+            metadata_date_range=selected_date_range or existing.metadata_date_range,
         ).to_store()
 
     @app.callback(  # pyright: ignore[reportUnknownMemberType]
@@ -443,6 +476,7 @@ def register_callbacks(app: Dash, services: object | None) -> None:
                 persisted,
                 metadata_filters=state.metadata_filters,
                 metadata_member_count=state.metadata_member_count,
+                metadata_date_range=state.metadata_date_range,
                 univariate_filter_predicates=(
                     state.univariate_filter_predicates or persisted.univariate_filter_predicates
                 ),
