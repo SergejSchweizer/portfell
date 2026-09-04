@@ -4141,7 +4141,9 @@ checkbox/progress/compute behavior remains covered by the existing browser
 tests; static imports contain no `ResearchApplicationService`; callback tests
 pass with sibling services absent; full coverage remains >=92%.
 
-Git status: planned; no branch exists yet.
+Git status: integrated on `main` at `aa26c38`; contract, architecture and
+Compose-shape tests pass. The feature branch and its remote copy were rebased
+onto `origin/main`, fast-forward merged, and deleted.
 
 ### PR430 — Replace hosted API composition with module entrypoints — OUTDATED
 
@@ -4247,7 +4249,9 @@ Acceptance:
   implementation import is introduced;
 - `uv run portfell-quality pr` passes.
 
-Git status: planned; no branch exists yet.
+Git status: integrated on `main` at `aa26c38`; contract, architecture and
+Compose-shape tests pass. The feature branch and its remote copy were rebased
+onto `origin/main`, fast-forward merged, and deleted.
 
 ### PR434 — Remove the obsolete multi-container deployment profile
 
