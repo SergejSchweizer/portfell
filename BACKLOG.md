@@ -4274,7 +4274,10 @@ Acceptance:
   single-container contract tests;
 - focused and full tests pass with coverage >=92%.
 
-Git status: planned; no branch exists yet.
+Git status: integrated on `main` at `ea3419f`; `compose.modules.yaml`, the
+process-only entrypoint, obsolete topology documentation and its contract test
+were removed. Single-container runbook and focused tests pass; the feature
+branch and remote copy were rebased, fast-forward merged and deleted.
 
 ### PR435 — Compose isolated modules inside the single Application process
 
