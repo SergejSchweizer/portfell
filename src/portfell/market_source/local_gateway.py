@@ -13,6 +13,8 @@ from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
+import polars as pl
+
 from portfell.market_source.contracts import Dividend, EodQuote, Listing, ListingKey, Split
 from portfell.market_source.errors import (
     MARKET_SOURCE_CONTRACT_MISMATCH,
@@ -100,6 +102,17 @@ class LocalMarketDataGateway:
         try:
             if name == "quotes" and wanted_isins is not None:
                 ranges = self._load_quote_ranges()
+                # When most of the universe is requested, a multithreaded
+                # columnar parse is substantially faster than thousands of
+                # small seeks and Python json.loads calls.
+                if len(wanted_isins) > max(64, len(ranges) // 3):
+                    try:
+                        frame = pl.read_ndjson(path)
+                        for row in frame.filter(pl.col("isin").is_in(list(wanted_isins))).to_dicts():
+                            yield row
+                        return
+                    except (OSError, pl.exceptions.PolarsError) as error:
+                        raise MarketSourceError(MARKET_SOURCE_UNAVAILABLE) from error
                 with path.open("rb") as handle:
                     for isin in wanted_isins:
                         for start, end in ranges.get(isin, ()):
