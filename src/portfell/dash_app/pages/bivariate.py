@@ -115,9 +115,7 @@ def _layout(
     # while the background bivariate run is still in progress.
     stage = _mapping(model.get("run"))
     job_running = any(
-        record.get("status") in {"queued", "running"}
-        for record in (active_job, stage)
-        if record
+        record.get("status") in {"queued", "running"} for record in (active_job, stage) if record
     )
     children: list[Component] = [
         html.Div(
