@@ -3443,11 +3443,10 @@ Acceptance:
 - import-cycle and forbidden-dependency tests pass;
 - focused tests, strict Pyright and `uv run portfell-quality pr` pass.
 
-Git status: implementation complete on branch
-`refactor/pr408-shared-contracts-package`; focused contract tests (12 passed),
-Ruff and strict Pyright for `portfell_contracts` pass. The repository-wide
-quality command still reports pre-existing strict-Pyright findings outside the
-PR408 owned paths; no PR408-owned finding remains.
+Git status: integrated on `main` at `6badf85`; focused contract tests (12
+passed), Ruff and strict Pyright for `portfell_contracts` pass. The
+repository-wide quality command still reports pre-existing strict-Pyright
+findings outside the PR408 owned paths; no PR408-owned finding remains.
 
 ### PR409 — Create PostgreSQL schema ownership and immutable hand-off tables
 
