@@ -118,7 +118,7 @@ def compute_multivariate(
         list(daily_return_rows) if daily_return_rows is not None else build_returns(quote_rows)
     )
     keys = tuple(sorted(MultivariateListingKey.from_row(row) for row in selected))
-    calendar_dates = common_dates(returns, keys)
+    calendar_dates = common_dates(cast(list[JsonRow], returns), keys)
     calendar_id = stable_hash(
         {"listing_keys": [key.as_tuple() for key in keys], "dates": calendar_dates}
     )
