@@ -503,6 +503,13 @@ def register_callbacks(app: Dash, services: object | None) -> None:
         monthly_ids: list[dict[str, object]],
         store: object,
     ) -> dict[str, object] | object:
+        # Dynamic checkbox components are mounted after the page callback. Dash
+        # may invoke this callback once during that mount with no triggering
+        # input and empty values. That hydration pass must not overwrite a
+        # persisted selection; an actual click (including clearing all checks)
+        # always has a triggering component and is persisted below.
+        if ctx.triggered_id is None:
+            return no_update
         state = BrowserState.from_store(store)
         if state.univariate_run_id is None:
             return no_update
