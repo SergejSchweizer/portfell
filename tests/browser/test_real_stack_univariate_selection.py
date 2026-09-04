@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 from typing import Any
 
 import pytest
@@ -140,3 +141,14 @@ def _assert_selection_counts(page: Page) -> None:
     assert str(len(unique_isins)) in body
     assert str(expected_pairs) in body
     page.goto(f"{BASE_URL}/univariate", wait_until="networkidle")
+    # The page KPI and sidebar are two independent projections of the same
+    # PostgreSQL-backed selection.  They must be numerically identical after
+    # every checkbox mutation and after a full browser reload.
+    page.reload(wait_until="networkidle")
+    page_count_text = page.locator("section.pf-kpi-card").filter(
+        has_text="Univariate Selected ISINs"
+    ).inner_text()
+    page_count_match = re.search(r"(?:^|\n)\s*(\d+|—)\s*$", page_count_text)
+    assert page_count_match is not None, page_count_text
+    assert page_count_match.group(1) == str(len(unique_isins))
+    expect(page.locator("#pf-project-univariate")).to_have_text(str(len(unique_isins)))

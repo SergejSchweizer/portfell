@@ -8,7 +8,8 @@ from portfell.app_services.analysis_compute import (
     full_univariate_selection,
 )
 from portfell.dash_app.callbacks import univariate_checkbox_predicates
-from portfell.dash_app.pages.univariate import univariate_page_data
+from portfell.dash_app.pages.univariate import build_page, univariate_page_data
+from portfell.dash_app.shell import workflow_context_from_state
 from portfell.dash_app.state import browser_state_from_workflow
 
 DIVIDEND_CASES = (
@@ -198,3 +199,139 @@ def test_checkbox_filter_count_matches_page_and_sidebar(
     assert len(set(selected.member_ids)) == len(selected.member_ids)
     # Clearing the same checkbox removes the predicate and restores all rows.
     assert len(full_univariate_selection(run).member_ids) == 4
+
+
+@pytest.mark.parametrize(
+    ("group", "category", "expected"),
+    [("dividend", category, 2) for category, _, _ in DIVIDEND_CASES]
+    + [("age", category, 2) for category in AGE_CASES]
+    + [
+        ("monthly", category, 2)
+        for category in (
+            "le_minus10_pct",
+            "gt_minus10_to_0_pct",
+            "gt_0_to_2_pct",
+            "gt_2_to_5_pct",
+            "gt_5_to_10_pct",
+            "gt_10_pct",
+            "unknown",
+        )
+    ],
+)
+def test_every_checkbox_category_has_exact_page_and_sidebar_count(
+    group: str, category: str, expected: int
+) -> None:
+    """The merge gate verifies each category's persisted count projection.
+
+    Every category is represented by two unique ISINs.  This deliberately
+    exercises the callback predicate, durable-selection projection, page KPI,
+    and sidebar workflow context together instead of only checking predicate
+    syntax.
+    """
+    age_values = {
+        "le3_months": 0.1,
+        "gt3-6_months": 0.3,
+        "gt6_months-1_year": 0.75,
+        "gt1-2_years": 1.5,
+        "gt2-3_years": 2.5,
+        "gt3-4_years": 3.5,
+        "gt4-5_years": 4.5,
+        "gt5_years": 6.0,
+    }
+    monthly_values = {
+        "le_minus10_pct": -0.2,
+        "gt_minus10_to_0_pct": -0.05,
+        "gt_0_to_2_pct": 0.01,
+        "gt_2_to_5_pct": 0.03,
+        "gt_5_to_10_pct": 0.07,
+        "gt_10_pct": 0.11,
+        "unknown": None,
+    }
+    rows: list[dict[str, object]] = []
+    categories = {
+        "dividend": [item[0] for item in DIVIDEND_CASES],
+        "age": list(AGE_CASES),
+        "monthly": list(monthly_values),
+    }
+    for row_category in categories[group]:
+        for copy in range(2):
+            row: dict[str, object] = {
+                "isin": f"{group}-{row_category}-{copy}",
+                "exchange": "XETRA",
+                "code": f"C-{group}-{copy}",
+                "availability_reason": "ok",
+                "distribution_frequency": (
+                    "none" if row_category == "none / unknown" else row_category
+                ),
+                "history_years": age_values.get(row_category),
+                "monthly_simple_return": monthly_values.get(row_category),
+                "annualized_return": 0.1,
+                "annualized_volatility": 0.2,
+            }
+            rows.append(row)
+    run = ComputedRun("run", "source", "test", tuple(rows))
+    if group == "dividend":
+        predicates = univariate_checkbox_predicates(
+            [[category]], [{"category": category}], [], [], [], []
+        )
+    elif group == "age":
+        predicates = univariate_checkbox_predicates(
+            [], [], [[category]], [{"category": category}], [], []
+        )
+    else:
+        predicates = univariate_checkbox_predicates(
+            [], [], [], [], [[category]], [{"category": category}]
+        )
+    selection = filtered_univariate_selection(run, predicates)
+    assert len(selection.member_ids) == expected
+
+    class Service:
+        def workflow_state(self) -> dict[str, object]:
+            members = [
+                {key: row[key] for key in ("isin", "exchange", "code")}
+                for row in rows
+            ]
+            selected_members = [
+                {key: row[key] for key in ("isin", "exchange", "code")}
+                for row in rows
+                if f"{row['isin']}:{row['exchange']}:{row['code']}" in selection.member_ids
+            ]
+            return {
+                "metadata_universe": {
+                    "universe_id": "universe",
+                    "member_count": len(members),
+                    "members": members,
+                },
+                "univariate_selection": {
+                    "selection_id": selection.selection_id,
+                    "source_run_id": "run",
+                    "member_count": len(selected_members),
+                    "members": selected_members,
+                },
+                "stages": {
+                    "univariate": {
+                        "run_id": "run",
+                        "status": "succeeded",
+                        "input_ref": "universe",
+                    }
+                },
+            }
+
+        def univariate_result_preview(self, run_id: str, *, limit: int = 500) -> dict[str, object]:
+            return {
+                "run": {"run_id": run_id, "status": "succeeded"},
+                "item_count": len(rows),
+                "summary": {"available_count": len(rows), "unavailable_count": 0},
+                "rows": rows,
+            }
+
+    service = Service()
+    model = univariate_page_data(service)
+    state = browser_state_from_workflow(service.workflow_state())
+    context = workflow_context_from_state(state, "/univariate")
+    context_counts = dict(context.project_metadata)
+    rendered = str(build_page(service).to_plotly_json())
+    assert model["selected_count"] == expected
+    assert context_counts["Univariate"] == str(expected)
+    assert "Univariate Selected ISINs" in rendered
+    assert f"{expected}" in rendered
