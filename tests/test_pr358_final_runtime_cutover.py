@@ -19,9 +19,9 @@ def test_pr358_runtime_composes_dash_clean_state_and_external_market_source() ->
     api = (SRC / "hosted_api.py").read_text(encoding="utf-8")
     for required in (
         "PostgresAppStateRepository",
-        "ResearchApplicationService",
+        "WorkspaceApplicationService",
         "MarketDataGateway",
-        "mount_dash_app",
+        "mount_dash",
         "validate_app_database_url",
         "LocalMarketDataGateway",
     ):

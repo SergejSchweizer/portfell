@@ -126,9 +126,9 @@ def test_clean_install_and_browser_acceptance_harnesses_cover_final_contract() -
     for token in (
         "migrate_to_head",
         "PostgresAppStateRepository",
-        "ResearchApplicationService",
+        "WorkspaceApplicationService",
         "MarketDataGateway",
-        "mount_dash_app",
+        "mount_dash",
     ):
         assert token in api
 
