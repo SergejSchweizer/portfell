@@ -4097,11 +4097,11 @@ Acceptance:
   contract versions, migration version, test counts, coverage, module health, workflow IDs and
   artifact hashes without credentials or private market rows.
 
-Git status: closeout audit is integrated on `main` after the workspace-service
-and explicit Dash-mount cutover; the audit reports `PASS` with zero legacy
-production references, and focused closeout/shell tests pass. The feature
-branch and any remote copy were removed. Full deployment gates remain the
-required final verification before release.
+Git status: integrated on `main` at `dd1a37a`; the workspace-service and
+explicit Dash-mount cutover removed the legacy source files and aliases. The
+audit reports `PASS` with zero legacy production references; full suite passes
+with 914 tests, 5 skips and 92.01% coverage. The feature branch and any remote
+copy were removed.
 
 ### PR428 — Raise and document the active modular coverage gate — OUTDATED
 
