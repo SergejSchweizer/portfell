@@ -6,7 +6,6 @@ import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, cast
 
 from fastapi import FastAPI
 
@@ -17,11 +16,7 @@ from portfell.dash_app.app import mount_dash
 from portfell.hosted_database_connection import connect as connect_database
 from portfell.market_source.config import load_app_database_config, validate_app_database_url
 from portfell.market_source.errors import MarketSourceError
-from portfell.modules import build_module_registry
-from portfell.modules.bivariate import bivariate_router
-from portfell.modules.metadata import metadata_router
-from portfell.modules.multivariate import multivariate_router
-from portfell.modules.univariate import univariate_router
+from portfell.services.composition import compose_modules, mount_module_routes
 
 
 class HostedApiError(RuntimeError):
@@ -52,7 +47,7 @@ def create_app(service: WorkspaceApplicationService | None = None) -> FastAPI:
         return {"status": "ok"}
 
     if service is not None:
-        modules = build_module_registry(service)
+        modules = compose_modules(service)
 
         @application.get("/api/health", tags=["workflow"])
         def api_health() -> dict[str, str]:  # pyright: ignore[reportUnusedFunction]
@@ -62,10 +57,7 @@ def create_app(service: WorkspaceApplicationService | None = None) -> FastAPI:
         def workflow() -> dict[str, object]:  # pyright: ignore[reportUnusedFunction]
             return modules.workflow.workflow_state()
 
-        application.include_router(metadata_router(cast(Any, modules.metadata)))
-        application.include_router(univariate_router(cast(Any, modules.univariate)))
-        application.include_router(bivariate_router(cast(Any, modules.bivariate)))
-        application.include_router(multivariate_router(cast(Any, modules.multivariate)))
+        mount_module_routes(application, modules)
         mount_dash(application, services=modules)
     return application
 
