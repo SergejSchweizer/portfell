@@ -9,6 +9,7 @@ from portfell.dash_app.pages.multivariate import (
     _pca_risk_contribution_figure,
     _pca_spectrum_figure,
     _risk_clusters_figure,
+    _structural_stability_figure,
     _structural_diversification_figure,
     _performance_figure,
     _risk_contribution_figure,
@@ -318,6 +319,16 @@ def test_structure_plots_render_persisted_multivariate_evidence() -> None:
     assert clusters_plot is not None
     assert clusters_plot.layout.xaxis.title.text == "Risk cluster"
     assert list(clusters_plot.data[0].y) == [2, 1]
+
+    stability_plot = _structural_stability_figure({
+        "subspace": [
+            {"current_date_end": "2026-01-31", "previous_date_end": "2025-12-31", "component_count": 3, "covariance_stability": 0.98, "correlation_stability": 0.99},
+        ],
+        "rolling": [],
+    })
+    assert stability_plot is not None
+    assert len(stability_plot.data) == 2
+    assert stability_plot.layout.yaxis.title.text == "Subspace stability"
 
 
 def test_risk_contribution_plot_accepts_legacy_rows_without_candidate_id() -> None:

@@ -365,7 +365,11 @@ def _structure_cards(
             _risk_clusters_figure(clusters),
             graph_id="multivariate-risk-clusters",
         ),
-        TableCard("Structural Stability", [html.Pre(str(stability))]),
+        ChartCard(
+            "Structural Stability",
+            _structural_stability_figure(stability),
+            graph_id="multivariate-structural-stability",
+        ),
         TableCard("Candidate Structural Risk", [html.Pre(str(candidate_rows))]),
         ChartCard("PCA Risk Contribution", _pca_risk_contribution_figure(candidate.get("pca_risk_contribution")), graph_id="multivariate-pca-risk-contribution"),
         ChartCard(
@@ -492,6 +496,61 @@ def _risk_clusters_figure(rows: object) -> go.Figure | None:
     figure.update_yaxes(title_text="Cluster members", rangemode="tozero", secondary_y=False)
     figure.update_yaxes(title_text="Mean co-cluster probability", tickformat=".0%", range=[0, 1], secondary_y=True)
     return apply_portfell_template(figure, x_title="Risk cluster")
+
+
+def _structural_stability_figure(value: object) -> go.Figure | None:
+    """Plot persisted rolling subspace stability, with no analytical recomputation."""
+    document = _mapping(value)
+    subspace = _mappings(document.get("subspace"))
+    traces: list[go.Scatter] = []
+    for field, label, colour in (
+        ("covariance_stability", "Covariance stability", "#2563eb"),
+        ("correlation_stability", "Correlation stability", "#14b8a6"),
+    ):
+        rows = [row for row in subspace if row.get("current_date_end") is not None and _number(row.get(field)) is not None]
+        if rows:
+            traces.append(
+                go.Scatter(
+                    x=[str(row.get("current_date_end")) for row in rows],
+                    y=[_number(row.get(field)) for row in rows],
+                    mode="lines+markers",
+                    name=label,
+                    line={"color": colour},
+                    marker={"color": colour, "size": 7},
+                    customdata=[[row.get("previous_date_end"), row.get("component_count")] for row in rows],
+                    hovertemplate=(
+                        "%{x}<br>" + label + "=%{y:.2%}<br>"
+                        "Previous period=%{customdata[0]}<br>Components=%{customdata[1]}<extra></extra>"
+                    ),
+                )
+            )
+    if not traces:
+        rolling = _mappings(document.get("rolling"))
+        for field, label, colour in (
+            ("covariance_effective_rank", "Covariance effective rank", "#2563eb"),
+            ("correlation_effective_rank", "Correlation effective rank", "#14b8a6"),
+        ):
+            rows = [row for row in rolling if row.get("date_end") is not None and _number(row.get(field)) is not None]
+            if rows:
+                traces.append(
+                    go.Scatter(
+                        x=[str(row.get("date_end")) for row in rows],
+                        y=[_number(row.get(field)) for row in rows],
+                        mode="lines+markers",
+                        name=label,
+                        line={"color": colour, "dash": "dot"},
+                        marker={"color": colour, "size": 7},
+                        hovertemplate="%{x}<br>" + label + "=%{y:.2f}<extra></extra>",
+                    )
+                )
+    if not traces:
+        return None
+    figure = go.Figure(traces)
+    if subspace:
+        figure.update_yaxes(title_text="Subspace stability", tickformat=".0%", range=[0, 1])
+    else:
+        figure.update_yaxes(title_text="Effective rank", rangemode="tozero")
+    return apply_portfell_template(figure, x_title="Period end")
 
 
 def _pca_risk_contribution_figure(value: object) -> go.Figure | None:
