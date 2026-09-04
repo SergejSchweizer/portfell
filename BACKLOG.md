@@ -4027,9 +4027,9 @@ Acceptance:
 - no connection-pool exhaustion, deadlock or cross-module transaction lock is observed;
 - sanitized performance/resilience evidence and `uv run portfell-quality merge` pass.
 
-Git status: implementation complete on branch `test/pr425-module-resilience-performance`;
-3 focused duplicate-publication, partial-file and budget contract tests pass.
-Integration is pending rebase to `origin/main`.
+Git status: integrated on `main` at `b3dbc69`; 3 focused duplicate-publication,
+partial-file and budget contract tests pass. The feature branch and any remote
+copy were removed after the fast-forward merge.
 
 ### PR426 — Complete operator documentation and reversible cutover plan
 
