@@ -25,6 +25,8 @@ def test_runbook_has_toc_and_all_operator_sections() -> None:
 
 def test_runbook_links_canonical_compose_and_has_no_credentials() -> None:
     text = Path("docs/MODULES_RUNBOOK.md").read_text()
-    assert "compose.modules.yaml" in text
+    assert "compose.yaml" in text
+    assert "exactly one Application container" in text
+    assert "portfell-app" in text
     assert "2156399" not in text
     assert "postgres://" not in text

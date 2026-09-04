@@ -1,4 +1,4 @@
-# Independent modules operator runbook
+# Single-container operator runbook
 
 ## Contents
 
@@ -14,22 +14,22 @@
 ## Topology
 
 ```text
-                    +----------------------+
-Browser :8080 ---->| portfell-gateway     |
-                    +----------+-----------+
-       +-----------------------+-----------------------+
-       v                       v                       v
- metadata :8000       univariate :8000        bivariate :8000
-       |                       |                       |
-       +-----------------------+-----------------------+
-                               v
-                    multivariate :8000
-                               |
-                         postgres :5432
+                    +----------------------------------+
+Browser :8080 ---->| portfell-app (one container)      |
+                    | gateway + Metadata               |
+                    | + Univariate + Bivariate         |
+                    | + Multivariate                   |
+                    +----------------+-----------------+
+                                     |
+                         +-----------+-----------+
+                         v                       v
+                 PostgreSQL :5432       read-only market share
 ```
 
-The gateway is the only host-published service. See
-[`compose.modules.yaml`](../compose.modules.yaml) for the canonical topology.
+[`compose.yaml`](../compose.yaml) is the sole supported topology. It starts
+exactly one Application container (`portfell-app`) and one PostgreSQL
+container; only the Application publishes port 8080. The four modules remain
+separate source-level boundaries inside the Application process.
 
 ## Prerequisites
 
@@ -47,10 +47,10 @@ Never place the password in Compose, shell history, logs or evidence.
 ## Build and deploy
 
 ```text
-docker compose -f compose.modules.yaml config
-docker compose -f compose.modules.yaml build
-docker compose -f compose.modules.yaml up -d
-docker compose -f compose.modules.yaml ps
+docker compose -f compose.yaml config
+docker compose -f compose.yaml build
+docker compose -f compose.yaml up -d
+docker compose -f compose.yaml ps
 ```
 
 Stop if `config` reports an unresolved secret, unexpected host port or an
@@ -59,17 +59,15 @@ unapproved volume. Keep the previous image tag until health checks pass.
 ## Health and logs
 
 ```text
-curl --fail http://127.0.0.1:8080/health
-docker compose -f compose.modules.yaml ps
-docker logs --since=10m portfell-gateway
-docker logs --since=10m portfell-metadata
-docker logs --since=10m portfell-univariate
-docker logs --since=10m portfell-bivariate
-docker logs --since=10m portfell-multivariate
+curl --fail http://127.0.0.1:8080/healthz
+curl --fail http://127.0.0.1:8080/api/health
+docker compose -f compose.yaml ps
+docker logs --since=10m portfell-app
+docker logs --since=10m portfell-postgres
 ```
 
-A stopped analytical module may degrade its own route, but gateway health and
-unrelated module routes must remain reachable.
+The process is one container, but a failed module callback must not bypass the
+typed module facade or write directly to PostgreSQL.
 
 ## Backup and restore
 
@@ -80,35 +78,34 @@ pg_dump --format=custom --file=/secure/backups/portfell.dump portfell_dash
 rsync -a --delete /volume2/docker/portfell/market-data/ /secure/backups/market-data/
 ```
 
-Restore the database first, then restore the matching data-share snapshot, run
-the migration preflight, and verify manifest hashes before starting workers.
+Restore the database first, then the matching data-share snapshot, run the
+migration preflight, and verify manifest hashes before starting the container.
 Never mix snapshots from different releases.
 
 ## Permissions
 
-Migration v006 provisions one role per process. Verify that each role writes
-only its owner schema and namespace; workers use read-only mounts for upstream
-artifacts. Rotate credentials by replacing the external secret and restarting
-the affected service.
+The Application uses the Portfell application role and a read-only market data
+mount. Verify that PostgreSQL and the data-share permissions match the
+repository contract; no module-specific container role is required.
 
 ## Cutover and rollback
 
-1. Build and validate the new images without stopping the previous release.
+1. Build and validate the image without stopping the previous release.
 2. Run `config`, health, migration and smoke checks.
-3. Cut over the gateway only after every required prerequisite is published.
+3. Cut over only after all four routes respond from the one container.
 4. Stop immediately on failed health, schema mismatch, hash mismatch, data-loss
-   signal or unexpected public port.
+   signal or an unexpected public port.
 5. Keep the previous release and backups until the complete journey is PASS.
-6. Roll back by restoring the previous gateway/module image set and matching
+6. Roll back by restoring the previous Application image and matching
    database/data-share snapshot; never run a destructive migration implicitly.
 
 ## Failure isolation
 
 ```text
-module failure -> module route unavailable
-                -> gateway remains live
-                -> other module routes remain usable
-                -> retry only after durable job/artifact state is inspected
+module boundary failure -> typed error at that module's route
+                         -> gateway process remains live
+                         -> unrelated routes remain reachable
+                         -> durable job/artifact state remains authoritative
 ```
 
 Capture sanitized command IDs, statuses and health output; omit credentials,
