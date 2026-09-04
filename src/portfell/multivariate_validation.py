@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
+from concurrent.futures import Executor
 from dataclasses import dataclass
 from math import exp, sqrt
 from random import Random
@@ -59,9 +60,11 @@ def walk_forward_training_rows(
     dates = _common_dates(candidates, return_rows)
     if len(dates) < policy.minimum_training_observations + policy.test_window_observations:
         return ()
+    # Build the date set once per split.  The old generator rebuilt the set for
+    # every row, turning a linear scan into an avoidable quadratic operation.
     return tuple(
-        tuple(row for row in return_rows if str(row.get("date", "")) in set(dates[:start]))
-        for start in _walk_forward_starts(dates, policy)
+        tuple(row for row in return_rows if str(row.get("date", "")) in training_dates)
+        for training_dates in (set(dates[:start]) for start in _walk_forward_starts(dates, policy))
     )
 
 
@@ -163,6 +166,7 @@ def validate_candidates(
     candidate_factory: CandidateFactory | None = None,
     precomputed_candidates: Sequence[Sequence[PortfolioCandidate]] | None = None,
     risk_model_id: str | None = None,
+    executor: Executor | None = None,
 ) -> tuple[ValidationSplit, ...]:
     """Validate candidates on common out-of-sample slices.
 
@@ -183,11 +187,13 @@ def validate_candidates(
     previous_weights: dict[str, tuple[tuple[MultivariateListingKey, float], ...]] = {}
     indexed_returns = _index_return_rows(return_rows)
     refit_index = 0
-    for start in _walk_forward_starts(dates, policy):
+    starts = _walk_forward_starts(dates, policy)
+    # Preserve split order (turnover is path-dependent), while evaluating the
+    # independent per-candidate return metrics in worker processes.
+    for start in starts:
         test_dates = dates[start : start + policy.test_window_observations]
-        training_rows = tuple(
-            row for row in return_rows if str(row.get("date", "")) in set(dates[:start])
-        )
+        training_dates = set(dates[:start])
+        training_rows = tuple(row for row in return_rows if str(row.get("date", "")) in training_dates)
         if precomputed_candidates is not None:
             if refit_index >= len(precomputed_candidates):
                 raise ValueError("missing_precomputed_candidates")
@@ -198,13 +204,24 @@ def validate_candidates(
                 tuple(candidate_factory(training_rows)) if candidate_factory else tuple(candidates)
             )
         by_method = {candidate.method: candidate for candidate in evaluated}
+        metric_tasks = tuple(
+            (candidate, _candidate_returns_for_dates(candidate, indexed_returns, test_dates))
+            for candidate in (by_method.get(requested.method) for requested in candidates)
+            if candidate is not None and candidate.status == "feasible"
+        )
+        metric_results = (
+            tuple(executor.map(_validation_candidate_metrics, metric_tasks))
+            if executor is not None
+            else tuple(_validation_candidate_metrics(task) for task in metric_tasks)
+        )
+        metrics_by_method = {item[0].method: item[1:] for item in metric_results}
         for requested in candidates:
             candidate = by_method.get(requested.method)
             if candidate is None or candidate.status != "feasible":
                 results.append(_unavailable(requested, "candidate_unavailable"))
                 continue
-            test = _candidate_returns_for_dates(candidate, indexed_returns, test_dates)
-            pre_cost = _compound(test)
+            test, metrics = metrics_by_method[candidate.method]
+            pre_cost, volatility, sharpe, sortino, cvar, max_drawdown = metrics
             previous = previous_weights.get(candidate.method)
             turnover = _turnover(previous, candidate.weights)
             cost = (
@@ -233,7 +250,7 @@ def validate_candidates(
                     pre_cost_return=pre_cost,
                     transaction_cost=cost,
                     post_cost_return=pre_cost - cost,
-                    volatility=_volatility(test),
+                    volatility=volatility,
                     status="complete",
                     reason=None,
                     candidate_id=candidate.candidate_id,
@@ -241,10 +258,10 @@ def validate_candidates(
                     weights=candidate.weights,
                     requested_method=requested.method,
                     risk_model_id=risk_model_id,
-                    sharpe_ratio=_sharpe(test),
-                    sortino_ratio=_sortino(test),
-                    conditional_value_at_risk=_value_at_risk([-value for value in test])[1],
-                    max_drawdown=_compound_and_drawdown(test)[1],
+                    sharpe_ratio=sharpe,
+                    sortino_ratio=sortino,
+                    conditional_value_at_risk=cvar,
+                    max_drawdown=max_drawdown,
                     herfindahl_index=candidate.herfindahl_index,
                     income_available=candidate.gross_ttm_distribution_yield is not None,
                     test_observation_count=len(test),
@@ -260,6 +277,7 @@ def validate_candidate_stress(
     candidates: Sequence[PortfolioCandidate],
     return_rows: Sequence[Mapping[str, Any]],
     policy: WalkForwardPolicy = DEFAULT_WALK_FORWARD_POLICY,
+    executor: Executor | None = None,
 ) -> tuple[ValidationScenario, ...]:
     """Produce deterministic scenario evidence without changing source observations.
 
@@ -268,20 +286,39 @@ def validate_candidate_stress(
     return series.
     """
 
-    scenarios: list[ValidationScenario] = []
-    for candidate in candidates:
-        if candidate.status != "feasible":
-            scenarios.extend(
-                _unavailable_scenario(candidate, name, "candidate_unavailable")
-                for name in _SCENARIO_NAMES
-            )
-            continue
-        values = list(
-            _portfolio_returns_by_date((candidate,), return_rows)[candidate.method].values()
-        )
-        for name, scenario_values, reason in _scenario_values(values, policy):
-            scenarios.append(_scenario(candidate, name, scenario_values, reason, policy))
-    return tuple(scenarios)
+    indexed = _portfolio_returns_by_date(candidates, return_rows)
+    tasks = tuple((candidate, tuple(indexed.get(candidate.method, {}).values()), policy) for candidate in candidates)
+    groups = (
+        tuple(executor.map(_candidate_stress_rows, tasks))
+        if executor is not None
+        else tuple(_candidate_stress_rows(task) for task in tasks)
+    )
+    return tuple(item for group in groups for item in group)
+
+
+def _validation_candidate_metrics(
+    task: tuple[PortfolioCandidate, Sequence[float]],
+) -> tuple[PortfolioCandidate, list[float], tuple[float | None, ...]]:
+    candidate, test = task
+    values = list(test)
+    pre_cost = _compound(values)
+    return candidate, values, (
+        pre_cost,
+        _volatility(values),
+        _sharpe(values),
+        _sortino(values),
+        _value_at_risk([-value for value in values])[1],
+        _compound_and_drawdown(values)[1],
+    )
+
+
+def _candidate_stress_rows(
+    task: tuple[PortfolioCandidate, Sequence[float], WalkForwardPolicy],
+) -> tuple[ValidationScenario, ...]:
+    candidate, values, policy = task
+    if candidate.status != "feasible":
+        return tuple(_unavailable_scenario(candidate, name, "candidate_unavailable") for name in _SCENARIO_NAMES)
+    return tuple(_scenario(candidate, name, scenario_values, reason, policy) for name, scenario_values, reason in _scenario_values(values, policy))
 
 
 def build_candidate_scorecards(
@@ -384,14 +421,11 @@ def _common_dates(
         if candidate.status == "feasible"
         for key, _ in candidate.weights
     }
-    indexed = {
-        key: {
-            str(row["date"])
-            for row in rows
-            if (str(row["isin"]), str(row["exchange"]), str(row["code"])) == key
-        }
-        for key in keys
-    }
+    indexed: dict[tuple[str, str, str], set[str]] = {key: set() for key in keys}
+    for row in rows:
+        key = (str(row["isin"]), str(row["exchange"]), str(row["code"]))
+        if key in indexed:
+            indexed[key].add(str(row["date"]))
     available = [dates for dates in indexed.values() if dates]
     if not available:
         return ()

@@ -195,6 +195,7 @@ def compute_multivariate(
         return_rows=returns,
         precomputed_candidates=refitted,
         risk_model_id=risk.risk_model_id,
+        executor=executor,
     )
     if on_phase is not None:
         on_phase(3, MULTIVARIATE_PHASES[2])
@@ -210,7 +211,9 @@ def compute_multivariate(
         refitted_candidate_sets=refitted,
         validation_splits=validation,
     )
-    scenarios = validate_candidate_stress(candidates=candidates, return_rows=returns)
+    scenarios = validate_candidate_stress(
+        candidates=candidates, return_rows=returns, executor=executor
+    )
     scorecards = build_candidate_scorecards(splits=validation, scenarios=scenarios)
     if on_phase is not None:
         on_phase(4, MULTIVARIATE_PHASES[3])
