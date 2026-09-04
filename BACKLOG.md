@@ -4097,11 +4097,11 @@ Acceptance:
   contract versions, migration version, test counts, coverage, module health, workflow IDs and
   artifact hashes without credentials or private market rows.
 
-Git status: closeout audit implemented on branch
-`refactor/pr427-independent-modules-closeout`; 2 focused audit tests pass, but
-the audit correctly reports `BLOCKED` because legacy composition references are
-still present. No PR427 PASS is claimed until those production dependencies are
-migrated and the full deployment gates pass.
+Git status: closeout audit integrated on `main` at `c64c7c1`; 2 focused audit
+tests pass, but the audit correctly reports `BLOCKED` because legacy
+composition references are still present. The feature branch and any remote
+copy were removed. No PR427 PASS is claimed until those production
+dependencies are migrated and the full deployment gates pass.
 
 ## 15. Outdated PR history — condensed reference
 
