@@ -103,9 +103,9 @@ def test_catalog_is_clean_single_workspace_contract() -> None:
 
 def test_migration_is_repeat_safe_and_checksum_locked() -> None:
     connection = FakeConnection()
-    assert migrate_to_head(connection) == (1, 2, 3, 4, 5, 6, 7)
+    assert migrate_to_head(connection) == (1, 2, 3, 4, 5, 6, 7, 8)
     assert connection.applied[1] == (MIGRATION_V001.name, MIGRATION_V001.checksum)
-    assert tuple(connection.applied) == (1, 2, 3, 4, 5, 6, 7)
+    assert tuple(connection.applied) == (1, 2, 3, 4, 5, 6, 7, 8)
     assert migrate_to_head(connection) == ()
     assert connection.commits == 2
     assert connection.rollbacks == 0
@@ -121,8 +121,8 @@ def test_destructive_rollback_requires_explicit_operator_opt_in() -> None:
     migrate_to_head(connection)
     with pytest.raises(AppStateMigrationError, match="destructive_rollback_required"):
         rollback_to_zero(connection)
-    assert rollback_to_zero(connection, allow_destructive=True) == (7,)
-    assert tuple(connection.applied) == (1, 2, 3, 4, 5, 6)
+    assert rollback_to_zero(connection, allow_destructive=True) == (8,)
+    assert tuple(connection.applied) == (1, 2, 3, 4, 5, 6, 7)
 
 
 def test_runtime_privileges_are_bounded_and_role_name_is_validated() -> None:
