@@ -41,7 +41,7 @@ def command() -> WorkflowCommand:
 
 
 def test_v005_adds_restart_safe_progress_and_lease_columns() -> None:
-    assert APP_STATE_MIGRATIONS[-1] is MIGRATION_V005
+    assert MIGRATION_V005 in APP_STATE_MIGRATIONS
     assert "lease_expires_at" in MIGRATION_V005.sql
     assert "progress_current" in MIGRATION_V005.sql
     assert "create index if not exists workflow_stage_commands_claim_idx" in MIGRATION_V005.sql
