@@ -4324,4 +4324,6 @@ Acceptance:
   complete browser/REST suite pass with coverage >=92%;
 - sanitized evidence records the exact Git SHA and image IDs.
 
-Git status: planned; no branch exists yet.
+Git status: integrated on `main` at `d4ee418`; the single-container Compose,
+absence-of-alternate-topology and hosted-shell checks pass. The feature branch
+and remote copy were rebased, fast-forward merged and deleted.
