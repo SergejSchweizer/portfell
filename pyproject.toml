@@ -40,7 +40,12 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/portfell", "src/portfell_contracts", "src/portfell_artifacts"]
+packages = [
+    "src/portfell",
+    "src/portfell_contracts",
+    "src/portfell_artifacts",
+    "src/portfell_workflow",
+]
 
 [tool.ruff]
 line-length = 100

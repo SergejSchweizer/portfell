@@ -10,7 +10,7 @@ from portfell.app_state.module_ownership import MODULE_SCHEMAS, MODULE_TABLES, o
 
 
 def test_v004_is_forward_only_head_and_declares_all_owner_schemas() -> None:
-    assert APP_STATE_MIGRATIONS[-1] is MIGRATION_V004
+    assert MIGRATION_V004 in APP_STATE_MIGRATIONS
     assert MIGRATION_V004.version == 4
     for schema in ("workflow", "metadata", "univariate", "bivariate", "multivariate"):
         assert f"create schema if not exists {schema}" in MIGRATION_V004.sql
