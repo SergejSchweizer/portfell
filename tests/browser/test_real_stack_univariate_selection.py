@@ -145,6 +145,9 @@ def _assert_selection_counts(page: Page) -> None:
     # PostgreSQL-backed selection.  They must be numerically identical after
     # every checkbox mutation and after a full browser reload.
     page.reload(wait_until="networkidle")
+    # Dash mounts the route content asynchronously after the initial HTML
+    # response; network-idle alone can occur before the callback has rendered.
+    expect(page.locator("#univariate-page")).to_be_visible(timeout=120_000)
     page_count_text = (
         page.locator("section.pf-kpi-card")
         .filter(has_text="Univariate Selected ISINs")
