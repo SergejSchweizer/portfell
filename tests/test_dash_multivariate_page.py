@@ -7,6 +7,7 @@ from portfell.dash_app.pages.multivariate import (
     _cluster_risk_contribution_figure,
     _pca_risk_contribution_figure,
     _pca_spectrum_figure,
+    _risk_clusters_figure,
     _structural_diversification_figure,
     _performance_figure,
     _risk_contribution_figure,
@@ -307,6 +308,15 @@ def test_structure_plots_render_persisted_multivariate_evidence() -> None:
     })
     assert diversification is not None
     assert diversification.layout.xaxis.title.text == "Diversification measure"
+
+    clusters_plot = _risk_clusters_figure([
+        {"cluster_id": "Cluster 1", "mean_co_cluster_probability": 0.9},
+        {"cluster_id": "Cluster 1", "mean_co_cluster_probability": 1.0},
+        {"cluster_id": "Cluster 2", "mean_co_cluster_probability": None},
+    ])
+    assert clusters_plot is not None
+    assert clusters_plot.layout.xaxis.title.text == "Risk cluster"
+    assert list(clusters_plot.data[0].y) == [2, 1]
 
 
 def test_risk_contribution_plot_accepts_legacy_rows_without_candidate_id() -> None:

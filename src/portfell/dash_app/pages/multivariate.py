@@ -360,7 +360,11 @@ def _structure_cards(
             _structural_diversification_figure(diversification),
             graph_id="multivariate-structural-diversification",
         ),
-        TableCard("Risk Clusters", [html.Pre(str(clusters))]),
+        ChartCard(
+            "Risk Clusters",
+            _risk_clusters_figure(clusters),
+            graph_id="multivariate-risk-clusters",
+        ),
         TableCard("Structural Stability", [html.Pre(str(stability))]),
         TableCard("Candidate Structural Risk", [html.Pre(str(candidate_rows))]),
         ChartCard("PCA Risk Contribution", _pca_risk_contribution_figure(candidate.get("pca_risk_contribution")), graph_id="multivariate-pca-risk-contribution"),
@@ -439,6 +443,55 @@ def _structural_diversification_figure(value: object) -> go.Figure | None:
     figure.update_yaxes(title_text="Components / effective rank", secondary_y=False)
     figure.update_yaxes(title_text="Dominant component share", tickformat=".0%", range=[0, 1], secondary_y=True)
     return apply_portfell_template(figure, x_title="Diversification measure")
+
+
+def _risk_clusters_figure(rows: object) -> go.Figure | None:
+    """Summarize persisted cluster memberships without recomputing clusters."""
+    memberships = _mappings(rows)
+    if not memberships:
+        return None
+    grouped: dict[str, list[dict[str, object]]] = {}
+    for row in memberships:
+        cluster_id = str(row.get("cluster_id", "")).strip()
+        if cluster_id:
+            grouped.setdefault(cluster_id, []).append(row)
+    if not grouped:
+        return None
+    cluster_ids = sorted(grouped, key=lambda value: (int(value.split()[-1]) if value.split()[-1].isdigit() else 10**9, value))
+    counts = [len(grouped[cluster_id]) for cluster_id in cluster_ids]
+    stability: list[float | None] = []
+    for cluster_id in cluster_ids:
+        values = [_number(row.get("mean_co_cluster_probability")) for row in grouped[cluster_id]]
+        finite = [value for value in values if value is not None]
+        stability.append(sum(finite) / len(finite) if finite else None)
+    figure = make_subplots(specs=[[{"secondary_y": True}]])
+    figure.add_trace(
+        go.Bar(
+            x=cluster_ids,
+            y=counts,
+            name="Members",
+            marker_color="#2563eb",
+            customdata=[[cluster_id, count] for cluster_id, count in zip(cluster_ids, counts, strict=True)],
+            hovertemplate="%{customdata[0]}<br>Members=%{customdata[1]}<extra></extra>",
+        ),
+        secondary_y=False,
+    )
+    if any(value is not None for value in stability):
+        figure.add_trace(
+            go.Scatter(
+                x=cluster_ids,
+                y=stability,
+                mode="lines+markers",
+                name="Mean co-cluster probability",
+                marker_color="#f97316",
+                connectgaps=False,
+                hovertemplate="%{x}<br>Mean co-cluster probability=%{y:.2%}<extra></extra>",
+            ),
+            secondary_y=True,
+        )
+    figure.update_yaxes(title_text="Cluster members", rangemode="tozero", secondary_y=False)
+    figure.update_yaxes(title_text="Mean co-cluster probability", tickformat=".0%", range=[0, 1], secondary_y=True)
+    return apply_portfell_template(figure, x_title="Risk cluster")
 
 
 def _pca_risk_contribution_figure(value: object) -> go.Figure | None:
