@@ -851,13 +851,6 @@ class WorkspaceApplicationService:
                     selected_rows=selected_rows,
                     listing_metadata=listing_metadata,
                     quote_rows=market.quotes,
-                    # Daily returns are deliberately rebuilt from the quotes
-                    # read above.  They are shared market data, not an input
-                    # that should be hydrated from PostgreSQL's univariate
-                    # artifact table.  This keeps the multivariate boundary
-                    # on the local shared store and avoids transferring a
-                    # potentially very large daily-return artifact.
-                    daily_return_rows=None,
                     dividend_rows=market.dividends,
                     objective=objective,
                     executor=executor,
