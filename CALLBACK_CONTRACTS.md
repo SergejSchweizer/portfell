@@ -69,7 +69,7 @@ All outputs targeting `pf-browser-state.data` with `allow_duplicate=True` retain
 | `_render_job_progress` | `pf-browser-state.data` | — | Renders `pf-job-progress-region.children` from the state job. |
 | `_refresh_univariate_regions` | `pf-browser-state.data` | — | Rebuilds `univariate-data-regions.children` from the current succeeded Univariate run and the persisted Metadata-scoped selection. `Metadata Selected ISINs` is the unique Metadata count; `Univariate Selected ISINs` is the unique member count of the persisted selection, including zero for an explicitly empty selection. Stale selections are never replaced by the Metadata count. |
 | `_refresh_bivariate_continue` | `pf-browser-state.data` | — | Enables the Bivariate-to-Multivariate link only when the current Bivariate result is ready. |
-| `_save_univariate_selection` | `univariate-save-selection.n_clicks` | `pf-browser-state.data` | Persists the complete current Univariate selection and starts the explicitly requested downstream transition. It is not triggered by page rendering. |
+| `_save_univariate_selection` | `univariate-save-selection.n_clicks` | `pf-browser-state.data` | Persists the complete current Univariate selection only. It does not start or mutate Bivariate or Multivariate state. |
 | `_save_univariate_filter_selection` | Pattern values from Dividend, ISIN Age, and Monthly Return groups | All three pattern ID sets and browser state | Atomically converts all checked groups into exclusive predicates and persists the Univariate selection only. Empty group means no restriction; an untriggered hydration call is ignored. |
 | `_compute_bivariate` | `bivariate-compute.n_clicks` | `pf-browser-state.data` | Starts a Bivariate background job only on an explicit button click and only with the persisted Univariate selection. The Compute button is disabled while the job is queued or running and is enabled again only after a terminal job state. |
 | `_optimize_multivariate` | `multivariate-optimize.n_clicks` | Browser state | Submits one durable Multivariate portfolio-compute job on an explicit click. At most one job may be queued/running for the current input; its persisted lower-right status and progress remain visible across reloads, and the button stays disabled until a terminal state. |
@@ -167,7 +167,7 @@ Sidebar count  Univariate Selected ISINs
        Return/Risk plot ISIN scope
 ```
 
-The explicit `univariate-save-selection` button is a separate transition and may start downstream work. Checkbox callbacks must never call `run_bivariate`, `run_multivariate`, or an analysis-job starter.
+The explicit `univariate-save-selection` button persists only the Univariate selection. Bivariate and Multivariate work always requires an explicit action on its own page. Checkbox callbacks must never call `run_bivariate`, `run_multivariate`, or an analysis-job starter.
 
 ## 7. Failure and persistence rules
 

@@ -36,8 +36,17 @@ def test_runtime_facades_reject_cross_module_operations() -> None:
 def test_each_module_can_only_write_its_owned_stage() -> None:
     modules = build_module_registry(_Service())
     forbidden_by_module = {
-        "metadata": ("create_univariate_selection", "run_bivariate", "run_multivariate"),
-        "univariate": ("create_metadata_universe", "run_bivariate", "run_multivariate"),
+        "metadata": (
+            "create_univariate_selection",
+            "start_univariate_job",
+            "run_bivariate",
+            "run_multivariate",
+        ),
+        "univariate": (
+            "create_metadata_universe",
+            "run_bivariate",
+            "run_multivariate",
+        ),
         "bivariate": (
             "create_metadata_universe",
             "create_univariate_selection",

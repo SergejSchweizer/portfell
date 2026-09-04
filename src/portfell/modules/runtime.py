@@ -44,7 +44,6 @@ _UNIVARIATE = frozenset(
         "run_univariate",
         "start_univariate_job",
         "create_univariate_selection",
-        "create_selection_and_start_downstream",
         "univariate_summary",
         "univariate_page",
         "univariate_chart_sample",

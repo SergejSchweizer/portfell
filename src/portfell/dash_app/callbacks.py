@@ -157,14 +157,9 @@ def execute_action(
         elif action == "univariate-save-selection":
             if state.univariate_run_id is None:
                 return replace(state, message_code="univariate_not_ready")
-            if hasattr(writer, "create_selection_and_start_downstream"):
-                writer.create_selection_and_start_downstream(
-                    state.univariate_run_id, predicates=predicates
-                )
-            else:
-                # Compatibility for isolated page fixtures; production service owns
-                # the atomic selection-to-downstream transition above.
-                writer.create_univariate_selection(state.univariate_run_id, predicates=predicates)
+            # Univariate owns only its selection artifact. Downstream Bivariate
+            # computation is an explicit action on the Bivariate page.
+            writer.create_univariate_selection(state.univariate_run_id, predicates=predicates)
         elif action == "univariate-dividend-selection":
             if state.univariate_run_id is None:
                 return replace(state, message_code="univariate_not_ready")
