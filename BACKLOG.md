@@ -4097,7 +4097,7 @@ Acceptance:
   contract versions, migration version, test counts, coverage, module health, workflow IDs and
   artifact hashes without credentials or private market rows.
 
-Git status: closeout audit integrated on `main` at `4e613f6`; 2 focused audit
+Git status: closeout audit integrated on `main` at `9eb97dd`; 2 focused audit
 tests pass, but the audit correctly reports `BLOCKED` because legacy
 composition references are still present. The feature branch and any remote
 copy were removed. No PR427 PASS is claimed until those production
@@ -4139,5 +4139,7 @@ Acceptance: `pytest` full suite passes; coverage report is >=92%; all threshold
 assertions pass; no newly added source file is omitted; documentation explains
 the temporary exclusion and its removal condition.
 
-Git status: implementation complete on branch `chore/pr428-coverage-gate`;
-focused gate tests are pending after the full coverage run.
+Git status: integrated on `main` at `9eb97dd`; full suite passes with 914
+tests passed, 5 skipped and 92.02% coverage. Focused gate tests (31 passed)
+also pass; the feature branch and any remote copy were removed after the
+fast-forward merge.
