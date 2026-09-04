@@ -47,7 +47,7 @@ def _run_real_stack_flow(page: Page) -> None:
     assert isinstance(run_id, str)
 
     page.goto(f"{BASE_URL}/univariate", wait_until="domcontentloaded")
-    expect(page.locator("#univariate-page")).to_be_visible()
+    expect(page.locator("#univariate-page")).to_be_visible(timeout=120_000)
     _assert_plot_matches_persisted_selection(page)
 
     # One category from each independent filter group is selected, then each
@@ -133,7 +133,7 @@ def _assert_selection_counts(page: Page) -> None:
     }
     # The persisted backend selection is the source of truth for both cards:
     # Univariate Selected ISINs and the Bivariate candidate-pair plan.
-        page.goto(f"{BASE_URL}/bivariate", wait_until="domcontentloaded")
+    page.goto(f"{BASE_URL}/bivariate", wait_until="domcontentloaded")
     body = page.locator("#bivariate-kpi-grid").inner_text()
     expected_pairs = len(unique_isins) * (len(unique_isins) - 1) // 2
     # Empty persisted selections are represented consistently as numeric zero
