@@ -9,13 +9,6 @@ from datetime import UTC, date, datetime
 from typing import Protocol, cast
 from uuid import uuid4
 
-from portfell.app_services.analysis_executor import AnalysisJobExecutor
-from portfell.app_services.market_data import AnalyticalMarketData
-from portfell.app_services.multivariate_compute import (
-    MULTIVARIATE_EXECUTION_VERSION,
-    MultivariateComputation,
-    compute_multivariate,
-)
 from portfell.app_services.analysis_compute import (
     ComputedRun,
     ComputedSelection,
@@ -27,6 +20,13 @@ from portfell.app_services.analysis_compute import (
     opaque_id,
     stable_hash,
     univariate_source_id,
+)
+from portfell.app_services.analysis_executor import AnalysisJobExecutor
+from portfell.app_services.market_data import AnalyticalMarketData
+from portfell.app_services.multivariate_compute import (
+    MULTIVARIATE_EXECUTION_VERSION,
+    MultivariateComputation,
+    compute_multivariate,
 )
 from portfell.app_state.contracts import (
     AnalysisArtifactItem,

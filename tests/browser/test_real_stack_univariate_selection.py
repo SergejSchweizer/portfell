@@ -128,9 +128,7 @@ def _assert_selection_counts(page: Page) -> None:
     selection = workflow.get("univariate_selection") or {}
     members = selection.get("members", [])
     unique_isins = {
-        str(member["isin"])
-        for member in members
-        if isinstance(member, dict) and member.get("isin")
+        str(member["isin"]) for member in members if isinstance(member, dict) and member.get("isin")
     }
     # The persisted backend selection is the source of truth for both cards:
     # Univariate Selected ISINs and the Bivariate candidate-pair plan.

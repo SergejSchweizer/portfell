@@ -15,9 +15,7 @@ def test_optimizer_oracle_respects_simplex_and_non_negative_weights() -> None:
         (listings[1], listings[0]): 0.01,
         (listings[1], listings[1]): 0.09,
     }
-    outcome = solve_minimum_variance(
-        listings, covariance, min_weight=0.0, max_weight=1.0
-    )
+    outcome = solve_minimum_variance(listings, covariance, min_weight=0.0, max_weight=1.0)
     assert outcome.converged
     weights = outcome.weights
     assert sum(weights) == pytest.approx(1.0)

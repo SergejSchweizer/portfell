@@ -7,8 +7,6 @@ from typing import cast
 
 import pytest
 
-from portfell.app_services.analysis_executor import AnalysisJobExecutor
-from portfell.app_services.workspace import ApplicationServiceError, WorkspaceApplicationService
 from portfell.app_services.analysis_compute import (
     ComputedRun,
     bivariate_source_id,
@@ -16,6 +14,8 @@ from portfell.app_services.analysis_compute import (
     full_univariate_selection,
     univariate_source_id,
 )
+from portfell.app_services.analysis_executor import AnalysisJobExecutor
+from portfell.app_services.workspace import ApplicationServiceError, WorkspaceApplicationService
 from portfell.app_state.contracts import (
     AnalysisArtifactItem,
     AnalysisArtifactItemRecord,
