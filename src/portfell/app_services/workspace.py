@@ -288,6 +288,23 @@ class WorkspaceApplicationService:
         if callable(writer):
             writer("metadata.filters", dict(filters))
 
+    def univariate_filter_preferences(self) -> tuple[JsonValue, ...]:
+        """Read the durable Univariate checkbox predicates for this workspace."""
+        reader = getattr(self._state, "get_ui_preference", None)
+        if not callable(reader):
+            return ()
+        record = reader("univariate.filters")
+        value = getattr(record, "value", None) if record is not None else None
+        return tuple(cast(Sequence[JsonValue], value)) if isinstance(value, list) else ()
+
+    def save_univariate_filter_preferences(
+        self, predicates: Sequence[Mapping[str, object]]
+    ) -> None:
+        """Persist checkbox predicates so route changes cannot lose them."""
+        writer = getattr(self._state, "set_ui_preference", None)
+        if callable(writer):
+            writer("univariate.filters", cast(JsonValue, [dict(item) for item in predicates]))
+
     def active_listings(
         self,
         *,
@@ -1068,6 +1085,7 @@ class WorkspaceApplicationService:
         universe = universes[0] if universes else None
         selection = selections[0] if selections else None
         metadata_filters = self.metadata_filter_preferences()
+        univariate_filter_predicates = self.univariate_filter_preferences()
         metadata_selected_count = len(
             {
                 str(row.get("isin"))
@@ -1099,6 +1117,7 @@ class WorkspaceApplicationService:
         return {
             "workspace_id": "default",
             "metadata_filters": metadata_filters,
+            "univariate_filter_predicates": list(univariate_filter_predicates),
             "metadata_selected_count": metadata_selected_count,
             "metadata_universe": None if universe is None else _universe_row(universe),
             "metadata_universes": list(self._named_universe_rows(project_history)),

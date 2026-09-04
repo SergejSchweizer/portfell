@@ -221,6 +221,10 @@ def execute_action(
         if submitted_job is not None and persisted.job.status is None:
             persisted = with_job_status(persisted, submitted_job)
         if action == "univariate-dividend-selection" and predicates is not None:
+            saver = getattr(service, "save_univariate_filter_preferences", None)
+            if callable(saver):
+                with suppress(Exception):
+                    saver(predicates)
             persisted = replace(
                 persisted,
                 univariate_filter_predicates=tuple(dict(predicate) for predicate in predicates),
@@ -395,7 +399,10 @@ def register_callbacks(app: Dash, services: object | None) -> None:
         return replace(
             refreshed,
             metadata_filters=existing.metadata_filters,
-            univariate_filter_predicates=existing.univariate_filter_predicates,
+            univariate_filter_predicates=(
+                existing.univariate_filter_predicates
+                or refreshed.univariate_filter_predicates
+            ),
             metadata_member_count=(
                 selected_count if selected_count is not None else existing.metadata_member_count
             ),
@@ -421,7 +428,10 @@ def register_callbacks(app: Dash, services: object | None) -> None:
                 persisted,
                 metadata_filters=state.metadata_filters,
                 metadata_member_count=state.metadata_member_count,
-                univariate_filter_predicates=state.univariate_filter_predicates,
+                univariate_filter_predicates=(
+                    state.univariate_filter_predicates
+                    or persisted.univariate_filter_predicates
+                ),
             ).to_store()
         return refreshed.to_store()
 

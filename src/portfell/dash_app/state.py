@@ -286,6 +286,9 @@ def browser_state_from_workflow(workflow: Mapping[str, object]) -> BrowserState:
         ),
         project_records=tuple(_rows(workflow.get("metadata_universes"))),
         metadata_filters=_metadata_filters(workflow.get("metadata_filters")),
+        univariate_filter_predicates=tuple(
+            row for row in _rows(workflow.get("univariate_filter_predicates"))
+        ),
         metadata_member_count=metadata_count,
         metadata_created_at=_field(universe, "created_at"),
         universe_version=_integer(None if universe is None else universe.get("version")),
