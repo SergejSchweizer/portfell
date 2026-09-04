@@ -1431,49 +1431,6 @@ class WorkspaceApplicationService:
     def _univariate_computed_run(self, run: AnalysisRunRecord) -> ComputedRun:
         return self._computed_run(run, self._univariate_rows_artifact(run.run_id))
 
-    def _univariate_daily_return_rows(
-        self, run_id: str, *, selected_ids: set[str] | None = None
-    ) -> tuple[JsonRow, ...]:
-        """Read the daily returns produced by the matching Univariate run.
-
-        Older persisted runs predate the daily artifact; returning an empty
-        tuple lets Multivariate retain its backwards-compatible quote fallback.
-        """
-        try:
-            artifact = self._artifact(run_id, "univariate.daily_returns@v1")
-        except ApplicationServiceError:
-            return ()
-        if artifact.document.get("storage") != "row_items":
-            raise ApplicationServiceError("analysis_artifact_invalid")
-        item_count = artifact.document.get("item_count")
-        if not isinstance(item_count, int) or item_count < 0:
-            raise ApplicationServiceError("analysis_artifact_invalid")
-        rows: list[JsonRow] = []
-        selected_isins = {
-            member_id.split(":", 1)[0] for member_id in selected_ids
-        } if selected_ids is not None else None
-        indexed_reader = getattr(self._state, "list_analysis_artifact_items_for_isins", None)
-        if selected_isins is not None and callable(indexed_reader):
-            items = indexed_reader(artifact.artifact_id, tuple(sorted(selected_isins)))
-            return tuple(
-                cast(JsonRow, item.document)
-                for item in items
-                if selected_ids is None or _row_member_id(item.document) in selected_ids
-            )
-        for offset in range(0, item_count, 500):
-            items = self._state.list_analysis_artifact_items(
-                artifact.artifact_id, offset=offset, limit=min(500, item_count - offset)
-            )
-            for item in items:
-                document = getattr(item, "document", None)
-                if not isinstance(document, dict):
-                    raise ApplicationServiceError("analysis_artifact_invalid")
-                if selected_ids is None or _row_member_id(document) in selected_ids:
-                    rows.append(cast(JsonRow, document))
-        if len(rows) != item_count:
-            raise ApplicationServiceError("analysis_artifact_invalid")
-        return tuple(rows)
-
     def _computed_run(
         self, run: AnalysisRunRecord, artifact: str | AnalysisArtifactRecord
     ) -> ComputedRun:
