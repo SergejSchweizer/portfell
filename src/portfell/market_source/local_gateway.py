@@ -37,13 +37,18 @@ class LocalMarketDataGateway:
         except (OSError, json.JSONDecodeError) as error:
             raise MarketSourceError(MARKET_SOURCE_UNAVAILABLE) from error
 
-    def _iter(self, name: str) -> Iterator[dict[str, object]]:
+    def _iter(
+        self, name: str, *, wanted_isins: set[str] | None = None
+    ) -> Iterator[dict[str, object]]:
         """Stream a snapshot file so narrow selections never load the universe into RAM."""
         path = self._root / f"{name}.jsonl"
         try:
             with path.open(encoding="utf-8") as handle:
                 for line in handle:
-                    if line:
+                    # Snapshot rows are one JSON object per line.  Avoid
+                    # deserializing the 1.3GB quote file for unrelated ISINs;
+                    # the exact ISIN is validated again after deserialization.
+                    if line and (wanted_isins is None or _line_has_isin(line, wanted_isins)):
                         yield json.loads(line)
         except (OSError, json.JSONDecodeError) as error:
             raise MarketSourceError(MARKET_SOURCE_UNAVAILABLE) from error
@@ -81,6 +86,7 @@ class LocalMarketDataGateway:
         self, keys: Sequence[ListingKey], *, start: date, end: date
     ) -> MarketDataSnapshot:
         wanted = set(keys)
+        wanted_isins = {key.isin for key in wanted}
         listings = tuple(item for item in self.read_active_listings() if item.key in wanted)
         if {item.key for item in listings} != wanted:
             raise MarketSourceError(MARKET_SOURCE_CONTRACT_MISMATCH)
@@ -99,7 +105,7 @@ class LocalMarketDataGateway:
                 close=Decimal(str(row["close"])) if row.get("close") is not None else None,
                 volume=Decimal(str(row["volume"])) if row.get("volume") is not None else None,
             )
-            for row in self._iter("quotes")
+            for row in self._iter("quotes", wanted_isins=wanted_isins)
             if self._key(row) in wanted and in_range(row, "trade_date")
         )
         dividends = tuple(
@@ -110,7 +116,7 @@ class LocalMarketDataGateway:
                 amount=Decimal(str(row["amount"])) if row.get("amount") is not None else None,
                 currency=self._text(row, "currency"),
             )
-            for row in self._iter("dividends")
+            for row in self._iter("dividends", wanted_isins=wanted_isins)
             if self._key(row) in wanted and in_range(row, "event_date")
         )
         splits = tuple(
@@ -122,7 +128,18 @@ class LocalMarketDataGateway:
                 if row.get("split_factor") is not None
                 else None,
             )
-            for row in self._iter("splits")
+            for row in self._iter("splits", wanted_isins=wanted_isins)
             if self._key(row) in wanted and in_range(row, "event_date")
         )
         return MarketDataSnapshot(listings, quotes, dividends, splits)
+
+
+def _line_has_isin(line: str, wanted_isins: set[str]) -> bool:
+    """Extract the single ISIN field without parsing unrelated JSON rows."""
+    marker = line.find('"isin"')
+    if marker < 0:
+        return False
+    colon = line.find(":", marker + 6)
+    start = line.find('"', colon + 1)
+    end = line.find('"', start + 1)
+    return start >= 0 and end > start and line[start + 1 : end] in wanted_isins
