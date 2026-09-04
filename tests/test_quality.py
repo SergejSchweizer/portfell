@@ -49,7 +49,7 @@ def test_merge_gate_extends_pr_gate_with_protected_checks() -> None:
         "auto",
         "--cov=portfell",
         "--cov-report=term-missing",
-        "--cov-fail-under=90",
+        "--cov-fail-under=92",
     )
     assert commands[-3:] == (
         ("git", "diff", "--quiet"),

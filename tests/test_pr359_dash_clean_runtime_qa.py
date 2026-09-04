@@ -160,4 +160,4 @@ def test_local_quality_contract_exposes_both_required_layers() -> None:
     quality = (PACKAGE / "quality.py").read_text(encoding="utf-8")
     assert 'if layer == "pr"' in quality
     assert 'if layer in {"merge", "main"}' in quality
-    assert '"--cov-fail-under=90"' in quality
+    assert '"--cov-fail-under=92"' in quality

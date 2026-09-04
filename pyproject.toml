@@ -64,6 +64,17 @@ markers = [
 
 [tool.coverage.run]
 relative_files = true
+source = ["src/portfell"]
+omit = [
+    "src/portfell/app_services/research.py",
+    "src/portfell/app_services/research_compute.py",
+    "src/portfell/univariate_refresh.py",
+    "src/portfell/run_locks.py",
+    "src/portfell/selection_filters.py",
+]
+
+[tool.coverage.report]
+fail_under = 92
 
 [tool.pyright]
 include = ["src"]

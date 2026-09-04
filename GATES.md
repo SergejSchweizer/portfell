@@ -43,7 +43,8 @@ The merge layer executes:
 - clean working-tree checks;
 - Conventional Commit validation.
 
-The Python coverage threshold is **90% minimum**. A result below 90% fails the merge gate.
+The Python coverage threshold is **92% minimum**. A result below 92% fails the merge gate;
+the local command uses `--cov-fail-under=92`.
 
 ## GitHub `merge-gate`
 
@@ -56,7 +57,7 @@ The final workflow runs these independent families:
 3. `merge-dash-browser` — Python Playwright Chromium acceptance for the four Plotly Dash pages; uploads `dash-parity-v1` evidence.
 4. `merge-unit-tests-1..4` — four deterministic unit-test shards with coverage data.
 5. `merge-integration-tests-1..4` — four deterministic integration-test shards with coverage data.
-6. final `merge-gate` aggregation — requires all preceding families to succeed, combines coverage shards, and enforces 90% coverage.
+6. final `merge-gate` aggregation — requires all preceding families to succeed, combines coverage shards, and enforces 92% coverage.
 
 All third-party GitHub Actions are pinned to full commit SHAs. Workflow permissions are top-level read-only unless a narrowly scoped workflow explicitly requires more.
 

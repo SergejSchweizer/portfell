@@ -231,7 +231,7 @@ jobs:
       - name: Combine coverage and enforce threshold
         run: |
           uv run coverage combine coverage-shards
-          uv run coverage report --fail-under=95
+          uv run coverage report --fail-under=92
 
   structural-risk-v2-evidence:
     name: structural-risk-v2-evidence

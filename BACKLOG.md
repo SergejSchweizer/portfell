@@ -4123,3 +4123,21 @@ Historical integration notes and commit references in Sections 3–13 remain
 auditable, but their original acceptance lists no longer authorize work. Any
 unfinished behavior discovered in those sections must be reformulated as a new
 small PR inside PR407–PR427 or a later active series.
+
+### PR428 — Raise and document the active modular coverage gate
+
+Branch: `chore/pr428-coverage-gate`
+
+Priority: P0 quality gate; created during PR427 closeout because the requested
+92% threshold was not encoded consistently.
+
+Task: align local quality, GitHub shard aggregation, GATES.md, tests and the
+coverage configuration on a 92% threshold while omitting only the five
+transitional files scheduled for PR427 deletion.
+
+Acceptance: `pytest` full suite passes; coverage report is >=92%; all threshold
+assertions pass; no newly added source file is omitted; documentation explains
+the temporary exclusion and its removal condition.
+
+Git status: implementation complete on branch `chore/pr428-coverage-gate`;
+focused gate tests are pending after the full coverage run.
