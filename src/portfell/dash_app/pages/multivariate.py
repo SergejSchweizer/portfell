@@ -324,6 +324,7 @@ def _layout(
                     model.get("winner_id")
                     if model.get("winner_id") is not None
                     else (display_candidate or {}).get("candidate_id"),
+                    fallback_rows=(candidate_structure or {}).get("pca_risk_contribution", ()),
                 ),
                 graph_id="multivariate-risk-contribution",
             ),
@@ -683,7 +684,8 @@ def _allocation_figure(winner: Mapping[str, object] | None) -> go.Figure | None:
 
 
 def _risk_contribution_figure(
-    rows: Sequence[Mapping[str, object]], winner_id: object
+    rows: Sequence[Mapping[str, object]], winner_id: object,
+    fallback_rows: object = (),
 ) -> go.Figure | None:
     def contribution(row: Mapping[str, object]) -> float | None:
         for key in ("percent_risk_contribution", "risk_contribution", "percent_portfolio_variance"):
@@ -714,6 +716,24 @@ def _risk_contribution_figure(
         if len(candidate_ids) <= 1:
             selected = [row for row in rows if contribution(row) is not None]
     if not selected:
+        # A completed structural artifact always contains PCA contribution
+        # rows, even when the per-ISIN contribution artifact is unavailable
+        # for an older run. Render that persisted evidence rather than an
+        # empty card.
+        components = [
+            row for row in _mappings(fallback_rows)
+            if _number(row.get("percent_portfolio_variance")) is not None
+        ]
+        if components:
+            figure = go.Figure(go.Bar(
+                x=[str(row.get("component_id", "")) for row in components],
+                y=[_number(row.get("percent_portfolio_variance")) for row in components],
+                marker_color="#7c3aed",
+                customdata=[[row.get("component_id")] for row in components],
+                hovertemplate="Component %{customdata[0]}<br>Portfolio variance=%{y:.2%}<extra></extra>",
+                name="PCA risk contribution",
+            ))
+            return apply_portfell_template(figure, x_title="Principal component", y_title="Portfolio variance contribution")
         return None
     figure = go.Figure(
         go.Bar(

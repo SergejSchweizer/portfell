@@ -363,3 +363,16 @@ def test_risk_contribution_plot_accepts_persisted_schema_aliases_and_single_cand
     )
     assert figure is not None
     assert list(figure.data[0].y) == [0.6, 0.4]
+
+
+def test_risk_contribution_plot_falls_back_to_persisted_pca_components() -> None:
+    figure = _risk_contribution_figure(
+        [],
+        "candidate-1",
+        fallback_rows=[
+            {"component_id": "Component 1", "percent_portfolio_variance": 0.8},
+            {"component_id": "Component 2", "percent_portfolio_variance": 0.2},
+        ],
+    )
+    assert figure is not None
+    assert list(figure.data[0].y) == [0.8, 0.2]
