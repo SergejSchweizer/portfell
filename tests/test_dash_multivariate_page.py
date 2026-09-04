@@ -277,6 +277,21 @@ def test_performance_plot_falls_back_to_first_candidate_without_decision_winner(
     assert list(figure.data[0].y) == [0.05]
 
 
+def test_performance_plot_renders_all_portfolio_candidates() -> None:
+    figure = _performance_figure(
+        {
+            "portfolio_series": [
+                {"candidate_id": "c1", "method": "equal_weight", "values": [{"date": "2023-01-01", "return": 0.05}]},
+                {"candidate_id": "c2", "method": "minimum_cvar", "values": [{"date": "2023-01-01", "return": 0.08}]},
+            ]
+        },
+        "c2",
+    )
+    assert figure is not None
+    assert len(figure.data) == 2
+    assert {trace.name for trace in figure.data} == {"equal_weight", "minimum_cvar (winner)"}
+
+
 def test_structure_plots_render_persisted_multivariate_evidence() -> None:
     spectrum = _pca_spectrum_figure({
         "covariance": {"explained_variance": [0.6, 0.4]},

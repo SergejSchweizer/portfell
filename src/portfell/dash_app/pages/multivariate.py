@@ -609,34 +609,32 @@ def _performance_figure(
     if performance is None:
         return None
     series = _mappings(performance.get("portfolio_series"))
-    winner = next(
-        (row for row in series if row.get("candidate_id") == winner_id),
-        None,
-    )
-    if winner is None:
-        winner = next((row for row in series if row.get("status", "feasible") == "feasible"), None)
-    if winner is None:
-        return None
-    values = _mappings(winner.get("values"))
-    values = tuple(
-        row for row in values
-        if row.get("date") is not None
-        and _number(row.get("cumulative_extended_return", row.get("return"))) is not None
-    )
-    if not values:
-        return None
-    figure = go.Figure(
-        go.Scatter(
-            x=[row.get("date") for row in values],
-            y=[
-                _number(row.get("cumulative_extended_return", row.get("return")))
-                for row in values
-            ],
-            mode="lines",
-            name="Winning portfolio",
-            hovertemplate="Date=%{x}<br>Cumulative return=%{y:.2%}<extra></extra>",
+    valid_series = []
+    for row in series:
+        values = tuple(
+            item for item in _mappings(row.get("values"))
+            if item.get("date") is not None
+            and _number(item.get("cumulative_extended_return", item.get("return"))) is not None
         )
-    )
+        if values:
+            valid_series.append((row, values))
+    if not valid_series:
+        return None
+    figure = go.Figure()
+    for row, values in valid_series:
+        is_winner = row.get("candidate_id") == winner_id
+        method = str(row.get("method", row.get("candidate_id", "Portfolio")))
+        figure.add_trace(
+            go.Scatter(
+                x=[item.get("date") for item in values],
+                y=[_number(item.get("cumulative_extended_return", item.get("return"))) for item in values],
+                mode="lines",
+                name=f"{method}{' (winner)' if is_winner else ''}",
+                line={"width": 3 if is_winner else 1.5},
+                customdata=[[row.get("candidate_id"), method]] * len(values),
+                hovertemplate="Candidate=%{customdata[0]}<br>Method=%{customdata[1]}<br>Date=%{x}<br>Cumulative return=%{y:.2%}<extra></extra>",
+            )
+        )
     return apply_portfell_template(figure, x_title="Date", y_title="Cumulative return")
 
 
