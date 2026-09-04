@@ -1,6 +1,10 @@
 # Portfell architecture
 
-Last reviewed: 2026-08-30
+Last reviewed: 2026-09-04
+
+The current deployment authority is [`single-container-modules-v1`](docs/contracts/single-container-modules-v1.md):
+all four modules and the gateway run in one Application container. The older
+independent-process contract is retained as migration history only.
 
 ## 1. System boundary
 
@@ -45,7 +49,7 @@ The product routes are exactly:
 
 ### `hosted_api.py`
 
-`src/portfell/hosted_api.py` is the final composition root. It validates the independent app/market configuration, opens the clean application database, migrates it to the frozen app-state head, creates `PostgresAppStateRepository`, creates the read-only `MarketDataGateway`, composes `ResearchApplicationService`, registers FastAPI routes, and mounts Dash.
+`src/portfell/hosted_api.py` is the single-process composition root. It validates the app/market configuration, opens the clean application database once, migrates it to the frozen app-state head, creates `PostgresAppStateRepository`, creates the read-only market gateway, composes the restricted module facades, registers FastAPI routes, and mounts Dash.
 
 ### Feature modules
 

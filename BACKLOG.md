@@ -3248,14 +3248,15 @@ Acceptance must prove all of the following on the exact PR406 head SHA:
 - `uv run portfell-quality pr`, `uv run portfell-quality merge` and GitHub `merge-gate` pass on the exact head; skipped/cancelled/zero-step evidence is not PASS;
 - produce one immutable sanitized `univariate-income-dashboard-v1` PASS artifact containing exact Git SHA, catalog/contract versions, fixture sizes, metric-registry fingerprint, nightly-refresh evidence refs, browser-layout evidence refs, selection-oracle fingerprint and exact Bivariate-handoff evidence without credentials, DSNs or private market rows.
 
-**Active backlog status — PR407–PR427 only**
+**Active backlog status — PR433–PR436**
 
 **Status override — 2026-09-04:** Every PR from PR308 through PR406 is now
 marked **OUTDATED** for backlog execution. Those entries are retained only as
 historical/audit reference and must not be implemented, reopened, or used as a
-dependency for new work. PR407–PR427 are the only active backlog PRs. Their
-dependencies must be taken from the active graph below, not from the retired
-PR descriptions.
+dependency for new work. PR407–PR427 completed the prior independent-process
+implementation and are retained as integrated history. The current target is
+one Application container with strict internal module boundaries; PR433–PR436
+are the only active backlog PRs for that target.
 
 ## 14. Four independently deployable page modules over shared PostgreSQL and data share — PR407–PR427
 
@@ -4211,4 +4212,106 @@ recreated as a new, atomic item in the active backlog.
 | PR401–PR406 | Income-first Univariate metrics, cards, filters and hand-off QA | Historical metric work; no active dependency |
 | PR428–PR432 | Coverage gate and proposed callback/hosted-composition/closeout follow-ups | Retired; do not implement unless reintroduced as a new active PR |
 
-The only executable backlog items are PR407–PR427 in Section 14.
+The only executable backlog items are PR433–PR436 in Section 16.
+
+## 16. Single Application container with isolated internal modules — PR433–PR436
+
+This series supersedes the independent-process deployment target. Portfell
+must run all four analytical modules and the gateway in exactly one
+Application container, with PostgreSQL and the read-only market data share as
+the only external dependencies. Module boundaries remain explicit inside the
+process: each module owns its ports, routes, persistence adapters and UI
+callbacks, and modules exchange only typed IDs, immutable artifacts and the
+workflow projection. No sibling implementation calls, hidden fallback or
+second Application container is allowed.
+
+Dependency graph: `PR433 -> PR434 -> PR435 -> PR436`.
+
+### PR433 — Freeze the single-container module-boundary contract
+
+Branch: `docs/pr433-single-container-contract`
+
+Task: replace the deployment target in architecture and runbook documentation
+with one Application container; define the internal module ownership table,
+allowed dependency direction, external PostgreSQL/data-share boundaries and
+the exact container-count invariant.
+
+Acceptance:
+
+- documentation and contract tests state exactly one Application container and
+  one PostgreSQL container;
+- all four module route/API prefixes and their owned ports are enumerated;
+- module-to-module hand-off is limited to typed IDs, immutable artifacts and
+  workflow DTOs;
+- a contract test fails if a second Application service or direct sibling
+  implementation import is introduced;
+- `uv run portfell-quality pr` passes.
+
+Git status: planned; no branch exists yet.
+
+### PR434 — Remove the obsolete multi-container deployment profile
+
+Branch: `chore/pr434-remove-multi-container-profile`
+
+Task: delete `compose.modules.yaml` and its process-only fallback entrypoint,
+remove references to the independent-process deployment from documentation
+and tests, and make `compose.yaml` the sole supported application topology.
+
+Acceptance:
+
+- repository contains exactly one supported Application Compose service plus
+  PostgreSQL;
+- `docker compose -f compose.yaml config` succeeds and exposes only port 8080
+  for the Application service;
+- no production or documentation path starts `portfell-gateway`,
+  `portfell-metadata`, `portfell-univariate`, `portfell-bivariate` or
+  `portfell-multivariate` as separate containers;
+- obsolete process-only tests/artifacts are removed or replaced by the
+  single-container contract tests;
+- focused and full tests pass with coverage >=92%.
+
+Git status: planned; no branch exists yet.
+
+### PR435 — Compose isolated modules inside the single Application process
+
+Branch: `refactor/pr435-single-process-module-composition`
+
+Task: introduce one explicit composition root that constructs the gateway,
+Metadata, Univariate, Bivariate and Multivariate applications in-process over
+typed module ports. Keep route ownership, persistence ownership and callback
+registration isolated while preserving all public URLs and behavior.
+
+Acceptance:
+
+- `hosted_api` has one composition root and one Application process;
+- each module is constructed from its declared port and cannot access sibling
+  implementation operations;
+- `/metadata`, `/univariate`, `/bivariate` and `/multivariate` remain
+  reachable from the single container;
+- PostgreSQL and local market data are opened once by the composition root;
+- boundary tests prove forbidden sibling calls and direct SQL from callbacks;
+- full tests and Strict Pyright pass with coverage >=92%.
+
+Git status: planned; no branch exists yet.
+
+### PR436 — Single-container deployment and complete-workflow gate
+
+Branch: `test/pr436-single-container-e2e`
+
+Task: add the real Compose/PostgreSQL/Playwright acceptance gate for the sole
+supported topology and update operator documentation with build, restart,
+health, log and rollback procedures.
+
+Acceptance:
+
+- a clean `docker compose -f compose.yaml up -d --build` starts exactly one
+  Application container and one PostgreSQL container;
+- health checks, Metadata → Univariate → Bivariate → Multivariate workflow,
+  persistence after restart and public route checks pass;
+- no alternate module Compose file, process entrypoint or stale container name
+  is referenced by the gate;
+- `uv run portfell-quality pr`, `uv run portfell-quality merge` and the
+  complete browser/REST suite pass with coverage >=92%;
+- sanitized evidence records the exact Git SHA and image IDs.
+
+Git status: planned; no branch exists yet.
