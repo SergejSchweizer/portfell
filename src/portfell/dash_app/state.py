@@ -151,6 +151,16 @@ def browser_state_from_workflow(workflow: Mapping[str, object]) -> BrowserState:
     bivariate_id = _field(bivariate, "run_id")
     multivariate_id = _field(multivariate, "run_id")
 
+    # A selection is valid only for the currently active Univariate run.  A
+    # Metadata revision creates a new run lineage; retaining the previous
+    # selection here made the sidebar report ``0`` (or an old count) while the
+    # new run was still being computed.
+    if selection is not None and univariate_id is not None:
+        source_run_id = _field(selection, "source_run_id")
+        if source_run_id is not None and source_run_id != univariate_id:
+            selection = None
+            selection_id = None
+
     # The service supplies bounded stage history.  Select by the exact dependency
     # reference, never by "latest run" alone, so a new revision cannot inherit old
     # analytical evidence while it is computing.
@@ -250,8 +260,8 @@ def browser_state_from_workflow(workflow: Mapping[str, object]) -> BrowserState:
         if _integer(workflow.get("metadata_selected_count")) is not None
         else (
             len(unique_universe_isins)
-        if universe_members
-        else _integer(None if universe is None else universe.get("member_count"))
+            if universe_members
+            else _integer(None if universe is None else universe.get("member_count"))
         )
     )
     return BrowserState(
@@ -273,7 +283,9 @@ def browser_state_from_workflow(workflow: Mapping[str, object]) -> BrowserState:
         univariate_run_id=univariate_id,
         selection_id=selection_id,
         selection_version=_integer(None if selection is None else selection.get("version")),
-        selected_count=_integer(None if selection is None else selection.get("member_count")),
+        selected_count=(
+            _integer(selection.get("member_count")) if selection is not None else metadata_count
+        ),
         bivariate_run_id=bivariate_id,
         multivariate_run_id=multivariate_id,
         current_input_revision=current_input_revision,

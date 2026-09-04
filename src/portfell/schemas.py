@@ -241,6 +241,7 @@ SCHEMAS: dict[str, tuple[str, ...]] = {
         "start_adjusted_close",
         "end_adjusted_close",
         "total_return",
+        "cumulative_extended_return",
         "cagr",
         "cumulative_log_return",
         "mean_log_return",

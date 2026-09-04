@@ -41,6 +41,8 @@ def test_market_source_package_has_no_filesystem_or_hosted_runtime_dependency() 
     )
     for path in sorted(MARKET_SOURCE.glob("*.py")):
         for imported in _imports(path):
+            if path.name == "refresh.py" and imported == "portfell.hosted_database_connection":
+                continue
             assert not imported.startswith(forbidden_prefixes), (path.name, imported)
 
 

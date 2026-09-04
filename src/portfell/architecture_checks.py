@@ -26,6 +26,7 @@ LAYER_HEAVY_MODULES = {
     "portfell.portfolio",
     "portfell.search",
 }
+FEATURE_MODULES = {"metadata", "univariate", "bivariate", "multivariate"}
 
 
 def check_architecture(root: Path = SRC_ROOT) -> list[str]:
@@ -35,6 +36,19 @@ def check_architecture(root: Path = SRC_ROOT) -> list[str]:
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         imports = list(_imports(tree))
         imported_from = {module for module, _name in imports}
+
+        feature = _feature_module(module_name)
+        if feature is not None:
+            sibling_imports = sorted(
+                imported
+                for imported in imported_from
+                if (imported_feature := _feature_module(imported)) is not None
+                and imported_feature != feature
+            )
+            if sibling_imports:
+                violations.append(
+                    f"{module_name} imports sibling feature modules: {', '.join(sibling_imports)}"
+                )
 
         if module_name.startswith("portfell.evaluation_parts"):
             if "portfell.evaluation" in imported_from:
@@ -71,6 +85,13 @@ def check_architecture(root: Path = SRC_ROOT) -> list[str]:
                     f"{module_name} core math imports lake IO modules: {', '.join(forbidden)}"
                 )
     return violations
+
+
+def _feature_module(module_name: str) -> str | None:
+    parts = module_name.split(".")
+    if len(parts) >= 3 and parts[:2] == ["portfell", "modules"]:
+        return parts[2] if parts[2] in FEATURE_MODULES else None
+    return None
 
 
 def main() -> int:

@@ -47,6 +47,7 @@ UNIVARIATE_PORTFOLIO_CATEGORIES: tuple[UnivariateStatisticCategory, ...] = (
             "start_adjusted_close",
             "end_adjusted_close",
             "total_return",
+            "cumulative_extended_return",
             "cagr",
             "cumulative_log_return",
             "annualized_return",

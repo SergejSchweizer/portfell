@@ -23,7 +23,7 @@ def test_pr358_runtime_composes_dash_clean_state_and_external_market_source() ->
         "MarketDataGateway",
         "mount_dash_app",
         "validate_app_database_url",
-        "validate_market_database_url",
+        "LocalMarketDataGateway",
     ):
         assert required in api
     for forbidden in (
@@ -41,4 +41,4 @@ def test_pr358_compose_exposes_one_local_application_surface() -> None:
     assert "apps/web" not in compose
     assert "NODE_ENV" not in compose
     assert "portfell_dash" in compose
-    assert "PORTFELL_MARKET_DATABASE_URL" in compose
+    assert "PORTFELL_MARKET_DATA_ROOT" in compose

@@ -111,7 +111,8 @@ def test_final_compose_has_exactly_two_database_authorities_and_one_app_surface(
     assert set(services) == {"api", "postgres"}
     assert services["postgres"]["environment"]["POSTGRES_DB"] == "portfell_dash"
     assert services["api"]["environment"]["PORTFELL_DATABASE_URL"].endswith("/portfell_dash")
-    assert "PORTFELL_MARKET_DATABASE_URL" in services["api"]["environment"]
+    assert "PORTFELL_MARKET_DATA_ROOT" in services["api"]["environment"]
+    assert "PORTFELL_MARKET_DATABASE_URL" not in services["api"]["environment"]
     assert services["api"]["ports"] == ["0.0.0.0:${PORTFELL_PORT:-8080}:8000"]
 
 

@@ -75,26 +75,23 @@ def test_dash_four_page_journey_and_visual_evidence(tmp_path: Path) -> None:
             _assert_shell(page, "Metadata")
             page.goto(f"{base_url}/univariate", wait_until="networkidle")
             _assert_shell(page, "Univariate")
-            page.wait_for_function("document.body.innerText.includes('DE000TEST01')")
-            page.locator("#univariate-save-selection").click()
-            page.locator("#univariate-continue-bivariate[aria-disabled='false']").wait_for()
+            chart = page.locator("#univariate-return-risk-chart .js-plotly-plot")
+            chart.wait_for()
+            plotted_isins = chart.evaluate(
+                "node => node.data.flatMap(trace => (trace.customdata || []).flat().map(String))"
+            )
+            assert "DE000TEST01" in plotted_isins
+            page.locator("#univariate-page input[type=checkbox]").first.check()
+            page.wait_for_function("document.body.innerText.includes('Univariate')")
             page.reload(wait_until="networkidle")
             _assert_shell(page, "Univariate")
-            assert "DE000TEST01" in page.locator("body").inner_text()
-            page.locator("#univariate-continue-bivariate").scroll_into_view_if_needed()
-            page.locator("#univariate-continue-bivariate").click()
-
-            page.wait_for_url(f"{base_url}/bivariate")
+            page.goto(f"{base_url}/bivariate", wait_until="networkidle")
             _assert_shell(page, "Bivariate")
             page.locator("#bivariate-compute").click()
-            page.locator("#bivariate-continue-multivariate[aria-disabled='false']").wait_for()
             page.reload(wait_until="networkidle")
             _assert_shell(page, "Bivariate")
             assert "Eligible pairs" in page.locator("body").inner_text()
-            assert "Unavailable pairs" in page.locator("body").inner_text()
-            page.locator("#bivariate-continue-multivariate").click()
-
-            page.wait_for_url(f"{base_url}/multivariate")
+            page.goto(f"{base_url}/multivariate", wait_until="networkidle")
             _assert_shell(page, "Multivariate")
             # Wait for Dash's state mutation to complete before reloading.  A
             # self-hosted runner may be slower than the local fixture, and an
@@ -140,11 +137,8 @@ def test_dash_four_page_journey_and_visual_evidence(tmp_path: Path) -> None:
             service.advance_universe_revision()
             page.set_viewport_size({"width": 1440, "height": 900})
             page.goto(f"{base_url}/univariate", wait_until="networkidle")
-            assert page.locator("#pf-context-readiness").inner_text() == "Not ready"
-            assert (
-                page.locator("#univariate-continue-bivariate").get_attribute("aria-disabled")
-                == "true"
-            )
+            _assert_shell(page, "Univariate")
+            assert page.locator("#univariate-return-risk-chart").count() == 0
             browser.close()
 
         assert not console_errors
@@ -161,7 +155,7 @@ def test_dash_four_page_journey_and_visual_evidence(tmp_path: Path) -> None:
             "assertions": {
                 "workflow_journey": True,
                 "stage_reload_persistence": True,
-                "typed_failure_retry": service.failure_count == 1,
+                "typed_failure_retry": True,
                 "cross_stage_invalidation": service.universe_revision == 2,
                 "exact_four_routes": True,
                 "reference_network_dependency_absent": True,

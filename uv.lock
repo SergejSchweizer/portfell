@@ -879,6 +879,7 @@ name = "portfell"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "anyio" },
     { name = "cryptography" },
     { name = "dash" },
     { name = "fastapi" },
@@ -904,6 +905,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "anyio", specifier = ">=4.4.0,<4.15.0" },
     { name = "cryptography", specifier = ">=45.0.0" },
     { name = "dash", specifier = ">=4.4.1" },
     { name = "fastapi", specifier = ">=0.116.0" },

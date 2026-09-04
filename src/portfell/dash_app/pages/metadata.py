@@ -121,8 +121,7 @@ def metadata_page_data(
             project_rows = tuple(
                 row
                 for row in service.active_listings()
-                if (str(row.get("isin")), str(row.get("exchange")), str(row.get("code")))
-                in members
+                if (str(row.get("isin")), str(row.get("exchange")), str(row.get("code"))) in members
             )
     # Metadata selection starts from the complete downloaded listing universe;
     # project membership is an analytical output, not an input restriction here.
@@ -131,8 +130,7 @@ def metadata_page_data(
         row
         for row in source_rows
         if all(
-            not selected.get(field) or row.get(field) == selected.get(field)
-            for field in _FILTERS
+            not selected.get(field) or row.get(field) == selected.get(field) for field in _FILTERS
         )
     )
     options = dict(options)
@@ -141,9 +139,7 @@ def metadata_page_data(
         members_by_value: dict[str, set[str]] = {}
         for row in full_listing_rows:
             if any(
-                other != field
-                and selected.get(other)
-                and row.get(other) != selected.get(other)
+                other != field and selected.get(other) and row.get(other) != selected.get(other)
                 for other in _FILTERS
             ):
                 continue
@@ -176,9 +172,7 @@ def metadata_page_data(
         "distributions": universe_distributions(distribution_rows),
         "selected_filters": {
             field: (
-                selected.get(field)
-                if filters is not None
-                else _single_value(project_rows, field)
+                selected.get(field) if filters is not None else _single_value(project_rows, field)
             )
             for field in _FILTERS
         },
@@ -227,7 +221,9 @@ def _layout(
         ControlBar(
             [
                 _dropdown(
-                    "Exchange", "metadata-filter-exchange", options.get("exchange"),
+                    "Exchange",
+                    "metadata-filter-exchange",
+                    options.get("exchange"),
                     selected_filters.get("exchange"),
                 ),
                 _dropdown(
@@ -237,11 +233,15 @@ def _layout(
                     selected_filters.get("instrument_type"),
                 ),
                 _dropdown(
-                    "Country", "metadata-filter-country", options.get("country"),
+                    "Country",
+                    "metadata-filter-country",
+                    options.get("country"),
                     selected_filters.get("country"),
                 ),
                 _dropdown(
-                    "Currency", "metadata-filter-currency", options.get("currency"),
+                    "Currency",
+                    "metadata-filter-currency",
+                    options.get("currency"),
                     selected_filters.get("currency"),
                 ),
             ],

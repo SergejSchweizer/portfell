@@ -143,7 +143,10 @@ def test_route_rendering_has_only_navigation_input_and_polling_is_one_second() -
     app = create_dash_app(services=cast(Any, JobReadOnlyService()))
     callback_map = cast(dict[str, Mapping[str, object]], cast(Any, app).callback_map)
     route = callback_map["pf-route-content.children"]
-    assert route["inputs"] == [{"id": "pf-location", "property": "pathname"}]
+    assert route["inputs"] == [
+        {"id": "pf-location", "property": "pathname"},
+        {"id": "pf-browser-state", "property": "data"},
+    ]
     layout = _tree(root_layout())
     assert "pf-job-progress-region" in layout
     assert "1000" in layout

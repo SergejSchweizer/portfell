@@ -22,7 +22,8 @@ from portfell.dash_app.components import (
 )
 from portfell.dash_app.contracts import PAGE_SPECS, SHARED_PRIMITIVES
 from portfell.dash_app.figures import apply_portfell_template, figure_from_rows
-from portfell.dash_app.shell import application_frame, normalize_route
+from portfell.dash_app.shell import application_frame, normalize_route, workflow_context_from_state
+from portfell.dash_app.state import BrowserState
 
 
 def test_routes_and_navigation_are_exact() -> None:
@@ -82,6 +83,13 @@ def test_shell_renders_every_page_without_legacy_web_import() -> None:
     assert "financial-dashboard-example.plotly.app" not in source
     assert ".execute(" not in source
     assert "psycopg" not in source
+
+
+def test_sidebar_shows_bivariate_candidate_pair_count_after_univariate() -> None:
+    context = workflow_context_from_state(BrowserState(selected_count=45), "/bivariate")
+    metadata = dict(context.project_metadata)
+    assert metadata["Univariate"] == "45"
+    assert metadata["Bivariate"] == "990"
 
 
 def test_fastapi_mount_keeps_health_and_redirects_root() -> None:

@@ -43,12 +43,14 @@ services:
       PORTFELL_CONFIG_PATH: /run/portfell/config.yaml
       PORTFELL_DATABASE_URL: postgresql://portfell_app@postgres:5432/portfell_dash
       PORTFELL_DATABASE_PASSWORD_FILE: /run/secrets/postgres_password
+      # The API reads only the atomically published local fetch snapshot.
+      # Market PostgreSQL credentials belong exclusively to the refresh job.
       PORTFELL_MARKET_DATA_ROOT: /var/lib/portfell/market-data
     secrets:
       - postgres_password
     volumes:
       - ./config.yaml:/run/portfell/config.yaml:ro
-      - ${PORTFELL_MARKET_DATA_ROOT:-./.market-data}:/var/lib/portfell/market-data:ro
+      - ${PORTFELL_MARKET_DATA_ROOT:-/volume2/docker/portfell/market-data}:/var/lib/portfell/market-data:ro
     depends_on:
       postgres:
         condition: service_healthy

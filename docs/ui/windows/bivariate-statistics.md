@@ -11,9 +11,10 @@ The final Bivariate page is a Plotly Dash page backed by the persisted Univariat
 The page contains:
 
 - `PageHeader` with the frozen title/subtitle;
-- one `ControlBar` with `Compute bivariate statistics` and only backend-supported pair-result controls;
-- KPI cards `Multivariate Selected ISINs`, `Candidate pairs`, `Eligible pairs`, `Unavailable pairs`;
+- a top-level header row with the `Compute bivariate statistics` action right-aligned beside the page title;
+- full-width KPI cards `Multivariate Selected ISINs`, `Candidate pairs`, and `Eligible pairs`;
 - `ChartCard` `Bivariate Return / Diversification Universe` using backend/service values and full pair identities;
+- the chart uses Spearman correlation on X, downside correlation on Y, lower-tail dependence for colour (red = low, grey = high), and inverse co-exceedance rate for marker size (small = frequent joint extremes, large = rare joint extremes);
 - point colour encodes lower-tail dependence: green/blue indicates lower shared extreme risk and red indicates higher shared extreme risk; the same value is shown in hover details;
 - no content after the Plotly chart; pair tables, history, and continuation controls are intentionally omitted.
 

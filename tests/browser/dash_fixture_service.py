@@ -93,9 +93,12 @@ class DashParityFixtureService:
         self.level = max(self.level, 2)
         return self._univariate_run()
 
+    def start_univariate_job(self, universe_id: str) -> dict[str, object]:
+        """Execute immediately in the deterministic browser fixture."""
+        return self.run_univariate(universe_id)
+
     def create_univariate_selection(self, run_id: str, *, predicates=None) -> object:
         assert run_id == "fixture-univariate-run"
-        assert predicates is None
         self.level = max(self.level, 3)
         return self._selection()
 

@@ -23,6 +23,8 @@ _CHART_PREVIEW_LIMIT = 5000
 _TABLE_PREVIEW_LIMIT = 100
 _MAX_PLOT_RISK = 0.99
 _MIN_PLOT_RETURN = -0.49
+
+
 class UnivariateService(Protocol):
     def workflow_state(self) -> dict[str, object]: ...
 
@@ -50,6 +52,24 @@ def univariate_page_data(
     universe = _mapping(workflow.get("metadata_universe"))
     stages = _mapping(workflow.get("stages")) or {}
     stage = _mapping(stages.get("univariate"))
+    # The service also exposes bounded run history.  ``stages.univariate`` is
+    # a global latest-run convenience field and can belong to an older
+    # Metadata universe while the new universe is still active.  Resolve the
+    # run strictly by the current universe lineage before reading any result.
+    universe_id = universe.get("universe_id") if universe else None
+    history = _mapping(workflow.get("history")) or {}
+    historical_runs = _mappings(history.get("univariate"))
+    if universe_id is not None:
+        matching_runs = tuple(
+            row
+            for row in historical_runs
+            if row.get("input_ref") == universe_id
+            and row.get("status") in {"running", "succeeded", "failed", "cancelled"}
+        )
+        if matching_runs:
+            stage = matching_runs[0]
+        elif stage and stage.get("input_ref") is not None and stage.get("input_ref") != universe_id:
+            stage = None
     selection = _mapping(workflow.get("univariate_selection"))
     preview = None
     if stage and stage.get("status") == "succeeded" and stage.get("run_id"):
@@ -70,8 +90,13 @@ def univariate_page_data(
             # services expose the explicit bounded read contracts above.
             preview = service.univariate_result_preview(run_id, limit=_CHART_PREVIEW_LIMIT)
     detail = _mapping(preview.get("run")) if preview else stage
+    # Checkbox selections are durable workspace state and may outlive a
+    # refreshed Univariate run.  Keep the selection as a projection onto the
+    # current run (the plot below filters by ISIN), but discard it when none of
+    # its members exist in the active Metadata universe.  A pending run still
+    # has no rows to plot and therefore cannot accidentally display stale data.
     rows = _mappings(preview.get("rows")) if preview else ()
-    chart_rows = _mappings(preview.get("chart_rows")) if preview else rows
+    chart_rows = _mappings(preview.get("chart_rows", preview.get("rows"))) if preview else rows
     # A Univariate result is always scoped to the current Metadata universe. The
     # explicit guard also protects the UI from stale/broader persisted artifacts.
     metadata_isins = {
@@ -79,6 +104,14 @@ def univariate_page_data(
         for member in _mappings(universe.get("members") if universe else None)
         if member.get("isin") not in {None, ""}
     }
+    if selection is not None and metadata_isins:
+        selection_members = {
+            str(member.get("isin"))
+            for member in _mappings(selection.get("members"))
+            if member.get("isin") not in {None, ""}
+        }
+        if selection_members and not selection_members.intersection(metadata_isins):
+            selection = None
     if metadata_isins:
         rows = tuple(row for row in rows if str(row.get("isin")) in metadata_isins)
         chart_rows = tuple(row for row in chart_rows if str(row.get("isin")) in metadata_isins)
@@ -96,15 +129,11 @@ def univariate_page_data(
         _member_id(member) for member in _mappings(selection.get("members") if selection else None)
     }
     selected_isin_count = (
-        len({member.split(":", 1)[0] for member in selected})
-        if selected
-        else (len(metadata_isins) if metadata_isins else None)
+        len({member.split(":", 1)[0] for member in selected}) if selected else None
     )
     if selection is not None and selected:
         selected_isins = {member.split(":", 1)[0] for member in selected}
-        chart_rows = tuple(
-            row for row in chart_rows if str(row.get("isin", "")) in selected_isins
-        )
+        chart_rows = tuple(row for row in chart_rows if str(row.get("isin", "")) in selected_isins)
     available = tuple(row for row in rows if row.get("availability_reason") == "ok")
     unavailable = tuple(row for row in rows if row.get("availability_reason") != "ok")
     return {
@@ -129,7 +158,7 @@ def univariate_page_data(
         ),
         "selected_count": selected_isin_count,
         "unavailable_count": len(unavailable),
-        "ready": selection is not None,
+        "ready": selection is not None and bool(selected),
         "matching_count": None if preview is None else preview.get("item_count"),
         "metric_distributions": distributions,
     }
@@ -241,9 +270,7 @@ def _dividend_window(rows: Sequence[Mapping[str, object]], selected: set[str]) -
         for category in categories
         if any(_frequency_category(row) == category for row in rows)
         and all(
-            _row_member_id(row) in selected
-            for row in rows
-            if _frequency_category(row) == category
+            _row_member_id(row) in selected for row in rows if _frequency_category(row) == category
         )
     }
     figure = go.Figure(
@@ -352,13 +379,7 @@ def _frequency_category(row: Mapping[str, object]) -> str:
 
 
 def _age_key(label: str) -> str:
-    return (
-        label.lower()
-        .replace("≤", "le")
-        .replace(">", "gt")
-        .replace("–", "-")
-        .replace(" ", "_")
-    )
+    return label.lower().replace("≤", "le").replace(">", "gt").replace("–", "-").replace(" ", "_")
 
 
 def _age_group_selected(
@@ -430,16 +451,21 @@ def _age_window(rows: Sequence[Mapping[str, object]], selected: set[str]) -> Com
             customdata=[[count, share] for count, share in zip(counts, shares, strict=False)],
             marker_color=[
                 (
-                    "#0ea5e9", "#14b8a6", "#22c55e", "#84cc16",
-                    "#eab308", "#f97316", "#ef4444", "#a855f7",
+                    "#0ea5e9",
+                    "#14b8a6",
+                    "#22c55e",
+                    "#84cc16",
+                    "#eab308",
+                    "#f97316",
+                    "#ef4444",
+                    "#a855f7",
                 )[index % 8]
                 for index in range(len(labels))
             ],
             text=[f"{share:.1f}%" for share in shares],
             textposition="outside",
             hovertemplate=(
-                "%{x}<br>ISINs: %{customdata[0]}<br>"
-                "Share: %{customdata[1]:.1f}%<extra></extra>"
+                "%{x}<br>ISINs: %{customdata[0]}<br>Share: %{customdata[1]:.1f}%<extra></extra>"
             ),
             name="ISIN age",
         )
@@ -462,10 +488,10 @@ def _age_window(rows: Sequence[Mapping[str, object]], selected: set[str]) -> Com
                             html.Td(f"{share:.1f}%"),
                             html.Td(
                                 dcc.Checklist(
-                                        id={
-                                            "type": "univariate-age-group",
-                                            "category": _age_key(label),
-                                        },
+                                    id={
+                                        "type": "univariate-age-group",
+                                        "category": _age_key(label),
+                                    },
                                     options=[
                                         {
                                             "label": "",
@@ -474,10 +500,10 @@ def _age_window(rows: Sequence[Mapping[str, object]], selected: set[str]) -> Com
                                         }
                                     ],
                                     value=(
-                                            [_age_key(label)]
-                                            if _age_group_selected(rows, selected, label)
-                                            else []
-                                        ),
+                                        [_age_key(label)]
+                                        if _age_group_selected(rows, selected, label)
+                                        else []
+                                    ),
                                     persistence=f"age-group:{_age_key(label)}",
                                     persistence_type="local",
                                 )

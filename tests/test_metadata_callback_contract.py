@@ -31,6 +31,7 @@ def test_metadata_model_counts_unique_isins_for_every_dependent_region() -> None
 
         def active_listings(self, **filters: object) -> tuple[dict[str, object], ...]:
             del filters
+
             def row(isin: str) -> dict[str, object]:
                 return {
                     "isin": isin,
@@ -59,3 +60,73 @@ def test_metadata_model_counts_unique_isins_for_every_dependent_region() -> None
     assert [row["isin"] for row in rows] == ["A", "B"]
     options = cast(dict[str, object], model["options"])
     assert cast(list[dict[str, object]], options["exchange"])[0]["label"] == "XETRA (2)"
+
+
+def test_metadata_dropdown_options_are_recounted_from_previous_filters() -> None:
+    rows = (
+        {
+            "isin": "A",
+            "exchange": "XETRA",
+            "instrument_type": "ETF",
+            "country": "DE",
+            "currency": "EUR",
+        },
+        {
+            "isin": "B",
+            "exchange": "XETRA",
+            "instrument_type": "ETF",
+            "country": "FR",
+            "currency": "EUR",
+        },
+        {
+            "isin": "C",
+            "exchange": "XETRA",
+            "instrument_type": "Bond",
+            "country": "DE",
+            "currency": "EUR",
+        },
+        {
+            "isin": "D",
+            "exchange": "LSE",
+            "instrument_type": "ETF",
+            "country": "GB",
+            "currency": "GBP",
+        },
+    )
+
+    class Service:
+        def metadata_options(self) -> dict[str, object]:
+            return {"active_listing_count": len(rows)}
+
+        def active_listings(self, **filters: object) -> tuple[dict[str, object], ...]:
+            return tuple(
+                row
+                for row in rows
+                if all(
+                    value is None or row[field] == value
+                    for field, value in (
+                        ("exchange", filters.get("exchange")),
+                        ("instrument_type", filters.get("instrument_type")),
+                        ("country", filters.get("country")),
+                        ("currency", filters.get("currency")),
+                    )
+                )
+            )
+
+        def metadata_history(self) -> tuple[dict[str, object], ...]:
+            return ()
+
+        def workflow_state(self) -> dict[str, object]:
+            return {}
+
+    model = metadata_page_data(Service(), filters={"exchange": "XETRA", "country": "DE"})
+    options = cast(dict[str, object], model["options"])
+    assert {
+        item["label"] for item in cast(list[dict[str, object]], options["instrument_type"])
+    } == {
+        "ETF (1)",
+        "Bond (1)",
+    }
+    assert {item["label"] for item in cast(list[dict[str, object]], options["currency"])} == {
+        "EUR (2)"
+    }

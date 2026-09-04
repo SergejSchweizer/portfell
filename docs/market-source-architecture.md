@@ -41,6 +41,10 @@ Metadata -> Univariate -> Bivariate -> Multivariate services
 Only the scheduled refresh command connects to xetra-loader PostgreSQL. The API never receives
 the market DSN and reads only the last complete local publication. xetra-loader remains a
 separately deployed upstream authority and is never defined as a Portfell Compose service.
+The scheduled source is `10.10.1.3:54321`, with `database xetra_loader` and
+`schema   xetra_loader`; its business-table contract is
+`listings, eod_quotes, dividends, splits`. Portfell does not own a loader, refresh loop, provider client
+inside the interactive API runtime.
 
 ## 2. Database Authorities
 

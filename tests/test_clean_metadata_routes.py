@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from portfell.app_services.research import ApplicationServiceError
-from portfell.hosted_routes_metadata_projects import metadata_project_router
+from portfell.modules.metadata import metadata_router
 from portfell.table_io import JsonRow
 
 
@@ -51,15 +51,10 @@ class _MetadataService:
 
 def test_clean_metadata_routes_expose_single_workspace_contract() -> None:
     application = FastAPI()
-    application.include_router(metadata_project_router(_MetadataService()))
+    application.include_router(metadata_router(_MetadataService()))
     client = TestClient(application)
 
-    assert client.get("/api/health").json() == {
-        "status": "ok",
-        "database": "portfell_dash",
-        "workspace": "default",
-    }
-    assert client.get("/api/workflow").json() == {"stage": "metadata"}
+    assert client.get("/api/metadata/workflow").json() == {"stage": "metadata"}
     assert client.get("/api/metadata/options").json() == {"exchanges": ["XETRA"]}
     assert client.get("/api/metadata/listings?exchange=XETRA").json() == {
         "items": [{"isin": "IE00QA000001"}],

@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 
 from portfell.dash_app.pages.multivariate import (
+    _cumulative_extended_return_figure,
     build_page,
     multivariate_page_data,
     optimize_portfolio,
@@ -154,9 +155,6 @@ def test_page_has_frozen_multivariate_contract_and_exact_weights() -> None:
     for text in (
         "Multivariate",
         "Optimize portfolio",
-        "return_risk",
-        "return_drawdown",
-        "minimum_risk",
         "Winner OOS return",
         "Winner OOS risk",
         "Winner max drawdown",
@@ -175,3 +173,15 @@ def test_page_has_frozen_multivariate_contract_and_exact_weights() -> None:
         "0.6",
     ):
         assert text in rendered
+    assert "multivariate-objective" not in rendered
+
+
+def test_cumulative_return_plot_uses_time_axis_and_no_isin_point_fallback() -> None:
+    figure = _cumulative_extended_return_figure(
+        None,
+        ({"isin": "DE1", "cumulative_extended_return": 0.2},),
+        {"DE1"},
+    )
+    assert figure.layout.xaxis.title.text == "Time"
+    assert figure.layout.yaxis.title.text == "Cumulative extended return"
+    assert not figure.data

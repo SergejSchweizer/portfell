@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from concurrent.futures import Executor, ThreadPoolExecutor
 from datetime import UTC, date, datetime
@@ -239,7 +240,12 @@ class ResearchApplicationService:
         self._state = state
         self._gateway = market_gateway
         self._market = AnalyticalMarketData(market_gateway)
-        self._executor_factory = executor_factory or (lambda: ThreadPoolExecutor(max_workers=4))
+        # Candidate construction and walk-forward refits are independent CPU
+        # tasks. Use all host cores by default; callers/tests can inject a
+        # bounded executor explicitly.
+        self._executor_factory = executor_factory or (
+            lambda: ThreadPoolExecutor(max_workers=max(1, os.cpu_count() or 1))
+        )
         self._now = now or (lambda: datetime.now(UTC))
         self._analysis_jobs = analysis_job_executor or AnalysisJobExecutor(
             state, self._execute_analysis_job, now=self._now
@@ -248,9 +254,7 @@ class ResearchApplicationService:
     # Metadata -----------------------------------------------------------------
 
     def metadata_options(self) -> JsonRow:
-        listings = tuple(
-            self.active_listings()
-        )
+        listings = tuple(self.active_listings())
         return {
             "exchange": sorted({str(item.get("exchange")) for item in listings}),
             "instrument_type": sorted(
@@ -478,6 +482,18 @@ class ResearchApplicationService:
                         row.get("availability_reason") != "ok" for row in computed.rows
                     ),
                 },
+            )
+            self._put_row_backed_artifact(
+                run.run_id,
+                "univariate.daily_returns@v1",
+                computed.daily_rows,
+                summary={
+                    "universe_id": universe.universe_id,
+                    "market_snapshot_id": market.snapshot_id,
+                    "return_contract": "univariate.daily_returns.v1",
+                    "available_count": len(computed.daily_rows),
+                },
+                item_key_factory=lambda row: f"{_row_member_id(row)}:{row.get('date', '')}",
             )
             # v3 is additive: v2 remains available to existing consumers while
             # metric-card pages can opt into the enriched catalog atomically.
@@ -750,6 +766,11 @@ class ResearchApplicationService:
             return _run_row(run)
         source_computed = self._univariate_computed_run(univariate_run)
         selected_ids = {_member_id(item) for item in selection.members}
+        daily_return_rows = tuple(
+            row
+            for row in self._univariate_daily_return_rows(univariate_run.run_id)
+            if _row_member_id(row) in selected_ids
+        )
         selected_rows = tuple(
             row for row in source_computed.rows if _row_member_id(row) in selected_ids
         )
@@ -772,6 +793,7 @@ class ResearchApplicationService:
                     selected_rows=selected_rows,
                     listing_metadata=listing_metadata,
                     quote_rows=market.quotes,
+                    daily_return_rows=daily_return_rows or None,
                     dividend_rows=market.dividends,
                     objective=objective,
                     executor=executor,
@@ -1062,9 +1084,7 @@ class ResearchApplicationService:
             (
                 item
                 for item in universes
-                if {
-                    (member.isin, member.exchange, member.code) for member in item.members
-                }
+                if {(member.isin, member.exchange, member.code) for member in item.members}
                 == desired_members
             ),
             None,
@@ -1094,9 +1114,31 @@ class ResearchApplicationService:
         """Return a small durable job DTO; this is safe for frequent browser polling."""
         # Only queued/running jobs are active UI progress. Terminal jobs remain
         # available through run history and must not create a stale toast.
-        for status in ("queued", "running"):
-            jobs = self._state.list_analysis_jobs(status=status, limit=1)
+        # Prefer a running job: queued jobs do not yet have a known total and
+        # would mask useful progress from the objective currently executing.
+        for status in ("running", "queued"):
+            # Univariate calculations are owned by the scheduled refresh
+            # worker. They must not surface as an interactive Dashboard toast.
+            jobs = tuple(
+                job
+                for job in self._state.list_analysis_jobs(status=status, limit=100)
+                if job.stage != "univariate"
+            )
             if jobs:
+                if status == "running":
+                    # Several portfolio objectives may run concurrently. Use
+                    # a job with a published total so the UI shows determinate
+                    # progress instead of an unrelated startup placeholder.
+                    jobs = tuple(
+                        sorted(
+                            jobs,
+                            key=lambda item: (
+                                item.progress_total is not None,
+                                item.created_at,
+                            ),
+                            reverse=True,
+                        )
+                    )
                 return _job_row(jobs[0])
         return None
 
@@ -1131,18 +1173,21 @@ class ResearchApplicationService:
             return self.run_univariate(job.input_ref, job_id=job.job_id)
         if job.stage == "bivariate":
             try:
+                # Pair cardinality is known from the persisted Univariate
+                # selection before market files are read. Publish it up front
+                # so the UI never has to display an indeterminate total while
+                # the local snapshot is being loaded.
+                selection = self._state.get_univariate_selection(job.input_ref)
+                member_count = len(selection.members)
+                pair_total = member_count * (member_count - 1) // 2
+                self._state.update_job_progress(
+                    job.job_id, current=0, total=pair_total, phase="pairs"
+                )
                 result = self.run_bivariate(job.input_ref, job_id=job.job_id)
             except TypeError as error:
                 if "unexpected keyword argument 'job_id'" not in str(error):
                     raise
                 result = self.run_bivariate(job.input_ref)
-            run_id = result.get("run_id")
-            if result.get("status") == "succeeded" and isinstance(run_id, str):
-                self.start_multivariate_job(
-                    selection_id=job.input_ref,
-                    bivariate_run_id=run_id,
-                    objective="return_risk",
-                )
             return result
         if job.stage == "multivariate":
             run = self._state.get_analysis_run(job.input_ref)
@@ -1177,10 +1222,7 @@ class ResearchApplicationService:
     ) -> tuple[JsonRow, ...]:
         """Attach stable, human-readable metadata names to persisted projects."""
         try:
-            listings = {
-                item.key: item
-                for item in self._active_listings()
-            }
+            listings = {item.key: item for item in self._active_listings()}
         except Exception:
             return tuple(_universe_row(item) for item in universes)
         rows: list[JsonRow] = []
@@ -1249,6 +1291,35 @@ class ResearchApplicationService:
 
     def _univariate_computed_run(self, run: AnalysisRunRecord) -> ComputedRun:
         return self._computed_run(run, self._univariate_rows_artifact(run.run_id))
+
+    def _univariate_daily_return_rows(self, run_id: str) -> tuple[JsonRow, ...]:
+        """Read the daily returns produced by the matching Univariate run.
+
+        Older persisted runs predate the daily artifact; returning an empty
+        tuple lets Multivariate retain its backwards-compatible quote fallback.
+        """
+        try:
+            artifact = self._artifact(run_id, "univariate.daily_returns@v1")
+        except ApplicationServiceError:
+            return ()
+        if artifact.document.get("storage") != "row_items":
+            raise ApplicationServiceError("analysis_artifact_invalid")
+        item_count = artifact.document.get("item_count")
+        if not isinstance(item_count, int) or item_count < 0:
+            raise ApplicationServiceError("analysis_artifact_invalid")
+        rows: list[JsonRow] = []
+        for offset in range(0, item_count, 500):
+            items = self._state.list_analysis_artifact_items(
+                artifact.artifact_id, offset=offset, limit=min(500, item_count - offset)
+            )
+            for item in items:
+                document = getattr(item, "document", None)
+                if not isinstance(document, dict):
+                    raise ApplicationServiceError("analysis_artifact_invalid")
+                rows.append(cast(JsonRow, document))
+        if len(rows) != item_count:
+            raise ApplicationServiceError("analysis_artifact_invalid")
+        return tuple(rows)
 
     def _computed_run(
         self, run: AnalysisRunRecord, artifact: str | AnalysisArtifactRecord
@@ -1328,10 +1399,12 @@ class ResearchApplicationService:
         rows: Sequence[JsonRow],
         *,
         summary: Mapping[str, JsonValue],
+        item_key_factory: Callable[[JsonRow], str] | None = None,
     ) -> None:
         items = tuple(
             AnalysisArtifactItem(
-                item_key=_row_member_id(row), document=cast(dict[str, JsonValue], dict(row))
+                item_key=(item_key_factory(row) if item_key_factory else _row_member_id(row)),
+                document=cast(dict[str, JsonValue], dict(row)),
             )
             for row in rows
         )

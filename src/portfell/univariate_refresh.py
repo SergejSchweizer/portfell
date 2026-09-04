@@ -35,16 +35,11 @@ def refresh(*, config_path: Path, market_root: Path) -> dict[str, object]:
                         # Keep only instruments with at least one quote in the
                         # persisted downstream selection; no-quote rows remain
                         # available in the run artifact as explicit evidence.
-                        service.create_univariate_selection(
-                            run_id,
-                            predicates=[
-                                {
-                                    "metric": "return_observation_count",
-                                    "operator": ">=",
-                                    "value": 1,
-                                }
-                            ],
-                        )
+                        # The persisted Univariate run already contains only
+                        # listings with usable return history. Activate the
+                        # complete computed universe; UI filters are applied
+                        # explicitly by the user afterwards.
+                        service.create_univariate_selection(run_id)
                     succeeded.append(universe.universe_id)
                 else:
                     failed[universe.universe_id] = str(result.get("status", "failed"))

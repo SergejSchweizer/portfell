@@ -11,6 +11,7 @@ requires-python = ">=3.14"
 dependencies = [
     "cryptography>=45.0.0",
     "dash>=4.4.1",
+    "anyio>=4.4.0,<4.15.0",
     "fastapi>=0.116.0",
     "numpy>=2.3.0",
     "plotly>=6.5.0",
@@ -53,6 +54,7 @@ addopts = "--strict-markers --strict-config"
 testpaths = ["tests"]
 markers = [
     "browser: deterministic Python Playwright browser acceptance",
+    "real_stack: Playwright acceptance against the running Docker/PostgreSQL stack",
 ]
 
 [tool.coverage.run]

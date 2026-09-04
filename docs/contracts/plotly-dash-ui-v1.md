@@ -185,9 +185,10 @@ Primary actions: `Compute bivariate statistics`, `Continue to Multivariate`.
 Layout and content:
 
 - `PageHeader`;
-- `ControlBar` with the compute action and only backend-supported pair-result controls;
-- KPI slots: `Multivariate Selected ISINs`, `Candidate pairs`, `Eligible pairs`, `Unavailable pairs`;
+- a page-header action row with the compute action right-aligned beside the page title and only backend-supported pair-result controls;
+- full-width KPI slots: `Multivariate Selected ISINs`, `Candidate pairs`, and `Eligible pairs`;
 - `ChartCard` titled exactly `Bivariate Return / Diversification Universe`;
+- the chart encodes Spearman correlation (X), downside correlation (Y), lower-tail dependence (colour: red low, grey high), and inverse co-exceedance rate (marker size);
 - `TableCard` titled `Bivariate Statistics` with both full listing identities and contracted pair evidence;
 - explicit unavailable reason/evidence for missing correlation/covariance/common-calendar data;
 - `HistoryCard` titled `Universe & History` with upstream selection version/count, Bivariate run ID/status, source snapshot short ID, algorithm version, pair counts;

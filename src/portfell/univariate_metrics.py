@@ -58,6 +58,9 @@ def enrich_univariate_row(
         "distribution_growth_positive_year_ratio": _growth_ratio(amounts),
         "distribution_drawdown": _drawdown(amounts),
         "total_return_cagr": row.get("cagr"),
+        "cumulative_extended_return": row.get(
+            "cumulative_extended_return", row.get("total_return")
+        ),
         # Preserve the return metrics calculated from the monthly quote series;
         # the v3 catalog enrichment must not replace them with ``None``.
         "monthly_log_return": row.get("monthly_log_return"),

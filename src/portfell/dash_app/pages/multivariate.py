@@ -6,7 +6,7 @@ from collections.abc import Mapping, Sequence
 from typing import Protocol, cast
 
 import plotly.graph_objects as go  # pyright: ignore[reportMissingTypeStubs]
-from dash import dcc, html
+from dash import html
 from dash.development.base_component import Component
 
 from portfell.dash_app.candidate_structure_presenters import candidate_structure_view
@@ -45,13 +45,17 @@ class MultivariateService(Protocol):
 
     def run_detail(self, run_id: str) -> dict[str, object]: ...
 
+    def univariate_chart_sample(self, run_id: str, *, limit: int = 5000) -> dict[str, object]: ...
+
 
 def multivariate_page_data(service: MultivariateService) -> dict[str, object]:
     workflow = service.workflow_state()
+    active_job = _mapping(workflow.get("active_job"))
     selection = _mapping(workflow.get("univariate_selection"))
     stages = _mapping(workflow.get("stages")) or {}
     bivariate = _mapping(stages.get("bivariate"))
     stage = _mapping(stages.get("multivariate"))
+    univariate_stage = _mapping(stages.get("univariate"))
     detail = stage
     if stage and stage.get("run_id") and stage.get("status") == "succeeded":
         run_id = str(stage["run_id"])
@@ -86,6 +90,43 @@ def multivariate_page_data(service: MultivariateService) -> dict[str, object]:
     performance = _mapping(artifacts.get("performance")) if artifacts else None
     structure_document = _mapping(artifacts.get("multivariate.structure@v2"))
     candidate_structure_document = _mapping(artifacts.get("multivariate.candidate_structure@v2"))
+    # Multivariate performance is scoped to the exact selection consumed by
+    # the successful Bivariate run. Never plot a broader/stale Univariate
+    # selection when Bivariate evidence is missing or belongs to another
+    # selection.
+    bivariate_matches_selection = (
+        bivariate is not None
+        and selection is not None
+        and bivariate.get("status") == "succeeded"
+        and bivariate.get("input_ref") == selection.get("selection_id")
+    )
+    selected_ids = (
+        {
+            str(row.get("isin"))
+            for row in _mappings(selection.get("members") if selection else None)
+            if row.get("isin") not in {None, ""}
+        }
+        if bivariate_matches_selection
+        else set()
+    )
+    cumulative_rows: list[dict[str, object]] = []
+    if univariate_stage and univariate_stage.get("status") == "succeeded":
+        reader = getattr(service, "univariate_chart_sample", None)
+        run_id = univariate_stage.get("run_id")
+        if callable(reader) and run_id:
+            try:
+                result = reader(str(run_id), limit=5000)
+                cumulative_rows = [
+                    row
+                    for row in _mappings(result.get("rows"))
+                    if (not selected_ids or str(row.get("isin")) in selected_ids)
+                    and isinstance(
+                        row.get("cumulative_extended_return", row.get("cumulative_log_return")),
+                        int | float,
+                    )
+                ]
+            except Exception:
+                cumulative_rows = []
     winner = next((row for row in candidates if row.get("candidate_id") == winner_id), None)
     winner_splits = [
         row
@@ -102,6 +143,8 @@ def multivariate_page_data(service: MultivariateService) -> dict[str, object]:
     return {
         "selection": selection,
         "bivariate": bivariate,
+        "active_job": active_job,
+        "selected_cumulative_log_returns": cumulative_rows,
         "run": detail,
         "artifacts": artifacts,
         "decision": decision,
@@ -175,8 +218,21 @@ def _layout(
     validation = _mappings(model.get("validation"))
     contributions = _mappings(model.get("risk_contributions"))
     performance = _mapping(model.get("performance"))
+    active_job = _mapping(model.get("active_job")) or {}
+    cumulative_rows = _mappings(model.get("selected_cumulative_log_returns"))
+    selected_isins = {
+        str(row.get("isin"))
+        for row in _mappings(selection.get("members") if selection else None)
+        if row.get("isin") not in {None, ""}
+    }
     universe_structure = _mapping(model.get("universe_structure"))
     candidate_structure = _mapping(model.get("candidate_structure"))
+    bivariate_matches_selection = (
+        bivariate is not None
+        and selection is not None
+        and bivariate.get("status") == "succeeded"
+        and bivariate.get("input_ref") == selection.get("selection_id")
+    )
     children: list[Component] = [
         PageHeader(
             "Multivariate",
@@ -185,30 +241,29 @@ def _layout(
         ),
         ControlBar(
             [
-                html.Label(
-                    [
-                        html.Span(children="Objective", className="pf-context-label"),
-                        dcc.Dropdown(
-                            id="multivariate-objective",
-                            options=[
-                                {"label": value.replace("_", " ").title(), "value": value}
-                                for value in MULTIVARIATE_OBJECTIVES
-                            ],
-                            value="return_risk",
-                            clearable=False,
-                        ),
-                    ]
-                ),
                 html.Button(
                     children="Optimize portfolio",
                     id="multivariate-optimize",
                     className="pf-button pf-button-primary",
-                    disabled=selection is None or bivariate is None,
+                    disabled=(
+                        selection is None
+                        or bivariate is None
+                        or not bivariate_matches_selection
+                        or (run or {}).get("status") in {"queued", "running"}
+                        or (active_job.get("status") in {"queued", "running"})
+                    ),
                 ),
             ],
             component_id="multivariate-controls",
         ),
     ]
+    if bivariate is not None and not bivariate_matches_selection:
+        children.append(
+            StatusBanner(
+                "Bivariate results are for a different selection. Compute Bivariate "
+                "statistics for the current Univariate selection before optimizing."
+            )
+        )
     if error:
         children.append(ErrorState(f"Multivariate unavailable: {error}"))
     elif message:
@@ -226,6 +281,11 @@ def _layout(
                     ),
                 ],
                 className="pf-kpi-grid",
+            ),
+            ChartCard(
+                "Cumulative Extended Return — Bivariate Selected ISINs",
+                _cumulative_extended_return_figure(performance, cumulative_rows, selected_isins),
+                graph_id="multivariate-selected-cumulative-log-return",
             ),
             ChartCard(
                 "Portfolio Candidate OOS Return / Risk",
@@ -485,6 +545,50 @@ def _history(
     )
 
 
+def _cumulative_extended_return_figure(
+    performance: Mapping[str, object] | None,
+    fallback_rows: Sequence[Mapping[str, object]],
+    selected_isins: set[str] | None = None,
+) -> go.Figure:
+    figure = go.Figure()
+    series = _mappings(performance.get("instrument_series")) if performance else ()
+    if selected_isins:
+        series = tuple(row for row in series if str(row.get("isin")) in selected_isins)
+    if series:
+        for row in sorted(series, key=lambda item: str(item.get("isin", ""))):
+            values = _mappings(row.get("values"))
+            figure.add_trace(
+                go.Scatter(
+                    x=[str(value.get("date", "")) for value in values],
+                    y=[
+                        float(value.get("cumulative_extended_return", value.get("return", 0.0)))
+                        for value in values
+                    ],
+                    mode="lines",
+                    name=str(row.get("isin", "")),
+                    line={"color": "#c7cdd4", "width": 1.2},
+                    customdata=[[str(row.get("isin", ""))]] * len(values),
+                    hovertemplate=(
+                        "ISIN=%{customdata[0]}<br>Date=%{x}<br>"
+                        "Cumulative extended return=%{y:.2%}<extra></extra>"
+                    ),
+                )
+            )
+    else:
+        figure.add_annotation(
+            text="Chart data is not available yet.", x=0.5, y=0.5, showarrow=False
+        )
+    figure.update_layout(
+        xaxis_title="Time",
+        yaxis_title="Cumulative extended return",
+        yaxis={"tickformat": ".1%"},
+        height=360,
+        margin={"l": 60, "r": 20, "t": 20, "b": 80},
+        showlegend=False,
+    )
+    return apply_portfell_template(figure)
+
+
 def _items(value: object) -> tuple[dict[str, object], ...]:
     mapping = _mapping(value) or {}
     return _mappings(mapping.get("items"))
@@ -508,6 +612,8 @@ def _empty_model() -> dict[str, object]:
     return {
         "selection": None,
         "bivariate": None,
+        "active_job": None,
+        "selected_cumulative_log_returns": (),
         "run": None,
         "artifacts": {},
         "decision": None,

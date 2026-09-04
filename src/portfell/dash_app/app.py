@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from dash import Dash, Input, Output, State
+from dash import Dash, Input, Output
 from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
 from starlette.middleware.wsgi import WSGIMiddleware
@@ -13,6 +13,7 @@ from starlette.middleware.wsgi import WSGIMiddleware
 from portfell.dash_app.callbacks import register_callbacks
 from portfell.dash_app.contracts import DEFAULT_ROUTE
 from portfell.dash_app.shell import root_layout, route_renderer
+from portfell.modules.runtime import ModuleRegistry
 
 
 def create_dash_app(*, services: object | None = None) -> Dash:
@@ -31,7 +32,7 @@ def create_dash_app(*, services: object | None = None) -> Dash:
     @app.callback(  # pyright: ignore[reportUnknownMemberType]
         Output("pf-route-content", "children"),
         Input("pf-location", "pathname"),
-        State("pf-browser-state", "data"),
+        Input("pf-browser-state", "data"),
     )
     # Dash invokes this callback from its component registry.
     def _render_route(  # pyright: ignore[reportUnusedFunction]
@@ -39,7 +40,8 @@ def create_dash_app(*, services: object | None = None) -> Dash:
     ) -> Any:
         return render(pathname, browser_state)
 
-    register_callbacks(app, services)
+    callback_service = services.workflow if isinstance(services, ModuleRegistry) else services
+    register_callbacks(app, callback_service)
     return app
 
 

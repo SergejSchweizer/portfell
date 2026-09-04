@@ -57,8 +57,21 @@ def _series_row(key: MultivariateListingKey, daily: Mapping[str, float]) -> Json
         "isin": key.isin,
         "exchange": key.exchange,
         "code": key.code,
-        "values": _monthly_cumulative_values(daily),
+        # Instrument curves are driven by the daily Univariate return
+        # observations.  Keeping every date makes the Multivariate chart a
+        # true cumulative daily-return time series rather than a month-end
+        # resampling.
+        "values": _daily_cumulative_values(daily),
     }
+
+
+def _daily_cumulative_values(daily: Mapping[str, float]) -> list[JsonRow]:
+    value = 1.0
+    values: list[JsonRow] = []
+    for date, daily_return in sorted(daily.items()):
+        value *= 1.0 + daily_return
+        values.append({"date": date, "return": value - 1.0})
+    return values
 
 
 def _monthly_cumulative_values(daily: Mapping[str, float]) -> list[JsonRow]:

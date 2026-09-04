@@ -13,6 +13,7 @@ from dash.development.base_component import Component
 from portfell.dash_app.components import JobProgress, PageHeader, StatusBanner
 from portfell.dash_app.contracts import DEFAULT_ROUTE, PAGE_BY_ROUTE, PAGE_SPECS, PageSpec
 from portfell.dash_app.state import BrowserState, browser_state_from_workflow
+from portfell.modules.runtime import ModuleRegistry
 
 
 class PageBuilder(Protocol):
@@ -66,8 +67,10 @@ def workflow_context(context: WorkflowContext | None = None) -> Component:
         [
             html.Div("Current selection", className="pf-context-title"),
             html.Div(
-                [_context_row(label, value, f"pf-project-{label.lower().replace(' ', '-')}")
-                 for label, value in value.project_metadata],
+                [
+                    _context_row(label, value, f"pf-project-{label.lower().replace(' ', '-')}")
+                    for label, value in value.project_metadata
+                ],
                 className="pf-project-metadata",
             ),
         ],
@@ -107,7 +110,7 @@ def load_page(
     metadata_member_count: int | None = None,
 ) -> Component:
     """Load one workflow page plugin; absent plugins fail visibly rather than adding a route."""
-    module_name = f"portfell.dash_app.pages.{spec.page_id}"
+    module_name = f"portfell.modules.{spec.page_id}.ui"
     try:
         module = importlib.import_module(module_name)
     except ModuleNotFoundError as error:
@@ -117,13 +120,14 @@ def load_page(
     builder = getattr(module, "build_page", None)
     if not callable(builder):
         return placeholder_page(spec)
+    page_services = (
+        services.page_service(spec.page_id) if isinstance(services, ModuleRegistry) else services
+    )
     if spec.page_id == "metadata":
-        return cast(Any, builder)(
-            services, project_id=project_id, filters=metadata_filters
-        )
+        return cast(Any, builder)(page_services, project_id=project_id, filters=metadata_filters)
     if spec.page_id == "univariate":
-        return cast(Any, builder)(services, metadata_member_count=metadata_member_count)
-    return cast(PageBuilder, builder)(services)
+        return cast(Any, builder)(page_services, metadata_member_count=metadata_member_count)
+    return cast(PageBuilder, builder)(page_services)
 
 
 def application_frame(
@@ -184,6 +188,14 @@ def workflow_context_from_state(state: BrowserState, pathname: str | None) -> Wo
             "Univariate",
             "—" if state.selected_count is None else str(state.selected_count),
         ),
+        (
+            "Bivariate",
+            (
+                "—"
+                if state.selected_count is None
+                else str(state.selected_count * (state.selected_count - 1) // 2)
+            ),
+        ),
     )
     return WorkflowContext(
         project_options=state.project_options,
@@ -206,8 +218,11 @@ def route_renderer(services: object | None = None) -> Callable[[str | None, obje
         state = BrowserState.from_store(store)
         if services is not None and state == BrowserState():
             try:
+                workflow_service = (
+                    services.workflow if isinstance(services, ModuleRegistry) else services
+                )
                 state = browser_state_from_workflow(
-                    cast(WorkflowService, services).workflow_state()
+                    cast(WorkflowService, workflow_service).workflow_state()
                 )
             except Exception:
                 state = BrowserState(message_code="workflow_state_unavailable")
@@ -216,7 +231,7 @@ def route_renderer(services: object | None = None) -> Callable[[str | None, obje
             services=services,
             context=workflow_context_from_state(state, pathname),
             project_id=state.universe_id,
-                    metadata_filters=state.metadata_filters or None,
+            metadata_filters=state.metadata_filters or None,
             metadata_member_count=state.metadata_member_count,
         )
 

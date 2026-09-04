@@ -11,7 +11,9 @@ from portfell.app_services.research import ApplicationServiceError
 from portfell.app_state.contracts import ListingIdentity, UnivariateSelectionRecord
 from portfell.dash_app.callbacks import execute_action, persisted_browser_state
 from portfell.dash_app.state import BrowserState, StageReadiness
-from portfell.hosted_routes_research import research_router
+from portfell.modules.bivariate import bivariate_router
+from portfell.modules.multivariate import multivariate_router
+from portfell.modules.univariate import univariate_router
 
 NOW = datetime(2026, 8, 31, 20, 0, tzinfo=UTC)
 
@@ -91,7 +93,9 @@ class RouteService:
 
 def client_for(service: RouteService) -> TestClient:
     application = FastAPI()
-    application.include_router(research_router(service))
+    application.include_router(univariate_router(service))
+    application.include_router(bivariate_router(service))
+    application.include_router(multivariate_router(service))
     return TestClient(application)
 
 
@@ -124,8 +128,8 @@ def test_research_routes_success_and_defaults() -> None:
     assert response.status_code == 200
     assert service.calls[-1][1]["objective"] == "return_risk"
 
-    assert client.get("/api/runs/multi-run").json() == {"run_id": "multi-run"}
-    history = client.get("/api/runs", params={"stage": "univariate", "limit": 7})
+    assert client.get("/api/multivariate/runs/multi-run").json() == {"run_id": "multi-run"}
+    history = client.get("/api/univariate/runs", params={"limit": 7})
     assert history.json()["total"] == 1
     assert service.calls[-1][1]["limit"] == 7
 
@@ -152,7 +156,7 @@ def test_research_routes_validate_payload_shape() -> None:
     )
     for path, payload in invalid:
         assert client.post(path, json=payload).status_code == 422
-    assert client.get("/api/runs", params={"stage": "invalid"}).status_code == 422
+    assert client.get("/api/univariate/runs", params={"limit": 0}).status_code == 422
 
 
 @pytest.mark.parametrize(
@@ -173,8 +177,8 @@ def test_research_routes_redact_service_failures(error_code: str, status: int) -
             "/api/multivariate/runs",
             json={"selection_id": "s", "bivariate_run_id": "b"},
         ),
-        client.get("/api/runs/r"),
-        client.get("/api/runs", params={"stage": "univariate"}),
+        client.get("/api/univariate/runs/r"),
+        client.get("/api/univariate/runs"),
     )
     assert all(response.status_code == status for response in responses)
     expected = {"code": error_code}

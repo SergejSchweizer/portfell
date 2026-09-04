@@ -128,7 +128,7 @@ def test_explicit_actions_delegate_using_persisted_ids() -> None:
         ("metadata", {}),
         ("selection", ("run-u", None)),
         ("bivariate", "s1"),
-        ("multivariate", ("s1", "run-b", "minimum_risk")),
+        ("multivariate", ("s1", "run-b", "return_risk")),
     ]
 
 

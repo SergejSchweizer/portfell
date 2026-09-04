@@ -183,7 +183,7 @@ def test_github_merge_gate_runs_once_and_uses_auto_rebase_completion() -> None:
     assert "uv run portfell-quality --commits-only" in merge_gate_workflow
     assert "uv run python -m portfell.schema_validation" in merge_gate_workflow
     assert "uv run coverage combine coverage-shards" in merge_gate_workflow
-    assert "uv run coverage report --fail-under=90" in merge_gate_workflow
+    assert "uv run coverage report --fail-under=95" in merge_gate_workflow
     assert "pull_request:" in merge_gate_workflow
     # Stacked PRs must also be gated against their immediate base. The final rebase to main
     # triggers the same pull-request workflow again against the integration base.

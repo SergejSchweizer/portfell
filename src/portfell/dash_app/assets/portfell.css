@@ -66,6 +66,18 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 .pf-main { margin-left: 220px; min-width: 0; padding: 24px; overflow-x: hidden; }
 .pf-page { width: min(1500px, 100%); min-width: 0; margin: 0 auto; display: grid; gap: var(--pf-gap); }
 .pf-page-header { display: grid; gap: 4px; }
+.pf-page-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+.pf-page-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 0 0 auto;
+}
 .pf-page-title { margin: 0; font-size: 28px; line-height: 1.2; }
 .pf-page-subtitle { margin: 0; color: var(--pf-muted); }
 .pf-control-bar {
@@ -79,6 +91,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
   border-radius: var(--pf-radius);
 }
 .pf-kpi-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--pf-gap); }
+#bivariate-kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .pf-kpi-card, .pf-card {
   background: var(--pf-surface);
   border: 1px solid var(--pf-border);
@@ -190,6 +203,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 
 @media (max-width: 767px) {
   .pf-app-shell { display: block; }
+  .pf-page-header-row { flex-wrap: wrap; }
+  .pf-page-header-actions { width: 100%; justify-content: flex-end; }
   .pf-sidebar {
     position: static;
     width: 100%;

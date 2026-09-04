@@ -82,6 +82,21 @@ The `dash-parity-v1` PASS artifact is valid only when produced by an actually ex
 
 The merge layer runs:
 
+The production-stack selection contract is covered by
+`tests/browser/test_real_stack_univariate_selection.py`. Run it against the
+deployed Docker/PostgreSQL stack (the test uses the real `/api/workflow`
+projection to verify persistence):
+
+```bash
+PORTFELL_REAL_STACK_URL=http://127.0.0.1:8080 \
+  uv run pytest -m real_stack tests/browser/test_real_stack_univariate_selection.py -q
+```
+
+This test must be run after `docker compose build api` and
+`docker compose up -d --force-recreate api`; it is intentionally separate from
+the deterministic fixture browser shard because CI runners do not share the
+production market snapshot or database volume.
+
 ```bash
 bash scripts/run_market_source_contract_qa.sh
 ```

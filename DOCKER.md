@@ -114,6 +114,21 @@ uv run portfell-quality pr
 uv run portfell-quality merge
 ```
 
+## Change deployment rule
+
+Every change to application logic or the UI must be deployed through a fresh
+image build before it is handed off. From the active checkout, run:
+
+```bash
+docker compose build api
+docker compose up -d --force-recreate api
+docker compose ps
+curl -fsS http://127.0.0.1:8080/api/health
+```
+
+The change is only considered deployed when the container is running and the
+health check succeeds. This applies equally to backend-only and UI-only edits.
+
 The merge gate includes the isolated market-source PostgreSQL contract. GitHub additionally executes deterministic Python Playwright browser acceptance.
 
 ## Production cutover and rollback

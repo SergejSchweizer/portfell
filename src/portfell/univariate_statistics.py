@@ -294,6 +294,9 @@ def _build_univariate_listing_statistics(
         "start_adjusted_close": first_close,
         "end_adjusted_close": last_close,
         "total_return": total_return,
+        # Adjusted-close returns are distribution-adjusted; expose the
+        # cumulative extended return explicitly for portfolio analysis.
+        "cumulative_extended_return": total_return,
         "cagr": _cagr(total_return, first_valid_quote_date, last_valid_quote_date),
         "cumulative_log_return": cumulative_log_return,
         "mean_log_return": mean_log_return,

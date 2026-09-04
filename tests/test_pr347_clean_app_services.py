@@ -305,6 +305,10 @@ def test_clean_service_persists_full_identity_metadata_and_univariate_run() -> N
     )
     result = service.run_univariate(universe.universe_id)
     assert result["status"] == "succeeded"
+    univariate_detail = service.run_detail(str(result["run_id"]))
+    daily_manifest = univariate_detail["artifacts"]["univariate.daily_returns@v1"]
+    assert daily_manifest["storage"] == "row_items"
+    assert daily_manifest["item_count"] == 2 * 269
     selection = service.create_univariate_selection(str(result["run_id"]))
     assert selection.members == universe.members
     assert service.run_univariate(universe.universe_id)["run_id"] == result["run_id"]
@@ -354,9 +358,9 @@ def test_workflow_exposes_only_small_persisted_analysis_job_status() -> None:
         None,
     )
     service = ResearchApplicationService(state, Gateway(), now=lambda: NOW)
-    assert service.active_analysis_job()["job_id"] == "job-a"  # type: ignore[index]
+    assert service.active_analysis_job() is None
     assert service.analysis_job_status("job-a")["progress_current"] == 3
-    assert service.workflow_state()["active_job"]["progress_total"] == 10  # type: ignore[index]
+    assert service.workflow_state()["active_job"] is None
 
 
 def test_clean_service_fails_closed_when_snapshot_no_longer_has_every_member_quote() -> None:
@@ -478,10 +482,10 @@ def test_metadata_kickoff_reuses_one_full_universe_job_and_publishes_v2_rows() -
     rows = state.list_analysis_artifact_items(artifact_id, limit=500)
     assert [
         (item.document["isin"], item.document["exchange"], item.document["code"]) for item in rows
-        ] == [
-            ("IE00A", "XETRA", "A"),
-            ("IE00B", "XETRA", "C"),
-        ]
+    ] == [
+        ("IE00A", "XETRA", "A"),
+        ("IE00B", "XETRA", "C"),
+    ]
     assert all("availability_reason" in item.document for item in rows)
     preview = service.univariate_result_preview(str(result["run_id"]), limit=2)
     assert preview["item_count"] == 2

@@ -97,9 +97,9 @@ def test_layout_has_frozen_metadata_contract_without_provider_action() -> None:
     rendered = str(layout)
     for text in (
         "Metadata",
-            "Define the starting selection for the analysis funnel.",
+        "Define the starting selection for the analysis funnel.",
         "Active listings",
-            "Selected listings",
+        "Selected listings",
         "Instrument Type Distribution",
         "Country Distribution",
         "Currency Distribution",

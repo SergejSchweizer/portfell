@@ -77,6 +77,7 @@ def test_performance_compounds_instrument_and_portfolio_calendar_returns() -> No
     performance = build_multivariate_performance(candidates=(candidate,), return_rows=rows)
 
     assert performance["instrument_series"][0]["values"] == [
+        {"date": "2024-01-02", "return": pytest.approx(0.10)},
         {"date": "2024-01-03", "return": pytest.approx(-0.01)},
         {"date": "2024-02-01", "return": pytest.approx(0.089)},
     ]
@@ -155,4 +156,4 @@ def test_performance_is_invariant_to_return_row_order() -> None:
     )
 
     assert unordered == ordered
-    assert unordered["instrument_series"][0]["values"][0]["date"] == "2024-01-03"
+    assert unordered["instrument_series"][0]["values"][0]["date"] == "2024-01-02"

@@ -93,6 +93,7 @@ def test_model_uses_persisted_run_and_selection() -> None:
     assert model["unavailable_count"] == 1
     assert model["selected_count"] == 1
     assert model["selected"] == {"DE1:XETRA:AAA"}
+    assert [row["isin"] for row in model["chart_rows"]] == ["DE1"]
     assert model["ready"] is True
 
 
@@ -110,7 +111,12 @@ def test_page_stops_after_return_risk_plot() -> None:
         "Univariate Return / Risk Universe",
     ):
         assert text in rendered
-    for text in ("Save selection", "Continue to Bivariate", "Univariate Statistics", "Universe & History"):
+    for text in (
+        "Save selection",
+        "Continue to Bivariate",
+        "Univariate Statistics",
+        "Universe & History",
+    ):
         assert text not in rendered
     assert "Compute univariate statistics" not in rendered
 
@@ -147,6 +153,59 @@ def test_page_excludes_results_outside_metadata_universe() -> None:
     assert len(rows) == 1
     assert rows[0]["isin"] == "DE1"
     assert model["input_count"] == 1
+
+
+def test_page_uses_univariate_run_matching_active_metadata_universe() -> None:
+    class LineageService(Service):
+        def workflow_state(self) -> dict[str, object]:
+            state = super().workflow_state()
+            state["metadata_universe"] = {
+                "universe_id": "universe-2",
+                "version": 3,
+                "member_count": 2,
+                "members": [
+                    {"isin": "DE1", "exchange": "XETRA", "code": "AAA"},
+                    {"isin": "DE2", "exchange": "XETRA", "code": "BBB"},
+                ],
+            }
+            state["stages"] = {
+                "univariate": {
+                    "run_id": "run-old",
+                    "status": "succeeded",
+                    "input_ref": "universe-1",
+                }
+            }
+            state["history"] = {
+                "univariate": [
+                    {
+                        "run_id": "run-u",
+                        "status": "succeeded",
+                        "input_ref": "universe-2",
+                    },
+                    {
+                        "run_id": "run-old",
+                        "status": "succeeded",
+                        "input_ref": "universe-1",
+                    },
+                ]
+            }
+            return state
+
+    model = univariate_page_data(LineageService())
+    assert model["run"]["run_id"] == "run-u"
+
+
+def test_page_does_not_show_old_run_for_new_metadata_universe() -> None:
+    class PendingService(Service):
+        def workflow_state(self) -> dict[str, object]:
+            state = super().workflow_state()
+            state["metadata_universe"] = {"universe_id": "universe-2", "member_count": 2}
+            state["stages"]["univariate"]["input_ref"] = "universe-1"
+            return state
+
+    model = univariate_page_data(PendingService())
+    assert model["run"] is None
+    assert model["rows"] == ()
 
 
 def test_page_limits_large_persisted_result_presentation() -> None:

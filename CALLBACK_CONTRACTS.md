@@ -6,9 +6,10 @@
 - [2. Shared state](#2-shared-state)
 - [3. Callback inventory](#3-callback-inventory)
 - [4. Univariate filter contract](#4-univariate-filter-contract)
-- [5. Dependency graph](#5-dependency-graph)
-- [6. Failure and persistence rules](#6-failure-and-persistence-rules)
-- [7. Acceptance checklist](#7-acceptance-checklist)
+- [5. Bivariate page contract](#5-bivariate-page-contract)
+- [6. Dependency graph](#6-dependency-graph)
+- [7. Failure and persistence rules](#7-failure-and-persistence-rules)
+- [8. Acceptance checklist](#8-acceptance-checklist)
 
 ## 1. Scope and immutability
 
@@ -42,17 +43,17 @@ All outputs targeting `pf-browser-state.data` with `allow_duplicate=True` retain
 | Callback | Inputs | State | Outputs and guarantee |
 | --- | --- | --- | --- |
 | `_select_project` | `sidebar-project-selection.value` | `pf-browser-state.data` | Selects the opaque universe record, updates metadata identity, and clears metadata filters. No computation starts. |
-| `_update_metadata_filters` | `metadata-filter-exchange.value`, `metadata-filter-instrument-type.value`, `metadata-filter-country.value`, `metadata-filter-currency.value` | `pf-browser-state.data` | Persists all four filters, recalculates the unique-ISIN Metadata count, and persists the corresponding metadata universe when possible. |
+| `_update_metadata_filters` | `metadata-filter-exchange.value`, `metadata-filter-instrument-type.value`, `metadata-filter-country.value`, `metadata-filter-currency.value` | `pf-browser-state.data` | Persists all four filters on every explicit change, recalculates the unique-ISIN Metadata count, persists the corresponding metadata universe, and starts its Univariate job. Each dropdown's options/counts are recomputed from the full listing set constrained by the other currently selected filters; counts are unique ISINs and never stale preview values. |
 | `_refresh_state` | `pf-location.pathname` | `pf-browser-state.data` | Reloads durable workflow state while preserving server- and browser-persisted filter values and recomputing the Metadata count. Empty hydration states are ignored. |
 | `_poll_job` | `pf-job-poll.n_intervals` | `pf-browser-state.data` | Reads job status only and updates presentation progress. It never starts or advances a job. |
 | `_render_job_progress` | `pf-browser-state.data` | — | Renders `pf-job-progress-region.children` from the state job. |
-| `_refresh_univariate_regions` | `pf-browser-state.data` | — | Rebuilds `univariate-data-regions.children` from the current run, selection, and Metadata count. |
+| `_refresh_univariate_regions` | `pf-browser-state.data` | — | Rebuilds `univariate-data-regions.children` from the current succeeded Univariate run and the persisted Metadata-scoped selection. `Metadata Selected ISINs` is the unique Metadata count; `Univariate Selected ISINs` is the unique member count of the persisted selection, including zero for an explicitly empty selection. Stale selections are never replaced by the Metadata count. |
 | `_refresh_bivariate_continue` | `pf-browser-state.data` | — | Enables the Bivariate-to-Multivariate link only when the current Bivariate result is ready. |
 | `_save_univariate_selection` | `univariate-save-selection.n_clicks` | `pf-browser-state.data` | Persists the complete current Univariate selection and starts the explicitly requested downstream transition. It is not triggered by page rendering. |
 | `_save_dividend_frequency_selection` | Pattern `{"type":"univariate-dividend-frequency","category":ALL}.value`; pattern `{"type":"univariate-monthly-return-group","category":ALL}.value` | Dividend IDs, age values/IDs, monthly-return IDs, browser state | Converts checked Dividend, ISIN Age, and Monthly Return groups into exclusive predicates and persists the selection only. Empty group means no restriction. |
 | `_save_age_selection` | Pattern `{"type":"univariate-age-group","category":ALL}.value` | Age IDs, Dividend values/IDs, Monthly Return values/IDs, browser state | Performs the same exclusive predicate merge when an age checkbox changes. |
-| `_compute_bivariate` | `bivariate-compute.n_clicks` | `pf-browser-state.data` | Starts Bivariate computation only on an explicit button click and only with the persisted Univariate selection. The Compute button is disabled while the callback is running and restored afterward. |
-| `_optimize_multivariate` | `multivariate-optimize.n_clicks` | Browser state, `multivariate-objective.value` | Starts the selected Multivariate objective only on an explicit button click. |
+| `_compute_bivariate` | `bivariate-compute.n_clicks` | `pf-browser-state.data` | Starts a Bivariate background job only on an explicit button click and only with the persisted Univariate selection. The Compute button is disabled while the job is queued or running and is enabled again only after a terminal job state. |
+| `_optimize_multivariate` | `multivariate-optimize.n_clicks` | Browser state | Submits one durable Multivariate portfolio-compute job on an explicit click. At most one job may be queued/running for the current input; its persisted lower-right status and progress remain visible across reloads, and the button stays disabled until a terminal state. |
 | `_polling_disabled` | `pf-browser-state.data` | — | Disables polling unless the durable job status is `queued` or `running`. |
 
 ## 4. Univariate filter contract
@@ -99,7 +100,31 @@ An empty checklist group means “no filter”; it must not create a zero-member
 
 Metadata filter values are written to PostgreSQL (`portfell.ui_preferences`, key `metadata.filters`) on every change. Univariate checklist selections are durable Univariate selection artifacts. Browser `localStorage` is only a cache and must never be the sole source of truth. A fresh browser context must render the same filter state as the originating context.
 
-## 5. Dependency graph
+## 5. Bivariate page contract
+
+The Bivariate page is a read/command surface over the persisted Univariate selection. It has exactly one explicit analytical action and one chart:
+
+- The top header contains `Bivariate` and the `Compute bivariate statistics` button right-aligned on the same row.
+- The button submits one durable Bivariate job for `selection_id`; it never computes synchronously in the HTTP request and never starts Multivariate automatically.
+- The three full-width KPI cards are `Multivariate Selected ISINs`, `Candidate pairs`, and `Eligible pairs`. `Candidate pairs` is `n × (n − 1) / 2`, where `n` is the persisted Univariate selection size. `Unavailable pairs` is not rendered.
+- The `Bivariate Return / Diversification Universe` chart is the final page element. No pair table, history card, continuation control, or additional content may be appended without a contract revision.
+
+The computation reads only the atomically published local market snapshot produced by the fetch/refresh job. It must not query the external Xetra PostgreSQL market source. Pair statistics use one shared aligned date range for the complete selection; pair-specific date windows are forbidden.
+
+The chart encodings are fixed:
+
+| Visual channel | Persisted value | Meaning |
+| --- | --- | --- |
+| X axis | `spearman_correlation` | Rank dependence of pair returns |
+| Y axis | `downside_correlation` | Dependence during negative-return observations |
+| Colour | `lower_tail_dependence` | Red = low; orange = intermediate; grey = high |
+| Marker size | inverse `tail_coexceedance_rate` | Small = frequent joint extremes; large = rare joint extremes |
+
+The chart must include pair identity (`left_isin`, exchange, code, `right_isin`, exchange, code), observation count, and all three risk values in hover text. Marker-size scaling is relative to the visible sample, bounded to 8–30 px; equal values use a neutral midpoint. A legend titled `Marker size: co-exceedance rate` must show high/medium/low rate reference markers.
+
+When the job is `queued` or `running`, the shared progress presentation remains visible and the compute button remains disabled. When the job reaches `succeeded`, `failed`, or `cancelled`, polling reloads the durable workflow identifiers and removes the active progress presentation for terminal success. A failed job exposes its public failure code and can be retried explicitly.
+
+## 6. Dependency graph
 
 ```text
 filter/checklist click
@@ -125,16 +150,17 @@ Sidebar count  Univariate Selected ISINs
 
 The explicit `univariate-save-selection` button is a separate transition and may start downstream work. Checkbox callbacks must never call `run_bivariate`, `run_multivariate`, or an analysis-job starter.
 
-## 6. Failure and persistence rules
+## 7. Failure and persistence rules
 
 - Backend persistence is authoritative and survives page reloads and container redeploys.
 - Every count is based on unique ISINs, not listing aliases.
+- Sidebar and Univariate counts must ignore a selection whose `source_run_id` does not match the active Univariate run; while that new run is pending, the displayed Univariate count falls back to the current Metadata count rather than showing a stale value.
 - Callback failures return a typed public message and preserve the last coherent browser state whenever possible.
 - Missing current run IDs produce `univariate_not_ready`; missing selections produce the corresponding downstream readiness error.
 - Terminal jobs are not treated as active polling jobs.
 - Initial checklist synchronization is permitted through Dash's `initial_duplicate` mode because dynamic page components may load after the root layout.
 
-## 7. Acceptance checklist
+## 8. Acceptance checklist
 
 - Every callback in the inventory exists with the listed Input/State/Output IDs.
 - Metadata, Univariate, Sidebar, and workflow counts are derived from one state snapshot and remain equal for the same selection.
@@ -144,4 +170,8 @@ The explicit `univariate-save-selection` button is a separate transition and may
 - Checkbox changes persist to PostgreSQL and reload identically.
 - Checkbox changes do not start Bivariate or Multivariate computation.
 - Explicit compute/optimize buttons remain the only downstream starters.
+- Bivariate renders exactly three KPI cards, the final diversification chart, and no `Unavailable pairs` card.
+- Bivariate uses the local published market snapshot and never the external Xetra PostgreSQL market source.
+- Bivariate chart channels, colours, size inversion, hover fields, and size legend match the fixed table above.
+- Bivariate compute is queued asynchronously, remains disabled for the complete queued/running interval, and does not auto-start Multivariate.
 - Contract tests fail if a callback ID, dependency type, or state-transition guarantee changes without an intentional contract revision.

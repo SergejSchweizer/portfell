@@ -95,15 +95,38 @@ def test_compute_delegates_exact_selection_id() -> None:
 def test_scatter_colors_pairs_by_lower_tail_dependence() -> None:
     figure = _scatter(
         (
-            {"pearson_correlation": 0.8, "covariance": 0.001, "lower_tail_dependence": 0.1},
-            {"pearson_correlation": 0.9, "covariance": 0.002, "lower_tail_dependence": 0.9},
+            {
+                "spearman_correlation": 0.7,
+                "pearson_correlation": 0.8,
+                "downside_correlation": 0.1,
+                "lower_tail_dependence": 0.1,
+                "tail_coexceedance_rate": 1.0,
+            },
+            {
+                "spearman_correlation": 0.85,
+                "pearson_correlation": 0.9,
+                "downside_correlation": 0.9,
+                "lower_tail_dependence": 0.9,
+                "tail_coexceedance_rate": 0.0,
+            },
         )
     ).to_plotly_json()
     marker = figure["data"][0]["marker"]
+    assert figure["data"][0]["x"] == [0.7, 0.85]
     assert marker["color"] == [0.1, 0.9]
-    assert marker["colorscale"][0][1] == "#16a34a"
-    assert marker["colorscale"][-1][1] == "#dc2626"
+    assert marker["size"] == [8.0, 30.0]
+    assert marker["sizemode"] == "diameter"
+    assert marker["colorscale"][0][1] == "#dc2626"
+    assert marker["colorscale"][-1][1] == "#6b7280"
     assert marker["colorbar"]["title"]["text"] == "Lower-tail dependence"
+    assert figure["layout"]["xaxis"]["title"]["text"] == "Spearman correlation"
+    assert figure["layout"]["yaxis"]["title"]["text"] == "Downside correlation"
+    assert figure["layout"]["legend"]["title"]["text"] == "Marker size: co-exceedance rate"
+    assert [trace["name"] for trace in figure["data"][1:]] == [
+        "High rate — frequent joint extremes",
+        "Medium rate",
+        "Low rate — rare joint extremes",
+    ]
 
 
 def test_page_exposes_full_pair_identity_and_frozen_sections() -> None:
@@ -125,3 +148,14 @@ def test_page_exposes_full_pair_identity_and_frozen_sections() -> None:
     assert "Bivariate Statistics" not in rendered
     assert "Universe & History" not in rendered
     assert "Continue to Multivariate" not in rendered
+
+
+def test_compute_button_stays_disabled_while_background_job_runs() -> None:
+    class RunningService(Service):
+        def workflow_state(self) -> dict[str, object]:
+            state = super().workflow_state()
+            state["active_job"] = {"status": "running"}
+            return state
+
+    rendered = str(build_page(RunningService()).to_plotly_json())
+    assert "disabled=True" in rendered

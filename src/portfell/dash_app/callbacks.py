@@ -10,8 +10,8 @@ from typing import Protocol, cast
 from dash import ALL, Dash, Input, Output, State, ctx, no_update
 
 from portfell.dash_app.components import JobProgress
-from portfell.dash_app.pages.univariate import data_regions as univariate_data_regions
 from portfell.dash_app.state import BrowserState, browser_state_from_workflow, with_job_status
+from portfell.modules.univariate.ui import data_regions as univariate_data_regions
 
 
 class CallbackService(Protocol):
@@ -92,9 +92,7 @@ def univariate_checkbox_predicates(
     """
     dividend_allowed: list[str] = []
     for category in _checked_categories(dividend_values, dividend_ids):
-        dividend_allowed.extend(
-            ["none", "unknown"] if category == "none / unknown" else [category]
-        )
+        dividend_allowed.extend(["none", "unknown"] if category == "none / unknown" else [category])
     age_allowed = _checked_categories(age_values, age_ids)
     monthly_allowed = _checked_categories(monthly_values, monthly_ids)
     predicates: list[dict[str, object]] = []
@@ -107,9 +105,7 @@ def univariate_checkbox_predicates(
             }
         )
     if age_allowed:
-        predicates.append(
-            {"metric": "history_age_group", "operator": "in", "allowed": age_allowed}
-        )
+        predicates.append({"metric": "history_age_group", "operator": "in", "allowed": age_allowed})
     if monthly_allowed:
         predicates.append(
             {"metric": "monthly_return_group", "operator": "in", "allowed": monthly_allowed}
@@ -143,6 +139,7 @@ def execute_action(
     objective: str = "return_risk",
 ) -> BrowserState:
     """Execute one explicit command and reconstruct state from persistence afterwards."""
+    submitted_job: Mapping[str, object] | None = None
     try:
         if action == "metadata-create-universe":
             service.create_universe_and_start_univariate(**dict(filters or {}))
@@ -164,24 +161,62 @@ def execute_action(
         elif action == "univariate-dividend-selection":
             if state.univariate_run_id is None:
                 return replace(state, message_code="univariate_not_ready")
+            # Persist an explicit empty selection when every checkbox is
+            # cleared.  The page renders the full Metadata universe as the
+            # unfiltered preview, while the selected-count field is null.
             service.create_univariate_selection(state.univariate_run_id, predicates=predicates)
         elif action == "bivariate-compute":
             if state.selection_id is None:
                 return replace(state, message_code="univariate_selection_not_ready")
-            service.run_bivariate(state.selection_id)
+            # Submit production runs to the durable background executor so the
+            # Dash request returns immediately and polling can reload the
+            # persisted pair artifact when it is ready. Keep a synchronous
+            # fallback for isolated service fakes and adapters.
+            starter = getattr(service, "start_bivariate_job", None)
+            if callable(starter):
+                submitted_job = starter(state.selection_id)
+            else:
+                service.run_bivariate(state.selection_id)
         elif action == "multivariate-optimize":
             if state.selection_id is None or state.bivariate_run_id is None:
                 return replace(state, message_code="bivariate_not_ready")
-            service.run_multivariate(
-                selection_id=state.selection_id,
-                bivariate_run_id=state.bivariate_run_id,
-                objective=objective,
-            )
+            active_reader = getattr(service, "active_analysis_job", None)
+            if callable(active_reader):
+                active = active_reader()
+                if isinstance(active, Mapping) and active.get("status") in {"queued", "running"}:
+                    return with_job_status(persisted_browser_state(service), active)
+            # Optimisation can be expensive.  Submit it to the same durable
+            # executor used by the other analysis stages so the Dash request
+            # returns immediately and the persisted result is picked up by
+            # the normal job poll.  Keep the synchronous path for isolated
+            # adapters/tests that do not expose the job API.
+            starter = getattr(service, "start_multivariate_job", None)
+            if callable(starter):
+                row = starter(
+                    selection_id=state.selection_id,
+                    bivariate_run_id=state.bivariate_run_id,
+                    objective="return_risk",
+                )
+                if isinstance(row, Mapping):
+                    submitted_job = row
+            else:
+                service.run_multivariate(
+                    selection_id=state.selection_id,
+                    bivariate_run_id=state.bivariate_run_id,
+                    objective="return_risk",
+                )
         elif action == "refresh":
             pass
         else:
             return state
-        return persisted_browser_state(service)
+        persisted = persisted_browser_state(service)
+        # A very fast worker can finish between submission and the workflow
+        # read. Conversely, a database replica may briefly lag and omit the
+        # newly queued job. In either case use the submission response as an
+        # immediate UI hint so the lower-right progress window is not skipped.
+        if submitted_job is not None and persisted.job.status is None:
+            persisted = with_job_status(persisted, submitted_job)
+        return persisted
     except Exception as error:
         code = getattr(error, "code", None)
         try:
@@ -312,6 +347,10 @@ def register_callbacks(app: Dash, services: object | None) -> None:
                             else state.source_snapshot_id
                         ),
                     )
+                    starter = getattr(service, "start_univariate_job", None)
+                    if callable(starter):
+                        with suppress(Exception):
+                            starter(universe_id)
             except Exception:
                 # Keep the last coherent state if persistence fails; the UI can
                 # still display the current selection and retry on the next change.
@@ -334,7 +373,8 @@ def register_callbacks(app: Dash, services: object | None) -> None:
         prevent_initial_call=True,
     )
     def _refresh_state(  # pyright: ignore[reportUnusedFunction]
-        _pathname: str | None, store: object,
+        _pathname: str | None,
+        store: object,
     ) -> dict[str, object]:
         existing = BrowserState.from_store(store)
         # Ignore the transient default store emitted before Dash hydrates its
@@ -347,9 +387,7 @@ def register_callbacks(app: Dash, services: object | None) -> None:
             refreshed,
             metadata_filters=existing.metadata_filters,
             metadata_member_count=(
-                selected_count
-                if selected_count is not None
-                else existing.metadata_member_count
+                selected_count if selected_count is not None else existing.metadata_member_count
             ),
         ).to_store()
 
@@ -362,7 +400,19 @@ def register_callbacks(app: Dash, services: object | None) -> None:
     def _poll_job(  # pyright: ignore[reportUnusedFunction]
         _poll: int, store: object
     ) -> dict[str, object]:
-        return refresh_job_presentation(service, BrowserState.from_store(store)).to_store()
+        state = BrowserState.from_store(store)
+        refreshed = refresh_job_presentation(service, state)
+        if refreshed.job.status in {"succeeded", "failed", "cancelled"}:
+            # Completion changes stage readiness and run identifiers in the
+            # durable workflow state; reload those identifiers, not just the
+            # progress toast.
+            persisted = persisted_browser_state(service)
+            return replace(
+                persisted,
+                metadata_filters=state.metadata_filters,
+                metadata_member_count=state.metadata_member_count,
+            ).to_store()
+        return refreshed.to_store()
 
     @app.callback(  # pyright: ignore[reportUnknownMemberType]
         Output("pf-job-progress-region", "children"),
@@ -504,19 +554,24 @@ def register_callbacks(app: Dash, services: object | None) -> None:
         Output("pf-browser-state", "data", allow_duplicate=True),
         Input("multivariate-optimize", "n_clicks"),
         State("pf-browser-state", "data"),
-        State("multivariate-objective", "value"),
         prevent_initial_call=True,
+        running=[(Output("multivariate-optimize", "disabled"), True, False)],
     )
     def _optimize_multivariate(  # pyright: ignore[reportUnusedFunction]
-        n_clicks: int | None, store: object, objective: str | None
+        n_clicks: int | None, store: object
     ) -> dict[str, object] | object:
         if not n_clicks:
             return no_update
+        state = BrowserState.from_store(store)
+        # The route can render from durable workflow state before Dash has
+        # hydrated its local Store.  Rehydrate identifiers here so an
+        # immediately available button cannot become a silent no-op.
+        if state.selection_id is None or state.bivariate_run_id is None:
+            state = persisted_browser_state(service)
         return execute_action(
             service,
-            BrowserState.from_store(store),
+            state,
             action="multivariate-optimize",
-            objective=objective or "return_risk",
         ).to_store()
 
     @app.callback(  # pyright: ignore[reportUnknownMemberType]

@@ -21,7 +21,9 @@ def test_portfell_console_scripts_are_registered() -> None:
     names = {name for name, _value in PORTFELL_ENTRY_POINTS}
     assert names == {
         "portfell-docs-refresh",
+        "portfell-market-refresh",
         "portfell-quality",
+        "portfell-univariate-refresh",
     }
     assert "portfell" not in names
 

@@ -21,6 +21,7 @@ This file is the workflow reference for coding agents and maintainers. It should
 - Use Conventional Commit subjects in the form `type(optional-scope): subject`.
 - For UI work, run `docker compose --env-file .env.local up --build --watch` from the active checkout. If Compose watch is unavailable, run `uv run portfell-compose-watch`.
 - Required quality checks, shard layout, and coverage thresholds are documented in [GATES.md](GATES.md).
+- Every logic or UI change requires a fresh Docker image build and redeploy before hand-off. Verify the resulting containers with `docker compose ps` and the API health endpoint; do not consider a source-only test run sufficient.
 - When a dataframe library is needed and there is a choice, use `polars` rather than `pandas`.
 - Runtime Compose topology is limited to `web`, `api`, `project-bootstrap-worker`, and `postgres`. New application or operations work must execute in one of those containers; do not add services or one-off `docker compose run` containers. Test-only Compose fixtures may add isolated dependencies.
 

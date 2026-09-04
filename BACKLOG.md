@@ -1,6 +1,6 @@
 # Portfell — Authoritative Backlog
 
-Last reviewed: 2026-09-01
+Last reviewed: 2026-09-04
 
 ## 0. Single-file authority
 
@@ -3247,3 +3247,784 @@ Acceptance must prove all of the following on the exact PR406 head SHA:
 - normal Univariate page/card callbacks remain within the existing staged-analysis bounded-response/read-plane contract and do not deserialize the complete row artifact merely to render a card;
 - `uv run portfell-quality pr`, `uv run portfell-quality merge` and GitHub `merge-gate` pass on the exact head; skipped/cancelled/zero-step evidence is not PASS;
 - produce one immutable sanitized `univariate-income-dashboard-v1` PASS artifact containing exact Git SHA, catalog/contract versions, fixture sizes, metric-registry fingerprint, nightly-refresh evidence refs, browser-layout evidence refs, selection-oracle fingerprint and exact Bivariate-handoff evidence without credentials, DSNs or private market rows.
+
+**Active backlog status — PR407–PR427 only**
+
+**Status override — 2026-09-04:** Every PR from PR308 through PR406 is now
+marked **OUTDATED** for backlog execution. Those entries are retained only as
+historical/audit reference and must not be implemented, reopened, or used as a
+dependency for new work. PR407–PR427 are the only active backlog PRs. Their
+dependencies must be taken from the active graph below, not from the retired
+PR descriptions.
+
+## 14. Four independently deployable page modules over shared PostgreSQL and data share — PR407–PR427
+
+This series evolves the current modular monolith into four independently deployable applications:
+Metadata, Univariate, Bivariate and Multivariate. Each application owns its browser page, REST API,
+business logic and write model. Cross-module hand-off occurs only through immutable PostgreSQL IDs
+and published artifacts in one shared data share. Direct Python calls, direct HTTP calls and shared
+mutable memory between analytical modules are forbidden in the final topology.
+
+### 14.1 Frozen target topology
+
+```text
+Browser
+   |
+   v
+Portfell gateway (routing, shared shell, workflow read model only)
+   |
+   +--> Metadata application     /metadata     /api/metadata/*
+   +--> Univariate application   /univariate   /api/univariate/*
+   +--> Bivariate application    /bivariate    /api/bivariate/*
+   +--> Multivariate application /multivariate /api/multivariate/*
+
+All five processes
+   |
+   +--> one PostgreSQL instance / database portfell_dash
+   |       schemas: workflow, metadata, univariate, bivariate, multivariate
+   |
+   +--> one shared immutable data share
+           market/, univariate/, bivariate/, multivariate/
+```
+
+Hard decisions:
+
+- each analytical application has one production entrypoint, one FastAPI application, one Dash
+  page application, one application service and one repository interface;
+- the gateway contains no financial calculation, selection calculation or artifact writer;
+- modules never call sibling module REST endpoints and never import sibling implementation code;
+- PostgreSQL is the only workflow hand-off authority; REST requests carry IDs, not analytical row
+  sets;
+- the shared data share holds large immutable Parquet/JSON artifacts; PostgreSQL stores artifact
+  identity, owner, schema version, path, content hash, row count and publication status;
+- each module may read published upstream records/artifacts through contract readers but may write
+  only its own schema and artifact namespace;
+- one common package may contain immutable DTOs, ID types, error envelopes, configuration, logging,
+  health checks and presentation tokens; it may contain no stage-specific financial logic;
+- no compatibility proxy, dual-write, hidden monolith fallback or generic cross-stage
+  `ResearchApplicationService` remains after PR427;
+- a logic or UI PR is not complete until its image is rebuilt, redeployed and health checked under
+  the repository-wide Docker rule.
+
+### 14.2 Work estimate and scheduling assumptions
+
+The estimate assumes the current four-page Dash behavior and PostgreSQL records are preserved, no
+new product features are added, the existing local market snapshot remains the only market read
+plane, and two weak agents work only on the explicitly separated paths in each PR.
+
+| Work group | PRs | Net effort | Expected elapsed time with two agents |
+| --- | --- | ---: | ---: |
+| Contracts and storage foundations | PR407–PR411 | 13.0 person-days | 9–12 working days |
+| Metadata implementation + QA | PR412–PR413 | 6.0 person-days | 4–5 working days |
+| Univariate implementation + QA | PR414–PR415 | 8.0 person-days | 5–7 working days |
+| Bivariate implementation + QA | PR416–PR417 | 8.0 person-days | 5–7 working days |
+| Multivariate implementation + QA | PR418–PR419 | 9.0 person-days | 6–8 working days |
+| Gateway, Compose and DB enforcement | PR420–PR422 | 10.5 person-days | 7–9 working days |
+| Cross-module, browser, resilience and closeout | PR423–PR427 | 16.0 person-days | 11–14 working days |
+| **Total before contingency** | **PR407–PR427** | **70.5 person-days** | **42–52 working days** |
+| **Total with 20% integration contingency** | | **84.6 person-days** | **8–10 calendar weeks** |
+
+Accuracy range: `-10% / +25%`. The upper bound applies if current callback behavior is not fully
+covered by deterministic tests, PostgreSQL grants cannot be provisioned by CI, or the shared data
+share lacks reliable atomic-rename semantics. A single serial implementer should budget 14–17
+calendar weeks. Four module tracks may run in parallel only after PR411 is merged.
+
+### 14.3 Weak-agent execution protocol for PR407–PR427
+
+Every PR below is deliberately split into two non-overlapping work lanes:
+
+- **Agent A — production lane:** changes only the named production paths and writes focused unit
+  tests for new pure functions;
+- **Agent B — verification lane:** changes only named contract/integration tests and synchronized
+  documentation; it must not silently fix production defects;
+- both agents start from the same predecessor SHA, exchange only committed SHA plus test evidence,
+  and do not modify the same file concurrently unless the PR explicitly assigns a hand-off order;
+- Agent A hands off first when one file must be shared; Agent B rebases onto that exact commit and
+  adds verification only;
+- a failed acceptance item returns to Agent A as a typed defect report containing the failing test,
+  input fixture and expected/actual result;
+- weak agents must not rename public IDs, invent fallback paths, broaden database rights, move files
+  outside owned paths, or change financial formulas unless the PR explicitly says so.
+
+Dependency graph:
+
+```text
+PR407 -> PR408 -> (PR409 || PR410) -> PR411
+                                         |
+                 +-----------+-----------+-----------+
+                 |           |           |           |
+             PR412       PR414       PR416       PR418
+                 |           |           |           |
+             PR413       PR415       PR417       PR419
+                 +-----------+-----------+-----------+
+                                         |
+                                      PR420
+                                         |
+PR411 --------------------------------> PR422
+                                         |
+                              (PR420 + PR422)
+                                         |
+                                      PR421
+                                         |
+                       PR423 -> PR424 -> PR425 -> PR426 -> PR427
+```
+
+PR412, PR414, PR416 and PR418 may be implemented in parallel from PR411. PR420 starts only after all
+four module QA PRs are merged. PR422 may start after PR411 and merges before PR421.
+
+### PR407 — Freeze independent-module topology and ownership contract
+
+Branch: `docs/pr407-independent-module-contract`
+
+Priority: P0 architecture contract.
+
+Estimate: 1.5 person-days; two agents; 1–2 working days.
+
+Depends on: PR406 or current `main` if PR401–PR406 were superseded by already integrated behavior.
+
+Owned paths: `BACKLOG.md`, `ARCHITECTURE.md`, new
+`docs/contracts/independent-modules-v1.md`, documentation contract tests only.
+
+Task:
+
+- Agent A writes the exact process topology, module ownership table, allowed dependency direction,
+  ID hand-off sequence and prohibited interactions;
+- Agent B creates documentation tests that enumerate every module, route prefix, PostgreSQL schema,
+  artifact namespace and allowed upstream dependency.
+
+Acceptance:
+
+- the contract names exactly `gateway`, `metadata`, `univariate`, `bivariate`, `multivariate`;
+- every process has an exact browser route, REST prefix, input IDs, output IDs, owned PostgreSQL
+  schema, readable upstream schemas and owned data-share prefix;
+- Metadata outputs `metadata_universe_id`; Univariate outputs `univariate_run_id` and
+  `univariate_selection_id`; Bivariate outputs `bivariate_run_id`; Multivariate outputs
+  `multivariate_run_id` and decision artifacts;
+- direct sibling HTTP calls, sibling implementation imports, cross-schema writes, shared mutable
+  state and unpublished data-share reads are explicitly forbidden;
+- gateway responsibilities are limited to routing, shared presentation shell, authentication,
+  health aggregation and bounded workflow read projection;
+- contract tests fail when a fifth analytical module, generic analytical write API or undocumented
+  dependency is introduced;
+- no production code changes; `uv run portfell-quality pr` passes.
+
+### PR408 — Extract the stage-neutral contracts package
+
+Branch: `refactor/pr408-shared-contracts-package`
+
+Priority: P0 foundation.
+
+Estimate: 2.5 person-days; two agents; 2 working days.
+
+Depends on: PR407.
+
+Owned paths: new `src/portfell_contracts/**`, packaging metadata, exact import migration list,
+contract serialization tests. No module business logic moves.
+
+Task:
+
+- Agent A creates the dependency-light package containing typed IDs, stage/status enums, artifact
+  manifests, job progress DTOs, public error envelopes and workflow projection DTOs;
+- Agent B builds round-trip, malformed-input and import-negative tests from the PR407 contract.
+
+Acceptance:
+
+- the package imports no `dash`, `fastapi`, PostgreSQL adapter, market gateway, NumPy, Polars or
+  financial calculation module;
+- IDs are distinct typed values and cannot be accidentally interchanged in strict Pyright checks;
+- every DTO has deterministic JSON serialization and rejects unknown required-version values;
+- error documents expose public code and safe context only; credentials, SQL and filesystem paths
+  are structurally unavailable;
+- existing callers use the new types through an explicit import migration with no alias duplicates;
+- import-cycle and forbidden-dependency tests pass;
+- focused tests, strict Pyright and `uv run portfell-quality pr` pass.
+
+### PR409 — Create PostgreSQL schema ownership and immutable hand-off tables
+
+Branch: `feat/pr409-module-postgres-ownership`
+
+Priority: P0 persistence foundation.
+
+Estimate: 3.0 person-days; two agents; 2–3 working days.
+
+Depends on: PR408.
+
+Owned paths: new app-state migration, schema-specific repository protocols/adapters, PostgreSQL
+contract fixtures and migration documentation. No UI or analytical calculations.
+
+Task:
+
+- Agent A creates schemas `workflow`, `metadata`, `univariate`, `bivariate`, `multivariate` and
+  migrates clean state into owner-specific tables without changing financial contents;
+- Agent B creates clean-install, upgrade, rollback-boundary, immutability and cross-schema denial
+  tests using isolated PostgreSQL.
+
+Acceptance:
+
+- every table has exactly one owning module and the ownership matrix matches PR407;
+- foreign-key hand-offs follow Metadata -> Univariate -> Bivariate -> Multivariate IDs;
+- published runs, selections, artifacts and decisions are immutable by trigger/repository contract;
+- repository interfaces expose upstream reads separately from owned writes;
+- tests prove each module writer cannot update or delete a sibling module's records;
+- migration is transactional, repeatable on a clean database and fails closed on incompatible state;
+- no old table fallback or dual-write is added;
+- focused PostgreSQL tests and `uv run portfell-quality pr` pass.
+
+### PR410 — Implement the immutable shared-data artifact contract
+
+Branch: `feat/pr410-shared-data-artifact-store`
+
+Priority: P0 data plane.
+
+Estimate: 3.0 person-days; two agents; 2–3 working days.
+
+Depends on: PR408.
+
+Owned paths: new `src/portfell_artifacts/**`, artifact manifest schema, filesystem adapter, tests and
+data-share documentation. No page or financial logic.
+
+Task:
+
+- Agent A implements staged write, fsync where supported, atomic publication, content hashing,
+  manifest verification and read-only published-artifact access;
+- Agent B implements corruption, partial-write, wrong-owner, path traversal, duplicate-publication
+  and concurrent-reader fixtures.
+
+Acceptance:
+
+- final namespaces are exactly `market/`, `univariate/`, `bivariate/`, `multivariate/`;
+- every published artifact has owner, schema version, content hash, byte size, row count, path and
+  publication timestamp recorded in PostgreSQL;
+- consumers can read only `published` artifacts whose hash and schema match the manifest;
+- temporary files are never visible through the reader API;
+- repeated byte-identical publication is idempotent; different bytes under the same immutable ID
+  fail with typed `artifact_identity_conflict`;
+- path traversal, symlink escape and cross-owner overwrite tests fail closed;
+- local filesystem and mounted-NAS atomicity assumptions are documented and probed;
+- focused tests and `uv run portfell-quality pr` pass.
+
+### PR411 — Replace in-memory cross-stage calls with PostgreSQL workflow commands
+
+Branch: `refactor/pr411-postgres-workflow-handoff`
+
+Priority: P0 orchestration foundation.
+
+Estimate: 3.0 person-days; two agents; 2–3 working days.
+
+Depends on: PR409 and PR410.
+
+Owned paths: workflow command/job repository, stage-neutral dispatcher, contract tests and workflow
+documentation. No module extraction yet.
+
+Task:
+
+- Agent A implements durable stage commands containing only stage, input ID, requested operation,
+  idempotency key and timestamps;
+- Agent B creates duplicate-delivery, restart, stale-claim, dependency-not-ready and ordering tests.
+
+Acceptance:
+
+- no command contains quote rows, metric rows, pair rows, matrices or portfolio rows;
+- one active job per exact `(stage, input_ref, algorithm_version)` is enforced transactionally;
+- a worker claims work with PostgreSQL locking and a stale lease can be recovered after process
+  death without producing duplicate published output;
+- downstream commands are accepted only after the exact upstream record and artifacts are
+  published;
+- progress current/total/phase and terminal failure code survive restart;
+- no module HTTP endpoint is called by another module;
+- focused concurrency/restart tests and `uv run portfell-quality pr` pass.
+
+### PR412 — Extract the independently deployable Metadata application
+
+Branch: `refactor/pr412-metadata-application`
+
+Priority: P0 module implementation.
+
+Estimate: 4.0 person-days; two agents; 3–4 working days.
+
+Depends on: PR411.
+
+Owned paths: new `services/metadata/**` or equivalent package, Metadata-owned repository adapter,
+Metadata Dash page/assets, Metadata REST router and focused unit tests. Shared contracts are read-only.
+
+Task:
+
+- Agent A moves Metadata UI, callbacks, REST and application logic behind one Metadata entrypoint;
+- Agent B migrates existing Metadata behavior tests to the public application boundary and records
+  parity evidence without editing production code.
+
+Acceptance:
+
+- the Metadata process starts without importing Univariate, Bivariate or Multivariate implementation
+  packages;
+- dropdown persistence, unique-ISIN counts, sequential option counts and full-dataset distributions
+  retain the frozen callback behavior;
+- universe publication writes only Metadata-owned PostgreSQL tables and an optional Metadata
+  artifact manifest;
+- the process reads the local market data share and never reads external market PostgreSQL;
+- successful universe publication enqueues only an ID-based Univariate command;
+- `/metadata`, `/api/metadata/*` and `/health` work when sibling processes are stopped;
+- image rebuild, isolated deployment, health check and `uv run portfell-quality pr` pass.
+
+### PR413 — Metadata module contract and browser QA
+
+Branch: `test/pr413-metadata-module-qa`
+
+Priority: P0 module QA.
+
+Estimate: 2.0 person-days; two agents; 1–2 working days.
+
+Depends on: PR412.
+
+Owned paths: Metadata unit/REST/PostgreSQL/Playwright tests and sanitized evidence only.
+
+Task:
+
+- Agent A supplies deterministic market-share fixtures and expected universe/member oracles;
+- Agent B writes black-box REST and Playwright tests against the isolated Metadata container.
+
+Acceptance:
+
+- every dropdown option/count, filter persistence reload and unique-ISIN count matches an independent
+  fixture oracle;
+- no Metadata interaction writes any sibling schema or starts financial computation directly;
+- REST OpenAPI contains only Metadata and health operations;
+- process restart restores the same selection from PostgreSQL;
+- browser tests cover `1440x900`, `1024x768`, `390x844` with no console/page errors;
+- isolated image rebuild/deploy/health and `uv run portfell-quality merge` pass.
+
+### PR414 — Extract the independently deployable Univariate application
+
+Branch: `refactor/pr414-univariate-application`
+
+Priority: P0 module implementation.
+
+Estimate: 5.0 person-days; two agents; 4–5 working days.
+
+Depends on: PR411.
+
+Owned paths: Univariate service package, worker, repository adapters, Dash page/assets, REST router
+and focused unit tests. No Metadata/Bivariate/Multivariate implementation edits.
+
+Task:
+
+- Agent A moves Univariate calculation, artifact publication, selection logic, page and callbacks
+  behind one process entrypoint;
+- Agent B constructs frozen numerical and selection fixtures and verifies the public boundary.
+
+Acceptance:
+
+- input is only a published `metadata_universe_id`; member and market artifacts are resolved through
+  PostgreSQL plus data-share contracts;
+- all current Univariate metrics and daily return artifacts remain numerically equivalent;
+- Dividend Payments, ISIN Age and Monthly Returns checkbox selections are persisted in PostgreSQL;
+- no checked boxes yields null Univariate selected count and an unfiltered preview; all categories
+  checked yields exactly the Metadata unique-ISIN count;
+- the Return/Risk plot contains no ISIN outside the persisted selection when a selection exists;
+- selection publication writes only Univariate tables and enqueues only an ID-based Bivariate command;
+- `/univariate`, `/api/univariate/*` and `/health` run with other analytical processes stopped;
+- image rebuild, isolated deployment, health check and `uv run portfell-quality pr` pass.
+
+### PR415 — Univariate numerical, persistence and browser QA
+
+Branch: `test/pr415-univariate-module-qa`
+
+Priority: P0 module QA.
+
+Estimate: 3.0 person-days; two agents; 2–3 working days.
+
+Depends on: PR414.
+
+Owned paths: Univariate numerical/unit/REST/PostgreSQL/Playwright tests and evidence only.
+
+Task:
+
+- Agent A builds an independent adjusted-close/dividend oracle covering every persisted metric;
+- Agent B tests every checkbox set/unset, reload, sidebar count and Plotly `customdata` against real
+  PostgreSQL.
+
+Acceptance:
+
+- every metric matches the independent oracle within its documented tolerance;
+- every individual checkbox and representative multi-checkbox AND/OR combination yields exact
+  member IDs and exact count;
+- selecting no checkbox produces null selected count; selecting all available categories produces
+  exactly the Metadata unique-ISIN count;
+- persisted selection, Univariate KPI, sidebar KPI and plot ISIN set reconcile after reload/restart;
+- no read interaction submits Bivariate/Multivariate work;
+- malformed/unavailable inputs return typed redacted errors;
+- isolated image rebuild/deploy/health and `uv run portfell-quality merge` pass.
+
+### PR416 — Extract the independently deployable Bivariate application
+
+Branch: `refactor/pr416-bivariate-application`
+
+Priority: P0 module implementation.
+
+Estimate: 5.0 person-days; two agents; 4–5 working days.
+
+Depends on: PR411.
+
+Owned paths: Bivariate service package, worker, repository adapters, Dash page/assets, REST router
+and focused unit tests.
+
+Task:
+
+- Agent A moves pair planning, aligned-return computation, matrices, scatter page and callbacks behind
+  one Bivariate entrypoint;
+- Agent B creates aligned-calendar/pair-count oracles and boundary tests.
+
+Acceptance:
+
+- input is only a published `univariate_selection_id` plus its immutable upstream artifact references;
+- candidate pair count is exactly `n*(n-1)/2` for `n` unique selected identities;
+- all pair computations use the frozen equal-time-slice contract and omit self/duplicate reverse pairs;
+- covariance, Pearson, Spearman, downside, tail dependence, co-exceedance, rolling correlation and
+  drawdown overlap remain numerically equivalent;
+- Bivariate writes only its schema/data-share namespace and never mutates the Univariate selection;
+- the compute button is disabled only while the exact durable Bivariate job is queued/running;
+- `/bivariate`, `/api/bivariate/*` and `/health` work with Metadata and Multivariate stopped;
+- image rebuild, isolated deployment, health check and `uv run portfell-quality pr` pass.
+
+### PR417 — Bivariate numerical, pair-lineage and browser QA
+
+Branch: `test/pr417-bivariate-module-qa`
+
+Priority: P0 module QA.
+
+Estimate: 3.0 person-days; two agents; 2–3 working days.
+
+Depends on: PR416.
+
+Owned paths: Bivariate numerical/unit/REST/PostgreSQL/Playwright tests and evidence only.
+
+Task:
+
+- Agent A creates independent pairwise numerical fixtures and expected matrices;
+- Agent B runs black-box computation, progress, reload, hover and lineage tests.
+
+Acceptance:
+
+- every pair metric and matrix cell matches the independent oracle;
+- input count equals the persisted Univariate selected count and candidate pairs equal
+  `n*(n-1)/2` after every Univariate checkbox fixture;
+- changed Univariate selection cannot reuse a Bivariate run from a previous selection ID;
+- progress total equals planned pairs and persists through process restart;
+- plot/matrix hover exposes only identities belonging to the exact selected set;
+- no Bivariate action writes Metadata, Univariate or Multivariate schemas;
+- isolated image rebuild/deploy/health and `uv run portfell-quality merge` pass.
+
+### PR418 — Extract the independently deployable Multivariate application
+
+Branch: `refactor/pr418-multivariate-application`
+
+Priority: P0 module implementation.
+
+Estimate: 6.0 person-days; two agents; 5–6 working days.
+
+Depends on: PR411.
+
+Owned paths: Multivariate service package, worker, repository adapters, Dash page/assets, REST router
+and focused unit tests.
+
+Task:
+
+- Agent A moves portfolio candidate generation, validation, decision, performance page and callbacks
+  behind one Multivariate entrypoint;
+- Agent B creates optimizer invariants, daily cumulative return fixtures and public-boundary tests.
+
+Acceptance:
+
+- input is only a published `bivariate_run_id`; exact Univariate daily-return artifacts are resolved
+  through persisted lineage;
+- all portfolio objectives are calculated by one durable job and no objective dropdown returns;
+- cumulative instrument curves use the persisted Univariate daily returns with date on X and
+  cumulative extended return percentage on Y;
+- one exact job may run at a time; button/progress state survives reload and process restart;
+- candidate, validation, risk contribution, income, performance and decision artifacts remain
+  deterministic and immutable;
+- Multivariate writes only its schema/data-share namespace;
+- `/multivariate`, `/api/multivariate/*` and `/health` work with upstream processes stopped after
+  prerequisite artifacts have been published;
+- image rebuild, isolated deployment, health check and `uv run portfell-quality pr` pass.
+
+### PR419 — Multivariate optimizer, persistence and browser QA
+
+Branch: `test/pr419-multivariate-module-qa`
+
+Priority: P0 module QA.
+
+Estimate: 3.0 person-days; two agents; 2–3 working days.
+
+Depends on: PR418.
+
+Owned paths: Multivariate numerical/unit/REST/PostgreSQL/Playwright tests and evidence only.
+
+Task:
+
+- Agent A supplies deterministic optimizer/validation/reference-return oracles;
+- Agent B tests job lifecycle, reload/restart, plot data and decision persistence as a black box.
+
+Acceptance:
+
+- weights satisfy all constraints and deterministic candidates/decision match the fixture oracle;
+- daily cumulative series matches direct compounding of the persisted Univariate daily returns;
+- a second optimize request during an active run reuses/rejects the same job and never computes twice;
+- button and progress values reconcile with PostgreSQL before, during and after restart;
+- no Multivariate action writes an upstream schema;
+- typed failure and recovery paths expose no internal detail;
+- isolated image rebuild/deploy/health and `uv run portfell-quality merge` pass.
+
+### PR420 — Create the stateless workflow gateway and shared UI shell
+
+Branch: `feat/pr420-workflow-gateway`
+
+Priority: P0 composition.
+
+Estimate: 4.0 person-days; two agents; 3–4 working days.
+
+Depends on: PR413, PR415, PR417 and PR419.
+
+Owned paths: new gateway application, reverse-routing configuration, shared shell/navigation package,
+gateway tests and UI-shell documentation.
+
+Task:
+
+- Agent A implements route forwarding and the bounded PostgreSQL workflow read model;
+- Agent B tests routing, navigation, failure isolation and absence of financial/write capabilities.
+
+Acceptance:
+
+- browser URLs and public REST prefixes remain unchanged;
+- gateway forwards each page/API prefix to exactly one owning application;
+- `/api/workflow` reads IDs/counts/status only and never hydrates analytical row artifacts;
+- shared sidebar values are derived from persisted exact lineage and do not trigger computation;
+- one unavailable module produces a typed module-specific unavailable state while other pages remain
+  reachable;
+- gateway imports no calculation or module repository implementation;
+- gateway image rebuild, isolated deploy/health and `uv run portfell-quality pr` pass.
+
+### PR421 — Deploy gateway plus four module applications in Compose
+
+Branch: `ops/pr421-five-process-compose`
+
+Priority: P0 deployment.
+
+Estimate: 4.0 person-days; two agents; 3–4 working days.
+
+Depends on: PR420 and PR422.
+
+Owned paths: Dockerfiles/entrypoints, `compose.yaml`, health checks, deployment scripts, `DOCKER.md`
+and container contract tests.
+
+Task:
+
+- Agent A defines gateway, four application services and PostgreSQL using shared image layers;
+- Agent B validates clean build, startup order, health, restart and stopped-module isolation.
+
+Acceptance:
+
+- containers are exactly `portfell-gateway`, `portfell-metadata`, `portfell-univariate`,
+  `portfell-bivariate`, `portfell-multivariate`, `portfell-postgres`;
+- only the gateway exposes the public UI/API port; module ports and PostgreSQL remain internal;
+- all analytical containers mount the data share with the least required read/write path;
+- no container contains a monolith fallback entrypoint;
+- stopping one analytical container leaves gateway health degraded-but-live and unrelated pages usable;
+- clean build, redeploy, all health checks and container negative-space tests pass.
+
+### PR422 — Enforce PostgreSQL roles and data-share permissions per module
+
+Branch: `security/pr422-module-least-privilege`
+
+Priority: P0 security boundary.
+
+Estimate: 2.5 person-days; two agents; 2 working days.
+
+Depends on: PR411.
+
+Owned paths: PostgreSQL role/grant migrations, secret references, data-share permission preflight,
+security tests and runbook updates.
+
+Task:
+
+- Agent A provisions one login role per process and exact schema/data-share rights;
+- Agent B executes allowed/forbidden SQL and filesystem operations under every real role/UID.
+
+Acceptance:
+
+- each module can write only its owned schema and namespace;
+- upstream reads are limited to documented published tables/artifacts;
+- gateway is read-only except its explicitly owned UI preference/workflow command operations;
+- raw passwords remain external secrets and never enter Compose, logs or evidence;
+- all cross-schema DML, forbidden DDL and cross-namespace file writes fail;
+- security preflight and `uv run portfell-quality pr` pass.
+
+### PR423 — Add PostgreSQL-only cross-module contract integration tests
+
+Branch: `test/pr423-cross-module-contract-integration`
+
+Priority: P0 integration QA.
+
+Estimate: 4.0 person-days; two agents; 3–4 working days.
+
+Depends on: PR413, PR415, PR417, PR419 and PR421.
+
+Owned paths: integration fixtures/tests and sanitized evidence only.
+
+Task:
+
+- Agent A supplies deterministic market, metric, pair and portfolio fixtures with expected IDs;
+- Agent B executes each service independently and hands outputs to the next service only through
+  PostgreSQL/data-share records.
+
+Acceptance:
+
+- the complete chain succeeds with zero sibling HTTP requests and zero shared in-memory objects;
+- every downstream input ID equals the exact published upstream output ID;
+- record counts reconcile at Metadata, Univariate selection, Bivariate pairs and Multivariate
+  candidates;
+- stale/wrong IDs, unpublished artifacts and hash mismatches fail with typed errors;
+- restarting every service between stages produces identical results;
+- database query tracing proves schema write ownership;
+- `uv run portfell-quality merge` passes.
+
+### PR424 — Add independent per-page and complete-workflow Playwright QA
+
+Branch: `test/pr424-five-process-playwright-qa`
+
+Priority: P0 browser QA.
+
+Estimate: 4.0 person-days; two agents; 3–4 working days.
+
+Depends on: PR423.
+
+Owned paths: Playwright tests, browser fixtures, screenshot/evidence manifests and `GATES.md` only.
+
+Task:
+
+- Agent A creates isolated browser fixtures for each page/module and expected DOM/Plotly oracles;
+- Agent B creates the real-stack Metadata -> Univariate -> Bivariate -> Multivariate journey.
+
+Acceptance:
+
+- each page test runs with only gateway, PostgreSQL, the owning module and prepublished prerequisite
+  artifacts;
+- Metadata tests every dropdown and reload persistence;
+- Univariate tests every selection checkbox, null/all count semantics, sidebar count and exact Plotly
+  `customdata` exclusion;
+- Bivariate tests exact input/pair counts, compute state, progress, matrices/scatter and reload;
+- Multivariate tests single-job behavior, progress, decisions and daily cumulative-return lines;
+- the full journey uses real containers/PostgreSQL/data share and contains no fixture service;
+- all supported viewports have no console/page errors or body overflow;
+- GitHub `merge-dash-browser`, image rebuild/redeploy/health and `uv run portfell-quality merge` pass.
+
+### PR425 — Verify crash recovery, concurrency and performance isolation
+
+Branch: `test/pr425-module-resilience-performance`
+
+Priority: P1 operational QA.
+
+Estimate: 3.0 person-days; two agents; 2–3 working days.
+
+Depends on: PR424.
+
+Owned paths: resilience/load tests, performance budgets and evidence only.
+
+Task:
+
+- Agent A defines bounded workload fixtures and latency/resource budgets;
+- Agent B runs kill/restart, duplicate-command, concurrent-read and CPU-saturation scenarios.
+
+Acceptance:
+
+- killing a worker during computation leaves one recoverable durable job and no published partial
+  artifact;
+- duplicate commands produce one immutable result;
+- CPU-heavy Bivariate/Multivariate execution does not make Metadata/Univariate persisted reads exceed
+  documented p95 budgets;
+- gateway remains responsive when one module is stopped or saturated;
+- no connection-pool exhaustion, deadlock or cross-module transaction lock is observed;
+- sanitized performance/resilience evidence and `uv run portfell-quality merge` pass.
+
+### PR426 — Complete operator documentation and reversible cutover plan
+
+Branch: `docs/pr426-independent-modules-runbook`
+
+Priority: P0 operations documentation.
+
+Estimate: 2.0 person-days; two agents; 1–2 working days.
+
+Depends on: PR425.
+
+Owned paths: `README.md`, `ARCHITECTURE.md`, `DOCKER.md`, `GATES.md`, new module runbook and
+documentation tests only.
+
+Task:
+
+- Agent A documents build, deploy, health, logs, backup, restore, permissions and rollback;
+- Agent B executes every command on a clean fixture host and verifies all Markdown links/TOCs.
+
+Acceptance:
+
+- ASCII topology and sequence diagrams match the deployed Compose topology;
+- each service has exact startup, health, log, restart and failure-isolation procedures;
+- backup/restore covers PostgreSQL plus content-addressed data-share artifacts consistently;
+- cutover and rollback have explicit stop conditions and preserve the previous release until PASS;
+- documentation contains no duplicate authority or secrets;
+- documentation tests and `uv run portfell-quality pr` pass.
+
+### PR427 — Remove monolith paths and issue independent-modules PASS
+
+Branch: `refactor/pr427-independent-modules-closeout`
+
+Priority: P0 final closeout.
+
+Estimate: 3.0 person-days; two agents; 2–3 working days.
+
+Depends on: PR426.
+
+Owned paths: obsolete monolith deletion set, architecture negative-space tests, final evidence manifest
+and synchronized sidecar documentation. No new features.
+
+Task:
+
+- Agent A deletes the central cross-stage `ResearchApplicationService`, shared analytical Dash
+  callback dispatcher, generic module facades and obsolete single-API entrypoints after replacements
+  are proven;
+- Agent B proves negative space and runs the complete clean-install/upgrade/full-workflow gate.
+
+Acceptance:
+
+- no production process imports or instantiates the old cross-stage service/callback composition;
+- no generic analytical API, direct sibling call, sibling implementation import, cross-schema write,
+  dual-write, fallback or obsolete container remains;
+- exactly four analytical applications plus gateway are independently startable/deployable;
+- each module's isolated unit, REST, PostgreSQL and Playwright suites pass successively;
+- the combined real-stack workflow, restart persistence, security, resilience and browser suites pass;
+- all images are rebuilt and the full Compose deployment is healthy;
+- `uv run portfell-quality pr`, `uv run portfell-quality merge` and GitHub `merge-gate` pass on the
+  exact head;
+- publish sanitized `independent-modules-v1` PASS evidence containing Git SHA, image digests,
+  contract versions, migration version, test counts, coverage, module health, workflow IDs and
+  artifact hashes without credentials or private market rows.
+
+## 15. Outdated PR history — condensed reference
+
+All entries below are **OUTDATED** as executable backlog items as of
+2026-09-04. They are retained only to preserve the decision history and the
+reason why the current PR407–PR427 series exists.
+
+| Retired range | Former purpose | Final disposition |
+| --- | --- | --- |
+| PR308–PR343 | Xetra source contract, source cutover, provider deletion and source QA | Superseded historical source-series work; do not reopen |
+| PR344–PR351 | Clean database replacement, Dash shell and first three page implementations | Superseded by the independent-module extraction series |
+| PR352–PR360 | Multivariate page, shared Dash semantics, React/database deletion and final cutover | Superseded by PR407–PR427's service/gateway/Compose cutover |
+| PR361–PR382 | Multivariate structural-risk v2 and corrective production wiring | Retained as analytical history; not an active modularization dependency |
+| PR383–PR396 | Staged execution, durable jobs, read plane, progress and performance QA | Retained as runtime history; replaced where necessary by module-local contracts |
+| PR397–PR400 | Numeric presentation, nightly refresh, Metadata distributions and project context | Retained as product history; no new work may depend on these backlog entries |
+| PR401–PR406 | Income-first Univariate metrics, cards, filters and hand-off QA | Retained as metric history; the active modularization contracts are PR407–PR427 |
+
+Historical integration notes and commit references in Sections 3–13 remain
+auditable, but their original acceptance lists no longer authorize work. Any
+unfinished behavior discovered in those sections must be reformulated as a new
+small PR inside PR407–PR427 or a later active series.

@@ -349,18 +349,6 @@
       "reason": "Legacy project workflow projection persistence."
     },
     {
-      "disposition": "retain-backend",
-      "identifier": "src/portfell/hosted_routes_metadata_projects.py",
-      "kind": "path",
-      "reason": "Transitional FastAPI capability reference retained until PR347 rewires service/state authority; legacy project/user semantics are not retained."
-    },
-    {
-      "disposition": "retain-backend",
-      "identifier": "src/portfell/hosted_routes_research.py",
-      "kind": "path",
-      "reason": "Transitional typed research capability/API surface retained until replacement wiring."
-    },
-    {
       "disposition": "delete-pr357",
       "identifier": "src/portfell/legacy_import_schema.py",
       "kind": "path",

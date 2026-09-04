@@ -47,9 +47,24 @@ The product routes are exactly:
 
 `src/portfell/hosted_api.py` is the final composition root. It validates the independent app/market configuration, opens the clean application database, migrates it to the frozen app-state head, creates `PostgresAppStateRepository`, creates the read-only `MarketDataGateway`, composes `ResearchApplicationService`, registers FastAPI routes, and mounts Dash.
 
+### Feature modules
+
+`src/portfell/modules/{metadata,univariate,bivariate,multivariate}` owns four physically separate
+HTTP boundaries. Each has its own `/api/<module>/*` router and receives a runtime-restricted service
+facade. `src/portfell/modules/runtime.py` is the composition registry and rejects calls outside the
+owning feature's capability set. Feature packages may not import sibling feature packages.
+
+Dash pages are likewise assigned only their matching module facade. Cross-stage transitions use
+the workflow coordinator and immutable persisted IDs. Generic stage endpoints such as `/api/runs`
+are forbidden because they obscure ownership.
+
 ### `app_services`
 
-`src/portfell/app_services/**` owns the four-stage orchestration. Application services depend on typed app-state ports and market-source contracts, not HTTP/Dash composition or concrete legacy repositories. The same service semantics feed API and Dash adapters.
+`src/portfell/app_services/**` owns the internal four-stage orchestration implementation.
+Application services depend on typed app-state ports and market-source contracts, not HTTP/Dash
+composition or concrete legacy repositories. Only the composition root gives this implementation
+to the restricted feature facades; feature routers and UI pages never receive the unrestricted
+service directly in production.
 
 The workflow is strictly:
 

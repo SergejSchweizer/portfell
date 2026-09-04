@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import Protocol, cast
 
 import plotly.graph_objects as go  # pyright: ignore[reportMissingTypeStubs]
@@ -11,7 +11,6 @@ from dash.development.base_component import Component
 
 from portfell.dash_app.components import (
     ChartCard,
-    ControlBar,
     ErrorState,
     KpiCard,
     PageHeader,
@@ -39,6 +38,7 @@ class BivariateService(Protocol):
 def bivariate_page_data(service: BivariateService) -> dict[str, object]:
     workflow = service.workflow_state()
     selection = _mapping(workflow.get("univariate_selection"))
+    active_job = _mapping(workflow.get("active_job"))
     stages = _mapping(workflow.get("stages")) or {}
     stage = _mapping(stages.get("bivariate"))
     detail = stage
@@ -75,6 +75,7 @@ def bivariate_page_data(service: BivariateService) -> dict[str, object]:
         )
     return {
         "selection": selection,
+        "active_job": active_job,
         "run": detail,
         "rows": rows,
         "chart_rows": chart_rows,
@@ -104,26 +105,33 @@ def _layout(
     model: Mapping[str, object], *, message: str | None = None, error: str | None = None
 ) -> Component:
     selection = _mapping(model.get("selection"))
+    active_job = _mapping(model.get("active_job"))
+    job_running = active_job is not None and active_job.get("status") in {"queued", "running"}
     children: list[Component] = [
-        PageHeader(
-            "Bivariate",
-            "Inspect pairwise diversification evidence for the persisted Univariate selection.",
-        ),
-        ControlBar(
+        html.Div(
             [
-                html.Button(
-                    children="Compute bivariate statistics",
-                    id="bivariate-compute",
-                    className="pf-button pf-button-primary",
-                    disabled=selection is None,
+                PageHeader(
+                    "Bivariate",
+                    "Inspect pairwise diversification evidence for the persisted "
+                    "Univariate selection.",
                 ),
                 html.Div(
-                    "Pair-result controls operate on persisted backend evidence only.",
-                    id="bivariate-result-controls",
-                    className="pf-context-label",
+                    [
+                        html.Button(
+                            children="Compute bivariate statistics",
+                            id="bivariate-compute",
+                            className="pf-button pf-button-primary",
+                            disabled=selection is None or job_running,
+                        ),
+                        html.Div(
+                            id="bivariate-result-controls",
+                            className="pf-context-label",
+                        ),
+                    ],
+                    className="pf-page-header-actions",
                 ),
             ],
-            component_id="bivariate-controls",
+            className="pf-page-header-row",
         ),
     ]
     if error:
@@ -140,9 +148,9 @@ def _layout(
                     ),
                     KpiCard("Candidate pairs", _display(model.get("candidate_count"))),
                     KpiCard("Eligible pairs", _display(model.get("eligible_count"))),
-                    KpiCard("Unavailable pairs", _display(model.get("unavailable_count"))),
                 ],
                 className="pf-kpi-grid",
+                id="bivariate-kpi-grid",
             ),
             ChartCard(
                 "Bivariate Return / Diversification Universe",
@@ -158,15 +166,19 @@ def _scatter(rows: tuple[Mapping[str, object], ...]) -> go.Figure:
     available = [
         row
         for row in rows
-        if isinstance(row.get("pearson_correlation"), int | float)
-        and isinstance(row.get("covariance"), int | float)
+        if isinstance(row.get("spearman_correlation"), int | float)
+        and isinstance(row.get("downside_correlation"), int | float)
     ]
     figure = go.Figure(
         go.Scatter(
-            x=[row["pearson_correlation"] for row in available],
-            y=[row["covariance"] for row in available],
+            x=[row["spearman_correlation"] for row in available],
+            y=[row["downside_correlation"] for row in available],
             mode="markers",
             marker={
+                # Invert co-exceedance: frequent joint extremes stay small,
+                # while rare joint extremes receive more visual emphasis.
+                "size": _coexceedance_sizes(available),
+                "sizemode": "diameter",
                 "color": [
                     float(row["lower_tail_dependence"])
                     if isinstance(row.get("lower_tail_dependence"), int | float)
@@ -174,9 +186,9 @@ def _scatter(rows: tuple[Mapping[str, object], ...]) -> go.Figure:
                     for row in available
                 ],
                 "colorscale": [
-                    [0.0, "#16a34a"],
-                    [0.5, "#2563eb"],
-                    [1.0, "#dc2626"],
+                    [0.0, "#dc2626"],
+                    [0.5, "#f59e0b"],
+                    [1.0, "#6b7280"],
                 ],
                 "cmin": 0.0,
                 "cmax": 1.0,
@@ -192,25 +204,64 @@ def _scatter(rows: tuple[Mapping[str, object], ...]) -> go.Figure:
                     row.get("right_code"),
                     row.get("n_observations"),
                     row.get("lower_tail_dependence"),
+                    row.get("tail_coexceedance_rate"),
                 ]
                 for row in available
             ],
             hovertemplate=(
                 "Left %{customdata[0]} / %{customdata[1]} / %{customdata[2]}"
                 "<br>Right %{customdata[3]} / %{customdata[4]} / %{customdata[5]}"
-                "<br>Observations %{customdata[6]}<br>Pearson %{x}"
-                "<br>Covariance %{y}<br>Lower-tail dependence %{customdata[7]}"
+                "<br>Observations %{customdata[6]}<br>Spearman %{x}"
+                "<br>Downside correlation %{y}<br>Lower-tail dependence %{customdata[7]}"
+                "<br>Co-exceedance rate %{customdata[8]}"
                 "<extra></extra>"
             ),
             name="Eligible pairs",
         )
     )
-    return apply_portfell_template(figure, x_title="Pearson correlation", y_title="Covariance")
+    # Plotly does not create a legend for continuous marker sizes. Add three
+    # reference traces so the inverse co-exceedance encoding is explicit.
+    for size, label in (
+        (8.0, "High rate — frequent joint extremes"),
+        (19.0, "Medium rate"),
+        (30.0, "Low rate — rare joint extremes"),
+    ):
+        figure.add_trace(
+            go.Scatter(
+                x=[None],
+                y=[None],
+                mode="markers",
+                marker={"size": size, "color": "#6b7280"},
+                name=label,
+                hoverinfo="skip",
+                showlegend=True,
+            )
+        )
+    figure.update_layout(legend_title_text="Marker size: co-exceedance rate")
+    return apply_portfell_template(
+        figure, x_title="Spearman correlation", y_title="Downside correlation"
+    )
+
+
+def _coexceedance_sizes(rows: Sequence[Mapping[str, object]]) -> list[float]:
+    """Scale inverse co-exceedance across the visible sample for contrast."""
+    rates = [
+        max(0.0, min(1.0, float(row["tail_coexceedance_rate"])))
+        if isinstance(row.get("tail_coexceedance_rate"), int | float)
+        else 0.5
+        for row in rows
+    ]
+    minimum, maximum = min(rates, default=0.5), max(rates, default=0.5)
+    span = maximum - minimum
+    if span <= 0.0:
+        return [19.0 for _ in rates]
+    return [8.0 + 22.0 * (maximum - rate) / span for rate in rates]
 
 
 def _empty_model() -> dict[str, object]:
     return {
         "selection": None,
+        "active_job": None,
         "run": None,
         "rows": (),
         "input_count": None,

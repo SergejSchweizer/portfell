@@ -2,6 +2,11 @@ from __future__ import annotations
 
 import pytest
 
+from portfell.app_services.research_compute import (
+    ComputedRun,
+    filtered_univariate_selection,
+    full_univariate_selection,
+)
 from portfell.dash_app.callbacks import univariate_checkbox_predicates
 from portfell.dash_app.pages.univariate import univariate_page_data
 from portfell.dash_app.state import browser_state_from_workflow
@@ -93,6 +98,7 @@ def test_checkbox_selection_count_is_identical_in_page_and_sidebar() -> None:
                 "metadata_universe": {"member_count": 3, "members": members},
                 "univariate_selection": {
                     "selection_id": "selection",
+                    "source_run_id": "run",
                     "member_count": 1,
                     "members": members[:1],
                 },
@@ -121,3 +127,74 @@ def test_checkbox_selection_count_is_identical_in_page_and_sidebar() -> None:
     sidebar_state = browser_state_from_workflow(service.workflow_state())
     assert page_model["selected_count"] == 1
     assert sidebar_state.selected_count == page_model["selected_count"]
+
+
+def test_metadata_selection_is_input_and_empty_univariate_selection_is_zero() -> None:
+    members = [
+        {"isin": "A", "exchange": "XETRA", "code": "A"},
+        {"isin": "B", "exchange": "XETRA", "code": "B"},
+        {"isin": "C", "exchange": "XETRA", "code": "C"},
+    ]
+
+    class Service:
+        def workflow_state(self) -> dict[str, object]:
+            return {
+                "metadata_universe": {"member_count": 3, "members": members},
+                "univariate_selection": {
+                    "selection_id": "empty",
+                    "source_run_id": "run",
+                    "member_count": 0,
+                    "members": [],
+                },
+                "stages": {"univariate": {"run_id": "run", "status": "succeeded"}},
+            }
+
+        def univariate_result_preview(self, run_id: str, *, limit: int = 500) -> dict[str, object]:
+            return {"run": {"run_id": run_id}, "item_count": 3, "rows": []}
+
+    model = univariate_page_data(Service())
+    assert model["input_count"] == 3
+    assert model["selected_count"] is None
+
+
+@pytest.mark.parametrize(
+    ("category", "field", "value"),
+    [
+        ("monthly", "distribution_frequency", "monthly"),
+        ("quarterly", "distribution_frequency", "quarterly"),
+        ("gt3-4_years", "history_age_group", "gt3-4_years"),
+        ("gt5_years", "history_age_group", "gt5_years"),
+        ("gt_0_to_2_pct", "monthly_return_group", "gt_0_to_2_pct"),
+        ("gt_10_pct", "monthly_return_group", "gt_10_pct"),
+    ],
+)
+def test_checkbox_filter_count_matches_page_and_sidebar(
+    category: str, field: str, value: str
+) -> None:
+    rows = tuple(
+        {
+            "isin": f"I{index}",
+            "exchange": "XETRA",
+            "code": f"C{index}",
+            "availability_reason": "ok",
+            "distribution_frequency": "monthly" if index < 2 else "quarterly",
+            "history_years": 3.5 if index < 2 else 6.0,
+            "monthly_simple_return": 0.01 if index < 2 else 0.11,
+            "return_observation_count": 12,
+        }
+        for index in range(4)
+    )
+    run = ComputedRun("run", "source", "test", rows)
+    predicates = univariate_checkbox_predicates(
+        [[category]] if field == "distribution_frequency" else [],
+        [{"category": category}] if field == "distribution_frequency" else [],
+        [[category]] if field == "history_age_group" else [],
+        [{"category": category}] if field == "history_age_group" else [],
+        [[category]] if field == "monthly_return_group" else [],
+        [{"category": category}] if field == "monthly_return_group" else [],
+    )
+    selected = filtered_univariate_selection(run, predicates)
+    assert len(selected.member_ids) == 2
+    assert len(set(selected.member_ids)) == len(selected.member_ids)
+    # Clearing the same checkbox removes the predicate and restores all rows.
+    assert len(full_univariate_selection(run).member_ids) == 4

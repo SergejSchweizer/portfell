@@ -16,6 +16,7 @@ from portfell.selection_filters import Predicate
 from portfell.table_io import JsonRow
 from portfell.univariate_statistics import (
     UNIVARIATE_CALCULATION_CONTRACT,
+    build_quote_returns,
     build_univariate_statistics,
 )
 
@@ -28,6 +29,7 @@ class ComputedRun:
     source_id: str
     algorithm_version: str
     rows: tuple[JsonRow, ...]
+    daily_rows: tuple[JsonRow, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -87,12 +89,17 @@ def compute_univariate(
             on_progress=on_progress,
         )
     )
+    # Keep the exact daily return observations used by the per-ISIN metrics.
+    # The application service persists these separately because aggregate rows
+    # intentionally do not contain one row per trading day.
+    daily_rows = tuple(build_quote_returns(quote_rows))
     source_id = univariate_source_id(universe_id=universe_id, market_snapshot_id=market_snapshot_id)
     return ComputedRun(
         run_id=opaque_id("univariate-run", {"source_id": source_id}),
         source_id=source_id,
         algorithm_version=UNIVARIATE_CALCULATION_CONTRACT,
         rows=tuple(dict(row) for row in rows),
+        daily_rows=daily_rows,
     )
 
 
@@ -115,6 +122,16 @@ def full_univariate_selection(run: ComputedRun) -> ComputedSelection:
 def filtered_univariate_selection(
     run: ComputedRun, predicate_rows: Sequence[Mapping[str, Any]]
 ) -> ComputedSelection:
+    if not predicate_rows:
+        return ComputedSelection(
+            selection_id=opaque_id(
+                "univariate-selection", {"source_run_id": run.run_id, "predicates": []}
+            ),
+            source_run_id=run.run_id,
+            member_ids=(),
+            predicates=(),
+            rows=(),
+        )
     predicates = _normalize_predicates(predicate_rows)
     for predicate in predicates:
         if predicate.field in {"history_age_group", "monthly_return_group"}:
