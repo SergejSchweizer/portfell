@@ -156,6 +156,7 @@ def test_metadata_selection_is_input_and_empty_univariate_selection_is_zero() ->
     model = univariate_page_data(Service())
     assert model["input_count"] == 3
     assert model["selected_count"] == 0
+    assert model["chart_rows"] == ()
 
 
 @pytest.mark.parametrize(

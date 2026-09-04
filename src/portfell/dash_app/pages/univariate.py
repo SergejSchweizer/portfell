@@ -140,9 +140,15 @@ def univariate_page_data(
     selected_isin_count = (
         len({member.split(":", 1)[0] for member in selected}) if selection is not None else None
     )
-    if selection is not None and selected:
-        selected_isins = {member.split(":", 1)[0] for member in selected}
-        chart_rows = tuple(row for row in chart_rows if str(row.get("isin", "")) in selected_isins)
+    # The universe plot is an explicit selection view.  It must never fall
+    # back to the complete Metadata/Univariate universe: an absent selection
+    # or an explicitly empty selection means that there are no points to plot.
+    selected_isins = {member.split(":", 1)[0] for member in selected}
+    chart_rows = (
+        tuple(row for row in chart_rows if str(row.get("isin", "")) in selected_isins)
+        if selection is not None and selected_isins
+        else ()
+    )
     available = tuple(row for row in rows if row.get("availability_reason") == "ok")
     unavailable = tuple(row for row in rows if row.get("availability_reason") != "ok")
     return {
