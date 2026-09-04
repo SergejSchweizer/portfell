@@ -4097,7 +4097,7 @@ Acceptance:
   contract versions, migration version, test counts, coverage, module health, workflow IDs and
   artifact hashes without credentials or private market rows.
 
-Git status: integrated on `main` at `1f11a42`; the workspace-service and
+Git status: integrated on `main` at `827eb37`; the workspace-service and
 explicit Dash-mount cutover removed the legacy source files and aliases. The
 audit reports `PASS` with zero legacy production references; full suite passes
 with 914 tests, 5 skips and 92.01% coverage. The feature branch and any remote
