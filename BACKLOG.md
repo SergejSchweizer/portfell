@@ -3691,10 +3691,10 @@ Acceptance:
 - malformed/unavailable inputs return typed redacted errors;
 - isolated image rebuild/deploy/health and `uv run portfell-quality merge` pass.
 
-Git status: implementation complete on branch `test/pr415-univariate-module-qa`;
-2 independent numerical-oracle tests pass in addition to the existing checkbox,
-reload, sidebar and Plotly customdata suites. Integration is pending rebase to
-`origin/main`.
+Git status: integrated on `main` at `c3289cf`; 2 independent numerical-oracle
+tests pass in addition to the existing checkbox, reload, sidebar and Plotly
+customdata suites. The feature branch and any remote copy were removed after
+the fast-forward merge.
 
 ### PR416 — Extract the independently deployable Bivariate application
 
