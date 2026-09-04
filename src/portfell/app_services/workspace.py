@@ -280,7 +280,7 @@ class WorkspaceApplicationService:
             return {}
         record = reader("metadata.filters")
         value = getattr(record, "value", None) if record is not None else None
-        return dict(value) if isinstance(value, Mapping) else {}
+        return dict(cast(Mapping[str, str | None], value)) if isinstance(value, Mapping) else {}
 
     def save_metadata_filter_preferences(self, filters: Mapping[str, str | None]) -> None:
         """Persist metadata filters for every browser in the single workspace."""
@@ -1473,19 +1473,6 @@ class WorkspaceApplicationService:
 def _normalized(value: str | None) -> str | None:
     cleaned = None if value is None else value.strip()
     return None if not cleaned else cleaned.casefold()
-
-
-def _listing_matches(item: Listing, filters: Mapping[str, str | None]) -> bool:
-    values = {
-        "exchange": item.key.exchange,
-        "instrument_type": item.instrument_type,
-        "country": item.country,
-        "currency": item.currency,
-    }
-    return all(
-        expected is None or (values[name] is not None and str(values[name]).casefold() == expected)
-        for name, expected in filters.items()
-    )
 
 
 def _row_matches(row: Mapping[str, object], filters: Mapping[str, str | None]) -> bool:

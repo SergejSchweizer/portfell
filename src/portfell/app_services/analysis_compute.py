@@ -263,11 +263,14 @@ def _metric_filter_groups(rows: Sequence[Mapping[str, Any]]) -> dict[str, dict[s
         if row.get("operator") == "=":
             value = row.get("value")
             if value is not None:
-                allowed = group.get("allowed")
-                if not isinstance(allowed, set):
-                    allowed = set()
-                    group["allowed"] = allowed
-                allowed.add(str(value))
+                raw_allowed: object = group.get("allowed")
+                typed_allowed: set[str] = (
+                    {str(item) for item in cast(set[object], raw_allowed)}
+                    if isinstance(raw_allowed, set)
+                    else set()
+                )
+                typed_allowed.add(str(value))
+                group["allowed"] = typed_allowed
             continue
         if row.get("operator") == "in":
             allowed = row.get("allowed")
