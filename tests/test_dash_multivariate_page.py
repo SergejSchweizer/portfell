@@ -252,3 +252,16 @@ def test_performance_plot_prefers_extended_cumulative_return_and_filters_invalid
     )
     assert figure is not None
     assert list(figure.data[0].y) == [0.1]
+
+
+def test_performance_plot_falls_back_to_first_candidate_without_decision_winner() -> None:
+    figure = _performance_figure(
+        {
+            "portfolio_series": [
+                {"candidate_id": "candidate-a", "values": [{"date": "2023-01-01", "return": 0.05}]}
+            ]
+        },
+        None,
+    )
+    assert figure is not None
+    assert list(figure.data[0].y) == [0.05]

@@ -129,6 +129,13 @@ def multivariate_page_data(service: MultivariateService) -> dict[str, object]:
             except Exception:
                 cumulative_rows = []
     winner = next((row for row in candidates if row.get("candidate_id") == winner_id), None)
+    # A run can legitimately finish with no production winner when OOS
+    # evidence is unavailable.  Candidate/performance plots should still be
+    # useful in that state; use the first feasible candidate only as a display
+    # fallback and never promote it to the persisted decision.
+    display_candidate = winner or next(
+        (row for row in candidates if row.get("status") == "feasible"), None
+    )
     winner_splits = [
         row
         for row in validation
@@ -151,6 +158,7 @@ def multivariate_page_data(service: MultivariateService) -> dict[str, object]:
         "decision": decision,
         "decision_document": decision_doc,
         "winner": winner,
+        "display_candidate": display_candidate,
         "winner_id": winner_id,
         "candidates": candidates,
         "validation": validation,
@@ -215,6 +223,7 @@ def _layout(
     run = _mapping(model.get("run"))
     decision = _mapping(model.get("decision"))
     winner = _mapping(model.get("winner"))
+    display_candidate = _mapping(model.get("display_candidate")) or winner
     candidates = _mappings(model.get("candidates"))
     validation = _mappings(model.get("validation"))
     contributions = _mappings(model.get("risk_contributions"))
@@ -305,12 +314,17 @@ def _layout(
             ),
             ChartCard(
                 "Allocation",
-                _allocation_figure(winner),
+                _allocation_figure(display_candidate),
                 graph_id="multivariate-allocation",
             ),
             ChartCard(
                 "Risk Contribution",
-                _risk_contribution_figure(contributions, model.get("winner_id")),
+                _risk_contribution_figure(
+                    contributions,
+                    model.get("winner_id")
+                    if model.get("winner_id") is not None
+                    else (display_candidate or {}).get("candidate_id"),
+                ),
                 graph_id="multivariate-risk-contribution",
             ),
             *(_structure_cards(universe_structure, candidate_structure)),
@@ -395,6 +409,8 @@ def _performance_figure(
         (row for row in series if row.get("candidate_id") == winner_id),
         None,
     )
+    if winner is None:
+        winner = next((row for row in series if row.get("status", "feasible") == "feasible"), None)
     if winner is None:
         return None
     values = _mappings(winner.get("values"))
