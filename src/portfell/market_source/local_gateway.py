@@ -151,11 +151,33 @@ class LocalMarketDataGateway:
         wanted = set(keys)
         if not wanted:
             return None
+        ranges = self._load_quote_ranges()
         dates: list[date] = []
-        for row in self._iter("quotes", wanted_isins={key.isin for key in wanted}):
-            key = self._key(row)
-            if key in wanted:
-                dates.append(date.fromisoformat(str(row["trade_date"])))
+        path = self._root / "quotes.jsonl"
+        try:
+            with path.open("rb") as handle:
+                for key in wanted:
+                    for start, end in ranges.get(key.isin, ()):
+                        handle.seek(start)
+                        first = json.loads(handle.readline())
+                        position = max(start, end - 1)
+                        handle.seek(position)
+                        if handle.read(1) == b"\n":
+                            position -= 1
+                        while position > start:
+                            handle.seek(position)
+                            if handle.read(1) == b"\n":
+                                position += 1
+                                break
+                            position -= 1
+                        handle.seek(max(start, position))
+                        last = json.loads(handle.readline())
+                        if self._key(first) == key:
+                            dates.append(date.fromisoformat(str(first["trade_date"])))
+                        if self._key(last) == key:
+                            dates.append(date.fromisoformat(str(last["trade_date"])))
+        except (OSError, json.JSONDecodeError, KeyError, ValueError) as error:
+            raise MarketSourceError(MARKET_SOURCE_UNAVAILABLE) from error
         return (min(dates), max(dates)) if dates else None
 
     def read_snapshot(
