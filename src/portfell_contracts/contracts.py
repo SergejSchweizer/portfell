@@ -8,6 +8,7 @@ consumer cannot silently accept a newer incompatible document.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from enum import StrEnum
 from pathlib import PurePosixPath
 from typing import Final, NewType
@@ -75,6 +76,7 @@ class ArtifactManifest:
     byte_size: int
     row_count: int
     status: ArtifactStatus = ArtifactStatus.PUBLISHED
+    published_at: datetime | None = None
     contract_version: SchemaVersion = CONTRACT_VERSION
 
     def __post_init__(self) -> None:
@@ -95,6 +97,7 @@ class ArtifactManifest:
             "content_hash": self.content_hash,
             "contract_version": self.contract_version,
             "owner": self.owner.value,
+            "published_at": self.published_at.isoformat() if self.published_at else None,
             "relative_path": self.relative_path,
             "row_count": self.row_count,
             "schema_version": self.schema_version,

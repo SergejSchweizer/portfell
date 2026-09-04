@@ -3517,6 +3517,10 @@ Acceptance:
 - local filesystem and mounted-NAS atomicity assumptions are documented and probed;
 - focused tests and `uv run portfell-quality pr` pass.
 
+Git status: implementation complete on branch `feat/pr410-shared-data-artifact-store`;
+17 focused artifact/contract tests and strict Pyright for the new packages pass.
+Integration is pending rebase to `origin/main`.
+
 ### PR411 — Replace in-memory cross-stage calls with PostgreSQL workflow commands
 
 Branch: `refactor/pr411-postgres-workflow-handoff`
