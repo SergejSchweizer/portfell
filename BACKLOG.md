@@ -3552,7 +3552,7 @@ Acceptance:
 - no module HTTP endpoint is called by another module;
 - focused concurrency/restart tests and `uv run portfell-quality pr` pass.
 
-Git status: integrated on `main` at `ea87a9c`; 11 focused workflow/migration
+Git status: integrated on `main` at `02a9d06`; 11 focused workflow/migration
 tests and the full suite (873 passed, 5 skipped after correcting the PR409
 head assertion) pass. The feature branch and any remote copy were removed
 after the fast-forward merge.
@@ -4097,7 +4097,7 @@ Acceptance:
   contract versions, migration version, test counts, coverage, module health, workflow IDs and
   artifact hashes without credentials or private market rows.
 
-Git status: closeout audit integrated on `main` at `c64c7c1`; 2 focused audit
+Git status: closeout audit integrated on `main` at `02a9d06`; 2 focused audit
 tests pass, but the audit correctly reports `BLOCKED` because legacy
 composition references are still present. The feature branch and any remote
 copy were removed. No PR427 PASS is claimed until those production
