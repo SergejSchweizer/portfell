@@ -829,9 +829,6 @@ class WorkspaceApplicationService:
             return _run_row(run)
         source_computed = self._univariate_computed_run(univariate_run)
         selected_ids = {_member_id(item) for item in selection.members}
-        daily_return_rows = self._univariate_daily_return_rows(
-            univariate_run.run_id, selected_ids=selected_ids
-        )
         selected_rows = tuple(
             row for row in source_computed.rows if _row_member_id(row) in selected_ids
         )
@@ -854,7 +851,13 @@ class WorkspaceApplicationService:
                     selected_rows=selected_rows,
                     listing_metadata=listing_metadata,
                     quote_rows=market.quotes,
-                    daily_return_rows=daily_return_rows or None,
+                    # Daily returns are deliberately rebuilt from the quotes
+                    # read above.  They are shared market data, not an input
+                    # that should be hydrated from PostgreSQL's univariate
+                    # artifact table.  This keeps the multivariate boundary
+                    # on the local shared store and avoids transferring a
+                    # potentially very large daily-return artifact.
+                    daily_return_rows=None,
                     dividend_rows=market.dividends,
                     objective=objective,
                     executor=executor,
