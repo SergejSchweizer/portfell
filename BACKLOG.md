@@ -3727,6 +3727,10 @@ Acceptance:
 - `/bivariate`, `/api/bivariate/*` and `/health` work with Metadata and Multivariate stopped;
 - image rebuild, isolated deployment, health check and `uv run portfell-quality pr` pass.
 
+Git status: implementation complete on branch `refactor/pr416-bivariate-application`;
+2 focused boundary tests and strict Pyright for the new Bivariate entrypoint
+pass. Integration is pending rebase to `origin/main`.
+
 ### PR417 — Bivariate numerical, pair-lineage and browser QA
 
 Branch: `test/pr417-bivariate-module-qa`
