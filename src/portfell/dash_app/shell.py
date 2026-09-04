@@ -34,6 +34,7 @@ class WorkflowContext:
     snapshot_short_id: str = "—"
     stage_readiness: str = "Not ready"
     previous_result: str = "—"
+    selection_sections: tuple[tuple[str, tuple[tuple[str, str], ...]], ...] = ()
 
 
 def normalize_route(pathname: str | None) -> str:
@@ -63,16 +64,23 @@ def navigation(pathname: str) -> Component:
 
 def workflow_context(context: WorkflowContext | None = None) -> Component:
     value = context or WorkflowContext()
+    sections = value.selection_sections or (("Current selection", value.project_metadata),)
     return html.Section(
         [
             html.Div("Current selection", className="pf-context-title"),
-            html.Div(
-                [
-                    _context_row(label, value, f"pf-project-{label.lower().replace(' ', '-')}")
-                    for label, value in value.project_metadata
-                ],
-                className="pf-project-metadata",
-            ),
+            *[
+                html.Div(
+                    [
+                        html.Div(section, className="pf-context-section-title"),
+                        html.Ul(
+                            [html.Li([html.Span(label), html.Span(item_value)]) for label, item_value in items],
+                            className="pf-context-list",
+                        ),
+                    ],
+                    className="pf-project-metadata",
+                )
+                for section, items in sections
+            ],
         ],
         className="pf-workflow-context",
     )
@@ -187,27 +195,31 @@ def workflow_context_from_state(state: BrowserState, pathname: str | None) -> Wo
     stage = PAGE_BY_ROUTE[route].page_id
     ready = getattr(state.readiness, stage)
     project_metadata = (
-        (
-            "Metadata",
-            "—" if state.metadata_member_count is None else str(state.metadata_member_count),
-        ),
-        (
-            "Univariate",
-            "—" if state.selected_count is None else str(state.selected_count),
-        ),
+        ("Metadata", _display_count(state.metadata_member_count)),
+        ("Univariate", _display_count(state.selected_count)),
         (
             "Bivariate",
-            (
-                "—"
-                if state.selected_count is None
-                else str(state.selected_count * (state.selected_count - 1) // 2)
+            _display_count(
+                state.bivariate_pair_count
+                if state.bivariate_pair_count is not None
+                else (
+                    state.selected_count * (state.selected_count - 1) // 2
+                    if state.selected_count is not None
+                    else None
+                )
             ),
         ),
+    )
+    selection_sections = (
+        ("Metadata", (("ISINs", _display_count(state.metadata_member_count)), ("Date", state.metadata_date_range or "—"))),
+        ("Univariate", (("ISINs", _display_count(state.selected_count)), ("Date", state.univariate_date_range or "—"))),
+        ("Bivariate", (("Pairs", _display_count(state.bivariate_pair_count)), ("Date", state.bivariate_date_range or "—"))),
     )
     return WorkflowContext(
         project_options=state.project_options,
         selected_project=state.universe_id,
         project_metadata=project_metadata,
+        selection_sections=selection_sections,
         universe_version="—" if state.universe_version is None else str(state.universe_version),
         selected_count="—" if state.selected_count is None else str(state.selected_count),
         snapshot_short_id=(
@@ -254,6 +266,10 @@ def _context_row(label: str, value: str, component_id: str) -> Component:
         ],
         className="pf-context-row",
     )
+
+
+def _display_count(value: int | None) -> str:
+    return "—" if value is None else str(value)
 
 
 __all__ = [

@@ -59,8 +59,12 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 }
 .pf-context-title { font-size: 13px; font-weight: 700; }
 .pf-project-selection { width: 100%; font-size: 12px; }
-.pf-project-metadata { display: grid; gap: 6px; }
-.pf-project-metadata .pf-context-row { font-size: 12px; }
+.pf-project-metadata { display: grid; gap: 2px; }
+.pf-context-section-title { font-size: 11px; font-weight: 700; color: var(--pf-text); margin-top: 5px; }
+.pf-context-list { list-style: none; padding: 0 0 0 8px; margin: 0; display: grid; gap: 1px; }
+.pf-context-list li { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; }
+.pf-context-list li::before { content: "•"; margin-left: -8px; color: var(--pf-muted); }
+.pf-context-list li span:last-child { text-align: right; color: var(--pf-muted); }
 .pf-context-row { display: flex; justify-content: space-between; gap: 10px; }
 .pf-context-label { color: var(--pf-muted); }
 .pf-main { margin-left: 220px; min-width: 0; padding: 24px; overflow-x: hidden; }

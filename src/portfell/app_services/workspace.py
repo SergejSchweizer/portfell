@@ -485,6 +485,13 @@ class WorkspaceApplicationService:
                 dividend_rows=market.dividends,
                 on_progress=None if job_id is None else on_progress,
             )
+            daily_dates = sorted(
+                {str(row.get("date")) for row in computed.daily_rows if row.get("date")}
+            )
+            date_summary = {
+                "date_start": daily_dates[0] if daily_dates else None,
+                "date_end": daily_dates[-1] if daily_dates else None,
+            }
             self._put_row_backed_artifact(
                 run.run_id,
                 "univariate.rows@v2",
@@ -498,6 +505,7 @@ class WorkspaceApplicationService:
                     "unavailable_count": sum(
                         row.get("availability_reason") != "ok" for row in computed.rows
                     ),
+                    **date_summary,
                 },
             )
             self._put_row_backed_artifact(
@@ -509,6 +517,7 @@ class WorkspaceApplicationService:
                     "market_snapshot_id": market.snapshot_id,
                     "return_contract": "univariate.daily_returns.v1",
                     "available_count": len(computed.daily_rows),
+                    **date_summary,
                 },
                 item_key_factory=lambda row: f"{_row_member_id(row)}:{row.get('date', '')}",
             )
@@ -528,6 +537,7 @@ class WorkspaceApplicationService:
                     "unavailable_count": sum(
                         row.get("availability_reason") != "ok" for row in computed.rows
                     ),
+                    **date_summary,
                 },
             )
             self._put_artifact(
@@ -1114,6 +1124,14 @@ class WorkspaceApplicationService:
             project_history = universes[:1]
             universe = project_history[0] if project_history else None
         job = self.active_analysis_job()
+        stage_date_ranges: dict[str, str] = {}
+        for stage_name, stage_row in stages.items():
+            if not isinstance(stage_row, dict) or stage_row.get("status") != "succeeded":
+                continue
+            date_range = self._workflow_stage_date_range(stage_name, str(stage_row.get("run_id")))
+            if date_range:
+                stage_date_ranges[stage_name] = date_range
+        bivariate_pair_count = self._workflow_bivariate_pair_count(stages.get("bivariate"))
         return {
             "workspace_id": "default",
             "metadata_filters": metadata_filters,
@@ -1127,7 +1145,50 @@ class WorkspaceApplicationService:
             # inspectable without allowing a generic latest-run substitution.
             "history": history,
             "active_job": job,
+            "stage_date_ranges": {
+                "metadata": stage_date_ranges.get("univariate", ""),
+                **stage_date_ranges,
+            },
+            "bivariate_pair_count": bivariate_pair_count,
         }
+
+    def _workflow_stage_date_range(self, stage: str, run_id: str) -> str | None:
+        """Read a compact common date range from persisted stage evidence."""
+        if not run_id:
+            return None
+        try:
+            artifact_type = (
+                "univariate.daily_returns@v1" if stage == "univariate" else "bivariate.rows@v2"
+            )
+            artifact = self._artifact(run_id, artifact_type)
+            summary = artifact.document.get("summary")
+            if isinstance(summary, dict) and summary.get("date_start") and summary.get("date_end"):
+                return f"{summary['date_start']} to {summary['date_end']}"
+            if artifact.document.get("storage") != "row_items":
+                return None
+            count = artifact.document.get("item_count")
+            if not isinstance(count, int) or count < 1:
+                return None
+            first = self._state.list_analysis_artifact_items(artifact.artifact_id, limit=1)
+            last = self._state.list_analysis_artifact_items(artifact.artifact_id, offset=count - 1, limit=1)
+            if first and last:
+                start = first[0].document.get("date")
+                end = last[0].document.get("date")
+                if start and end:
+                    return f"{start} to {end}"
+        except Exception:
+            return None
+        return None
+
+    def _workflow_bivariate_pair_count(self, stage: JsonRow | None) -> int | None:
+        if not isinstance(stage, dict) or stage.get("status") != "succeeded":
+            return None
+        try:
+            summary = self.bivariate_summary(str(stage.get("run_id")))
+            count = summary.get("item_count")
+            return int(count) if isinstance(count, int) else None
+        except Exception:
+            return None
 
     def active_analysis_job(self) -> JsonRow | None:
         """Return a small durable job DTO; this is safe for frequent browser polling."""

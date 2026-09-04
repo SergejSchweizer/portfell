@@ -55,6 +55,7 @@ class BrowserState:
     project_records: tuple[dict[str, object], ...] = ()
     metadata_filters: dict[str, str | None] = field(default_factory=dict)
     metadata_member_count: int | None = None
+    metadata_date_range: str | None = None
     metadata_created_at: str | None = None
     universe_version: int | None = None
     source_snapshot_id: str | None = None
@@ -62,10 +63,13 @@ class BrowserState:
     selection_id: str | None = None
     selection_version: int | None = None
     selected_count: int | None = None
+    univariate_date_range: str | None = None
     # Keep filter definitions separate from the resulting ISIN intersection so
     # controls in the three Univariate groups remain checked independently.
     univariate_filter_predicates: tuple[dict[str, object], ...] = ()
     bivariate_run_id: str | None = None
+    bivariate_pair_count: int | None = None
+    bivariate_date_range: str | None = None
     multivariate_run_id: str | None = None
     # Revision-safe presentation identifiers.  These are deliberately plain IDs;
     # result payloads never live in browser state.
@@ -122,6 +126,7 @@ class BrowserState:
             ),
             metadata_filters=_metadata_filters(root.get("metadata_filters")),
             metadata_member_count=_integer(root.get("metadata_member_count")),
+            metadata_date_range=_string(root.get("metadata_date_range")),
             metadata_created_at=_string(root.get("metadata_created_at")),
             universe_version=_integer(root.get("universe_version")),
             source_snapshot_id=_string(root.get("source_snapshot_id")),
@@ -129,10 +134,13 @@ class BrowserState:
             selection_id=_string(root.get("selection_id")),
             selection_version=_integer(root.get("selection_version")),
             selected_count=_integer(root.get("selected_count")),
+            univariate_date_range=_string(root.get("univariate_date_range")),
             univariate_filter_predicates=tuple(
                 row for row in _rows(root.get("univariate_filter_predicates"))
             ),
             bivariate_run_id=_string(root.get("bivariate_run_id")),
+            bivariate_pair_count=_integer(root.get("bivariate_pair_count")),
+            bivariate_date_range=_string(root.get("bivariate_date_range")),
             multivariate_run_id=_string(root.get("multivariate_run_id")),
             current_input_revision=_string(root.get("current_input_revision")),
             current_job_id=_string(root.get("current_job_id")),
@@ -274,6 +282,10 @@ def browser_state_from_workflow(workflow: Mapping[str, object]) -> BrowserState:
             else _integer(None if universe is None else universe.get("member_count"))
         )
     )
+    stage_ranges = _mapping(workflow.get("stage_date_ranges")) or {}
+    bivariate_range = _string(stage_ranges.get("bivariate"))
+    univariate_range = _string(stage_ranges.get("univariate"))
+    metadata_range = _string(stage_ranges.get("metadata")) or univariate_range
     return BrowserState(
         workspace_id=_string(workflow.get("workspace_id")) or "default",
         universe_id=universe_id,
@@ -290,6 +302,7 @@ def browser_state_from_workflow(workflow: Mapping[str, object]) -> BrowserState:
             row for row in _rows(workflow.get("univariate_filter_predicates"))
         ),
         metadata_member_count=metadata_count,
+        metadata_date_range=metadata_range,
         metadata_created_at=_field(universe, "created_at"),
         universe_version=_integer(None if universe is None else universe.get("version")),
         source_snapshot_id=_source_snapshot(universe, univariate, bivariate, multivariate),
@@ -299,7 +312,10 @@ def browser_state_from_workflow(workflow: Mapping[str, object]) -> BrowserState:
         selected_count=(
             _integer(selection.get("member_count")) if selection is not None else metadata_count
         ),
+        univariate_date_range=univariate_range,
         bivariate_run_id=bivariate_id,
+        bivariate_pair_count=_integer(workflow.get("bivariate_pair_count")),
+        bivariate_date_range=bivariate_range,
         multivariate_run_id=multivariate_id,
         current_input_revision=current_input_revision,
         current_job_id=job.job_id,
@@ -348,6 +364,7 @@ def invalidate_for_new_universe(
         universe_id=universe_id,
         universe_version=version,
         source_snapshot_id=state.source_snapshot_id,
+        metadata_date_range=state.metadata_date_range,
         readiness=StageReadiness(True, False, False, False),
         message_code="metadata_revision_changed",
     )
@@ -361,10 +378,13 @@ def invalidate_for_new_selection(
         universe_id=state.universe_id,
         universe_version=state.universe_version,
         source_snapshot_id=state.source_snapshot_id,
+        metadata_member_count=state.metadata_member_count,
+        metadata_date_range=state.metadata_date_range,
         univariate_run_id=state.univariate_run_id,
         selection_id=selection_id,
         selection_version=version,
         selected_count=selected_count,
+        univariate_date_range=state.univariate_date_range,
         readiness=StageReadiness(state.readiness.metadata, True, False, False),
         message_code="univariate_selection_changed",
     )
@@ -380,7 +400,12 @@ def invalidate_for_new_bivariate(state: BrowserState, run_id: str) -> BrowserSta
         selection_id=state.selection_id,
         selection_version=state.selection_version,
         selected_count=state.selected_count,
+        metadata_member_count=state.metadata_member_count,
+        metadata_date_range=state.metadata_date_range,
+        univariate_date_range=state.univariate_date_range,
         bivariate_run_id=run_id,
+        bivariate_pair_count=state.bivariate_pair_count,
+        bivariate_date_range=state.bivariate_date_range,
         readiness=StageReadiness(True, True, True, False),
         message_code="bivariate_revision_changed",
     )
