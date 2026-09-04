@@ -8,6 +8,7 @@ import os
 import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
+from threading import Lock
 from uuid import uuid4
 
 from portfell_contracts import ArtifactManifest, ArtifactStatus, Stage
@@ -34,6 +35,7 @@ class ArtifactStore:
 
     def __init__(self, root: Path) -> None:
         self.root = root.resolve()
+        self._publish_lock = Lock()
         self.root.mkdir(parents=True, exist_ok=True)
         for namespace in _NAMESPACES:
             (self.root / namespace).mkdir(mode=0o750, exist_ok=True)
@@ -48,6 +50,26 @@ class ArtifactStore:
         row_count: int,
     ) -> ArtifactManifest:
         """Atomically publish bytes and a manifest, or reuse identical bytes."""
+
+        with self._publish_lock:
+            return self._publish_bytes(
+                owner=owner,
+                artifact_id=artifact_id,
+                schema_version=schema_version,
+                content=content,
+                row_count=row_count,
+            )
+
+    def _publish_bytes(
+        self,
+        *,
+        owner: Stage,
+        artifact_id: str,
+        schema_version: str,
+        content: bytes,
+        row_count: int,
+    ) -> ArtifactManifest:
+        """Perform one serialized publication attempt."""
 
         if (
             not artifact_id
