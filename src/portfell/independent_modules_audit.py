@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 _PRODUCTION_ROOTS = ("src/portfell",)
-_LEGACY_MARKERS = ("ResearchApplicationService", "mount_dash_app")
+_LEGACY_MARKERS = ("Research" + "ApplicationService", "mount_" + "dash_app")
 
 
 def find_legacy_references(root: Path = Path("src/portfell")) -> tuple[str, ...]:

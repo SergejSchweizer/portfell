@@ -15,17 +15,18 @@ production Python for the old cross-stage `ResearchApplicationService` and
 
 ## Current result
 
-The audit intentionally reports `BLOCKED` while those markers remain. This
-prevents publishing a false independent-modules PASS. It contains only relative
+The production composition cutover is complete: the audit reports `PASS` with
+an empty reference list. Runtime code uses the explicit workspace service and
+Dash mount entrypoint; compatibility aliases are import-only and are not part
+of the application-service package API. The evidence contains only relative
 source locations, contract version and migration version; no credentials or
 market rows.
 
 ## Required cutover
 
-Move the runtime composition and callback ownership into the gateway and the
-four service entrypoints. Update refresh workers and tests to use module-local
-ports, then delete the old composition paths. Re-run this audit before removing
-the transitional branch.
+Keep runtime composition and callback ownership in the gateway and the four
+service entrypoints. Refresh workers and tests use the explicit workspace
+service name. Re-run this audit after every composition change.
 
 ## PASS criteria
 

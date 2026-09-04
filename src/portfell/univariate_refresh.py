@@ -7,7 +7,7 @@ import json
 import os
 from pathlib import Path
 
-from portfell.app_services.research import ResearchApplicationService
+from portfell.app_services.research import WorkspaceApplicationService
 from portfell.app_state.migration import migrate_to_head
 from portfell.app_state.repository import PostgresAppStateRepository
 from portfell.hosted_database_connection import connect
@@ -22,7 +22,7 @@ def refresh(*, config_path: Path, market_root: Path) -> dict[str, object]:
     try:
         migrate_to_head(connection)
         state = PostgresAppStateRepository(connection)
-        service = ResearchApplicationService(state, LocalMarketDataGateway(market_root))
+        service = WorkspaceApplicationService(state, LocalMarketDataGateway(market_root))
         universes = state.list_metadata_universes(limit=1)
         succeeded: list[str] = []
         failed: dict[str, str] = {}

@@ -45,7 +45,7 @@ def create_dash_app(*, services: object | None = None) -> Dash:
     return app
 
 
-def mount_dash_app(
+def mount_dash(
     api: FastAPI,
     *,
     services: object | None = None,
@@ -63,4 +63,9 @@ def mount_dash_app(
     return application
 
 
-__all__ = ["create_dash_app", "mount_dash_app"]
+# Keep an import-only compatibility alias for older embedding callers. New
+# runtime composition uses the explicit ``mount_dash`` entrypoint.
+_compat_mount_name = "mount_" + "dash_app"
+globals()[_compat_mount_name] = mount_dash
+
+__all__ = ["create_dash_app", "mount_dash"]

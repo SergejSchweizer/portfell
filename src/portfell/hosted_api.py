@@ -10,10 +10,10 @@ from typing import Any, cast
 
 from fastapi import FastAPI
 
-from portfell.app_services.research import ResearchApplicationService
+from portfell.app_services.research import WorkspaceApplicationService
 from portfell.app_state.migration import AppStateMigrationError, migrate_to_head
 from portfell.app_state.repository import PostgresAppStateRepository
-from portfell.dash_app.app import mount_dash_app
+from portfell.dash_app.app import mount_dash
 from portfell.hosted_database_connection import connect as connect_database
 from portfell.market_source.config import load_app_database_config, validate_app_database_url
 from portfell.market_source.errors import MarketSourceError
@@ -28,7 +28,7 @@ class HostedApiError(RuntimeError):
     """Redacted runtime composition failure."""
 
 
-def create_app(service: ResearchApplicationService | None = None) -> FastAPI:
+def create_app(service: WorkspaceApplicationService | None = None) -> FastAPI:
     """Create the final single-workspace HTTP application.
 
     Tests may omit the service for a composition-only shell. Production always supplies the clean
@@ -66,7 +66,7 @@ def create_app(service: ResearchApplicationService | None = None) -> FastAPI:
         application.include_router(univariate_router(cast(Any, modules.univariate)))
         application.include_router(bivariate_router(cast(Any, modules.bivariate)))
         application.include_router(multivariate_router(cast(Any, modules.multivariate)))
-        mount_dash_app(application, services=modules)
+        mount_dash(application, services=modules)
     return application
 
 
@@ -99,7 +99,7 @@ def create_runtime_app() -> FastAPI:
     except Exception as error:
         raise HostedApiError("runtime_database_unavailable") from error
 
-    return create_app(ResearchApplicationService(app_state, market_gateway))
+    return create_app(WorkspaceApplicationService(app_state, market_gateway))
 
 
 __all__ = ["HostedApiError", "create_app", "create_runtime_app"]

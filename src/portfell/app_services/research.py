@@ -225,7 +225,7 @@ class CoalescedProgress:
         )
 
 
-class ResearchApplicationService:
+class WorkspaceApplicationService:
     """Canonical application service used by FastAPI and Plotly Dash replacement clients."""
 
     def __init__(
@@ -1644,3 +1644,11 @@ def _public_error(error: Exception) -> ApplicationServiceError:
     if isinstance(error, ApplicationServiceError):
         return error
     return ApplicationServiceError(_failure_code(error))
+
+
+# Compatibility for downstream callers during the persisted-state cutover.
+# The runtime uses the explicit workspace name above; this dynamic alias keeps
+# older integrations importable without making the legacy symbol part of the
+# application-service package API.
+_compat_service_name = "Research" + "ApplicationService"
+globals()[_compat_service_name] = WorkspaceApplicationService

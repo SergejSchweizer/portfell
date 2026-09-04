@@ -1,5 +1,5 @@
-"""Single-workspace application services backed by app_state and MarketDataGateway."""
+"""Application services backed by app_state and the local market read plane."""
 
-from portfell.app_services.research import ResearchApplicationService
+from portfell.app_services.research import WorkspaceApplicationService
 
-__all__ = ["ResearchApplicationService"]
+__all__ = ["WorkspaceApplicationService"]
