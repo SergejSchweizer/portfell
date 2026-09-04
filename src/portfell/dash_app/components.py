@@ -56,11 +56,11 @@ def ChartCard(title: str, figure: Any | None = None, *, graph_id: str | None = N
 
 
 def TableCard(title: str, body: Sequence[Content], *, component_id: str | None = None) -> Component:
+    table_body_kwargs: dict[str, Any] = {"className": "pf-table-scroll"}
+    if component_id is not None:
+        table_body_kwargs["id"] = component_id
     return html.Section(
-        [
-            html.H2(title, className="pf-card-title"),
-            html.Div(list(body), id=component_id, className="pf-table-scroll"),
-        ],
+        [html.H2(title, className="pf-card-title"), html.Div(list(body), **table_body_kwargs)],
         className="pf-card pf-table-card",
     )
 
