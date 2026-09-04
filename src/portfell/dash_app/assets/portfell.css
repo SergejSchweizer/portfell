@@ -95,6 +95,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
   border-radius: var(--pf-radius);
 }
 .pf-kpi-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--pf-gap); }
+.pf-metadata-kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 #bivariate-kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .pf-kpi-card, .pf-card {
   background: var(--pf-surface);

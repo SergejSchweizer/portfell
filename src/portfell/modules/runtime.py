@@ -31,6 +31,7 @@ _METADATA = frozenset(
         "workflow_state",
         "metadata_options",
         "active_listings",
+        "metadata_date_range",
         "metadata_universe",
         "metadata_history",
         "create_metadata_universe",

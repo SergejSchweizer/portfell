@@ -276,11 +276,11 @@ def _layout(
         [
             html.Div(
                 [
-                    KpiCard("Active listings", _display(model.get("active_count"))),
-                    KpiCard("Selected listings", _display(model.get("selected_count"))),
+                    KpiCard("Active ISINs", _display(model.get("active_count"))),
+                    KpiCard("Selected ISINs", _display(model.get("selected_count"))),
                     KpiCard("Date range", _date_range_display(model.get("date_range"))),
                 ],
-                className="pf-kpi-grid",
+                className="pf-kpi-grid pf-metadata-kpi-grid",
                 id="metadata-kpi-grid",
             ),
             html.Div(

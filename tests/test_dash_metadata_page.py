@@ -114,8 +114,9 @@ def test_layout_has_frozen_metadata_contract_without_provider_action() -> None:
     for text in (
         "Metadata",
         "Define the starting selection for the analysis funnel.",
-        "Active listings",
-        "Selected listings",
+        "Active ISINs",
+        "Selected ISINs",
+        "Date range",
         "Instrument Type Distribution",
         "Country Distribution",
         "Currency Distribution",
