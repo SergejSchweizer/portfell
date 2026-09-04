@@ -3894,11 +3894,11 @@ Acceptance:
 - stopping one analytical container leaves gateway health degraded-but-live and unrelated pages usable;
 - clean build, redeploy, all health checks and container negative-space tests pass.
 
-Git status: implementation complete on branch `ops/pr421-five-process-compose`;
-2 focused Compose/process-entrypoint contract tests pass. The modular profile
-defines exactly six containers, one public gateway port, internal module ports
-and read-only market-data mounts. Integration is pending rebase to
-`origin/main`.
+Git status: integrated on `main` at `c40d615`; 2 focused Compose/process-
+entrypoint contract tests pass. The modular profile defines exactly six
+containers, one public gateway port, internal module ports and read-only
+market-data mounts. The feature branch and any remote copy were removed after
+the fast-forward merge.
 
 ### PR422 — Enforce PostgreSQL roles and data-share permissions per module
 
