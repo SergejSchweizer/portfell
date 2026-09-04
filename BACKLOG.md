@@ -3408,6 +3408,10 @@ Acceptance:
   dependency is introduced;
 - no production code changes; `uv run portfell-quality pr` passes.
 
+Git status: integrated on `main` at `e26a540`. The independent-module contract,
+runtime-boundary assertions and documentation tests pass; full-suite coverage
+is 94%.
+
 ### PR408 — Extract the stage-neutral contracts package
 
 Branch: `refactor/pr408-shared-contracts-package`
