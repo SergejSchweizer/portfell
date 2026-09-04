@@ -256,7 +256,12 @@ def execute_action(
         if submitted_job is not None and persisted.job.status is None:
             persisted = with_job_status(persisted, submitted_job)
         if action == "univariate-dividend-selection" and predicates is not None:
-            saver = getattr(service, "save_univariate_filter_preferences", None)
+            # In production the Univariate module is supplied as
+            # ``write_service`` while ``service`` is the workflow facade.  The
+            # preference belongs to the module that owns the checkbox action;
+            # using the facade silently skipped persistence when the pages were
+            # composed through ModuleRegistry, so navigating away lost checks.
+            saver = getattr(writer, "save_univariate_filter_preferences", None)
             if callable(saver):
                 with suppress(Exception):
                     saver(predicates)

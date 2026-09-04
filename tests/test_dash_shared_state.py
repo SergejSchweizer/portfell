@@ -116,6 +116,9 @@ class Service:
         self.calls.append(("multivariate", (selection_id, bivariate_run_id, objective)))
         return {"run_id": "run-m"}
 
+    def save_univariate_filter_preferences(self, predicates) -> None:
+        self.calls.append(("filter-preferences", predicates))
+
 
 def test_explicit_actions_delegate_using_persisted_ids() -> None:
     service = Service()
@@ -136,6 +139,25 @@ def test_route_refresh_is_read_only() -> None:
     service = Service()
     execute_action(service, BrowserState(), action="refresh")
     assert service.calls == []
+
+
+def test_univariate_filters_are_saved_by_the_univariate_writer_on_route_changes() -> None:
+    workflow_service = Service()
+    univariate_writer = Service()
+    state = browser_state_from_workflow(workflow_service.workflow_state())
+    predicates = ({"metric": "monthly_return_group", "operator": "in", "allowed": ["gt_0_to_2_pct"]},)
+
+    result = execute_action(
+        workflow_service,
+        state,
+        action="univariate-dividend-selection",
+        write_service=univariate_writer,
+        predicates=predicates,
+    )
+
+    assert result.univariate_filter_predicates == predicates
+    assert ("filter-preferences", predicates) in univariate_writer.calls
+    assert not any(call[0] == "filter-preferences" for call in workflow_service.calls)
 
 
 def test_revision_state_keeps_previous_run_separate_from_current() -> None:
