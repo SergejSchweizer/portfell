@@ -3828,6 +3828,11 @@ Acceptance:
 - typed failure and recovery paths expose no internal detail;
 - isolated image rebuild/deploy/health and `uv run portfell-quality merge` pass.
 
+Git status: implementation complete on branch `test/pr419-multivariate-module-qa`;
+2 independent optimizer/cumulative-return oracle tests pass in addition to the
+existing lifecycle, persistence and browser suites. Integration is pending
+rebase to `origin/main`.
+
 ### PR420 — Create the stateless workflow gateway and shared UI shell
 
 Branch: `feat/pr420-workflow-gateway`
