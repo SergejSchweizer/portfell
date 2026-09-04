@@ -74,6 +74,7 @@ def multivariate_page_data(service: MultivariateService) -> dict[str, object]:
                         "risk_contributions",
                         "performance",
                         "multivariate.structure@v2",
+                        "multivariate.structure@v3",
                         "multivariate.candidate_structure@v2",
                     )
                     if artifact_type in cast(list[object], summary.get("artifact_types", []))
@@ -89,7 +90,10 @@ def multivariate_page_data(service: MultivariateService) -> dict[str, object]:
     validation = _items(artifacts.get("validation") if artifacts else None)
     contributions = _items(artifacts.get("risk_contributions") if artifacts else None)
     performance = _mapping(artifacts.get("performance")) if artifacts else None
-    structure_document = _mapping(artifacts.get("multivariate.structure@v2"))
+    structure_document = _mapping(
+        artifacts.get("multivariate.structure@v3")
+        or artifacts.get("multivariate.structure@v2")
+    )
     candidate_structure_document = _mapping(artifacts.get("multivariate.candidate_structure@v2"))
     # Multivariate performance is scoped to the exact selection consumed by
     # the successful Bivariate run. Never plot a broader/stale Univariate
@@ -354,17 +358,50 @@ def _structure_cards(
     stability = _mapping(universe.get("structural_stability")) or {}
     candidate_rows = _mappings(candidate.get("candidate_structural_risk"))
     return (
-        TableCard("PCA Spectrum", [html.Pre(str(universe.get("pca_spectrum")))]),
+        ChartCard("PCA Spectrum", _pca_spectrum_figure(universe.get("pca_spectrum")), graph_id="multivariate-pca-spectrum"),
         TableCard("Structural Diversification", [html.Pre(str(diversification))]),
         TableCard("Risk Clusters", [html.Pre(str(clusters))]),
         TableCard("Structural Stability", [html.Pre(str(stability))]),
         TableCard("Candidate Structural Risk", [html.Pre(str(candidate_rows))]),
-        TableCard("PCA Risk Contribution", [html.Pre(str(candidate.get("pca_risk_contribution")))]),
-        TableCard(
+        ChartCard("PCA Risk Contribution", _pca_risk_contribution_figure(candidate.get("pca_risk_contribution")), graph_id="multivariate-pca-risk-contribution"),
+        ChartCard(
             "Cluster Risk Contribution",
-            [html.Pre(str(candidate.get("cluster_risk_contribution")))],
+            _cluster_risk_contribution_figure(candidate.get("cluster_risk_contribution")),
+            graph_id="multivariate-cluster-risk-contribution",
         ),
     )
+
+
+def _pca_spectrum_figure(value: object) -> go.Figure | None:
+    document = _mapping(value)
+    traces: list[go.Bar] = []
+    for label, key, colour in (("Covariance", "covariance", "#2563eb"), ("Correlation", "correlation", "#14b8a6")):
+        row = _mapping(document.get(key))
+        values = [_number(item) for item in cast(list[object], row.get("explained_variance", [])) if _number(item) is not None]
+        if values:
+            traces.append(go.Bar(x=[f"PC {index + 1}" for index in range(len(values))], y=values, name=label, marker_color=colour, customdata=[[label, index + 1] for index in range(len(values))], hovertemplate="%{customdata[0]} PC %{customdata[1]}<br>Explained variance=%{y:.2%}<extra></extra>"))
+    if not traces:
+        return None
+    figure = go.Figure(traces)
+    figure.update_layout(barmode="group")
+    return apply_portfell_template(figure, x_title="Principal component", y_title="Explained variance")
+
+
+def _pca_risk_contribution_figure(value: object) -> go.Figure | None:
+    rows = [row for row in _mappings(value) if _number(row.get("percent_portfolio_variance")) is not None]
+    if not rows:
+        return None
+    figure = go.Figure(go.Bar(x=[str(row.get("component_id", "")) for row in rows], y=[_number(row.get("percent_portfolio_variance")) for row in rows], marker_color="#7c3aed", customdata=[[row.get("component_id")] for row in rows], hovertemplate="%{customdata[0]}<br>Portfolio variance=%{y:.2%}<extra></extra>"))
+    return apply_portfell_template(figure, x_title="Principal component", y_title="Portfolio variance contribution")
+
+
+def _cluster_risk_contribution_figure(value: object) -> go.Figure | None:
+    rows = [row for row in _mappings(value) if _number(row.get("gross_abs_risk_share", row.get("signed_percent_variance"))) is not None]
+    if not rows:
+        return None
+    values = [_number(row.get("gross_abs_risk_share", row.get("signed_percent_variance"))) for row in rows]
+    figure = go.Figure(go.Bar(x=[str(row.get("cluster_id", "")) for row in rows], y=values, marker_color="#f59e0b", customdata=[[row.get("cluster_id")] for row in rows], hovertemplate="%{customdata[0]}<br>Gross risk share=%{y:.2%}<extra></extra>"))
+    return apply_portfell_template(figure, x_title="Risk cluster", y_title="Gross risk share")
 
 
 def _candidate_oos_figure(validation: Sequence[Mapping[str, object]]) -> go.Figure | None:
@@ -484,6 +521,15 @@ def _risk_contribution_figure(
         if row.get("candidate_id") == winner_id
         and isinstance(row.get("percent_risk_contribution"), int | float)
     ]
+    # Older persisted artifacts omitted candidate_id for the sole displayed
+    # candidate. Keep those valid rows visible instead of showing an empty
+    # chart after a successful run.
+    if not selected and winner_id is not None:
+        selected = [
+            row for row in rows
+            if row.get("candidate_id") in {None, ""}
+            and isinstance(row.get("percent_risk_contribution"), int | float)
+        ]
     if not selected:
         return None
     figure = go.Figure(
@@ -492,7 +538,8 @@ def _risk_contribution_figure(
                 f"{row.get('isin')} / {row.get('exchange')} / {row.get('code')}" for row in selected
             ],
             y=[_number(row.get("percent_risk_contribution")) for row in selected],
-            hovertemplate="ISIN=%{customdata[0]}<br>Risk contribution=%{y:.2%}<extra></extra>",
+            customdata=[[row.get("isin"), row.get("exchange"), row.get("code")] for row in selected],
+            hovertemplate="ISIN=%{customdata[0]}<br>Exchange=%{customdata[1]}<br>Code=%{customdata[2]}<br>Risk contribution=%{y:.2%}<extra></extra>",
             name="Risk contribution",
         )
     )

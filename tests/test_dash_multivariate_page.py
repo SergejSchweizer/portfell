@@ -4,7 +4,11 @@ import pytest
 
 from portfell.dash_app.pages.multivariate import (
     _cumulative_extended_return_figure,
+    _cluster_risk_contribution_figure,
+    _pca_risk_contribution_figure,
+    _pca_spectrum_figure,
     _performance_figure,
+    _risk_contribution_figure,
     build_page,
     multivariate_page_data,
     optimize_portfolio,
@@ -265,3 +269,34 @@ def test_performance_plot_falls_back_to_first_candidate_without_decision_winner(
     )
     assert figure is not None
     assert list(figure.data[0].y) == [0.05]
+
+
+def test_structure_plots_render_persisted_multivariate_evidence() -> None:
+    spectrum = _pca_spectrum_figure({
+        "covariance": {"explained_variance": [0.6, 0.4]},
+        "correlation": {"explained_variance": [0.5, 0.5]},
+    })
+    assert spectrum is not None
+    assert len(spectrum.data) == 2
+    assert spectrum.layout.yaxis.title.text == "Explained variance"
+
+    pca = _pca_risk_contribution_figure([
+        {"component_id": "Component 1", "percent_portfolio_variance": 0.8},
+        {"component_id": "Component 2", "percent_portfolio_variance": 0.2},
+    ])
+    clusters = _cluster_risk_contribution_figure([
+        {"cluster_id": "Cluster 1", "gross_abs_risk_share": 0.7},
+    ])
+    assert pca is not None and clusters is not None
+    assert pca.layout.xaxis.title.text == "Principal component"
+    assert clusters.layout.yaxis.title.text == "Gross risk share"
+
+
+def test_risk_contribution_plot_accepts_legacy_rows_without_candidate_id() -> None:
+    figure = _risk_contribution_figure(
+        [{"isin": "DE1", "exchange": "XETRA", "code": "AAA", "percent_risk_contribution": 1.0}],
+        "candidate-1",
+    )
+    assert figure is not None
+    assert list(figure.data[0].x) == ["DE1 / XETRA / AAA"]
+    assert "Exchange=%{customdata[1]}" in figure.data[0].hovertemplate
