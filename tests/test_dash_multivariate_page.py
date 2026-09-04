@@ -351,3 +351,15 @@ def test_candidate_oos_plot_uses_colored_method_points_without_text_labels() -> 
     assert all(trace.mode == "markers" for trace in figure.data)
     assert all(trace.text is None for trace in figure.data)
     assert {trace.name for trace in figure.data} == {"equal_weight", "minimum_variance"}
+
+
+def test_risk_contribution_plot_accepts_persisted_schema_aliases_and_single_candidate_runs() -> None:
+    figure = _risk_contribution_figure(
+        [
+            {"candidate_id": "run-candidate-1", "isin": "DE1", "risk_contribution": 0.6},
+            {"candidate_id": "run-candidate-1", "isin": "DE2", "risk_contribution": 0.4},
+        ],
+        "winner-candidate-id",
+    )
+    assert figure is not None
+    assert list(figure.data[0].y) == [0.6, 0.4]

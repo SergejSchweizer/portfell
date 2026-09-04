@@ -685,11 +685,18 @@ def _allocation_figure(winner: Mapping[str, object] | None) -> go.Figure | None:
 def _risk_contribution_figure(
     rows: Sequence[Mapping[str, object]], winner_id: object
 ) -> go.Figure | None:
+    def contribution(row: Mapping[str, object]) -> float | None:
+        for key in ("percent_risk_contribution", "risk_contribution", "percent_portfolio_variance"):
+            value = _number(row.get(key))
+            if value is not None:
+                return value
+        return None
+
     selected = [
         row
         for row in rows
         if row.get("candidate_id") == winner_id
-        and isinstance(row.get("percent_risk_contribution"), int | float)
+        and contribution(row) is not None
     ]
     # Older persisted artifacts omitted candidate_id for the sole displayed
     # candidate. Keep those valid rows visible instead of showing an empty
@@ -698,8 +705,14 @@ def _risk_contribution_figure(
         selected = [
             row for row in rows
             if row.get("candidate_id") in {None, ""}
-            and isinstance(row.get("percent_risk_contribution"), int | float)
+            and contribution(row) is not None
         ]
+    # Some persisted runs contain a single candidate's rows but use a run ID
+    # rather than the candidate ID. Do not hide valid evidence in that case.
+    if not selected:
+        candidate_ids = {row.get("candidate_id") for row in rows if row.get("candidate_id") not in {None, ""}}
+        if len(candidate_ids) <= 1:
+            selected = [row for row in rows if contribution(row) is not None]
     if not selected:
         return None
     figure = go.Figure(
@@ -707,7 +720,7 @@ def _risk_contribution_figure(
             x=[
                 f"{row.get('isin')} / {row.get('exchange')} / {row.get('code')}" for row in selected
             ],
-            y=[_number(row.get("percent_risk_contribution")) for row in selected],
+            y=[contribution(row) for row in selected],
             customdata=[[row.get("isin"), row.get("exchange"), row.get("code")] for row in selected],
             hovertemplate="ISIN=%{customdata[0]}<br>Exchange=%{customdata[1]}<br>Code=%{customdata[2]}<br>Risk contribution=%{y:.2%}<extra></extra>",
             name="Risk contribution",
