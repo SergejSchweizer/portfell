@@ -212,6 +212,10 @@ class AnalysisArtifactRepository(Protocol):
         self, artifact_id: str, *, offset: int = 0, limit: int = 100
     ) -> tuple[AnalysisArtifactItemRecord, ...]: ...
 
+    def list_analysis_artifact_items_for_isins(
+        self, artifact_id: str, isins: Sequence[str]
+    ) -> tuple[AnalysisArtifactItemRecord, ...]: ...
+
 
 class AnalysisJobRepository(Protocol):
     def create_or_get_active_job(

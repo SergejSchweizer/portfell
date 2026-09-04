@@ -793,10 +793,8 @@ class WorkspaceApplicationService:
             return _run_row(run)
         source_computed = self._univariate_computed_run(univariate_run)
         selected_ids = {_member_id(item) for item in selection.members}
-        daily_return_rows = tuple(
-            row
-            for row in self._univariate_daily_return_rows(univariate_run.run_id)
-            if _row_member_id(row) in selected_ids
+        daily_return_rows = self._univariate_daily_return_rows(
+            univariate_run.run_id, selected_ids=selected_ids
         )
         selected_rows = tuple(
             row for row in source_computed.rows if _row_member_id(row) in selected_ids
@@ -1372,7 +1370,9 @@ class WorkspaceApplicationService:
     def _univariate_computed_run(self, run: AnalysisRunRecord) -> ComputedRun:
         return self._computed_run(run, self._univariate_rows_artifact(run.run_id))
 
-    def _univariate_daily_return_rows(self, run_id: str) -> tuple[JsonRow, ...]:
+    def _univariate_daily_return_rows(
+        self, run_id: str, *, selected_ids: set[str] | None = None
+    ) -> tuple[JsonRow, ...]:
         """Read the daily returns produced by the matching Univariate run.
 
         Older persisted runs predate the daily artifact; returning an empty
@@ -1388,6 +1388,17 @@ class WorkspaceApplicationService:
         if not isinstance(item_count, int) or item_count < 0:
             raise ApplicationServiceError("analysis_artifact_invalid")
         rows: list[JsonRow] = []
+        selected_isins = {
+            member_id.split(":", 1)[0] for member_id in selected_ids
+        } if selected_ids is not None else None
+        indexed_reader = getattr(self._state, "list_analysis_artifact_items_for_isins", None)
+        if selected_isins is not None and callable(indexed_reader):
+            items = indexed_reader(artifact.artifact_id, tuple(sorted(selected_isins)))
+            return tuple(
+                cast(JsonRow, item.document)
+                for item in items
+                if selected_ids is None or _row_member_id(item.document) in selected_ids
+            )
         for offset in range(0, item_count, 500):
             items = self._state.list_analysis_artifact_items(
                 artifact.artifact_id, offset=offset, limit=min(500, item_count - offset)
@@ -1396,7 +1407,8 @@ class WorkspaceApplicationService:
                 document = getattr(item, "document", None)
                 if not isinstance(document, dict):
                     raise ApplicationServiceError("analysis_artifact_invalid")
-                rows.append(cast(JsonRow, document))
+                if selected_ids is None or _row_member_id(document) in selected_ids:
+                    rows.append(cast(JsonRow, document))
         if len(rows) != item_count:
             raise ApplicationServiceError("analysis_artifact_invalid")
         return tuple(rows)

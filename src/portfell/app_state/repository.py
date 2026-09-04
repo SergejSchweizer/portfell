@@ -722,6 +722,20 @@ class PostgresAppStateRepository:
         ).fetchall()
         return tuple(_artifact_item(row) for row in rows)
 
+    def list_analysis_artifact_items_for_isins(
+        self, artifact_id: str, isins: Sequence[str]
+    ) -> tuple[AnalysisArtifactItemRecord, ...]:
+        if not isins:
+            return ()
+        rows = self._connection.execute(
+            """select artifact_id, ordinal, item_key, document
+               from portfell.analysis_artifact_items
+               where artifact_id = %s and document->>'isin' = any(%s)
+               order by ordinal""",
+            (artifact_id, list(isins)),
+        ).fetchall()
+        return tuple(_artifact_item(row) for row in rows)
+
     def _existing_artifact_items(self, artifact_id: str) -> tuple[AnalysisArtifactItem, ...]:
         rows = self._connection.execute(
             """select item_key, document from portfell.analysis_artifact_items
