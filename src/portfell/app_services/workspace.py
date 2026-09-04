@@ -22,7 +22,7 @@ from portfell.app_services.analysis_compute import (
     univariate_source_id,
 )
 from portfell.app_services.analysis_executor import AnalysisJobExecutor
-from portfell.app_services.market_data import AnalyticalMarketData
+from portfell.app_services.market_data import AnalyticalMarketData, AnalyticalMarketSnapshot
 from portfell.app_services.multivariate_compute import (
     MULTIVARIATE_EXECUTION_VERSION,
     MultivariateComputation,
@@ -47,6 +47,7 @@ from portfell.gold_pair_stats import DEFAULT_MAX_PAIR_COUNT, build_pair_plan
 from portfell.market_source.contracts import Listing, ListingKey
 from portfell.market_source.errors import MarketSourceError
 from portfell.market_source.gateway import MarketDataSnapshot
+from portfell.market_source.projection import project_market_inputs
 from portfell.market_source.snapshot import build_market_source_snapshot
 from portfell.table_io import JsonRow
 from portfell.univariate_distributions import build_metric_distributions
@@ -794,9 +795,13 @@ class WorkspaceApplicationService:
         bivariate_run = self._require_succeeded_run(bivariate_run_id, "bivariate")
         if bivariate_run.input_ref != selection.selection_id:
             raise ApplicationServiceError("bivariate_dependency_mismatch")
-        market = self._read_market(selection.members)
-        if market.snapshot_id != bivariate_run.input_snapshot_id:
-            raise ApplicationServiceError("market_source_snapshot_changed")
+        # Bivariate already pinned and persisted the immutable source snapshot.
+        # Reuse that lineage here instead of sorting and hashing the entire
+        # quote history a second time; the raw rows still come from the local
+        # shared market store.
+        market = self._read_market_for_pinned_snapshot(
+            selection.members, bivariate_run.input_snapshot_id
+        )
         logical_hash = stable_hash(
             {
                 "universe_id": univariate_run.input_ref,
@@ -1373,6 +1378,28 @@ class WorkspaceApplicationService:
             market = self._market.read(members)
             self._persist_source_snapshot(market.snapshot_id)
             return market
+        except Exception as error:
+            raise _public_error(error) from error
+
+    def _read_market_for_pinned_snapshot(
+        self, members: Sequence[ListingIdentity], snapshot_id: str
+    ) -> AnalyticalMarketSnapshot:
+        keys = tuple(sorted(ListingKey(item.isin, item.exchange, item.code) for item in members))
+        try:
+            source = self._gateway.read_snapshot(keys, start=date.min, end=date.max)
+            if {item.key for item in source.listings} != set(keys):
+                raise MarketSourceError("market_source_contract_mismatch")
+            projected = project_market_inputs(
+                quotes=source.quotes, dividends=source.dividends, splits=source.splits
+            )
+            return AnalyticalMarketSnapshot(
+                snapshot_id=snapshot_id,
+                source_fingerprint=snapshot_id,
+                listings=source.listings,
+                quotes=projected.quotes,
+                dividends=projected.dividends,
+                splits=projected.splits,
+            )
         except Exception as error:
             raise _public_error(error) from error
 
