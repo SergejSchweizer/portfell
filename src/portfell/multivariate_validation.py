@@ -22,7 +22,10 @@ class WalkForwardPolicy:
     version: ContractVersion = VALIDATION_CONTRACT
     minimum_training_observations: int = 100
     test_window_observations: int = 21
-    maximum_refit_count: int = 24
+    # Eight evenly distributed refits preserve the walk-forward coverage while
+    # keeping the production run bounded for larger universes.  Twenty-four
+    # refits caused the same expensive portfolio solvers to dominate runtime.
+    maximum_refit_count: int = 8
     minimum_completed_splits: int = 2
     transaction_cost_rate: float = 0.0005
     bootstrap_seed: int = 41
