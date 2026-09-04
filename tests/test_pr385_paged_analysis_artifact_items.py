@@ -58,7 +58,7 @@ def items(count: int = 2) -> tuple[AnalysisArtifactItem, ...]:
 
 
 def test_v3_migration_declares_immutable_row_items_and_bounded_page_index() -> None:
-    assert APP_STATE_MIGRATIONS[-1] is MIGRATION_V003
+    assert MIGRATION_V003 in APP_STATE_MIGRATIONS
     assert "analysis_artifact_items" in APP_STATE_TABLES
     assert "primary key (artifact_id, ordinal)" in MIGRATION_V003.sql
     assert "jsonb_typeof(document) = 'object'" in MIGRATION_V003.sql
