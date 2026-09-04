@@ -39,7 +39,11 @@ from portfell.portfolio_parts.solvers import (
 
 CANDIDATE_CONTRACT = ContractVersion("multivariate.candidates", 7)
 MAX_WALK_FORWARD_SOLVER_ITERATIONS = 500
-MINIMUM_VARIANCE_MAX_ITERATIONS = 100_000
+# The solver's projected-gradient step includes a capped-simplex projection;
+# the old 100k limit made each of up to 24 walk-forward refits effectively
+# unbounded for larger universes.  The solver's production default of 3k is
+# sufficient for the same convergence tolerance while keeping retries bounded.
+MINIMUM_VARIANCE_MAX_ITERATIONS = 3_000
 MINIMUM_VARIANCE_TOLERANCE = 1e-7
 METHODS = (
     "equal_weight",

@@ -378,5 +378,5 @@ def test_minimum_variance_uses_the_production_convergence_budget(
         )
         == outcome.weights
     )
-    assert received_kwargs["max_iterations"] == 100_000
+    assert received_kwargs["max_iterations"] == 3_000
     assert received_kwargs["tolerance"] == 1e-7
