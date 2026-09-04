@@ -46,7 +46,7 @@ def _run_real_stack_flow(page: Page) -> None:
         pytest.skip("A succeeded Univariate run for the current Metadata universe is required")
     assert isinstance(run_id, str)
 
-    page.goto(f"{BASE_URL}/univariate", wait_until="networkidle")
+    page.goto(f"{BASE_URL}/univariate", wait_until="domcontentloaded")
     expect(page.locator("#univariate-page")).to_be_visible()
     _assert_plot_matches_persisted_selection(page)
 
@@ -133,18 +133,18 @@ def _assert_selection_counts(page: Page) -> None:
     }
     # The persisted backend selection is the source of truth for both cards:
     # Univariate Selected ISINs and the Bivariate candidate-pair plan.
-    page.goto(f"{BASE_URL}/bivariate", wait_until="networkidle")
+        page.goto(f"{BASE_URL}/bivariate", wait_until="domcontentloaded")
     body = page.locator("#bivariate-kpi-grid").inner_text()
     expected_pairs = len(unique_isins) * (len(unique_isins) - 1) // 2
     # Empty persisted selections are represented consistently as numeric zero
     # across the sidebar and Bivariate KPI cards.
     assert str(len(unique_isins)) in body
     assert str(expected_pairs) in body
-    page.goto(f"{BASE_URL}/univariate", wait_until="networkidle")
+    page.goto(f"{BASE_URL}/univariate", wait_until="domcontentloaded")
     # The page KPI and sidebar are two independent projections of the same
     # PostgreSQL-backed selection.  They must be numerically identical after
     # every checkbox mutation and after a full browser reload.
-    page.reload(wait_until="networkidle")
+    page.reload(wait_until="domcontentloaded")
     # Dash mounts the route content asynchronously after the initial HTML
     # response; network-idle alone can occur before the callback has rendered.
     expect(page.locator("#univariate-page")).to_be_visible(timeout=120_000)
