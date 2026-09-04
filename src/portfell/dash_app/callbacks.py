@@ -118,6 +118,16 @@ def univariate_checkbox_predicates(
     return predicates
 
 
+def _filter_trigger_is_mounted(
+    triggered_id: object,
+    *id_groups: Sequence[Mapping[str, object]],
+) -> bool:
+    """Reject pattern callbacks caused only by removing dynamic components."""
+    if not isinstance(triggered_id, Mapping):
+        return triggered_id is not None
+    return any(dict(triggered_id) == dict(item) for group in id_groups for item in group)
+
+
 def _selected_isin_count(service: CallbackService, filters: Mapping[str, str | None]) -> int | None:
     """Return the unique selected ISIN count, retaining compatibility with test fakes."""
     reader = getattr(service, "active_listings", None)
@@ -522,7 +532,12 @@ def register_callbacks(app: Dash, services: object | None) -> None:
         # input and empty values. That hydration pass must not overwrite a
         # persisted selection; an actual click (including clearing all checks)
         # always has a triggering component and is persisted below.
-        if ctx.triggered_id is None:
+        if not _filter_trigger_is_mounted(
+            ctx.triggered_id,
+            dividend_ids,
+            age_ids,
+            monthly_ids,
+        ):
             return no_update
         state = BrowserState.from_store(store)
         if state.univariate_run_id is None:

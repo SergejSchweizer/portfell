@@ -7,7 +7,7 @@ from portfell.app_services.analysis_compute import (
     filtered_univariate_selection,
     full_univariate_selection,
 )
-from portfell.dash_app.callbacks import univariate_checkbox_predicates
+from portfell.dash_app.callbacks import _filter_trigger_is_mounted, univariate_checkbox_predicates
 from portfell.dash_app.pages.univariate import build_page, univariate_page_data
 from portfell.dash_app.shell import workflow_context_from_state
 from portfell.dash_app.state import browser_state_from_workflow
@@ -64,6 +64,13 @@ def test_checkbox_parser_accepts_dash_wildcard_value_records() -> None:
             "allowed": ["monthly"],
         }
     ]
+
+
+def test_filter_callback_ignores_dynamic_component_removal() -> None:
+    ids = [{"type": "univariate-age-group", "category": "gt5_years"}]
+    assert _filter_trigger_is_mounted(ids[0], ids) is True
+    assert _filter_trigger_is_mounted(ids[0], []) is False
+    assert _filter_trigger_is_mounted(None, ids) is False
 
 
 @pytest.mark.parametrize(
