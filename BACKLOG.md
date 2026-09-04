@@ -3862,6 +3862,10 @@ Acceptance:
 - gateway imports no calculation or module repository implementation;
 - gateway image rebuild, isolated deploy/health and `uv run portfell-quality pr` pass.
 
+Git status: implementation complete on branch `feat/pr420-workflow-gateway`;
+3 focused gateway routing/isolation tests and strict Pyright for the gateway
+package pass. Integration is pending rebase to `origin/main`.
+
 ### PR421 — Deploy gateway plus four module applications in Compose
 
 Branch: `ops/pr421-five-process-compose`
