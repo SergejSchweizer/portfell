@@ -4143,3 +4143,73 @@ Git status: integrated on `main` at `9eb97dd`; full suite passes with 914
 tests passed, 5 skipped and 92.02% coverage. Focused gate tests (31 passed)
 also pass; the feature branch and any remote copy were removed after the
 fast-forward merge.
+
+### PR429 — Move Dash callback ownership into module applications
+
+Branch: `refactor/pr429-module-callback-ownership`
+
+Priority: P0 blocker-removal; depends on PR428.
+
+Task: split the current shared Dash callback registration into gateway shell
+callbacks plus Metadata, Univariate, Bivariate and Multivariate registrars.
+Each registrar receives only its module port and shared DTOs; no registrar may
+import a sibling implementation or the monolithic Research service.
+
+Acceptance: all four routes render with the existing callback IDs; every
+checkbox/progress/compute behavior remains covered by the existing browser
+tests; static imports contain no `ResearchApplicationService`; callback tests
+pass with sibling services absent; full coverage remains >=92%.
+
+Git status: planned; no branch exists yet.
+
+### PR430 — Replace hosted API composition with module entrypoints
+
+Branch: `refactor/pr430-hosted-module-composition`
+
+Priority: P0 blocker-removal; depends on PR429.
+
+Task: make `hosted_api` compose the GatewayApplication and the four service
+applications through explicit module ports and PostgreSQL/data-share adapters.
+Preserve public routes and health semantics while removing direct router and
+Dash composition from the old Research service.
+
+Acceptance: `/metadata`, `/univariate`, `/bivariate` and `/multivariate` work
+with sibling implementations stopped; `/api/workflow` returns IDs/counts/status
+only; no hosted production file imports `ResearchApplicationService`; Docker
+health and full browser/REST tests pass at >=92% coverage.
+
+Git status: planned; no branch exists yet.
+
+### PR431 — Remove transitional Research service and refresh fallback
+
+Branch: `refactor/pr431-remove-transitional-service`
+
+Priority: P0 blocker-removal; depends on PR430.
+
+Task: migrate the scheduled refresh worker and remaining callers to module-local
+repositories/workflow commands, then delete `app_services/research.py`, its
+export, obsolete callback dispatcher and old single-API entrypoint.
+
+Acceptance: `git grep` finds no transitional service/callback markers in
+production; no generic analytical API, sibling call, dual-write or fallback
+remains; refresh and all four module processes start independently; full tests,
+security gates and Docker Compose health pass at >=92% coverage.
+
+Git status: planned; no branch exists yet.
+
+### PR432 — Independent-modules PASS evidence and closeout
+
+Branch: `test/pr432-independent-modules-pass`
+
+Priority: P0 final closeout; depends on PR431.
+
+Task: execute the clean-install, migration, PostgreSQL, data-share, browser,
+resilience and performance gates and publish sanitized evidence for the exact
+Git/image heads.
+
+Acceptance: PR427 audit returns `PASS`; all module/gateway health checks pass;
+workflow IDs and artifact hashes reconcile; full suite and both quality gates
+pass with >=92% coverage; evidence contains no credentials, SQL, private paths
+or raw market rows.
+
+Git status: planned; no branch exists yet.
