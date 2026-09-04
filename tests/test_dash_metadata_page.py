@@ -80,6 +80,22 @@ def test_page_data_collapses_listing_aliases_to_unique_isins() -> None:
     assert model["ready"] is True
 
 
+def test_page_data_includes_quote_date_range_for_selected_listings() -> None:
+    class DateRangeService(Service):
+        def metadata_date_range(self, **filters: object) -> dict[str, object]:
+            assert filters == {
+                "exchange": "XETRA",
+                "instrument_type": None,
+                "country": None,
+                "currency": None,
+            }
+            return {"start": "2020-01-02", "end": "2026-08-07"}
+
+    model = metadata_page_data(DateRangeService(), filters={"exchange": "XETRA"})
+    assert model["date_range"] == {"start": "2020-01-02", "end": "2026-08-07"}
+    assert "Date range" in str(build_page(DateRangeService(), filters={"exchange": "XETRA"}).to_plotly_json())
+
+
 def test_create_universe_is_an_explicit_action() -> None:
     service = Service()
     result = create_universe(service, {"exchange": "XETRA", "instrument_type": "ETF"})

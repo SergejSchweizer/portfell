@@ -82,6 +82,18 @@ class LocalMarketDataGateway:
             )
         )
 
+    def read_quote_date_range(self, keys: Sequence[ListingKey]) -> tuple[date, date] | None:
+        """Read only quote dates for selected keys from the shared snapshot."""
+        wanted = set(keys)
+        if not wanted:
+            return None
+        dates: list[date] = []
+        for row in self._iter("quotes", wanted_isins={key.isin for key in wanted}):
+            key = self._key(row)
+            if key in wanted:
+                dates.append(date.fromisoformat(str(row["trade_date"])))
+        return (min(dates), max(dates)) if dates else None
+
     def read_snapshot(
         self, keys: Sequence[ListingKey], *, start: date, end: date
     ) -> MarketDataSnapshot:

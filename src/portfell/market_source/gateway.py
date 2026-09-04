@@ -66,3 +66,14 @@ class MarketDataGateway:
             self._connection_factory(), role=self._role, member_of=self._member_of
         ) as cursor:
             return self._listings.active(cursor)
+
+    def read_quote_date_range(self, keys: Sequence[ListingKey]) -> tuple[date, date] | None:
+        """Return the earliest and latest quote date for the requested keys."""
+        if not keys:
+            return None
+        with repeatable_read_snapshot(
+            self._connection_factory(), role=self._role, member_of=self._member_of
+        ) as cursor:
+            rows = self._quotes.read_range(cursor, keys, start=date.min, end=date.max)
+        dates = [item.trade_date for item in rows]
+        return (min(dates), max(dates)) if dates else None

@@ -60,6 +60,8 @@ class ApplicationMarketGateway(Protocol):
         self, keys: Sequence[ListingKey], *, start: date, end: date
     ) -> MarketDataSnapshot: ...
 
+    def read_quote_date_range(self, keys: Sequence[ListingKey]) -> tuple[date, date] | None: ...
+
 
 class AppStatePort(Protocol):
     def put_market_source_snapshot(
@@ -326,6 +328,34 @@ class WorkspaceApplicationService:
             if row.get("isin") not in {None, ""}:
                 unique.setdefault(str(row["isin"]), row)
         return tuple(row for row in unique.values() if _row_matches(row, filters))
+
+    def metadata_date_range(
+        self,
+        *,
+        exchange: str | None = None,
+        instrument_type: str | None = None,
+        country: str | None = None,
+        currency: str | None = None,
+    ) -> JsonRow | None:
+        """Return the quote date span for unique listings matching metadata filters."""
+        rows = self.active_listings(
+            exchange=exchange,
+            instrument_type=instrument_type,
+            country=country,
+            currency=currency,
+        )
+        keys = tuple(
+            ListingKey(str(row["isin"]), str(row["exchange"]), str(row["code"]))
+            for row in rows
+            if row.get("isin") and row.get("exchange") and row.get("code")
+        )
+        try:
+            dates = self._gateway.read_quote_date_range(keys)
+        except Exception:
+            return None
+        if dates is None:
+            return None
+        return {"start": dates[0].isoformat(), "end": dates[1].isoformat()}
 
     def create_metadata_universe(
         self,

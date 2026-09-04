@@ -36,6 +36,15 @@ class MetadataService(Protocol):
         currency: str | None = None,
     ) -> tuple[dict[str, object], ...]: ...
 
+    def metadata_date_range(
+        self,
+        *,
+        exchange: str | None = None,
+        instrument_type: str | None = None,
+        country: str | None = None,
+        currency: str | None = None,
+    ) -> dict[str, object] | None: ...
+
     def metadata_universe(self, universe_id: str) -> dict[str, object]: ...
 
     def metadata_history(self) -> tuple[dict[str, object], ...]: ...
@@ -158,6 +167,15 @@ def metadata_page_data(
     # Distributions describe the complete selected project and are intentionally
     # independent of the transient dropdown filters used for the table/KPIs.
     distribution_rows = full_listing_rows
+    date_range: dict[str, object] | None = None
+    date_reader = getattr(service, "metadata_date_range", None)
+    if callable(date_reader):
+        try:
+            candidate = date_reader(**{field: selected.get(field) for field in _FILTERS})
+            if isinstance(candidate, dict):
+                date_range = candidate
+        except Exception:
+            date_range = None
     return {
         "options": options,
         # Rendering thousands of HTML table rows blocks the browser before a user can
@@ -168,6 +186,7 @@ def metadata_page_data(
         "active_count": options.get("active_listing_count"),
         "filtered_count": len(matched_rows),
         "selected_count": len(matched_rows),
+        "date_range": date_range,
         "preview_count": min(len(matched_rows), _LISTING_PREVIEW_LIMIT),
         "universe_version": None if current_row is None else current_row.get("version"),
         "ready": current_row is not None,
@@ -259,6 +278,7 @@ def _layout(
                 [
                     KpiCard("Active listings", _display(model.get("active_count"))),
                     KpiCard("Selected listings", _display(model.get("selected_count"))),
+                    KpiCard("Date range", _date_range_display(model.get("date_range"))),
                 ],
                 className="pf-kpi-grid",
                 id="metadata-kpi-grid",
@@ -377,6 +397,7 @@ def _empty_model() -> dict[str, object]:
         "active_count": None,
         "filtered_count": None,
         "selected_count": None,
+        "date_range": None,
         "preview_count": None,
         "universe_version": None,
         "ready": False,
@@ -406,6 +427,16 @@ def _mappings(value: object) -> tuple[dict[str, object], ...]:
 
 def _display(value: object) -> str:
     return "—" if value is None else str(value)
+
+
+def _date_range_display(value: object) -> str:
+    row = _mapping(value)
+    if row is None:
+        return "—"
+    start, end = row.get("start"), row.get("end")
+    if not isinstance(start, str) or not isinstance(end, str):
+        return "—"
+    return start if start == end else f"{start} – {end}"
 
 
 def _error_code(error: Exception) -> str:
