@@ -4299,7 +4299,10 @@ Acceptance:
 - boundary tests prove forbidden sibling calls and direct SQL from callbacks;
 - full tests and Strict Pyright pass with coverage >=92%.
 
-Git status: planned; no branch exists yet.
+Git status: integrated on `main` at `31dd177`; the explicit composition root
+now constructs the four restricted module facades and mounts all REST routes in
+one FastAPI process. Focused boundary tests and Pyright pass; the feature
+branch and remote copy were rebased, fast-forward merged and deleted.
 
 ### PR436 — Single-container deployment and complete-workflow gate
 
