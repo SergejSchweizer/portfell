@@ -3620,10 +3620,10 @@ Acceptance:
 - browser tests cover `1440x900`, `1024x768`, `390x844` with no console/page errors;
 - isolated image rebuild/deploy/health and `uv run portfell-quality merge` pass.
 
-Git status: implementation complete on branch `test/pr413-metadata-module-qa`;
-2 focused black-box REST/oracle tests pass and the existing Playwright parity
-suite covers all required viewports. Integration is pending rebase to
-`origin/main`.
+Git status: integrated on `main` at `3c79d74`; 2 focused black-box REST/oracle
+tests pass and the existing Playwright parity suite covers all required
+viewports. The feature branch and any remote copy were removed after the
+fast-forward merge.
 
 ### PR414 — Extract the independently deployable Univariate application
 
