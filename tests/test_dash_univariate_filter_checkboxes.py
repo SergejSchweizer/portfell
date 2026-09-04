@@ -202,6 +202,52 @@ def test_checkbox_filter_count_matches_page_and_sidebar(
 
 
 @pytest.mark.parametrize(
+    ("active_groups", "expected_count"),
+    [
+        (("dividend",), 2),
+        (("age",), 2),
+        (("monthly",), 2),
+        (("dividend", "age"), 1),
+        (("dividend", "monthly"), 1),
+        (("age", "monthly"), 2),
+        (("dividend", "age", "monthly"), 1),
+    ],
+)
+def test_checkbox_groups_are_intersected_for_every_combination(
+    active_groups: tuple[str, ...], expected_count: int
+) -> None:
+    rows = tuple(
+        {
+            "isin": f"I{index}",
+            "exchange": "XETRA",
+            "code": f"C{index}",
+            "distribution_frequency": "monthly" if index < 2 else "quarterly",
+            "history_years": 3.5 if index in {0, 2} else 6.0,
+            "monthly_simple_return": 0.01 if index in {0, 2} else 0.11,
+            "availability_reason": "ok",
+        }
+        for index in range(4)
+    )
+    predicates: list[dict[str, object]] = []
+    if "dividend" in active_groups:
+        predicates.append(
+            {"metric": "distribution_frequency", "operator": "in", "allowed": ["monthly"]}
+        )
+    if "age" in active_groups:
+        predicates.append(
+            {"metric": "history_age_group", "operator": "in", "allowed": ["gt3-4_years"]}
+        )
+    if "monthly" in active_groups:
+        predicates.append(
+            {"metric": "monthly_return_group", "operator": "in", "allowed": ["gt_0_to_2_pct"]}
+        )
+    selection = filtered_univariate_selection(
+        ComputedRun("run", "source", "test", rows), predicates
+    )
+    assert len(selection.member_ids) == expected_count
+
+
+@pytest.mark.parametrize(
     ("group", "category", "expected"),
     [("dividend", category, 2) for category, _, _ in DIVIDEND_CASES]
     + [("age", category, 2) for category in AGE_CASES]

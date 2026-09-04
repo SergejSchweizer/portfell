@@ -62,6 +62,9 @@ class BrowserState:
     selection_id: str | None = None
     selection_version: int | None = None
     selected_count: int | None = None
+    # Keep filter definitions separate from the resulting ISIN intersection so
+    # controls in the three Univariate groups remain checked independently.
+    univariate_filter_predicates: tuple[dict[str, object], ...] = ()
     bivariate_run_id: str | None = None
     multivariate_run_id: str | None = None
     # Revision-safe presentation identifiers.  These are deliberately plain IDs;
@@ -126,6 +129,9 @@ class BrowserState:
             selection_id=_string(root.get("selection_id")),
             selection_version=_integer(root.get("selection_version")),
             selected_count=_integer(root.get("selected_count")),
+            univariate_filter_predicates=tuple(
+                row for row in _rows(root.get("univariate_filter_predicates"))
+            ),
             bivariate_run_id=_string(root.get("bivariate_run_id")),
             multivariate_run_id=_string(root.get("multivariate_run_id")),
             current_input_revision=_string(root.get("current_input_revision")),

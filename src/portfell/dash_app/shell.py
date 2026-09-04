@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import importlib
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Protocol, cast
 
@@ -108,6 +108,7 @@ def load_page(
     project_id: str | None = None,
     metadata_filters: Mapping[str, str | None] | None = None,
     metadata_member_count: int | None = None,
+    univariate_filter_predicates: Sequence[Mapping[str, object]] = (),
 ) -> Component:
     """Load one workflow page plugin; absent plugins fail visibly rather than adding a route."""
     module_name = f"portfell.modules.{spec.page_id}.ui"
@@ -126,7 +127,11 @@ def load_page(
     if spec.page_id == "metadata":
         return cast(Any, builder)(page_services, project_id=project_id, filters=metadata_filters)
     if spec.page_id == "univariate":
-        return cast(Any, builder)(page_services, metadata_member_count=metadata_member_count)
+        return cast(Any, builder)(
+            page_services,
+            metadata_member_count=metadata_member_count,
+            filter_predicates=univariate_filter_predicates,
+        )
     return cast(PageBuilder, builder)(page_services)
 
 
@@ -138,6 +143,7 @@ def application_frame(
     project_id: str | None = None,
     metadata_filters: Mapping[str, str | None] | None = None,
     metadata_member_count: int | None = None,
+    univariate_filter_predicates: Sequence[Mapping[str, object]] = (),
 ) -> Component:
     route = normalize_route(pathname)
     spec = PAGE_BY_ROUTE[route]
@@ -151,6 +157,7 @@ def application_frame(
                     project_id=project_id,
                     metadata_filters=metadata_filters,
                     metadata_member_count=metadata_member_count,
+                    univariate_filter_predicates=univariate_filter_predicates,
                 ),
                 id="pf-main-content",
                 className="pf-main",
@@ -233,6 +240,7 @@ def route_renderer(services: object | None = None) -> Callable[[str | None, obje
             project_id=state.universe_id,
             metadata_filters=state.metadata_filters or None,
             metadata_member_count=state.metadata_member_count,
+            univariate_filter_predicates=state.univariate_filter_predicates,
         )
 
     return render

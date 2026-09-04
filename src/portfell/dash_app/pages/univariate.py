@@ -49,7 +49,10 @@ class UnivariateService(Protocol):
 
 
 def univariate_page_data(
-    service: UnivariateService, *, metadata_member_count: int | None = None
+    service: UnivariateService,
+    *,
+    metadata_member_count: int | None = None,
+    filter_predicates: Sequence[Mapping[str, object]] = (),
 ) -> dict[str, object]:
     workflow = service.workflow_state()
     universe = _mapping(workflow.get("metadata_universe"))
@@ -167,6 +170,7 @@ def univariate_page_data(
         "ready": selection is not None and bool(selected),
         "matching_count": None if preview is None else preview.get("item_count"),
         "metric_distributions": distributions,
+        "filter_predicates": tuple(dict(predicate) for predicate in filter_predicates),
     }
 
 
@@ -179,13 +183,18 @@ def save_selection(
 
 
 def build_page(
-    services: object | None = None, *, metadata_member_count: int | None = None
+    services: object | None = None,
+    *,
+    metadata_member_count: int | None = None,
+    filter_predicates: Sequence[Mapping[str, object]] = (),
 ) -> Component:
     if services is None:
         return _layout(_empty_model(), message="Application service is unavailable.")
     try:
         model = univariate_page_data(
-            cast(UnivariateService, services), metadata_member_count=metadata_member_count
+            cast(UnivariateService, services),
+            metadata_member_count=metadata_member_count,
+            filter_predicates=filter_predicates,
         )
     except Exception as error:
         return _layout(_empty_model(), error=_error_code(error))
@@ -211,7 +220,10 @@ def _layout(
 
 
 def data_regions(
-    services: object | None = None, *, metadata_member_count: int | None = None
+    services: object | None = None,
+    *,
+    metadata_member_count: int | None = None,
+    filter_predicates: Sequence[Mapping[str, object]] = (),
 ) -> list[Component]:
     """Refresh only persisted Univariate result content after job-status changes."""
     if services is None:
@@ -221,6 +233,7 @@ def data_regions(
             univariate_page_data(
                 cast(UnivariateService, services),
                 metadata_member_count=metadata_member_count,
+                filter_predicates=filter_predicates,
             )
         )
     except Exception as error:
@@ -229,6 +242,7 @@ def data_regions(
 
 def _data_regions(model: Mapping[str, object]) -> list[Component]:
     selected = _string_set(model.get("selected"))
+    active = _active_filter_categories(model.get("filter_predicates"))
     return [
         html.Div(
             [
@@ -245,13 +259,31 @@ def _data_regions(model: Mapping[str, object]) -> list[Component]:
             ),
             className="pf-univariate-risk-chart",
         ),
-        _dividend_window(_mappings(model.get("all_chart_rows")), selected),
-        _age_window(_mappings(model.get("all_chart_rows")), selected),
-        _monthly_return_window(_mappings(model.get("all_chart_rows")), selected),
+        _dividend_window(_mappings(model.get("all_chart_rows")), selected, active),
+        _age_window(_mappings(model.get("all_chart_rows")), selected, active),
+        _monthly_return_window(_mappings(model.get("all_chart_rows")), selected, active),
     ]
 
 
-def _dividend_window(rows: Sequence[Mapping[str, object]], selected: set[str]) -> Component:
+def _active_filter_categories(value: object) -> dict[str, set[str]]:
+    result = {
+        "distribution_frequency": set(),
+        "history_age_group": set(),
+        "monthly_return_group": set(),
+    }
+    for predicate in _mappings(value):
+        metric = str(predicate.get("metric", ""))
+        allowed = predicate.get("allowed")
+        if metric in result and predicate.get("operator") == "in" and isinstance(allowed, list):
+            result[metric].update(str(item) for item in allowed)
+    return result
+
+
+def _dividend_window(
+    rows: Sequence[Mapping[str, object]],
+    selected: set[str],
+    active: Mapping[str, set[str]],
+) -> Component:
     """Show the cross-sectional dividend-payment frequency after the universe plot."""
     order = ("none / unknown", "monthly", "quarterly", "semiannual", "annual", "irregular")
     counts = {category: 0 for category in order}
@@ -335,7 +367,13 @@ def _dividend_window(rows: Sequence[Mapping[str, object]], selected: set[str]) -
                                     options=[
                                         {"label": "", "value": category, "disabled": not value}
                                     ],
-                                    value=[category] if category in selected_categories else [],
+                                    value=[category]
+                                    if category in active["distribution_frequency"]
+                                    or (
+                                        not active["distribution_frequency"]
+                                        and category in selected_categories
+                                    )
+                                    else [],
                                     persistence=f"dividend-frequency:{category}",
                                     persistence_type="local",
                                 )
@@ -416,7 +454,9 @@ def _age_label(value: object) -> str:
     return ">5 years"
 
 
-def _age_window(rows: Sequence[Mapping[str, object]], selected: set[str]) -> Component:
+def _age_window(
+    rows: Sequence[Mapping[str, object]], selected: set[str], active: Mapping[str, set[str]]
+) -> Component:
     """Show the distribution of available quote-history ages."""
     groups = (
         ("≤3 months", 0.25),
@@ -507,7 +547,11 @@ def _age_window(rows: Sequence[Mapping[str, object]], selected: set[str]) -> Com
                                     ],
                                     value=(
                                         [_age_key(label)]
-                                        if _age_group_selected(rows, selected, label)
+                                        if _age_key(label) in active["history_age_group"]
+                                        or (
+                                            not active["history_age_group"]
+                                            and _age_group_selected(rows, selected, label)
+                                        )
                                         else []
                                     ),
                                     persistence=f"age-group:{_age_key(label)}",
@@ -567,7 +611,9 @@ def _monthly_return_key(label: str) -> str:
     }[label]
 
 
-def _monthly_return_window(rows: Sequence[Mapping[str, object]], selected: set[str]) -> Component:
+def _monthly_return_window(
+    rows: Sequence[Mapping[str, object]], selected: set[str], active: Mapping[str, set[str]]
+) -> Component:
     """Show monthly simple-return bands and expose them as an exclusive filter."""
     order = ("≤−10%", ">−10%–0%", ">0%–2%", ">2%–5%", ">5%–10%", ">10%", "Unknown")
     counts = {label: 0 for label in order}
@@ -637,7 +683,12 @@ def _monthly_return_window(rows: Sequence[Mapping[str, object]], selected: set[s
                                     ],
                                     value=(
                                         [_monthly_return_key(label)]
-                                        if label in selected_groups
+                                        if _monthly_return_key(label)
+                                        in active["monthly_return_group"]
+                                        or (
+                                            not active["monthly_return_group"]
+                                            and label in selected_groups
+                                        )
                                         else []
                                     ),
                                     persistence=f"monthly-return:{_monthly_return_key(label)}",

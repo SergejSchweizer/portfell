@@ -58,6 +58,9 @@ class Service:
                     "sharpe_ratio": 0.6,
                     "sortino_ratio": 0.8,
                     "annual_dividend_yield": 0.03,
+                    "distribution_frequency": "monthly",
+                    "history_years": 3.5,
+                    "monthly_simple_return": 0.01,
                     "availability_reason": "ok",
                 },
                 {
@@ -70,6 +73,9 @@ class Service:
                     "sharpe_ratio": None,
                     "sortino_ratio": None,
                     "annual_dividend_yield": None,
+                    "distribution_frequency": "unknown",
+                    "history_years": None,
+                    "monthly_simple_return": None,
                     "availability_reason": "insufficient_returns",
                 },
             ],
@@ -134,6 +140,21 @@ def test_page_shows_dividend_frequency_window_after_plot() -> None:
     assert "Monthly Returns" in rendered
     assert "univariate-monthly-return-chart" in rendered
     assert "univariate-monthly-return-table" in rendered
+
+
+def test_filter_definitions_keep_each_category_checked_after_intersection() -> None:
+    predicates = [
+        {"metric": "distribution_frequency", "operator": "in", "allowed": ["monthly"]},
+        {"metric": "history_age_group", "operator": "in", "allowed": ["gt3-4_years"]},
+        {"metric": "monthly_return_group", "operator": "in", "allowed": ["gt_0_to_2_pct"]},
+    ]
+    rendered = str(build_page(Service(), filter_predicates=predicates).to_plotly_json())
+    # The final intersection contains only DE1, but all three independent
+    # definitions must remain represented as checked controls in their own
+    # windows instead of being inferred from the reduced member set.
+    assert "value=['monthly']" in rendered
+    assert "value=['gt3-4_years']" in rendered
+    assert "value=['gt_0_to_2_pct']" in rendered
 
 
 def test_page_excludes_results_outside_metadata_universe() -> None:

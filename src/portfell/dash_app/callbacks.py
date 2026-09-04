@@ -220,6 +220,11 @@ def execute_action(
         # immediate UI hint so the lower-right progress window is not skipped.
         if submitted_job is not None and persisted.job.status is None:
             persisted = with_job_status(persisted, submitted_job)
+        if action == "univariate-dividend-selection" and predicates is not None:
+            persisted = replace(
+                persisted,
+                univariate_filter_predicates=tuple(dict(predicate) for predicate in predicates),
+            )
         return persisted
     except Exception as error:
         code = getattr(error, "code", None)
@@ -390,6 +395,7 @@ def register_callbacks(app: Dash, services: object | None) -> None:
         return replace(
             refreshed,
             metadata_filters=existing.metadata_filters,
+            univariate_filter_predicates=existing.univariate_filter_predicates,
             metadata_member_count=(
                 selected_count if selected_count is not None else existing.metadata_member_count
             ),
@@ -415,6 +421,7 @@ def register_callbacks(app: Dash, services: object | None) -> None:
                 persisted,
                 metadata_filters=state.metadata_filters,
                 metadata_member_count=state.metadata_member_count,
+                univariate_filter_predicates=state.univariate_filter_predicates,
             ).to_store()
         return refreshed.to_store()
 
@@ -435,6 +442,7 @@ def register_callbacks(app: Dash, services: object | None) -> None:
         return univariate_data_regions(
             service,
             metadata_member_count=BrowserState.from_store(_store).metadata_member_count,
+            filter_predicates=BrowserState.from_store(_store).univariate_filter_predicates,
         )
 
     @app.callback(  # pyright: ignore[reportUnknownMemberType]
