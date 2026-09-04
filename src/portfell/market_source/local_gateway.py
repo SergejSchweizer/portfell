@@ -8,7 +8,7 @@ use the last complete publication.
 from __future__ import annotations
 
 import json
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
@@ -34,6 +34,17 @@ class LocalMarketDataGateway:
             return [
                 json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line
             ]
+        except (OSError, json.JSONDecodeError) as error:
+            raise MarketSourceError(MARKET_SOURCE_UNAVAILABLE) from error
+
+    def _iter(self, name: str) -> Iterator[dict[str, object]]:
+        """Stream a snapshot file so narrow selections never load the universe into RAM."""
+        path = self._root / f"{name}.jsonl"
+        try:
+            with path.open(encoding="utf-8") as handle:
+                for line in handle:
+                    if line:
+                        yield json.loads(line)
         except (OSError, json.JSONDecodeError) as error:
             raise MarketSourceError(MARKET_SOURCE_UNAVAILABLE) from error
 
@@ -88,7 +99,7 @@ class LocalMarketDataGateway:
                 close=Decimal(str(row["close"])) if row.get("close") is not None else None,
                 volume=Decimal(str(row["volume"])) if row.get("volume") is not None else None,
             )
-            for row in self._read("quotes")
+            for row in self._iter("quotes")
             if self._key(row) in wanted and in_range(row, "trade_date")
         )
         dividends = tuple(
@@ -99,7 +110,7 @@ class LocalMarketDataGateway:
                 amount=Decimal(str(row["amount"])) if row.get("amount") is not None else None,
                 currency=self._text(row, "currency"),
             )
-            for row in self._read("dividends")
+            for row in self._iter("dividends")
             if self._key(row) in wanted and in_range(row, "event_date")
         )
         splits = tuple(
@@ -111,7 +122,7 @@ class LocalMarketDataGateway:
                 if row.get("split_factor") is not None
                 else None,
             )
-            for row in self._read("splits")
+            for row in self._iter("splits")
             if self._key(row) in wanted and in_range(row, "event_date")
         )
         return MarketDataSnapshot(listings, quotes, dividends, splits)
