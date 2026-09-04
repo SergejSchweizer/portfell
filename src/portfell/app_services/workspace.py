@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import pickle
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from concurrent.futures import Executor, ProcessPoolExecutor
 from datetime import UTC, date, datetime
@@ -813,6 +814,7 @@ class WorkspaceApplicationService:
                 "execution_version": MULTIVARIATE_EXECUTION_VERSION,
             }
         )
+        dataset_digest = logical_hash
         run_id = opaque_id("multivariate-run", {"logical_hash": logical_hash})
         run = self._state.create_analysis_run(
             run_id=run_id,
@@ -865,6 +867,16 @@ class WorkspaceApplicationService:
                 if job_id is not None:
                     self._state.update_job_progress(job_id, current=current, total=8, phase=phase)
 
+            checkpoint = self._load_multivariate_checkpoint(dataset_digest)
+
+            def save_checkpoint(current: int, phase: str, payload: Mapping[str, object]) -> None:
+                self._save_multivariate_checkpoint(
+                    dataset_digest=dataset_digest,
+                    phase=current,
+                    phase_name=phase,
+                    payload=payload,
+                )
+
             if job_id is not None:
                 self._state.update_job_progress(job_id, current=0, total=8, phase="inputs")
             with self._executor_factory() as executor:
@@ -881,8 +893,11 @@ class WorkspaceApplicationService:
                     objective=objective,
                     executor=executor,
                     on_phase=None if job_id is None else on_phase,
+                    checkpoint=checkpoint,
+                    save_checkpoint=save_checkpoint,
                 )
             self._persist_multivariate(run.run_id, computation)
+            self._delete_multivariate_checkpoint(dataset_digest)
             if job_id is not None:
                 self._state.update_job_progress(
                     job_id, current=7, total=8, phase="artifact_persistence"
@@ -1561,6 +1576,43 @@ class WorkspaceApplicationService:
             document=cast(Mapping[str, JsonValue], document),
             items=items,
         )
+
+    def _load_multivariate_checkpoint(self, dataset_digest: str) -> Mapping[str, object] | None:
+        load = getattr(self._state, "get_multivariate_checkpoint", None)
+        if not callable(load):
+            return None
+        record = load(dataset_digest)
+        if record is None or record.algorithm_version != MULTIVARIATE_EXECUTION_VERSION:
+            return None
+        try:
+            payload = pickle.loads(record.payload)
+        except (pickle.PickleError, EOFError, AttributeError, TypeError, ValueError):
+            return None
+        return payload if isinstance(payload, dict) else None
+
+    def _save_multivariate_checkpoint(
+        self,
+        *,
+        dataset_digest: str,
+        phase: int,
+        phase_name: str,
+        payload: Mapping[str, object],
+    ) -> None:
+        save = getattr(self._state, "put_multivariate_checkpoint", None)
+        if not callable(save):
+            return
+        save(
+            dataset_digest=dataset_digest,
+            algorithm_version=MULTIVARIATE_EXECUTION_VERSION,
+            phase=phase,
+            phase_name=phase_name,
+            payload=pickle.dumps(dict(payload), protocol=pickle.HIGHEST_PROTOCOL),
+        )
+
+    def _delete_multivariate_checkpoint(self, dataset_digest: str) -> None:
+        delete = getattr(self._state, "delete_multivariate_checkpoint", None)
+        if callable(delete):
+            delete(dataset_digest)
 
     def _persist_multivariate(self, run_id: str, computation: MultivariateComputation) -> None:
         for artifact_type, document in sorted(computation.documents.items()):

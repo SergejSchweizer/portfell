@@ -20,6 +20,7 @@ APP_STATE_TABLES = (
     "univariate_selection_members",
     "decision_artifacts",
     "ui_preferences",
+    "multivariate_checkpoints",
 )
 
 V1_SCHEMA_SQL = """

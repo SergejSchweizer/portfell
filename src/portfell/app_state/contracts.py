@@ -130,6 +130,17 @@ class UiPreferenceRecord:
     updated_at: datetime
 
 
+@dataclass(frozen=True)
+class MultivariateCheckpointRecord:
+    dataset_digest: str
+    algorithm_version: str
+    phase: int
+    phase_name: str
+    payload: bytes
+    payload_hash: str
+    updated_at: datetime
+
+
 class MarketSourceSnapshotRepository(Protocol):
     def put_market_source_snapshot(
         self, *, snapshot_id: str, source_fingerprint: str, observed_at: datetime

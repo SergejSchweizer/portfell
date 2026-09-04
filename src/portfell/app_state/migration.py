@@ -14,6 +14,7 @@ from portfell.app_state.migrations import (
     MIGRATION_V004,
     MIGRATION_V005,
     MIGRATION_V006,
+    MIGRATION_V007,
 )
 from portfell.app_state.migrations.v001_initial import AppStateMigration
 from portfell.app_state.schema import APP_STATE_TABLES
@@ -25,6 +26,7 @@ APP_STATE_MIGRATIONS: tuple[AppStateMigration, ...] = (
     MIGRATION_V004,
     MIGRATION_V005,
     MIGRATION_V006,
+    MIGRATION_V007,
 )
 _ROLE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 

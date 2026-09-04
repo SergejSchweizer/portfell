@@ -91,6 +91,8 @@ def compute_multivariate(
     objective: str,
     executor: Executor,
     on_phase: Callable[[int, str], None] | None = None,
+    checkpoint: Mapping[str, object] | None = None,
+    save_checkpoint: Callable[[int, str, Mapping[str, object]], None] | None = None,
 ) -> MultivariateComputation:
     """Compute all immutable Multivariate evidence from one pinned source snapshot."""
 
@@ -155,74 +157,89 @@ def compute_multivariate(
     snapshot = build_multivariate_input_snapshot(
         dependencies=dependencies, univariate_rows=selected
     )
-    if on_phase is not None:
-        on_phase(1, MULTIVARIATE_PHASES[0])
-    risk = build_multivariate_risk_model(snapshot=snapshot, return_rows=returns)
-    structure = build_multivariate_structure(risk)
-    quote_json_rows = tuple(dict(row) for row in quote_rows)
-    income = {
-        key: build_income_evidence(
-            listing=key,
-            events=normalize_distribution_events(dividend_rows, listing=key),
-            period_end=snapshot.date_end or "1970-01-01",
-            denominator_price=last_price(quote_json_rows, key),
-            period_start=snapshot.date_start,
-            start_price=first_price(quote_json_rows, key),
+    state = dict(checkpoint or {})
+    resumed_phase = state.get("phase", 0)
+    phase = int(resumed_phase) if isinstance(resumed_phase, int) else 0
+    if phase > 0 and on_phase is not None:
+        on_phase(phase, f"resuming_from_checkpoint_{MULTIVARIATE_PHASES[phase - 1]}")
+
+    if phase < 2:
+        if on_phase is not None:
+            on_phase(1, MULTIVARIATE_PHASES[0])
+        risk = build_multivariate_risk_model(snapshot=snapshot, return_rows=returns)
+        structure = build_multivariate_structure(risk)
+        quote_json_rows = tuple(dict(row) for row in quote_rows)
+        income = {
+            key: build_income_evidence(
+                listing=key,
+                events=normalize_distribution_events(dividend_rows, listing=key),
+                period_end=snapshot.date_end or "1970-01-01",
+                denominator_price=last_price(quote_json_rows, key),
+                period_start=snapshot.date_start,
+                start_price=first_price(quote_json_rows, key),
+            )
+            for key in keys
+        }
+        candidates = build_candidate_set(
+            snapshot=snapshot, risk_model=risk, return_rows=returns, income=income, executor=executor
         )
-        for key in keys
-    }
-    candidates = build_candidate_set(
-        snapshot=snapshot,
-        risk_model=risk,
-        return_rows=returns,
-        income=income,
-        executor=executor,
-    )
-    refitted = build_refitted_candidate_sets(
-        executor=executor,
-        candidates=candidates,
-        snapshot=snapshot,
-        return_rows=returns,
-        income=income,
-    )
-    if on_phase is not None:
+        refitted = build_refitted_candidate_sets(
+            executor=executor, candidates=candidates, snapshot=snapshot, return_rows=returns, income=income
+        )
+        state = {"phase": 2, "risk": risk, "structure": structure, "income": income,
+                 "candidates": candidates, "refitted": refitted}
+        if save_checkpoint is not None:
+            save_checkpoint(2, MULTIVARIATE_PHASES[1], state)
+    else:
+        risk = cast(Any, state["risk"])
+        structure = cast(Any, state["structure"])
+        income = cast(Any, state["income"])
+        candidates = cast(Any, state["candidates"])
+        refitted = cast(Any, state["refitted"])
+
+    if on_phase is not None and phase < 2:
         on_phase(2, MULTIVARIATE_PHASES[1])
-    validation = validate_candidates(
-        candidates=candidates,
-        return_rows=returns,
-        precomputed_candidates=refitted,
-        risk_model_id=risk.risk_model_id,
-        executor=executor,
-    )
-    if on_phase is not None:
+    if phase < 3:
+        validation = validate_candidates(
+            candidates=candidates, return_rows=returns, precomputed_candidates=refitted,
+            risk_model_id=risk.risk_model_id, executor=executor,
+        )
+        state.update({"phase": 3, "validation": validation})
+        if save_checkpoint is not None:
+            save_checkpoint(3, MULTIVARIATE_PHASES[2], state)
+    else:
+        validation = cast(Any, state["validation"])
+
+    if on_phase is not None and phase < 3:
         on_phase(3, MULTIVARIATE_PHASES[2])
-    structure_v2 = build_structure_v2_documents(
-        risk_model=risk,
-        return_rows=returns,
-        candidates=candidates,
-    )
-    structural_walk_forward = build_structural_walk_forward_evidence(
-        snapshot=snapshot,
-        candidates=candidates,
-        return_rows=returns,
-        refitted_candidate_sets=refitted,
-        validation_splits=validation,
-    )
-    scenarios = validate_candidate_stress(
-        candidates=candidates, return_rows=returns, executor=executor
-    )
-    scorecards = build_candidate_scorecards(splits=validation, scenarios=scenarios)
-    if on_phase is not None:
+    if phase < 5:
+        structure_v2 = build_structure_v2_documents(risk_model=risk, return_rows=returns, candidates=candidates)
+        structural_walk_forward = build_structural_walk_forward_evidence(
+            snapshot=snapshot, candidates=candidates, return_rows=returns,
+            refitted_candidate_sets=refitted, validation_splits=validation,
+        )
+        scenarios = validate_candidate_stress(candidates=candidates, return_rows=returns, executor=executor)
+        scorecards = build_candidate_scorecards(splits=validation, scenarios=scenarios)
+        state.update({"phase": 5, "structure_v2": structure_v2,
+                      "structural_walk_forward": structural_walk_forward,
+                      "scenarios": scenarios, "scorecards": scorecards})
+        if save_checkpoint is not None:
+            save_checkpoint(5, MULTIVARIATE_PHASES[4], state)
+    else:
+        structure_v2 = cast(Any, state["structure_v2"])
+        structural_walk_forward = cast(Any, state["structural_walk_forward"])
+        scenarios = cast(Any, state["scenarios"])
+        scorecards = cast(Any, state["scorecards"])
+
+    if on_phase is not None and phase < 5:
         on_phase(4, MULTIVARIATE_PHASES[3])
         on_phase(5, MULTIVARIATE_PHASES[4])
-    decision = _select_decision(
-        objective=objective,
-        candidates=candidates,
-        scorecards=scorecards,
-        splits=validation,
-        scenarios=scenarios,
-    )
-    if on_phase is not None:
+    decision = _select_decision(objective=objective, candidates=candidates, scorecards=scorecards,
+                                splits=validation, scenarios=scenarios)
+    state.update({"phase": 6, "decision": decision})
+    if save_checkpoint is not None:
+        save_checkpoint(6, MULTIVARIATE_PHASES[5], state)
+    if on_phase is not None and phase < 6:
         on_phase(6, MULTIVARIATE_PHASES[5])
     candidate_rows = [_candidate_row(item) for item in candidates]
     risk_contributions = [

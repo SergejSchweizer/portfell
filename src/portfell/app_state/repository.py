@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 from collections.abc import Mapping, Sequence
 from datetime import datetime
 from typing import Protocol, cast
@@ -19,6 +20,7 @@ from portfell.app_state.contracts import (
     ListingIdentity,
     MarketSourceSnapshotRecord,
     MetadataUniverseRecord,
+    MultivariateCheckpointRecord,
     UiPreferenceRecord,
     UnivariateSelectionRecord,
 )
@@ -583,6 +585,74 @@ class PostgresAppStateRepository:
         ).fetchall()
         return tuple(_job(row) for row in rows)
 
+    # Multivariate checkpoints -------------------------------------------------
+
+    def get_multivariate_checkpoint(
+        self, dataset_digest: str
+    ) -> MultivariateCheckpointRecord | None:
+        row = self._connection.execute(
+            """select dataset_digest, algorithm_version, phase, phase_name, payload,
+                      payload_hash, updated_at
+               from portfell.multivariate_checkpoints where dataset_digest = %s""",
+            (dataset_digest,),
+        ).fetchone()
+        return None if row is None else _multivariate_checkpoint(row)
+
+    def put_multivariate_checkpoint(
+        self,
+        *,
+        dataset_digest: str,
+        algorithm_version: str,
+        phase: int,
+        phase_name: str,
+        payload: bytes,
+    ) -> MultivariateCheckpointRecord:
+        if not dataset_digest or not algorithm_version or not phase_name or not 0 <= phase <= 8:
+            raise AppStateError(APP_STATE_CONFLICT)
+        payload_hash = hashlib.sha256(payload).hexdigest()
+        try:
+            row = self._connection.execute(
+                """insert into portfell.multivariate_checkpoints
+                   (dataset_digest, algorithm_version, phase, phase_name, payload, payload_hash)
+                   values (%s, %s, %s, %s, %s, %s)
+                   on conflict (dataset_digest) do update set
+                       phase = excluded.phase,
+                       phase_name = excluded.phase_name,
+                       payload = excluded.payload,
+                       payload_hash = excluded.payload_hash,
+                       updated_at = now()
+                   where portfell.multivariate_checkpoints.algorithm_version = excluded.algorithm_version
+                     and portfell.multivariate_checkpoints.phase <= excluded.phase
+                   returning dataset_digest, algorithm_version, phase, phase_name, payload,
+                             payload_hash, updated_at""",
+                (dataset_digest, algorithm_version, phase, phase_name, payload, payload_hash),
+            ).fetchone()
+            if row is None:
+                existing = self.get_multivariate_checkpoint(dataset_digest)
+                if existing is None or existing.algorithm_version != algorithm_version:
+                    raise AppStateError(APP_STATE_CONFLICT)
+                self._connection.commit()
+                return existing
+            self._connection.commit()
+            return _multivariate_checkpoint(row)
+        except AppStateError:
+            self._connection.rollback()
+            raise
+        except Exception as error:
+            self._connection.rollback()
+            raise AppStateError(APP_STATE_PERSISTENCE_FAILED) from error
+
+    def delete_multivariate_checkpoint(self, dataset_digest: str) -> None:
+        try:
+            self._connection.execute(
+                "delete from portfell.multivariate_checkpoints where dataset_digest = %s",
+                (dataset_digest,),
+            )
+            self._connection.commit()
+        except Exception as error:
+            self._connection.rollback()
+            raise AppStateError(APP_STATE_PERSISTENCE_FAILED) from error
+
     def put_analysis_artifact(
         self,
         *,
@@ -1099,6 +1169,22 @@ def _job(row: Sequence[object]) -> AnalysisJobRecord:
         created_at=cast(datetime, row[12]),
         started_at=cast(datetime | None, row[13]),
         completed_at=cast(datetime | None, row[14]),
+    )
+
+
+def _multivariate_checkpoint(row: Sequence[object]) -> MultivariateCheckpointRecord:
+    payload = bytes(cast(bytes, row[4]))
+    payload_hash = str(row[5])
+    if hashlib.sha256(payload).hexdigest() != payload_hash:
+        raise AppStateError(APP_STATE_PERSISTENCE_FAILED)
+    return MultivariateCheckpointRecord(
+        dataset_digest=str(row[0]),
+        algorithm_version=str(row[1]),
+        phase=int(cast(int, row[2])),
+        phase_name=str(row[3]),
+        payload=payload,
+        payload_hash=payload_hash,
+        updated_at=cast(datetime, row[6]),
     )
 
 
