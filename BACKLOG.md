@@ -3759,9 +3759,9 @@ Acceptance:
 - no Bivariate action writes Metadata, Univariate or Multivariate schemas;
 - isolated image rebuild/deploy/health and `uv run portfell-quality merge` pass.
 
-Git status: implementation complete on branch `test/pr417-bivariate-module-qa`;
-4 independent pair-lineage tests pass, including exact `n*(n-1)/2` pairs and
-equal-date counts. Integration is pending rebase to `origin/main`.
+Git status: integrated on `main` at `323f733`; 4 independent pair-lineage
+tests pass, including exact `n*(n-1)/2` pairs and equal-date counts. The
+feature branch and any remote copy were removed after the fast-forward merge.
 
 ### PR418 — Extract the independently deployable Multivariate application
 
