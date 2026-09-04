@@ -482,54 +482,24 @@ def register_callbacks(app: Dash, services: object | None) -> None:
 
     @app.callback(  # pyright: ignore[reportUnknownMemberType]
         Output("pf-browser-state", "data", allow_duplicate=True),
+        # All three groups are inputs to one callback deliberately. A single
+        # atomic snapshot prevents a category change from racing another
+        # callback and overwriting its current checks with stale values.
         Input({"type": "univariate-dividend-frequency", "category": ALL}, "value"),
-        State({"type": "univariate-dividend-frequency", "category": ALL}, "id"),
-        State({"type": "univariate-age-group", "category": ALL}, "value"),
-        State({"type": "univariate-age-group", "category": ALL}, "id"),
-        Input({"type": "univariate-monthly-return-group", "category": ALL}, "value"),
-        State({"type": "univariate-monthly-return-group", "category": ALL}, "id"),
-        State("pf-browser-state", "data"),
-        prevent_initial_call="initial_duplicate",
-    )
-    def _save_dividend_frequency_selection(
-        checked: list[object],
-        ids: list[dict[str, object]],
-        age_values: list[object],
-        age_ids: list[dict[str, object]],
-        monthly_values: list[object],
-        monthly_ids: list[dict[str, object]],
-        store: object,
-    ) -> dict[str, object] | object:
-        state = BrowserState.from_store(store)
-        if state.univariate_run_id is None:
-            return no_update
-        predicates = univariate_checkbox_predicates(
-            checked, ids, age_values, age_ids, monthly_values, monthly_ids
-        )
-        return execute_action(
-            service,
-            state,
-            action="univariate-dividend-selection",
-            predicates=predicates,
-        ).to_store()
-
-    @app.callback(  # pyright: ignore[reportUnknownMemberType]
-        Output("pf-browser-state", "data", allow_duplicate=True),
         Input({"type": "univariate-age-group", "category": ALL}, "value"),
-        State({"type": "univariate-age-group", "category": ALL}, "id"),
-        State({"type": "univariate-dividend-frequency", "category": ALL}, "value"),
+        Input({"type": "univariate-monthly-return-group", "category": ALL}, "value"),
         State({"type": "univariate-dividend-frequency", "category": ALL}, "id"),
-        State({"type": "univariate-monthly-return-group", "category": ALL}, "value"),
+        State({"type": "univariate-age-group", "category": ALL}, "id"),
         State({"type": "univariate-monthly-return-group", "category": ALL}, "id"),
         State("pf-browser-state", "data"),
         prevent_initial_call="initial_duplicate",
     )
-    def _save_age_selection(
-        values: list[object],
-        ids: list[dict[str, object]],
+    def _save_univariate_filter_selection(
         dividend_values: list[object],
-        dividend_ids: list[dict[str, object]],
+        age_values: list[object],
         monthly_values: list[object],
+        dividend_ids: list[dict[str, object]],
+        age_ids: list[dict[str, object]],
         monthly_ids: list[dict[str, object]],
         store: object,
     ) -> dict[str, object] | object:
@@ -537,7 +507,12 @@ def register_callbacks(app: Dash, services: object | None) -> None:
         if state.univariate_run_id is None:
             return no_update
         predicates = univariate_checkbox_predicates(
-            dividend_values, dividend_ids, values, ids, monthly_values, monthly_ids
+            dividend_values,
+            dividend_ids,
+            age_values,
+            age_ids,
+            monthly_values,
+            monthly_ids,
         )
         return execute_action(
             service,
