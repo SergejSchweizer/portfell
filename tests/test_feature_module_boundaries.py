@@ -16,6 +16,8 @@ class _Service:
 
     def stop_background_jobs(self) -> None: ...
 
+    def save_univariate_filter_preferences(self, predicates: object) -> None: ...
+
 
 def test_feature_modules_do_not_import_siblings() -> None:
     assert check_architecture() == []
@@ -31,6 +33,12 @@ def test_runtime_facades_reject_cross_module_operations() -> None:
     else:
         del forbidden
         raise AssertionError("metadata facade exposed a Bivariate operation")
+
+
+def test_univariate_facade_exposes_durable_filter_preference_writer() -> None:
+    modules = build_module_registry(_Service())
+    called: list[object] = []
+    modules.univariate.save_univariate_filter_preferences(called)
 
 
 def test_each_module_can_only_write_its_owned_stage() -> None:
