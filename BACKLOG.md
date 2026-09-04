@@ -3797,9 +3797,9 @@ Acceptance:
   prerequisite artifacts have been published;
 - image rebuild, isolated deployment, health check and `uv run portfell-quality pr` pass.
 
-Git status: implementation complete on branch `refactor/pr418-multivariate-application`;
-2 focused boundary tests and strict Pyright for the new Multivariate entrypoint
-pass. Integration is pending rebase to `origin/main`.
+Git status: integrated on `main` at `85be4c8`; 2 focused boundary tests and
+strict Pyright for the new Multivariate entrypoint pass. The feature branch and
+any remote copy were removed after the fast-forward merge.
 
 ### PR419 — Multivariate optimizer, persistence and browser QA
 
