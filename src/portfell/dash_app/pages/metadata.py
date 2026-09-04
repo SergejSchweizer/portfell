@@ -290,7 +290,6 @@ def _layout(
                         _metadata_distribution(
                             _distribution_rows(model.get("distributions")),
                             x_title="Instrument type",
-                            height=204,
                         ),
                         graph_id="metadata-instrument-type-distribution",
                     ),

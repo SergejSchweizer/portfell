@@ -96,6 +96,13 @@ def test_page_data_includes_quote_date_range_for_selected_listings() -> None:
     assert "Date range" in str(build_page(DateRangeService(), filters={"exchange": "XETRA"}).to_plotly_json())
 
 
+def test_metadata_distribution_charts_use_one_fixed_height() -> None:
+    rendered = build_page(Service()).to_plotly_json()
+    text = str(rendered)
+    assert "metadata-instrument-type-distribution" in text
+    assert "'height': 220" in text
+
+
 def test_create_universe_is_an_explicit_action() -> None:
     service = Service()
     result = create_universe(service, {"exchange": "XETRA", "instrument_type": "ETF"})

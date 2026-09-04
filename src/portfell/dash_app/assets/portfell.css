@@ -123,13 +123,6 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
   height: 220px !important;
   min-height: 220px;
 }
-#metadata-instrument-type-distribution,
-#metadata-instrument-type-distribution .js-plotly-plot,
-#metadata-instrument-type-distribution .plot-container,
-#metadata-instrument-type-distribution .svg-container {
-  height: 252px !important;
-  min-height: 252px;
-}
 .pf-table-scroll { width: 100%; overflow-x: auto; }
 .pf-status-banner, .pf-state { padding: 12px 14px; border-radius: 7px; border: 1px solid var(--pf-border); }
 .pf-job-progress {
