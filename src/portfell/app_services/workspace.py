@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 from collections.abc import Callable, Iterable, Mapping, Sequence
-from concurrent.futures import Executor, ThreadPoolExecutor
+from concurrent.futures import Executor, ProcessPoolExecutor
 from datetime import UTC, date, datetime
 from typing import Protocol, cast
 from uuid import uuid4
@@ -243,9 +243,10 @@ class WorkspaceApplicationService:
         # Candidate construction and walk-forward refits are independent CPU
         # tasks. Use all host cores by default; callers/tests can inject a
         # bounded executor explicitly.
-        self._executor_factory = executor_factory or (
-            lambda: ThreadPoolExecutor(max_workers=max(1, os.cpu_count() or 1))
-        )
+        # Multivariate candidate/refit tasks are CPU-bound Python work. A
+        # process pool is required here; a thread pool serializes on the GIL
+        # and makes the API appear frozen while the job is running.
+        self._executor_factory = executor_factory or (lambda: ProcessPoolExecutor())
         self._now = now or (lambda: datetime.now(UTC))
         self._analysis_jobs = analysis_job_executor or AnalysisJobExecutor(
             state, self._execute_analysis_job, now=self._now
