@@ -26,13 +26,17 @@ PR_GATE_COMMANDS: tuple[Command, ...] = (
     ("ruff", "format", "--check", "."),
     ("python", "-m", "portfell.security_gates"),
     ("pyright",),
-    ("pytest", "-q", "-n", "auto"),
+    # The real-stack browser suite mutates a shared PostgreSQL workspace and
+    # therefore runs as a dedicated serial merge-gate command below.
+    ("pytest", "-q", "-n", "auto", "-m", "not real_stack"),
 )
 
 MAIN_COVERAGE_COMMAND: Command = (
     "pytest",
     "-n",
     "auto",
+    "-m",
+    "not real_stack",
     "--cov=portfell",
     "--cov-report=term-missing",
     "--cov-fail-under=92",
@@ -48,6 +52,9 @@ MERGE_GATE_COMMANDS: tuple[Command, ...] = (
     ("python", "-m", "portfell.security_gates"),
     ("pyright",),
     MAIN_COVERAGE_COMMAND,
+    # Run the Docker/PostgreSQL Playwright contract serially so concurrent
+    # xdist workers cannot overwrite the same durable selection state.
+    ("pytest", "-q", "-m", "real_stack"),
     ("bash", "scripts/run_market_source_contract_qa.sh"),
     ("git", "diff", "--quiet"),
     ("git", "diff", "--cached", "--quiet"),

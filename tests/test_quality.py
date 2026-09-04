@@ -28,7 +28,7 @@ def test_pr_gate_has_simple_checks() -> None:
         ("ruff", "format", "--check", "."),
         ("python", "-m", "portfell.security_gates"),
         ("pyright",),
-        ("pytest", "-q", "-n", "auto"),
+        ("pytest", "-q", "-n", "auto", "-m", "not real_stack"),
     )
 
 
@@ -47,10 +47,13 @@ def test_merge_gate_extends_pr_gate_with_protected_checks() -> None:
         "pytest",
         "-n",
         "auto",
+        "-m",
+        "not real_stack",
         "--cov=portfell",
         "--cov-report=term-missing",
         "--cov-fail-under=92",
     )
+    assert ("pytest", "-q", "-m", "real_stack") in commands
     assert commands[-3:] == (
         ("git", "diff", "--quiet"),
         ("git", "diff", "--cached", "--quiet"),
