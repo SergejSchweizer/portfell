@@ -3994,6 +3994,11 @@ Acceptance:
 - all supported viewports have no console/page errors or body overflow;
 - GitHub `merge-dash-browser`, image rebuild/redeploy/health and `uv run portfell-quality merge` pass.
 
+Git status: implementation complete on branch `test/pr424-five-process-playwright-qa`;
+2 focused Playwright contract tests pass and the existing browser journey
+contains all required route, viewport, reload, Plotly and real-stack markers.
+Integration is pending rebase to `origin/main`.
+
 ### PR425 — Verify crash recovery, concurrency and performance isolation
 
 Branch: `test/pr425-module-resilience-performance`
