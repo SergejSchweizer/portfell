@@ -3479,10 +3479,10 @@ Acceptance:
 - no old table fallback or dual-write is added;
 - focused PostgreSQL tests and `uv run portfell-quality pr` pass.
 
-Git status: implementation complete on branch `feat/pr409-module-postgres-ownership`;
-16 focused migration/ownership tests pass, including repeat-safe migration and
-immutable-trigger contract checks. Integration remains pending rebase to
-`origin/main`.
+Git status: integrated on `main` at `83afc8a`; 16 focused migration/ownership
+tests and the full suite (864 passed, 5 skipped) pass, including repeat-safe
+migration and immutable-trigger contract checks. The feature branch and any
+remote copy were removed after the fast-forward merge.
 
 ### PR410 — Implement the immutable shared-data artifact contract
 
