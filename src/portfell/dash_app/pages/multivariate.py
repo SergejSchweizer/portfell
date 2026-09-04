@@ -329,14 +329,10 @@ def _layout(
                 graph_id="multivariate-risk-contribution",
             ),
             *(_structure_cards(universe_structure, candidate_structure)),
-            TableCard(
+            ChartCard(
                 "Final Portfolio",
-                (
-                    [_final_portfolio(winner)]
-                    if winner
-                    else [UnavailableData("Final weights are unavailable.")]
-                ),
-                component_id="multivariate-final-portfolio",
+                _final_portfolio_figure(winner or display_candidate),
+                graph_id="multivariate-final-portfolio",
             ),
             _decision_card(decision, run),
         ]
@@ -681,6 +677,31 @@ def _allocation_figure(winner: Mapping[str, object] | None) -> go.Figure | None:
         )
     )
     return apply_portfell_template(figure, x_title="Listing", y_title="Weight")
+
+
+def _final_portfolio_figure(candidate: Mapping[str, object] | None) -> go.Figure | None:
+    """Render final weights from the winner, or a feasible display candidate."""
+    if candidate is None:
+        return None
+    weights = tuple(
+        row for row in _mappings(candidate.get("weights")) if _number(row.get("weight")) is not None
+    )
+    if not weights:
+        return None
+    figure = go.Figure(
+        go.Bar(
+            x=[str(row.get("isin", "")) for row in weights],
+            y=[_number(row.get("weight")) for row in weights],
+            marker_color="#2563eb",
+            customdata=[[row.get("isin"), row.get("exchange"), row.get("code")] for row in weights],
+            hovertemplate=(
+                "ISIN=%{customdata[0]}<br>Exchange=%{customdata[1]}<br>"
+                "Code=%{customdata[2]}<br>Portfolio weight=%{y:.2%}<extra></extra>"
+            ),
+            name=str(candidate.get("method", "Portfolio weights")),
+        )
+    )
+    return apply_portfell_template(figure, x_title="ISIN", y_title="Portfolio weight")
 
 
 def _risk_contribution_figure(

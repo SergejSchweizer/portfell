@@ -10,6 +10,7 @@ from portfell.dash_app.pages.multivariate import (
     _pca_spectrum_figure,
     _risk_clusters_figure,
     _structural_stability_figure,
+    _final_portfolio_figure,
     _structural_diversification_figure,
     _performance_figure,
     _risk_contribution_figure,
@@ -376,3 +377,13 @@ def test_risk_contribution_plot_falls_back_to_persisted_pca_components() -> None
     )
     assert figure is not None
     assert list(figure.data[0].y) == [0.8, 0.2]
+
+
+def test_final_portfolio_plot_renders_display_candidate_weights() -> None:
+    figure = _final_portfolio_figure({
+        "method": "hierarchical_risk_parity",
+        "weights": [{"isin": "DE1", "exchange": "XETRA", "code": "AAA", "weight": 0.75}],
+    })
+    assert figure is not None
+    assert list(figure.data[0].x) == ["DE1"]
+    assert figure.layout.yaxis.title.text == "Portfolio weight"
