@@ -7,6 +7,7 @@ from portfell.dash_app.pages.multivariate import (
     _cluster_risk_contribution_figure,
     _pca_risk_contribution_figure,
     _pca_spectrum_figure,
+    _structural_diversification_figure,
     _performance_figure,
     _risk_contribution_figure,
     build_page,
@@ -291,6 +292,21 @@ def test_structure_plots_render_persisted_multivariate_evidence() -> None:
     assert pca is not None and clusters is not None
     assert pca.layout.xaxis.title.text == "Principal component"
     assert clusters.layout.yaxis.title.text == "Gross risk share"
+
+    diversification = _structural_diversification_figure({
+        "covariance_effective_rank": 5.5,
+        "covariance_components_for_80pct": 4,
+        "covariance_components_for_90pct": 9,
+        "covariance_components_for_95pct": 19,
+        "correlation_effective_rank": 8.2,
+        "correlation_components_for_80pct": 6,
+        "correlation_components_for_90pct": 15,
+        "correlation_components_for_95pct": 25,
+        "covariance_dominant_component_share": 0.6,
+        "correlation_dominant_component_share": 0.5,
+    })
+    assert diversification is not None
+    assert diversification.layout.xaxis.title.text == "Diversification measure"
 
 
 def test_risk_contribution_plot_accepts_legacy_rows_without_candidate_id() -> None:

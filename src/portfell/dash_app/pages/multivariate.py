@@ -9,6 +9,7 @@ from collections.abc import Mapping, Sequence
 from typing import Protocol, cast
 
 import plotly.graph_objects as go  # pyright: ignore[reportMissingTypeStubs]
+from plotly.subplots import make_subplots  # pyright: ignore[reportMissingTypeStubs]
 from dash import html
 from dash.development.base_component import Component
 
@@ -354,7 +355,11 @@ def _structure_cards(
     candidate_rows = _mappings(candidate.get("candidate_structural_risk"))
     return (
         ChartCard("PCA Spectrum", _pca_spectrum_figure(universe.get("pca_spectrum")), graph_id="multivariate-pca-spectrum"),
-        TableCard("Structural Diversification", [html.Pre(str(diversification))]),
+        ChartCard(
+            "Structural Diversification",
+            _structural_diversification_figure(diversification),
+            graph_id="multivariate-structural-diversification",
+        ),
         TableCard("Risk Clusters", [html.Pre(str(clusters))]),
         TableCard("Structural Stability", [html.Pre(str(stability))]),
         TableCard("Candidate Structural Risk", [html.Pre(str(candidate_rows))]),
@@ -380,6 +385,60 @@ def _pca_spectrum_figure(value: object) -> go.Figure | None:
     figure = go.Figure(traces)
     figure.update_layout(barmode="group")
     return apply_portfell_template(figure, x_title="Principal component", y_title="Explained variance")
+
+
+def _structural_diversification_figure(value: object) -> go.Figure | None:
+    """Plot persisted diversification counts without mixing incompatible scales."""
+    document = _mapping(value)
+    labels = ("Effective rank", "Components for 80%", "Components for 90%", "Components for 95%")
+    fields = (
+        ("covariance", "Covariance", "#2563eb"),
+        ("correlation", "Correlation", "#14b8a6"),
+    )
+    figure = make_subplots(specs=[[{"secondary_y": True}]])
+    has_count = False
+    for prefix, label, colour in fields:
+        values: list[float | None] = []
+        for suffix in ("effective_rank", "components_for_80pct", "components_for_90pct", "components_for_95pct"):
+            number = _number(document.get(f"{prefix}_{suffix}"))
+            values.append(number)
+            has_count = has_count or number is not None
+        figure.add_trace(
+            go.Bar(
+                x=list(labels),
+                y=values,
+                name=label,
+                marker_color=colour,
+                customdata=[[label, metric] for metric in labels],
+                hovertemplate="%{customdata[0]} — %{customdata[1]}<br>%{y:.2f} components<extra></extra>",
+            ),
+            secondary_y=False,
+        )
+    shares = []
+    for prefix, label, colour in fields:
+        share = _number(document.get(f"{prefix}_dominant_component_share"))
+        if share is not None:
+            shares.append((label, share, colour))
+    if shares:
+        figure.add_trace(
+            go.Scatter(
+                x=[item[0] for item in shares],
+                y=[item[1] for item in shares],
+                mode="markers+text",
+                text=[f"{item[1]:.1%}" for item in shares],
+                textposition="top center",
+                name="Dominant component share",
+                marker={"color": [item[2] for item in shares], "size": 10},
+                hovertemplate="%{x}<br>Dominant component share=%{y:.2%}<extra></extra>",
+            ),
+            secondary_y=True,
+        )
+    if not has_count and not shares:
+        return None
+    figure.update_layout(barmode="group")
+    figure.update_yaxes(title_text="Components / effective rank", secondary_y=False)
+    figure.update_yaxes(title_text="Dominant component share", tickformat=".0%", range=[0, 1], secondary_y=True)
+    return apply_portfell_template(figure, x_title="Diversification measure")
 
 
 def _pca_risk_contribution_figure(value: object) -> go.Figure | None:
