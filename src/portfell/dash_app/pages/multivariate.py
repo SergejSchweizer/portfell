@@ -398,12 +398,23 @@ def _performance_figure(
     if winner is None:
         return None
     values = _mappings(winner.get("values"))
+    values = tuple(
+        row for row in values
+        if row.get("date") is not None
+        and _number(row.get("cumulative_extended_return", row.get("return"))) is not None
+    )
+    if not values:
+        return None
     figure = go.Figure(
         go.Scatter(
             x=[row.get("date") for row in values],
-            y=[row.get("return") for row in values],
+            y=[
+                _number(row.get("cumulative_extended_return", row.get("return")))
+                for row in values
+            ],
             mode="lines",
             name="Winning portfolio",
+            hovertemplate="Date=%{x}<br>Cumulative return=%{y:.2%}<extra></extra>",
         )
     )
     return apply_portfell_template(figure, x_title="Date", y_title="Cumulative return")
@@ -430,13 +441,18 @@ def _drawdown_figure(candidates: Sequence[Mapping[str, object]]) -> go.Figure | 
 def _allocation_figure(winner: Mapping[str, object] | None) -> go.Figure | None:
     if winner is None:
         return None
-    weights = _mappings(winner.get("weights"))
+    weights = tuple(
+        row for row in _mappings(winner.get("weights"))
+        if _number(row.get("weight")) is not None
+    )
     if not weights:
         return None
     figure = go.Figure(
         go.Bar(
             x=[f"{row.get('isin')} / {row.get('exchange')} / {row.get('code')}" for row in weights],
-            y=[row.get("weight") for row in weights],
+            y=[_number(row.get("weight")) for row in weights],
+            customdata=[[row.get("isin"), row.get("exchange"), row.get("code")] for row in weights],
+            hovertemplate="ISIN=%{customdata[0]}<br>Exchange=%{customdata[1]}<br>Code=%{customdata[2]}<br>Weight=%{y:.2%}<extra></extra>",
             name="Weight",
         )
     )
@@ -459,7 +475,8 @@ def _risk_contribution_figure(
             x=[
                 f"{row.get('isin')} / {row.get('exchange')} / {row.get('code')}" for row in selected
             ],
-            y=[row.get("percent_risk_contribution") for row in selected],
+            y=[_number(row.get("percent_risk_contribution")) for row in selected],
+            hovertemplate="ISIN=%{customdata[0]}<br>Risk contribution=%{y:.2%}<extra></extra>",
             name="Risk contribution",
         )
     )
@@ -524,6 +541,18 @@ def _cumulative_extended_return_figure(
     aligned_dates: list[str] = []
     if selected_isins:
         series = tuple(row for row in series if str(row.get("isin")) in selected_isins)
+    if not series and fallback_rows:
+        grouped: dict[str, list[dict[str, object]]] = {}
+        for row in fallback_rows:
+            isin = str(row.get("isin", ""))
+            if isin and row.get("date") is not None and _number(
+                row.get("cumulative_extended_return", row.get("cumulative_log_return", row.get("return")))
+            ) is not None:
+                grouped.setdefault(isin, []).append(row)
+        series = tuple(
+            {"isin": isin, "values": sorted(rows, key=lambda item: str(item.get("date", "")))}
+            for isin, rows in sorted(grouped.items())
+        )
     if series:
         # Bivariate statistics are computed on one aligned calendar.  Display
         # exactly that common interval instead of allowing an instrument with a
@@ -534,18 +563,26 @@ def _cumulative_extended_return_figure(
         ]
         aligned_input = bool(date_sets) and all(date_sets)
         common_dates = set.intersection(*date_sets) if aligned_input else set()
-        aligned_dates = sorted(common_dates)
+        # A common calendar is preferred, but a sparse/short dataset must not
+        # make every trace disappear. In that case retain each instrument's
+        # available dates and let Plotly render gaps independently.
+        use_common = bool(common_dates)
+        aligned_dates = sorted(common_dates) if use_common else []
         for row in sorted(series, key=lambda item: str(item.get("isin", ""))):
             values = tuple(
                 value
                 for value in _mappings(row.get("values"))
-                if aligned_input and str(value.get("date")) in common_dates
+                if value.get("date") is not None
+                and _number(value.get("cumulative_extended_return", value.get("return"))) is not None
+                and (not use_common or str(value.get("date")) in common_dates)
             )
+            if not values:
+                continue
             figure.add_trace(
                 go.Scatter(
                     x=[str(value.get("date", "")) for value in values],
                     y=[
-                        float(value.get("cumulative_extended_return", value.get("return", 0.0)))
+                        _number(value.get("cumulative_extended_return", value.get("return")))
                         for value in values
                     ],
                     mode="lines",
@@ -632,6 +669,14 @@ def _short(value: object) -> str:
 
 def _display(value: object) -> str:
     return "—" if value is None else str(value)
+
+
+def _number(value: object) -> float | None:
+    """Normalize finite numeric plot values and reject booleans/invalid data."""
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return None
+    result = float(value)
+    return result if result == result and abs(result) != float("inf") else None
 
 
 def _error_code(error: Exception) -> str:

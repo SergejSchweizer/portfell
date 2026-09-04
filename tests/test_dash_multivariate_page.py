@@ -4,6 +4,7 @@ import pytest
 
 from portfell.dash_app.pages.multivariate import (
     _cumulative_extended_return_figure,
+    _performance_figure,
     build_page,
     multivariate_page_data,
     optimize_portfolio,
@@ -218,3 +219,36 @@ def test_cumulative_return_plot_uses_common_bivariate_time_range() -> None:
     assert list(figure.data[1].x) == ["2023-01-02", "2023-01-03"]
     assert list(figure.data[0].y) == [0.02, 0.03]
     assert list(figure.layout.xaxis.range) == ["2023-01-02", "2023-01-03"]
+
+
+def test_cumulative_return_plot_uses_fallback_rows_and_keeps_sparse_series() -> None:
+    figure = _cumulative_extended_return_figure(
+        None,
+        (
+            {"isin": "DE1", "date": "2023-01-01", "cumulative_extended_return": 0.1},
+            {"isin": "DE1", "date": "2023-01-03", "cumulative_extended_return": 0.2},
+        ),
+        {"DE1"},
+    )
+    assert len(figure.data) == 1
+    assert list(figure.data[0].x) == ["2023-01-01", "2023-01-03"]
+    assert list(figure.data[0].y) == [0.1, 0.2]
+
+
+def test_performance_plot_prefers_extended_cumulative_return_and_filters_invalid_values() -> None:
+    figure = _performance_figure(
+        {
+            "portfolio_series": [
+                {
+                    "candidate_id": "c1",
+                    "values": [
+                        {"date": "2023-01-01", "cumulative_extended_return": 0.1},
+                        {"date": "2023-01-02", "cumulative_extended_return": None},
+                    ],
+                }
+            ]
+        },
+        "c1",
+    )
+    assert figure is not None
+    assert list(figure.data[0].y) == [0.1]
