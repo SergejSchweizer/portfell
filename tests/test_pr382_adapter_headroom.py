@@ -7,7 +7,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from portfell.app_services.research import ApplicationServiceError
+from portfell.app_services.workspace import ApplicationServiceError
 from portfell.app_state.contracts import ListingIdentity, UnivariateSelectionRecord
 from portfell.dash_app.callbacks import execute_action, persisted_browser_state
 from portfell.dash_app.state import BrowserState, StageReadiness

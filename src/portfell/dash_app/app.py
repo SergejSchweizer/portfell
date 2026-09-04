@@ -63,9 +63,4 @@ def mount_dash(
     return application
 
 
-# Keep an import-only compatibility alias for older embedding callers. New
-# runtime composition uses the explicit ``mount_dash`` entrypoint.
-_compat_mount_name = "mount_" + "dash_app"
-globals()[_compat_mount_name] = mount_dash
-
 __all__ = ["create_dash_app", "mount_dash"]

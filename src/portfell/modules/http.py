@@ -7,7 +7,7 @@ from typing import Any
 
 from fastapi import HTTPException
 
-from portfell.app_services.research import ApplicationServiceError
+from portfell.app_services.workspace import ApplicationServiceError
 
 
 def service_call[ReturnT](operation: Callable[..., ReturnT], *args: Any, **kwargs: Any) -> ReturnT:

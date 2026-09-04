@@ -5,7 +5,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from portfell.dash_app.app import create_dash_app, mount_dash_app
+from portfell.dash_app.app import create_dash_app, mount_dash
 from portfell.dash_app.components import (
     ChartCard,
     ControlBar,
@@ -100,7 +100,7 @@ def test_fastapi_mount_keeps_health_and_redirects_root() -> None:
         return {"status": "ok"}
 
     dash = create_dash_app()
-    mount_dash_app(api, dash_app=dash)
+    mount_dash(api, dash_app=dash)
     client = TestClient(api, follow_redirects=False)
 
     health_response = client.get("/health")

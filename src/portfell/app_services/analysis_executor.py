@@ -8,7 +8,7 @@ from datetime import UTC, datetime, timedelta
 from threading import Lock
 from typing import Protocol
 
-from portfell.app_services.research_compute import JsonRow
+from portfell.app_services.analysis_compute import JsonRow
 from portfell.app_state.contracts import AnalysisJobRecord
 from portfell.app_state.errors import AppStateError
 

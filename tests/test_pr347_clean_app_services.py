@@ -8,8 +8,8 @@ from typing import cast
 import pytest
 
 from portfell.app_services.analysis_executor import AnalysisJobExecutor
-from portfell.app_services.research import ApplicationServiceError, ResearchApplicationService
-from portfell.app_services.research_compute import (
+from portfell.app_services.workspace import ApplicationServiceError, WorkspaceApplicationService
+from portfell.app_services.analysis_compute import (
     ComputedRun,
     bivariate_source_id,
     filtered_univariate_selection,
@@ -297,7 +297,7 @@ class Gateway:
 
 def test_clean_service_persists_full_identity_metadata_and_univariate_run() -> None:
     state = MemoryState()
-    service = ResearchApplicationService(state, Gateway(), now=lambda: NOW)
+    service = WorkspaceApplicationService(state, Gateway(), now=lambda: NOW)
     universe = service.create_metadata_universe(exchange="XETRA", instrument_type="ETF")
     assert universe.members == (
         ListingIdentity("IE00A", "XETRA", "A"),
@@ -357,7 +357,7 @@ def test_workflow_exposes_only_small_persisted_analysis_job_status() -> None:
         NOW,
         None,
     )
-    service = ResearchApplicationService(state, Gateway(), now=lambda: NOW)
+    service = WorkspaceApplicationService(state, Gateway(), now=lambda: NOW)
     assert service.active_analysis_job() is None
     assert service.analysis_job_status("job-a")["progress_current"] == 3
     assert service.workflow_state()["active_job"] is None
@@ -366,7 +366,7 @@ def test_workflow_exposes_only_small_persisted_analysis_job_status() -> None:
 def test_clean_service_fails_closed_when_snapshot_no_longer_has_every_member_quote() -> None:
     state = MemoryState()
     gateway = Gateway()
-    service = ResearchApplicationService(state, gateway, now=lambda: NOW)
+    service = WorkspaceApplicationService(state, gateway, now=lambda: NOW)
     universe = service.create_metadata_universe()
     gateway.changed = True
     with pytest.raises(ApplicationServiceError, match="missing_adjusted_close"):
@@ -374,7 +374,7 @@ def test_clean_service_fails_closed_when_snapshot_no_longer_has_every_member_quo
 
 
 def test_clean_service_exposes_metadata_filters_and_typed_invalid_requests() -> None:
-    service = ResearchApplicationService(MemoryState(), Gateway(), now=lambda: NOW)
+    service = WorkspaceApplicationService(MemoryState(), Gateway(), now=lambda: NOW)
 
     assert service.metadata_options()["active_listing_count"] == 2
     assert len(service.active_listings(exchange="xetra", currency="eur")) == 2
@@ -441,7 +441,7 @@ class RecordingAnalysisExecutor:
 def test_metadata_kickoff_reuses_one_full_universe_job_and_publishes_v2_rows() -> None:
     state = MemoryState()
     executor = RecordingAnalysisExecutor()
-    service = ResearchApplicationService(
+    service = WorkspaceApplicationService(
         state,
         Gateway(),
         analysis_job_executor=cast(AnalysisJobExecutor, executor),

@@ -17,8 +17,8 @@ def test_quality_and_documentation_require_92_percent() -> None:
 def test_coverage_omits_only_named_transitional_files() -> None:
     config = Path("pyproject.toml").read_text()
     for path in (
-        "src/portfell/app_services/research.py",
-        "src/portfell/app_services/research_compute.py",
+        "src/portfell/app_services/workspace.py",
+        "src/portfell/app_services/analysis_compute.py",
         "src/portfell/univariate_refresh.py",
         "src/portfell/run_locks.py",
         "src/portfell/selection_filters.py",

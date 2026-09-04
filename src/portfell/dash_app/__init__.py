@@ -3,7 +3,4 @@
 from portfell.dash_app.app import create_dash_app, mount_dash
 from portfell.dash_app.contracts import PAGE_SPECS, PageSpec
 
-_compat_mount_name = "mount_" + "dash_app"
-globals()[_compat_mount_name] = mount_dash
-
 __all__ = ["PAGE_SPECS", "PageSpec", "create_dash_app", "mount_dash"]

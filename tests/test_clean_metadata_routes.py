@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from portfell.app_services.research import ApplicationServiceError
+from portfell.app_services.workspace import ApplicationServiceError
 from portfell.modules.metadata import metadata_router
 from portfell.table_io import JsonRow
 

@@ -7,11 +7,11 @@ from typing import Any, cast
 import pytest
 
 from portfell.app_services.analysis_executor import AnalysisJobExecutor
-from portfell.app_services.research import (
+from portfell.app_services.workspace import (
     ApplicationMarketGateway,
     ApplicationServiceError,
     AppStatePort,
-    ResearchApplicationService,
+    WorkspaceApplicationService,
 )
 from portfell.app_state.contracts import (
     AnalysisJobRecord,
@@ -242,7 +242,7 @@ def test_recovery_scans_only_queued_or_running_and_failure_is_redacted() -> None
 def test_start_calls_are_small_idempotent_job_submissions_without_market_reads() -> None:
     state = StartState()
     executor = RecordingExecutor(state)
-    service = ResearchApplicationService(
+    service = WorkspaceApplicationService(
         cast(AppStatePort, state),
         cast(ApplicationMarketGateway, object()),
         analysis_job_executor=cast(AnalysisJobExecutor, executor),
@@ -269,7 +269,7 @@ def test_start_calls_are_small_idempotent_job_submissions_without_market_reads()
 
 def test_worker_dispatches_only_the_requested_stage_and_rejects_unknown_stage() -> None:
     state = StartState()
-    service = ResearchApplicationService(
+    service = WorkspaceApplicationService(
         cast(AppStatePort, state),
         cast(ApplicationMarketGateway, object()),
         analysis_job_executor=cast(AnalysisJobExecutor, RecordingExecutor(state)),

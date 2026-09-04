@@ -33,7 +33,7 @@ def test_structure_assembler_contains_real_subspace_and_candidate_cluster_max() 
 
 
 def test_persisted_read_path_does_not_recompute_structure_v2() -> None:
-    service = _source("src/portfell/app_services/research.py")
+    service = _source("src/portfell/app_services/workspace.py")
     run_detail = service.split("    def run_detail(", 1)[1].split("    def stage_history(", 1)[0]
     for forbidden in (
         "build_structure_v2_documents",

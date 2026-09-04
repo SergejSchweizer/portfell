@@ -16,7 +16,7 @@ from portfell.app_services.multivariate_compute import (
     MultivariateComputation,
     compute_multivariate,
 )
-from portfell.app_services.research_compute import (
+from portfell.app_services.analysis_compute import (
     ComputedRun,
     ComputedSelection,
     bivariate_source_id,
@@ -1644,11 +1644,3 @@ def _public_error(error: Exception) -> ApplicationServiceError:
     if isinstance(error, ApplicationServiceError):
         return error
     return ApplicationServiceError(_failure_code(error))
-
-
-# Compatibility for downstream callers during the persisted-state cutover.
-# The runtime uses the explicit workspace name above; this dynamic alias keeps
-# older integrations importable without making the legacy symbol part of the
-# application-service package API.
-_compat_service_name = "Research" + "ApplicationService"
-globals()[_compat_service_name] = WorkspaceApplicationService

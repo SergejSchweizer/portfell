@@ -8,7 +8,7 @@ from dataclasses import asdict, dataclass
 from statistics import median
 from typing import Any, cast
 
-from portfell.app_services.research_compute import stable_hash
+from portfell.app_services.analysis_compute import stable_hash
 from portfell.income import (
     build_income_artifacts,
     build_income_evidence,

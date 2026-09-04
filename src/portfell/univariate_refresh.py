@@ -7,7 +7,7 @@ import json
 import os
 from pathlib import Path
 
-from portfell.app_services.research import WorkspaceApplicationService
+from portfell.app_services.workspace import WorkspaceApplicationService
 from portfell.app_state.migration import migrate_to_head
 from portfell.app_state.repository import PostgresAppStateRepository
 from portfell.hosted_database_connection import connect

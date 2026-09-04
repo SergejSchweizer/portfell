@@ -1,4 +1,4 @@
-from portfell.app_services.research_compute import ComputedRun, filtered_univariate_selection
+from portfell.app_services.analysis_compute import ComputedRun, filtered_univariate_selection
 
 
 def test_metric_filters_use_or_within_category_and_and_between_metrics() -> None:

@@ -10,7 +10,7 @@ from typing import Any, cast
 
 from fastapi import FastAPI
 
-from portfell.app_services.research import WorkspaceApplicationService
+from portfell.app_services.workspace import WorkspaceApplicationService
 from portfell.app_state.migration import AppStateMigrationError, migrate_to_head
 from portfell.app_state.repository import PostgresAppStateRepository
 from portfell.dash_app.app import mount_dash

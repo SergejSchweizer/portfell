@@ -10,8 +10,8 @@
 ## Purpose
 
 PR427 is the final removal of the transitional monolith. The audit scans
-production Python for the old cross-stage `ResearchApplicationService` and
-`mount_dash_app` composition markers.
+production Python for obsolete cross-stage service and Dash composition
+markers.
 
 ## Current result
 

@@ -1,6 +1,6 @@
 from typing import cast
 
-from portfell.app_services.research import AppStatePort, CoalescedProgress
+from portfell.app_services.workspace import AppStatePort, CoalescedProgress
 
 
 class State:

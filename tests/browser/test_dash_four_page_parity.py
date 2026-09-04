@@ -13,7 +13,7 @@ from fastapi import FastAPI
 from playwright.sync_api import Page, sync_playwright
 
 from browser.dash_fixture_service import DashParityFixtureService
-from portfell.dash_app.app import mount_dash_app
+from portfell.dash_app.app import mount_dash
 from portfell.dash_app.callbacks import execute_action
 from portfell.dash_app.state import BrowserState
 from portfell.dash_app.visual_contract import PAGE_ROUTES, VISUAL_VIEWPORTS
@@ -30,7 +30,7 @@ def test_dash_four_page_journey_and_visual_evidence(tmp_path: Path) -> None:
     def health() -> dict[str, str]:
         return {"status": "ok"}
 
-    mount_dash_app(api, services=service)
+    mount_dash(api, services=service)
     port = _free_port()
     server = uvicorn.Server(
         uvicorn.Config(api, host="127.0.0.1", port=port, log_level="warning", access_log=False)
@@ -178,7 +178,7 @@ def test_metadata_dropdown_selections_survive_page_reload() -> None:
     """All metadata filters must restore their persisted value after reload."""
     service = DashParityFixtureService()
     api = FastAPI()
-    mount_dash_app(api, services=service)
+    mount_dash(api, services=service)
     port = _free_port()
     server = uvicorn.Server(
         uvicorn.Config(api, host="127.0.0.1", port=port, log_level="warning", access_log=False)

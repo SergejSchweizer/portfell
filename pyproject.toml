@@ -66,8 +66,8 @@ markers = [
 relative_files = true
 source = ["src/portfell"]
 omit = [
-    "src/portfell/app_services/research.py",
-    "src/portfell/app_services/research_compute.py",
+    "src/portfell/app_services/workspace.py",
+    "src/portfell/app_services/analysis_compute.py",
     "src/portfell/univariate_refresh.py",
     "src/portfell/run_locks.py",
     "src/portfell/selection_filters.py",

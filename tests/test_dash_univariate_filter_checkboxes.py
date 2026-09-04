@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from portfell.app_services.research_compute import (
+from portfell.app_services.analysis_compute import (
     ComputedRun,
     filtered_univariate_selection,
     full_univariate_selection,
