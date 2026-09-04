@@ -6,7 +6,7 @@ Last reviewed: 2026-09-04
 
 `BACKLOG.md` is the only executable backlog authority for Portfell. Historical backlog text, old pull-request descriptions and archived planning branches are audit material only when they conflict with this file.
 
-This revision is reconciled against the exact current `main` commit `66d7b7e948bbc58a14688156c3118bc1c8a8eaec` (`show all portfolio performance series`). A GitHub compare against `main` showed that commit to be the current head at review time. The immediately preceding Portfolio Selection v2 planning revision is preserved at `96ca8745b90b847b5abd05e9c6411a78a47f6aa9`; the older draft is preserved at `c352d788dcb75fb01fc280615d2ef55b781783bb`. Neither superseded plan is executable after this revision.
+This revision is reconciled against the exact current `main` commit `66d7b7e948bbc58a14688156c3118bc1c8a8eaec` (`show all portfolio performance series`). The immediately preceding Portfolio Selection v2 planning revision is preserved at `c7faa1fabf138ae975da0dcb3f06280f15d77f37`; earlier revisions are preserved at `96ca8745b90b847b5abd05e9c6411a78a47f6aa9` and `c352d788dcb75fb01fc280615d2ef55b781783bb`. None of those superseded plans is executable after this revision.
 
 `GATES.md` remains the authority for repository quality and merge requirements. The current Python coverage floor must not be reduced as part of this series.
 
@@ -30,14 +30,50 @@ Current Multivariate baseline at the review SHA:
 - walk-forward policy is minimum training 100 observations, test window 21 observations, maximum 8 refits, minimum 2 completed splits, transaction-cost rate 0.0005;
 - refits are process-parallel, worker-batched and exchange the large immutable return history through a temporary local file;
 - Multivariate has durable resumable checkpoints keyed by dataset digest and execution version;
-- a checkpoint with a different execution version is ignored before unpickling its semantic payload;
+- a checkpoint with a different execution version is ignored before incompatible checkpoint objects are reused;
 - Multivariate persists candidate, validation, risk-contribution, performance, structural and decision artifacts;
 - the current performance artifact persists instrument cumulative series, candidate portfolio cumulative series and monthly/annual period returns;
-- the live Multivariate page renders OOS candidate evidence, all persisted portfolio performance series, allocation, drawdown, risk contribution, structural diagnostics and final-portfolio views.
+- the live Multivariate page renders OOS candidate evidence, all persisted portfolio performance series, allocation, drawdown, risk contribution, structural diagnostics and final-portfolio views;
+- the backend accepts `return_risk`, `return_drawdown` and `minimum_risk`, but the current Dash action hard-codes `return_risk` when a portfolio run is submitted.
 
 The active Portfolio Selection v2 work must preserve the single-container architecture, bounded eight-refit production model, process-parallel/tmpfs execution strategy, immutable app-state publication model and persisted-rendering model unless a PR below explicitly changes one of those contracts.
 
-## 2. Current correctness and migration findings
+## 2. Frozen end-to-end portfolio-selection workflow
+
+Portfolio Selection v2 is not a manual optimizer picker. It is a deterministic pipeline from one frozen investable universe to either one auditable production-eligible portfolio or an explicit no-portfolio result.
+
+The production workflow is exactly:
+
+```text
+Metadata universe
+  -> Univariate eligibility selection
+  -> successful Bivariate run for that exact selection
+  -> choose portfolio objective
+  -> construct the frozen allocator × risk-model configuration family
+  -> common walk-forward OOS validation
+  -> eligibility / warning / stress evaluation
+  -> objective ranking + deterministic tie-breaks
+  -> winning configuration
+  -> full-current-sample refit of that exact configuration
+  -> final production portfolio diagnostics
+```
+
+The following workflow rules are frozen across PR437–PR459:
+
+1. **Upstream identity is immutable.** Multivariate consumes one persisted Univariate selection and one successful Bivariate run whose `input_ref` matches that exact selection. If the selection changes, downstream Bivariate/Multivariate evidence is stale and cannot be reused as if it belonged to the new selection.
+2. **Bivariate is a diagnostic prerequisite, not a hidden optimizer.** This series does not silently remove assets inside Multivariate based on correlation/tail diagnostics. Any asset exclusion requires a new Univariate selection and therefore a new downstream run.
+3. **The user chooses an objective, not an allocator.** Production exposes exactly `return_risk`, `return_drawdown`, and `minimum_risk`; default is `return_risk`. There is no production UI control that manually chooses Minimum Variance, ERC, HRP, a covariance specification, or a winner.
+4. **Objective is run identity.** The exact requested objective must reach the job request, logical run identity and Decision artifact. A selected objective may never be silently replaced by `return_risk`.
+5. **Configurations compete on common OOS evidence.** All rankable configurations use identical chronological test windows and the same information boundary. Full-history performance never enters winner selection.
+6. **Eligibility precedes ranking.** Unavailable risk models, failed fits, missing required comparison splits and blocking stress evidence cannot be hidden by a good primary score. Warnings remain visible but are not blockers unless explicitly classified as blocking.
+7. **Ranking is deterministic.** The primary objective always dominates. Tie-breaks are median turnover ascending, median HHI ascending, then configuration ID ascending. No weighted composite is introduced.
+8. **OOS chooses the model; current full history supplies current weights.** After the winning configuration is selected from OOS evidence, that exact configuration is fitted on the complete current input. Full-sample curves and structure are descriptive evidence only.
+9. **Selection evidence and descriptive diagnostics are distinct artifact/UI roles.** OOS scorecards, common-split validation, eligibility and Decision are `selection` evidence. Full-history performance, current allocation, risk contributions, PCA/clusters/structure and matrix stress diagnostics are `descriptive` evidence unless a work order explicitly says otherwise.
+10. **No winner means no final portfolio.** A feasible visual fallback may be shown only as `Candidate Preview — not selected`. The UI may label a portfolio `Final Portfolio` only when the persisted Decision is available and production-eligible. An unavailable or ineligible Decision must render an explicit no-production-portfolio state.
+11. **No discretionary override in this series.** If the user dislikes the winner, the remedy is to change an upstream selection/policy/objective and rerun the complete pipeline. The production UI does not provide a `pick runner-up` or `force this optimizer` control.
+12. **Saving/exporting comes after selection correctness.** `portfolio.snapshot`, PDF and `.portfell` workflows remain deferred until PR459 proves the selection engine itself.
+
+## 3. Current correctness and migration findings
 
 The following findings are verified against the current code and are inputs to the work orders, not optional preferences:
 
@@ -46,7 +82,7 @@ The following findings are verified against the current code and are inputs to t
 3. `PortfolioCandidate.candidate_id` is fit-specific because its identity includes the fitted risk model and fitted weights. It cannot be the semantic cross-split configuration identity.
 4. `PortfolioCandidate` does not persist the fitted `risk_model_id`, so downstream code cannot reconcile a candidate directly to the covariance model that produced it.
 5. `ValidationSplit.risk_model_id` is populated from the full-sample model passed into `validate_candidates`, not necessarily from the model used to fit that split's candidate.
-6. Current validation assumes method name is identity: `by_method`, metric maps and turnover history are keyed by `method`. That becomes incorrect as soon as Minimum Variance, ERC, HRP or Inverse Volatility exist under more than one risk-model specification.
+6. Current validation assumes method name is identity: candidate lookup, metric lookup and turnover history are keyed by `method`. That becomes incorrect as soon as one allocator exists under more than one risk-model specification.
 7. Current stress-return assembly is also keyed by `method`, so multiple configurations sharing a method would overwrite one another.
 8. Scorecards aggregate by fit-specific `candidate_id`; repeated refits of one semantic allocator configuration therefore cannot reliably form one multi-split scorecard.
 9. Stress `available_with_warning` reasons are merged with blocking reasons. `distribution_cut` deliberately emits `cash_flow_evidence_only`, which can make an otherwise feasible candidate production-ineligible.
@@ -60,11 +96,13 @@ The following findings are verified against the current code and are inputs to t
 17. Current performance and risk-contribution rows distinguish candidates by `candidate_id` and `method` only. Once one method exists under several risk specs, all persisted/read-model joins must become configuration/spec aware.
 18. The live Multivariate page has recently become substantially richer and now shows all portfolio performance series. Winner highlighting or legend grouping by method name will be ambiguous after risk-model diversification.
 19. Checkpoint payloads contain Python dataclass objects from intermediate Multivariate phases. Every semantic change to checkpointed objects must synchronize `MULTIVARIATE_EXECUTION_VERSION`, and the expensive future risk-model-family comparison needs its own explicit checkpoint boundary.
-20. Once risk-model-family selection is production, Portfell must not run two independent walk-forward ranking authorities in steady state. The comparison family must become the canonical OOS selection evidence; the preceding six-method path may survive only as deliberately labelled migration/shadow evidence in the PR that switches authority.
+20. Once risk-model-family selection is production, Portfell must not run two independent walk-forward ranking authorities in steady state. The comparison family must become the canonical OOS selection evidence.
+21. The current Dash callback accepts an `objective` argument at its boundary but submits Multivariate with hard-coded `objective="return_risk"`; the user therefore cannot execute the three backend objectives through the normal production UI.
+22. The current page uses a feasible candidate as a display fallback when no winner exists and passes `winner or display_candidate` into the `Final Portfolio` chart. That is acceptable for diagnostics only if the fallback is never labelled or perceived as a selected final portfolio.
 
-## 3. Global weak-agent execution contract
+## 4. Global weak-agent execution contract
 
-Only PR437–PR459 below are executable. PR308–PR436 are integrated/retired historical work and must not be reopened as dependencies. The superseded PR437–PR458 planning text at `96ca8745b90b847b5abd05e9c6411a78a47f6aa9` is audit material only.
+Only PR437–PR459 below are executable. PR308–PR436 are integrated/retired historical work and must not be reopened as dependencies.
 
 For every active PR:
 
@@ -74,7 +112,7 @@ For every active PR:
 - change only owned paths plus directly failing focused tests and explicitly named version/persistence synchronization points;
 - do not add a new expected-return model, Maximum Sharpe optimizer, Optuna search, Black-Litterman, HERC/NCO, transaction-cost model or structural ranking rule unless explicitly authorized below;
 - preserve listing identity `(isin, exchange, code)` everywhere;
-- preserve the current adjusted-close/return authority and market-source lineage;
+- preserve current adjusted-close/return authority and market-source lineage;
 - never use `method` as a unique configuration key after PR453;
 - no Equal Weight fallback may hide an unavailable optimizer, unavailable risk-model fit or unavailable comparison configuration;
 - every persisted semantic change must have deterministic IDs and explicit contract/execution-version synchronization;
@@ -82,8 +120,9 @@ For every active PR:
 - process-parallel work must remain deterministic across worker counts; worker scheduling order may never enter artifact identity or financial output;
 - no nested process pools are allowed in the risk-model-family comparison; each outer refit worker fits each required risk specification at most once and reuses it across methods;
 - OOS selection evidence and full-history descriptive performance must remain explicitly separated; full-sample curves must never enter winner selection;
+- production UI may choose the objective but may not manually choose allocator, risk-model specification or winner;
 - implementation PRs run focused tests plus `uv run portfell-quality pr`;
-- QA PR459 also runs `uv run portfell-quality merge`, browser/REST acceptance and the repository `merge-gate` on the exact head;
+- QA PR459 also runs `uv run portfell-quality merge`, browser/REST acceptance and repository `merge-gate` on the exact head;
 - do not bypass a failed, skipped, cancelled or zero-step gate.
 
 Dependency graph:
@@ -114,7 +153,7 @@ PR437
   -> PR459(QA/PASS)
 ```
 
-## 4. Portfolio Selection v2 — active PR437–PR459
+## 5. Portfolio Selection v2 — active PR437–PR459
 
 ### PR437 — Re-freeze Portfolio Selection v2 against the current runtime
 
@@ -126,15 +165,15 @@ Priority: P0 contract.
 
 Owned paths: `BACKLOG.md` only.
 
-Task: keep this file as the compact execution authority based on current `main`, preserve superseded plans by exact SHA, enumerate the current-code findings above and freeze PR438–PR459 without production code changes.
+Task: keep this file as compact execution authority based on current `main`, preserve superseded plans by exact SHA, freeze the end-to-end portfolio-selection workflow above and enumerate PR438–PR459 without production code changes.
 
 Acceptance:
 
 - baseline SHA is `66d7b7e948bbc58a14688156c3118bc1c8a8eaec`;
-- actual planning branch name matches this work order;
 - only PR437–PR459 are executable;
 - eight-refit baseline, worker batching, checkpoints, persisted performance artifacts and current Dash behavior are acknowledged;
-- the newly inserted configuration-key migration PR and the exact 14-configuration family are frozen;
+- the exact 14-configuration family and configuration-key migration are frozen;
+- objective selection, evidence-role separation and no-winner semantics are explicit workflow contracts;
 - no production source/test behavior changes.
 
 ### PR438 — Remove `highest_monthly_return` completely
@@ -152,9 +191,9 @@ Owned paths: `src/portfell/multivariate_candidates.py`, directly failing candida
 Task:
 
 - freeze default production methods to exactly `equal_weight`, `inverse_volatility`, `minimum_variance`, `equal_risk_contribution`, `hierarchical_risk_parity`, `minimum_cvar`;
-- delete the dispatcher branch and helpers for `highest_monthly_return`;
+- delete the dispatcher branch/helpers for `highest_monthly_return`;
 - remove dedicated tests/fixtures and all production/test references;
-- do not alter the mathematics of the remaining six methods.
+- do not alter mathematics of the remaining six methods.
 
 Acceptance:
 
@@ -173,19 +212,19 @@ Priority: P0 correctness.
 
 Depends on: PR438.
 
-Owned paths: `src/portfell/multivariate_refits.py`, `src/portfell/multivariate_validation.py` only where the ordering contract is consumed, focused refit/order tests, execution-version synchronization.
+Owned paths: `src/portfell/multivariate_refits.py`, `src/portfell/multivariate_validation.py` only where ordering is consumed, focused refit/order tests, execution-version synchronization.
 
 Task:
 
-- keep the current process worker-batching and temporary-file history sharing;
+- keep current process worker-batching and temporary-file history sharing;
 - make each worker result carry its original walk-forward start index;
 - reassemble all worker results strictly by canonical `_walk_forward_starts(...)` order before validation or structural walk-forward consumes them;
-- preserve the current maximum of eight refits and current start-selection algorithm.
+- preserve maximum eight refits and current start-selection algorithm.
 
 Acceptance:
 
-- deterministic fixture with at least four starts and at least two worker batches proves chronological, not batch-major, output;
-- every precomputed refit is paired with the intended `train_end` and `test_start`;
+- fixture with at least four starts and at least two worker batches proves chronological, not batch-major, output;
+- every precomputed refit is paired with intended `train_end` and `test_start`;
 - single-worker and multi-worker outputs are identical in order and fitted weights;
 - validation contract `v5 -> v6`;
 - execution version `clean.v2 -> clean.v3`.
@@ -207,22 +246,18 @@ Task:
 - introduce `multivariate.candidate_configuration@v1`;
 - add `candidate_configuration_id` and fitted `risk_model_id` to `PortfolioCandidate`;
 - retain `candidate_id` as fit-specific identity;
-- for this PR configuration identity is method + portfolio policy + frozen current `LW_FULL` design specification; it excludes fitted covariance, fitted weights, fit dates, fit `candidate_id` and fitted `risk_model_id`;
-- replace ambiguous validation lineage with explicit `candidate_configuration_id`, `fitted_candidate_id`, `full_sample_candidate_id`, `fitted_risk_model_id` and requested method;
-- add `candidate_configuration_id` to `ValidationScenario` as well as `ValidationSplit`;
-- group split/scenario aggregation and scorecards by configuration ID, not fitted candidate ID;
-- keep fit-specific IDs available for audit;
-- add configuration ID to structural walk-forward evidence and reconcile it to the exact fitted candidate;
-- bump structural walk-forward contract because its persisted lineage changes;
-- map a winning configuration back to the exact current full-sample fitted candidate.
+- initial configuration identity is method + portfolio policy + frozen `LW_FULL` design specification; exclude fitted covariance, weights, dates, candidate ID and fitted risk-model ID;
+- replace ambiguous validation lineage with explicit configuration ID, fitted candidate ID, full-sample candidate ID, fitted risk-model ID and requested method;
+- add configuration ID to `ValidationScenario` and structural walk-forward evidence;
+- aggregate scorecards by configuration ID;
+- map a winning configuration back to exact current full-sample candidate.
 
 Acceptance:
 
 - at least three refits of one method have different fit candidate/risk IDs but one configuration ID;
 - one scorecard aggregates all completed splits for that configuration;
-- `ValidationSplit.fitted_risk_model_id` equals the model embedded in the refitted candidate;
-- scenario rows join to the same configuration without method-name guessing;
-- structural walk-forward joins to the intended refit after multi-worker ordering;
+- fitted validation risk-model ID equals the model used by that refit;
+- scenario and structural rows reconcile without method-name guessing;
 - candidates `v8 -> v9`, validation `v6 -> v7`, structural walk-forward `v1 -> v2`, execution `clean.v3 -> clean.v4`.
 
 ### PR441 — Enrich the canonical OOS scorecard
@@ -235,7 +270,7 @@ Priority: P0 evidence.
 
 Depends on: PR440.
 
-Owned paths: `src/portfell/multivariate_validation.py`, focused scorecard tests, compute execution-version synchronization.
+Owned paths: `src/portfell/multivariate_validation.py`, focused scorecard tests, execution-version synchronization.
 
 Add exact `CandidateScorecard` fields:
 
@@ -246,13 +281,7 @@ Add exact `CandidateScorecard` fields:
 - `median_turnover`;
 - `median_herfindahl_index`.
 
-Rules:
-
-- use completed splits only;
-- unavailable values remain `None` and are omitted from their metric's median input; never substitute zero;
-- drawdown is converted to absolute magnitude before aggregation;
-- scorecard identity is `candidate_configuration_id`;
-- no winner/objective logic changes in this PR.
+Rules: use completed splits only; unavailable values remain `None`; drawdown is absolute before aggregation; scorecard identity is configuration ID; no winner logic changes.
 
 Acceptance: independent fixtures verify every field and configuration aggregation; validation `v7 -> v8`; execution `clean.v4 -> clean.v5`.
 
@@ -270,12 +299,12 @@ Owned paths: `src/portfell/multivariate_validation.py`, `src/portfell/app_servic
 
 Task:
 
-- persist `available_with_warning` scenario reasons separately from blocking unavailability;
-- `cash_flow_evidence_only` remains visible as a warning and cannot by itself block production eligibility;
+- persist `available_with_warning` reasons separately from blocking unavailability;
+- `cash_flow_evidence_only` remains visible and cannot by itself block production eligibility;
 - only unavailable split/scenario evidence creates blocking reasons;
-- Decision document persists `warnings` and `blocking_reasons` separately.
+- Decision persists `warnings` and `blocking_reasons` separately.
 
-Acceptance: a feasible configuration whose only stress issue is the distribution-cut warning can be production-eligible when all other requirements pass; validation `v8 -> v9`; execution `clean.v5 -> clean.v6`.
+Acceptance: a configuration whose only stress issue is the distribution-cut warning can still be production-eligible; validation `v8 -> v9`; execution `clean.v5 -> clean.v6`.
 
 ### PR443 — Add same-split return/drawdown evidence
 
@@ -289,14 +318,9 @@ Depends on: PR442.
 
 Owned paths: `src/portfell/multivariate_validation.py`, focused numerical tests, execution-version synchronization.
 
-Task: for each completed split compute `post_cost_return / abs(max_drawdown)` only when max drawdown is available and non-zero; aggregate those split-level ratios into `CandidateScorecard.median_return_drawdown_ratio`.
+Task: for each completed split compute `post_cost_return / abs(max_drawdown)` only when drawdown is available and non-zero; aggregate split ratios into `median_return_drawdown_ratio`.
 
-Acceptance:
-
-- ratio is formed within each split before median aggregation;
-- zero or unavailable drawdown produces unavailable ratio, never epsilon or infinity;
-- no objective switch occurs in this PR;
-- validation `v9 -> v10`; execution `clean.v6 -> clean.v7`.
+Acceptance: ratio is formed within split before median; zero/unavailable drawdown is unavailable, never epsilon/infinity; validation `v9 -> v10`; execution `clean.v6 -> clean.v7`.
 
 ### PR444 — Make `return_risk` use median OOS Sharpe
 
@@ -315,10 +339,10 @@ Task:
 - `return_risk` primary score is exactly `median_sharpe_ratio`;
 - remove compounded-return/daily-volatility ratio from ranking;
 - unavailable Sharpe is unrankable;
-- preserve current cost semantics for this series: Sharpe comes from the OOS daily path, while one-off turnover cost remains represented in post-cost return and turnover;
+- preserve current cost semantics: Sharpe comes from OOS daily path; one-off turnover cost remains represented in post-cost return and turnover;
 - Decision persists `objective_metric = median_sharpe_ratio`.
 
-Acceptance: a lower-return/higher-Sharpe configuration beats a higher-return/lower-Sharpe configuration; execution `clean.v7 -> clean.v8`.
+Acceptance: lower-return/higher-Sharpe configuration beats higher-return/lower-Sharpe configuration; execution `clean.v7 -> clean.v8`.
 
 ### PR445 — Make `return_drawdown` use median same-split ratio
 
@@ -357,7 +381,7 @@ Frozen ordering:
 
 Missing secondary metrics rank worse than available values. Primary score always dominates; no weighted composite is allowed.
 
-Acceptance: each tie-break level has an independent fixture; execution `clean.v9 -> clean.v10`.
+Acceptance: each tie-break level has independent fixture; execution `clean.v9 -> clean.v10`.
 
 ### PR447 — Remove the legacy standalone scorecard authority
 
@@ -369,11 +393,11 @@ Priority: P1 simplification.
 
 Depends on: PR446.
 
-Expected deletion: `src/portfell/scorecard.py` and `tests/test_scorecard.py` if that test file remains dedicated to the module.
+Expected deletion: `src/portfell/scorecard.py` and `tests/test_scorecard.py` if dedicated.
 
-Task: run local `git grep` first. If a live production import exists, stop and amend the work order rather than silently widening this PR. Preserve `evaluation.py`; migrate only unique high-value tests to canonical Multivariate validation.
+Task: run `git grep` first. If a live production import exists, stop and amend the work order rather than widening the PR. Preserve `evaluation.py`; migrate only unique high-value tests to canonical Multivariate validation.
 
-Acceptance: no production import/reference to retired scorecard; no compatibility wrapper; no financial behavior change beyond removal of duplicate dead authority.
+Acceptance: no production import/reference to retired scorecard; no compatibility wrapper; no financial behavior change beyond removing duplicate authority.
 
 ### PR448 — Remove false covariance/correlation return-path stress labels
 
@@ -387,11 +411,11 @@ Depends on: PR447.
 
 Owned paths: `src/portfell/multivariate_validation.py`, stress tests, execution-version synchronization.
 
-Task: return-path stress scenarios become exactly `historical`, `seeded_block_bootstrap`, `distribution_cut`. Delete the current transformations that scale/deform already aggregated portfolio returns; do not rename those transformations.
+Task: return-path scenarios become exactly `historical`, `seeded_block_bootstrap`, `distribution_cut`. Delete current transformations that scale/deform already aggregated portfolio returns; do not rename them.
 
-Acceptance: persisted return-scenario rows contain exactly the three allowed names; validation `v10 -> v11`; execution `clean.v10 -> clean.v11`.
+Acceptance: persisted return scenarios contain exactly those names; validation `v10 -> v11`; execution `clean.v10 -> clean.v11`.
 
-### PR449 — Add a true 25% volatility-up asset-level risk stress
+### PR449 — Add true 25% volatility-up asset-level risk stress
 
 Branch: `feat/pr449-volatility-scale-risk-stress`
 
@@ -403,22 +427,19 @@ Depends on: PR448.
 
 Owned paths: new `src/portfell/multivariate_risk_stress.py`, compute persistence only, numerical/serialization tests.
 
-Contract: `multivariate.risk_stress@v1`.
-
-Scenario: `volatility_up_25pct`.
+Contract: `multivariate.risk_stress@v1`. Scenario: `volatility_up_25pct`.
 
 Rules:
 
 - input is canonical full-sample `LW_FULL` covariance plus candidate weights;
-- every asset standard deviation is multiplied by 1.25;
-- covariance entries therefore scale consistently while correlations remain unchanged;
-- output contains stressed variance, volatility, status, reason, configuration/candidate identity and source risk-model identity only;
+- every asset standard deviation is multiplied by 1.25; correlations remain unchanged;
+- output contains stressed variance, volatility, status, reason, configuration/candidate and source risk-model identity only;
 - do not fabricate returns, drawdown, VaR or CVaR;
-- diagnostic only; no ranking effect.
+- descriptive diagnostic only; no ranking effect.
 
 Acceptance: independent two-asset matrix oracle and serialization fixture pass; execution `clean.v11 -> clean.v12`.
 
-### PR450 — Add a true 25% correlation-convergence asset-level risk stress
+### PR450 — Add true 25% correlation-convergence asset-level risk stress
 
 Branch: `feat/pr450-correlation-convergence-risk-stress`
 
@@ -428,20 +449,19 @@ Priority: P1 risk diagnostics.
 
 Depends on: PR449.
 
-Owned paths: `src/portfell/multivariate_risk_stress.py`, focused numerical tests, compute persistence/version synchronization.
+Owned paths: `src/portfell/multivariate_risk_stress.py`, focused numerical tests, persistence/version synchronization.
 
 Scenario: `correlation_convergence_25pct`.
 
 Rules:
 
-- each off-diagonal stressed correlation equals `0.75 * base_correlation + 0.25`;
+- off-diagonal stressed correlation = `0.75 * base_correlation + 0.25`;
 - diagonal remains exactly 1;
-- preserve original asset standard deviations and reconstruct covariance;
-- validate symmetry, finite values, correlation bounds and positive-semidefinite status; do not silently apply a large matrix repair;
-- persist convergence strength 0.25;
-- diagnostic only; no ranking effect.
+- preserve original standard deviations and reconstruct covariance;
+- validate symmetry, finite values, correlation bounds and PSD; no silent large repair;
+- descriptive diagnostic only; no ranking effect.
 
-Acceptance: independent two-asset oracle passes; risk-stress algorithm/contract version is incremented; execution `clean.v12 -> clean.v13`.
+Acceptance: independent two-asset oracle passes; risk-stress version increments; execution `clean.v12 -> clean.v13`.
 
 ### PR451 — Introduce immutable RiskModelSpecification and exact fit-calendar lineage
 
@@ -449,29 +469,28 @@ Branch: `feat/pr451-risk-model-specification`
 
 Commit scope: `feat(pr451-risk-model-specification)`
 
-Priority: P0 foundation for estimator comparison.
+Priority: P0 foundation.
 
 Depends on: PR450.
 
-Owned paths: new `src/portfell/multivariate_risk_spec.py`, `src/portfell/multivariate_risk_model.py`, `src/portfell/risk_model.py` only where exact fitted-window diagnostics are required, focused specification/adapter tests, compute version synchronization.
+Owned paths: new `src/portfell/multivariate_risk_spec.py`, `src/portfell/multivariate_risk_model.py`, `src/portfell/risk_model.py` only where exact fitted-window diagnostics are needed, focused tests, compute version synchronization.
 
-Freeze exactly three specifications:
+Freeze exactly:
 
-- `LW_FULL`: estimator `ledoit_wolf`, window `full`, return type `log`;
-- `LW_ROLLING_252`: estimator `ledoit_wolf`, window `rolling`, exact window size 252, return type `log`;
-- `EWMA_094`: estimator `ewma`, window `full`, decay 0.94, return type `log`.
+- `LW_FULL`: Ledoit-Wolf, full, log;
+- `LW_ROLLING_252`: Ledoit-Wolf, rolling exact 252, log;
+- `EWMA_094`: EWMA, full, decay 0.94, log.
 
 Rules:
 
-- each specification has readable `spec_key` plus deterministic `spec_id`;
-- rolling requires a positive exact window and the adapter passes `window_size` into `estimate_risk_model`;
-- `LW_ROLLING_252` is unavailable with fewer than 252 common training observations; it is never silently shortened;
-- full-window specs reject an irrelevant rolling window size;
-- risk-model fit persists deterministic `fit_calendar_id` derived from the exact ordered dates actually consumed by that fit, while retaining source snapshot/calendar lineage separately;
-- default `LW_FULL` reproduces predecessor covariance numerically on identical input;
-- risk-model artifact persists spec key/id, exact estimator parameters, fit calendar, date range and observation count.
+- readable `spec_key` plus deterministic `spec_id`;
+- rolling adapter passes explicit `window_size`;
+- rolling-252 is unavailable with fewer than 252 common training observations and is never shortened;
+- full-window specs reject irrelevant rolling size;
+- risk-model fit persists deterministic `fit_calendar_id` from exact ordered consumed dates, alongside source snapshot/calendar lineage;
+- default `LW_FULL` reproduces predecessor covariance on identical input.
 
-Acceptance: risk-model contract `v1 -> v2`; execution `clean.v13 -> clean.v14`; independent tests prove exact 252 observations and stable fit-calendar identity.
+Acceptance: risk-model contract `v1 -> v2`; execution `clean.v13 -> clean.v14`; tests prove exact 252 observations and stable fit-calendar identity.
 
 ### PR452 — Make candidate/refit identity risk-spec aware
 
@@ -483,17 +502,17 @@ Priority: P0 lineage.
 
 Depends on: PR451.
 
-Owned paths: `src/portfell/multivariate_candidates.py`, `src/portfell/multivariate_refits.py`, validation lineage only where required, focused identity tests, compute version synchronization.
+Owned paths: candidates, refits, validation lineage where required, focused identity tests, execution version.
 
 Task:
 
-- candidate-configuration contract `v1 -> v2` and include `risk_model_spec_id`;
-- `CandidateRefitTask` carries an explicit `RiskModelSpecification`; comparison/refit code may not depend on an implicit default specification;
-- exclude fitted covariance, fitted risk-model ID, fit dates and fitted weights from configuration identity;
-- same method/policy under different risk specs has different configuration IDs even when weights happen to match;
+- candidate-configuration contract `v1 -> v2` includes `risk_model_spec_id`;
+- `CandidateRefitTask` carries explicit `RiskModelSpecification`;
+- exclude fitted covariance/risk ID/dates/weights from configuration identity;
+- same method/policy under different specs has different configuration IDs;
 - same configuration across refits remains stable;
-- ValidationSplit persists design spec key/id plus fitted risk-model ID and fit-calendar ID;
-- with only `LW_FULL` enabled, predecessor six-method weights and winner semantics remain unchanged apart from IDs.
+- ValidationSplit persists spec key/id, fitted risk-model ID and fit-calendar ID;
+- with only `LW_FULL`, predecessor six-method weights and selection semantics remain unchanged apart from IDs.
 
 Acceptance: candidates `v9 -> v10`, validation `v11 -> v12`, execution `clean.v14 -> clean.v15`.
 
@@ -507,22 +526,21 @@ Priority: P0 prerequisite/correctness.
 
 Depends on: PR452.
 
-Owned paths: `src/portfell/multivariate_validation.py`, `src/portfell/multivariate_refits.py` only where collection shape must change, stress-return helpers, directly affected structural/read-model adapters, focused collision tests, execution-version synchronization.
+Owned paths: validation, refit collection shape only where required, stress-return helpers, affected structural/read-model adapters, focused collision tests, execution version.
 
 Task:
 
-- replace every collection whose uniqueness currently depends on `method` with `candidate_configuration_id` where semantic configurations are being tracked;
-- this explicitly includes validation candidate lookup, metric result lookup, previous-weight/turnover state and portfolio return/stress lookup;
-- method remains a display/strategy attribute, never a unique key;
-- detect duplicate configuration IDs and fail deterministically rather than overwriting one row;
-- preserve current one-config-per-method behavior numerically when only `LW_FULL` is passed.
+- replace every collection whose uniqueness depends on `method` with configuration ID where semantic configurations are tracked;
+- explicitly include validation lookup, metric results, previous-weight/turnover state and stress-return lookup;
+- method remains display/strategy attribute only;
+- duplicate configuration IDs fail deterministically rather than overwrite;
+- preserve single-spec numerical behavior.
 
 Acceptance:
 
-- three Minimum Variance configurations with one shared method name survive validation as three distinct rows per split;
-- the three configs have independent turnover histories and stress evidence;
-- no dict overwrite can remove a configuration;
-- single-spec predecessor fixtures remain numerically identical;
+- three Minimum Variance configurations survive as three rows per split;
+- configs have independent turnover and stress evidence;
+- no dict overwrite removes a configuration;
 - validation `v12 -> v13`; execution `clean.v15 -> clean.v16`.
 
 ### PR454 — Produce common-split 14-configuration risk-model-family OOS evidence
@@ -535,57 +553,51 @@ Priority: P0 empirical comparison.
 
 Depends on: PR453.
 
-Owned paths: a new narrow risk-model-family/comparison coordinator, narrow refit reuse, canonical validation integration, `src/portfell/app_services/multivariate_compute.py` phase/checkpoint persistence, workspace progress synchronization, focused comparison/checkpoint tests.
+Owned paths: new narrow comparison coordinator, narrow refit reuse, canonical validation integration, compute phase/checkpoint persistence, workspace progress synchronization, focused comparison/checkpoint tests.
 
 Contract: `multivariate.risk_model_comparison@v1`.
 
-Exact semantic configuration family:
+Exact family:
 
-- Equal Weight @ `LW_FULL` — 1 configuration;
-- Inverse Volatility @ `LW_FULL`, `LW_ROLLING_252`, `EWMA_094` — 3 configurations;
-- Minimum Variance @ all 3 risk specs — 3 configurations;
-- Equal Risk Contribution @ all 3 risk specs — 3 configurations;
-- Hierarchical Risk Parity @ all 3 risk specs — 3 configurations;
-- Minimum CVaR @ `LW_FULL` — 1 configuration;
-- total = exactly 14 configurations.
+- Equal Weight @ `LW_FULL` — 1;
+- Inverse Volatility @ all 3 specs — 3;
+- Minimum Variance @ all 3 specs — 3;
+- Equal Risk Contribution @ all 3 specs — 3;
+- Hierarchical Risk Parity @ all 3 specs — 3;
+- Minimum CVaR @ `LW_FULL` — 1;
+- total exactly 14.
 
-Rationale for the family boundary:
-
-- Inverse Volatility consumes covariance diagonal information, so risk-spec variation is economically meaningful and cheap once the three risk matrices are already fitted;
-- Equal Weight does not consume a risk model for its weights, so duplicate spec variants would be semantically redundant;
-- Minimum CVaR weights consume return scenarios rather than covariance; duplicate risk-spec variants would repeat the same allocator while merely changing descriptive risk metrics, so only canonical `LW_FULL` is allowed.
+Rationale: Inverse Volatility consumes covariance diagonal information; Equal Weight does not consume covariance for weights; Minimum CVaR consumes return scenarios rather than covariance, so duplicate spec variants would be allocator-redundant.
 
 Frozen comparison policy:
 
-- minimum training observations = 252;
-- test window = 21;
-- maximum refits = 8;
-- minimum completed splits = 2;
-- transaction-cost rate and turnover semantics equal current production;
-- all 14 configurations use exactly the same canonical chronological split starts and test windows;
-- `LW_FULL` uses all observations available in that training split;
-- `LW_ROLLING_252` uses exactly the trailing 252 common training observations;
+- minimum training observations 252;
+- test window 21;
+- maximum refits 8;
+- minimum completed splits 2;
+- transaction-cost and turnover semantics match production;
+- all 14 configs use identical chronological split starts and test windows;
+- `LW_FULL` uses all training observations;
+- `LW_ROLLING_252` uses exact trailing 252 common observations;
 - `EWMA_094` uses all training observations with decay 0.94;
-- each outer refit worker fits at most three risk models for a split and reuses each fitted artifact across all methods that consume it;
-- do not create nested process pools;
-- an unavailable risk model/configuration/split is persisted explicitly and never dropped;
-- comparison scoring reuses canonical `ValidationSplit` and `CandidateScorecard` metric builders; no second scoring formula/authority is created;
-- structural metrics remain non-ranking and alternate-spec Structure-v2 is not recomputed;
-- in this PR the family runs as shadow/comparison evidence only; the existing Decision winner is not switched yet;
-- add a dedicated `risk_model_comparison` Multivariate phase and durable checkpoint after this expensive evidence is complete;
-- synchronize `MULTIVARIATE_PHASES` and workspace progress total with the new phase.
+- each outer refit worker fits at most three risk models per split and reuses them; no nested process pools;
+- unavailable config/split is persisted, never dropped;
+- scoring reuses canonical ValidationSplit/CandidateScorecard builders; no second scoring authority;
+- structural metrics remain descriptive/non-ranking;
+- this PR is shadow evidence only; Decision authority does not switch yet;
+- add dedicated `risk_model_comparison` phase/checkpoint and synchronize progress totals.
 
 Acceptance:
 
-- artifact contains exactly 14 configuration definitions and their split evidence;
-- common split boundaries reconcile across all 14;
-- chronological ordering is identical with one or many workers;
-- a future-row mutation cannot change any prior fit/config/split evidence;
-- instrumentation proves at most three risk-model fits per split, not one per candidate;
-- clean vs resumed execution from the new comparison checkpoint yields identical normalized comparison evidence;
+- artifact contains exactly 14 configuration definitions and split evidence;
+- split boundaries reconcile across all 14;
+- worker count cannot change ordering/output;
+- future-row mutation cannot change prior fit evidence;
+- at most three risk-model fits per split;
+- clean/resumed comparison evidence is identical;
 - execution `clean.v16 -> clean.v17`.
 
-### PR455 — Make 14-configuration common-split OOS evidence the production selection authority
+### PR455 — Make common-split OOS evidence the production selection authority
 
 Branch: `feat/pr455-oos-risk-model-selection`
 
@@ -597,44 +609,45 @@ Depends on: PR454.
 
 Owned paths: comparison/selection coordinator, `src/portfell/app_services/multivariate_compute.py`, narrow structural-walk-forward reuse, Decision persistence/tests.
 
-Introduce Decision document contract `multivariate.decision@v2`.
+Introduce `multivariate.decision@v2`.
 
 Rules:
 
-- only configurations complete on every exact comparison split are rankable; missing any common split yields `incomplete_comparison_evidence`;
-- primary objective metrics are exactly the PR444/PR445/minimum-risk rules and PR446 tie-breaks;
+- only configurations complete on every exact comparison split are rankable; missing common split -> `incomplete_comparison_evidence`;
+- primary metrics are PR444/PR445/minimum-risk plus PR446 tie-breaks;
 - Equal Weight and Inverse Volatility controls may win;
-- no in-sample/full-history score may influence the winner;
-- after OOS ranking, fit the full exact 14-configuration family on current full input using at most three shared full-sample risk-model fits;
-- persist those full-sample fits for descriptive comparison/UI, but do not feed their performance back into ranking;
-- the winner must reconcile to the exact full-sample fit of the winning configuration;
-- if the winning configuration cannot be fitted on full current input, return an unavailable/ineligible Decision; no Equal Weight fallback;
-- once Decision v2 is authoritative, remove duplicate steady-state six-method walk-forward ranking execution. The 14-config family becomes canonical OOS selection evidence rather than a permanent second ranking path;
-- structural walk-forward reuses the canonical comparison calendar and the `LW_FULL` subset only; it remains diagnostic and non-ranking.
+- no in-sample/full-history score may influence winner;
+- after OOS ranking, fit full exact 14-config family on current input using at most three shared risk-model fits;
+- full-sample fits are descriptive only and never feed ranking;
+- winning configuration must reconcile to exact full-sample fit;
+- if winner cannot fit current input, Decision is unavailable/ineligible; no fallback;
+- remove duplicate steady-state six-method walk-forward ranking; one canonical OOS selection authority remains;
+- structural walk-forward reuses canonical comparison calendar and `LW_FULL` subset only, descriptive/non-ranking.
 
 Decision v2 persists at minimum:
 
-- `winning_candidate_configuration_id`;
-- `winning_candidate_id`;
-- requested method and actual method;
-- `risk_model_spec_key` and `risk_model_spec_id`;
-- fitted `risk_model_id` and `fit_calendar_id`;
-- `objective_metric` plus sort direction;
+- exact `objective` requested by the user;
+- `objective_metric` and sort direction;
+- winning configuration ID and fitted candidate ID;
+- requested/actual method;
+- risk-model spec key/id;
+- fitted risk-model ID and fit-calendar ID;
 - exact comparison split count;
 - ordered tie-break list;
 - production eligibility, warnings and blocking reasons;
-- canonical common risk-stress model identified as `LW_FULL`;
+- canonical risk-stress model `LW_FULL`;
 - explicit statement that full-history performance is descriptive/non-selection evidence.
 
 Acceptance:
 
-- restricting available specs to `LW_FULL` reproduces predecessor selection semantics;
-- alternate specs can win only through superior common-split OOS evidence;
-- one and only one OOS ranking authority remains after this PR;
-- every Decision winner joins to its exact full-sample configuration/candidate/risk fit;
+- restricting specs to `LW_FULL` reproduces predecessor selection semantics;
+- alternate specs win only through superior common-split OOS evidence;
+- one and only one OOS ranking authority remains;
+- every winner joins to exact full-sample configuration/candidate/risk fit;
+- requested objective is unchanged from run request to Decision;
 - execution `clean.v17 -> clean.v18`.
 
-### PR456 — Reconcile persisted candidate/performance/risk/structure lineage
+### PR456 — Reconcile persisted lineage and machine-readable evidence roles
 
 Branch: `refactor/pr456-multivariate-artifact-lineage-v2`
 
@@ -644,51 +657,70 @@ Priority: P0 persistence/read-model correctness.
 
 Depends on: PR455.
 
-Owned paths: `src/portfell/app_services/multivariate_compute.py`, `src/portfell/multivariate_performance.py`, candidate/risk-contribution serialization helpers, structural artifact adapters only where IDs are propagated, artifact tests.
+Owned paths: `src/portfell/app_services/multivariate_compute.py`, `src/portfell/multivariate_performance.py`, candidate/risk-contribution serialization helpers, structural adapters only where IDs/roles are propagated, artifact tests.
 
 Task:
 
-- candidate rows persist configuration ID, fitted candidate ID, method, risk-spec key/id, fitted risk-model ID and fit-calendar ID;
-- validation and return-stress rows carry the same configuration identity;
-- risk-contribution rows carry configuration/spec/risk-model identity because contributions depend on the fitted covariance model;
-- performance portfolio series and period-return rows carry configuration/spec identity and remain distinguishable for multiple configs sharing one method;
-- introduce an explicit performance document contract/version if needed so the new join fields are machine-verifiable;
-- exact Decision v2 winner must exist as a full-sample candidate, risk-contribution set and performance series;
-- candidate structural diagnostics, where present, are evaluated against/labeled with canonical `LW_FULL` common diagnostic risk model and remain non-ranking;
-- preserve current cumulative-performance and period-return arithmetic.
+- candidate rows persist configuration ID, fitted candidate ID, method, spec key/id, fitted risk-model ID and fit-calendar ID;
+- validation and return-stress rows carry configuration identity;
+- risk-contribution rows carry configuration/spec/risk-model identity;
+- performance series/period rows carry configuration/spec identity so same-method configs remain distinguishable;
+- exact Decision winner exists as full-sample candidate, risk-contribution set and performance series;
+- introduce machine-readable evidence roles: common-split validation/scorecards/comparison/Decision are `selection`; full-history performance/current allocation/risk contributions/structure/matrix risk stress are `descriptive` unless explicitly overridden by contract;
+- candidate structural diagnostics remain labelled canonical `LW_FULL` and non-ranking;
+- preserve return arithmetic.
 
 Acceptance:
 
-- one lineage test joins Decision -> configuration -> fitted candidate -> risk model -> performance -> risk contribution without method-name guessing;
-- no orphan winner/configuration IDs;
-- all 14 full-sample configurations that fit successfully can coexist in persisted performance evidence;
-- full-history descriptive performance is clearly labelled non-selection evidence;
+- Decision -> configuration -> candidate -> risk model -> performance -> risk contribution joins without method-name guessing;
+- no orphan winner/config IDs;
+- all successful 14 full-sample configs may coexist in performance evidence;
+- selection vs descriptive evidence role is machine-verifiable and covered by tests;
+- no descriptive artifact field is consumed by ranking code;
 - execution `clean.v18 -> clean.v19`.
 
-### PR457 — Update the live Multivariate page for configuration/spec-aware evidence
+### PR457 — Implement the clean Portfolio Selection workflow in Dash
 
 Branch: `feat/pr457-multivariate-selection-v2-dash`
 
 Commit scope: `feat(pr457-multivariate-selection-v2-dash)`
 
-Priority: P1 product/UI correctness.
+Priority: P0 product/workflow correctness.
 
 Depends on: PR456.
 
-Owned paths: `src/portfell/dash_app/pages/multivariate.py`, presentation helpers only as needed, focused Dash/browser tests. No financial computation.
+Owned paths: `src/portfell/dash_app/pages/multivariate.py`, `src/portfell/dash_app/callbacks.py`, Dash contracts/presentation helpers only where needed, focused Dash/browser tests. No financial computation.
 
 Task:
 
-- OOS plots distinguish configurations sharing a method but using different risk specs;
-- hover/legend expose method + risk-spec key and a short configuration identifier;
-- Decision card shows risk-model spec, objective metric, comparison split count, warnings and blocking reasons;
-- performance legend identifies method/spec and highlights the exact persisted Decision v2 winner by configuration/candidate identity, never method name alone;
-- label full-history performance as descriptive evidence and OOS scorecards as selection evidence;
-- current no-winner display remains explicit and cannot promote a visual fallback into the Decision;
-- existing structural, risk-contribution, allocation, drawdown and final-portfolio views continue rendering persisted artifacts;
+- replace the production action label `Optimize portfolio` with `Run portfolio selection`;
+- expose exactly three objective choices: `return_risk`, `return_drawdown`, `minimum_risk`; default `return_risk`;
+- remove the current hard-coded `objective="return_risk"` in Multivariate action submission and forward the exact selected objective through the existing service/job boundary;
+- queued/running state displays the job's `requested_objective`; completed state displays Decision objective and objective metric;
+- changing objective creates/requests the corresponding logically distinct Multivariate run; the UI never silently substitutes another objective;
+- show a compact readiness/contract block before execution containing current selection identity/count, matching Bivariate status, selected objective, and frozen comparison policy (14 configs, 252 training observations, 21-observation OOS test, maximum 8 refits);
+- disable `Run portfolio selection` until current Univariate selection and matching successful Bivariate evidence are ready; changing upstream selection makes old downstream evidence visibly stale;
+- do not expose a production control to choose allocator, risk-model spec, candidate or runner-up manually;
+- split the rendered result into two explicit sections:
+  - `Selection Evidence`: common-split OOS evidence, objective scorecards, eligibility, warnings/blockers and Decision;
+  - `Portfolio Diagnostics`: full-history performance, allocation, drawdown, risk contribution, PCA/clusters/structure and descriptive risk stress;
+- OOS plots distinguish same-method configurations by spec/config ID;
+- Decision card shows objective, objective metric, method, risk spec, comparison split count, tie-breaks, warnings and blockers;
+- performance legend identifies method/spec and exact Decision winner, never method alone;
+- full-history charts are visibly labelled descriptive/non-selection evidence;
+- a feasible visual fallback is labelled `Candidate Preview — not selected` and must not be passed to a component titled `Final Portfolio`;
+- `Final Portfolio` renders only if Decision is available **and** production-eligible; otherwise render explicit `No production-eligible portfolio selected` plus, if useful, a separately labelled preview;
 - browser code performs no financial recomputation.
 
-Acceptance: deterministic Dash fixtures cover one method under `LW_FULL`, `LW_ROLLING_252` and `EWMA_094`; exact winner is highlighted by ID; all current supported plots render at supported viewports.
+Acceptance:
+
+- browser fixtures execute each of the three objectives and prove the exact value reaches the Multivariate job request; no hard-coded `return_risk` remains in the action path;
+- one method under all three risk specs is distinguishable in OOS/performance views;
+- changing selection invalidates readiness until matching Bivariate run exists;
+- unavailable and production-ineligible Decisions never render a fallback as `Final Portfolio`;
+- there is no allocator/spec/manual-winner control in the production selection path;
+- section labels and evidence-role labels match persisted semantics;
+- all existing supported plots continue rendering persisted artifacts at supported viewports.
 
 ### PR458 — Harden durable checkpoint/resume semantics for Selection v2
 
@@ -700,19 +732,19 @@ Priority: P0 operational correctness.
 
 Depends on: PR457.
 
-Owned paths: Multivariate checkpoint orchestration in `src/portfell/app_services/multivariate_compute.py` and `src/portfell/app_services/workspace.py` only where required, app-state checkpoint tests, focused restart/idempotency tests.
+Owned paths: Multivariate checkpoint orchestration in compute/workspace only where required, app-state checkpoint tests, restart/idempotency tests.
 
 Task:
 
-- verify every intermediate object introduced by PR440–PR456 is checkpointed/restored at the intended phase;
-- specifically exercise resume after candidate/refit preparation, canonical validation, risk-model-family comparison and final selection preparation;
-- checkpoint whose execution version differs from current version is ignored before incompatible pickled dataclasses are reused;
+- verify every intermediate object introduced by PR440–PR456 is checkpointed/restored at intended phase;
+- exercise resume after candidate/refit preparation, canonical validation, risk-model-family comparison and final selection preparation;
+- mismatched execution-version checkpoint is ignored before incompatible objects are reused;
 - clean run and resumed run produce identical normalized artifacts and Decision v2;
-- repeated resume/publication remains idempotent and does not duplicate immutable artifacts;
-- corrupt checkpoint payload causes clean recomputation rather than partial semantic reuse;
-- progress phase/total is monotone and consistent with `MULTIVARIATE_PHASES`.
+- repeated resume/publication is idempotent;
+- corrupt checkpoint triggers clean recomputation, not partial semantic reuse;
+- progress phase/total is monotone and consistent with Multivariate phases.
 
-Acceptance: clean-vs-resumed artifact hashes or canonical normalized documents reconcile at every supported resume boundary. Bump to `clean.v20` only if this PR changes production checkpoint semantics; if it is test-only, retain `clean.v19` and record that as evidence.
+Acceptance: clean-vs-resumed normalized artifacts reconcile at every supported boundary. Bump to `clean.v20` only if production checkpoint semantics change; otherwise retain `clean.v19`.
 
 ### PR459 — Independent Portfolio Selection v2 QA and immutable PASS evidence
 
@@ -724,56 +756,62 @@ Priority: P0 final QA/PASS.
 
 Depends on: PR458.
 
-Owned paths: tests, evidence assembler and synchronized QA documentation only. No production fixes; discovered defects require a corrective implementation PR inserted before a fresh PR459 run.
+Owned paths: tests, evidence assembler and synchronized QA docs only. No production fixes; defects require corrective implementation PR before a fresh PR459 run.
 
-Acceptance must independently prove on the exact head SHA:
+Acceptance must independently prove on exact head SHA:
 
-- `highest_monthly_return` absent from `src` and `tests`; exactly six default methods remain;
+- `highest_monthly_return` absent; exactly six default allocator methods remain;
 - multi-worker refit ordering equals canonical chronological starts;
 - stable configuration identity vs fit-specific candidate/risk identity across at least three refits;
 - scenario, validation and structural lineage reconcile to configuration IDs;
-- scorecards aggregate multiple completed splits and every enriched metric matches an independent oracle;
-- stress warnings vs blocking semantics, including non-blocking `cash_flow_evidence_only`;
-- `return_risk` uses median OOS Sharpe and `return_drawdown` uses same-split ratio before median;
-- every deterministic tie-break level;
+- enriched scorecards match independent numerical oracles;
+- warning vs blocking semantics including non-blocking `cash_flow_evidence_only`;
+- `return_risk` uses median OOS Sharpe; `return_drawdown` uses same-split ratio before median;
+- all deterministic tie-break levels;
 - legacy standalone scorecard authority absent;
 - return-path stress names exactly historical/bootstrap/distribution-cut;
-- independent matrix oracles for 25% volatility-up and 25% correlation-convergence stresses;
-- all three immutable risk specifications, exact rolling-252 behavior and exact fit-calendar lineage;
+- independent matrix oracles for volatility-up and correlation-convergence stresses;
+- all three immutable risk specs, exact rolling-252 behavior and fit-calendar lineage;
 - no method-key overwrite with multiple specs;
-- exactly 14 semantic configurations: 1 Equal Weight, 3 Inverse Volatility, 3 Minimum Variance, 3 ERC, 3 HRP and 1 Minimum CVaR;
-- at most three risk-model fits per comparison split and per full-sample family fit;
-- identical common 252-start/21-test/eight-refit schedule across all configs;
+- exactly 14 semantic configurations: 1 EW, 3 IV, 3 MinVar, 3 ERC, 3 HRP, 1 MinCVaR;
+- at most three risk-model fits per comparison split and full-sample family fit;
+- identical common 252-train/21-test/eight-refit schedule across configs;
 - future-data mutation cannot change prior fit evidence;
-- unavailable/missing common-split configuration is unrankable;
-- fixtures in which `LW_FULL`, `LW_ROLLING_252` and `EWMA_094` can each win only through OOS evidence;
-- exactly one canonical OOS selection authority remains after Decision v2 migration;
-- Decision v2 lineage joins to exact full-sample candidate, risk model, performance and risk-contribution artifacts;
-- full-history performance is persisted for successful configurations but absent from ranking inputs;
-- structural diagnostics are explicitly canonical-`LW_FULL` diagnostics and absent from ranking;
+- unavailable/missing common-split config is unrankable;
+- fixtures in which each risk spec can win only through OOS evidence;
+- exactly one canonical OOS selection authority remains;
+- Decision v2 joins to exact full-sample candidate/risk/performance/risk contribution;
+- full-history performance is absent from ranking inputs and marked descriptive;
+- structural diagnostics are canonical-`LW_FULL` and non-ranking;
+- all three UI objectives submit and persist exactly, with default `return_risk` but no hard-coded override;
+- objective is part of run/Decision identity and a different objective cannot reuse a Decision as if it were the same request;
+- Multivariate readiness requires matching current Selection + Bivariate lineage;
+- no manual allocator/spec/winner selector exists in production workflow;
+- UI clearly separates `Selection Evidence` from `Portfolio Diagnostics`;
+- unavailable/ineligible Decision never renders candidate fallback as `Final Portfolio`;
 - clean vs resumed execution is artifact-equivalent and publication-idempotent;
-- live Multivariate page renders configuration/spec-aware OOS, performance and Decision evidence at supported viewports with no page/console errors;
-- `uv run portfell-quality pr`, `uv run portfell-quality merge` and GitHub `merge-gate` pass on the exact head;
-- produce one immutable sanitized `portfolio-selection-v2` PASS artifact containing exact Git SHA, contract/execution versions, 14-configuration family fingerprint, split policy, numerical-oracle references, restart evidence, browser evidence and gate evidence without credentials, DSNs, private paths or raw market rows.
+- live Multivariate page renders configuration/spec-aware OOS, performance and Decision evidence without page/console errors;
+- `uv run portfell-quality pr`, `uv run portfell-quality merge` and GitHub `merge-gate` pass on exact head;
+- produce one immutable sanitized `portfolio-selection-v2` PASS artifact containing exact Git SHA, contract/execution versions, 14-configuration family fingerprint, objective workflow evidence, split policy, numerical-oracle references, restart evidence, browser evidence and gate evidence without credentials, DSNs, private paths or raw market rows.
 
-## 5. Explicitly deferred work — non-executable
+## 6. Explicitly deferred work — non-executable
 
-The following topics are deliberately outside PR437–PR459 and require a new backlog contract after PR459 PASS:
+The following topics are outside PR437–PR459 and require a new backlog contract after PR459 PASS:
 
-- redesign of `max_weight = 0.20`, including the exact-five-holdings degeneracy where a fully invested long-only five-asset portfolio is forced to 20% each;
-- Maximum Sharpe or any other expected-return optimizer;
+- redesign of `max_weight = 0.20`, including exact-five-holdings degeneracy;
+- Maximum Sharpe or any expected-return optimizer;
 - Black-Litterman, factor, momentum or regime-conditioned expected-return priors;
 - HERC/NCO or additional allocation methods;
 - CVaR scenario-generation redesign;
 - transaction-cost-aware daily Sharpe reconstruction;
 - structural PCA/cluster metrics as ranking objectives or hard constraints;
 - Optuna/hyperparameter search;
-- saved-portfolio/PDF/`.portfell` export/import workflow;
+- saved-portfolio / `portfolio.snapshot` / PDF / `.portfell` export-import workflow;
 - Bivariate page visualization redesign, including full-universe heatmaps, tail-risk scatter and pair drill-down;
 - changes to Bivariate sampling/read models required by that future visualization series.
 
-## 6. Historical status
+## 7. Historical status
 
-PR308–PR436 are integrated/retired historical backlog items. Their detailed historical work remains recoverable from repository history. The Portfolio Selection v2 plan at `96ca8745b90b847b5abd05e9c6411a78a47f6aa9` is superseded by this revision.
+PR308–PR436 are integrated/retired historical backlog items. Their detailed history remains recoverable from repository history. Superseded Portfolio Selection v2 plans are audit material only.
 
 The only active execution sequence is PR437 -> ... -> PR459.
