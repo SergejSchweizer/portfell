@@ -555,11 +555,26 @@ def _cumulative_extended_return_figure(
 ) -> go.Figure:
     figure = go.Figure()
     series = _mappings(performance.get("instrument_series")) if performance else ()
+    aligned_dates: list[str] = []
     if selected_isins:
         series = tuple(row for row in series if str(row.get("isin")) in selected_isins)
     if series:
+        # Bivariate statistics are computed on one aligned calendar.  Display
+        # exactly that common interval instead of allowing an instrument with a
+        # longer history to extend the x-axis beyond the bivariate universe.
+        date_sets = [
+            {str(value.get("date")) for value in _mappings(row.get("values")) if value.get("date")}
+            for row in series
+        ]
+        aligned_input = bool(date_sets) and all(date_sets)
+        common_dates = set.intersection(*date_sets) if aligned_input else set()
+        aligned_dates = sorted(common_dates)
         for row in sorted(series, key=lambda item: str(item.get("isin", ""))):
-            values = _mappings(row.get("values"))
+            values = tuple(
+                value
+                for value in _mappings(row.get("values"))
+                if aligned_input and str(value.get("date")) in common_dates
+            )
             figure.add_trace(
                 go.Scatter(
                     x=[str(value.get("date", "")) for value in values],
@@ -589,6 +604,8 @@ def _cumulative_extended_return_figure(
         margin={"l": 60, "r": 20, "t": 20, "b": 80},
         showlegend=False,
     )
+    if aligned_dates:
+        figure.update_xaxes(range=[aligned_dates[0], aligned_dates[-1]])
     return apply_portfell_template(figure)
 
 

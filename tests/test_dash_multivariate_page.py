@@ -185,3 +185,35 @@ def test_cumulative_return_plot_uses_time_axis_and_no_isin_point_fallback() -> N
     assert figure.layout.xaxis.title.text == "Time"
     assert figure.layout.yaxis.title.text == "Cumulative extended return"
     assert not figure.data
+
+
+def test_cumulative_return_plot_uses_common_bivariate_time_range() -> None:
+    figure = _cumulative_extended_return_figure(
+        {
+            "instrument_series": [
+                {
+                    "isin": "DE1",
+                    "values": [
+                        {"date": "2023-01-01", "cumulative_extended_return": 0.01},
+                        {"date": "2023-01-02", "cumulative_extended_return": 0.02},
+                        {"date": "2023-01-03", "cumulative_extended_return": 0.03},
+                    ],
+                },
+                {
+                    "isin": "DE2",
+                    "values": [
+                        {"date": "2023-01-02", "cumulative_extended_return": 0.04},
+                        {"date": "2023-01-03", "cumulative_extended_return": 0.05},
+                        {"date": "2023-01-04", "cumulative_extended_return": 0.06},
+                    ],
+                },
+            ]
+        },
+        (),
+        {"DE1", "DE2"},
+    )
+    assert len(figure.data) == 2
+    assert list(figure.data[0].x) == ["2023-01-02", "2023-01-03"]
+    assert list(figure.data[1].x) == ["2023-01-02", "2023-01-03"]
+    assert list(figure.data[0].y) == [0.02, 0.03]
+    assert list(figure.layout.xaxis.range) == ["2023-01-02", "2023-01-03"]
