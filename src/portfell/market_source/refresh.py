@@ -41,16 +41,24 @@ def refresh(*, config_path: Path, root: Path) -> int:
     root.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="market-refresh-", dir=root.parent) as temp:
         staging = Path(temp)
-        for name, rows in (
-            ("listings", snapshot.listings),
-            ("quotes", snapshot.quotes),
-            ("dividends", snapshot.dividends),
-            ("splits", snapshot.splits),
-        ):
+        for name, rows in (("listings", snapshot.listings), ("dividends", snapshot.dividends), ("splits", snapshot.splits)):
             (staging / f"{name}.jsonl").write_text(
-                "".join(json.dumps(_row(item), sort_keys=True) + "\n" for item in rows),
-                encoding="utf-8",
+                "".join(json.dumps(_row(item), sort_keys=True) + "\n" for item in rows), encoding="utf-8"
             )
+        quote_ranges: dict[str, list[list[int]]] = {}
+        with (staging / "quotes.jsonl").open("w", encoding="utf-8") as handle:
+            for item in snapshot.quotes:
+                start = handle.tell()
+                handle.write(json.dumps(_row(item), sort_keys=True) + "\n")
+                end = handle.tell()
+                ranges = quote_ranges.setdefault(item.key.isin, [])
+                if ranges and ranges[-1][1] == start:
+                    ranges[-1][1] = end
+                else:
+                    ranges.append([start, end])
+        (staging / "quotes.index.json").write_text(
+            json.dumps(quote_ranges, separators=(",", ":"), sort_keys=True) + "\n", encoding="utf-8"
+        )
         (staging / "manifest.json").write_text(
             json.dumps({"schema_version": 1, "listing_count": len(listings)}, sort_keys=True)
             + "\n",

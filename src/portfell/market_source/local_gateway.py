@@ -27,6 +27,61 @@ class LocalMarketDataGateway:
 
     def __init__(self, root: Path) -> None:
         self._root = root
+        self._quote_ranges: dict[str, tuple[tuple[int, int], ...]] | None = None
+
+    def _load_quote_ranges(self) -> dict[str, tuple[tuple[int, int], ...]]:
+        """Load the refresh-produced byte ranges, with a safe legacy fallback."""
+        if self._quote_ranges is not None:
+            return self._quote_ranges
+        path = self._root / "quotes.index.json"
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            self._quote_ranges = {
+                str(isin): tuple((int(item[0]), int(item[1])) for item in ranges)
+                for isin, ranges in raw.items()
+                if isinstance(ranges, list)
+            }
+        except (OSError, json.JSONDecodeError, TypeError, ValueError):
+            # Older snapshots have no sidecar. Build it once by scanning bytes;
+            # subsequent reads in this process still avoid rescanning quotes.
+            self._quote_ranges = self._build_quote_ranges()
+        return self._quote_ranges
+
+    def _build_quote_ranges(self) -> dict[str, tuple[tuple[int, int], ...]]:
+        path = self._root / "quotes.jsonl"
+        ranges: dict[str, list[tuple[int, int]]] = {}
+        try:
+            with path.open("rb") as handle:
+                while True:
+                    start = handle.tell()
+                    line = handle.readline()
+                    if not line:
+                        break
+                    end = handle.tell()
+                    marker_start = line.find(b'"isin"')
+                    if marker_start < 0:
+                        continue
+                    colon = line.find(b":", marker_start + 6)
+                    if colon < 0:
+                        continue
+                    value_start = colon + 1
+                    while value_start < len(line) and line[value_start] in b" \t":
+                        value_start += 1
+                    if value_start >= len(line) or line[value_start] != ord('"'):
+                        continue
+                    value_start += 1
+                    value_end = line.find(b'"', value_start)
+                    if value_end < 0:
+                        continue
+                    isin = line[value_start:value_end].decode("utf-8")
+                    entries = ranges.setdefault(isin, [])
+                    if entries and entries[-1][1] == start:
+                        entries[-1] = (entries[-1][0], end)
+                    else:
+                        entries.append((start, end))
+        except OSError as error:
+            raise MarketSourceError(MARKET_SOURCE_UNAVAILABLE) from error
+        return {isin: tuple(items) for isin, items in ranges.items()}
 
     def _read(self, name: str) -> list[dict[str, object]]:
         path = self._root / f"{name}.jsonl"
@@ -43,11 +98,19 @@ class LocalMarketDataGateway:
         """Stream a snapshot file so narrow selections never load the universe into RAM."""
         path = self._root / f"{name}.jsonl"
         try:
+            if name == "quotes" and wanted_isins is not None:
+                ranges = self._load_quote_ranges()
+                with path.open("rb") as handle:
+                    for isin in wanted_isins:
+                        for start, end in ranges.get(isin, ()):
+                            handle.seek(start)
+                            while handle.tell() < end:
+                                line = handle.readline()
+                                if line:
+                                    yield json.loads(line)
+                return
             with path.open(encoding="utf-8") as handle:
                 for line in handle:
-                    # Snapshot rows are one JSON object per line.  Avoid
-                    # deserializing the 1.3GB quote file for unrelated ISINs;
-                    # the exact ISIN is validated again after deserialization.
                     if line and (wanted_isins is None or _line_has_isin(line, wanted_isins)):
                         yield json.loads(line)
         except (OSError, json.JSONDecodeError) as error:
