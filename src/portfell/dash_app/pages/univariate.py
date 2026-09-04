@@ -131,8 +131,11 @@ def univariate_page_data(
     selected = {
         _member_id(member) for member in _mappings(selection.get("members") if selection else None)
     }
+    # An explicitly persisted empty selection is a real selection result and
+    # must render as numeric zero.  ``None`` is reserved for the absence of any
+    # selection artifact (for example, before a Univariate run exists).
     selected_isin_count = (
-        len({member.split(":", 1)[0] for member in selected}) if selected else None
+        len({member.split(":", 1)[0] for member in selected}) if selection is not None else None
     )
     if selection is not None and selected:
         selected_isins = {member.split(":", 1)[0] for member in selected}
