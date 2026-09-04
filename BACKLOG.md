@@ -4027,7 +4027,7 @@ Acceptance:
 - no connection-pool exhaustion, deadlock or cross-module transaction lock is observed;
 - sanitized performance/resilience evidence and `uv run portfell-quality merge` pass.
 
-Git status: integrated on `main` at `b3dbc69`; 3 focused duplicate-publication,
+Git status: integrated on `main` at `4e613f6`; 3 focused duplicate-publication,
 partial-file and budget contract tests pass. The feature branch and any remote
 copy were removed after the fast-forward merge.
 
@@ -4097,7 +4097,7 @@ Acceptance:
   contract versions, migration version, test counts, coverage, module health, workflow IDs and
   artifact hashes without credentials or private market rows.
 
-Git status: closeout audit integrated on `main` at `5739b1c`; 2 focused audit
+Git status: closeout audit integrated on `main` at `4e613f6`; 2 focused audit
 tests pass, but the audit correctly reports `BLOCKED` because legacy
 composition references are still present. The feature branch and any remote
 copy were removed. No PR427 PASS is claimed until those production
