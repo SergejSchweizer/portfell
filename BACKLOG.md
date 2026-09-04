@@ -3927,6 +3927,10 @@ Acceptance:
 - all cross-schema DML, forbidden DDL and cross-namespace file writes fail;
 - security preflight and `uv run portfell-quality pr` pass.
 
+Git status: implementation complete on branch `security/pr422-module-least-privilege`;
+9 focused role/grant and migration tests pass. Integration is pending rebase to
+`origin/main`.
+
 ### PR423 — Add PostgreSQL-only cross-module contract integration tests
 
 Branch: `test/pr423-cross-module-contract-integration`
