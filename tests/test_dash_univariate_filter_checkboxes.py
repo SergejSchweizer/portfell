@@ -287,10 +287,7 @@ def test_every_checkbox_category_has_exact_page_and_sidebar_count(
 
     class Service:
         def workflow_state(self) -> dict[str, object]:
-            members = [
-                {key: row[key] for key in ("isin", "exchange", "code")}
-                for row in rows
-            ]
+            members = [{key: row[key] for key in ("isin", "exchange", "code")} for row in rows]
             selected_members = [
                 {key: row[key] for key in ("isin", "exchange", "code")}
                 for row in rows

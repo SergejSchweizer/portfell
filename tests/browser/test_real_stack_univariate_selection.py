@@ -145,9 +145,11 @@ def _assert_selection_counts(page: Page) -> None:
     # PostgreSQL-backed selection.  They must be numerically identical after
     # every checkbox mutation and after a full browser reload.
     page.reload(wait_until="networkidle")
-    page_count_text = page.locator("section.pf-kpi-card").filter(
-        has_text="Univariate Selected ISINs"
-    ).inner_text()
+    page_count_text = (
+        page.locator("section.pf-kpi-card")
+        .filter(has_text="Univariate Selected ISINs")
+        .inner_text()
+    )
     page_count_match = re.search(r"(?:^|\n)\s*(\d+|—)\s*$", page_count_text)
     assert page_count_match is not None, page_count_text
     assert page_count_match.group(1) == str(len(unique_isins))
