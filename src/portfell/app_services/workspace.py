@@ -825,6 +825,32 @@ class WorkspaceApplicationService:
         )
         if run.status == "succeeded":
             return self.run_detail(run.run_id)
+        if run.status in {"failed", "cancelled"}:
+            # A deterministic run identity is reused for successful results,
+            # but terminal unsuccessful runs must be retryable.  Otherwise a
+            # new job receives the old terminal row and the executor attempts
+            # an invalid state transition instead of computing again.
+            logical_hash = stable_hash(
+                {
+                    "universe_id": univariate_run.input_ref,
+                    "univariate_run_id": univariate_run.run_id,
+                    "selection_id": selection.selection_id,
+                    "bivariate_run_id": bivariate_run.run_id,
+                    "market_snapshot_id": market.snapshot_id,
+                    "objective": objective,
+                    "execution_version": MULTIVARIATE_EXECUTION_VERSION,
+                    "retry_nonce": uuid4().hex,
+                }
+            )
+            run = self._state.create_analysis_run(
+                run_id=opaque_id("multivariate-run", {"logical_hash": logical_hash}),
+                stage="multivariate",
+                status="running",
+                input_snapshot_id=market.snapshot_id,
+                input_ref=bivariate_run.run_id,
+                logical_hash=logical_hash,
+                algorithm_version=MULTIVARIATE_EXECUTION_VERSION,
+            )
         if run.status != "running":
             return _run_row(run)
         source_computed = self._univariate_computed_run(univariate_run)
