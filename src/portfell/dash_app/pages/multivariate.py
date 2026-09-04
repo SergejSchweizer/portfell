@@ -297,11 +297,6 @@ def _layout(
                 className="pf-kpi-grid",
             ),
             ChartCard(
-                "Cumulative Extended Return — Bivariate Selected ISINs",
-                _cumulative_extended_return_figure(performance, cumulative_rows, selected_isins),
-                graph_id="multivariate-selected-cumulative-log-return",
-            ),
-            ChartCard(
                 "Portfolio Candidate OOS Return / Risk",
                 _candidate_oos_figure(validation),
                 graph_id="multivariate-oos-candidates",

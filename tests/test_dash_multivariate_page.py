@@ -180,6 +180,7 @@ def test_page_has_frozen_multivariate_contract_and_exact_weights() -> None:
     assert "multivariate-objective" not in rendered
     assert "Universe &amp; History" not in rendered
     assert "Final decision is not production eligible yet." not in rendered
+    assert "Cumulative Extended Return — Bivariate Selected ISINs" not in rendered
 
 
 def test_cumulative_return_plot_uses_time_axis_and_no_isin_point_fallback() -> None:
