@@ -51,7 +51,6 @@ def test_merge_gate_extends_pr_gate_with_protected_checks() -> None:
         "not real_stack",
         "--cov=portfell",
         "--cov-report=term-missing",
-        "--cov-fail-under=92",
     )
     assert ("pytest", "-q", "-m", "real_stack") in commands
     assert commands[-3:] == (

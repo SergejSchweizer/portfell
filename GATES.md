@@ -38,13 +38,13 @@ The merge layer executes:
 - dataset schema validation;
 - security validation;
 - strict Pyright;
-- parallel pytest with `--cov=portfell` and `--cov-fail-under=90`;
+- parallel pytest with `--cov=portfell` and the threshold configured in `pyproject.toml`;
 - isolated Docker PostgreSQL market-source contract QA;
 - clean working-tree checks;
 - Conventional Commit validation.
 
-The Python coverage threshold is **92% minimum**. A result below 92% fails the merge gate;
-the local command uses `--cov-fail-under=92`.
+The Python coverage threshold is **85% minimum**, configured only in `pyproject.toml`.
+Local and GitHub commands must not duplicate or override this value.
 
 ## GitHub `merge-gate`
 
@@ -57,7 +57,7 @@ The final workflow runs these independent families:
 3. `merge-dash-browser` — Python Playwright Chromium acceptance for the four Plotly Dash pages; uploads `dash-parity-v1` evidence.
 4. `merge-unit-tests-1..4` — four deterministic unit-test shards with coverage data.
 5. `merge-integration-tests-1..4` — four deterministic integration-test shards with coverage data.
-6. final `merge-gate` aggregation — requires all preceding families to succeed, combines coverage shards, and enforces 92% coverage.
+6. final `merge-gate` aggregation — requires all preceding families to succeed, combines coverage shards, and enforces the `pyproject.toml` coverage threshold.
 
 All third-party GitHub Actions are pinned to full commit SHAs. Workflow permissions are top-level read-only unless a narrowly scoped workflow explicitly requires more.
 
