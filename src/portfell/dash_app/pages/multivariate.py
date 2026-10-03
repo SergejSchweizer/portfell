@@ -1,7 +1,7 @@
 """Multivariate Dash page rendering only persisted optimizer/OOS artifacts."""
 
 # Plotly/Dash payloads are dynamically typed at this UI adapter boundary.
-# pyright: reportUnknownMemberType=false, reportUnknownArgumentType=false, reportUnknownVariableType=false, reportArgumentType=false, reportAttributeAccessIssue=false
+# pyright: reportUnknownMemberType=false, reportUnknownArgumentType=false, reportUnknownVariableType=false, reportArgumentType=false, reportAttributeAccessIssue=false, reportOptionalMemberAccess=false
 
 from __future__ import annotations
 
@@ -9,15 +9,14 @@ from collections.abc import Mapping, Sequence
 from typing import Protocol, cast
 
 import plotly.graph_objects as go  # pyright: ignore[reportMissingTypeStubs]
-from plotly.subplots import make_subplots  # pyright: ignore[reportMissingTypeStubs]
 from dash import dcc, html
 from dash.development.base_component import Component
+from plotly.subplots import make_subplots  # pyright: ignore[reportMissingTypeStubs]
 
 from portfell.dash_app.candidate_structure_presenters import candidate_structure_view
 from portfell.dash_app.components import (
     ChartCard,
     ControlBar,
-    EmptyState,
     ErrorState,
     KpiCard,
     PageHeader,
@@ -94,14 +93,15 @@ def multivariate_page_data(service: MultivariateService) -> dict[str, object]:
     contributions = _items(artifacts.get("risk_contributions") if artifacts else None)
     performance = _mapping(artifacts.get("performance")) if artifacts else None
     structure_document = _mapping(
-        artifacts.get("multivariate.structure@v3")
-        or artifacts.get("multivariate.structure@v2")
+        artifacts.get("multivariate.structure@v3") or artifacts.get("multivariate.structure@v2")
     )
     candidate_structure_document = _mapping(artifacts.get("multivariate.candidate_structure@v2"))
     comparison = _mapping(artifacts.get("risk_model_comparison"))
     ranking_objective = str((decision_doc or {}).get("objective", "return_risk"))
     ranking_rows = _mappings(
-        (_mapping(comparison.get("configuration_rankings")) if comparison else {}).get(ranking_objective)
+        (_mapping(comparison.get("configuration_rankings")) if comparison else {}).get(
+            ranking_objective
+        )
     )
     # Multivariate performance is scoped to the exact selection consumed by
     # the successful Bivariate run. Never plot a broader/stale Univariate
@@ -242,12 +242,6 @@ def _layout(
     contributions = _mappings(model.get("risk_contributions"))
     performance = _mapping(model.get("performance"))
     active_job = _mapping(model.get("active_job")) or {}
-    cumulative_rows = _mappings(model.get("selected_cumulative_log_returns"))
-    selected_isins = {
-        str(row.get("isin"))
-        for row in _mappings(selection.get("members") if selection else None)
-        if row.get("isin") not in {None, ""}
-    }
     universe_structure = _mapping(model.get("universe_structure"))
     candidate_structure = _mapping(model.get("candidate_structure"))
     selection_ranking = _mappings(model.get("selection_ranking"))
@@ -308,20 +302,38 @@ def _layout(
             TableCard(
                 "Selection Evidence",
                 [
-                    html.P("Common OOS 14-configuration ranking; current-sample diagnostics are descriptive."),
+                    html.P(
+                        "Common OOS 14-configuration ranking; current-sample diagnostics "
+                        "are descriptive."
+                    ),
                     html.Table(
                         [
-                            html.Thead(html.Tr([html.Th(label) for label in ("Rank", "Method", "Risk spec", "Score")])),
-                            html.Tbody([
-                                html.Tr([
-                                    html.Td(_display(row.get("rank"))),
-                                    html.Td(_display(row.get("method"))),
-                                    html.Td(_display(row.get("spec_key"))),
-                                    html.Td(_display(row.get("objective_score"))),
-                                ]) for row in selection_ranking
-                            ]),
-                        ], className="pf-table",
-                    ) if selection_ranking else UnavailableData("Common OOS selection evidence is unavailable."),
+                            html.Thead(
+                                html.Tr(
+                                    [
+                                        html.Th(label)
+                                        for label in ("Rank", "Method", "Risk spec", "Score")
+                                    ]
+                                )
+                            ),
+                            html.Tbody(
+                                [
+                                    html.Tr(
+                                        [
+                                            html.Td(_display(row.get("rank"))),
+                                            html.Td(_display(row.get("method"))),
+                                            html.Td(_display(row.get("spec_key"))),
+                                            html.Td(_display(row.get("objective_score"))),
+                                        ]
+                                    )
+                                    for row in selection_ranking
+                                ]
+                            ),
+                        ],
+                        className="pf-table",
+                    )
+                    if selection_ranking
+                    else UnavailableData("Common OOS selection evidence is unavailable."),
                 ],
                 component_id="multivariate-selection-evidence",
             ),
@@ -391,7 +403,11 @@ def _structure_cards(
     stability = _mapping(universe.get("structural_stability")) or {}
     candidate_rows = _mappings(candidate.get("candidate_structural_risk"))
     return (
-        ChartCard("PCA Spectrum", _pca_spectrum_figure(universe.get("pca_spectrum")), graph_id="multivariate-pca-spectrum"),
+        ChartCard(
+            "PCA Spectrum",
+            _pca_spectrum_figure(universe.get("pca_spectrum")),
+            graph_id="multivariate-pca-spectrum",
+        ),
         ChartCard(
             "Structural Diversification",
             _structural_diversification_figure(diversification),
@@ -408,7 +424,11 @@ def _structure_cards(
             graph_id="multivariate-structural-stability",
         ),
         TableCard("Candidate Structural Risk", [html.Pre(str(candidate_rows))]),
-        ChartCard("PCA Risk Contribution", _pca_risk_contribution_figure(candidate.get("pca_risk_contribution")), graph_id="multivariate-pca-risk-contribution"),
+        ChartCard(
+            "PCA Risk Contribution",
+            _pca_risk_contribution_figure(candidate.get("pca_risk_contribution")),
+            graph_id="multivariate-pca-risk-contribution",
+        ),
         ChartCard(
             "Cluster Risk Contribution",
             _cluster_risk_contribution_figure(candidate.get("cluster_risk_contribution")),
@@ -418,23 +438,44 @@ def _structure_cards(
 
 
 def _pca_spectrum_figure(value: object) -> go.Figure | None:
-    document = _mapping(value)
+    document = _mapping(value) or {}
     traces: list[go.Bar] = []
-    for label, key, colour in (("Covariance", "covariance", "#2563eb"), ("Correlation", "correlation", "#14b8a6")):
+    for label, key, colour in (
+        ("Covariance", "covariance", "#2563eb"),
+        ("Correlation", "correlation", "#14b8a6"),
+    ):
         row = _mapping(document.get(key))
-        values = [_number(item) for item in cast(list[object], row.get("explained_variance", [])) if _number(item) is not None]
+        values = [
+            _number(item)
+            for item in cast(list[object], row.get("explained_variance", []))
+            if _number(item) is not None
+        ]
         if values:
-            traces.append(go.Bar(x=[f"PC {index + 1}" for index in range(len(values))], y=values, name=label, marker_color=colour, customdata=[[label, index + 1] for index in range(len(values))], hovertemplate="%{customdata[0]} PC %{customdata[1]}<br>Explained variance=%{y:.2%}<extra></extra>"))
+            traces.append(
+                go.Bar(
+                    x=[f"PC {index + 1}" for index in range(len(values))],
+                    y=values,
+                    name=label,
+                    marker_color=colour,
+                    customdata=[[label, index + 1] for index in range(len(values))],
+                    hovertemplate=(
+                        "%{customdata[0]} PC %{customdata[1]}<br>"
+                        "Explained variance=%{y:.2%}<extra></extra>"
+                    ),
+                )
+            )
     if not traces:
         return None
     figure = go.Figure(traces)
     figure.update_layout(barmode="group")
-    return apply_portfell_template(figure, x_title="Principal component", y_title="Explained variance")
+    return apply_portfell_template(
+        figure, x_title="Principal component", y_title="Explained variance"
+    )
 
 
 def _structural_diversification_figure(value: object) -> go.Figure | None:
     """Plot persisted diversification counts without mixing incompatible scales."""
-    document = _mapping(value)
+    document = _mapping(value) or {}
     labels = ("Effective rank", "Components for 80%", "Components for 90%", "Components for 95%")
     fields = (
         ("covariance", "Covariance", "#2563eb"),
@@ -444,7 +485,12 @@ def _structural_diversification_figure(value: object) -> go.Figure | None:
     has_count = False
     for prefix, label, colour in fields:
         values: list[float | None] = []
-        for suffix in ("effective_rank", "components_for_80pct", "components_for_90pct", "components_for_95pct"):
+        for suffix in (
+            "effective_rank",
+            "components_for_80pct",
+            "components_for_90pct",
+            "components_for_95pct",
+        ):
             number = _number(document.get(f"{prefix}_{suffix}"))
             values.append(number)
             has_count = has_count or number is not None
@@ -455,7 +501,9 @@ def _structural_diversification_figure(value: object) -> go.Figure | None:
                 name=label,
                 marker_color=colour,
                 customdata=[[label, metric] for metric in labels],
-                hovertemplate="%{customdata[0]} — %{customdata[1]}<br>%{y:.2f} components<extra></extra>",
+                hovertemplate=(
+                    "%{customdata[0]} — %{customdata[1]}<br>%{y:.2f} components<extra></extra>"
+                ),
             ),
             secondary_y=False,
         )
@@ -482,7 +530,9 @@ def _structural_diversification_figure(value: object) -> go.Figure | None:
         return None
     figure.update_layout(barmode="group")
     figure.update_yaxes(title_text="Components / effective rank", secondary_y=False)
-    figure.update_yaxes(title_text="Dominant component share", tickformat=".0%", range=[0, 1], secondary_y=True)
+    figure.update_yaxes(
+        title_text="Dominant component share", tickformat=".0%", range=[0, 1], secondary_y=True
+    )
     return apply_portfell_template(figure, x_title="Diversification measure")
 
 
@@ -498,7 +548,10 @@ def _risk_clusters_figure(rows: object) -> go.Figure | None:
             grouped.setdefault(cluster_id, []).append(row)
     if not grouped:
         return None
-    cluster_ids = sorted(grouped, key=lambda value: (int(value.split()[-1]) if value.split()[-1].isdigit() else 10**9, value))
+    cluster_ids = sorted(
+        grouped,
+        key=lambda value: (int(value.split()[-1]) if value.split()[-1].isdigit() else 10**9, value),
+    )
     counts = [len(grouped[cluster_id]) for cluster_id in cluster_ids]
     stability: list[float | None] = []
     for cluster_id in cluster_ids:
@@ -512,7 +565,9 @@ def _risk_clusters_figure(rows: object) -> go.Figure | None:
             y=counts,
             name="Members",
             marker_color="#2563eb",
-            customdata=[[cluster_id, count] for cluster_id, count in zip(cluster_ids, counts, strict=True)],
+            customdata=[
+                [cluster_id, count] for cluster_id, count in zip(cluster_ids, counts, strict=True)
+            ],
             hovertemplate="%{customdata[0]}<br>Members=%{customdata[1]}<extra></extra>",
         ),
         secondary_y=False,
@@ -531,20 +586,26 @@ def _risk_clusters_figure(rows: object) -> go.Figure | None:
             secondary_y=True,
         )
     figure.update_yaxes(title_text="Cluster members", rangemode="tozero", secondary_y=False)
-    figure.update_yaxes(title_text="Mean co-cluster probability", tickformat=".0%", range=[0, 1], secondary_y=True)
+    figure.update_yaxes(
+        title_text="Mean co-cluster probability", tickformat=".0%", range=[0, 1], secondary_y=True
+    )
     return apply_portfell_template(figure, x_title="Risk cluster")
 
 
 def _structural_stability_figure(value: object) -> go.Figure | None:
     """Plot persisted rolling subspace stability, with no analytical recomputation."""
-    document = _mapping(value)
+    document = _mapping(value) or {}
     subspace = _mappings(document.get("subspace"))
     traces: list[go.Scatter] = []
     for field, label, colour in (
         ("covariance_stability", "Covariance stability", "#2563eb"),
         ("correlation_stability", "Correlation stability", "#14b8a6"),
     ):
-        rows = [row for row in subspace if row.get("current_date_end") is not None and _number(row.get(field)) is not None]
+        rows = [
+            row
+            for row in subspace
+            if row.get("current_date_end") is not None and _number(row.get(field)) is not None
+        ]
         if rows:
             traces.append(
                 go.Scatter(
@@ -554,10 +615,13 @@ def _structural_stability_figure(value: object) -> go.Figure | None:
                     name=label,
                     line={"color": colour},
                     marker={"color": colour, "size": 7},
-                    customdata=[[row.get("previous_date_end"), row.get("component_count")] for row in rows],
+                    customdata=[
+                        [row.get("previous_date_end"), row.get("component_count")] for row in rows
+                    ],
                     hovertemplate=(
                         "%{x}<br>" + label + "=%{y:.2%}<br>"
-                        "Previous period=%{customdata[0]}<br>Components=%{customdata[1]}<extra></extra>"
+                        "Previous period=%{customdata[0]}<br>"
+                        "Components=%{customdata[1]}<extra></extra>"
                     ),
                 )
             )
@@ -567,7 +631,11 @@ def _structural_stability_figure(value: object) -> go.Figure | None:
             ("covariance_effective_rank", "Covariance effective rank", "#2563eb"),
             ("correlation_effective_rank", "Correlation effective rank", "#14b8a6"),
         ):
-            rows = [row for row in rolling if row.get("date_end") is not None and _number(row.get(field)) is not None]
+            rows = [
+                row
+                for row in rolling
+                if row.get("date_end") is not None and _number(row.get(field)) is not None
+            ]
             if rows:
                 traces.append(
                     go.Scatter(
@@ -591,19 +659,47 @@ def _structural_stability_figure(value: object) -> go.Figure | None:
 
 
 def _pca_risk_contribution_figure(value: object) -> go.Figure | None:
-    rows = [row for row in _mappings(value) if _number(row.get("percent_portfolio_variance")) is not None]
+    rows = [
+        row
+        for row in _mappings(value)
+        if _number(row.get("percent_portfolio_variance")) is not None
+    ]
     if not rows:
         return None
-    figure = go.Figure(go.Bar(x=[str(row.get("component_id", "")) for row in rows], y=[_number(row.get("percent_portfolio_variance")) for row in rows], marker_color="#7c3aed", customdata=[[row.get("component_id")] for row in rows], hovertemplate="%{customdata[0]}<br>Portfolio variance=%{y:.2%}<extra></extra>"))
-    return apply_portfell_template(figure, x_title="Principal component", y_title="Portfolio variance contribution")
+    figure = go.Figure(
+        go.Bar(
+            x=[str(row.get("component_id", "")) for row in rows],
+            y=[_number(row.get("percent_portfolio_variance")) for row in rows],
+            marker_color="#7c3aed",
+            customdata=[[row.get("component_id")] for row in rows],
+            hovertemplate="%{customdata[0]}<br>Portfolio variance=%{y:.2%}<extra></extra>",
+        )
+    )
+    return apply_portfell_template(
+        figure, x_title="Principal component", y_title="Portfolio variance contribution"
+    )
 
 
 def _cluster_risk_contribution_figure(value: object) -> go.Figure | None:
-    rows = [row for row in _mappings(value) if _number(row.get("gross_abs_risk_share", row.get("signed_percent_variance"))) is not None]
+    rows = [
+        row
+        for row in _mappings(value)
+        if _number(row.get("gross_abs_risk_share", row.get("signed_percent_variance"))) is not None
+    ]
     if not rows:
         return None
-    values = [_number(row.get("gross_abs_risk_share", row.get("signed_percent_variance"))) for row in rows]
-    figure = go.Figure(go.Bar(x=[str(row.get("cluster_id", "")) for row in rows], y=values, marker_color="#f59e0b", customdata=[[row.get("cluster_id")] for row in rows], hovertemplate="%{customdata[0]}<br>Gross risk share=%{y:.2%}<extra></extra>"))
+    values = [
+        _number(row.get("gross_abs_risk_share", row.get("signed_percent_variance"))) for row in rows
+    ]
+    figure = go.Figure(
+        go.Bar(
+            x=[str(row.get("cluster_id", "")) for row in rows],
+            y=values,
+            marker_color="#f59e0b",
+            customdata=[[row.get("cluster_id")] for row in rows],
+            hovertemplate="%{customdata[0]}<br>Gross risk share=%{y:.2%}<extra></extra>",
+        )
+    )
     return apply_portfell_template(figure, x_title="Risk cluster", y_title="Gross risk share")
 
 
@@ -627,7 +723,11 @@ def _candidate_oos_figure(validation: Sequence[Mapping[str, object]]) -> go.Figu
                 x=[row["median_volatility"] for row in method_rows],
                 y=[row["median_post_cost_return"] for row in method_rows],
                 mode="markers",
-                marker={"color": palette[index % len(palette)], "size": 11, "line": {"width": 1, "color": "white"}},
+                marker={
+                    "color": palette[index % len(palette)],
+                    "size": 11,
+                    "line": {"width": 1, "color": "white"},
+                },
                 customdata=[[row.get("candidate_id"), method] for row in method_rows],
                 hovertemplate=(
                     "Candidate %{customdata[0]}<br>Method %{customdata[1]}"
@@ -652,7 +752,8 @@ def _performance_figure(
     valid_series = []
     for row in series:
         values = tuple(
-            item for item in _mappings(row.get("values"))
+            item
+            for item in _mappings(row.get("values"))
             if item.get("date") is not None
             and _number(item.get("cumulative_extended_return", item.get("return"))) is not None
         )
@@ -667,12 +768,18 @@ def _performance_figure(
         figure.add_trace(
             go.Scatter(
                 x=[item.get("date") for item in values],
-                y=[_number(item.get("cumulative_extended_return", item.get("return"))) for item in values],
+                y=[
+                    _number(item.get("cumulative_extended_return", item.get("return")))
+                    for item in values
+                ],
                 mode="lines",
                 name=f"{method}{' (winner)' if is_winner else ''}",
                 line={"width": 3 if is_winner else 1.5},
                 customdata=[[row.get("candidate_id"), method]] * len(values),
-                hovertemplate="Candidate=%{customdata[0]}<br>Method=%{customdata[1]}<br>Date=%{x}<br>Cumulative return=%{y:.2%}<extra></extra>",
+                hovertemplate=(
+                    "Candidate=%{customdata[0]}<br>Method=%{customdata[1]}<br>"
+                    "Date=%{x}<br>Cumulative return=%{y:.2%}<extra></extra>"
+                ),
             )
         )
     return apply_portfell_template(figure, x_title="Date", y_title="Cumulative return")
@@ -700,8 +807,7 @@ def _allocation_figure(winner: Mapping[str, object] | None) -> go.Figure | None:
     if winner is None:
         return None
     weights = tuple(
-        row for row in _mappings(winner.get("weights"))
-        if _number(row.get("weight")) is not None
+        row for row in _mappings(winner.get("weights")) if _number(row.get("weight")) is not None
     )
     if not weights:
         return None
@@ -743,7 +849,8 @@ def _final_portfolio_figure(candidate: Mapping[str, object] | None) -> go.Figure
 
 
 def _risk_contribution_figure(
-    rows: Sequence[Mapping[str, object]], winner_id: object,
+    rows: Sequence[Mapping[str, object]],
+    winner_id: object,
     fallback_rows: object = (),
 ) -> go.Figure | None:
     def contribution(row: Mapping[str, object]) -> float | None:
@@ -756,22 +863,23 @@ def _risk_contribution_figure(
     selected = [
         row
         for row in rows
-        if row.get("candidate_id") == winner_id
-        and contribution(row) is not None
+        if row.get("candidate_id") == winner_id and contribution(row) is not None
     ]
     # Older persisted artifacts omitted candidate_id for the sole displayed
     # candidate. Keep those valid rows visible instead of showing an empty
     # chart after a successful run.
     if not selected and winner_id is not None:
         selected = [
-            row for row in rows
-            if row.get("candidate_id") in {None, ""}
-            and contribution(row) is not None
+            row
+            for row in rows
+            if row.get("candidate_id") in {None, ""} and contribution(row) is not None
         ]
     # Some persisted runs contain a single candidate's rows but use a run ID
     # rather than the candidate ID. Do not hide valid evidence in that case.
     if not selected:
-        candidate_ids = {row.get("candidate_id") for row in rows if row.get("candidate_id") not in {None, ""}}
+        candidate_ids = {
+            row.get("candidate_id") for row in rows if row.get("candidate_id") not in {None, ""}
+        }
         if len(candidate_ids) <= 1:
             selected = [row for row in rows if contribution(row) is not None]
     if not selected:
@@ -780,19 +888,26 @@ def _risk_contribution_figure(
         # for an older run. Render that persisted evidence rather than an
         # empty card.
         components = [
-            row for row in _mappings(fallback_rows)
+            row
+            for row in _mappings(fallback_rows)
             if _number(row.get("percent_portfolio_variance")) is not None
         ]
         if components:
-            figure = go.Figure(go.Bar(
-                x=[str(row.get("component_id", "")) for row in components],
-                y=[_number(row.get("percent_portfolio_variance")) for row in components],
-                marker_color="#7c3aed",
-                customdata=[[row.get("component_id")] for row in components],
-                hovertemplate="Component %{customdata[0]}<br>Portfolio variance=%{y:.2%}<extra></extra>",
-                name="PCA risk contribution",
-            ))
-            return apply_portfell_template(figure, x_title="Principal component", y_title="Portfolio variance contribution")
+            figure = go.Figure(
+                go.Bar(
+                    x=[str(row.get("component_id", "")) for row in components],
+                    y=[_number(row.get("percent_portfolio_variance")) for row in components],
+                    marker_color="#7c3aed",
+                    customdata=[[row.get("component_id")] for row in components],
+                    hovertemplate=(
+                        "Component %{customdata[0]}<br>Portfolio variance=%{y:.2%}<extra></extra>"
+                    ),
+                    name="PCA risk contribution",
+                )
+            )
+            return apply_portfell_template(
+                figure, x_title="Principal component", y_title="Portfolio variance contribution"
+            )
         return None
     figure = go.Figure(
         go.Bar(
@@ -800,15 +915,20 @@ def _risk_contribution_figure(
                 f"{row.get('isin')} / {row.get('exchange')} / {row.get('code')}" for row in selected
             ],
             y=[contribution(row) for row in selected],
-            customdata=[[row.get("isin"), row.get("exchange"), row.get("code")] for row in selected],
-            hovertemplate="ISIN=%{customdata[0]}<br>Exchange=%{customdata[1]}<br>Code=%{customdata[2]}<br>Risk contribution=%{y:.2%}<extra></extra>",
+            customdata=[
+                [row.get("isin"), row.get("exchange"), row.get("code")] for row in selected
+            ],
+            hovertemplate=(
+                "ISIN=%{customdata[0]}<br>Exchange=%{customdata[1]}<br>"
+                "Code=%{customdata[2]}<br>Risk contribution=%{y:.2%}<extra></extra>"
+            ),
             name="Risk contribution",
         )
     )
     return apply_portfell_template(figure, x_title="Listing", y_title="Percent risk contribution")
 
 
-def _final_portfolio(winner: Mapping[str, object]) -> Component:
+def _final_portfolio(winner: Mapping[str, object]) -> Component:  # pyright: ignore[reportUnusedFunction]
     weights = _mappings(winner.get("weights"))
     if not weights:
         return UnavailableData("Final weights are unavailable.")
@@ -856,7 +976,7 @@ def _decision_card(
     )
 
 
-def _cumulative_extended_return_figure(
+def _cumulative_extended_return_figure(  # pyright: ignore[reportUnusedFunction]
     performance: Mapping[str, object] | None,
     fallback_rows: Sequence[Mapping[str, object]],
     selected_isins: set[str] | None = None,
@@ -870,9 +990,17 @@ def _cumulative_extended_return_figure(
         grouped: dict[str, list[dict[str, object]]] = {}
         for row in fallback_rows:
             isin = str(row.get("isin", ""))
-            if isin and row.get("date") is not None and _number(
-                row.get("cumulative_extended_return", row.get("cumulative_log_return", row.get("return")))
-            ) is not None:
+            if (
+                isin
+                and row.get("date") is not None
+                and _number(
+                    row.get(
+                        "cumulative_extended_return",
+                        row.get("cumulative_log_return", row.get("return")),
+                    )
+                )
+                is not None
+            ):
                 grouped.setdefault(isin, []).append(row)
         series = tuple(
             {"isin": isin, "values": sorted(rows, key=lambda item: str(item.get("date", "")))}
@@ -898,7 +1026,8 @@ def _cumulative_extended_return_figure(
                 value
                 for value in _mappings(row.get("values"))
                 if value.get("date") is not None
-                and _number(value.get("cumulative_extended_return", value.get("return"))) is not None
+                and _number(value.get("cumulative_extended_return", value.get("return")))
+                is not None
                 and (not use_common or str(value.get("date")) in common_dates)
             )
             if not values:

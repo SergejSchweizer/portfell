@@ -96,13 +96,22 @@ def build_multivariate_risk_model(
 ) -> MultivariateRiskModelArtifact:
     """Estimate the snapshot's one joint risk model and persistable identity."""
 
-    if spec is None and estimator == PRODUCTION_ESTIMATOR and window_policy == "full" and estimator_parameters is None:
+    if (
+        spec is None
+        and estimator == PRODUCTION_ESTIMATOR
+        and window_policy == "full"
+        and estimator_parameters is None
+    ):
         spec = LW_FULL
     if not snapshot.eligible:
-        return _unavailable(snapshot, estimator, window_policy, "input_snapshot_unavailable", spec=spec)
+        return _unavailable(
+            snapshot, estimator, window_policy, "input_snapshot_unavailable", spec=spec
+        )
     if spec is not None:
         estimator, window_policy = spec.estimator, spec.window_policy
-        estimator_parameters = {"ewma_decay": spec.ewma_decay} if spec.ewma_decay is not None else {}
+        estimator_parameters = (
+            {"ewma_decay": spec.ewma_decay} if spec.ewma_decay is not None else {}
+        )
         window_size = spec.window_size
     else:
         window_size = None
@@ -118,8 +127,20 @@ def build_multivariate_risk_model(
         )
     except (TypeError, ValueError) as error:
         return _unavailable(
-            snapshot, estimator, window_policy, f"risk_model_error:{error}", parameters, spec,
-            stable_contract_id("risk_model_fit_calendar", {"dates": sorted({str(row.get("date", "")) for row in return_rows if row.get("date")})}),
+            snapshot,
+            estimator,
+            window_policy,
+            f"risk_model_error:{error}",
+            parameters,
+            spec,
+            stable_contract_id(
+                "risk_model_fit_calendar",
+                {
+                    "dates": sorted(
+                        {str(row.get("date", "")) for row in return_rows if row.get("date")}
+                    )
+                },
+            ),
         )
     reasons = tuple(sorted(result.diagnostics.availability_reasons))
     return _artifact(snapshot, result, estimator, window_policy, parameters, reasons, spec)
@@ -185,10 +206,10 @@ def _unavailable(
         listings=snapshot.listing_keys,
         estimator=estimator,
         window_policy=window_policy,
-            parameters=parameters,
-            covariance=(),
-            algorithm_version=1,
-        )
+        parameters=parameters,
+        covariance=(),
+        algorithm_version=1,
+    )
     return MultivariateRiskModelArtifact(
         risk_model_id=identity,
         input_snapshot_id=snapshot.snapshot_id,
@@ -209,7 +230,8 @@ def _unavailable(
         is_positive_semidefinite=False,
         availability_reasons=(reason,),
         algorithm_version=1,
-        fit_calendar_id=fit_calendar_id or stable_contract_id("risk_model_fit_calendar", {"dates": []}),
+        fit_calendar_id=fit_calendar_id
+        or stable_contract_id("risk_model_fit_calendar", {"dates": []}),
         spec_key=(spec.spec_key if spec is not None else ""),
         spec_id=(spec.spec_id if spec is not None else ""),
     )

@@ -7,17 +7,37 @@ from typing import Any
 
 from portfell.selection_v2_contract import SELECTION_V2_CONFIGURATIONS, SELECTION_V2_POLICY
 
-
 _IMPLEMENTATION_PRS = [
-    "PR461", "PR463", "PR465", "PR467", "PR469", "PR471", "PR473", "PR475", "PR477", "PR479",
+    "PR461",
+    "PR463",
+    "PR465",
+    "PR467",
+    "PR469",
+    "PR471",
+    "PR473",
+    "PR475",
+    "PR477",
+    "PR479",
 ]
 _QA_PRS = [
-    "PR462", "PR464", "PR466", "PR468", "PR470", "PR472", "PR474", "PR476", "PR478", "PR480",
+    "PR462",
+    "PR464",
+    "PR466",
+    "PR468",
+    "PR470",
+    "PR472",
+    "PR474",
+    "PR476",
+    "PR478",
+    "PR480",
 ]
 
 
 def comparison_contract_evidence(
-    *, sha: str, configurations: Sequence[Mapping[str, Any]], policy: Mapping[str, int],
+    *,
+    sha: str,
+    configurations: Sequence[Mapping[str, Any]],
+    policy: Mapping[str, int],
     focused_tests: Sequence[str],
 ) -> dict[str, Any]:
     """Build the immutable stage-1 evidence payload without financial data."""
@@ -49,14 +69,16 @@ def comparison_contract_evidence(
 
 
 def split_risk_models_evidence(
-    *, sha: str, bundles: Sequence[Mapping[str, Any]], focused_tests: Sequence[str],
+    *,
+    sha: str,
+    bundles: Sequence[Mapping[str, Any]],
+    focused_tests: Sequence[str],
 ) -> dict[str, Any]:
     """Build sanitized stage-2 evidence from persisted split-fit rows."""
     rows = list(bundles)
     split_indexes = sorted({int(row["split_index"]) for row in rows})
     fits_per_split = {
-        split: sum(1 for row in rows if int(row["split_index"]) == split)
-        for split in split_indexes
+        split: sum(1 for row in rows if int(row["split_index"]) == split) for split in split_indexes
     }
     return {
         "contract": "portfolio-selection-v2-migration@v1",
@@ -81,14 +103,16 @@ def split_risk_models_evidence(
 
 
 def split_candidate_family_evidence(
-    *, sha: str, candidate_rows: Sequence[Mapping[str, Any]], focused_tests: Sequence[str],
+    *,
+    sha: str,
+    candidate_rows: Sequence[Mapping[str, Any]],
+    focused_tests: Sequence[str],
 ) -> dict[str, Any]:
     """Build sanitized stage-3 evidence for the exact split candidate family."""
     rows = list(candidate_rows)
     split_indexes = sorted({int(row["split_index"]) for row in rows})
     slots_per_split = {
-        split: sum(1 for row in rows if int(row["split_index"]) == split)
-        for split in split_indexes
+        split: sum(1 for row in rows if int(row["split_index"]) == split) for split in split_indexes
     }
     return {
         "contract": "portfolio-selection-v2-migration@v1",
@@ -103,8 +127,10 @@ def split_candidate_family_evidence(
         "exact_fourteen_slots": all(value == 14 for value in slots_per_split.values()),
         "configuration_identity_stable": True,
         "fit_identity_persisted": all(
-            bool(row.get("candidate_id")) and bool(row.get("risk_model_id"))
-            and bool(row.get("fit_calendar_id")) for row in rows
+            bool(row.get("candidate_id"))
+            and bool(row.get("risk_model_id"))
+            and bool(row.get("fit_calendar_id"))
+            for row in rows
         ),
         "unavailable_candidates_retained": any(row.get("status") == "unavailable" for row in rows),
         "no_method_spec_overwrite": True,
@@ -115,7 +141,10 @@ def split_candidate_family_evidence(
 
 
 def common_oos_evidence(
-    *, sha: str, validation_rows: Sequence[Mapping[str, Any]], focused_tests: Sequence[str],
+    *,
+    sha: str,
+    validation_rows: Sequence[Mapping[str, Any]],
+    focused_tests: Sequence[str],
 ) -> dict[str, Any]:
     """Build sanitized stage-4 evidence for measured common-split OOS rows."""
     rows = list(validation_rows)
@@ -133,12 +162,18 @@ def common_oos_evidence(
         "configuration_count": len(configurations),
         "measured_rows": len(rows),
         "all_rows_have_boundaries": all(
-            row.get("train_start") and row.get("train_end") and row.get("test_start") and row.get("test_end")
+            row.get("train_start")
+            and row.get("train_end")
+            and row.get("test_start")
+            and row.get("test_end")
             for row in rows
         ),
         "lineage_persisted": all(
-            row.get("candidate_configuration_id") and row.get("candidate_id")
-            and row.get("risk_model_id") and row.get("fit_calendar_id") for row in rows
+            row.get("candidate_configuration_id")
+            and row.get("candidate_id")
+            and row.get("risk_model_id")
+            and row.get("fit_calendar_id")
+            for row in rows
         ),
         "unavailable_rows_retained": any(row.get("status") == "unavailable" for row in rows),
         "future_mutation_invariant": True,
@@ -150,7 +185,10 @@ def common_oos_evidence(
 
 
 def config_ranking_evidence(
-    *, sha: str, rankings: Mapping[str, Sequence[Mapping[str, Any]]], focused_tests: Sequence[str],
+    *,
+    sha: str,
+    rankings: Mapping[str, Sequence[Mapping[str, Any]]],
+    focused_tests: Sequence[str],
 ) -> dict[str, Any]:
     """Build sanitized stage-5 evidence for objective ranking QA."""
     return {
@@ -177,7 +215,10 @@ def config_ranking_evidence(
 
 
 def decision_authority_evidence(
-    *, sha: str, objective_results: Mapping[str, Mapping[str, Any]], focused_tests: Sequence[str],
+    *,
+    sha: str,
+    objective_results: Mapping[str, Mapping[str, Any]],
+    focused_tests: Sequence[str],
 ) -> dict[str, Any]:
     """Build sanitized stage-6 evidence for the production authority cutover."""
     return {
@@ -189,10 +230,14 @@ def decision_authority_evidence(
         "completed_qa_prs": ["PR462", "PR464", "PR466", "PR468", "PR470", "PR472"],
         "selection_authority": "common_oos_14_config",
         "objectives_covered": sorted(objective_results),
-        "all_objectives_preserved": all(bool(item.get("objective")) for item in objective_results.values()),
+        "all_objectives_preserved": all(
+            bool(item.get("objective")) for item in objective_results.values()
+        ),
         "legacy_ranking_reachable": False,
         "unavailable_fallback": False,
-        "exact_winner_lineage": all(bool(item.get("winning_configuration_id")) for item in objective_results.values()),
+        "exact_winner_lineage": all(
+            bool(item.get("winning_configuration_id")) for item in objective_results.values()
+        ),
         "descriptive_evidence_non_authoritative": True,
         "focused_tests": list(focused_tests),
         "status": "PASS",
@@ -201,7 +246,10 @@ def decision_authority_evidence(
 
 
 def full_sample_lineage_evidence(
-    *, sha: str, family_rows: Sequence[Mapping[str, Any]], decision: Mapping[str, Any],
+    *,
+    sha: str,
+    family_rows: Sequence[Mapping[str, Any]],
+    decision: Mapping[str, Any],
     focused_tests: Sequence[str],
 ) -> dict[str, Any]:
     """Build sanitized stage-7 evidence for current-sample lineage."""
@@ -213,14 +261,25 @@ def full_sample_lineage_evidence(
         "sha": sha,
         "stage": "full_sample_lineage_complete",
         "stage_ordinal": 7,
-        "completed_implementation_prs": ["PR461", "PR463", "PR465", "PR467", "PR469", "PR471", "PR473"],
+        "completed_implementation_prs": [
+            "PR461",
+            "PR463",
+            "PR465",
+            "PR467",
+            "PR469",
+            "PR471",
+            "PR473",
+        ],
         "completed_qa_prs": ["PR462", "PR464", "PR466", "PR468", "PR470", "PR472", "PR474"],
         "selection_authority": "common_oos_14_config",
         "current_sample_configuration_count": len(rows),
         "winner_joinable": len(winner_rows) == 1,
-        "winner_has_candidate_risk_fit": bool(winner_rows and winner_rows[0].get("candidate_id")
-                                                and winner_rows[0].get("risk_model_id")
-                                                and winner_rows[0].get("fit_calendar_id")),
+        "winner_has_candidate_risk_fit": bool(
+            winner_rows
+            and winner_rows[0].get("candidate_id")
+            and winner_rows[0].get("risk_model_id")
+            and winner_rows[0].get("fit_calendar_id")
+        ),
         "same_method_spec_ids_distinct": True,
         "selection_descriptive_roles_distinct": True,
         "descriptive_mutation_invariant": True,
@@ -231,7 +290,10 @@ def full_sample_lineage_evidence(
 
 
 def checkpoint_resume_evidence(
-    *, sha: str, phase_results: Mapping[str, bool], focused_tests: Sequence[str],
+    *,
+    sha: str,
+    phase_results: Mapping[str, bool],
+    focused_tests: Sequence[str],
 ) -> dict[str, Any]:
     """Build sanitized stage-8 evidence for restart-equivalence QA."""
     return {
@@ -239,8 +301,26 @@ def checkpoint_resume_evidence(
         "sha": sha,
         "stage": "checkpoint_resume_complete",
         "stage_ordinal": 8,
-        "completed_implementation_prs": ["PR461", "PR463", "PR465", "PR467", "PR469", "PR471", "PR473", "PR475"],
-        "completed_qa_prs": ["PR462", "PR464", "PR466", "PR468", "PR470", "PR472", "PR474", "PR476"],
+        "completed_implementation_prs": [
+            "PR461",
+            "PR463",
+            "PR465",
+            "PR467",
+            "PR469",
+            "PR471",
+            "PR473",
+            "PR475",
+        ],
+        "completed_qa_prs": [
+            "PR462",
+            "PR464",
+            "PR466",
+            "PR468",
+            "PR470",
+            "PR472",
+            "PR474",
+            "PR476",
+        ],
         "selection_authority": "common_oos_14_config",
         "phase_results": dict(phase_results),
         "all_supported_boundaries_equivalent": all(phase_results.values()),
@@ -255,7 +335,10 @@ def checkpoint_resume_evidence(
 
 
 def dash_cutover_evidence(
-    *, sha: str, objective_results: Mapping[str, bool], focused_tests: Sequence[str],
+    *,
+    sha: str,
+    objective_results: Mapping[str, bool],
+    focused_tests: Sequence[str],
 ) -> dict[str, Any]:
     """Build sanitized stage-9 evidence for Dash/read-model QA."""
     return {
@@ -263,8 +346,28 @@ def dash_cutover_evidence(
         "sha": sha,
         "stage": "dash_cutover_complete",
         "stage_ordinal": 9,
-        "completed_implementation_prs": ["PR461", "PR463", "PR465", "PR467", "PR469", "PR471", "PR473", "PR475", "PR477"],
-        "completed_qa_prs": ["PR462", "PR464", "PR466", "PR468", "PR470", "PR472", "PR474", "PR476", "PR478"],
+        "completed_implementation_prs": [
+            "PR461",
+            "PR463",
+            "PR465",
+            "PR467",
+            "PR469",
+            "PR471",
+            "PR473",
+            "PR475",
+            "PR477",
+        ],
+        "completed_qa_prs": [
+            "PR462",
+            "PR464",
+            "PR466",
+            "PR468",
+            "PR470",
+            "PR472",
+            "PR474",
+            "PR476",
+            "PR478",
+        ],
         "selection_authority": "common_oos_14_config",
         "objective_results": dict(objective_results),
         "all_objectives_reached": all(objective_results.values()),
@@ -279,7 +382,10 @@ def dash_cutover_evidence(
 
 
 def final_closeout_evidence(
-    *, sha: str, checks: Mapping[str, bool], focused_tests: Sequence[str],
+    *,
+    sha: str,
+    checks: Mapping[str, bool],
+    focused_tests: Sequence[str],
 ) -> dict[str, Any]:
     """Build the immutable, sanitized PR480 closeout record.
 

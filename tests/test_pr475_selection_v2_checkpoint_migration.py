@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from portfell.app_services.workspace import WorkspaceApplicationService
 from portfell.app_services.multivariate_compute import MULTIVARIATE_EXECUTION_VERSION
+from portfell.app_services.workspace import WorkspaceApplicationService
 
 
 class _State:
@@ -12,8 +12,11 @@ class _State:
 
     def put_multivariate_checkpoint(self, **kwargs):
         self.record = SimpleNamespace(
-            dataset_digest=kwargs["dataset_digest"], algorithm_version=kwargs["algorithm_version"],
-            phase=kwargs["phase"], phase_name=kwargs["phase_name"], payload=kwargs["payload"],
+            dataset_digest=kwargs["dataset_digest"],
+            algorithm_version=kwargs["algorithm_version"],
+            phase=kwargs["phase"],
+            phase_name=kwargs["phase_name"],
+            payload=kwargs["payload"],
         )
         return self.record
 
@@ -29,7 +32,9 @@ def test_checkpoint_round_trip_is_contract_and_digest_bound() -> None:
     state = _State()
     service = _service(state)
     service._save_multivariate_checkpoint(
-        dataset_digest="digest-a", phase=5, phase_name="structural_diagnostics",
+        dataset_digest="digest-a",
+        phase=5,
+        phase_name="structural_diagnostics",
         payload={"phase": 5, "marker": "ranking-and-family"},
     )
     loaded = service._load_multivariate_checkpoint("digest-a")
@@ -45,13 +50,17 @@ def test_old_or_corrupt_checkpoint_is_ignored_safely() -> None:
     state = _State()
     service = _service(state)
     service._save_multivariate_checkpoint(
-        dataset_digest="digest-a", phase=3, phase_name="walk_forward_validation",
+        dataset_digest="digest-a",
+        phase=3,
+        phase_name="walk_forward_validation",
         payload={"phase": 3},
     )
     state.record.payload = b"not-a-pickle"
     assert service._load_multivariate_checkpoint("digest-a") is None
     service._save_multivariate_checkpoint(
-        dataset_digest="digest-a", phase=3, phase_name="walk_forward_validation",
+        dataset_digest="digest-a",
+        phase=3,
+        phase_name="walk_forward_validation",
         payload={"phase": 2},
     )
     assert service._load_multivariate_checkpoint("digest-a") is None

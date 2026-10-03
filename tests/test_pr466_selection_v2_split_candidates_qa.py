@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 from migration_evidence import split_candidate_family_evidence
+from test_pr463_selection_v2_split_risk_models import _fixture
+
 from portfell.multivariate_risk_model_comparison import (
     build_split_candidate_families,
     build_split_risk_model_bundles,
 )
 from portfell.selection_v2_contract import SELECTION_V2_CONFIGURATIONS
-from test_pr463_selection_v2_split_risk_models import _fixture
 
 
 def test_independent_mapping_has_exact_fourteen_unique_semantic_slots() -> None:

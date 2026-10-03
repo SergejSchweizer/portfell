@@ -4,16 +4,16 @@ import pytest
 
 from portfell.dash_app.pages.multivariate import (
     _candidate_oos_figure,
-    _cumulative_extended_return_figure,
     _cluster_risk_contribution_figure,
+    _cumulative_extended_return_figure,
+    _final_portfolio_figure,
     _pca_risk_contribution_figure,
     _pca_spectrum_figure,
-    _risk_clusters_figure,
-    _structural_stability_figure,
-    _final_portfolio_figure,
-    _structural_diversification_figure,
     _performance_figure,
+    _risk_clusters_figure,
     _risk_contribution_figure,
+    _structural_diversification_figure,
+    _structural_stability_figure,
     build_page,
     multivariate_page_data,
     optimize_portfolio,
@@ -164,7 +164,7 @@ def test_page_has_frozen_multivariate_contract_and_exact_weights() -> None:
     rendered = str(build_page(Service()).to_plotly_json())
     for text in (
         "Multivariate",
-            "Run portfolio selection",
+        "Run portfolio selection",
         "Winner OOS return",
         "Winner OOS risk",
         "Winner max drawdown",
@@ -281,8 +281,16 @@ def test_performance_plot_renders_all_portfolio_candidates() -> None:
     figure = _performance_figure(
         {
             "portfolio_series": [
-                {"candidate_id": "c1", "method": "equal_weight", "values": [{"date": "2023-01-01", "return": 0.05}]},
-                {"candidate_id": "c2", "method": "minimum_cvar", "values": [{"date": "2023-01-01", "return": 0.08}]},
+                {
+                    "candidate_id": "c1",
+                    "method": "equal_weight",
+                    "values": [{"date": "2023-01-01", "return": 0.05}],
+                },
+                {
+                    "candidate_id": "c2",
+                    "method": "minimum_cvar",
+                    "values": [{"date": "2023-01-01", "return": 0.08}],
+                },
             ]
         },
         "c2",
@@ -293,55 +301,73 @@ def test_performance_plot_renders_all_portfolio_candidates() -> None:
 
 
 def test_structure_plots_render_persisted_multivariate_evidence() -> None:
-    spectrum = _pca_spectrum_figure({
-        "covariance": {"explained_variance": [0.6, 0.4]},
-        "correlation": {"explained_variance": [0.5, 0.5]},
-    })
+    spectrum = _pca_spectrum_figure(
+        {
+            "covariance": {"explained_variance": [0.6, 0.4]},
+            "correlation": {"explained_variance": [0.5, 0.5]},
+        }
+    )
     assert spectrum is not None
     assert len(spectrum.data) == 2
     assert spectrum.layout.yaxis.title.text == "Explained variance"
 
-    pca = _pca_risk_contribution_figure([
-        {"component_id": "Component 1", "percent_portfolio_variance": 0.8},
-        {"component_id": "Component 2", "percent_portfolio_variance": 0.2},
-    ])
-    clusters = _cluster_risk_contribution_figure([
-        {"cluster_id": "Cluster 1", "gross_abs_risk_share": 0.7},
-    ])
+    pca = _pca_risk_contribution_figure(
+        [
+            {"component_id": "Component 1", "percent_portfolio_variance": 0.8},
+            {"component_id": "Component 2", "percent_portfolio_variance": 0.2},
+        ]
+    )
+    clusters = _cluster_risk_contribution_figure(
+        [
+            {"cluster_id": "Cluster 1", "gross_abs_risk_share": 0.7},
+        ]
+    )
     assert pca is not None and clusters is not None
     assert pca.layout.xaxis.title.text == "Principal component"
     assert clusters.layout.yaxis.title.text == "Gross risk share"
 
-    diversification = _structural_diversification_figure({
-        "covariance_effective_rank": 5.5,
-        "covariance_components_for_80pct": 4,
-        "covariance_components_for_90pct": 9,
-        "covariance_components_for_95pct": 19,
-        "correlation_effective_rank": 8.2,
-        "correlation_components_for_80pct": 6,
-        "correlation_components_for_90pct": 15,
-        "correlation_components_for_95pct": 25,
-        "covariance_dominant_component_share": 0.6,
-        "correlation_dominant_component_share": 0.5,
-    })
+    diversification = _structural_diversification_figure(
+        {
+            "covariance_effective_rank": 5.5,
+            "covariance_components_for_80pct": 4,
+            "covariance_components_for_90pct": 9,
+            "covariance_components_for_95pct": 19,
+            "correlation_effective_rank": 8.2,
+            "correlation_components_for_80pct": 6,
+            "correlation_components_for_90pct": 15,
+            "correlation_components_for_95pct": 25,
+            "covariance_dominant_component_share": 0.6,
+            "correlation_dominant_component_share": 0.5,
+        }
+    )
     assert diversification is not None
     assert diversification.layout.xaxis.title.text == "Diversification measure"
 
-    clusters_plot = _risk_clusters_figure([
-        {"cluster_id": "Cluster 1", "mean_co_cluster_probability": 0.9},
-        {"cluster_id": "Cluster 1", "mean_co_cluster_probability": 1.0},
-        {"cluster_id": "Cluster 2", "mean_co_cluster_probability": None},
-    ])
+    clusters_plot = _risk_clusters_figure(
+        [
+            {"cluster_id": "Cluster 1", "mean_co_cluster_probability": 0.9},
+            {"cluster_id": "Cluster 1", "mean_co_cluster_probability": 1.0},
+            {"cluster_id": "Cluster 2", "mean_co_cluster_probability": None},
+        ]
+    )
     assert clusters_plot is not None
     assert clusters_plot.layout.xaxis.title.text == "Risk cluster"
     assert list(clusters_plot.data[0].y) == [2, 1]
 
-    stability_plot = _structural_stability_figure({
-        "subspace": [
-            {"current_date_end": "2026-01-31", "previous_date_end": "2025-12-31", "component_count": 3, "covariance_stability": 0.98, "correlation_stability": 0.99},
-        ],
-        "rolling": [],
-    })
+    stability_plot = _structural_stability_figure(
+        {
+            "subspace": [
+                {
+                    "current_date_end": "2026-01-31",
+                    "previous_date_end": "2025-12-31",
+                    "component_count": 3,
+                    "covariance_stability": 0.98,
+                    "correlation_stability": 0.99,
+                },
+            ],
+            "rolling": [],
+        }
+    )
     assert stability_plot is not None
     assert len(stability_plot.data) == 2
     assert stability_plot.layout.yaxis.title.text == "Subspace stability"
@@ -358,10 +384,24 @@ def test_risk_contribution_plot_accepts_legacy_rows_without_candidate_id() -> No
 
 
 def test_candidate_oos_plot_uses_colored_method_points_without_text_labels() -> None:
-    figure = _candidate_oos_figure([
-        {"kind": "scorecard", "candidate_id": "c1", "method": "equal_weight", "median_volatility": 0.1, "median_post_cost_return": 0.05},
-        {"kind": "scorecard", "candidate_id": "c2", "method": "minimum_variance", "median_volatility": 0.08, "median_post_cost_return": 0.04},
-    ])
+    figure = _candidate_oos_figure(
+        [
+            {
+                "kind": "scorecard",
+                "candidate_id": "c1",
+                "method": "equal_weight",
+                "median_volatility": 0.1,
+                "median_post_cost_return": 0.05,
+            },
+            {
+                "kind": "scorecard",
+                "candidate_id": "c2",
+                "method": "minimum_variance",
+                "median_volatility": 0.08,
+                "median_post_cost_return": 0.04,
+            },
+        ]
+    )
     assert figure is not None
     assert len(figure.data) == 2
     assert all(trace.mode == "markers" for trace in figure.data)
@@ -369,7 +409,9 @@ def test_candidate_oos_plot_uses_colored_method_points_without_text_labels() -> 
     assert {trace.name for trace in figure.data} == {"equal_weight", "minimum_variance"}
 
 
-def test_risk_contribution_plot_accepts_persisted_schema_aliases_and_single_candidate_runs() -> None:
+def test_risk_contribution_plot_accepts_persisted_schema_aliases_and_single_candidate_runs() -> (
+    None
+):
     figure = _risk_contribution_figure(
         [
             {"candidate_id": "run-candidate-1", "isin": "DE1", "risk_contribution": 0.6},
@@ -395,10 +437,12 @@ def test_risk_contribution_plot_falls_back_to_persisted_pca_components() -> None
 
 
 def test_final_portfolio_plot_renders_display_candidate_weights() -> None:
-    figure = _final_portfolio_figure({
-        "method": "hierarchical_risk_parity",
-        "weights": [{"isin": "DE1", "exchange": "XETRA", "code": "AAA", "weight": 0.75}],
-    })
+    figure = _final_portfolio_figure(
+        {
+            "method": "hierarchical_risk_parity",
+            "weights": [{"isin": "DE1", "exchange": "XETRA", "code": "AAA", "weight": 0.75}],
+        }
+    )
     assert figure is not None
     assert list(figure.data[0].x) == ["DE1"]
     assert figure.layout.yaxis.title.text == "Portfolio weight"

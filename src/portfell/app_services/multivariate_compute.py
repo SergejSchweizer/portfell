@@ -5,10 +5,10 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping, Sequence
 from concurrent.futures import Executor
 from dataclasses import asdict, dataclass
-from statistics import median
 from typing import Any, cast
 
 from portfell.app_services.analysis_compute import stable_hash
+from portfell.contract_versioning import ContractVersion
 from portfell.income import (
     build_income_artifacts,
     build_income_evidence,
@@ -24,12 +24,12 @@ from portfell.multivariate_performance import build_multivariate_performance
 from portfell.multivariate_quote_views import common_dates, first_price, last_price
 from portfell.multivariate_refits import build_refitted_candidate_sets
 from portfell.multivariate_risk_model import build_multivariate_risk_model
-from portfell.multivariate_risk_stress import correlation_convergence_25pct, volatility_up_25pct
-from portfell.multivariate_risk_spec import LW_FULL
 from portfell.multivariate_risk_model_comparison import (
     build_current_sample_candidate_family,
     build_risk_model_comparison,
 )
+from portfell.multivariate_risk_spec import LW_FULL
+from portfell.multivariate_risk_stress import correlation_convergence_25pct, volatility_up_25pct
 from portfell.multivariate_structural_walk_forward import (
     build_structural_walk_forward_evidence,
     structural_walk_forward_rows,
@@ -44,7 +44,6 @@ from portfell.multivariate_validation import (
 )
 from portfell.return_series import build_returns
 from portfell.table_io import JsonRow
-from portfell.contract_versioning import ContractVersion
 
 DECISION_CONTRACT = ContractVersion("multivariate.decision", 2)
 
@@ -122,7 +121,7 @@ def compute_multivariate(
     # caller from silently substituting a PostgreSQL return artifact.
     returns = build_returns(quote_rows)
     keys = tuple(sorted(MultivariateListingKey.from_row(row) for row in selected))
-    calendar_dates = common_dates(cast(list[JsonRow], returns), keys)
+    calendar_dates = common_dates(returns, keys)
     calendar_id = stable_hash(
         {"listing_keys": [key.as_tuple() for key in keys], "dates": calendar_dates}
     )
@@ -162,7 +161,7 @@ def compute_multivariate(
     snapshot = build_multivariate_input_snapshot(
         dependencies=dependencies, univariate_rows=selected
     )
-    state = dict(checkpoint or {})
+    state: dict[str, Any] = dict(checkpoint or {})
     resumed_phase = state.get("phase", 0)
     phase = int(resumed_phase) if isinstance(resumed_phase, int) else 0
     if phase > 0 and on_phase is not None:
@@ -186,76 +185,113 @@ def compute_multivariate(
             for key in keys
         }
         candidates = build_candidate_set(
-            snapshot=snapshot, risk_model=risk, return_rows=returns, income=income, executor=executor
+            snapshot=snapshot,
+            risk_model=risk,
+            return_rows=returns,
+            income=income,
+            executor=executor,
         )
         refitted = build_refitted_candidate_sets(
-            executor=executor, candidates=candidates, snapshot=snapshot, return_rows=returns, income=income,
+            executor=executor,
+            candidates=candidates,
+            snapshot=snapshot,
+            return_rows=returns,
+            income=income,
             risk_model_spec=LW_FULL,
         )
-        state = {"phase": 2, "risk": risk, "structure": structure, "income": income,
-                 "candidates": candidates, "refitted": refitted}
+        state = {
+            "phase": 2,
+            "risk": risk,
+            "structure": structure,
+            "income": income,
+            "candidates": candidates,
+            "refitted": refitted,
+        }
         if save_checkpoint is not None:
             save_checkpoint(2, MULTIVARIATE_PHASES[1], state)
     else:
-        risk = cast(Any, state["risk"])
-        structure = cast(Any, state["structure"])
-        income = cast(Any, state["income"])
-        candidates = cast(Any, state["candidates"])
-        refitted = cast(Any, state["refitted"])
+        risk = state["risk"]
+        structure = state["structure"]
+        income = state["income"]
+        candidates = state["candidates"]
+        refitted = state["refitted"]
 
     if on_phase is not None and phase < 2:
         on_phase(2, MULTIVARIATE_PHASES[1])
     if phase < 3:
         validation = validate_candidates(
-            candidates=candidates, return_rows=returns, precomputed_candidates=refitted,
-            risk_model_id=risk.risk_model_id, executor=executor,
+            candidates=candidates,
+            return_rows=returns,
+            precomputed_candidates=refitted,
+            risk_model_id=risk.risk_model_id,
+            executor=executor,
         )
         state.update({"phase": 3, "validation": validation})
         if save_checkpoint is not None:
             save_checkpoint(3, MULTIVARIATE_PHASES[2], state)
     else:
-        validation = cast(Any, state["validation"])
+        validation = state["validation"]
 
     if on_phase is not None and phase < 3:
         on_phase(3, MULTIVARIATE_PHASES[2])
     if phase < 5:
-        structure_v2 = build_structure_v2_documents(risk_model=risk, return_rows=returns, candidates=candidates)
-        structural_walk_forward = build_structural_walk_forward_evidence(
-            snapshot=snapshot, candidates=candidates, return_rows=returns,
-            refitted_candidate_sets=refitted, validation_splits=validation,
+        structure_v2 = build_structure_v2_documents(
+            risk_model=risk, return_rows=returns, candidates=candidates
         )
-        scenarios = validate_candidate_stress(candidates=candidates, return_rows=returns, executor=executor)
+        structural_walk_forward = build_structural_walk_forward_evidence(
+            snapshot=snapshot,
+            candidates=candidates,
+            return_rows=returns,
+            refitted_candidate_sets=refitted,
+            validation_splits=validation,
+        )
+        scenarios = validate_candidate_stress(
+            candidates=candidates, return_rows=returns, executor=executor
+        )
         risk_model_comparison = build_risk_model_comparison(
             snapshot=snapshot, return_rows=returns, income=income, executor=executor
         )
         current_sample_family = build_current_sample_candidate_family(
-            snapshot=snapshot, return_rows=returns, income=income, executor=executor,
+            snapshot=snapshot,
+            return_rows=returns,
+            income=income,
+            executor=executor,
         )
         scorecards = build_candidate_scorecards(splits=validation, scenarios=scenarios)
-        state.update({"phase": 5, "structure_v2": structure_v2,
-                      "structural_walk_forward": structural_walk_forward,
-                      "scenarios": scenarios, "scorecards": scorecards,
-                      "current_sample_family": current_sample_family,
-                      "risk_model_comparison": risk_model_comparison})
+        state.update(
+            {
+                "phase": 5,
+                "structure_v2": structure_v2,
+                "structural_walk_forward": structural_walk_forward,
+                "scenarios": scenarios,
+                "scorecards": scorecards,
+                "current_sample_family": current_sample_family,
+                "risk_model_comparison": risk_model_comparison,
+            }
+        )
         if save_checkpoint is not None:
             save_checkpoint(5, MULTIVARIATE_PHASES[4], state)
     else:
-        structure_v2 = cast(Any, state["structure_v2"])
-        structural_walk_forward = cast(Any, state["structural_walk_forward"])
-        scenarios = cast(Any, state["scenarios"])
-        scorecards = cast(Any, state["scorecards"])
-        current_sample_family = cast(Any, state.get("current_sample_family"))
-        risk_model_comparison = cast(Any, state.get("risk_model_comparison", {}))
+        structure_v2 = state["structure_v2"]
+        structural_walk_forward = state["structural_walk_forward"]
+        scenarios = state["scenarios"]
+        scorecards = state["scorecards"]
+        current_sample_family = state.get("current_sample_family")
+        risk_model_comparison = state.get("risk_model_comparison", {})
         if current_sample_family is None:
             current_sample_family = build_current_sample_candidate_family(
-                snapshot=snapshot, return_rows=returns, income=income, executor=executor,
+                snapshot=snapshot,
+                return_rows=returns,
+                income=income,
+                executor=executor,
             )
 
     if on_phase is not None and phase < 5:
         on_phase(4, MULTIVARIATE_PHASES[3])
         on_phase(5, MULTIVARIATE_PHASES[4])
     decision = _select_common_oos_decision(
-        objective=objective, risk_model_comparison=risk_model_comparison,
+        objective=objective,
+        risk_model_comparison=risk_model_comparison,
         current_sample_candidates=current_sample_family.candidates,
     )
     state.update({"phase": 6, "decision": decision})
@@ -291,24 +327,38 @@ def compute_multivariate(
         for candidate in current_candidates
         for result in (
             volatility_up_25pct(
-                risk_model=current_sample_family.model(candidate.risk_model_spec_key), candidate=candidate
+                risk_model=current_sample_family.model(candidate.risk_model_spec_key),
+                candidate=candidate,
             ),
             correlation_convergence_25pct(
-                risk_model=current_sample_family.model(candidate.risk_model_spec_key), candidate=candidate
+                risk_model=current_sample_family.model(candidate.risk_model_spec_key),
+                candidate=candidate,
             ),
         )
     ]
     income_rows = [_income_row(key, evidence) for key, evidence in sorted(income.items())]
     validation_rows = (
-        [{"evidence_role": "descriptive", **walk_forward_validation_row(item)} for item in validation]
+        [
+            {"evidence_role": "descriptive", **walk_forward_validation_row(item)}
+            for item in validation
+        ]
         + [{"kind": "stress", "evidence_role": "descriptive", **asdict(item)} for item in scenarios]
-        + [{"kind": "scorecard", "evidence_role": "descriptive", **asdict(item)} for item in scorecards]
-        + [{"kind": "common_oos_validation", "evidence_role": "selection", **row}
-           for row in risk_model_comparison.get("common_oos_validation", [])]
-        + [{"kind": "configuration_scorecard", "evidence_role": "selection", **row}
-           for row in risk_model_comparison.get("configuration_scorecards", [])]
-        + [{"kind": "configuration_ranking", "evidence_role": "selection", **row}
-           for row in risk_model_comparison.get("configuration_rankings", {}).get(objective, [])]
+        + [
+            {"kind": "scorecard", "evidence_role": "descriptive", **asdict(item)}
+            for item in scorecards
+        ]
+        + [
+            {"kind": "common_oos_validation", "evidence_role": "selection", **row}
+            for row in risk_model_comparison.get("common_oos_validation", [])
+        ]
+        + [
+            {"kind": "configuration_scorecard", "evidence_role": "selection", **row}
+            for row in risk_model_comparison.get("configuration_scorecards", [])
+        ]
+        + [
+            {"kind": "configuration_ranking", "evidence_role": "selection", **row}
+            for row in risk_model_comparison.get("configuration_rankings", {}).get(objective, [])
+        ]
     )
     documents: dict[str, JsonRow] = {
         "summary": {
@@ -376,7 +426,9 @@ def compute_multivariate(
         "risk_model_comparison": risk_model_comparison,
         "income_evidence": {"items": income_rows},
         "current_sample_family": {"items": list(current_sample_family.to_rows())},
-        "performance": build_multivariate_performance(candidates=current_candidates, return_rows=returns),
+        "performance": build_multivariate_performance(
+            candidates=current_candidates, return_rows=returns
+        ),
         "decision": decision.document,
         "market_source": {
             "snapshot_id": market_snapshot_id,
@@ -399,7 +451,9 @@ def compute_multivariate(
 
 
 def _select_common_oos_decision(
-    *, objective: str, risk_model_comparison: Mapping[str, Any],
+    *,
+    objective: str,
+    risk_model_comparison: Mapping[str, Any],
     current_sample_candidates: Sequence[PortfolioCandidate] = (),
 ) -> MultivariateDecision:
     """Select only from persisted configuration-keyed common-OOS rankings."""
@@ -416,10 +470,14 @@ def _select_common_oos_decision(
             "selection_authority": "common_oos_14_config",
         }
         return MultivariateDecision(
-            objective=objective, winning_candidate_id="unavailable",
-            requested_method="unavailable", actual_method="unavailable",
-            available=False, production_eligible=False,
-            reason="common_oos_decision_evidence_unavailable", document=document,
+            objective=objective,
+            winning_candidate_id="unavailable",
+            requested_method="unavailable",
+            actual_method="unavailable",
+            available=False,
+            production_eligible=False,
+            reason="common_oos_decision_evidence_unavailable",
+            document=document,
         )
     winner = ordered[0]
     current_by_configuration = {
@@ -434,10 +492,16 @@ def _select_common_oos_decision(
     document = {
         "contract_version": DECISION_CONTRACT.qualified_name,
         "objective": objective,
-        "objective_metric": "median_sharpe_ratio" if objective == "return_risk" else (
-            "median_return_drawdown_ratio" if objective == "return_drawdown" else "minimum_volatility"
+        "objective_metric": "median_sharpe_ratio"
+        if objective == "return_risk"
+        else (
+            "median_return_drawdown_ratio"
+            if objective == "return_drawdown"
+            else "minimum_volatility"
         ),
-        "winning_candidate_id": current.candidate_id if available and current is not None else "unavailable",
+        "winning_candidate_id": current.candidate_id
+        if available and current is not None
+        else "unavailable",
         "winning_configuration_id": winner.get("configuration_id", "unavailable"),
         "requested_method": winner.get("method", "unavailable"),
         "actual_method": winner.get("method", "unavailable"),
@@ -454,15 +518,20 @@ def _select_common_oos_decision(
         "comparison_split_count": winner.get("completed_split_count", 0),
         "median_turnover": winner.get("median_turnover"),
         "median_herfindahl_index": winner.get("median_herfindahl_index"),
-        "tie_break": "median_turnover_ascending_then_median_hhi_ascending_then_configuration_id_ascending",
+        "tie_break": (
+            "median_turnover_ascending_then_median_hhi_ascending_then_configuration_id_ascending"
+        ),
         "full_history_evidence_role": "descriptive_non_selection",
     }
     return MultivariateDecision(
         objective=objective,
-        winning_candidate_id=current.candidate_id if available and current is not None else "unavailable",
+        winning_candidate_id=current.candidate_id
+        if available and current is not None
+        else "unavailable",
         requested_method=str(winner.get("method", "unavailable")) if available else "unavailable",
         actual_method=str(winner.get("method", "unavailable")) if available else "unavailable",
-        available=available, production_eligible=available,
+        available=available,
+        production_eligible=available,
         reason=None if available else "common_oos_decision_evidence_unavailable",
         document=document,
     )

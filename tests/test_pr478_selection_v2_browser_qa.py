@@ -1,19 +1,25 @@
 from __future__ import annotations
 
 from migration_evidence import dash_cutover_evidence
-from portfell.dash_app.pages.multivariate import build_page, optimize_portfolio
 from test_dash_multivariate_page import Service
+
+from portfell.dash_app.pages.multivariate import build_page, optimize_portfolio
 
 
 def test_all_objectives_are_forwarded_without_substitution() -> None:
     service = Service()
     results = {}
     for objective in ("return_risk", "return_drawdown", "minimum_risk"):
-        result = optimize_portfolio(service, selection_id="selection-1", bivariate_run_id="run-b", objective=objective)
+        result = optimize_portfolio(
+            service, selection_id="selection-1", bivariate_run_id="run-b", objective=objective
+        )
         results[objective] = result["objective"] == objective
     assert all(results.values())
-    evidence = dash_cutover_evidence(sha="test-sha", objective_results=results,
-                                     focused_tests=["test_pr478_selection_v2_browser_qa.py"])
+    evidence = dash_cutover_evidence(
+        sha="test-sha",
+        objective_results=results,
+        focused_tests=["test_pr478_selection_v2_browser_qa.py"],
+    )
     assert evidence["all_objectives_reached"] and evidence["status"] == "PASS"
 
 

@@ -11,6 +11,7 @@ class FakeCursor:
     def __init__(self) -> None:
         self.queries: list[str] = []
         self.results: list[list[tuple[object, ...]]] = [
+            [("amount",)],
             [("IE00TEST", "XETRA", "TEST", "Test ETF", "ETF", "DE", "EUR", True)],
             [
                 (

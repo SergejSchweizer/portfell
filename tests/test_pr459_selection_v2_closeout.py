@@ -5,7 +5,6 @@ from portfell.multivariate_risk_model_comparison import COMPARISON_METHODS
 from portfell.multivariate_risk_spec import PRODUCTION_RISK_MODEL_SPECS
 from portfell.multivariate_validation import _SCENARIO_NAMES
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -20,5 +19,5 @@ def test_selection_v2_frozen_invariants() -> None:
 
 def test_selection_action_has_no_hardcoded_return_risk_override() -> None:
     source = (ROOT / "src/portfell/dash_app/callbacks.py").read_text()
-    action = source[source.index('elif action == "multivariate-optimize"'):]
+    action = source[source.index('elif action == "multivariate-optimize"') :]
     assert 'objective="return_risk"' not in action

@@ -131,7 +131,7 @@ def test_explicit_actions_delegate_using_persisted_ids() -> None:
         ("metadata", {}),
         ("selection", ("run-u", None)),
         ("bivariate", "s1"),
-        ("multivariate", ("s1", "run-b", "return_risk")),
+        ("multivariate", ("s1", "run-b", "minimum_risk")),
     ]
 
 
@@ -145,7 +145,9 @@ def test_univariate_filters_are_saved_by_the_univariate_writer_on_route_changes(
     workflow_service = Service()
     univariate_writer = Service()
     state = browser_state_from_workflow(workflow_service.workflow_state())
-    predicates = ({"metric": "monthly_return_group", "operator": "in", "allowed": ["gt_0_to_2_pct"]},)
+    predicates = (
+        {"metric": "monthly_return_group", "operator": "in", "allowed": ["gt_0_to_2_pct"]},
+    )
 
     result = execute_action(
         workflow_service,

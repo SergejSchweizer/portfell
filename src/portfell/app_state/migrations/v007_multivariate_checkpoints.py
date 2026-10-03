@@ -2,7 +2,6 @@
 
 from portfell.app_state.migrations.v001_initial import AppStateMigration
 
-
 _SQL = """
 create table if not exists portfell.multivariate_checkpoints (
     dataset_digest text primary key check (btrim(dataset_digest) <> ''),

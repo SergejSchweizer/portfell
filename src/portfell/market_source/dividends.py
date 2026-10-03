@@ -10,7 +10,8 @@ from typing import Protocol
 from portfell.market_source.contracts import Dividend, ListingKey
 from portfell.market_source.errors import MARKET_SOURCE_INVALID_VALUE, MarketSourceError
 
-_DIVIDEND_COLUMNS = "isin, exchange, code, event_date, event_key, amount, currency"
+_DIVIDEND_COLUMNS = "isin, exchange, code, event_date, event_key, {amount_expression}, currency"
+_AMOUNT_COLUMNS = frozenset({"amount", "value"})
 _BATCH_SIZE = 500
 
 
@@ -58,8 +59,11 @@ class DividendsRepository:
         *,
         start: date,
         end: date,
+        amount_column: str = "amount",
     ) -> tuple[Dividend, ...]:
         if start > end:
+            raise MarketSourceError(MARKET_SOURCE_INVALID_VALUE)
+        if amount_column not in _AMOUNT_COLUMNS:
             raise MarketSourceError(MARKET_SOURCE_INVALID_VALUE)
         dividends: list[Dividend] = []
         for offset in range(0, len(keys), _BATCH_SIZE):
@@ -70,8 +74,10 @@ class DividendsRepository:
             parameters = tuple(
                 value for key in batch for value in (key.isin, key.exchange, key.code)
             ) + (start, end)
+            amount_expression = amount_column if amount_column == "amount" else "value AS amount"
             cursor.execute(
-                f"SELECT {_DIVIDEND_COLUMNS} FROM xetra_loader.dividends "
+                f"SELECT {_DIVIDEND_COLUMNS.format(amount_expression=amount_expression)} "
+                "FROM xetra_loader.dividends "
                 f"WHERE (isin, exchange, code) IN ({placeholders}) "
                 "AND event_date >= %s AND event_date <= %s "
                 "ORDER BY isin, exchange, code, event_date, event_key",

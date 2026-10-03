@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import json
 import hashlib
+import json
 from collections.abc import Mapping, Sequence
 from datetime import datetime
 from typing import Protocol, cast
@@ -621,7 +621,9 @@ class PostgresAppStateRepository:
                        payload = excluded.payload,
                        payload_hash = excluded.payload_hash,
                        updated_at = now()
-                   where portfell.multivariate_checkpoints.algorithm_version = excluded.algorithm_version
+                   where portfell.multivariate_checkpoints.algorithm_version = (
+                         excluded.algorithm_version
+                   )
                      and portfell.multivariate_checkpoints.phase <= excluded.phase
                    returning dataset_digest, algorithm_version, phase, phase_name, payload,
                              payload_hash, updated_at""",

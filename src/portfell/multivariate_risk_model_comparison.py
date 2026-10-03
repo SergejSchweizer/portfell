@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, replace
 from concurrent.futures import Executor
+from dataclasses import dataclass, replace
 from typing import Any
 
 from portfell.contract_versioning import ContractVersion
@@ -12,7 +12,11 @@ from portfell.income import IncomeEvidence
 from portfell.multivariate_candidates import PortfolioCandidate, build_candidate_set
 from portfell.multivariate_inputs import MultivariateInputSnapshot, MultivariateListingKey
 from portfell.multivariate_risk_model import build_multivariate_risk_model
-from portfell.multivariate_risk_spec import EWMA_094, LW_FULL, LW_ROLLING_252, RiskModelSpecification
+from portfell.multivariate_risk_spec import (
+    EWMA_094,
+    LW_FULL,
+    LW_ROLLING_252,
+)
 from portfell.multivariate_selection_ranking import (
     build_configuration_scorecards,
     rank_configuration_scorecards,
@@ -20,7 +24,7 @@ from portfell.multivariate_selection_ranking import (
 from portfell.multivariate_validation import (
     DEFAULT_WALK_FORWARD_POLICY,
     WalkForwardPolicy,
-    _walk_forward_starts,
+    _walk_forward_starts,  # pyright: ignore[reportPrivateUsage]
     validate_candidates,
     walk_forward_validation_row,
 )
@@ -79,8 +83,11 @@ class SplitRiskModelBundle:
 
 
 def build_risk_model_comparison(
-    *, snapshot: MultivariateInputSnapshot, return_rows: Sequence[Mapping[str, Any]],
-    income: Mapping[MultivariateListingKey, IncomeEvidence], executor: Executor | None = None,
+    *,
+    snapshot: MultivariateInputSnapshot,
+    return_rows: Sequence[Mapping[str, Any]],
+    income: Mapping[MultivariateListingKey, IncomeEvidence],
+    executor: Executor | None = None,
 ) -> dict[str, Any]:
     """Build deterministic common-OOS comparison and current-sample evidence."""
     models: dict[str, Any] = {}
@@ -97,11 +104,16 @@ def build_risk_model_comparison(
         snapshot=snapshot, return_rows=return_rows, dates=dates, starts=starts
     )
     split_families = build_split_candidate_families(
-        snapshot=snapshot, return_rows=return_rows, income=income,
-        bundles=split_bundles, executor=executor,
+        snapshot=snapshot,
+        return_rows=return_rows,
+        income=income,
+        bundles=split_bundles,
+        executor=executor,
     )
     common_validation = build_common_oos_validation(
-        return_rows=return_rows, families=split_families, executor=executor,
+        return_rows=return_rows,
+        families=split_families,
+        executor=executor,
     )
     common_validation_rows = [walk_forward_validation_row(item) for item in common_validation]
     configuration_scorecards = build_configuration_scorecards(
@@ -113,34 +125,45 @@ def build_risk_model_comparison(
             spec = next(item for item in COMPARISON_SPECS if item.spec_key == spec_key)
             model = models[spec_key]
             candidates = build_candidate_set(
-                snapshot=snapshot, risk_model=model, return_rows=return_rows,
-                income=income, executor=executor
+                snapshot=snapshot,
+                risk_model=model,
+                return_rows=return_rows,
+                income=income,
+                executor=executor,
             )
-            evidence.extend({
-                "method": candidate.method,
-                "spec_key": spec.spec_key,
-                "spec_id": spec.spec_id,
-                "candidate_id": candidate.candidate_id,
-                "candidate_configuration_id": candidate.candidate_configuration_id,
-                "status": candidate.status,
-                "reason": candidate.reasons[0] if candidate.reasons else None,
-            } for candidate in candidates if candidate.method == method)
-            for bundle in split_bundles:
-                split_model = bundle.model(spec_key)
-                split_evidence.append({
-                    "split_index": bundle.split_index,
-                    "train_start": bundle.train_start,
-                    "train_end": bundle.train_end,
-                    "test_start": bundle.test_start,
-                    "test_end": bundle.test_end,
-                    "method": method,
+            evidence.extend(
+                {
+                    "method": candidate.method,
                     "spec_key": spec.spec_key,
                     "spec_id": spec.spec_id,
-                    "risk_model_id": split_model.risk_model_id,
-                    "fit_calendar_id": split_model.fit_calendar_id,
-                    "status": "scheduled" if split_model.available else "unavailable",
-                    "reason": split_model.availability_reasons[0] if split_model.availability_reasons else None,
-                })
+                    "candidate_id": candidate.candidate_id,
+                    "candidate_configuration_id": candidate.candidate_configuration_id,
+                    "status": candidate.status,
+                    "reason": candidate.reasons[0] if candidate.reasons else None,
+                }
+                for candidate in candidates
+                if candidate.method == method
+            )
+            for bundle in split_bundles:
+                split_model = bundle.model(spec_key)
+                split_evidence.append(
+                    {
+                        "split_index": bundle.split_index,
+                        "train_start": bundle.train_start,
+                        "train_end": bundle.train_end,
+                        "test_start": bundle.test_start,
+                        "test_end": bundle.test_end,
+                        "method": method,
+                        "spec_key": spec.spec_key,
+                        "spec_id": spec.spec_id,
+                        "risk_model_id": split_model.risk_model_id,
+                        "fit_calendar_id": split_model.fit_calendar_id,
+                        "status": "scheduled" if split_model.available else "unavailable",
+                        "reason": split_model.availability_reasons[0]
+                        if split_model.availability_reasons
+                        else None,
+                    }
+                )
     return {
         "contract_version": RISK_MODEL_COMPARISON_CONTRACT.qualified_name,
         "selection_v2_policy": SELECTION_V2_POLICY.to_row(),
@@ -152,17 +175,20 @@ def build_risk_model_comparison(
         "common_split_evidence": split_evidence,
         "split_risk_model_bundles": [row for bundle in split_bundles for row in bundle.to_rows()],
         "split_candidate_families": [row for family in split_families for row in family.to_rows()],
-        "common_oos_validation": [
-            row for row in common_validation_rows
-        ],
+        "common_oos_validation": [row for row in common_validation_rows],
         "configuration_scorecards": [card.to_row() for card in configuration_scorecards],
         "configuration_rankings": {
-            objective: list(rank_configuration_scorecards(configuration_scorecards, objective=objective))
+            objective: list(
+                rank_configuration_scorecards(configuration_scorecards, objective=objective)
+            )
             for objective in ("return_risk", "return_drawdown", "minimum_risk")
         },
         "risk_models": {
-            key: {"risk_model_id": model.risk_model_id, "fit_calendar_id": model.fit_calendar_id,
-                  "status": "available" if model.available else "unavailable"}
+            key: {
+                "risk_model_id": model.risk_model_id,
+                "fit_calendar_id": model.fit_calendar_id,
+                "status": "available" if model.available else "unavailable",
+            }
             for key, model in models.items()
         },
     }
@@ -180,8 +206,14 @@ def build_split_risk_model_bundles(
     The tuple is ordered by split and canonical specification order.  An
     unavailable fit remains an explicit artifact rather than being dropped.
     """
-    common_dates = tuple(dates) if dates is not None else _common_dates(return_rows, snapshot.listing_keys)
-    split_starts = tuple(starts) if starts is not None else _walk_forward_starts(common_dates, COMPARISON_WALK_FORWARD_POLICY)
+    common_dates = (
+        tuple(dates) if dates is not None else _common_dates(return_rows, snapshot.listing_keys)
+    )
+    split_starts = (
+        tuple(starts)
+        if starts is not None
+        else _walk_forward_starts(common_dates, COMPARISON_WALK_FORWARD_POLICY)
+    )
     bundles: list[SplitRiskModelBundle] = []
     for split_index, start in enumerate(split_starts):
         train_dates = set(common_dates[:start])
@@ -193,7 +225,9 @@ def build_split_risk_model_bundles(
         models = tuple(
             (
                 spec.spec_key,
-                build_multivariate_risk_model(snapshot=snapshot, return_rows=training_rows, spec=spec),
+                build_multivariate_risk_model(
+                    snapshot=snapshot, return_rows=training_rows, spec=spec
+                ),
             )
             for spec in COMPARISON_SPECS
         )
@@ -284,7 +318,8 @@ def build_split_candidate_families(
     for bundle in bundles:
         candidates: list[PortfolioCandidate] = []
         split_return_rows = tuple(
-            row for row in return_rows
+            row
+            for row in return_rows
             if bundle.train_end is None or str(row.get("date", "")) <= bundle.train_end
         )
         for configuration in SELECTION_V2_CONFIGURATIONS:
@@ -299,7 +334,9 @@ def build_split_candidate_families(
             )
             if len(built) != 1:
                 raise RuntimeError("split_candidate_family_slot_count_mismatch")
-            candidates.append(replace(built[0], candidate_configuration_id=configuration.configuration_id))
+            candidates.append(
+                replace(built[0], candidate_configuration_id=configuration.configuration_id)
+            )
         families.append(
             SplitCandidateFamily(
                 split_index=bundle.split_index,
@@ -340,7 +377,10 @@ def build_current_sample_candidate_family(
 ) -> CurrentSampleCandidateFamily:
     """Fit at most three current-sample risk models and materialize 14 slots."""
     models = tuple(
-        (spec.spec_key, build_multivariate_risk_model(snapshot=snapshot, return_rows=return_rows, spec=spec))
+        (
+            spec.spec_key,
+            build_multivariate_risk_model(snapshot=snapshot, return_rows=return_rows, spec=spec),
+        )
         for spec in COMPARISON_SPECS
     )
     candidates: list[PortfolioCandidate] = []
@@ -355,7 +395,9 @@ def build_current_sample_candidate_family(
         )
         if len(built) != 1:
             raise RuntimeError("current_sample_family_slot_count_mismatch")
-        candidates.append(replace(built[0], candidate_configuration_id=configuration.configuration_id))
+        candidates.append(
+            replace(built[0], candidate_configuration_id=configuration.configuration_id)
+        )
     return CurrentSampleCandidateFamily(risk_models=models, candidates=tuple(candidates))
 
 
@@ -378,12 +420,15 @@ __all__ = [
 def _common_dates(
     rows: Sequence[Mapping[str, Any]], listings: Sequence[MultivariateListingKey]
 ) -> tuple[str, ...]:
-    indexed = {key: set() for key in listings}
+    indexed: dict[MultivariateListingKey, set[str]] = {key: set() for key in listings}
     for row in rows:
         key = MultivariateListingKey.from_row(row)
         if key in indexed:
             indexed[key].add(str(row.get("date", "")))
     if not indexed:
         return ()
-    common = set.intersection(*(dates for dates in indexed.values()))
+    available = tuple(indexed.values())
+    common: set[str] = set(available[0])
+    for dates in available[1:]:
+        common.intersection_update(dates)
     return tuple(sorted(item for item in common if item))

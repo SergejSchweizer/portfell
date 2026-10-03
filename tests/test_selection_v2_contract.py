@@ -9,10 +9,17 @@ from portfell.selection_v2_contract import (
 
 def test_selection_v2_has_exact_family_and_frozen_policy() -> None:
     assert len(SELECTION_V2_CONFIGURATIONS) == 14
-    assert [sum(item.method == method for item in SELECTION_V2_CONFIGURATIONS) for method in (
-        "equal_weight", "inverse_volatility", "minimum_variance",
-        "equal_risk_contribution", "hierarchical_risk_parity", "minimum_cvar"
-    )] == [1, 3, 3, 3, 3, 1]
+    assert [
+        sum(item.method == method for item in SELECTION_V2_CONFIGURATIONS)
+        for method in (
+            "equal_weight",
+            "inverse_volatility",
+            "minimum_variance",
+            "equal_risk_contribution",
+            "hierarchical_risk_parity",
+            "minimum_cvar",
+        )
+    ] == [1, 3, 3, 3, 3, 1]
     assert SELECTION_V2_POLICY.to_row() == {
         "minimum_training_observations": 252,
         "test_window_observations": 21,

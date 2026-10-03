@@ -1,19 +1,10 @@
 # Workflow module boundaries
 
-## Table of contents
+Last reviewed: 2026-10-03
 
-- [Purpose](#purpose)
-- [Physical layout](#physical-layout)
-- [Contracts](#contracts)
-- [Dependency rules](#dependency-rules)
-- [Adding a module](#adding-a-module)
-
-## Purpose
-
-Portfell is one deployable application with four physically separated feature modules. The
-separation prevents routine work on one analytical stage from silently changing another stage's
-HTTP or UI behavior. One process and one application database remain sufficient; module isolation
-does not require four containers.
+Portfell is one deployable FastAPI + Plotly Dash application with four physically separated
+feature modules. Module separation is enforced in Python and at the HTTP boundary; it does
+not require one container per module.
 
 ## Physical layout
 
@@ -23,8 +14,8 @@ src/portfell/modules/
 ├── univariate/     # /api/univariate/*
 ├── bivariate/      # /api/bivariate/*
 ├── multivariate/   # /api/multivariate/*
-├── http.py         # transport-only error/value helpers
-└── runtime.py      # capability-restricted module service registry
+├── http.py         # transport helpers
+└── runtime.py      # restricted service registry
 
 src/portfell/dash_app/pages/
 ├── metadata.py
@@ -33,50 +24,22 @@ src/portfell/dash_app/pages/
 └── multivariate.py
 ```
 
-`hosted_api.py` is the only composition root. It creates the module registry, assigns one bounded
-service facade to each API router and UI page, and mounts the application. A facade raises
-`ModuleBoundaryError` when code tries to call an operation owned by another feature.
+## Current contracts
 
-## Contracts
-
-| Module | Browser route | API prefix | Persisted input | Persisted output |
+| Module | Browser route | API prefix | Input | Output |
 | --- | --- | --- | --- | --- |
-| Metadata | `/metadata` | `/api/metadata` | local market snapshot plus filter values | immutable Metadata universe ID |
-| Univariate | `/univariate` | `/api/univariate` | Metadata universe ID | Univariate run and selection IDs |
-| Bivariate | `/bivariate` | `/api/bivariate` | Univariate selection ID | Bivariate run ID and pair artifacts |
-| Multivariate | `/multivariate` | `/api/multivariate` | Bivariate run ID | Multivariate run and decision artifacts |
+| Metadata | `/metadata` | `/api/metadata` | market snapshot and filters | Metadata universe |
+| Univariate | `/univariate` | `/api/univariate` | Metadata universe | Univariate run/selection |
+| Bivariate | `/bivariate` | `/api/bivariate` | Univariate selection | Bivariate run/artifacts |
+| Multivariate | `/multivariate` | `/api/multivariate` | Bivariate run | Multivariate decision |
 
-Stage history and run-detail reads live below the owning module's `/runs` resource. There is no
-generic `/api/runs` endpoint because it would erase ownership at the HTTP boundary. Shared
-`/api/workflow` contains identifiers and readiness only; it is a coordinator read model, not a
-fifth analytical module.
+There is no generic `/api/runs` endpoint. Shared workflow reads expose readiness and IDs only;
+run history and run-detail resources remain owned by the module that creates them.
 
 ## Dependency rules
 
-```text
-MetadataUniverseId
-        |
-        v
-UnivariateRunId -> UnivariateSelectionId
-                           |
-                           v
-                    BivariateRunId
-                           |
-                           v
-                   MultivariateRunId
-```
-
-- Feature packages must not import sibling feature packages.
-- UI pages receive only their owning module facade.
-- Cross-stage transitions belong to the workflow callback facade and pass persisted IDs.
-- Dash code contains no SQL or financial calculations.
-- Feature routers contain no database or UI imports.
-- `architecture_checks.py` and `test_feature_module_boundaries.py` enforce these rules in the
-  merge gate.
-
-## Adding a module
-
-Add a module only when it has a distinct immutable input and output contract. Create its package,
-API router, restricted facade capability set, Dash page, documentation sidecar, and negative
-boundary tests. Register it only in `hosted_api.py`. Downstream modules must consume the new
-module's persisted output ID rather than importing its implementation or reading browser state.
+- Feature packages do not import sibling feature packages.
+- Each page receives only its owning module facade.
+- Cross-stage transitions pass persisted IDs through the workflow coordinator.
+- Feature routers contain no database or UI imports; Dash pages contain no SQL.
+- Architecture checks and module-boundary tests enforce these rules.

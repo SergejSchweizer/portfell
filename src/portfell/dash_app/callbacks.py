@@ -149,9 +149,7 @@ def _selected_isin_count(service: CallbackService, filters: Mapping[str, str | N
     return len({str(row.get("isin")) for row in rows if row.get("isin")})
 
 
-def _selected_date_range(
-    service: CallbackService, filters: Mapping[str, str | None]
-) -> str | None:
+def _selected_date_range(service: CallbackService, filters: Mapping[str, str | None]) -> str | None:
     reader = getattr(service, "metadata_date_range", None)
     if not callable(reader):
         return None

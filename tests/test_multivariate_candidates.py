@@ -149,6 +149,8 @@ def test_refits_share_configuration_identity_but_keep_fit_identity_distinct() ->
     assert [item.candidate_configuration_id for item in first] == [
         item.candidate_configuration_id for item in second
     ]
+
+
 def test_candidate_realized_returns_match_weighted_simple_return_performance() -> None:
     rows = [
         {

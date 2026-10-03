@@ -73,7 +73,10 @@ def workflow_context(context: WorkflowContext | None = None) -> Component:
                     [
                         html.Div(section, className="pf-context-section-title"),
                         html.Ul(
-                            [html.Li([html.Span(label), html.Span(item_value)]) for label, item_value in items],
+                            [
+                                html.Li([html.Span(label), html.Span(item_value)])
+                                for label, item_value in items
+                            ],
                             className="pf-context-list",
                         ),
                     ],
@@ -211,9 +214,27 @@ def workflow_context_from_state(state: BrowserState, pathname: str | None) -> Wo
         ),
     )
     selection_sections = (
-        ("Metadata", (("ISINs", _display_count(state.metadata_member_count)), ("Date", state.metadata_date_range or "—"))),
-        ("Univariate", (("ISINs", _display_count(state.selected_count)), ("Date", state.univariate_date_range or "—"))),
-        ("Bivariate", (("Pairs", _display_count(state.bivariate_pair_count)), ("Date", state.bivariate_date_range or "—"))),
+        (
+            "Metadata",
+            (
+                ("ISINs", _display_count(state.metadata_member_count)),
+                ("Date", state.metadata_date_range or "—"),
+            ),
+        ),
+        (
+            "Univariate",
+            (
+                ("ISINs", _display_count(state.selected_count)),
+                ("Date", state.univariate_date_range or "—"),
+            ),
+        ),
+        (
+            "Bivariate",
+            (
+                ("Pairs", _display_count(state.bivariate_pair_count)),
+                ("Date", state.bivariate_date_range or "—"),
+            ),
+        ),
     )
     return WorkflowContext(
         project_options=state.project_options,
@@ -258,7 +279,9 @@ def route_renderer(services: object | None = None) -> Callable[[str | None, obje
     return render
 
 
-def _context_row(label: str, value: str, component_id: str) -> Component:
+def _context_row(  # pyright: ignore[reportUnusedFunction]
+    label: str, value: str, component_id: str
+) -> Component:
     return html.Div(
         [
             html.Span(children=label, className="pf-context-label"),

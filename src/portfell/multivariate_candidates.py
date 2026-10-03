@@ -179,7 +179,9 @@ def build_candidate_set(
             _unavailable(snapshot, risk_model, policy, method, infeasible_reason)
             for method in requested_methods
         )
-    tasks = tuple((snapshot, risk_model, return_rows, income, policy, method) for method in requested_methods)
+    tasks = tuple(
+        (snapshot, risk_model, return_rows, income, policy, method) for method in requested_methods
+    )
     return (
         tuple(_build_candidate(task) for task in tasks)
         if executor is None

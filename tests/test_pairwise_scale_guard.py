@@ -65,7 +65,7 @@ def test_build_pair_plan_rejects_invalid_configuration() -> None:
 def test_resolve_worker_count_caps_to_explicit_policy(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("os.cpu_count", lambda: 64)
 
-    assert resolve_worker_count(None) == DEFAULT_MAX_WORKERS
+    assert resolve_worker_count(None) == min(DEFAULT_MAX_WORKERS, 64)
     assert resolve_worker_count(None, max_workers=2) == 2
     assert resolve_worker_count(8) == 8
     assert resolve_worker_count(0) == 1

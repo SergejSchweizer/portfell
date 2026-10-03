@@ -41,9 +41,14 @@ def refresh(*, config_path: Path, root: Path) -> int:
     root.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="market-refresh-", dir=root.parent) as temp:
         staging = Path(temp)
-        for name, rows in (("listings", snapshot.listings), ("dividends", snapshot.dividends), ("splits", snapshot.splits)):
+        for name, rows in (
+            ("listings", snapshot.listings),
+            ("dividends", snapshot.dividends),
+            ("splits", snapshot.splits),
+        ):
             (staging / f"{name}.jsonl").write_text(
-                "".join(json.dumps(_row(item), sort_keys=True) + "\n" for item in rows), encoding="utf-8"
+                "".join(json.dumps(_row(item), sort_keys=True) + "\n" for item in rows),
+                encoding="utf-8",
             )
         quote_ranges: dict[str, list[list[int]]] = {}
         with (staging / "quotes.jsonl").open("w", encoding="utf-8") as handle:

@@ -12,7 +12,7 @@ from collections.abc import Iterator, Sequence
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
-
+from typing import cast
 
 from portfell.market_source.contracts import Dividend, EodQuote, Listing, ListingKey, Split
 from portfell.market_source.errors import (
@@ -36,13 +36,19 @@ class LocalMarketDataGateway:
             return self._quote_ranges
         path = self._root / "quotes.index.json"
         try:
-            raw = json.loads(path.read_text(encoding="utf-8"))
+            raw = cast(dict[str, object], json.loads(path.read_text(encoding="utf-8")))
             self._quote_ranges = {
-                str(isin): tuple((int(item[0]), int(item[1])) for item in ranges)
+                str(isin): tuple(
+                    (
+                        int(cast(str | int | float, item[0])),
+                        int(cast(str | int | float, item[1])),
+                    )
+                    for item in cast(list[list[object]], ranges)
+                )
                 for isin, ranges in raw.items()
                 if isinstance(ranges, list)
             }
-        except (OSError, json.JSONDecodeError, TypeError, ValueError):
+        except OSError, json.JSONDecodeError, TypeError, ValueError:
             # Older snapshots have no sidecar. Build it once by scanning bytes;
             # subsequent reads in this process still avoid rescanning quotes.
             self._quote_ranges = self._build_quote_ranges()

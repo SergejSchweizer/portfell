@@ -93,7 +93,9 @@ def test_page_data_includes_quote_date_range_for_selected_listings() -> None:
 
     model = metadata_page_data(DateRangeService(), filters={"exchange": "XETRA"})
     assert model["date_range"] == {"start": "2020-01-02", "end": "2026-08-07"}
-    assert "Date range" in str(build_page(DateRangeService(), filters={"exchange": "XETRA"}).to_plotly_json())
+    assert "Date range" in str(
+        build_page(DateRangeService(), filters={"exchange": "XETRA"}).to_plotly_json()
+    )
 
 
 def test_metadata_distribution_charts_use_one_fixed_height() -> None:

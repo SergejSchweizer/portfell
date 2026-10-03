@@ -7,6 +7,7 @@ import pickle
 import tempfile
 from collections.abc import Mapping, Sequence
 from concurrent.futures import Executor
+from contextlib import suppress
 from typing import Any
 
 from portfell.income import IncomeEvidence
@@ -20,8 +21,8 @@ from portfell.multivariate_risk_spec import RiskModelSpecification
 from portfell.multivariate_validation import (
     DEFAULT_WALK_FORWARD_POLICY,
     WalkForwardPolicy,
-    _common_dates,
-    _walk_forward_starts,
+    _common_dates,  # pyright: ignore[reportPrivateUsage]
+    _walk_forward_starts,  # pyright: ignore[reportPrivateUsage]
 )
 
 
@@ -53,23 +54,26 @@ def build_refitted_candidate_sets(
     # Keep the large immutable history out of ProcessPool's pickle payload.
     # The temporary file lives on the API container's local tmpfs and is
     # removed only after every worker has consumed it.
-    handle = tempfile.NamedTemporaryFile(prefix="portfell-mv-", suffix=".pkl", delete=False)
+    return_path = ""
     try:
-        with handle:
+        with tempfile.NamedTemporaryFile(
+            prefix="portfell-mv-", suffix=".pkl", delete=False
+        ) as handle:
             pickle.dump(tuple(return_rows), handle, protocol=pickle.HIGHEST_PROTOCOL)
+            return_path = handle.name
         tasks = tuple(
-            (snapshot, handle.name, income, tuple(dates), batch, policy, risk_model_spec) for batch in batches
+            (snapshot, return_path, income, tuple(dates), batch, policy, risk_model_spec)
+            for batch in batches
         )
-        groups = executor.map(_build_refit_batch, tasks)
+        groups = tuple(executor.map(_build_refit_batch, tasks))
         # Worker batches are intentionally round-robin for load balancing;
         # validation, however, is path-dependent and must consume refits in
         # the canonical chronological start order.
         return _ordered_refit_candidate_sets(groups)
     finally:
-        try:
-            os.unlink(handle.name)
-        except FileNotFoundError:
-            pass
+        if return_path:
+            with suppress(FileNotFoundError):
+                os.unlink(return_path)
 
 
 def _build_refit_batch(
@@ -81,7 +85,7 @@ def _build_refit_batch(
         tuple[int, ...],
         WalkForwardPolicy,
         RiskModelSpecification | None,
-    ]
+    ],
 ) -> tuple[tuple[int, tuple[PortfolioCandidate, ...]], ...]:
     snapshot, return_path, income, dates, starts, _policy, risk_model_spec = task
     with open(return_path, "rb") as handle:
@@ -92,7 +96,16 @@ def _build_refit_batch(
         training_rows = tuple(
             row for row in return_rows if str(row.get("date", "")) in training_dates
         )
-        results.append((start, build_refit_candidate_set(CandidateRefitTask(snapshot, training_rows, income, risk_model_spec=risk_model_spec))))
+        results.append(
+            (
+                start,
+                build_refit_candidate_set(
+                    CandidateRefitTask(
+                        snapshot, training_rows, income, risk_model_spec=risk_model_spec
+                    )
+                ),
+            )
+        )
     return tuple(results)
 
 

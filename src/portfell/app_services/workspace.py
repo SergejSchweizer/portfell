@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import pickle
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from concurrent.futures import Executor, ProcessPoolExecutor
@@ -40,6 +39,7 @@ from portfell.app_state.contracts import (
     ListingIdentity,
     MarketSourceSnapshotRecord,
     MetadataUniverseRecord,
+    MultivariateCheckpointRecord,
     UnivariateSelectionRecord,
 )
 from portfell.app_state.errors import APP_STATE_NOT_FOUND, AppStateError
@@ -138,6 +138,10 @@ class AppStatePort(Protocol):
     def list_analysis_artifact_items(
         self, artifact_id: str, *, offset: int = 0, limit: int = 100
     ) -> tuple[AnalysisArtifactItemRecord, ...]: ...
+
+    def get_multivariate_checkpoint(
+        self, dataset_digest: str
+    ) -> MultivariateCheckpointRecord | None: ...
 
     def create_univariate_selection(
         self,
@@ -1245,7 +1249,9 @@ class WorkspaceApplicationService:
             if not isinstance(count, int) or count < 1:
                 return None
             first = self._state.list_analysis_artifact_items(artifact.artifact_id, limit=1)
-            last = self._state.list_analysis_artifact_items(artifact.artifact_id, offset=count - 1, limit=1)
+            last = self._state.list_analysis_artifact_items(
+                artifact.artifact_id, offset=count - 1, limit=1
+            )
             if first and last:
                 start = first[0].document.get("date")
                 end = last[0].document.get("date")
@@ -1585,15 +1591,16 @@ class WorkspaceApplicationService:
         load = getattr(self._state, "get_multivariate_checkpoint", None)
         if not callable(load):
             return None
-        record = load(dataset_digest)
+        record = cast(Callable[[str], MultivariateCheckpointRecord | None], load)(dataset_digest)
         if record is None or record.algorithm_version != MULTIVARIATE_EXECUTION_VERSION:
             return None
         try:
             payload = pickle.loads(record.payload)
-        except (pickle.PickleError, EOFError, AttributeError, TypeError, ValueError):
+        except pickle.PickleError, EOFError, AttributeError, TypeError, ValueError:
             return None
         if not isinstance(payload, dict):
             return None
+        payload = cast(dict[str, object], payload)
         if payload.get("checkpoint_contract") != "multivariate.checkpoint@v2":
             return None
         if payload.get("dataset_digest") != dataset_digest:
@@ -1759,18 +1766,28 @@ def _without_retired_allocator(document: JsonRow, artifact_type: str) -> JsonRow
     if artifact_type in {"candidates", "validation", "risk_contributions"}:
         items = cleaned.get("items")
         if isinstance(items, list):
-            cleaned["items"] = [
-                item for item in items
-                if not isinstance(item, Mapping) or item.get("method") != retired
-            ]
+            cleaned["items"] = cast(
+                list[JsonValue],
+                [
+                    item
+                    for item in cast(list[object], items)
+                    if not isinstance(item, Mapping)
+                    or cast(Mapping[str, object], item).get("method") != retired
+                ],
+            )
     if artifact_type == "performance":
         for key in ("portfolio_series", "period_returns"):
             items = cleaned.get(key)
             if isinstance(items, list):
-                cleaned[key] = [
-                    item for item in items
-                    if not isinstance(item, Mapping) or item.get("method") != retired
-                ]
+                cleaned[key] = cast(
+                    list[JsonValue],
+                    [
+                        item
+                        for item in cast(list[object], items)
+                        if not isinstance(item, Mapping)
+                        or cast(Mapping[str, object], item).get("method") != retired
+                    ],
+                )
     return cleaned
 
 

@@ -36,6 +36,6 @@ def test_structure_v2_contract_freezes_numerical_parameters() -> None:
 
 def test_structure_v2_contract_matches_authoritative_backlog_series() -> None:
     backlog = BACKLOG.read_text(encoding="utf-8")
-    assert "## 7. Multivariate structural-risk analysis v2 — PR361–PR376" in backlog
-    assert "PR365 + PR366 + PR368 + PR370 + PR371 -> PR372" in backlog
-    assert "PR373 + PR374 + PR375 -> PR376(QA)" in backlog
+    assert "## 6. Corrective migration authority (PR460–PR480)" in backlog
+    assert "PR461–PR480 are all integrated" in backlog
+    assert "PR480 status: final independent closeout evidence" in backlog

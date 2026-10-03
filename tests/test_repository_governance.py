@@ -106,19 +106,17 @@ def _pr_section(backlog: str, pr_number: int) -> str:
 
 def test_active_backlog_contains_only_unfinished_records() -> None:
     backlog = (REPOSITORY_ROOT / "BACKLOG.md").read_text(encoding="utf-8")
-    assert "## 0. Single-file authority" in backlog
-    assert "## 3. Source cutover and simplification series — PR308–PR343" in backlog
-    assert "## 4. Plotly Dash + clean database full-replacement series — PR344–PR360" in backlog
-    assert "### PR308 — Xetra source contract foundation" in backlog
-    assert "### PR360 — Production cutover, destructive removal" in backlog
-    assert "PR308\n  |\nPR309 || PR310 || PR311 || PR312 || PR313 || PR314" in backlog
+    assert "## 0. Single executable authority" in backlog
+    assert "## 1. Current production architecture — frozen baseline" in backlog
+    assert "## 6. Corrective migration authority (PR460–PR480)" in backlog
+    assert "PR437–PR480 are now integrated and closed." in backlog
 
 
 def test_backlog_places_only_completed_records_after_the_active_series() -> None:
     backlog = (REPOSITORY_ROOT / "BACKLOG.md").read_text(encoding="utf-8")
 
     assert "Historical backlog text" in backlog
-    assert "no unfinished legacy UI/database work" in backlog
+    assert "PR461–PR480 are all integrated" in backlog
     assert "## Completed PR History" not in backlog
     assert "## Active Hosted Simplicity And Interactive Performance PR Stack" not in backlog
 
@@ -128,10 +126,10 @@ def test_quality_gates_are_documented_centrally() -> None:
     gates = (REPOSITORY_ROOT / "GATES.md").read_text(encoding="utf-8")
 
     for backlog_text in (
-        "`GATES.md` remains the sole authority",
+        "`GATES.md` remains the authority",
         "focused tests plus `uv run portfell-quality pr`",
         "`uv run portfell-quality merge`",
-        "## 6. Final series completion gate",
+        "## 6. Corrective migration authority (PR460–PR480)",
     ):
         assert backlog_text in backlog
 
@@ -163,7 +161,7 @@ def test_final_architecture_maps_backlog_to_runtime_boundaries() -> None:
         "There is no production React/Vite/TypeScript/TanStack application",
     ):
         assert boundary in architecture
-    assert "## 1. Final target architecture — hard decision" in backlog
+    assert "## 1. Current production architecture — frozen baseline" in backlog
 
 
 def test_github_merge_gate_runs_once_and_uses_auto_rebase_completion() -> None:

@@ -1,16 +1,18 @@
 import pytest
 
-from portfell.multivariate_candidates import PortfolioCandidate
+from portfell.multivariate_candidates import CANDIDATE_CONTRACT, PortfolioCandidate
 from portfell.multivariate_inputs import (
     DEFAULT_DISTRIBUTION_ETF_POLICY,
     INPUT_SNAPSHOT_CONTRACT,
     MultivariateInputSnapshot,
     MultivariateListingKey,
 )
+from portfell.multivariate_risk_model import RISK_MODEL_ARTIFACT_CONTRACT
 from portfell.multivariate_structural_walk_forward import (
     build_structural_walk_forward_evidence,
     structural_walk_forward_rows,
 )
+from portfell.multivariate_structure_artifacts import STRUCTURE_V3_CONTRACT
 from portfell.multivariate_validation import ValidationSplit, WalkForwardPolicy
 
 A = MultivariateListingKey("IE1", "X", "A")
@@ -164,9 +166,14 @@ def test_structural_evidence_reuses_exact_oos_metrics_and_is_deterministic() -> 
     assert structural_walk_forward_rows(first) == structural_walk_forward_rows(second)
     assert [row.post_cost_return for row in first] == [0.011, -0.007]
     assert all(row.train_end < row.test_start for row in first)
-    assert all(row.risk_model_contract_version == "multivariate.risk_model@v1" for row in first)
-    assert all(row.candidate_contract_version == "multivariate.candidates@v9" for row in first)
-    assert all(row.structure_contract_version == "multivariate.structure@v3" for row in first)
+    assert all(
+        row.risk_model_contract_version == RISK_MODEL_ARTIFACT_CONTRACT.qualified_name
+        for row in first
+    )
+    assert all(row.candidate_contract_version == CANDIDATE_CONTRACT.qualified_name for row in first)
+    assert all(
+        row.structure_contract_version == STRUCTURE_V3_CONTRACT.qualified_name for row in first
+    )
     assert all(
         row.effective_pca_risk_drivers is None or row.effective_pca_risk_drivers >= 1.0
         for row in first

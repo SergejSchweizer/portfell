@@ -9,6 +9,7 @@ from datetime import date
 from portfell.market_source.connection import Connection, repeatable_read_snapshot
 from portfell.market_source.contracts import Dividend, EodQuote, Listing, ListingKey, Split
 from portfell.market_source.dividends import DividendsRepository
+from portfell.market_source.errors import MARKET_SOURCE_CONTRACT_MISMATCH, MarketSourceError
 from portfell.market_source.listings import ListingsRepository
 from portfell.market_source.quotes import QuotesRepository
 from portfell.market_source.splits import SplitsRepository
@@ -53,10 +54,22 @@ class MarketDataGateway:
         with repeatable_read_snapshot(
             self._connection_factory(), role=self._role, member_of=self._member_of
         ) as cursor:
+            cursor.execute(
+                "SELECT column_name FROM information_schema.columns "
+                "WHERE table_schema = %s AND table_name = %s "
+                "AND column_name = ANY(%s)",
+                ("xetra_loader", "dividends", ["amount", "value"]),
+            )
+            amount_columns = {row[0] for row in cursor.fetchall()}
+            amount_column = "amount" if "amount" in amount_columns else "value"
+            if not amount_columns.intersection({"amount", "value"}):
+                raise MarketSourceError(MARKET_SOURCE_CONTRACT_MISMATCH)
             return MarketDataSnapshot(
                 listings=self._listings.by_keys(cursor, keys),
                 quotes=self._quotes.read_range(cursor, keys, start=start, end=end),
-                dividends=self._dividends.read_range(cursor, keys, start=start, end=end),
+                dividends=self._dividends.read_range(
+                    cursor, keys, start=start, end=end, amount_column=amount_column
+                ),
                 splits=self._splits.read_range(cursor, keys, start=start, end=end),
             )
 

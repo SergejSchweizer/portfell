@@ -1,5 +1,6 @@
-from portfell.app_services.multivariate_compute import _select_common_oos_decision
 from types import SimpleNamespace
+
+from portfell.app_services.multivariate_compute import _select_common_oos_decision
 
 
 def _comparison(objective="return_risk"):
@@ -25,10 +26,17 @@ def _comparison(objective="return_risk"):
 def test_decision_uses_common_oos_configuration_and_exact_objective() -> None:
     for objective in ("return_risk", "return_drawdown", "minimum_risk"):
         current = SimpleNamespace(
-            candidate_configuration_id="cfg-ewma", candidate_id="candidate-current",
-            status="feasible", risk_model_id="risk-ewma", fit_calendar_id="calendar-ewma",
+            candidate_configuration_id="cfg-ewma",
+            candidate_id="candidate-current",
+            status="feasible",
+            risk_model_id="risk-ewma",
+            fit_calendar_id="calendar-ewma",
         )
-        result = _select_common_oos_decision(objective=objective, risk_model_comparison=_comparison(objective), current_sample_candidates=(current,))
+        result = _select_common_oos_decision(
+            objective=objective,
+            risk_model_comparison=_comparison(objective),
+            current_sample_candidates=(current,),
+        )
         assert result.available and result.production_eligible
         assert result.objective == objective
         assert result.winning_candidate_id == "candidate-current"
@@ -37,7 +45,10 @@ def test_decision_uses_common_oos_configuration_and_exact_objective() -> None:
 
 
 def test_unrankable_configuration_never_falls_back_to_legacy_candidate() -> None:
-    result = _select_common_oos_decision(objective="return_risk", risk_model_comparison={"configuration_rankings": {"return_risk": []}})
+    result = _select_common_oos_decision(
+        objective="return_risk",
+        risk_model_comparison={"configuration_rankings": {"return_risk": []}},
+    )
     assert not result.available
     assert result.winning_candidate_id == "unavailable"
     assert result.document["selection_authority"] == "common_oos_14_config"

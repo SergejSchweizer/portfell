@@ -210,7 +210,9 @@ def validate_candidates(
     for start in starts:
         test_dates = dates[start : start + policy.test_window_observations]
         training_dates = set(dates[:start])
-        training_rows = tuple(row for row in return_rows if str(row.get("date", "")) in training_dates)
+        training_rows = tuple(
+            row for row in return_rows if str(row.get("date", "")) in training_dates
+        )
         if precomputed_candidates is not None:
             if refit_index >= len(precomputed_candidates):
                 raise ValueError("missing_precomputed_candidates")
@@ -223,9 +225,7 @@ def validate_candidates(
         keys = [_configuration_key(candidate) for candidate in evaluated]
         if len(keys) != len(set(keys)):
             raise ValueError("duplicate_candidate_configuration_id")
-        by_configuration = {
-            _configuration_key(candidate): candidate for candidate in evaluated
-        }
+        by_configuration = {_configuration_key(candidate): candidate for candidate in evaluated}
         metric_tasks = tuple(
             (candidate, _candidate_returns_for_dates(candidate, indexed_returns, test_dates))
             for candidate in (
@@ -248,6 +248,9 @@ def validate_candidates(
                 continue
             test, metrics = metrics_by_configuration[_configuration_key(candidate)]
             pre_cost, volatility, sharpe, sortino, cvar, max_drawdown = metrics
+            if pre_cost is None:
+                results.append(_unavailable(requested, "return_history_unavailable"))
+                continue
             configuration_key = candidate.candidate_configuration_id or candidate.candidate_id
             previous = previous_weights.get(configuration_key)
             turnover = _turnover(previous, candidate.weights)
@@ -256,11 +259,9 @@ def validate_candidates(
                 if candidate_factory is not None or precomputed_candidates is not None
                 else policy.transaction_cost_rate
             )
-            ratio = (
-                (pre_cost - cost) / abs(max_drawdown)
-                if max_drawdown is not None and abs(max_drawdown) > 0
-                else None
-            )
+            ratio = None
+            if max_drawdown is not None and abs(max_drawdown) > 0:
+                ratio = (pre_cost - cost) / abs(max_drawdown)
             previous_weights[configuration_key] = candidate.weights
             results.append(
                 ValidationSplit(
@@ -324,7 +325,10 @@ def validate_candidate_stress(
     """
 
     indexed = _portfolio_returns_by_date(candidates, return_rows)
-    tasks = tuple((candidate, tuple(indexed.get(_configuration_key(candidate), {}).values()), policy) for candidate in candidates)
+    tasks = tuple(
+        (candidate, tuple(indexed.get(_configuration_key(candidate), {}).values()), policy)
+        for candidate in candidates
+    )
     groups = (
         tuple(executor.map(_candidate_stress_rows, tasks))
         if executor is not None
@@ -339,13 +343,17 @@ def _validation_candidate_metrics(
     candidate, test = task
     values = list(test)
     pre_cost = _compound(values)
-    return candidate, values, (
-        pre_cost,
-        _volatility(values),
-        _sharpe(values),
-        _sortino(values),
-        _value_at_risk([-value for value in values])[1],
-        _compound_and_drawdown(values)[1],
+    return (
+        candidate,
+        values,
+        (
+            pre_cost,
+            _volatility(values),
+            _sharpe(values),
+            _sortino(values),
+            _value_at_risk([-value for value in values])[1],
+            _compound_and_drawdown(values)[1],
+        ),
     )
 
 
@@ -354,8 +362,14 @@ def _candidate_stress_rows(
 ) -> tuple[ValidationScenario, ...]:
     candidate, values, policy = task
     if candidate.status != "feasible":
-        return tuple(_unavailable_scenario(candidate, name, "candidate_unavailable") for name in _SCENARIO_NAMES)
-    return tuple(_scenario(candidate, name, scenario_values, reason, policy) for name, scenario_values, reason in _scenario_values(values, policy))
+        return tuple(
+            _unavailable_scenario(candidate, name, "candidate_unavailable")
+            for name in _SCENARIO_NAMES
+        )
+    return tuple(
+        _scenario(candidate, name, scenario_values, reason, policy)
+        for name, scenario_values, reason in _scenario_values(values, policy)
+    )
 
 
 def build_candidate_scorecards(
@@ -375,20 +389,28 @@ def build_candidate_scorecards(
         returns = sorted(item.post_cost_return for item in completed)
         volatility = sorted(item.volatility for item in completed if item.volatility is not None)
         sharpes = sorted(item.sharpe_ratio for item in completed if item.sharpe_ratio is not None)
-        sortinos = sorted(item.sortino_ratio for item in completed if item.sortino_ratio is not None)
-        cvars = sorted(item.conditional_value_at_risk for item in completed if item.conditional_value_at_risk is not None)
-        drawdowns = sorted(abs(item.max_drawdown) for item in completed if item.max_drawdown is not None)
+        sortinos = sorted(
+            item.sortino_ratio for item in completed if item.sortino_ratio is not None
+        )
+        cvars = sorted(
+            item.conditional_value_at_risk
+            for item in completed
+            if item.conditional_value_at_risk is not None
+        )
+        drawdowns = sorted(
+            abs(item.max_drawdown) for item in completed if item.max_drawdown is not None
+        )
         turnovers = sorted(item.turnover for item in completed)
-        hhis = sorted(item.herfindahl_index for item in completed if item.herfindahl_index is not None)
+        hhis = sorted(
+            item.herfindahl_index for item in completed if item.herfindahl_index is not None
+        )
         return_drawdown = sorted(
             item.same_split_return_drawdown_ratio
             for item in completed
             if item.same_split_return_drawdown_ratio is not None
         )
         all_reasons = {
-            str(item.reason)
-            for item in (*candidate_splits, *candidate_scenarios)
-            if item.reason
+            str(item.reason) for item in (*candidate_splits, *candidate_scenarios) if item.reason
         }
         reasons = tuple(sorted(all_reasons - NON_BLOCKING_SCENARIO_REASONS))
         warnings = tuple(sorted(all_reasons & NON_BLOCKING_SCENARIO_REASONS))
@@ -407,7 +429,11 @@ def build_candidate_scorecards(
                 scenario_count=len(candidate_scenarios),
                 availability_reasons=reasons,
                 candidate_configuration_id=next(
-                    (item.candidate_configuration_id for item in (*candidate_splits, *candidate_scenarios) if item.candidate_configuration_id),
+                    (
+                        item.candidate_configuration_id
+                        for item in (*candidate_splits, *candidate_scenarios)
+                        if item.candidate_configuration_id
+                    ),
                     "",
                 ),
                 median_sharpe_ratio=_median(sharpes),

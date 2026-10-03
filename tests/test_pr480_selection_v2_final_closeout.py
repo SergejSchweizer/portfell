@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from migration_evidence import final_closeout_evidence
+from test_pr463_selection_v2_split_risk_models import _fixture
+
 from portfell.app_services.multivariate_compute import _select_common_oos_decision
 from portfell.multivariate_risk_model_comparison import (
     COMPARISON_WALK_FORWARD_POLICY,
@@ -14,8 +16,6 @@ from portfell.multivariate_selection_ranking import (
     rank_configuration_scorecards,
 )
 from portfell.selection_v2_contract import SELECTION_V2_CONFIGURATIONS, SELECTION_V2_POLICY
-from test_pr463_selection_v2_split_risk_models import _fixture
-
 
 _EXPECTED_FAMILY_COUNTS = {
     "equal_weight": 1,
@@ -67,40 +67,45 @@ def _closeout_checks() -> dict[str, bool]:
     for item in SELECTION_V2_CONFIGURATIONS:
         family_counts[item.method] = family_counts.get(item.method, 0) + 1
     boundaries = {
-        (item.train_start, item.train_end, item.test_start, item.test_end)
-        for item in validation
+        (item.train_start, item.train_end, item.test_start, item.test_end) for item in validation
     }
     return {
-        "six_allocator_methods": len(family_counts) == 6 and family_counts == _EXPECTED_FAMILY_COUNTS,
+        "six_allocator_methods": len(family_counts) == 6
+        and family_counts == _EXPECTED_FAMILY_COUNTS,
         "fourteen_semantic_configurations": len(SELECTION_V2_CONFIGURATIONS) == 14,
-        "frozen_common_oos_policy": SELECTION_V2_POLICY.to_row() == {
+        "frozen_common_oos_policy": SELECTION_V2_POLICY.to_row()
+        == {
             "minimum_training_observations": 252,
             "test_window_observations": 21,
             "maximum_refit_count": 8,
             "minimum_completed_splits": 2,
         },
-        "split_local_three_spec_fits": bool(bundles) and all(len(bundle.models) == 3 for bundle in bundles),
-        "split_candidate_slots_complete": bool(families) and all(len(family.candidates) == 14 for family in families),
-        "common_oos_boundaries_identical": len(boundaries) == len(families) and len(validation) == len(families) * 14,
+        "split_local_three_spec_fits": bool(bundles)
+        and all(len(bundle.models) == 3 for bundle in bundles),
+        "split_candidate_slots_complete": bool(families)
+        and all(len(family.candidates) == 14 for family in families),
+        "common_oos_boundaries_identical": len(boundaries) == len(families)
+        and len(validation) == len(families) * 14,
         # The compact fixture has no finite drawdown ratio, so that objective
         # legitimately returns an empty (unrankable) set; every available
         # ranking must nevertheless contain unique configuration identities.
         "configuration_keyed_rankings": (
             all(
-                len({row["configuration_id"] for row in rows}) == len(rows)
-                and len(rows) in (0, 14)
+                len({row["configuration_id"] for row in rows}) == len(rows) and len(rows) in (0, 14)
                 for rows in rankings.values()
             )
             and len(rankings["return_risk"]) == 14
             and len(rankings["minimum_risk"]) == 14
         ),
         "all_three_objectives": set(rankings) == {"return_risk", "return_drawdown", "minimum_risk"},
-        "decision_uses_common_oos_winner": decision.available and decision.document["winning_configuration_id"] == winner["configuration_id"],
+        "decision_uses_common_oos_winner": decision.available
+        and decision.document["winning_configuration_id"] == winner["configuration_id"],
         "current_sample_family_complete": len(current_family.candidates) == 14,
         "winner_lineage_complete": bool(decision.winning_candidate_id),
         "descriptive_data_excluded_from_ranking": all(
             row.get("evidence_role") == "selection" and "full_sample" not in row
-            for rows in rankings.values() for row in rows
+            for rows in rankings.values()
+            for row in rows
         ),
         "future_data_and_restart_qa_referenced": True,
         "browser_read_model_qa_referenced": True,
