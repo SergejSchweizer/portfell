@@ -113,6 +113,12 @@ def _assert_plot_matches_persisted_selection(page: Page) -> None:
         if isinstance(member, dict) and member.get("isin")
     }
     plot = page.locator("#univariate-return-risk-chart .js-plotly-plot")
+    # The route shell is mounted before its page callback finishes reading the
+    # bounded PostgreSQL artifact preview.  Wait for that asynchronous chart
+    # projection instead of treating the short-lived empty shell as a real
+    # empty result.
+    if selected:
+        expect(plot).to_have_count(1, timeout=120_000)
     if plot.count() == 0:
         assert not selected
         return
