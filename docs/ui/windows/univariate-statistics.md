@@ -10,8 +10,8 @@ The final Univariate page is a Plotly Dash page backed by typed application serv
 
 The page contains:
 
-- `PageHeader` with the frozen title/subtitle;
-- one `ControlBar` with `Compute univariate statistics` and only backend-supported result settings/filters;
+- `PageHeader` with the frozen title/subtitle and a right-aligned `Compute univariate statistics` action;
+- one `ControlBar` with only backend-supported result settings/filters;
 - KPI cards `Input instruments`, `Available results`, `Selected instruments`, `Unavailable results`;
 - `ChartCard` `Univariate Return / Risk Universe` using up to 500 service-provided return/risk values and full listing identity in hover;
 - `TableCard` `Univariate Statistics` with exact service-provided metrics and downstream selection controls, bounded to a 100-row preview with a shown/total notice;

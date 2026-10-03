@@ -29,6 +29,7 @@ from portfell.schemas import validate_rows
 from portfell.table_io import JsonRow, read_rows, write_rows
 
 BIVARIATE_STATISTICS_VERSION = "v10"
+DEFAULT_BIVARIATE_CPUS = 80
 
 
 def build_bivariate_statistics(
@@ -568,6 +569,7 @@ def _ratio(numerator: float, denominator: float) -> float:
 
 __all__ = [
     "BIVARIATE_STATISTICS_VERSION",
+    "DEFAULT_BIVARIATE_CPUS",
     "build_bivariate_statistics",
     "resolve_worker_count",
     "write_bivariate_statistics",

@@ -9,7 +9,11 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, cast
 
-from portfell.bivariate_statistics import BIVARIATE_STATISTICS_VERSION, build_bivariate_statistics
+from portfell.bivariate_statistics import (
+    BIVARIATE_STATISTICS_VERSION,
+    DEFAULT_BIVARIATE_CPUS,
+    build_bivariate_statistics,
+)
 from portfell.gold_pair_stats import DEFAULT_MAX_PAIR_COUNT
 from portfell.return_series import build_returns
 from portfell.selection_filters import Predicate
@@ -79,13 +83,14 @@ def compute_univariate(
     market_snapshot_id: str,
     quote_rows: Sequence[Mapping[str, Any]],
     dividend_rows: Sequence[Mapping[str, Any]] = (),
+    cpus: int | None = None,
     on_progress: Callable[[int], None] | None = None,
 ) -> ComputedRun:
     rows = tuple(
         build_univariate_statistics(
             quote_rows,
             dividend_rows=dividend_rows,
-            concurrency=None,
+            concurrency=cpus,
             on_progress=on_progress,
         )
     )
@@ -173,9 +178,12 @@ def compute_bivariate(
     selection: ComputedSelection,
     market_snapshot_id: str,
     quote_rows: Sequence[Mapping[str, Any]],
+    cpus: int | None = DEFAULT_BIVARIATE_CPUS,
     max_pair_count: int = DEFAULT_MAX_PAIR_COUNT,
     on_progress: Callable[[int, int], None] | None = None,
 ) -> ComputedRun:
+    if cpus is not None and cpus < 1:
+        raise ValueError("cpus must be positive")
     listing_count = len(set(selection.member_ids))
     pair_count = listing_count * (listing_count - 1) // 2
     if listing_count < 2 or pair_count > max_pair_count:
@@ -188,7 +196,7 @@ def compute_bivariate(
     rows = tuple(
         build_bivariate_statistics(
             return_rows,
-            concurrency=None,
+            concurrency=cpus,
             max_pair_count=max_pair_count,
             on_progress=on_progress,
         )

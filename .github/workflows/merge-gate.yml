@@ -147,46 +147,6 @@ jobs:
           path: .coverage.unit.${{ matrix.shard }}
           include-hidden-files: true
 
-  merge-integration-tests:
-    name: merge-integration-tests-${{ matrix.shard }}
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [1, 2, 3, 4]
-    steps:
-      - name: Checkout
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
-        with:
-          fetch-depth: 0
-          ref: ${{ github.sha }}
-      - name: Install uv
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d
-      - name: Install Python
-        run: uv python install
-      - name: Install dependencies
-        run: uv sync --dev
-      - name: Integration test shard with coverage
-        env:
-          COVERAGE_FILE: .coverage.integration.${{ matrix.shard }}
-        run: >-
-          uv run python scripts/pytest_shard.py
-          --suite integration
-          --shard-index ${{ matrix.shard }}
-          --shard-count ${PYTEST_SHARD_COUNT}
-          --
-          -q
-          -n auto
-          --cov=portfell
-          --cov-report=
-          --cov-fail-under=0
-      - name: Upload coverage shard
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: coverage-integration-${{ matrix.shard }}
-          path: .coverage.integration.${{ matrix.shard }}
-          include-hidden-files: true
-
   merge-gate:
     name: merge-gate
     runs-on: ubuntu-latest
@@ -195,7 +155,6 @@ jobs:
       - merge-type-quality
       - merge-dash-browser
       - merge-unit-tests
-      - merge-integration-tests
     if: always()
     steps:
       - name: Checkout
@@ -221,10 +180,9 @@ jobs:
           TYPE_RESULT: ${{ needs.merge-type-quality.result }}
           DASH_BROWSER_RESULT: ${{ needs.merge-dash-browser.result }}
           UNIT_RESULT: ${{ needs.merge-unit-tests.result }}
-          INTEGRATION_RESULT: ${{ needs.merge-integration-tests.result }}
         run: |
-          if [[ "$LINT_RESULT" != "success" || "$TYPE_RESULT" != "success" || "$DASH_BROWSER_RESULT" != "success" || "$UNIT_RESULT" != "success" || "$INTEGRATION_RESULT" != "success" ]]; then
-            echo "merge-gate failed: lint=$LINT_RESULT type=$TYPE_RESULT dash_browser=$DASH_BROWSER_RESULT unit=$UNIT_RESULT integration=$INTEGRATION_RESULT" >&2
+          if [[ "$LINT_RESULT" != "success" || "$TYPE_RESULT" != "success" || "$DASH_BROWSER_RESULT" != "success" || "$UNIT_RESULT" != "success" ]]; then
+            echo "merge-gate failed: lint=$LINT_RESULT type=$TYPE_RESULT dash_browser=$DASH_BROWSER_RESULT unit=$UNIT_RESULT" >&2
             exit 1
           fi
           echo "merge-gate prerequisites passed."

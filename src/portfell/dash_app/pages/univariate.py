@@ -140,15 +140,16 @@ def univariate_page_data(
     selected_isin_count = (
         len({member.split(":", 1)[0] for member in selected}) if selection is not None else None
     )
-    # The universe plot is an explicit selection view.  It must never fall
-    # back to the complete Metadata/Univariate universe: an absent selection
-    # or an explicitly empty selection means that there are no points to plot.
+    # Before a selection exists, show the completed Univariate universe so the
+    # page remains inspectable. Once a selection artifact exists, the plot is
+    # its projection; an explicitly empty selection therefore renders no data.
     selected_isins = {member.split(":", 1)[0] for member in selected}
-    chart_rows = (
-        tuple(row for row in chart_rows if str(row.get("isin", "")) in selected_isins)
-        if selection is not None and selected_isins
-        else ()
-    )
+    if selection is not None:
+        chart_rows = (
+            tuple(row for row in chart_rows if str(row.get("isin", "")) in selected_isins)
+            if selected_isins
+            else ()
+        )
     available = tuple(row for row in rows if row.get("availability_reason") == "ok")
     unavailable = tuple(row for row in rows if row.get("availability_reason") != "ok")
     return {
@@ -211,10 +212,26 @@ def _layout(
     model: Mapping[str, object], *, message: str | None = None, error: str | None = None
 ) -> Component:
     children: list[Component] = [
-        PageHeader(
-            "Univariate",
-            "Inspect single-instrument return and risk statistics, then persist the "
-            "downstream selection.",
+        html.Div(
+            [
+                PageHeader(
+                    "Univariate",
+                    "Inspect single-instrument return and risk statistics, then persist the "
+                    "downstream selection.",
+                ),
+                html.Div(
+                    [
+                        html.Button(
+                            children="Compute univariate statistics",
+                            id="univariate-compute",
+                            className="pf-button pf-button-primary",
+                            type="button",
+                        ),
+                    ],
+                    className="pf-page-header-actions",
+                ),
+            ],
+            className="pf-page-header-row",
         ),
     ]
     if error:

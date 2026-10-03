@@ -87,7 +87,12 @@ def test_dash_four_page_journey_and_visual_evidence(tmp_path: Path) -> None:
             _assert_shell(page, "Univariate")
             page.goto(f"{base_url}/bivariate", wait_until="networkidle")
             _assert_shell(page, "Bivariate")
-            page.locator("#bivariate-compute").click()
+            with page.expect_response(
+                lambda response: (
+                    "_dash-update-component" in response.url and response.request.method == "POST"
+                )
+            ):
+                page.locator("#bivariate-compute").click()
             page.reload(wait_until="networkidle")
             _assert_shell(page, "Bivariate")
             assert "Eligible pairs" in page.locator("body").inner_text()
@@ -103,6 +108,9 @@ def test_dash_four_page_journey_and_visual_evidence(tmp_path: Path) -> None:
                 )
             ):
                 page.locator("#multivariate-optimize").click()
+            page.wait_for_function(
+                "document.body.innerText.includes('candidate-fixture')", timeout=30_000
+            )
             page.reload(wait_until="networkidle")
             page.wait_for_function(
                 "document.body.innerText.includes('candidate-fixture')", timeout=120_000

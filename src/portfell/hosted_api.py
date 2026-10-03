@@ -78,7 +78,14 @@ def create_runtime_app() -> FastAPI:
             password_secret=app_config.password_secret,
         )
         migrate_to_head(app_connection)
-        app_state = PostgresAppStateRepository(app_connection)
+        app_state = PostgresAppStateRepository(
+            app_connection,
+            connection_factory=lambda: connect_database(
+                app_url,
+                autocommit=False,
+                password_secret=app_config.password_secret,
+            ),
+        )
         from portfell.market_source.local_gateway import LocalMarketDataGateway
 
         market_root = Path(

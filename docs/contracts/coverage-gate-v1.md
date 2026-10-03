@@ -26,5 +26,6 @@ transitional monolith removal set                    -> omitted until deleted
 ## Verification
 
 Run `uv run pytest -q --cov=portfell --cov-report=term-missing` and confirm the
-reported total is at least 85%. The CI workflow combines all unit/integration
-shards and applies the same threshold on the exact commit.
+reported total is at least 85%. The CI workflow combines the remote unit-test
+shards and applies the same threshold on the exact commit. Integration tests
+are local-only and are run by `uv run portfell-quality merge`.
