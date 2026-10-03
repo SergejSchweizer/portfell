@@ -36,4 +36,5 @@ def test_every_workflow_button_has_a_stable_id() -> None:
     assert actual == {
         "bivariate-compute",
         "multivariate-optimize",
+        "univariate-compute",
     }

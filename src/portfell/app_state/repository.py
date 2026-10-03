@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from typing import Protocol, cast
 
@@ -54,8 +55,14 @@ class RepositoryConnection(Protocol):
 class PostgresAppStateRepository:
     """One transaction boundary implementing every application-state repository port."""
 
-    def __init__(self, connection: RepositoryConnection) -> None:
+    def __init__(
+        self,
+        connection: RepositoryConnection,
+        *,
+        connection_factory: Callable[[], RepositoryConnection] | None = None,
+    ) -> None:
         self._connection = connection
+        self._connection_factory = connection_factory
 
     def put_market_source_snapshot(
         self, *, snapshot_id: str, source_fingerprint: str, observed_at: datetime
@@ -687,6 +694,38 @@ class PostgresAppStateRepository:
             raise AppStateError(APP_STATE_PERSISTENCE_FAILED) from error
         return self._analysis_artifact(artifact_id)
 
+    def put_analysis_artifacts_parallel(
+        self, artifacts: Sequence[Mapping[str, object]]
+    ) -> tuple[AnalysisArtifactRecord, ...]:
+        """Persist independent compact artifacts on separate connections."""
+        factory = self._connection_factory
+        if factory is None:
+            raise AppStateError(APP_STATE_PERSISTENCE_FAILED)
+
+        def publish(payload: Mapping[str, object]) -> AnalysisArtifactRecord:
+            connection = factory()
+            try:
+                repository = PostgresAppStateRepository(connection)
+                return repository.put_analysis_artifact(
+                    artifact_id=cast(str, payload["artifact_id"]),
+                    run_id=cast(str, payload["run_id"]),
+                    artifact_type=cast(str, payload["artifact_type"]),
+                    content_hash=cast(str, payload["content_hash"]),
+                    document=cast(Mapping[str, JsonValue], payload["document"]),
+                )
+            finally:
+                close = getattr(connection, "close", None)
+                if callable(close):
+                    close()
+
+        workers = min(8, len(artifacts))
+        if workers == 0:
+            return ()
+        with ThreadPoolExecutor(
+            max_workers=workers, thread_name_prefix="portfell-pg-compact-write"
+        ) as pool:
+            return tuple(pool.map(publish, artifacts))
+
     def list_analysis_artifacts(self, run_id: str) -> tuple[AnalysisArtifactRecord, ...]:
         rows = self._connection.execute(
             """select artifact_id, run_id, artifact_type, content_hash, document, created_at
@@ -768,6 +807,47 @@ class PostgresAppStateRepository:
         except Exception as error:
             self._connection.rollback()
             raise AppStateError(APP_STATE_PERSISTENCE_FAILED) from error
+
+    def publish_row_backed_analysis_artifacts_parallel(
+        self,
+        artifacts: Sequence[Mapping[str, object]],
+    ) -> tuple[AnalysisArtifactRecord, ...]:
+        """Publish independent immutable artifacts concurrently.
+
+        Each artifact keeps its own transaction and connection.  The analysis
+        run is transitioned to ``succeeded`` only after all artifacts return,
+        so a failed worker cannot expose a successful run to readers.  A
+        single shared psycopg connection is deliberately never used across
+        threads.
+        """
+        factory = self._connection_factory
+        if factory is None:
+            raise AppStateError(APP_STATE_PERSISTENCE_FAILED)
+
+        def publish(payload: Mapping[str, object]) -> AnalysisArtifactRecord:
+            connection = factory()
+            try:
+                repository = PostgresAppStateRepository(connection)
+                return repository.publish_row_backed_analysis_artifact(
+                    artifact_id=cast(str, payload["artifact_id"]),
+                    run_id=cast(str, payload["run_id"]),
+                    artifact_type=cast(str, payload["artifact_type"]),
+                    content_hash=cast(str, payload["content_hash"]),
+                    document=cast(Mapping[str, JsonValue], payload["document"]),
+                    items=cast(Sequence[AnalysisArtifactItem], payload["items"]),
+                )
+            finally:
+                close = getattr(connection, "close", None)
+                if callable(close):
+                    close()
+
+        workers = min(3, len(artifacts))
+        if workers == 0:
+            return ()
+        with ThreadPoolExecutor(
+            max_workers=workers, thread_name_prefix="portfell-pg-write"
+        ) as pool:
+            return tuple(pool.map(publish, artifacts))
 
     def count_analysis_artifact_items(self, artifact_id: str) -> int:
         row = self._connection.execute(

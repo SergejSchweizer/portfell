@@ -48,6 +48,7 @@ from portfell.table_io import JsonRow
 DECISION_CONTRACT = ContractVersion("multivariate.decision", 2)
 
 MULTIVARIATE_EXECUTION_VERSION = "multivariate_execution.clean.v19"
+DEFAULT_MULTIVARIATE_CPUS = 80
 MULTIVARIATE_PHASES = (
     "inputs",
     "risk_model_and_candidates",

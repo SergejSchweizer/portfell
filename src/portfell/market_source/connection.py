@@ -97,3 +97,32 @@ def repeatable_read_snapshot(
         raise MarketSourceError(MARKET_SOURCE_UNAVAILABLE) from error
     finally:
         connection.close()
+
+
+@contextmanager
+def imported_repeatable_read_snapshot(
+    connection: Connection,
+    *,
+    snapshot: str,
+    role: str,
+    member_of: str,
+) -> Generator[Cursor]:
+    """Use an exported PostgreSQL snapshot on an independent read connection."""
+    try:
+        cursor = connection.cursor()
+        cursor.execute("BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
+        # PostgreSQL's SET TRANSACTION SNAPSHOT grammar accepts a literal,
+        # not a bind parameter.  The token comes directly from
+        # pg_export_snapshot(); escape it before embedding it in the command.
+        escaped_snapshot = snapshot.replace("'", "''")
+        cursor.execute(f"SET TRANSACTION SNAPSHOT '{escaped_snapshot}'")
+        cursor.execute("SET LOCAL TIME ZONE 'UTC'")
+        validate_reader_role(cursor, role=role, member_of=member_of)
+        yield cursor
+        cursor.execute("COMMIT")
+    except MarketSourceError:
+        raise
+    except Exception as error:
+        raise MarketSourceError(MARKET_SOURCE_UNAVAILABLE) from error
+    finally:
+        connection.close()

@@ -124,7 +124,8 @@ def test_page_stops_after_return_risk_plot() -> None:
         "Universe & History",
     ):
         assert text not in rendered
-    assert "Compute univariate statistics" not in rendered
+    assert "Compute univariate statistics" in rendered
+    assert "univariate-compute" in rendered
 
 
 def test_page_shows_dividend_frequency_window_after_plot() -> None:

@@ -46,6 +46,8 @@ class CallbackService(Protocol):
 
     def create_universe_and_start_univariate(self, **filters: object) -> object: ...
 
+    def start_univariate_job(self, universe_id: str) -> object: ...
+
     def create_metadata_universe(self, **filters: object) -> object: ...
 
     def delete_project(self, universe_id: str) -> None: ...
@@ -195,6 +197,13 @@ def execute_action(
             # Univariate owns only its selection artifact. Downstream Bivariate
             # computation is an explicit action on the Bivariate page.
             writer.create_univariate_selection(state.univariate_run_id, predicates=predicates)
+        elif action == "univariate-compute":
+            if state.universe_id is None:
+                return replace(state, message_code="project_not_selected")
+            starter = getattr(writer, "start_univariate_job", None)
+            if not callable(starter):
+                return replace(state, message_code="univariate_not_ready")
+            submitted_job = starter(state.universe_id)
         elif action == "univariate-dividend-selection":
             if state.univariate_run_id is None:
                 return replace(state, message_code="univariate_not_ready")
@@ -543,6 +552,25 @@ def register_callbacks(app: Dash, services: object | None) -> None:
 
     @app.callback(  # pyright: ignore[reportUnknownMemberType]
         Output("pf-browser-state", "data", allow_duplicate=True),
+        Input("univariate-compute", "n_clicks"),
+        State("pf-browser-state", "data"),
+        prevent_initial_call=True,
+        running=[(Output("univariate-compute", "disabled"), True, False)],
+    )
+    def _compute_univariate(  # pyright: ignore[reportUnusedFunction]
+        n_clicks: int | None, store: object
+    ) -> dict[str, object] | object:
+        if not n_clicks:
+            return no_update
+        return execute_action(
+            service,
+            BrowserState.from_store(store),
+            action="univariate-compute",
+            write_service=univariate_service,
+        ).to_store()
+
+    @app.callback(  # pyright: ignore[reportUnknownMemberType]
+        Output("pf-browser-state", "data", allow_duplicate=True),
         # All three groups are inputs to one callback deliberately. A single
         # atomic snapshot prevents a category change from racing another
         # callback and overwriting its current checks with stale values.
@@ -569,6 +597,11 @@ def register_callbacks(app: Dash, services: object | None) -> None:
         # input and empty values. That hydration pass must not overwrite a
         # persisted selection; an actual click (including clearing all checks)
         # always has a triggering component and is persisted below.
+        # Dash reports every dynamically mounted checkbox as changed during
+        # hydration. That is not a user action, even though ``triggered_id``
+        # happens to match one of the mounted components.
+        if len(ctx.triggered_prop_ids) != 1:
+            return no_update
         if not _filter_trigger_is_mounted(
             ctx.triggered_id,
             dividend_ids,

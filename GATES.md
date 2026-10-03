@@ -56,8 +56,9 @@ The final workflow runs these independent families:
 2. `merge-type-quality` — strict Pyright.
 3. `merge-dash-browser` — Python Playwright Chromium acceptance for the four Plotly Dash pages; uploads `dash-parity-v1` evidence.
 4. `merge-unit-tests-1..4` — four deterministic unit-test shards with coverage data.
-5. `merge-integration-tests-1..4` — four deterministic integration-test shards with coverage data.
-6. final `merge-gate` aggregation — requires all preceding families to succeed, combines coverage shards, and enforces the `pyproject.toml` coverage threshold.
+5. final `merge-gate` aggregation — requires all preceding remote families to succeed, combines unit-test coverage shards, and enforces the `pyproject.toml` coverage threshold.
+
+Integration tests are intentionally local-only. Run them with `uv run portfell-quality merge` (or the focused local integration command); GitHub Actions does not execute or upload integration-test shards.
 
 All third-party GitHub Actions are pinned to full commit SHAs. Workflow permissions are top-level read-only unless a narrowly scoped workflow explicitly requires more.
 

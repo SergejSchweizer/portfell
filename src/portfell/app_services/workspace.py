@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import pickle
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from concurrent.futures import Executor, ProcessPoolExecutor
@@ -24,6 +25,7 @@ from portfell.app_services.analysis_compute import (
 from portfell.app_services.analysis_executor import AnalysisJobExecutor
 from portfell.app_services.market_data import AnalyticalMarketData, AnalyticalMarketSnapshot
 from portfell.app_services.multivariate_compute import (
+    DEFAULT_MULTIVARIATE_CPUS,
     MULTIVARIATE_EXECUTION_VERSION,
     MultivariateComputation,
     compute_multivariate,
@@ -43,7 +45,7 @@ from portfell.app_state.contracts import (
     UnivariateSelectionRecord,
 )
 from portfell.app_state.errors import APP_STATE_NOT_FOUND, AppStateError
-from portfell.bivariate_statistics import BIVARIATE_STATISTICS_VERSION
+from portfell.bivariate_statistics import BIVARIATE_STATISTICS_VERSION, DEFAULT_BIVARIATE_CPUS
 from portfell.gold_pair_stats import DEFAULT_MAX_PAIR_COUNT, build_pair_plan
 from portfell.market_source.contracts import Listing, ListingKey
 from portfell.market_source.errors import MarketSourceError
@@ -52,7 +54,10 @@ from portfell.market_source.projection import project_market_inputs
 from portfell.market_source.snapshot import build_market_source_snapshot
 from portfell.table_io import JsonRow
 from portfell.univariate_distributions import build_metric_distributions
-from portfell.univariate_statistics import UNIVARIATE_CALCULATION_CONTRACT
+from portfell.univariate_statistics import (
+    DEFAULT_UNIVARIATE_CPUS,
+    UNIVARIATE_CALCULATION_CONTRACT,
+)
 
 
 class ApplicationMarketGateway(Protocol):
@@ -254,7 +259,7 @@ class WorkspaceApplicationService:
         # Multivariate candidate/refit tasks are CPU-bound Python work. A
         # process pool is required here; a thread pool serializes on the GIL
         # and makes the API appear frozen while the job is running.
-        self._executor_factory = executor_factory or (lambda: ProcessPoolExecutor())
+        self._custom_executor_factory = executor_factory
         self._now = now or (lambda: datetime.now(UTC))
         self._analysis_jobs = analysis_job_executor or AnalysisJobExecutor(
             state, self._execute_analysis_job, now=self._now
@@ -479,7 +484,15 @@ class WorkspaceApplicationService:
         self._state.get_metadata_universe(universe_id)
         return _job_row(self._submit_analysis_job("univariate", universe_id))
 
-    def run_univariate(self, universe_id: str, *, job_id: str | None = None) -> JsonRow:
+    def run_univariate(
+        self,
+        universe_id: str,
+        *,
+        job_id: str | None = None,
+        cpus: int | None = DEFAULT_UNIVARIATE_CPUS,
+    ) -> JsonRow:
+        if cpus is not None and cpus < 1:
+            raise ValueError("cpus must be positive")
         universe = self._state.get_metadata_universe(universe_id)
         market = self._read_market(universe.members)
         if job_id is not None:
@@ -520,6 +533,7 @@ class WorkspaceApplicationService:
                 market_snapshot_id=market.snapshot_id,
                 quote_rows=market.quotes,
                 dividend_rows=market.dividends,
+                cpus=cpus,
                 on_progress=None if job_id is None else on_progress,
             )
             daily_dates = sorted(
@@ -529,53 +543,58 @@ class WorkspaceApplicationService:
                 "date_start": daily_dates[0] if daily_dates else None,
                 "date_end": daily_dates[-1] if daily_dates else None,
             }
-            self._put_row_backed_artifact(
-                run.run_id,
-                "univariate.rows@v2",
-                computed.rows,
-                summary={
-                    "universe_id": universe.universe_id,
-                    "market_snapshot_id": market.snapshot_id,
-                    "available_count": sum(
-                        row.get("availability_reason") == "ok" for row in computed.rows
+            # The three large row-backed artifacts use independent PostgreSQL
+            # transactions/connections when the production repository supports
+            # it. They are all published before the run is marked succeeded.
+            self._put_row_backed_artifacts_parallel(
+                [
+                    self._row_backed_artifact_payload(
+                        run.run_id,
+                        "univariate.rows@v2",
+                        computed.rows,
+                        summary={
+                            "universe_id": universe.universe_id,
+                            "market_snapshot_id": market.snapshot_id,
+                            "available_count": sum(
+                                row.get("availability_reason") == "ok" for row in computed.rows
+                            ),
+                            "unavailable_count": sum(
+                                row.get("availability_reason") != "ok" for row in computed.rows
+                            ),
+                            **date_summary,
+                        },
                     ),
-                    "unavailable_count": sum(
-                        row.get("availability_reason") != "ok" for row in computed.rows
+                    self._row_backed_artifact_payload(
+                        run.run_id,
+                        "univariate.daily_returns@v1",
+                        computed.daily_rows,
+                        summary={
+                            "universe_id": universe.universe_id,
+                            "market_snapshot_id": market.snapshot_id,
+                            "return_contract": "univariate.daily_returns.v1",
+                            "available_count": len(computed.daily_rows),
+                            **date_summary,
+                        },
+                        item_key_factory=lambda row: f"{_row_member_id(row)}:{row.get('date', '')}",
                     ),
-                    **date_summary,
-                },
-            )
-            self._put_row_backed_artifact(
-                run.run_id,
-                "univariate.daily_returns@v1",
-                computed.daily_rows,
-                summary={
-                    "universe_id": universe.universe_id,
-                    "market_snapshot_id": market.snapshot_id,
-                    "return_contract": "univariate.daily_returns.v1",
-                    "available_count": len(computed.daily_rows),
-                    **date_summary,
-                },
-                item_key_factory=lambda row: f"{_row_member_id(row)}:{row.get('date', '')}",
-            )
-            # v3 is additive: v2 remains available to existing consumers while
-            # metric-card pages can opt into the enriched catalog atomically.
-            self._put_row_backed_artifact(
-                run.run_id,
-                "univariate.rows@v3",
-                computed.rows,
-                summary={
-                    "universe_id": universe.universe_id,
-                    "market_snapshot_id": market.snapshot_id,
-                    "metric_contract": "univariate.metrics.v3",
-                    "available_count": sum(
-                        row.get("availability_reason") == "ok" for row in computed.rows
+                    self._row_backed_artifact_payload(
+                        run.run_id,
+                        "univariate.rows@v3",
+                        computed.rows,
+                        summary={
+                            "universe_id": universe.universe_id,
+                            "market_snapshot_id": market.snapshot_id,
+                            "metric_contract": "univariate.metrics.v3",
+                            "available_count": sum(
+                                row.get("availability_reason") == "ok" for row in computed.rows
+                            ),
+                            "unavailable_count": sum(
+                                row.get("availability_reason") != "ok" for row in computed.rows
+                            ),
+                            **date_summary,
+                        },
                     ),
-                    "unavailable_count": sum(
-                        row.get("availability_reason") != "ok" for row in computed.rows
-                    ),
-                    **date_summary,
-                },
+                ]
             )
             self._put_artifact(
                 run.run_id,
@@ -683,7 +702,15 @@ class WorkspaceApplicationService:
                     return _job_row(completed)
         return _job_row(self._submit_analysis_job("bivariate", selection_id))
 
-    def run_bivariate(self, selection_id: str, *, job_id: str | None = None) -> JsonRow:
+    def run_bivariate(
+        self,
+        selection_id: str,
+        *,
+        job_id: str | None = None,
+        cpus: int | None = DEFAULT_BIVARIATE_CPUS,
+    ) -> JsonRow:
+        if cpus is not None and cpus < 1:
+            raise ValueError("cpus must be positive")
         persisted = self._state.get_univariate_selection(selection_id)
         source_run = self._require_succeeded_run(persisted.source_run_id, "univariate")
         source_computed = self._univariate_computed_run(source_run)
@@ -733,19 +760,24 @@ class WorkspaceApplicationService:
                 selection=selection,
                 market_snapshot_id=market.snapshot_id,
                 quote_rows=market.quotes,
+                cpus=cpus,
                 on_progress=None if job_id is None else on_progress,
             )
-            self._put_row_backed_artifact(
-                run.run_id,
-                "bivariate.rows@v2",
-                computed.rows,
-                summary={
-                    "selection_id": selection.selection_id,
-                    "market_snapshot_id": market.snapshot_id,
-                    "candidate_pair_count": pair_total,
-                    "eligible_count": len(computed.rows),
-                    "unavailable_count": max(0, pair_total - len(computed.rows)),
-                },
+            self._put_row_backed_artifacts_parallel(
+                [
+                    self._row_backed_artifact_payload(
+                        run.run_id,
+                        "bivariate.rows@v2",
+                        computed.rows,
+                        summary={
+                            "selection_id": selection.selection_id,
+                            "market_snapshot_id": market.snapshot_id,
+                            "candidate_pair_count": pair_total,
+                            "eligible_count": len(computed.rows),
+                            "unavailable_count": max(0, pair_total - len(computed.rows)),
+                        },
+                    )
+                ]
             )
             if job_id is not None:
                 self._state.update_job_progress(
@@ -792,7 +824,10 @@ class WorkspaceApplicationService:
         bivariate_run_id: str,
         objective: str = "return_risk",
         job_id: str | None = None,
+        cpus: int | None = DEFAULT_MULTIVARIATE_CPUS,
     ) -> JsonRow:
+        if cpus is not None and cpus < 1:
+            raise ValueError("cpus must be positive")
         if objective not in {"return_risk", "return_drawdown", "minimum_risk"}:
             raise ApplicationServiceError("invalid_multivariate_objective")
         selection = self._state.get_univariate_selection(selection_id)
@@ -883,7 +918,7 @@ class WorkspaceApplicationService:
 
             if job_id is not None:
                 self._state.update_job_progress(job_id, current=0, total=8, phase="inputs")
-            with self._executor_factory() as executor:
+            with self._parallel_executor(cpus) as executor:
                 computation = compute_multivariate(
                     universe_id=univariate_run.input_ref,
                     univariate_run_id=univariate_run.run_id,
@@ -1331,7 +1366,20 @@ class WorkspaceApplicationService:
             self._state.update_job_progress(
                 job.job_id, current=0, total=None, phase="loading_market_data"
             )
-            return self.run_univariate(job.input_ref, job_id=job.job_id)
+            # Keep the scheduled/UI job path explicit: the worker budget is a
+            # runtime contract, not an incidental default on run_univariate.
+            try:
+                return self.run_univariate(
+                    job.input_ref,
+                    job_id=job.job_id,
+                    cpus=DEFAULT_UNIVARIATE_CPUS,
+                )
+            except TypeError as error:
+                # Small test/adaptor implementations from older integrations
+                # may not expose the cpus keyword yet.
+                if "unexpected keyword argument 'cpus'" not in str(error):
+                    raise
+                return self.run_univariate(job.input_ref, job_id=job.job_id)
         if job.stage == "bivariate":
             try:
                 # Pair cardinality is known from the persisted Univariate
@@ -1344,11 +1392,18 @@ class WorkspaceApplicationService:
                 self._state.update_job_progress(
                     job.job_id, current=0, total=pair_total, phase="pairs"
                 )
-                result = self.run_bivariate(job.input_ref, job_id=job.job_id)
+                result = self.run_bivariate(
+                    job.input_ref, job_id=job.job_id, cpus=DEFAULT_BIVARIATE_CPUS
+                )
             except TypeError as error:
-                if "unexpected keyword argument 'job_id'" not in str(error):
+                if "unexpected keyword argument" not in str(error):
                     raise
-                result = self.run_bivariate(job.input_ref)
+                try:
+                    result = self.run_bivariate(job.input_ref, job_id=job.job_id)
+                except TypeError as compatibility_error:
+                    if "unexpected keyword argument" not in str(compatibility_error):
+                        raise
+                    result = self.run_bivariate(job.input_ref)
             return result
         if job.stage == "multivariate":
             run = self._state.get_analysis_run(job.input_ref)
@@ -1358,15 +1413,26 @@ class WorkspaceApplicationService:
                     bivariate_run_id=run.run_id,
                     objective=job.requested_objective or "return_risk",
                     job_id=job.job_id,
+                    cpus=DEFAULT_MULTIVARIATE_CPUS,
                 )
             except TypeError as error:
-                if "unexpected keyword argument 'job_id'" not in str(error):
+                if "unexpected keyword argument" not in str(error):
                     raise
-                return self.run_multivariate(
-                    selection_id=run.input_ref,
-                    bivariate_run_id=run.run_id,
-                    objective=job.requested_objective or "return_risk",
-                )
+                try:
+                    return self.run_multivariate(
+                        selection_id=run.input_ref,
+                        bivariate_run_id=run.run_id,
+                        objective=job.requested_objective or "return_risk",
+                        job_id=job.job_id,
+                    )
+                except TypeError as compatibility_error:
+                    if "unexpected keyword argument" not in str(compatibility_error):
+                        raise
+                    return self.run_multivariate(
+                        selection_id=run.input_ref,
+                        bivariate_run_id=run.run_id,
+                        objective=job.requested_objective or "return_risk",
+                    )
         raise ApplicationServiceError("analysis_job_stage_invalid")
 
     def _active_listings(self) -> tuple[Listing, ...]:
@@ -1555,6 +1621,46 @@ class WorkspaceApplicationService:
         summary: Mapping[str, JsonValue],
         item_key_factory: Callable[[JsonRow], str] | None = None,
     ) -> None:
+        payload = self._row_backed_artifact_payload(
+            run_id,
+            artifact_type,
+            rows,
+            summary=summary,
+            item_key_factory=item_key_factory,
+        )
+        self._publish_row_backed_artifact_payload(payload)
+
+    def _put_row_backed_artifacts_parallel(self, payloads: Sequence[Mapping[str, object]]) -> None:
+        publish_parallel = getattr(
+            self._state, "publish_row_backed_analysis_artifacts_parallel", None
+        )
+        if callable(publish_parallel):
+            publish_parallel(payloads)
+            return
+        for payload in payloads:
+            self._publish_row_backed_artifact_payload(payload)
+
+    def _publish_row_backed_artifact_payload(
+        self, payload: Mapping[str, object]
+    ) -> AnalysisArtifactRecord:
+        return self._state.publish_row_backed_analysis_artifact(
+            artifact_id=cast(str, payload["artifact_id"]),
+            run_id=cast(str, payload["run_id"]),
+            artifact_type=cast(str, payload["artifact_type"]),
+            content_hash=cast(str, payload["content_hash"]),
+            document=cast(Mapping[str, JsonValue], payload["document"]),
+            items=cast(Sequence[AnalysisArtifactItem], payload["items"]),
+        )
+
+    def _row_backed_artifact_payload(
+        self,
+        run_id: str,
+        artifact_type: str,
+        rows: Sequence[JsonRow],
+        *,
+        summary: Mapping[str, JsonValue],
+        item_key_factory: Callable[[JsonRow], str] | None = None,
+    ) -> dict[str, object]:
         items = tuple(
             AnalysisArtifactItem(
                 item_key=(item_key_factory(row) if item_key_factory else _row_member_id(row)),
@@ -1578,14 +1684,14 @@ class WorkspaceApplicationService:
             "analysis-artifact",
             {"run_id": run_id, "artifact_type": artifact_type, "content_hash": content_hash},
         )
-        self._state.publish_row_backed_analysis_artifact(
-            artifact_id=artifact_id,
-            run_id=run_id,
-            artifact_type=artifact_type,
-            content_hash=content_hash,
-            document=cast(Mapping[str, JsonValue], document),
-            items=items,
-        )
+        return {
+            "artifact_id": artifact_id,
+            "run_id": run_id,
+            "artifact_type": artifact_type,
+            "content_hash": content_hash,
+            "document": cast(Mapping[str, JsonValue], document),
+            "items": items,
+        }
 
     def _load_multivariate_checkpoint(self, dataset_digest: str) -> Mapping[str, object] | None:
         load = getattr(self._state, "get_multivariate_checkpoint", None)
@@ -1646,9 +1752,35 @@ class WorkspaceApplicationService:
             delete(dataset_digest)
 
     def _persist_multivariate(self, run_id: str, computation: MultivariateComputation) -> None:
+        payloads: list[dict[str, object]] = []
         for artifact_type, document in sorted(computation.documents.items()):
             normalized = document if isinstance(document, dict) else {"items": document}
-            self._put_artifact(run_id, artifact_type, normalized)
+            content_hash = stable_hash(cast(Mapping[str, object], normalized))
+            artifact_id = opaque_id(
+                "analysis-artifact",
+                {"run_id": run_id, "artifact_type": artifact_type, "content_hash": content_hash},
+            )
+            payloads.append(
+                {
+                    "artifact_id": artifact_id,
+                    "run_id": run_id,
+                    "artifact_type": artifact_type,
+                    "content_hash": content_hash,
+                    "document": cast(Mapping[str, JsonValue], normalized),
+                }
+            )
+        publish_parallel = getattr(self._state, "put_analysis_artifacts_parallel", None)
+        if callable(publish_parallel):
+            publish_parallel(payloads)
+        else:
+            for payload in payloads:
+                self._state.put_analysis_artifact(
+                    artifact_id=cast(str, payload["artifact_id"]),
+                    run_id=cast(str, payload["run_id"]),
+                    artifact_type=cast(str, payload["artifact_type"]),
+                    content_hash=cast(str, payload["content_hash"]),
+                    document=cast(Mapping[str, JsonValue], payload["document"]),
+                )
         decision = computation.decision
         decision_id = opaque_id(
             "decision-artifact",
@@ -1670,6 +1802,12 @@ class WorkspaceApplicationService:
             reason=decision.reason,
             document=cast(Mapping[str, JsonValue], decision.document),
         )
+
+    def _parallel_executor(self, cpus: int | None) -> Executor:
+        if self._custom_executor_factory is not None:
+            return self._custom_executor_factory()
+        workers = min(cpus or DEFAULT_MULTIVARIATE_CPUS, os.cpu_count() or 1)
+        return ProcessPoolExecutor(max_workers=workers)
 
     def _fail_run(self, run_id: str, error: Exception) -> None:
         try:

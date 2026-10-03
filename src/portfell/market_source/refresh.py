@@ -34,6 +34,7 @@ def refresh(*, config_path: Path, root: Path) -> int:
         lambda: connect(url, autocommit=False, password_secret=config.password_secret),
         role=config.role,
         member_of=config.member_of,
+        parallel_reads=True,
     )
     listings = gateway.read_active_listings()
     keys = tuple(item.key for item in listings)

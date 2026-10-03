@@ -140,7 +140,7 @@ def test_quality_gates_are_documented_centrally() -> None:
         "Ruff lint and format",
         "strict Pyright",
         "merge-unit-tests-1..4",
-        "merge-integration-tests-1..4",
+        "Integration tests are intentionally local-only",
         "failed/skipped/zero-step workflow runs are never treated as success",
     ):
         assert gates_text in gates
@@ -174,7 +174,8 @@ def test_github_merge_gate_runs_once_and_uses_auto_rebase_completion() -> None:
     assert "merge-lint-quality" in merge_gate_workflow
     assert "merge-type-quality" in merge_gate_workflow
     assert "merge-unit-tests-${{ matrix.shard }}" in merge_gate_workflow
-    assert "merge-integration-tests-${{ matrix.shard }}" in merge_gate_workflow
+    assert "merge-integration-tests-${{ matrix.shard }}" not in merge_gate_workflow
+    assert "Integration test shard" not in merge_gate_workflow
     assert "scripts/pytest_shard.py" in merge_gate_workflow
     assert "-n auto" in merge_gate_workflow
     assert "uv run portfell-quality --commits-only" in merge_gate_workflow

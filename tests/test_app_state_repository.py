@@ -148,6 +148,46 @@ def test_existing_artifact_with_different_content_is_typed_conflict() -> None:
     assert connection.commits == 0
 
 
+def test_compact_artifacts_can_publish_on_independent_connections() -> None:
+    created = datetime(2026, 8, 30, tzinfo=UTC)
+    records = [
+        [
+            [],
+            [],
+            [("artifact-a", "run-a", "summary-a", "hash-a", {"a": 1}, created)],
+        ],
+        [
+            [],
+            [],
+            [("artifact-b", "run-a", "summary-b", "hash-b", {"b": 1}, created)],
+        ],
+    ]
+    connections = [ScriptedConnection(rows) for rows in records]
+    repository = PostgresAppStateRepository(
+        ScriptedConnection([]), connection_factory=lambda: connections.pop()
+    )
+    published = repository.put_analysis_artifacts_parallel(
+        [
+            {
+                "artifact_id": "artifact-a",
+                "run_id": "run-a",
+                "artifact_type": "summary-a",
+                "content_hash": "hash-a",
+                "document": {"a": 1},
+            },
+            {
+                "artifact_id": "artifact-b",
+                "run_id": "run-a",
+                "artifact_type": "summary-b",
+                "content_hash": "hash-b",
+                "document": {"b": 1},
+            },
+        ]
+    )
+    assert {item.artifact_id for item in published} == {"artifact-a", "artifact-b"}
+    assert all(connection.commits == 1 for connection in connections)
+
+
 def test_repository_module_has_no_legacy_or_market_sql_dependency() -> None:
     source = (
         Path(__file__).resolve().parents[1] / "src" / "portfell" / "app_state" / "repository.py"

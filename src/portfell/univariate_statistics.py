@@ -20,6 +20,7 @@ from portfell.univariate_metrics import enrich_univariate_row
 
 ANNUAL_TRADING_DAYS = 252
 DEFAULT_CONFIDENCE_LEVEL = 0.975
+DEFAULT_UNIVARIATE_CPUS = 80
 UNIVARIATE_CALCULATION_CONTRACT = "univariate.statistics.v3"
 
 
@@ -207,7 +208,7 @@ def _cached_univariate_row(
 def _worker_count(concurrency: int | None) -> int:
     if concurrency is not None:
         return max(1, concurrency)
-    return max(1, os.cpu_count() or 1)
+    return max(1, min(DEFAULT_UNIVARIATE_CPUS, os.cpu_count() or 1))
 
 
 def univariate_quote_input_id(rows: Sequence[Mapping[str, Any]]) -> str:
@@ -576,6 +577,7 @@ def _log_price_trend(adjusted_closes: Sequence[float]) -> tuple[float, float]:
 
 __all__ = [
     "DEFAULT_CONFIDENCE_LEVEL",
+    "DEFAULT_UNIVARIATE_CPUS",
     "UNIVARIATE_CALCULATION_CONTRACT",
     "build_quote_returns",
     "build_univariate_statistics",

@@ -104,6 +104,40 @@ def test_row_backed_publish_is_idempotent_only_for_identical_manifest_and_items(
     assert item_writes == []
 
 
+def test_row_backed_artifacts_can_publish_on_independent_connections() -> None:
+    empty_manifest = {**MANIFEST, "item_count": 0}
+    created = (*ARTIFACT[:4], empty_manifest, NOW)
+    connections = [
+        Connection([[], [], [created]]),
+        Connection([[], [], [created]]),
+    ]
+    repository = PostgresAppStateRepository(
+        Connection([]), connection_factory=lambda: connections.pop()
+    )
+    published = repository.publish_row_backed_analysis_artifacts_parallel(
+        [
+            {
+                "artifact_id": "artifact-a",
+                "run_id": "run-a",
+                "artifact_type": "univariate.rows@v2",
+                "content_hash": "hash-a",
+                "document": empty_manifest,
+                "items": (),
+            },
+            {
+                "artifact_id": "artifact-b",
+                "run_id": "run-a",
+                "artifact_type": "univariate.daily_returns@v1",
+                "content_hash": "hash-b",
+                "document": empty_manifest,
+                "items": (),
+            },
+        ]
+    )
+    assert len(published) == 2
+    assert all(connection.commits == 1 for connection in connections)
+
+
 def test_row_backed_publish_fails_closed_and_rolls_back_partial_publication() -> None:
     connection = Connection([], fail_at=3)
     repository = PostgresAppStateRepository(connection)

@@ -102,6 +102,10 @@ class Service:
         self.calls.append(("metadata", filters))
         return object()
 
+    def start_univariate_job(self, universe_id: str) -> object:
+        self.calls.append(("univariate", universe_id))
+        return {"job_id": "job-u", "status": "queued"}
+
     def create_univariate_selection(self, run_id: str, *, predicates=None) -> object:
         self.calls.append(("selection", (run_id, predicates)))
         return object()
@@ -124,11 +128,13 @@ def test_explicit_actions_delegate_using_persisted_ids() -> None:
     service = Service()
     state = browser_state_from_workflow(service.workflow_state())
     execute_action(service, state, action="metadata-create-universe")
+    execute_action(service, state, action="univariate-compute")
     execute_action(service, state, action="univariate-save-selection")
     execute_action(service, state, action="bivariate-compute")
     execute_action(service, state, action="multivariate-optimize", objective="minimum_risk")
     assert service.calls == [
         ("metadata", {}),
+        ("univariate", "u1"),
         ("selection", ("run-u", None)),
         ("bivariate", "s1"),
         ("multivariate", ("s1", "run-b", "minimum_risk")),
