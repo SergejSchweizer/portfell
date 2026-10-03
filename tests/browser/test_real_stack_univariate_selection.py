@@ -7,6 +7,7 @@ import re
 from typing import Any
 
 import pytest
+from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import Page, expect, sync_playwright
 
 BASE_URL = os.environ.get("PORTFELL_REAL_STACK_URL", "http://127.0.0.1:8080")
@@ -26,7 +27,10 @@ def test_univariate_checkbox_selection_is_persisted_and_drives_plot() -> None:
 
 
 def _run_real_stack_flow(page: Page) -> None:
-    health = page.request.get(f"{BASE_URL}/api/health")
+    try:
+        health = page.request.get(f"{BASE_URL}/api/health")
+    except PlaywrightError:
+        pytest.skip("Docker/PostgreSQL stack is not available")
     if not health.ok:
         pytest.skip("Docker/PostgreSQL stack is not available")
 
