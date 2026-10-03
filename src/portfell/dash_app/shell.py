@@ -74,7 +74,12 @@ def workflow_context(context: WorkflowContext | None = None) -> Component:
                         html.Div(section, className="pf-context-section-title"),
                         html.Ul(
                             [
-                                html.Li([html.Span(label), html.Span(item_value)])
+                                html.Li(
+                                    [
+                                        html.Span(label),
+                                        _context_value(section, label, item_value),
+                                    ]
+                                )
                                 for label, item_value in items
                             ],
                             className="pf-context-list",
@@ -293,6 +298,22 @@ def _context_row(  # pyright: ignore[reportUnusedFunction]
 
 def _display_count(value: int | None) -> str:
     return "—" if value is None else str(value)
+
+
+def _context_value_id(section: str, label: str) -> str | None:
+    """Expose stable IDs for the small sidebar projections used by acceptance tests."""
+    normalized_section = section.lower()
+    normalized_label = label.lower()
+    if normalized_label == "isins" and normalized_section in {"metadata", "univariate"}:
+        return f"pf-project-{normalized_section}"
+    return None
+
+
+def _context_value(section: str, label: str, value: str) -> Component:
+    component_id = _context_value_id(section, label)
+    if component_id is None:
+        return html.Span(value)
+    return html.Span(value, id=component_id)
 
 
 __all__ = [
