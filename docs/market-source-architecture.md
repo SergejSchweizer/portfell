@@ -23,8 +23,8 @@ application-service contracts documented with their modules.
 ## 1. Production Data Flow
 
 ```text
-cron (portfell-market-refresh)
-    | SELECT once from the external source and atomically publishes
+cron (portfell-market-refresh, Sunday 12:00)
+    | SELECTs the complete metadata/quote snapshot and atomically publishes
     v
 local market-data snapshot (PORTFELL_MARKET_DATA_ROOT)
   listings.jsonl, quotes.jsonl, dividends.jsonl, splits.jsonl

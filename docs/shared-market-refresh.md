@@ -8,9 +8,9 @@
 - [Schedule And Recovery](#schedule-and-recovery)
 
 The scheduled `portfell-market-refresh` command is the only process allowed to read
-xetra-loader PostgreSQL. It publishes the canonical local snapshot under
-`PORTFELL_MARKET_DATA_ROOT`; the API consumes that snapshot and never queries the market
-database during normal requests.
+xetra-loader PostgreSQL. It loads the complete listings, quote, dividend, and split
+metadata snapshot and publishes it atomically under `PORTFELL_MARKET_DATA_ROOT`; the API
+consumes that snapshot and never queries the market database during normal requests.
 
 ## One-Time Rollout
 
@@ -35,7 +35,7 @@ datasets have been read. A failed run leaves the previous snapshot intact.
 
 ## Scheduled Installation
 
-Install a host cron entry at `20:15` (`15 20 * * *`) that invokes the command above with
+Install a host cron entry at Sunday `12:00` (`0 12 * * 0`) that invokes the command above with
 `PORTFELL_MARKET_DATA_ROOT` set. Keep the market password secret available only to this cron
 process; the API container needs neither the market DSN nor that secret.
 
