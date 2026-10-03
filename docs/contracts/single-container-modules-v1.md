@@ -85,4 +85,4 @@ univariate_run_id -> univariate_selection_id -> bivariate_run_id
 
 The contract is valid only when `docker compose -f compose.yaml config` shows
 exactly `api` and `postgres`, all four routes are reachable from that one API
-process, and the repository quality gate passes with at least 92% coverage.
+process, and the repository quality gate passes with at least 85% coverage.

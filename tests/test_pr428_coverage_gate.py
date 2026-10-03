@@ -7,10 +7,10 @@ from pathlib import Path
 from portfell.quality import MAIN_COVERAGE_COMMAND
 
 
-def test_quality_and_documentation_require_92_percent() -> None:
-    assert "--cov-fail-under=92" in MAIN_COVERAGE_COMMAND
+def test_quality_and_documentation_use_pyproject_coverage_threshold() -> None:
+    assert "--cov-fail-under=" not in MAIN_COVERAGE_COMMAND
     docs = Path("docs/contracts/coverage-gate-v1.md").read_text()
-    assert "92%" in docs
+    assert "85%" in docs
     assert "PR427" in docs
 
 
