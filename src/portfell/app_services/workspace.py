@@ -594,7 +594,8 @@ class WorkspaceApplicationService:
                             **date_summary,
                         },
                     ),
-                ]
+                ],
+                max_workers=cpus,
             )
             self._put_artifact(
                 run.run_id,
@@ -777,7 +778,8 @@ class WorkspaceApplicationService:
                             "unavailable_count": max(0, pair_total - len(computed.rows)),
                         },
                     )
-                ]
+                ],
+                max_workers=cpus,
             )
             if job_id is not None:
                 self._state.update_job_progress(
@@ -935,7 +937,7 @@ class WorkspaceApplicationService:
                     checkpoint=checkpoint,
                     save_checkpoint=save_checkpoint,
                 )
-            self._persist_multivariate(run.run_id, computation)
+            self._persist_multivariate(run.run_id, computation, max_workers=cpus)
             self._delete_multivariate_checkpoint(dataset_digest)
             if job_id is not None:
                 self._state.update_job_progress(
@@ -1630,12 +1632,22 @@ class WorkspaceApplicationService:
         )
         self._publish_row_backed_artifact_payload(payload)
 
-    def _put_row_backed_artifacts_parallel(self, payloads: Sequence[Mapping[str, object]]) -> None:
+    def _put_row_backed_artifacts_parallel(
+        self,
+        payloads: Sequence[Mapping[str, object]],
+        *,
+        max_workers: int | None = None,
+    ) -> None:
         publish_parallel = getattr(
             self._state, "publish_row_backed_analysis_artifacts_parallel", None
         )
         if callable(publish_parallel):
-            publish_parallel(payloads)
+            try:
+                publish_parallel(payloads, max_workers=max_workers)
+            except TypeError as error:
+                if "unexpected keyword argument 'max_workers'" not in str(error):
+                    raise
+                publish_parallel(payloads)
             return
         for payload in payloads:
             self._publish_row_backed_artifact_payload(payload)
@@ -1751,7 +1763,13 @@ class WorkspaceApplicationService:
         if callable(delete):
             delete(dataset_digest)
 
-    def _persist_multivariate(self, run_id: str, computation: MultivariateComputation) -> None:
+    def _persist_multivariate(
+        self,
+        run_id: str,
+        computation: MultivariateComputation,
+        *,
+        max_workers: int | None = None,
+    ) -> None:
         payloads: list[dict[str, object]] = []
         for artifact_type, document in sorted(computation.documents.items()):
             normalized = document if isinstance(document, dict) else {"items": document}
@@ -1771,7 +1789,12 @@ class WorkspaceApplicationService:
             )
         publish_parallel = getattr(self._state, "put_analysis_artifacts_parallel", None)
         if callable(publish_parallel):
-            publish_parallel(payloads)
+            try:
+                publish_parallel(payloads, max_workers=max_workers)
+            except TypeError as error:
+                if "unexpected keyword argument 'max_workers'" not in str(error):
+                    raise
+                publish_parallel(payloads)
         else:
             for payload in payloads:
                 self._state.put_analysis_artifact(

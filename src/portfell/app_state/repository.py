@@ -695,9 +695,17 @@ class PostgresAppStateRepository:
         return self._analysis_artifact(artifact_id)
 
     def put_analysis_artifacts_parallel(
-        self, artifacts: Sequence[Mapping[str, object]]
+        self,
+        artifacts: Sequence[Mapping[str, object]],
+        *,
+        max_workers: int | None = None,
     ) -> tuple[AnalysisArtifactRecord, ...]:
-        """Persist independent compact artifacts on separate connections."""
+        """Persist independent compact artifacts on separate connections.
+
+        ``max_workers`` is supplied by the analysis CPU budget.  The number
+        of independent artifacts remains the hard upper bound: PostgreSQL
+        connections are never created for work that cannot run concurrently.
+        """
         factory = self._connection_factory
         if factory is None:
             raise AppStateError(APP_STATE_PERSISTENCE_FAILED)
@@ -718,7 +726,9 @@ class PostgresAppStateRepository:
                 if callable(close):
                     close()
 
-        workers = min(8, len(artifacts))
+        if max_workers is not None and max_workers < 1:
+            raise AppStateError(APP_STATE_PERSISTENCE_FAILED)
+        workers = min(max_workers or 8, len(artifacts))
         if workers == 0:
             return ()
         with ThreadPoolExecutor(
@@ -811,6 +821,8 @@ class PostgresAppStateRepository:
     def publish_row_backed_analysis_artifacts_parallel(
         self,
         artifacts: Sequence[Mapping[str, object]],
+        *,
+        max_workers: int | None = None,
     ) -> tuple[AnalysisArtifactRecord, ...]:
         """Publish independent immutable artifacts concurrently.
 
@@ -822,6 +834,8 @@ class PostgresAppStateRepository:
         """
         factory = self._connection_factory
         if factory is None:
+            raise AppStateError(APP_STATE_PERSISTENCE_FAILED)
+        if max_workers is not None and max_workers < 1:
             raise AppStateError(APP_STATE_PERSISTENCE_FAILED)
 
         def publish(payload: Mapping[str, object]) -> AnalysisArtifactRecord:
@@ -841,7 +855,7 @@ class PostgresAppStateRepository:
                 if callable(close):
                     close()
 
-        workers = min(3, len(artifacts))
+        workers = min(max_workers or 3, len(artifacts))
         if workers == 0:
             return ()
         with ThreadPoolExecutor(
